@@ -1,0 +1,288 @@
+/**
+ * Portfolio — Photo Gallery & Before/After showcase.
+ *
+ * Solo beauticians live and die by their portfolio. This page lets Ellie
+ * upload treatment photos, tag them, and create before/after pairs that
+ * she can share to Instagram or embed on her booking page.
+ */
+import { useState } from 'react';
+import { isDevMode } from '../lib/supabase.js';
+
+// ── Dev mock data ─────────────────────────────────────────
+const DEV_PHOTOS = [
+  { id: 'p1', url: null, treatment: 'Lamination & Hybrid Dye', client: 'Shauna', date: '2026-03-18', type: 'after', tags: ['brows', 'lamination'], pair_id: 'pair1' },
+  { id: 'p2', url: null, treatment: 'Lamination & Hybrid Dye', client: 'Shauna', date: '2026-03-18', type: 'before', tags: ['brows', 'lamination'], pair_id: 'pair1' },
+  { id: 'p3', url: null, treatment: 'Ombre Brows (Semi-Permanent)', client: 'Daisy S', date: '2026-03-12', type: 'after', tags: ['brows', 'semi-permanent'], pair_id: 'pair2' },
+  { id: 'p4', url: null, treatment: 'Ombre Brows (Semi-Permanent)', client: 'Daisy S', date: '2026-03-12', type: 'before', tags: ['brows', 'semi-permanent'], pair_id: 'pair2' },
+  { id: 'p5', url: null, treatment: 'Lash Lift & Tint', client: 'Jasmin', date: '2026-03-08', type: 'after', tags: ['lashes', 'lift'], pair_id: 'pair3' },
+  { id: 'p6', url: null, treatment: 'Lash Lift & Tint', client: 'Jasmin', date: '2026-03-08', type: 'before', tags: ['lashes', 'lift'], pair_id: 'pair3' },
+  { id: 'p7', url: null, treatment: 'HD Brows', client: 'Shauna', date: '2026-02-28', type: 'single', tags: ['brows', 'hd'], pair_id: null },
+  { id: 'p8', url: null, treatment: 'Combination Brows (Semi-Permanent)', client: 'Daisy S', date: '2026-02-20', type: 'after', tags: ['brows', 'semi-permanent'], pair_id: 'pair4' },
+  { id: 'p9', url: null, treatment: 'Combination Brows (Semi-Permanent)', client: 'Daisy S', date: '2026-02-20', type: 'before', tags: ['brows', 'semi-permanent'], pair_id: 'pair4' },
+  { id: 'p10', url: null, treatment: 'Lamination Maintenance / Tint', client: 'Jasmin', date: '2026-02-14', type: 'single', tags: ['brows', 'maintenance'], pair_id: null },
+];
+
+const FILTER_TAGS = ['All', 'Brows', 'Lashes', 'Semi-permanent'];
+const PLACEHOLDER_COLOURS = ['#E8D5C4', '#D4C4B0', '#C4B5A0', '#B8A898', '#CDB4A0', '#D8C8B8', '#E0D0C0', '#C8B8A8', '#D0C0B0', '#DDD0C4'];
+
+export default function Portfolio({ token }) {
+  const [tab, setTab] = useState('gallery');
+  const [filter, setFilter] = useState('All');
+  const [showUpload, setShowUpload] = useState(false);
+  const [selectedPair, setSelectedPair] = useState(null);
+  const [uploadForm, setUploadForm] = useState({ treatment: '', client: '', type: 'after', tags: [] });
+
+  const photos = DEV_PHOTOS;
+
+  // Group into pairs and singles
+  const pairs = {};
+  const singles = [];
+  photos.forEach(p => {
+    if (p.pair_id) {
+      if (!pairs[p.pair_id]) pairs[p.pair_id] = {};
+      pairs[p.pair_id][p.type] = p;
+    } else {
+      singles.push(p);
+    }
+  });
+
+  const pairList = Object.values(pairs);
+
+  // Filter
+  const filterPhotos = (list) => {
+    if (filter === 'All') return list;
+    const tag = filter.toLowerCase();
+    return list.filter(p => p.tags?.includes(tag));
+  };
+
+  const filterPairs = (pList) => {
+    if (filter === 'All') return pList;
+    const tag = filter.toLowerCase();
+    return pList.filter(pair => {
+      const p = pair.after || pair.before;
+      return p?.tags?.includes(tag);
+    });
+  };
+
+  const filteredPairs = filterPairs(pairList);
+  const filteredSingles = filterPhotos(singles);
+
+  const stats = {
+    total: photos.length,
+    pairs: pairList.length,
+    treatments: [...new Set(photos.map(p => p.treatment))].length,
+  };
+
+  return (
+    <div style={S.page}>
+      <div style={S.header}>
+        <h1 style={S.title}>Portfolio</h1>
+        <button style={S.uploadBtn} onClick={() => setShowUpload(true)}>+ Add Photo</button>
+      </div>
+
+      {/* Stats */}
+      <div style={S.statsRow}>
+        {[
+          { label: 'Photos', value: stats.total, colour: '#C76B8A' },
+          { label: 'Before/After', value: stats.pairs, colour: '#8B6F5E' },
+          { label: 'Treatments', value: stats.treatments, colour: '#6B8F7B' },
+        ].map(s => (
+          <div key={s.label} style={S.statCard}>
+            <span style={{ ...S.statValue, color: s.colour }}>{s.value}</span>
+            <span style={S.statLabel}>{s.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabs */}
+      <div style={S.tabs}>
+        {['gallery', 'before-after'].map(t => (
+          <button key={t} onClick={() => setTab(t)} style={{ ...S.tab, ...(tab === t ? S.tabActive : {}) }}>
+            {t === 'gallery' ? 'Gallery' : 'Before / After'}
+          </button>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div style={S.filters}>
+        {FILTER_TAGS.map(f => (
+          <button key={f} onClick={() => setFilter(f)} style={{ ...S.filterChip, ...(filter === f ? S.filterActive : {}) }}>
+            {f}
+          </button>
+        ))}
+      </div>
+
+      {/* Gallery tab */}
+      {tab === 'gallery' && (
+        <div style={S.grid}>
+          {filterPhotos(photos).map((p, i) => (
+            <div key={p.id} style={S.gridItem}>
+              <div style={{ ...S.photoPlaceholder, background: PLACEHOLDER_COLOURS[i % PLACEHOLDER_COLOURS.length] }}>
+                <span style={S.placeholderIcon}>📷</span>
+              </div>
+              <div style={S.photoMeta}>
+                <span style={S.photoTreatment}>{p.treatment}</span>
+                <span style={S.photoClient}>{p.client}</span>
+              </div>
+              {p.type !== 'single' && (
+                <span style={{ ...S.typeBadge, background: p.type === 'before' ? '#F0ECE8' : '#F0E6ED', color: p.type === 'before' ? '#8B6F5E' : '#C76B8A' }}>
+                  {p.type}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Before/After tab */}
+      {tab === 'before-after' && (
+        <div style={S.pairsContainer}>
+          {filteredPairs.length === 0 && <p style={S.empty}>No before/after pairs for this filter.</p>}
+          {filteredPairs.map((pair, i) => {
+            const after = pair.after || {};
+            return (
+              <div key={i} style={S.pairCard} onClick={() => setSelectedPair(selectedPair === i ? null : i)}>
+                <div style={S.pairHeader}>
+                  <span style={S.pairTreatment}>{after.treatment}</span>
+                  <span style={S.pairDate}>{after.date}</span>
+                </div>
+                <div style={S.pairPhotos}>
+                  <div style={S.pairSide}>
+                    <div style={{ ...S.pairPhoto, background: PLACEHOLDER_COLOURS[i * 2] }}>
+                      <span style={S.placeholderIcon}>📷</span>
+                    </div>
+                    <span style={S.pairLabel}>Before</span>
+                  </div>
+                  <div style={S.arrowContainer}>
+                    <span style={S.arrow}>→</span>
+                  </div>
+                  <div style={S.pairSide}>
+                    <div style={{ ...S.pairPhoto, background: PLACEHOLDER_COLOURS[i * 2 + 1] }}>
+                      <span style={S.placeholderIcon}>📷</span>
+                    </div>
+                    <span style={S.pairLabel}>After</span>
+                  </div>
+                </div>
+                <div style={S.pairClient}>{after.client}</div>
+
+                {/* Expanded: share buttons */}
+                {selectedPair === i && (
+                  <div style={S.shareRow}>
+                    {['Instagram', 'WhatsApp', 'Copy Link'].map(ch => (
+                      <button key={ch} style={S.shareBtn}>{ch}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Upload modal */}
+      {showUpload && (
+        <div style={S.overlay} onClick={() => setShowUpload(false)}>
+          <div style={S.modal} onClick={e => e.stopPropagation()}>
+            <h2 style={S.modalTitle}>Add Photo</h2>
+
+            {/* Upload zone */}
+            <div style={S.uploadZone}>
+              <span style={{ fontSize: 32 }}>📸</span>
+              <span style={S.uploadText}>Tap to select photo</span>
+              <span style={S.uploadHint}>From camera roll or gallery</span>
+            </div>
+
+            {/* Photo type */}
+            <div style={S.fieldLabel}>Photo Type</div>
+            <div style={S.typeRow}>
+              {['before', 'after', 'single'].map(t => (
+                <button key={t} onClick={() => setUploadForm(f => ({ ...f, type: t }))} style={{ ...S.typeBtn, ...(uploadForm.type === t ? S.typeBtnActive : {}) }}>
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              ))}
+            </div>
+
+            {/* Treatment */}
+            <div style={S.fieldLabel}>Treatment</div>
+            <select style={S.select} value={uploadForm.treatment} onChange={e => setUploadForm(f => ({ ...f, treatment: e.target.value }))}>
+              <option value="">Select treatment</option>
+              <option value="Lamination & Hybrid Dye">Lamination & Hybrid Dye</option>
+              <option value="HD Brows">HD Brows</option>
+              <option value="Lash Lift & Tint">Lash Lift & Tint</option>
+              <option value="Ombre Brows (Semi-Permanent)">Ombre Brows</option>
+            </select>
+
+            {/* Client */}
+            <div style={S.fieldLabel}>Client (optional)</div>
+            <input style={S.input} placeholder="Client name" value={uploadForm.client} onChange={e => setUploadForm(f => ({ ...f, client: e.target.value }))} />
+
+            <button style={S.saveBtn} onClick={() => setShowUpload(false)}>Save Photo</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const S = {
+  page: { padding: '20px 16px 32px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },
+  uploadBtn: { background: '#C76B8A', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+
+  statsRow: { display: 'flex', gap: 10, marginBottom: 16 },
+  statCard: { flex: 1, background: 'var(--card, #fff)', borderRadius: 12, padding: '12px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
+  statValue: { fontSize: 20, fontWeight: 700 },
+  statLabel: { fontSize: 11, color: '#AAA5A0' },
+
+  tabs: { display: 'flex', gap: 8, marginBottom: 12 },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: '#AAA5A0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive: { background: '#C76B8A', color: '#fff' },
+
+  filters: { display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto' },
+  filterChip: { padding: '6px 14px', borderRadius: 16, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', color: '#8B6F5E', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  filterActive: { background: '#2D2A26', color: '#fff', border: '1px solid #2D2A26' },
+
+  // Gallery grid
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 },
+  gridItem: { position: 'relative', borderRadius: 12, overflow: 'hidden', background: 'var(--card, #fff)' },
+  photoPlaceholder: { aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px 12px 0 0' },
+  placeholderIcon: { fontSize: 28, opacity: 0.5 },
+  photoMeta: { padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 2 },
+  photoTreatment: { fontSize: 12, fontWeight: 600, color: 'var(--text, #2D2A26)' },
+  photoClient: { fontSize: 11, color: '#AAA5A0' },
+  typeBadge: { position: 'absolute', top: 8, right: 8, padding: '3px 8px', borderRadius: 8, fontSize: 10, fontWeight: 600, textTransform: 'uppercase' },
+
+  // Before/After pairs
+  pairsContainer: { display: 'flex', flexDirection: 'column', gap: 12 },
+  pairCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 14, cursor: 'pointer' },
+  pairHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: 10 },
+  pairTreatment: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
+  pairDate: { fontSize: 12, color: '#AAA5A0' },
+  pairPhotos: { display: 'flex', alignItems: 'center', gap: 8 },
+  pairSide: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 },
+  pairPhoto: { width: '100%', aspectRatio: '1', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  pairLabel: { fontSize: 11, fontWeight: 600, color: '#AAA5A0', textTransform: 'uppercase', letterSpacing: '0.05em' },
+  arrowContainer: { padding: '0 4px' },
+  arrow: { fontSize: 20, color: '#C76B8A' },
+  pairClient: { fontSize: 12, color: '#AAA5A0', marginTop: 8 },
+  shareRow: { display: 'flex', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px solid #F0ECE8' },
+  shareBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: '#2D2A26' },
+
+  empty: { textAlign: 'center', color: '#AAA5A0', fontSize: 14, padding: 32 },
+
+  // Upload modal
+  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
+  modal: { background: '#fff', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480 },
+  modalTitle: { fontSize: 18, fontWeight: 700, color: '#2D2A26', margin: '0 0 16px' },
+  uploadZone: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: 32, border: '2px dashed #E0DCD8', borderRadius: 12, marginBottom: 16, cursor: 'pointer' },
+  uploadText: { fontSize: 14, fontWeight: 600, color: '#2D2A26' },
+  uploadHint: { fontSize: 12, color: '#AAA5A0' },
+  fieldLabel: { fontSize: 12, fontWeight: 600, color: '#8B6F5E', marginBottom: 6, marginTop: 12 },
+  typeRow: { display: 'flex', gap: 8 },
+  typeBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid #F0ECE8', background: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: '#2D2A26' },
+  typeBtnActive: { background: '#C76B8A', color: '#fff', border: '1px solid #C76B8A' },
+  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: '#2D2A26', background: '#fff', outline: 'none' },
+  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: '#2D2A26', outline: 'none', boxSizing: 'border-box' },
+  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
+};

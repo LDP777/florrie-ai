@@ -1,0 +1,523 @@
+import { useState, useEffect } from 'react';
+import { useBeautician, isDevMode, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
+
+/**
+ * Smart Schedule — Gap Finder & Fill Assistant.
+ *
+ * Scans the calendar for empty slots and suggests:
+ *   1. Clients who are due for a rebook
+ *   2. Waitlist matches for the gap
+ *   3. One-tap message to offer the slot
+ *
+ * Three views:
+ *   Gaps     — this week's empty slots ranked by fillability
+ *   Suggest  — AI-powered fill suggestions per gap
+ *   Insights — schedule utilisation stats
+ */
+
+// Generate mock gaps for this week
+function generateDevGaps() {
+  const gaps = [];
+  const now = new Date();
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const workingDays = { 1: { s: '11:00', e: '15:00' }, 2: { s: '11:00', e: '19:00' }, 3: { s: '11:00', e: '18:00' }, 4: { s: '11:00', e: '19:00' }, 5: { s: '10:00', e: '17:00' } };
+
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(now);
+    date.setDate(now.getDate() + i);
+    const dow = date.getDay();
+    if (!workingDays[dow]) continue;
+
+    const dateStr = date.toISOString().split('T')[0];
+    const dayLabel = dayNames[dow];
+    const dayFull = date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+
+    // Simulate some gaps
+    if (i === 0) {
+      gaps.push({ id: `gap-${i}-1`, date: dateStr, dayLabel: dayFull, start: '14:00', end: '15:00', duration_minutes: 60, fillability: 'high', suggestions: 2 });
+    }
+    if (i === 1) {
+      gaps.push({ id: `gap-${i}-1`, date: dateStr, dayLabel: dayFull, start: '11:00', end: '13:00', duration_minutes: 120, fillability: 'medium', suggestions: 3 });
+      gaps.push({ id: `gap-${i}-2`, date: dateStr, dayLabel: dayFull, start: '17:00', end: '19:00', duration_minutes: 120, fillability: 'low', suggestions: 1 });
+    }
+    if (i === 2) {
+      gaps.push({ id: `gap-${i}-1`, date: dateStr, dayLabel: dayFull, start: '15:00', end: '18:00', duration_minutes: 180, fillability: 'high', suggestions: 4 });
+    }
+    if (i === 3) {
+      gaps.push({ id: `gap-${i}-1`, date: dateStr, dayLabel: dayFull, start: '11:00', end: '12:00', duration_minutes: 60, fillability: 'medium', suggestions: 2 });
+    }
+  }
+  return gaps;
+}
+
+const DEV_SUGGESTIONS = {
+  rebook_due: [
+    { client: DEV_CLIENTS[0], treatment: DEV_TREATMENTS[0], days_overdue: 5, reason: 'Lamination due — last visit 15 days ago, usually rebooks every 10 days' },
+    { client: DEV_CLIENTS[1], treatment: DEV_TREATMENTS[1], days_overdue: 12, reason: 'Overdue for tint maintenance — normally comes every 3 weeks' },
+  ],
+  waitlist_match: [
+    { client: { first_name: 'Megan', last_name: 'R' }, preferred_day: 'Tuesday', preferred_time: 'morning', treatment: DEV_TREATMENTS[2] },
+  ],
+  dormant_rescue: [
+    { client: DEV_CLIENTS[2], last_visit_days: 38, treatment: DEV_TREATMENTS[4], reason: "Hasn't been in 5+ weeks — send a 'miss you' offer?" },
+  ],
+};
+
+const FILLABILITY = {
+  high: { label: 'Easy fill', color: '#4CAF50', bg: '#E8F5E9' },
+  medium: { label: 'Possible', color: '#FF9800', bg: '#FFF3E0' },
+  low: { label: 'Tough', color: '#E57373', bg: '#FEF2F2' },
+};
+
+export default function SmartSchedule() {
+  const { beautician } = useBeautician();
+  const [gaps, setGaps] = useState([]);
+  const [tab, setTab] = useState('gaps');
+  const [loading, setLoading] = useState(true);
+  const [selectedGap, setSelectedGap] = useState(null);
+  const [messageSent, setMessageSent] = useState({});
+
+  useEffect(() => {
+    loadData();
+  }, [beautician]);
+
+  async function loadData() {
+    setLoading(true);
+    if (isDevMode) {
+      setGaps(generateDevGaps());
+      setLoading(false);
+      return;
+    }
+    // Production: fetch appointments for this week, compute gaps from working hours
+    setLoading(false);
+  }
+
+  function handleSendOffer(clientName, gapId) {
+    setMessageSent(prev => ({ ...prev, [`${clientName}-${gapId}`]: true }));
+  }
+
+  // Utilisation stats
+  const totalWorkMinutes = 5 * 8 * 60; // rough: 5 days × 8 hours
+  const totalGapMinutes = gaps.reduce((sum, g) => sum + g.duration_minutes, 0);
+  const utilisation = totalWorkMinutes > 0 ? Math.round(((totalWorkMinutes - totalGapMinutes) / totalWorkMinutes) * 100) : 100;
+  const bookedHours = Math.round((totalWorkMinutes - totalGapMinutes) / 60);
+  const gapHours = (totalGapMinutes / 60).toFixed(1);
+
+  return (
+    <div style={styles.page}>
+      <div style={styles.header}>
+        <div>
+          <h1 style={styles.title}>Smart Schedule</h1>
+          <p style={styles.subtitle}>Fill gaps, maximise your week</p>
+        </div>
+      </div>
+
+      {/* Utilisation bar */}
+      <div style={styles.utilisationCard}>
+        <div style={styles.utilisationHeader}>
+          <span style={styles.utilisationLabel}>This week</span>
+          <span style={styles.utilisationPct}>{utilisation}% booked</span>
+        </div>
+        <div style={styles.utilisationBar}>
+          <div style={{ ...styles.utilisationFill, width: `${utilisation}%` }} />
+        </div>
+        <div style={styles.utilisationStats}>
+          <span style={styles.utilisationStat}>{bookedHours}h booked</span>
+          <span style={styles.utilisationStat}>{gapHours}h open</span>
+          <span style={styles.utilisationStat}>{gaps.length} gaps</span>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={styles.tabs}>
+        {['gaps', 'suggestions', 'insights'].map(t => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            style={{
+              ...styles.tab,
+              borderBottomColor: tab === t ? '#C76B8A' : 'transparent',
+              color: tab === t ? '#C76B8A' : '#AAA5A0',
+            }}
+          >
+            {t === 'gaps' ? 'Gaps' : t === 'suggestions' ? 'Fill Ideas' : 'Insights'}
+          </button>
+        ))}
+      </div>
+
+      {/* === GAPS TAB === */}
+      {tab === 'gaps' && (
+        <div>
+          {loading ? (
+            <p style={styles.loadingText}>Scanning your schedule...</p>
+          ) : gaps.length === 0 ? (
+            <div style={styles.emptyState}>
+              <span style={{ fontSize: 32, display: 'block', marginBottom: 8 }}>🎉</span>
+              <p style={styles.emptyTitle}>Fully booked!</p>
+              <p style={styles.emptyDesc}>No gaps this week. You're crushing it.</p>
+            </div>
+          ) : (
+            <div style={styles.gapList}>
+              {gaps.map(gap => {
+                const fill = FILLABILITY[gap.fillability];
+                return (
+                  <div key={gap.id} style={styles.gapCard} onClick={() => setSelectedGap(selectedGap?.id === gap.id ? null : gap)}>
+                    <div style={styles.gapHeader}>
+                      <div style={styles.gapTime}>
+                        <span style={styles.gapDay}>{gap.dayLabel}</span>
+                        <span style={styles.gapSlot}>{gap.start} — {gap.end}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={styles.gapDuration}>{gap.duration_minutes}min</span>
+                        <span style={{ ...styles.fillBadge, background: fill.bg, color: fill.color }}>
+                          {fill.label}
+                        </span>
+                      </div>
+                    </div>
+
+                    {gap.suggestions > 0 && (
+                      <span style={styles.gapSuggestHint}>
+                        {gap.suggestions} client{gap.suggestions > 1 ? 's' : ''} could fill this
+                      </span>
+                    )}
+
+                    {/* Expanded suggestions */}
+                    {selectedGap?.id === gap.id && (
+                      <div style={styles.gapExpanded}>
+                        {/* Rebook due */}
+                        {DEV_SUGGESTIONS.rebook_due.slice(0, gap.fillability === 'high' ? 2 : 1).map((s, i) => (
+                          <div key={`rb-${i}`} style={styles.suggestionCard}>
+                            <div style={styles.suggestionTop}>
+                              <div style={styles.suggAvatar}>{s.client.first_name[0]}</div>
+                              <div style={styles.suggInfo}>
+                                <span style={styles.suggName}>{s.client.first_name}</span>
+                                <span style={styles.suggReason}>{s.reason}</span>
+                              </div>
+                            </div>
+                            <div style={styles.suggTreatment}>
+                              <span style={styles.suggTreatLabel}>{s.treatment.name}</span>
+                              <span style={styles.suggTreatDur}>{s.treatment.duration_minutes}min · £{(s.treatment.price_cents / 100).toFixed(2)}</span>
+                            </div>
+                            {messageSent[`${s.client.first_name}-${gap.id}`] ? (
+                              <span style={styles.sentBadge}>Sent ✓</span>
+                            ) : (
+                              <button
+                                onClick={e => { e.stopPropagation(); handleSendOffer(s.client.first_name, gap.id); }}
+                                style={styles.offerBtn}
+                              >
+                                Offer this slot
+                              </button>
+                            )}
+                          </div>
+                        ))}
+
+                        {/* Waitlist match */}
+                        {DEV_SUGGESTIONS.waitlist_match.length > 0 && gap.fillability !== 'low' && (
+                          <div style={styles.suggestionCard}>
+                            <div style={styles.suggestionTop}>
+                              <div style={{ ...styles.suggAvatar, background: '#E3F2FD' }}>
+                                <span style={{ color: '#1976D2' }}>{DEV_SUGGESTIONS.waitlist_match[0].client.first_name[0]}</span>
+                              </div>
+                              <div style={styles.suggInfo}>
+                                <span style={styles.suggName}>{DEV_SUGGESTIONS.waitlist_match[0].client.first_name} {DEV_SUGGESTIONS.waitlist_match[0].client.last_name}</span>
+                                <span style={styles.suggReason}>On waitlist — wants {DEV_SUGGESTIONS.waitlist_match[0].preferred_day} {DEV_SUGGESTIONS.waitlist_match[0].preferred_time}</span>
+                              </div>
+                            </div>
+                            {messageSent[`waitlist-${gap.id}`] ? (
+                              <span style={styles.sentBadge}>Sent ✓</span>
+                            ) : (
+                              <button
+                                onClick={e => { e.stopPropagation(); handleSendOffer('waitlist', gap.id); }}
+                                style={styles.offerBtn}
+                              >
+                                Offer this slot
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* === SUGGESTIONS TAB === */}
+      {tab === 'suggestions' && (
+        <div>
+          <div style={styles.suggSection}>
+            <h3 style={styles.suggSectionTitle}>🔄 Rebook due</h3>
+            <p style={styles.suggSectionDesc}>Clients overdue for their regular appointment</p>
+            {DEV_SUGGESTIONS.rebook_due.map((s, i) => (
+              <div key={`rb-${i}`} style={styles.suggFullCard}>
+                <div style={styles.suggestionTop}>
+                  <div style={styles.suggAvatar}>{s.client.first_name[0]}</div>
+                  <div style={styles.suggInfo}>
+                    <span style={styles.suggName}>{s.client.first_name}</span>
+                    <span style={styles.suggDetail}>{s.treatment.name}</span>
+                  </div>
+                  <span style={styles.overdueBadge}>{s.days_overdue}d overdue</span>
+                </div>
+                <p style={styles.suggReasonText}>{s.reason}</p>
+                <button
+                  onClick={() => handleSendOffer(s.client.first_name, 'sugg')}
+                  style={styles.offerBtn}
+                >
+                  {messageSent[`${s.client.first_name}-sugg`] ? 'Sent ✓' : 'Send rebook nudge'}
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div style={styles.suggSection}>
+            <h3 style={styles.suggSectionTitle}>💤 Dormant rescue</h3>
+            <p style={styles.suggSectionDesc}>Clients going cold — win them back</p>
+            {DEV_SUGGESTIONS.dormant_rescue.map((s, i) => (
+              <div key={`dr-${i}`} style={styles.suggFullCard}>
+                <div style={styles.suggestionTop}>
+                  <div style={{ ...styles.suggAvatar, background: '#FFF3E0' }}>
+                    <span style={{ color: '#E65100' }}>{s.client.first_name[0]}</span>
+                  </div>
+                  <div style={styles.suggInfo}>
+                    <span style={styles.suggName}>{s.client.first_name}</span>
+                    <span style={styles.suggDetail}>{s.treatment.name}</span>
+                  </div>
+                  <span style={{ ...styles.overdueBadge, background: '#FFF3E0', color: '#E65100' }}>{s.last_visit_days}d ago</span>
+                </div>
+                <p style={styles.suggReasonText}>{s.reason}</p>
+                <button
+                  onClick={() => handleSendOffer(s.client.first_name, 'dormant')}
+                  style={styles.offerBtn}
+                >
+                  {messageSent[`${s.client.first_name}-dormant`] ? 'Sent ✓' : 'Send rescue offer'}
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div style={styles.suggSection}>
+            <h3 style={styles.suggSectionTitle}>📋 Waitlist ready</h3>
+            <p style={styles.suggSectionDesc}>Clients waiting for a slot that matches</p>
+            {DEV_SUGGESTIONS.waitlist_match.map((s, i) => (
+              <div key={`wl-${i}`} style={styles.suggFullCard}>
+                <div style={styles.suggestionTop}>
+                  <div style={{ ...styles.suggAvatar, background: '#E3F2FD' }}>
+                    <span style={{ color: '#1976D2' }}>{s.client.first_name[0]}</span>
+                  </div>
+                  <div style={styles.suggInfo}>
+                    <span style={styles.suggName}>{s.client.first_name} {s.client.last_name}</span>
+                    <span style={styles.suggDetail}>Wants {s.preferred_day} {s.preferred_time}</span>
+                  </div>
+                </div>
+                <p style={styles.suggReasonText}>{s.treatment.name} — {s.treatment.duration_minutes}min</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* === INSIGHTS TAB === */}
+      {tab === 'insights' && (
+        <div>
+          <div style={styles.insightGrid}>
+            <div style={styles.insightCard}>
+              <span style={styles.insightNum}>{utilisation}%</span>
+              <span style={styles.insightLabel}>Utilisation</span>
+            </div>
+            <div style={styles.insightCard}>
+              <span style={styles.insightNum}>{gaps.length}</span>
+              <span style={styles.insightLabel}>Open gaps</span>
+            </div>
+            <div style={styles.insightCard}>
+              <span style={styles.insightNum}>{gapHours}h</span>
+              <span style={styles.insightLabel}>Empty hours</span>
+            </div>
+            <div style={styles.insightCard}>
+              <span style={styles.insightNum}>£{Math.round(totalGapMinutes / 60 * 35)}</span>
+              <span style={styles.insightLabel}>Revenue at risk</span>
+            </div>
+          </div>
+
+          <div style={styles.insightSection}>
+            <h3 style={styles.insightSectionTitle}>Busiest days</h3>
+            {['Tuesday', 'Thursday', 'Wednesday', 'Friday', 'Monday'].map((day, i) => {
+              const pct = [95, 88, 82, 75, 60][i];
+              return (
+                <div key={day} style={styles.dayRow}>
+                  <span style={styles.dayName}>{day}</span>
+                  <div style={styles.dayBar}>
+                    <div style={{ ...styles.dayBarFill, width: `${pct}%`, background: pct > 85 ? '#4CAF50' : pct > 70 ? '#FF9800' : '#E57373' }} />
+                  </div>
+                  <span style={styles.dayPct}>{pct}%</span>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={styles.insightSection}>
+            <h3 style={styles.insightSectionTitle}>Hardest slots to fill</h3>
+            <div style={styles.hardSlotList}>
+              {['Mon 11-12', 'Fri 15-17', 'Tue 17-19'].map((slot, i) => (
+                <div key={slot} style={styles.hardSlot}>
+                  <span style={styles.hardSlotText}>{slot}</span>
+                  <span style={styles.hardSlotNote}>{['Often empty 3 weeks running', 'End of day — clients prefer mornings', 'Late Tue harder to fill'][i]}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={styles.tipCard}>
+            <span style={{ fontSize: 16, marginRight: 8 }}>💡</span>
+            <div>
+              <span style={styles.tipTitle}>Florrie's suggestion</span>
+              <span style={styles.tipText}>Your Monday mornings are consistently quiet. Consider offering a 10% "Monday morning" discount or moving your start time to 12pm to free up your morning.</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const styles = {
+  page: {
+    minHeight: '100vh', background: '#FAF8F5',
+    fontFamily: '"DM Sans", -apple-system, sans-serif',
+    padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: '#2D2A26',
+  },
+  header: { paddingTop: 28, paddingBottom: 8 },
+  title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
+  subtitle: { fontSize: 13, color: '#C76B8A', margin: 0, fontWeight: 500 },
+
+  // Utilisation
+  utilisationCard: {
+    background: '#fff', borderRadius: 14, padding: 16,
+    boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 16,
+  },
+  utilisationHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  utilisationLabel: { fontSize: 12, color: '#AAA5A0', textTransform: 'uppercase', letterSpacing: '0.04em' },
+  utilisationPct: { fontSize: 14, fontWeight: 700, color: '#2D2A26' },
+  utilisationBar: {
+    height: 8, borderRadius: 4, background: '#F0ECE8', overflow: 'hidden', marginBottom: 8,
+  },
+  utilisationFill: {
+    height: '100%', borderRadius: 4,
+    background: 'linear-gradient(90deg, #C76B8A, #E8A0B5)',
+    transition: 'width 0.6s ease',
+  },
+  utilisationStats: { display: 'flex', justifyContent: 'space-between' },
+  utilisationStat: { fontSize: 11, color: '#AAA5A0' },
+
+  tabs: { display: 'flex', gap: 16, borderBottom: '1px solid #F0ECE8', marginBottom: 16 },
+  tab: {
+    padding: '10px 0', background: 'none', border: 'none',
+    borderBottom: '2px solid transparent', fontSize: 14, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'inherit',
+  },
+
+  // Gap cards
+  gapList: { display: 'flex', flexDirection: 'column', gap: 10 },
+  gapCard: {
+    background: '#fff', borderRadius: 14, padding: 14,
+    boxShadow: '0 1px 3px rgba(0,0,0,0.04)', cursor: 'pointer',
+    transition: 'box-shadow 0.2s',
+  },
+  gapHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  gapTime: { display: 'flex', flexDirection: 'column', gap: 2 },
+  gapDay: { fontSize: 12, fontWeight: 600, color: '#C76B8A' },
+  gapSlot: { fontSize: 15, fontWeight: 700, color: '#2D2A26' },
+  gapDuration: { fontSize: 11, color: '#AAA5A0' },
+  fillBadge: {
+    padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+  },
+  gapSuggestHint: { fontSize: 12, color: '#8A8580', marginTop: 8, display: 'block' },
+
+  // Expanded gap suggestions
+  gapExpanded: {
+    marginTop: 12, paddingTop: 12, borderTop: '1px solid #F5F2EF',
+    display: 'flex', flexDirection: 'column', gap: 10,
+  },
+  suggestionCard: {
+    background: '#FAF8F5', borderRadius: 10, padding: 12,
+  },
+  suggestionTop: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 },
+  suggAvatar: {
+    width: 34, height: 34, borderRadius: 17, background: '#FBF0F3',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 14, fontWeight: 600, color: '#C76B8A', flexShrink: 0,
+  },
+  suggInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 1 },
+  suggName: { fontSize: 13, fontWeight: 600, color: '#2D2A26' },
+  suggReason: { fontSize: 11, color: '#8A8580', lineHeight: 1.3 },
+  suggDetail: { fontSize: 11, color: '#AAA5A0' },
+  suggTreatment: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    padding: '6px 0', marginBottom: 6,
+  },
+  suggTreatLabel: { fontSize: 12, fontWeight: 500, color: '#5A5550' },
+  suggTreatDur: { fontSize: 11, color: '#AAA5A0' },
+  offerBtn: {
+    width: '100%', padding: '8px 0', borderRadius: 8, border: 'none',
+    background: '#C76B8A', color: '#fff', fontSize: 12, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'inherit',
+  },
+  sentBadge: {
+    display: 'block', textAlign: 'center', padding: '8px 0',
+    fontSize: 12, fontWeight: 600, color: '#4CAF50',
+  },
+
+  // Full suggestion cards
+  suggSection: { marginBottom: 20 },
+  suggSectionTitle: { fontSize: 15, fontWeight: 600, margin: '0 0 2px', color: '#2D2A26' },
+  suggSectionDesc: { fontSize: 12, color: '#AAA5A0', margin: '0 0 12px' },
+  suggFullCard: {
+    background: '#fff', borderRadius: 14, padding: 14,
+    boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 10,
+  },
+  suggReasonText: { fontSize: 12, color: '#8A8580', margin: '8px 0', lineHeight: 1.4 },
+  overdueBadge: {
+    padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600,
+    background: '#FEF2F2', color: '#E57373', flexShrink: 0,
+  },
+
+  // Insights
+  insightGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 },
+  insightCard: {
+    background: '#fff', borderRadius: 14, padding: '16px 14px', textAlign: 'center',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+  },
+  insightNum: { display: 'block', fontSize: 22, fontWeight: 700, color: '#C76B8A' },
+  insightLabel: { display: 'block', fontSize: 11, color: '#AAA5A0', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 4 },
+
+  insightSection: {
+    background: '#fff', borderRadius: 14, padding: 16, marginBottom: 12,
+    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+  },
+  insightSectionTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: '#2D2A26' },
+  dayRow: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 },
+  dayName: { fontSize: 12, color: '#5A5550', width: 70, flexShrink: 0 },
+  dayBar: { flex: 1, height: 6, borderRadius: 3, background: '#F0ECE8', overflow: 'hidden' },
+  dayBarFill: { height: '100%', borderRadius: 3, transition: 'width 0.6s ease' },
+  dayPct: { fontSize: 11, fontWeight: 600, color: '#2D2A26', width: 30, textAlign: 'right' },
+
+  hardSlotList: { display: 'flex', flexDirection: 'column', gap: 8 },
+  hardSlot: { display: 'flex', flexDirection: 'column', gap: 2, padding: '8px 0', borderBottom: '1px solid #FAF8F5' },
+  hardSlotText: { fontSize: 13, fontWeight: 600, color: '#E57373' },
+  hardSlotNote: { fontSize: 11, color: '#AAA5A0' },
+
+  tipCard: {
+    display: 'flex', alignItems: 'flex-start', gap: 4,
+    background: '#FBF0F3', borderRadius: 14, padding: 14,
+  },
+  tipTitle: { display: 'block', fontSize: 12, fontWeight: 600, color: '#C76B8A', marginBottom: 4 },
+  tipText: { display: 'block', fontSize: 12, color: '#5A5550', lineHeight: 1.5 },
+
+  // Empty
+  loadingText: { textAlign: 'center', color: '#AAA5A0', padding: 40, fontSize: 14 },
+  emptyState: { textAlign: 'center', padding: '40px 20px' },
+  emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 4px', color: '#2D2A26' },
+  emptyDesc: { fontSize: 13, color: '#AAA5A0', margin: 0, lineHeight: 1.5 },
+};

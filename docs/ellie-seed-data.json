@@ -1,0 +1,116 @@
+{
+  "business_name": "Ellindigo Brows & Beauty",
+  "working_hours": {
+    "mon": { "start": "11:00", "end": "15:00" },
+    "tue": { "start": "11:00", "end": "19:00" },
+    "wed": { "start": "11:00", "end": "18:00" },
+    "thu": { "start": "11:00", "end": "19:00" },
+    "fri": { "start": "10:00", "end": "17:00" },
+    "sat": null,
+    "sun": null
+  },
+  "treatments": [
+    {
+      "category": "brows",
+      "name": "Lamination & Hybrid Dye",
+      "price_cents": 4500,
+      "duration_minutes": 60
+    },
+    {
+      "category": "brows",
+      "name": "Lamination & Tint",
+      "price_cents": 4000,
+      "duration_minutes": 60
+    },
+    {
+      "category": "brows",
+      "name": "Lamination Maintenance / Tint",
+      "price_cents": 2500,
+      "duration_minutes": 45
+    },
+    {
+      "category": "brows",
+      "name": "Lamination Maintenance / Hybrid Dye",
+      "price_cents": 3000,
+      "duration_minutes": 45
+    },
+    {
+      "category": "brows",
+      "name": "HD Brows",
+      "price_cents": 2500,
+      "duration_minutes": 45
+    },
+    {
+      "category": "brows",
+      "name": "Hybrid Brows",
+      "price_cents": 3000,
+      "duration_minutes": 45
+    },
+    {
+      "category": "brows",
+      "name": "Ombre Brows (Semi-Permanent)",
+      "price_cents": 25000,
+      "duration_minutes": 180,
+      "description": "Includes 6-week top up"
+    },
+    {
+      "category": "brows",
+      "name": "Combination Brows (Semi-Permanent)",
+      "price_cents": 30000,
+      "duration_minutes": 180,
+      "description": "Includes 6-week top up"
+    },
+    {
+      "category": "brows",
+      "name": "Colour Boost 3-6 Months",
+      "price_cents": 5000,
+      "duration_minutes": 120
+    },
+    {
+      "category": "brows",
+      "name": "Colour Boost 8 Months",
+      "price_cents": 8000,
+      "duration_minutes": 120
+    },
+    {
+      "category": "brows",
+      "name": "Colour Boost 12 Months",
+      "price_cents": 10000,
+      "duration_minutes": 120
+    },
+    {
+      "category": "brows",
+      "name": "Colour Boost 18 Months",
+      "price_cents": 15000,
+      "duration_minutes": 120
+    },
+    {
+      "category": "lashes",
+      "name": "Lash Lift & Tint",
+      "price_cents": 4000,
+      "duration_minutes": 60
+    },
+    {
+      "category": "other",
+      "name": "Lip Wax",
+      "price_cents": 600,
+      "duration_minutes": 10
+    },
+    {
+      "category": "brows",
+      "name": "Brow Jelly Mask",
+      "price_cents": 700,
+      "duration_minutes": 15
+    }
+  ],
+  "tone_model": {
+    "greeting_style": "Hey girl, / Hey lovely, / Morning girl,",
+    "sign_off_style": "xx / xxx",
+    "emoji_usage": "Light — one heart emoji max, at end of message",
+    "formality": "Very casual, warm, breezy",
+    "key_phrases": ["no worries", "yes please if you can", "I've moved this for you"],
+    "avoid": ["Hi there", "Hello", "Best regards", "Absolutely!", "I'd be happy to"],
+    "max_sentences": 2,
+    "corrections_count": 0
+  }
+}

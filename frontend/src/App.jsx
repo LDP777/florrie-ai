@@ -1,0 +1,526 @@
+import { useState, useEffect, lazy, Suspense } from 'react';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { supabase, isDevMode } from './lib/supabase.js';
+import { useTheme } from './lib/theme.jsx';
+import { useBeautician } from './lib/supabase.js';
+import QuickBook from './components/QuickBook.jsx';
+
+// Lazy-loaded pages (code splitting — each becomes its own chunk)
+const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
+const CalendarView = lazy(() => import('./pages/CalendarView.jsx'));
+const Escalations = lazy(() => import('./pages/Escalations.jsx'));
+const ContentAutopilot = lazy(() => import('./pages/ContentAutopilot.jsx'));
+const MoneyTracker = lazy(() => import('./pages/MoneyTracker.jsx'));
+const BookingPage = lazy(() => import('./pages/BookingPage.jsx'));
+const Onboarding = lazy(() => import('./pages/Onboarding.jsx'));
+const Login = lazy(() => import('./pages/Login.jsx'));
+const Clients = lazy(() => import('./pages/Clients.jsx'));
+const Treatments = lazy(() => import('./pages/Treatments.jsx'));
+const Settings = lazy(() => import('./pages/Settings.jsx'));
+const Team = lazy(() => import('./pages/Team.jsx'));
+const Analytics = lazy(() => import('./pages/Analytics.jsx'));
+const Waitlist = lazy(() => import('./pages/Waitlist.jsx'));
+const WeeklyDigest = lazy(() => import('./pages/WeeklyDigest.jsx'));
+const Campaigns = lazy(() => import('./pages/Campaigns.jsx'));
+const VoiceCommander = lazy(() => import('./pages/VoiceCommander.jsx'));
+const Reviews = lazy(() => import('./pages/Reviews.jsx'));
+const ClientImport = lazy(() => import('./pages/ClientImport.jsx'));
+const Loyalty = lazy(() => import('./pages/Loyalty.jsx'));
+const Aftercare = lazy(() => import('./pages/Aftercare.jsx'));
+const SmartSchedule = lazy(() => import('./pages/SmartSchedule.jsx'));
+const GiftVouchers = lazy(() => import('./pages/GiftVouchers.jsx'));
+const Notifications = lazy(() => import('./pages/Notifications.jsx'));
+const HoursExceptions = lazy(() => import('./pages/HoursExceptions.jsx'));
+const PatchTests = lazy(() => import('./pages/PatchTests.jsx'));
+const IntakeForms = lazy(() => import('./pages/IntakeForms.jsx'));
+const Reports = lazy(() => import('./pages/Reports.jsx'));
+const Policies = lazy(() => import('./pages/Policies.jsx'));
+const BusinessProfile = lazy(() => import('./pages/BusinessProfile.jsx'));
+const RebookReminders = lazy(() => import('./pages/RebookReminders.jsx'));
+const Inbox = lazy(() => import('./pages/Inbox.jsx'));
+const Packages = lazy(() => import('./pages/Packages.jsx'));
+const MessageTemplates = lazy(() => import('./pages/MessageTemplates.jsx'));
+const Referrals = lazy(() => import('./pages/Referrals.jsx'));
+const Portfolio = lazy(() => import('./pages/Portfolio.jsx'));
+const AppointmentNotes = lazy(() => import('./pages/AppointmentNotes.jsx'));
+const Feedback = lazy(() => import('./pages/Feedback.jsx'));
+const ExpensesPage = lazy(() => import('./pages/Expenses.jsx'));
+const Consultations = lazy(() => import('./pages/Consultations.jsx'));
+const FollowUpSequences = lazy(() => import('./pages/FollowUpSequences.jsx'));
+const PhotoConsent = lazy(() => import('./pages/PhotoConsent.jsx'));
+const WaitlistPro = lazy(() => import('./pages/WaitlistPro.jsx'));
+const ClientTimeline = lazy(() => import('./pages/ClientTimeline.jsx'));
+const StaffRota = lazy(() => import('./pages/StaffRota.jsx'));
+const DepositTracker = lazy(() => import('./pages/DepositTracker.jsx'));
+const AddOns = lazy(() => import('./pages/AddOns.jsx'));
+const CancellationLog = lazy(() => import('./pages/CancellationLog.jsx'));
+const ClientTags = lazy(() => import('./pages/ClientTags.jsx'));
+const PromoCodes = lazy(() => import('./pages/PromoCodes.jsx'));
+const DailyChecklist = lazy(() => import('./pages/DailyChecklist.jsx'));
+const ProductInventory = lazy(() => import('./pages/ProductInventory.jsx'));
+const RevenueGoals = lazy(() => import('./pages/RevenueGoals.jsx'));
+const PriceList = lazy(() => import('./pages/PriceList.jsx'));
+const TreatmentStats = lazy(() => import('./pages/TreatmentStats.jsx'));
+const StaffPerformance = lazy(() => import('./pages/StaffPerformance.jsx'));
+const SupplierOrders = lazy(() => import('./pages/SupplierOrders.jsx'));
+const ClientMemberships = lazy(() => import('./pages/ClientMemberships.jsx'));
+const CommsLog = lazy(() => import('./pages/CommsLog.jsx'));
+const EndOfDay = lazy(() => import('./pages/EndOfDay.jsx'));
+const AutomationRules = lazy(() => import('./pages/AutomationRules.jsx'));
+const WhatsAppConfig = lazy(() => import('./pages/WhatsAppConfig.jsx'));
+const ClientPortal = lazy(() => import('./pages/ClientPortal.jsx'));
+const AIInsights = lazy(() => import('./pages/AIInsights.jsx'));
+const ClientSegments = lazy(() => import('./pages/ClientSegments.jsx'));
+const ChurnPrevention = lazy(() => import('./pages/ChurnPrevention.jsx'));
+const DemandForecast = lazy(() => import('./pages/DemandForecast.jsx'));
+const MultiLocation = lazy(() => import('./pages/MultiLocation.jsx'));
+const Integrations = lazy(() => import('./pages/Integrations.jsx'));
+const SMSConfig = lazy(() => import('./pages/SMSConfig.jsx'));
+const APISettings = lazy(() => import('./pages/APISettings.jsx'));
+
+function PageLoader() {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '40vh' }}>
+      <span style={{ fontSize: 14, color: '#AAA5A0', fontFamily: '"DM Sans", sans-serif' }}>Loading...</span>
+    </div>
+  );
+}
+
+export default function App() {
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { beautician } = useBeautician();
+
+  useEffect(() => {
+    if (isDevMode) {
+      // Dev mode — no Supabase configured, use mock session
+      setSession({ access_token: 'dev-token' });
+      setLoading(false);
+      return;
+    }
+
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      setSession(s);
+      setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Check onboarding status when session is established and beautician data is available
+  useEffect(() => {
+    if (session && beautician) {
+      if (beautician.onboarded !== true) {
+        setNeedsOnboarding(true);
+      } else {
+        setNeedsOnboarding(false);
+      }
+    }
+  }, [session, beautician]);
+
+  const token = session?.access_token;
+  const isPublicRoute = location.pathname.startsWith('/book/');
+  const isAuthRoute = location.pathname === '/login';
+
+  if (loading) {
+    return (
+      <div style={styles.loadingScreen}>
+        <span style={styles.loadingLogo}>florrie</span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted, #B5AFA8)', fontFamily: "'DM Sans', sans-serif", letterSpacing: '0.08em', textTransform: 'uppercase' }}>your AI team</span>
+      </div>
+    );
+  }
+
+  // Public routes don't need auth
+  if (isPublicRoute) {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/book/:slug" element={<BookingPage />} />
+        </Routes>
+      </Suspense>
+    );
+  }
+
+  // Not logged in → login
+  if (!session) {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/login" element={<Login supabase={supabase} />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </Suspense>
+    );
+  }
+
+  // Needs onboarding
+  if (needsOnboarding) {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <Onboarding
+          token={token}
+          onComplete={() => {
+            setNeedsOnboarding(false);
+            navigate('/');
+          }}
+        />
+      </Suspense>
+    );
+  }
+
+  // Authenticated app
+  const showNav = !isAuthRoute && !location.pathname.startsWith('/onboarding');
+
+  return (
+    <div style={styles.appShell}>
+      <div style={styles.pageContainer}>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="/" element={<Dashboard token={token} />} />
+            <Route path="/calendar" element={<CalendarView token={token} />} />
+            <Route path="/escalations" element={<Escalations />} />
+            <Route path="/content" element={<ContentAutopilot />} />
+            <Route path="/money" element={<MoneyTracker />} />
+            <Route path="/clients" element={<Clients token={token} />} />
+            <Route path="/treatments" element={<Treatments token={token} />} />
+            <Route path="/settings" element={<Settings token={token} supabase={supabase} onLogout={async () => { if (supabase) await supabase.auth.signOut(); setSession(null); }} />} />
+            <Route path="/team" element={<Team token={token} />} />
+            <Route path="/analytics" element={<Analytics token={token} />} />
+            <Route path="/waitlist" element={<Waitlist token={token} />} />
+            <Route path="/digest" element={<WeeklyDigest token={token} />} />
+            <Route path="/campaigns" element={<Campaigns token={token} />} />
+            <Route path="/voice" element={<VoiceCommander token={token} />} />
+            <Route path="/reviews" element={<Reviews token={token} />} />
+            <Route path="/import" element={<ClientImport token={token} />} />
+            <Route path="/loyalty" element={<Loyalty token={token} />} />
+            <Route path="/aftercare" element={<Aftercare token={token} />} />
+            <Route path="/smart-schedule" element={<SmartSchedule token={token} />} />
+            <Route path="/vouchers" element={<GiftVouchers token={token} />} />
+            <Route path="/notifications" element={<Notifications token={token} />} />
+            <Route path="/hours" element={<HoursExceptions token={token} />} />
+            <Route path="/patch-tests" element={<PatchTests token={token} />} />
+            <Route path="/forms" element={<IntakeForms token={token} />} />
+            <Route path="/reports" element={<Reports token={token} />} />
+            <Route path="/policies" element={<Policies token={token} />} />
+            <Route path="/business" element={<BusinessProfile token={token} />} />
+            <Route path="/rebook" element={<RebookReminders token={token} />} />
+            <Route path="/inbox" element={<Inbox token={token} />} />
+            <Route path="/packages" element={<Packages token={token} />} />
+            <Route path="/templates" element={<MessageTemplates token={token} />} />
+            <Route path="/referrals" element={<Referrals token={token} />} />
+            <Route path="/portfolio" element={<Portfolio token={token} />} />
+            <Route path="/notes" element={<AppointmentNotes token={token} />} />
+            <Route path="/feedback" element={<Feedback token={token} />} />
+            <Route path="/expenses" element={<ExpensesPage token={token} />} />
+            <Route path="/consultations" element={<Consultations token={token} />} />
+            <Route path="/sequences" element={<FollowUpSequences token={token} />} />
+            <Route path="/photo-consent" element={<PhotoConsent token={token} />} />
+            <Route path="/waitlist-pro" element={<WaitlistPro token={token} />} />
+            <Route path="/client-timeline" element={<ClientTimeline token={token} />} />
+            <Route path="/rota" element={<StaffRota token={token} />} />
+            <Route path="/deposits" element={<DepositTracker token={token} />} />
+            <Route path="/addons" element={<AddOns token={token} />} />
+            <Route path="/cancellations" element={<CancellationLog token={token} />} />
+            <Route path="/tags" element={<ClientTags token={token} />} />
+            <Route path="/promos" element={<PromoCodes token={token} />} />
+            <Route path="/checklist" element={<DailyChecklist token={token} />} />
+            <Route path="/inventory" element={<ProductInventory token={token} />} />
+            <Route path="/goals" element={<RevenueGoals token={token} />} />
+            <Route path="/price-list" element={<PriceList token={token} />} />
+            <Route path="/treatment-stats" element={<TreatmentStats token={token} />} />
+            <Route path="/staff-performance" element={<StaffPerformance token={token} />} />
+            <Route path="/supplier-orders" element={<SupplierOrders token={token} />} />
+            <Route path="/memberships" element={<ClientMemberships token={token} />} />
+            <Route path="/comms" element={<CommsLog token={token} />} />
+            <Route path="/end-of-day" element={<EndOfDay token={token} />} />
+            <Route path="/automations" element={<AutomationRules token={token} />} />
+            <Route path="/whatsapp" element={<WhatsAppConfig token={token} />} />
+            <Route path="/portal" element={<ClientPortal token={token} />} />
+            <Route path="/ai-insights" element={<AIInsights token={token} />} />
+            <Route path="/segments" element={<ClientSegments token={token} />} />
+            <Route path="/churn" element={<ChurnPrevention token={token} />} />
+            <Route path="/demand" element={<DemandForecast token={token} />} />
+            <Route path="/locations" element={<MultiLocation token={token} />} />
+            <Route path="/integrations" element={<Integrations token={token} />} />
+            <Route path="/sms" element={<SMSConfig token={token} />} />
+            <Route path="/api-settings" element={<APISettings token={token} />} />
+            <Route path="/onboarding" element={
+              <Onboarding token={token} onComplete={() => navigate('/')} />
+            } />
+            <Route path="/login" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
+      </div>
+
+      {showNav && <QuickBook />}
+      {showNav && <BottomNav current={location.pathname} />}
+    </div>
+  );
+}
+
+/**
+ * Mobile bottom navigation — 5 tabs. "More" opens management screens.
+ */
+function BottomNav({ current }) {
+  const navigate = useNavigate();
+  const [showMore, setShowMore] = useState(false);
+
+  const morePaths = ['/money', '/analytics', '/clients', '/treatments', '/team', '/waitlist', '/digest', '/campaigns', '/reviews', '/loyalty', '/aftercare', '/import', '/smart-schedule', '/vouchers', '/notifications', '/hours', '/patch-tests', '/forms', '/reports', '/policies', '/business', '/rebook', '/inbox', '/packages', '/templates', '/referrals', '/portfolio', '/notes', '/feedback', '/expenses', '/consultations', '/sequences', '/photo-consent', '/waitlist-pro', '/client-timeline', '/rota', '/deposits', '/addons', '/cancellations', '/tags', '/promos', '/checklist', '/inventory', '/goals', '/price-list', '/treatment-stats', '/staff-performance', '/supplier-orders', '/memberships', '/comms', '/end-of-day', '/automations', '/whatsapp', '/portal', '/ai-insights', '/segments', '/churn', '/demand', '/locations', '/integrations', '/sms', '/api-settings', '/escalations', '/settings'];
+  const isMoreActive = morePaths.includes(current);
+
+  const tabs = [
+    { path: '/', label: 'Home', icon: '🏠' },
+    { path: '/calendar', label: 'Calendar', icon: '📅' },
+    { path: '/voice', label: 'Florrie', icon: '✨' },
+    { path: '/content', label: 'Content', icon: '📸' },
+    { path: 'more', label: 'More', icon: '⚙️' }
+  ];
+
+  const moreItems = [
+    { path: '/money', label: 'Money', icon: '💰' },
+    { path: '/analytics', label: 'Analytics', icon: '📊' },
+    { path: '/campaigns', label: 'Campaigns', icon: '💌' },
+    { path: '/reviews', label: 'Reviews', icon: '⭐' },
+    { path: '/digest', label: 'Weekly Digest', icon: '📬' },
+    { path: '/clients', label: 'Clients', icon: '👤' },
+    { path: '/treatments', label: 'Treatments', icon: '💅' },
+    { path: '/loyalty', label: 'Loyalty', icon: '🏆' },
+    { path: '/aftercare', label: 'Aftercare', icon: '💆' },
+    { path: '/smart-schedule', label: 'Smart Schedule', icon: '🧠' },
+    { path: '/vouchers', label: 'Gift Vouchers', icon: '🎁' },
+    { path: '/notifications', label: 'Notifications', icon: '🔔' },
+    { path: '/hours', label: 'Hours & Closures', icon: '🏖️' },
+    { path: '/patch-tests', label: 'Patch Tests', icon: '🩹' },
+    { path: '/forms', label: 'Consent Forms', icon: '📝' },
+    { path: '/reports', label: 'Reports', icon: '📈' },
+    { path: '/rebook', label: 'Rebook Reminders', icon: '🔄' },
+    { path: '/policies', label: 'Policies', icon: '📜' },
+    { path: '/business', label: 'Business Profile', icon: '🏪' },
+    { path: '/waitlist', label: 'Waitlist', icon: '📋' },
+    { path: '/team', label: 'Team', icon: '👥' },
+    { path: '/import', label: 'Import Clients', icon: '📥' },
+    { path: '/inbox', label: 'Inbox', icon: '💬' },
+    { path: '/packages', label: 'Packages', icon: '📦' },
+    { path: '/templates', label: 'Templates', icon: '📋' },
+    { path: '/referrals', label: 'Referrals', icon: '🤝' },
+    { path: '/portfolio', label: 'Portfolio', icon: '📸' },
+    { path: '/notes', label: 'Appt Notes', icon: '📝' },
+    { path: '/feedback', label: 'Feedback', icon: '💬' },
+    { path: '/expenses', label: 'Expenses', icon: '💳' },
+    { path: '/consultations', label: 'Consultations', icon: '🩺' },
+    { path: '/sequences', label: 'Follow-ups', icon: '🔄' },
+    { path: '/photo-consent', label: 'Photo Consent', icon: '📋' },
+    { path: '/waitlist-pro', label: 'Smart Waitlist', icon: '⏳' },
+    { path: '/client-timeline', label: 'Timeline', icon: '📜' },
+    { path: '/rota', label: 'Staff Rota', icon: '🗓️' },
+    { path: '/deposits', label: 'Deposits', icon: '🔒' },
+    { path: '/addons', label: 'Add-ons', icon: '✨' },
+    { path: '/cancellations', label: 'Cancellations', icon: '❌' },
+    { path: '/tags', label: 'Tags & Segments', icon: '🏷️' },
+    { path: '/promos', label: 'Promo Codes', icon: '🎟️' },
+    { path: '/checklist', label: 'Daily Checklist', icon: '☑️' },
+    { path: '/inventory', label: 'Inventory', icon: '📦' },
+    { path: '/goals', label: 'Revenue Goals', icon: '🎯' },
+    { path: '/price-list', label: 'Price List', icon: '💲' },
+    { path: '/treatment-stats', label: 'Treatment Stats', icon: '📊' },
+    { path: '/staff-performance', label: 'Staff KPIs', icon: '🏅' },
+    { path: '/supplier-orders', label: 'Suppliers', icon: '📦' },
+    { path: '/memberships', label: 'Memberships', icon: '💎' },
+    { path: '/comms', label: 'Comms Log', icon: '📨' },
+    { path: '/end-of-day', label: 'End of Day', icon: '🌙' },
+    { path: '/automations', label: 'Automations', icon: '⚡' },
+    { path: '/whatsapp', label: 'WhatsApp', icon: '💬' },
+    { path: '/portal', label: 'Client Portal', icon: '🌐' },
+    { path: '/ai-insights', label: 'AI Insights', icon: '🧠' },
+    { path: '/segments', label: 'Client Segments', icon: '🎯' },
+    { path: '/churn', label: 'Churn Prevention', icon: '🛡️' },
+    { path: '/demand', label: 'Demand Forecast', icon: '📊' },
+    { path: '/locations', label: 'Locations', icon: '🏢' },
+    { path: '/integrations', label: 'Integrations', icon: '🔌' },
+    { path: '/sms', label: 'SMS Config', icon: '📱' },
+    { path: '/api-settings', label: 'API & Webhooks', icon: '⚡' },
+    { path: '/settings', label: 'Settings', icon: '⚙️' }
+  ];
+
+  return (
+    <>
+      {/* More menu overlay */}
+      {showMore && (
+        <div style={styles.moreOverlay} onClick={() => setShowMore(false)}>
+          <div style={styles.moreMenu} onClick={e => e.stopPropagation()}>
+            <div style={styles.moreHandle} />
+            {moreItems.map(item => (
+              <button
+                key={item.path}
+                onClick={() => { navigate(item.path); setShowMore(false); }}
+                style={{
+                  ...styles.moreItem,
+                  color: current === item.path ? 'var(--accent, #C76B8A)' : 'var(--text-primary, #2D2A26)',
+                  background: current === item.path ? 'var(--accent-light, #FFF0F3)' : 'none'
+                }}
+              >
+                <span style={{ fontSize: 18 }}>{item.icon}</span>
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <nav style={styles.nav}>
+        {tabs.map(tab => {
+          const isMore = tab.path === 'more';
+          const active = isMore ? isMoreActive : current === tab.path;
+          return (
+            <button
+              key={tab.path}
+              onClick={() => isMore ? setShowMore(!showMore) : navigate(tab.path)}
+              style={{
+                ...styles.navItem,
+                color: active ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #B5AFA8)'
+              }}
+            >
+              <span style={styles.navIcon}>{tab.icon}</span>
+              <span style={{
+                ...styles.navLabel,
+                fontWeight: active ? 600 : 400
+              }}>
+                {tab.label}
+              </span>
+              {active && <div style={styles.navDot} />}
+            </button>
+          );
+        })}
+      </nav>
+    </>
+  );
+}
+
+const styles = {
+  loadingScreen: {
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: '100vh',
+    background: 'var(--bg, #FAF8F5)',
+    gap: 8,
+  },
+  loadingLogo: {
+    fontSize: 30,
+    fontWeight: 600,
+    color: 'var(--accent, #C76B8A)',
+    fontFamily: "'Playfair Display', Georgia, serif",
+    letterSpacing: '-0.03em',
+  },
+  appShell: {
+    display: 'flex',
+    flexDirection: 'column',
+    minHeight: '100vh',
+    background: 'var(--bg, #FAF8F5)',
+  },
+  pageContainer: {
+    flex: 1,
+    paddingBottom: 76,
+  },
+
+  // Bottom nav — frosted glass
+  nav: {
+    position: 'fixed',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    display: 'flex',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    background: 'var(--nav-bg, rgba(255,255,255,0.92))',
+    backdropFilter: 'blur(20px) saturate(180%)',
+    WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+    borderTop: '1px solid var(--nav-border, #EDE9E4)',
+    padding: '5px 0 env(safe-area-inset-bottom, 8px)',
+    zIndex: 100,
+    fontFamily: "'DM Sans', -apple-system, sans-serif",
+  },
+  navItem: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 3,
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    padding: '6px 14px',
+    position: 'relative',
+    fontFamily: 'inherit',
+    WebkitTapHighlightColor: 'transparent',
+  },
+  navIcon: { fontSize: 20, lineHeight: 1 },
+  navLabel: { fontSize: 10, lineHeight: 1, letterSpacing: '0.01em' },
+  navDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    background: 'var(--accent, #C76B8A)',
+    position: 'absolute',
+    bottom: -1,
+  },
+
+  // More menu — frosted sheet
+  moreOverlay: {
+    position: 'fixed',
+    inset: 0,
+    background: 'var(--overlay, rgba(45, 42, 38, 0.18))',
+    zIndex: 99,
+    display: 'flex',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    animation: 'fadeIn 0.15s ease-out',
+  },
+  moreMenu: {
+    background: 'var(--bg-card, #fff)',
+    borderRadius: '20px 20px 0 0',
+    padding: '8px 16px 84px',
+    width: '100%',
+    maxWidth: 480,
+    maxHeight: '70vh',
+    overflowY: 'auto',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 2,
+    animation: 'slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+    boxShadow: '0 -8px 24px rgba(45, 42, 38, 0.08)',
+  },
+  moreHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    background: 'var(--border, #EDE9E4)',
+    margin: '8px auto 12px',
+    flexShrink: 0,
+  },
+  moreItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    padding: '13px 12px',
+    borderRadius: 12,
+    border: 'none',
+    background: 'none',
+    fontSize: 14,
+    fontWeight: 500,
+    cursor: 'pointer',
+    fontFamily: "'DM Sans', -apple-system, sans-serif",
+    textAlign: 'left',
+    color: 'var(--text-primary, #2D2A26)',
+    WebkitTapHighlightColor: 'transparent',
+  },
+};

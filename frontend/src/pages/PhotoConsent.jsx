@@ -1,0 +1,309 @@
+/**
+ * Photo Consent — GDPR-compliant photo permission management.
+ *
+ * Before sharing any before/after pics on Instagram or the booking
+ * page, Ellie needs written consent. This page tracks who's given
+ * permission, what type, and when it expires.
+ */
+import { useState } from 'react';
+import { isDevMode, DEV_CLIENTS } from '../lib/supabase.js';
+
+const DEV_CONSENTS = [
+  {
+    id: 'pc1', client: 'Shauna', clientId: 'dev-c1',
+    status: 'granted', grantedDate: '2026-02-15',
+    scope: ['portfolio', 'instagram', 'booking-page'],
+    expiresAt: '2027-02-15',
+    method: 'digital', notes: 'Happy to be featured anywhere',
+  },
+  {
+    id: 'pc2', client: 'Daisy S', clientId: 'dev-c2',
+    status: 'granted', grantedDate: '2026-01-20',
+    scope: ['portfolio', 'booking-page'],
+    expiresAt: '2027-01-20',
+    method: 'digital', notes: 'No social media — portfolio and booking page only',
+  },
+  {
+    id: 'pc3', client: 'Jasmin', clientId: 'dev-c3',
+    status: 'pending', grantedDate: null,
+    scope: [],
+    expiresAt: null,
+    method: null, notes: 'Request sent 2026-03-20',
+  },
+  {
+    id: 'pc4', client: 'Amy R', clientId: 'dev-c4',
+    status: 'declined', grantedDate: null,
+    scope: [],
+    expiresAt: null,
+    method: null, notes: 'Prefers not to have photos shared',
+  },
+  {
+    id: 'pc5', client: 'Beth K', clientId: 'dev-c5',
+    status: 'granted', grantedDate: '2025-03-10',
+    scope: ['portfolio', 'instagram', 'booking-page', 'tiktok'],
+    expiresAt: '2026-03-10',
+    method: 'paper', notes: 'EXPIRED — needs renewal',
+  },
+];
+
+const SCOPE_OPTIONS = [
+  { value: 'portfolio', label: 'Portfolio', desc: 'Visible in your Florrie portfolio' },
+  { value: 'booking-page', label: 'Booking Page', desc: 'Shown on your public booking page' },
+  { value: 'instagram', label: 'Instagram', desc: 'Shared on your Instagram feed/stories' },
+  { value: 'tiktok', label: 'TikTok', desc: 'Used in TikTok content' },
+  { value: 'facebook', label: 'Facebook', desc: 'Shared on Facebook' },
+  { value: 'training', label: 'Training', desc: 'Used in training materials' },
+];
+
+const STATUS_CONFIG = {
+  granted: { label: 'Granted', bg: '#E8F5E9', color: '#4CAF50' },
+  pending: { label: 'Pending', bg: '#FFF5E6', color: '#B8860B' },
+  declined: { label: 'Declined', bg: '#FFEBEE', color: '#F44336' },
+  expired: { label: 'Expired', bg: '#F0ECE8', color: '#AAA5A0' },
+};
+
+export default function PhotoConsent({ token }) {
+  const [tab, setTab] = useState('all');
+  const [showRequest, setShowRequest] = useState(false);
+  const [expanded, setExpanded] = useState(null);
+  const [requestForm, setRequestForm] = useState({ client: '', scope: ['portfolio', 'booking-page'], method: 'digital', message: '' });
+  const [settings, setSettings] = useState({
+    autoRequest: true,
+    requestAfter: 'first-appointment',
+    defaultScope: ['portfolio', 'booking-page'],
+    consentDuration: 12,
+    reminderBeforeExpiry: 30,
+    consentMessage: "Hey {name}! I'd love to feature your results in my portfolio — would you be happy for me to share your before/after photos? You can choose exactly where they appear and withdraw consent any time xx",
+  });
+
+  const now = new Date();
+  const consents = DEV_CONSENTS.map(c => {
+    if (c.status === 'granted' && c.expiresAt && new Date(c.expiresAt) < now) {
+      return { ...c, status: 'expired' };
+    }
+    return c;
+  });
+
+  const filtered = tab === 'all' ? consents : consents.filter(c => c.status === tab);
+
+  const stats = {
+    granted: consents.filter(c => c.status === 'granted').length,
+    pending: consents.filter(c => c.status === 'pending').length,
+    expired: consents.filter(c => c.status === 'expired').length,
+    declined: consents.filter(c => c.status === 'declined').length,
+  };
+
+  return (
+    <div style={S.page}>
+      <div style={S.header}>
+        <h1 style={S.title}>Photo Consent</h1>
+        <button style={S.reqBtn} onClick={() => setShowRequest(true)}>+ Request</button>
+      </div>
+
+      {/* Stats */}
+      <div style={S.statsRow}>
+        {[
+          { label: 'Granted', value: stats.granted, colour: '#4CAF50' },
+          { label: 'Pending', value: stats.pending, colour: '#B8860B' },
+          { label: 'Expired', value: stats.expired, colour: '#AAA5A0' },
+          { label: 'Declined', value: stats.declined, colour: '#F44336' },
+        ].map(s => (
+          <div key={s.label} style={S.statCard}>
+            <span style={{ ...S.statValue, color: s.colour }}>{s.value}</span>
+            <span style={S.statLabel}>{s.label}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Filter tabs */}
+      <div style={S.tabs}>
+        {['all', 'granted', 'pending', 'expired'].map(t => (
+          <button key={t} onClick={() => setTab(t)} style={{ ...S.tab, ...(tab === t ? S.tabActive : {}) }}>
+            {t.charAt(0).toUpperCase() + t.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {/* Consent list */}
+      <div style={S.list}>
+        {filtered.length === 0 && <p style={S.empty}>No consents in this category.</p>}
+        {filtered.map(c => {
+          const st = STATUS_CONFIG[c.status];
+          const isExpanded = expanded === c.id;
+          return (
+            <div key={c.id} style={S.consentCard} onClick={() => setExpanded(isExpanded ? null : c.id)}>
+              <div style={S.consentHeader}>
+                <div style={S.consentLeft}>
+                  <div style={S.avatar}>{c.client[0]}</div>
+                  <div style={S.consentInfo}>
+                    <span style={S.consentClient}>{c.client}</span>
+                    {c.grantedDate && <span style={S.consentDate}>Since {formatDate(c.grantedDate)}</span>}
+                  </div>
+                </div>
+                <span style={{ ...S.statusBadge, background: st.bg, color: st.color }}>{st.label}</span>
+              </div>
+
+              {/* Scope icons */}
+              {c.scope.length > 0 && (
+                <div style={S.scopeRow}>
+                  {c.scope.map(s => {
+                    const opt = SCOPE_OPTIONS.find(o => o.value === s);
+                    return <span key={s} style={S.scopeTag}>{opt?.label || s}</span>;
+                  })}
+                </div>
+              )}
+
+              {isExpanded && (
+                <div style={S.expandedSection}>
+                  {c.notes && <p style={S.consentNotes}>{c.notes}</p>}
+                  {c.expiresAt && (
+                    <div style={S.detailRow}>
+                      <span style={S.detailLabel}>Expires</span>
+                      <span style={S.detailValue}>{formatDate(c.expiresAt)}</span>
+                    </div>
+                  )}
+                  {c.method && (
+                    <div style={S.detailRow}>
+                      <span style={S.detailLabel}>Method</span>
+                      <span style={S.detailValue}>{c.method === 'digital' ? 'Digital Signature' : 'Paper Form'}</span>
+                    </div>
+                  )}
+
+                  <div style={S.actionRow}>
+                    {c.status === 'granted' && <button style={S.actionBtn}>Revoke</button>}
+                    {c.status === 'expired' && <button style={{ ...S.actionBtn, background: '#C76B8A', color: '#fff' }}>Request Renewal</button>}
+                    {c.status === 'pending' && <button style={S.actionBtn}>Send Reminder</button>}
+                    {c.status === 'granted' && <button style={S.actionBtn}>Update Scope</button>}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* GDPR notice */}
+      <div style={S.gdprCard}>
+        <span style={S.gdprTitle}>📋 GDPR Compliance</span>
+        <p style={S.gdprText}>
+          Photo consent is stored securely and clients can withdraw at any time. Consent is specific to the uses listed — using photos beyond the agreed scope requires additional consent.
+        </p>
+      </div>
+
+      {/* Request consent modal */}
+      {showRequest && (
+        <div style={S.overlay} onClick={() => setShowRequest(false)}>
+          <div style={S.modal} onClick={e => e.stopPropagation()}>
+            <h2 style={S.modalTitle}>Request Photo Consent</h2>
+
+            <div style={S.fieldLabel}>Client</div>
+            <select style={S.select} value={requestForm.client} onChange={e => setRequestForm(f => ({ ...f, client: e.target.value }))}>
+              <option value="">Select client</option>
+              {DEV_CLIENTS.map(c => <option key={c.id} value={c.first_name}>{c.first_name} {c.last_name}</option>)}
+            </select>
+
+            <div style={S.fieldLabel}>What can you use their photos for?</div>
+            {SCOPE_OPTIONS.map(opt => {
+              const active = requestForm.scope.includes(opt.value);
+              return (
+                <div key={opt.value} style={S.scopeOption} onClick={() => {
+                  setRequestForm(f => ({
+                    ...f,
+                    scope: active ? f.scope.filter(s => s !== opt.value) : [...f.scope, opt.value],
+                  }));
+                }}>
+                  <div style={{ ...S.checkbox, background: active ? '#C76B8A' : '#fff', borderColor: active ? '#C76B8A' : '#E0DCD8' }}>
+                    {active && <span style={S.checkmark}>✓</span>}
+                  </div>
+                  <div style={S.scopeOptionInfo}>
+                    <span style={S.scopeOptionLabel}>{opt.label}</span>
+                    <span style={S.scopeOptionDesc}>{opt.desc}</span>
+                  </div>
+                </div>
+              );
+            })}
+
+            <div style={S.fieldLabel}>Method</div>
+            <div style={S.chipRow}>
+              {['digital', 'paper'].map(m => (
+                <button key={m} onClick={() => setRequestForm(f => ({ ...f, method: m }))} style={{ ...S.chip, ...(requestForm.method === m ? S.chipActive : {}) }}>
+                  {m === 'digital' ? '📱 Digital' : '📄 Paper'}
+                </button>
+              ))}
+            </div>
+
+            <div style={S.fieldLabel}>Message to Client</div>
+            <textarea style={S.textarea} rows={3} value={requestForm.message || settings.consentMessage} onChange={e => setRequestForm(f => ({ ...f, message: e.target.value }))} />
+
+            <button style={S.saveBtn} onClick={() => setShowRequest(false)}>Send Request</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatDate(dateStr) {
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+const S = {
+  page: { padding: '20px 16px 32px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },
+  reqBtn: { background: '#C76B8A', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+
+  statsRow: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 },
+  statCard: { background: 'var(--card, #fff)', borderRadius: 12, padding: '10px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
+  statValue: { fontSize: 18, fontWeight: 700 },
+  statLabel: { fontSize: 10, color: '#AAA5A0' },
+
+  tabs: { display: 'flex', gap: 8, marginBottom: 16 },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: '#AAA5A0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive: { background: '#C76B8A', color: '#fff' },
+
+  list: { display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 },
+  empty: { textAlign: 'center', color: '#AAA5A0', fontSize: 14, padding: 32 },
+
+  consentCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 14, cursor: 'pointer' },
+  consentHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  consentLeft: { display: 'flex', gap: 10, alignItems: 'center' },
+  avatar: { width: 36, height: 36, borderRadius: 18, background: '#F0E6ED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: '#C76B8A', flexShrink: 0 },
+  consentInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
+  consentClient: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
+  consentDate: { fontSize: 11, color: '#AAA5A0' },
+  statusBadge: { padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600 },
+
+  scopeRow: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  scopeTag: { padding: '3px 8px', borderRadius: 6, background: '#F0E6ED', color: '#C76B8A', fontSize: 11 },
+
+  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid #F0ECE8' },
+  consentNotes: { fontSize: 13, color: '#8B6F5E', lineHeight: 1.4, margin: '0 0 10px', fontStyle: 'italic' },
+  detailRow: { display: 'flex', justifyContent: 'space-between', padding: '6px 0' },
+  detailLabel: { fontSize: 12, color: '#AAA5A0' },
+  detailValue: { fontSize: 12, fontWeight: 600, color: 'var(--text, #2D2A26)' },
+  actionRow: { display: 'flex', gap: 8, marginTop: 10 },
+  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: '#2D2A26' },
+
+  gdprCard: { background: '#F9F7F4', borderRadius: 12, padding: 14, marginTop: 4 },
+  gdprTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text, #2D2A26)' },
+  gdprText: { fontSize: 12, color: '#8B6F5E', lineHeight: 1.4, margin: '6px 0 0' },
+
+  // Modal
+  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
+  modal: { background: '#fff', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
+  modalTitle: { fontSize: 18, fontWeight: 700, color: '#2D2A26', margin: '0 0 16px' },
+  fieldLabel: { fontSize: 12, fontWeight: 600, color: '#8B6F5E', marginBottom: 6, marginTop: 12 },
+  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: '#2D2A26', background: '#fff', outline: 'none', boxSizing: 'border-box' },
+  scopeOption: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', cursor: 'pointer' },
+  checkbox: { width: 22, height: 22, borderRadius: 6, border: '2px solid', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  checkmark: { color: '#fff', fontSize: 13, fontWeight: 700 },
+  scopeOptionInfo: { display: 'flex', flexDirection: 'column', gap: 1 },
+  scopeOptionLabel: { fontSize: 13, fontWeight: 600, color: 'var(--text, #2D2A26)' },
+  scopeOptionDesc: { fontSize: 11, color: '#AAA5A0' },
+  chipRow: { display: 'flex', gap: 8 },
+  chip: { flex: 1, padding: '10px 0', borderRadius: 10, border: '1px solid #F0ECE8', background: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: '#2D2A26', textAlign: 'center' },
+  chipActive: { background: '#C76B8A', color: '#fff', border: '1px solid #C76B8A' },
+  textarea: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 13, fontFamily: 'inherit', color: '#2D2A26', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
+  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
+};
