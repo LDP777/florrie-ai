@@ -77,6 +77,7 @@ const MultiLocation = lazy(() => import('./pages/MultiLocation.jsx'));
 const Integrations = lazy(() => import('./pages/Integrations.jsx'));
 const SMSConfig = lazy(() => import('./pages/SMSConfig.jsx'));
 const APISettings = lazy(() => import('./pages/APISettings.jsx'));
+const Hub = lazy(() => import('./pages/Hub.jsx'));
 
 function PageLoader() {
   return (
@@ -117,7 +118,7 @@ export default function App() {
   // Check onboarding status when session is established and beautician data is available
   useEffect(() => {
     if (session && beautician) {
-      if (beautician.onboarded !== true) {
+      if (!beautician.onboarding_completed_at) {
         setNeedsOnboarding(true);
       } else {
         setNeedsOnboarding(false);
@@ -252,6 +253,7 @@ export default function App() {
             <Route path="/integrations" element={<Integrations token={token} />} />
             <Route path="/sms" element={<SMSConfig token={token} />} />
             <Route path="/api-settings" element={<APISettings token={token} />} />
+            <Route path="/hub" element={<Hub token={token} />} />
             <Route path="/onboarding" element={
               <Onboarding token={token} onComplete={() => navigate('/')} />
             } />
@@ -268,140 +270,48 @@ export default function App() {
 }
 
 /**
- * Mobile bottom navigation — 5 tabs. "More" opens management screens.
+ * Mobile bottom navigation — 5 tabs. "Hub" navigates to categorised hub page.
  */
 function BottomNav({ current }) {
   const navigate = useNavigate();
-  const [showMore, setShowMore] = useState(false);
 
-  const morePaths = ['/money', '/analytics', '/clients', '/treatments', '/team', '/waitlist', '/digest', '/campaigns', '/reviews', '/loyalty', '/aftercare', '/import', '/smart-schedule', '/vouchers', '/notifications', '/hours', '/patch-tests', '/forms', '/reports', '/policies', '/business', '/rebook', '/inbox', '/packages', '/templates', '/referrals', '/portfolio', '/notes', '/feedback', '/expenses', '/consultations', '/sequences', '/photo-consent', '/waitlist-pro', '/client-timeline', '/rota', '/deposits', '/addons', '/cancellations', '/tags', '/promos', '/checklist', '/inventory', '/goals', '/price-list', '/treatment-stats', '/staff-performance', '/supplier-orders', '/memberships', '/comms', '/end-of-day', '/automations', '/whatsapp', '/portal', '/ai-insights', '/segments', '/churn', '/demand', '/locations', '/integrations', '/sms', '/api-settings', '/escalations', '/settings'];
-  const isMoreActive = morePaths.includes(current);
+  // Hub is active when on /hub or any sub-page that lives inside the hub
+  const hubPaths = ['/hub', '/money', '/analytics', '/clients', '/treatments', '/team', '/waitlist', '/digest', '/campaigns', '/reviews', '/loyalty', '/aftercare', '/import', '/smart-schedule', '/vouchers', '/notifications', '/hours', '/patch-tests', '/forms', '/reports', '/policies', '/business', '/rebook', '/inbox', '/packages', '/templates', '/referrals', '/portfolio', '/notes', '/feedback', '/expenses', '/consultations', '/sequences', '/photo-consent', '/waitlist-pro', '/client-timeline', '/rota', '/deposits', '/addons', '/cancellations', '/tags', '/promos', '/checklist', '/inventory', '/goals', '/price-list', '/treatment-stats', '/staff-performance', '/supplier-orders', '/memberships', '/comms', '/end-of-day', '/automations', '/whatsapp', '/portal', '/ai-insights', '/segments', '/churn', '/demand', '/locations', '/integrations', '/sms', '/api-settings', '/escalations', '/settings'];
+  const isHubActive = hubPaths.includes(current);
 
   const tabs = [
     { path: '/', label: 'Home', icon: '🏠' },
     { path: '/calendar', label: 'Calendar', icon: '📅' },
     { path: '/voice', label: 'Florrie', icon: '✨' },
     { path: '/content', label: 'Content', icon: '📸' },
-    { path: 'more', label: 'More', icon: '⚙️' }
-  ];
-
-  const moreItems = [
-    { path: '/money', label: 'Money', icon: '💰' },
-    { path: '/analytics', label: 'Analytics', icon: '📊' },
-    { path: '/campaigns', label: 'Campaigns', icon: '💌' },
-    { path: '/reviews', label: 'Reviews', icon: '⭐' },
-    { path: '/digest', label: 'Weekly Digest', icon: '📬' },
-    { path: '/clients', label: 'Clients', icon: '👤' },
-    { path: '/treatments', label: 'Treatments', icon: '💅' },
-    { path: '/loyalty', label: 'Loyalty', icon: '🏆' },
-    { path: '/aftercare', label: 'Aftercare', icon: '💆' },
-    { path: '/smart-schedule', label: 'Smart Schedule', icon: '🧠' },
-    { path: '/vouchers', label: 'Gift Vouchers', icon: '🎁' },
-    { path: '/notifications', label: 'Notifications', icon: '🔔' },
-    { path: '/hours', label: 'Hours & Closures', icon: '🏖️' },
-    { path: '/patch-tests', label: 'Patch Tests', icon: '🩹' },
-    { path: '/forms', label: 'Consent Forms', icon: '📝' },
-    { path: '/reports', label: 'Reports', icon: '📈' },
-    { path: '/rebook', label: 'Rebook Reminders', icon: '🔄' },
-    { path: '/policies', label: 'Policies', icon: '📜' },
-    { path: '/business', label: 'Business Profile', icon: '🏪' },
-    { path: '/waitlist', label: 'Waitlist', icon: '📋' },
-    { path: '/team', label: 'Team', icon: '👥' },
-    { path: '/import', label: 'Import Clients', icon: '📥' },
-    { path: '/inbox', label: 'Inbox', icon: '💬' },
-    { path: '/packages', label: 'Packages', icon: '📦' },
-    { path: '/templates', label: 'Templates', icon: '📋' },
-    { path: '/referrals', label: 'Referrals', icon: '🤝' },
-    { path: '/portfolio', label: 'Portfolio', icon: '📸' },
-    { path: '/notes', label: 'Appt Notes', icon: '📝' },
-    { path: '/feedback', label: 'Feedback', icon: '💬' },
-    { path: '/expenses', label: 'Expenses', icon: '💳' },
-    { path: '/consultations', label: 'Consultations', icon: '🩺' },
-    { path: '/sequences', label: 'Follow-ups', icon: '🔄' },
-    { path: '/photo-consent', label: 'Photo Consent', icon: '📋' },
-    { path: '/waitlist-pro', label: 'Smart Waitlist', icon: '⏳' },
-    { path: '/client-timeline', label: 'Timeline', icon: '📜' },
-    { path: '/rota', label: 'Staff Rota', icon: '🗓️' },
-    { path: '/deposits', label: 'Deposits', icon: '🔒' },
-    { path: '/addons', label: 'Add-ons', icon: '✨' },
-    { path: '/cancellations', label: 'Cancellations', icon: '❌' },
-    { path: '/tags', label: 'Tags & Segments', icon: '🏷️' },
-    { path: '/promos', label: 'Promo Codes', icon: '🎟️' },
-    { path: '/checklist', label: 'Daily Checklist', icon: '☑️' },
-    { path: '/inventory', label: 'Inventory', icon: '📦' },
-    { path: '/goals', label: 'Revenue Goals', icon: '🎯' },
-    { path: '/price-list', label: 'Price List', icon: '💲' },
-    { path: '/treatment-stats', label: 'Treatment Stats', icon: '📊' },
-    { path: '/staff-performance', label: 'Staff KPIs', icon: '🏅' },
-    { path: '/supplier-orders', label: 'Suppliers', icon: '📦' },
-    { path: '/memberships', label: 'Memberships', icon: '💎' },
-    { path: '/comms', label: 'Comms Log', icon: '📨' },
-    { path: '/end-of-day', label: 'End of Day', icon: '🌙' },
-    { path: '/automations', label: 'Automations', icon: '⚡' },
-    { path: '/whatsapp', label: 'WhatsApp', icon: '💬' },
-    { path: '/portal', label: 'Client Portal', icon: '🌐' },
-    { path: '/ai-insights', label: 'AI Insights', icon: '🧠' },
-    { path: '/segments', label: 'Client Segments', icon: '🎯' },
-    { path: '/churn', label: 'Churn Prevention', icon: '🛡️' },
-    { path: '/demand', label: 'Demand Forecast', icon: '📊' },
-    { path: '/locations', label: 'Locations', icon: '🏢' },
-    { path: '/integrations', label: 'Integrations', icon: '🔌' },
-    { path: '/sms', label: 'SMS Config', icon: '📱' },
-    { path: '/api-settings', label: 'API & Webhooks', icon: '⚡' },
-    { path: '/settings', label: 'Settings', icon: '⚙️' }
+    { path: '/hub', label: 'Hub', icon: '🧭' }
   ];
 
   return (
-    <>
-      {/* More menu overlay */}
-      {showMore && (
-        <div style={styles.moreOverlay} onClick={() => setShowMore(false)}>
-          <div style={styles.moreMenu} onClick={e => e.stopPropagation()}>
-            <div style={styles.moreHandle} />
-            {moreItems.map(item => (
-              <button
-                key={item.path}
-                onClick={() => { navigate(item.path); setShowMore(false); }}
-                style={{
-                  ...styles.moreItem,
-                  color: current === item.path ? 'var(--accent, #C76B8A)' : 'var(--text-primary, #2D2A26)',
-                  background: current === item.path ? 'var(--accent-light, #FFF0F3)' : 'none'
-                }}
-              >
-                <span style={{ fontSize: 18 }}>{item.icon}</span>
-                <span>{item.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <nav style={styles.nav}>
-        {tabs.map(tab => {
-          const isMore = tab.path === 'more';
-          const active = isMore ? isMoreActive : current === tab.path;
-          return (
-            <button
-              key={tab.path}
-              onClick={() => isMore ? setShowMore(!showMore) : navigate(tab.path)}
-              style={{
-                ...styles.navItem,
-                color: active ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #B5AFA8)'
-              }}
-            >
-              <span style={styles.navIcon}>{tab.icon}</span>
-              <span style={{
-                ...styles.navLabel,
-                fontWeight: active ? 600 : 400
-              }}>
-                {tab.label}
-              </span>
-              {active && <div style={styles.navDot} />}
-            </button>
-          );
-        })}
-      </nav>
-    </>
+    <nav style={styles.nav}>
+      {tabs.map(tab => {
+        const active = tab.path === '/hub' ? isHubActive : current === tab.path;
+        return (
+          <button
+            key={tab.path}
+            onClick={() => navigate(tab.path)}
+            style={{
+              ...styles.navItem,
+              color: active ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #B5AFA8)'
+            }}
+          >
+            <span style={styles.navIcon}>{tab.icon}</span>
+            <span style={{
+              ...styles.navLabel,
+              fontWeight: active ? 600 : 400
+            }}>
+              {tab.label}
+            </span>
+            {active && <div style={styles.navDot} />}
+          </button>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -474,53 +384,4 @@ const styles = {
     bottom: -1,
   },
 
-  // More menu — frosted sheet
-  moreOverlay: {
-    position: 'fixed',
-    inset: 0,
-    background: 'var(--overlay, rgba(45, 42, 38, 0.18))',
-    zIndex: 99,
-    display: 'flex',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    animation: 'fadeIn 0.15s ease-out',
-  },
-  moreMenu: {
-    background: 'var(--bg-card, #fff)',
-    borderRadius: '20px 20px 0 0',
-    padding: '8px 16px 84px',
-    width: '100%',
-    maxWidth: 480,
-    maxHeight: '70vh',
-    overflowY: 'auto',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 2,
-    animation: 'slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-    boxShadow: '0 -8px 24px rgba(45, 42, 38, 0.08)',
-  },
-  moreHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    background: 'var(--border, #EDE9E4)',
-    margin: '8px auto 12px',
-    flexShrink: 0,
-  },
-  moreItem: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-    padding: '13px 12px',
-    borderRadius: 12,
-    border: 'none',
-    background: 'none',
-    fontSize: 14,
-    fontWeight: 500,
-    cursor: 'pointer',
-    fontFamily: "'DM Sans', -apple-system, sans-serif",
-    textAlign: 'left',
-    color: 'var(--text-primary, #2D2A26)',
-    WebkitTapHighlightColor: 'transparent',
-  },
 };

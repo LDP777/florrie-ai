@@ -130,7 +130,7 @@ export default function Onboarding({ onComplete }) {
       const cleanSlug = slug.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
       await updateRow('beauticians', beautician.id, {
         booking_slug: cleanSlug,
-        onboarded: true
+        onboarding_completed_at: new Date().toISOString()
       });
       await refresh();
       setStep(5);

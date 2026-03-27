@@ -117,6 +117,7 @@ const DEV_BEAUTICIAN = {
   business_name: 'Ellindigo Brows & Beauty',
   email: 'demo@florrie.ai',
   booking_slug: 'ellindigo',
+  onboarding_completed_at: '2026-03-01T12:00:00Z',
   working_hours: {
     mon: { start: '11:00', end: '15:00' },
     tue: { start: '11:00', end: '19:00' },
