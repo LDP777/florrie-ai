@@ -5,8 +5,8 @@
  * page, Ellie needs written consent. This page tracks who's given
  * permission, what type, and when it expires.
  */
-import { useState } from 'react';
-import { isDevMode, DEV_CLIENTS } from '../lib/supabase.js';
+import { useState, useEffect } from 'react';
+import { isDevMode, DEV_CLIENTS, supabase } from '../lib/supabase.js';
 
 const DEV_CONSENTS = [
   {
@@ -66,6 +66,9 @@ export default function PhotoConsent({ token }) {
   const [tab, setTab] = useState('all');
   const [showRequest, setShowRequest] = useState(false);
   const [expanded, setExpanded] = useState(null);
+  const [consents, setConsents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [clients, setClients] = useState([]);
   const [requestForm, setRequestForm] = useState({ client: '', scope: ['portfolio', 'booking-page'], method: 'digital', message: '' });
   const [settings, setSettings] = useState({
     autoRequest: true,
@@ -76,22 +79,136 @@ export default function PhotoConsent({ token }) {
     consentMessage: "Hey {name}! I'd love to feature your results in my portfolio — would you be happy for me to share your before/after photos? You can choose exactly where they appear and withdraw consent any time xx",
   });
 
+  // Fetch consents and clients
+  useEffect(() => {
+    const fetchData = async () => {
+      if (isDevMode) {
+        setConsents(DEV_CONSENTS);
+        setClients(DEV_CLIENTS);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const session = await supabase.auth.getSession();
+        if (!session.data.session) return;
+
+        const [consentsRes, clientsRes] = await Promise.all([
+          fetch('/api/photo-consent', {
+            headers: { 'Authorization': `Bearer ${session.data.session.access_token}` }
+          }),
+          fetch('/api/clients', {
+            headers: { 'Authorization': `Bearer ${session.data.session.access_token}` }
+          })
+        ]);
+
+        if (consentsRes.ok) {
+          const { data } = await consentsRes.json();
+          const transformed = data.map(c => ({
+            id: c.id,
+            clientId: c.client_id,
+            client: c.client_name || c.clients?.first_name || 'Unknown',
+            status: c.status,
+            grantedDate: c.granted_at,
+            scope: c.permitted_uses || [],
+            expiresAt: c.expires_at,
+            method: c.method,
+            notes: c.notes || ''
+          }));
+          setConsents(transformed);
+        }
+
+        if (clientsRes.ok) {
+          const { data } = await clientsRes.json();
+          setClients(data || []);
+        }
+      } catch (err) {
+        console.error('Fetch error:', err);
+        setConsents(DEV_CONSENTS);
+        setClients(DEV_CLIENTS);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
   const now = new Date();
-  const consents = DEV_CONSENTS.map(c => {
+  const consentsList = consents.map(c => {
     if (c.status === 'granted' && c.expiresAt && new Date(c.expiresAt) < now) {
       return { ...c, status: 'expired' };
     }
     return c;
   });
 
-  const filtered = tab === 'all' ? consents : consents.filter(c => c.status === tab);
+  const filtered = tab === 'all' ? consentsList : consentsList.filter(c => c.status === tab);
 
   const stats = {
-    granted: consents.filter(c => c.status === 'granted').length,
-    pending: consents.filter(c => c.status === 'pending').length,
-    expired: consents.filter(c => c.status === 'expired').length,
-    declined: consents.filter(c => c.status === 'declined').length,
+    granted: consentsList.filter(c => c.status === 'granted').length,
+    pending: consentsList.filter(c => c.status === 'pending').length,
+    expired: consentsList.filter(c => c.status === 'expired').length,
+    declined: consentsList.filter(c => c.status === 'declined').length,
   };
+
+  const handleSendRequest = async () => {
+    if (!requestForm.client || requestForm.scope.length === 0) {
+      alert('Please select a client and at least one scope');
+      return;
+    }
+
+    if (isDevMode) {
+      alert('Cannot send requests in dev mode');
+      return;
+    }
+
+    try {
+      const session = await supabase.auth.getSession();
+      if (!session.data.session) return;
+
+      const selectedClient = clients.find(c => c.first_name === requestForm.client);
+      if (!selectedClient) {
+        alert('Client not found');
+        return;
+      }
+
+      const res = await fetch('/api/photo-consent', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.data.session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          client_id: selectedClient.id,
+          permitted_uses: requestForm.scope,
+          method: requestForm.method,
+          notes: requestForm.message || settings.consentMessage
+        })
+      });
+
+      if (!res.ok) throw new Error('Failed to send request');
+
+      const { data: newConsent } = await res.json();
+      setConsents([...consents, {
+        id: newConsent.id,
+        clientId: newConsent.client_id,
+        client: selectedClient.first_name,
+        status: newConsent.status || 'pending',
+        grantedDate: newConsent.granted_at,
+        scope: newConsent.permitted_uses || [],
+        expiresAt: newConsent.expires_at,
+        method: newConsent.method,
+        notes: newConsent.notes || ''
+      }]);
+
+      setShowRequest(false);
+      setRequestForm({ client: '', scope: ['portfolio', 'booking-page'], method: 'digital', message: '' });
+    } catch (err) {
+      console.error('Send error:', err);
+      alert('Failed to send request');
+    }
+  };
+
+  if (loading) return <p style={{ textAlign: 'center', padding: 40, color: '#AAA5A0' }}>Loading...</p>;
 
   return (
     <div style={S.page}>
@@ -235,7 +352,7 @@ export default function PhotoConsent({ token }) {
             <div style={S.fieldLabel}>Message to Client</div>
             <textarea style={S.textarea} rows={3} value={requestForm.message || settings.consentMessage} onChange={e => setRequestForm(f => ({ ...f, message: e.target.value }))} />
 
-            <button style={S.saveBtn} onClick={() => setShowRequest(false)}>Send Request</button>
+            <button style={S.saveBtn} onClick={handleSendRequest}>Send Request</button>
           </div>
         </div>
       )}

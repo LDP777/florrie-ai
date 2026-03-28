@@ -109,6 +109,37 @@ export default function Clients() {
     }
   }
 
+  async function handleExportCSV() {
+    if (isDevMode) {
+      alert('Export not available in dev mode');
+      return;
+    }
+
+    try {
+      const session = await supabase.auth.getSession();
+      if (!session.data.session) return;
+
+      const res = await fetch('/api/exports/clients', {
+        headers: { 'Authorization': `Bearer ${session.data.session.access_token}` }
+      });
+
+      if (!res.ok) throw new Error('Export failed');
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `clients-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      logger.error('Export error:', err);
+      alert('Failed to export clients');
+    }
+  }
+
   const visitCount = (c) => c.total_visits || 0;
   const lastVisit = (c) => {
     if (!c.last_visit_at) return 'Never';
@@ -127,7 +158,10 @@ export default function Clients() {
     <div style={styles.page}>
       <div style={styles.header}>
         <h1 style={styles.title}>Clients</h1>
-        <button onClick={() => setShowAdd(!showAdd)} style={styles.addBtn}>+ Add</button>
+        <div style={styles.headerActions}>
+          <button onClick={handleExportCSV} style={styles.exportBtn}>⬇ Export</button>
+          <button onClick={() => setShowAdd(!showAdd)} style={styles.addBtn}>+ Add</button>
+        </div>
       </div>
 
       {/* Search */}
@@ -461,6 +495,8 @@ const styles = {
   page: { minHeight: '100vh', background: '#FAF8F5', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: '#2D2A26' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 28, paddingBottom: 12 },
   title: { fontSize: 22, fontWeight: 700, margin: 0 },
+  headerActions: { display: 'flex', gap: 8, alignItems: 'center' },
+  exportBtn: { padding: '8px 12px', borderRadius: 10, border: '1px solid #F0ECE8', background: '#fff', color: '#8A8580', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   addBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   searchWrap: { position: 'relative', marginBottom: 14 },
   searchInput: { width: '100%', padding: '12px 36px 12px 14px', borderRadius: 12, border: '1.5px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: '#fff' },

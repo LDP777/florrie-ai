@@ -4,8 +4,8 @@
  * Flash sales, referral rewards, birthday treats, influencer collabs —
  * every code is tracked here with usage stats and revenue impact.
  */
-import { useState } from 'react';
-import { isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useState, useEffect } from 'react';
+import { isDevMode, DEV_TREATMENTS, supabase } from '../lib/supabase.js';
 
 const fmt = (cents) => `£${(Math.abs(cents) / 100).toFixed(2)}`;
 
@@ -28,8 +28,63 @@ export default function PromoCodes({ token }) {
   const [tab, setTab] = useState('active');
   const [expanded, setExpanded] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [codes, setCodes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [formData, setFormData] = useState({
+    code: '',
+    description: '',
+    discount_type: 'percentage',
+    discount_value: '',
+    max_uses: '',
+    valid_from: new Date().toISOString().split('T')[0],
+    valid_until: ''
+  });
 
-  const codes = DEV_CODES;
+  // Fetch promo codes
+  useEffect(() => {
+    const fetchCodes = async () => {
+      if (isDevMode) {
+        setCodes(DEV_CODES);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const session = await supabase.auth.getSession();
+        if (!session.data.session) return;
+
+        const res = await fetch('/api/promo-codes', {
+          headers: { 'Authorization': `Bearer ${session.data.session.access_token}` }
+        });
+        if (!res.ok) throw new Error('Failed to fetch codes');
+
+        const { data } = await res.json();
+        const transformed = data.map(code => ({
+          id: code.id,
+          code: code.code,
+          type: code.discount_type === 'percentage' ? 'percent' : 'fixed',
+          value: code.discount_value,
+          maxUses: code.max_uses,
+          used: code.current_uses || 0,
+          revenue: 0,
+          status: code.is_active ? 'active' : 'expired',
+          treatments: [],
+          expiresAt: code.valid_until,
+          createdAt: code.created_at,
+          description: ''
+        }));
+        setCodes(transformed);
+      } catch (err) {
+        console.error('Fetch error:', err);
+        setCodes(DEV_CODES);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCodes();
+  }, []);
+
   const active = codes.filter(c => c.status === 'active');
   const inactive = codes.filter(c => c.status !== 'active');
 
@@ -40,6 +95,111 @@ export default function PromoCodes({ token }) {
     : 0;
 
   const filtered = tab === 'active' ? active : inactive;
+
+  const handleCreateCode = async () => {
+    if (!formData.code || !formData.discount_value || !formData.valid_until) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    if (isDevMode) {
+      alert('Cannot create codes in dev mode');
+      return;
+    }
+
+    setCreating(true);
+    try {
+      const session = await supabase.auth.getSession();
+      if (!session.data.session) return;
+
+      const validFrom = new Date(formData.valid_from);
+      validFrom.setHours(0, 0, 0, 0);
+      const validUntil = new Date(formData.valid_until);
+      validUntil.setHours(23, 59, 59, 999);
+
+      const res = await fetch('/api/promo-codes', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.data.session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          code: formData.code,
+          discount_type: formData.discount_type,
+          discount_value: formData.discount_value,
+          max_uses: formData.max_uses || null,
+          valid_from: validFrom.toISOString(),
+          valid_until: validUntil.toISOString()
+        })
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        alert(error.error || 'Failed to create code');
+        return;
+      }
+
+      const { data: newCode } = await res.json();
+      setCodes([...codes, {
+        id: newCode.id,
+        code: newCode.code,
+        type: newCode.discount_type === 'percentage' ? 'percent' : 'fixed',
+        value: newCode.discount_value,
+        maxUses: newCode.max_uses,
+        used: 0,
+        revenue: 0,
+        status: newCode.is_active ? 'active' : 'expired',
+        treatments: [],
+        expiresAt: newCode.valid_until,
+        createdAt: newCode.created_at,
+        description: ''
+      }]);
+      setShowCreate(false);
+      setFormData({
+        code: '',
+        description: '',
+        discount_type: 'percentage',
+        discount_value: '',
+        max_uses: '',
+        valid_from: new Date().toISOString().split('T')[0],
+        valid_until: ''
+      });
+    } catch (err) {
+      console.error('Create error:', err);
+      alert('Failed to create code');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleToggleActive = async (codeId, currentStatus) => {
+    if (isDevMode) {
+      alert('Cannot update codes in dev mode');
+      return;
+    }
+
+    try {
+      const session = await supabase.auth.getSession();
+      if (!session.data.session) return;
+
+      const res = await fetch(`/api/promo-codes/${codeId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${session.data.session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ is_active: !currentStatus })
+      });
+
+      if (!res.ok) throw new Error('Failed to update');
+
+      const { data: updated } = await res.json();
+      setCodes(codes.map(c => c.id === codeId ? { ...c, status: updated.is_active ? 'active' : 'expired' } : c));
+    } catch (err) {
+      console.error('Update error:', err);
+      alert('Failed to update code');
+    }
+  };
 
   return (
     <div style={S.page}>
@@ -147,9 +307,12 @@ export default function PromoCodes({ token }) {
 
                   {code.status === 'active' && (
                     <div style={S.actionRow}>
-                      <button style={S.actionBtn}>Copy Code</button>
-                      <button style={S.actionBtn}>Share</button>
-                      <button style={{ ...S.actionBtn, color: '#F44336' }}>Pause</button>
+                      <button style={S.actionBtn} onClick={() => navigator.clipboard.writeText(code.code)}>Copy Code</button>
+                      <button style={S.actionBtn} onClick={() => alert('Share functionality coming soon')}>Share</button>
+                      <button
+                        style={{ ...S.actionBtn, color: '#F44336' }}
+                        onClick={() => handleToggleActive(code.id, true)}
+                      >Pause</button>
                     </div>
                   )}
                 </div>
@@ -175,38 +338,63 @@ export default function PromoCodes({ token }) {
 
             <div style={S.formBody}>
               <label style={S.label}>Code</label>
-              <input style={S.input} placeholder="e.g. SUMMER25" />
-
-              <label style={S.label}>Description</label>
-              <input style={S.input} placeholder="What's this code for?" />
+              <input
+                style={S.input}
+                placeholder="e.g. SUMMER25"
+                value={formData.code}
+                onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+              />
 
               <label style={S.label}>Discount Type</label>
               <div style={S.typeToggle}>
-                <button style={{ ...S.typeBtn, ...S.typeBtnActive }}>% Percent</button>
-                <button style={S.typeBtn}>£ Fixed</button>
+                <button
+                  style={{ ...S.typeBtn, ...(formData.discount_type === 'percentage' ? S.typeBtnActive : {}) }}
+                  onClick={() => setFormData({ ...formData, discount_type: 'percentage' })}
+                >% Percent</button>
+                <button
+                  style={{ ...S.typeBtn, ...(formData.discount_type === 'fixed' ? S.typeBtnActive : {}) }}
+                  onClick={() => setFormData({ ...formData, discount_type: 'fixed' })}
+                >£ Fixed</button>
               </div>
 
               <label style={S.label}>Value</label>
-              <input style={S.input} type="number" placeholder="e.g. 20" />
+              <input
+                style={S.input}
+                type="number"
+                placeholder="e.g. 20"
+                value={formData.discount_value}
+                onChange={(e) => setFormData({ ...formData, discount_value: parseInt(e.target.value) || '' })}
+              />
 
-              <label style={S.label}>Min Spend (optional)</label>
-              <input style={S.input} type="number" placeholder="0" />
+              <label style={S.label}>Valid From</label>
+              <input
+                style={S.input}
+                type="date"
+                value={formData.valid_from}
+                onChange={(e) => setFormData({ ...formData, valid_from: e.target.value })}
+              />
+
+              <label style={S.label}>Valid Until</label>
+              <input
+                style={S.input}
+                type="date"
+                value={formData.valid_until}
+                onChange={(e) => setFormData({ ...formData, valid_until: e.target.value })}
+              />
 
               <label style={S.label}>Max Uses (leave blank for unlimited)</label>
-              <input style={S.input} type="number" placeholder="Unlimited" />
-
-              <label style={S.label}>Expires (optional)</label>
-              <input style={S.input} type="date" />
-
-              <label style={S.label}>Restrict to Treatments</label>
-              <div style={S.treatmentChips}>
-                {(DEV_TREATMENTS || []).slice(0, 5).map(t => (
-                  <span key={t.name} style={S.treatmentChipSelect}>{t.name}</span>
-                ))}
-              </div>
+              <input
+                style={S.input}
+                type="number"
+                placeholder="Unlimited"
+                value={formData.max_uses}
+                onChange={(e) => setFormData({ ...formData, max_uses: parseInt(e.target.value) || '' })}
+              />
             </div>
 
-            <button style={S.saveBtn}>Create Code</button>
+            <button style={S.saveBtn} onClick={handleCreateCode} disabled={creating}>
+              {creating ? 'Creating...' : 'Create Code'}
+            </button>
           </div>
         </div>
       )}

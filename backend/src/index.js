@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import { createClient } from '@supabase/supabase-js';
 import logger from './lib/logger.js';
+import { apiLimiter, authLimiter, bookingLimiter } from './middleware/rate-limit.js';
 
 // Services
 import { processReminders } from './services/notifications.js';
@@ -81,28 +82,12 @@ export const supabaseAnon = createClient(
 // Middleware
 app.use(cors({ origin: process.env.FRONTEND_URL }));
 
-// Rate limiting for public endpoints
-const publicLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many requests, please try again later' },
-});
-
+// Webhook limiter (stricter than general API)
 const webhookLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
   max: 60,
   standardHeaders: true,
   legacyHeaders: false,
-});
-
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20, // strict for auth
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many login attempts, please try again later' },
 });
 
 // Raw body for Stripe webhook signature verification
@@ -121,25 +106,33 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/auth', authLimiter, authRoutes);
-app.use('/api/treatments', treatmentRoutes);
-app.use('/api/clients', clientRoutes);
-app.use('/api/appointments', appointmentRoutes);
-app.use('/api/booking', publicLimiter, bookingRoutes); // public booking page API
-app.use('/api/ai-actions', aiActionRoutes);
+app.use('/api/treatments', apiLimiter, treatmentRoutes);
+app.use('/api/clients', apiLimiter, clientRoutes);
+app.use('/api/appointments', apiLimiter, appointmentRoutes);
+app.use('/api/booking', bookingLimiter, bookingRoutes); // public booking page API
+app.use('/api/ai-actions', apiLimiter, aiActionRoutes);
 app.use('/api/webhooks', webhookLimiter, webhookRoutes); // WhatsApp + Stripe webhooks
-app.use('/api/escalations', escalationRoutes);
-app.use('/api/content', contentRoutes);
-app.use('/api/money', moneyRoutes);
-app.use('/api/stripe', stripeRoutes);
-app.use('/api/notifications', notificationRoutes);
-app.use('/api/gcal', gcalRoutes);
-app.use('/api/features', featureRoutes);
-app.use('/api/hours-exceptions', hoursExceptionsRoutes);
-app.use('/api/exports', exportsRoutes);
-app.use('/api/promo-codes', promoCodesRoutes);
-app.use('/api/photo-consent', photoConsentRoutes);
-app.use('/api/locations', locationsRoutes);
-app.use('/api/voice', voiceRoutes);
+app.use('/api/escalations', apiLimiter, escalationRoutes);
+app.use('/api/content', apiLimiter, contentRoutes);
+app.use('/api/money', apiLimiter, moneyRoutes);
+app.use('/api/stripe', apiLimiter, stripeRoutes);
+app.use('/api/notifications', apiLimiter, notificationRoutes);
+app.use('/api/gcal', apiLimiter, gcalRoutes);
+app.use('/api/features', apiLimiter, featureRoutes);
+app.use('/api/hours-exceptions', apiLimiter, hoursExceptionsRoutes);
+app.use('/api/exports', apiLimiter, exportsRoutes);
+// Promo codes: apply bookingLimiter to public routes specifically
+app.use('/api/promo-codes', (req, res, next) => {
+  // Apply bookingLimiter only to public endpoints (validate endpoint)
+  if (req.path === '/validate' && req.method === 'POST') {
+    return bookingLimiter(req, res, next);
+  }
+  // Apply apiLimiter to authenticated endpoints
+  return apiLimiter(req, res, next);
+}, promoCodesRoutes);
+app.use('/api/photo-consent', apiLimiter, photoConsentRoutes);
+app.use('/api/locations', apiLimiter, locationsRoutes);
+app.use('/api/voice', apiLimiter, voiceRoutes);
 
 // Error handler
 app.use((err, req, res, next) => {

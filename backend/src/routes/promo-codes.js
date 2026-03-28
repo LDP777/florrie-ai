@@ -193,6 +193,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
  * POST /api/promo-codes/validate
  * PUBLIC endpoint: validate a promo code and return discount info if valid
  * Checks is_active, date range, and max_uses
+ * Note: Rate limiting is applied at the route level in index.js
  */
 router.post('/validate', validate(validatePromoCodeSchema), async (req, res) => {
   try {
