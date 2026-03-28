@@ -38,7 +38,7 @@ const DEV_ACTIVITY = [
   { id: 'act5', icon: '✨', text: 'florrie.ai sent aftercare card to Daisy after yesterday\'s appointment', time: '18h ago' },
 ];
 
-const QUICK_ACTIONS = [
+const DEFAULT_QUICK_ACTIONS = [
   { icon: '📅', label: 'Calendar', path: '/calendar', color: '#E3F2FD' },
   { icon: '💬', label: 'florrie.ai', path: '/voice', color: '#FBF0F3' },
   { icon: '👤', label: 'Clients', path: '/clients', color: '#FFF3E0' },
@@ -48,6 +48,44 @@ const QUICK_ACTIONS = [
   { icon: '🎁', label: 'Vouchers', path: '/vouchers', color: '#FFF8E1' },
   { icon: '⭐', label: 'Reviews', path: '/reviews', color: '#E8F5E9' },
 ];
+
+// Contextual quick actions — surfaces different shortcuts based on time & state
+function getSmartQuickActions(today, beautician) {
+  const hour = new Date().getHours();
+  const actions = [...DEFAULT_QUICK_ACTIONS];
+
+  // Morning: swap Vouchers for Daily Checklist
+  if (hour < 11) {
+    const idx = actions.findIndex(a => a.path === '/vouchers');
+    if (idx !== -1) actions[idx] = { icon: '☑️', label: 'Checklist', path: '/checklist', color: '#E8F5E9' };
+  }
+
+  // End of day: swap Fill Gaps for End of Day
+  if (hour >= 17) {
+    const idx = actions.findIndex(a => a.path === '/smart-schedule');
+    if (idx !== -1) actions[idx] = { icon: '🌙', label: 'Close Day', path: '/end-of-day', color: '#EDE7F6' };
+  }
+
+  // No appointments today: swap Fill Gaps for Rebook Reminders
+  if (today.length === 0 && hour >= 11 && hour < 17) {
+    const idx = actions.findIndex(a => a.path === '/smart-schedule');
+    if (idx !== -1) actions[idx] = { icon: '🔄', label: 'Rebook', path: '/rebook', color: '#FCE4EC' };
+  }
+
+  return actions;
+}
+
+// Shimmer skeleton block for loading states
+function Skeleton({ width, height, radius = 8, style: extra }) {
+  return (
+    <div style={{
+      width, height, borderRadius: radius,
+      background: 'var(--bg-subtle, #F5F2EF)',
+      animation: 'shimmer 1.5s infinite',
+      ...extra,
+    }} />
+  );
+}
 
 export default function Dashboard() {
   const { beautician, loading: bLoading } = useBeautician();
@@ -175,6 +213,9 @@ export default function Dashboard() {
 
   const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 
+  const smartActions = getSmartQuickActions(today, beautician);
+  const hasNoData = !loading && today.length === 0 && insights.length === 0 && activity.length === 0 && !isDevMode;
+
   return (
     <div style={styles.page}>
       {/* Greeting */}
@@ -184,7 +225,7 @@ export default function Dashboard() {
             {getGreeting()}{beautician ? `, ${beautician.first_name || ''}` : ''}
           </h1>
           <p style={styles.greetingSubtitle}>
-            {today.length > 0 ? `${today.length} appointment${today.length > 1 ? 's' : ''} today` : 'No appointments today'}
+            {loading ? 'Loading your day...' : today.length > 0 ? `${today.length} appointment${today.length > 1 ? 's' : ''} today` : 'No appointments today'}
           </p>
         </div>
         <button onClick={() => navigate('/notifications')} style={styles.bellBtn}>
@@ -198,8 +239,60 @@ export default function Dashboard() {
         <SpotlightSearch />
       </div>
 
+      {/* ─── Loading skeletons ─────────────────────────── */}
+      {loading && (
+        <>
+          {/* Hero skeleton */}
+          <Skeleton width="100%" height={140} radius={20} style={{ marginBottom: 14 }} />
+          {/* Schedule skeleton */}
+          <div style={{ ...styles.scheduleCard, marginBottom: 14 }}>
+            <Skeleton width={120} height={14} style={{ marginBottom: 14 }} />
+            {[1, 2, 3].map(i => (
+              <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+                <Skeleton width={36} height={12} />
+                <div style={{ flex: 1 }}>
+                  <Skeleton width="60%" height={13} style={{ marginBottom: 4 }} />
+                  <Skeleton width="40%" height={11} />
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* Pulse skeleton */}
+          <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+            {[1, 2, 3].map(i => (
+              <Skeleton key={i} width="33%" height={70} radius={14} />
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* ─── Empty state for brand-new users ───────────── */}
+      {hasNoData && !loading && (
+        <div style={styles.welcomeCard}>
+          <span style={{ fontSize: 32, marginBottom: 8 }}>👋</span>
+          <h2 style={styles.welcomeTitle}>Welcome to florrie.ai</h2>
+          <p style={styles.welcomeDesc}>
+            Your dashboard will come alive as you add clients, book appointments, and let florrie.ai work for you. Here are some good first steps:
+          </p>
+          <div style={styles.welcomeActions}>
+            <button onClick={() => navigate('/treatments')} style={styles.welcomeBtn}>
+              💅 Add your treatments
+            </button>
+            <button onClick={() => navigate('/import')} style={styles.welcomeBtn}>
+              📥 Import clients
+            </button>
+            <button onClick={() => navigate('/business')} style={styles.welcomeBtn}>
+              🏪 Set up your profile
+            </button>
+            <button onClick={() => navigate('/hours')} style={styles.welcomeBtn}>
+              🕐 Set working hours
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Next Client Hero */}
-      {nextAppt && (
+      {!loading && nextAppt && (
         <div style={styles.heroCard}>
           <div style={styles.heroHeader}>
             <span style={styles.heroLabel}>Next up</span>
@@ -222,7 +315,7 @@ export default function Dashboard() {
       )}
 
       {/* Today's Schedule Strip */}
-      {today.length > 0 && (
+      {!loading && today.length > 0 && (
         <div style={styles.scheduleCard}>
           <div style={styles.scheduleHeader}>
             <span style={styles.scheduleTitle}>Today's schedule</span>
@@ -240,7 +333,7 @@ export default function Dashboard() {
                 <div style={styles.scheduleLine}>
                   <div style={{
                     ...styles.scheduleDot,
-                    background: appt.status === 'confirmed' ? '#4CAF50' : appt.status === 'pending' ? '#FF9800' : '#AAA5A0',
+                    background: appt.status === 'confirmed' ? 'var(--success, #4CAF50)' : appt.status === 'pending' ? 'var(--warning, #FF9800)' : 'var(--text-muted, #AAA5A0)',
                   }} />
                   {i < today.length - 1 && <div style={styles.scheduleConnector} />}
                 </div>
@@ -255,30 +348,32 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Revenue Pulse */}
-      <div style={styles.pulseRow}>
-        <div style={styles.pulseCard}>
-          <span style={styles.pulseLabel}>Today</span>
-          <span style={styles.pulseValue}>{fmt(todayRevenue)}</span>
+      {/* Revenue Pulse — tappable cards */}
+      {!loading && (
+        <div style={styles.pulseRow}>
+          <button onClick={() => navigate('/money')} style={styles.pulseCard}>
+            <span style={styles.pulseLabel}>Today</span>
+            <span style={styles.pulseValue}>{fmt(todayRevenue)}</span>
+          </button>
+          <button onClick={() => navigate('/money')} style={styles.pulseCard}>
+            <span style={styles.pulseLabel}>This week</span>
+            <span style={styles.pulseValue}>{fmt(weeklyPulse.income)}</span>
+            {weeklyPulse.incomeChange !== null && (
+              <span style={{ fontSize: 10, color: weeklyPulse.incomeChange >= 0 ? 'var(--success, #4CAF50)' : 'var(--danger, #E57373)', fontWeight: 600 }}>
+                {weeklyPulse.incomeChange >= 0 ? '↑' : '↓'} {Math.abs(weeklyPulse.incomeChange)}%
+              </span>
+            )}
+          </button>
+          <button onClick={() => navigate('/calendar')} style={styles.pulseCard}>
+            <span style={styles.pulseLabel}>Pending</span>
+            <span style={{ ...styles.pulseValue, color: 'var(--warning, #FF9800)' }}>{today.filter(a => a.status === 'pending').length}</span>
+          </button>
         </div>
-        <div style={styles.pulseCard}>
-          <span style={styles.pulseLabel}>This week</span>
-          <span style={styles.pulseValue}>{fmt(weeklyPulse.income)}</span>
-          {weeklyPulse.incomeChange !== null && (
-            <span style={{ fontSize: 10, color: weeklyPulse.incomeChange >= 0 ? '#4CAF50' : '#E57373', fontWeight: 600 }}>
-              {weeklyPulse.incomeChange >= 0 ? '↑' : '↓'} {Math.abs(weeklyPulse.incomeChange)}%
-            </span>
-          )}
-        </div>
-        <div style={styles.pulseCard}>
-          <span style={styles.pulseLabel}>Pending</span>
-          <span style={{ ...styles.pulseValue, color: '#FF9800' }}>{today.filter(a => a.status === 'pending').length}</span>
-        </div>
-      </div>
+      )}
 
-      {/* Quick Actions */}
+      {/* Quick Actions — contextual based on time of day */}
       <div style={styles.quickGrid}>
-        {QUICK_ACTIONS.map(action => (
+        {smartActions.map(action => (
           <button key={action.path} onClick={() => navigate(action.path)} style={styles.quickBtn}>
             <div style={{ ...styles.quickIcon, background: action.color }}>{action.icon}</div>
             <span style={styles.quickLabel}>{action.label}</span>
@@ -287,37 +382,84 @@ export default function Dashboard() {
       </div>
 
       {/* AI Insights */}
-      <div style={styles.insightsSection}>
-        <h3 style={styles.sectionTitle}>✨ florrie.ai's insights</h3>
-        {insights.map(insight => (
-          <div key={insight.id} style={{
-            ...styles.insightCard,
-            borderLeft: `3px solid ${insight.type === 'positive' ? '#4CAF50' : insight.type === 'warning' ? '#FF9800' : '#C76B8A'}`,
-          }}>
-            <span style={styles.insightIcon}>{insight.icon}</span>
-            <div style={styles.insightBody}>
-              <span style={styles.insightText}>{insight.text}</span>
-              {insight.actionLabel && (
-                <button onClick={() => navigate(insight.actionPath)} style={styles.insightBtn}>
-                  {insight.actionLabel}
-                </button>
-              )}
+      {!loading && insights.length > 0 && (
+        <div style={styles.insightsSection}>
+          <h3 style={styles.sectionTitle}>florrie.ai's insights</h3>
+          {insights.map(insight => (
+            <div key={insight.id} style={{
+              ...styles.insightCard,
+              borderLeft: `3px solid ${insight.type === 'positive' ? 'var(--success, #4CAF50)' : insight.type === 'warning' ? 'var(--warning, #FF9800)' : 'var(--accent, #C76B8A)'}`,
+            }}>
+              <span style={styles.insightIcon}>{insight.icon}</span>
+              <div style={styles.insightBody}>
+                <span style={styles.insightText}>{insight.text}</span>
+                {insight.actionLabel && (
+                  <button onClick={() => navigate(insight.actionPath)} style={styles.insightBtn}>
+                    {insight.actionLabel}
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
-      {/* Recent Activity */}
-      <div style={styles.activitySection}>
-        <h3 style={styles.sectionTitle}>Recent activity</h3>
-        {activity.map(act => (
-          <div key={act.id} style={styles.activityRow}>
-            <span style={styles.activityIcon}>{act.icon}</span>
-            <span style={styles.activityText}>{act.text}</span>
-            <span style={styles.activityTime}>{act.time}</span>
-          </div>
-        ))}
-      </div>
+      {/* Loading skeleton for insights */}
+      {loading && (
+        <div style={{ marginBottom: 22 }}>
+          <Skeleton width={160} height={15} style={{ marginBottom: 12 }} />
+          {[1, 2].map(i => (
+            <Skeleton key={i} width="100%" height={64} radius={14} style={{ marginBottom: 8 }} />
+          ))}
+        </div>
+      )}
+
+      {/* Recent Activity — tappable rows */}
+      {!loading && activity.length > 0 && (
+        <div style={styles.activitySection}>
+          <h3 style={styles.sectionTitle}>Recent activity</h3>
+          {activity.map(act => {
+            // Determine a relevant route from the activity icon/type
+            const actPath = act.icon === '💬' ? '/inbox'
+              : act.icon === '📅' ? '/calendar'
+              : act.icon === '💷' ? '/money'
+              : act.icon === '📸' ? '/content'
+              : null;
+
+            return actPath ? (
+              <button
+                key={act.id}
+                onClick={() => navigate(actPath)}
+                style={styles.activityRowBtn}
+              >
+                <span style={styles.activityIcon}>{act.icon}</span>
+                <span style={styles.activityText}>{act.text}</span>
+                <span style={styles.activityTime}>{act.time}</span>
+              </button>
+            ) : (
+              <div key={act.id} style={styles.activityRow}>
+                <span style={styles.activityIcon}>{act.icon}</span>
+                <span style={styles.activityText}>{act.text}</span>
+                <span style={styles.activityTime}>{act.time}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Loading skeleton for activity */}
+      {loading && (
+        <div style={{ marginBottom: 22 }}>
+          <Skeleton width={120} height={15} style={{ marginBottom: 12 }} />
+          {[1, 2, 3].map(i => (
+            <div key={i} style={{ display: 'flex', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border-light, #F5F2EF)' }}>
+              <Skeleton width={20} height={14} radius={4} />
+              <Skeleton width="70%" height={13} />
+              <Skeleton width={50} height={10} />
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Booking link */}
       {beautician?.booking_slug && (
@@ -422,13 +564,16 @@ const styles = {
   scheduleTreatment: { fontSize: 11, color: 'var(--text-muted)' },
   schedulePrice: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0, paddingTop: 2, fontFamily: "var(--font-mono, 'DM Mono', monospace)" },
 
-  // Revenue pulse
+  // Revenue pulse — now tappable buttons
   pulseRow: { display: 'flex', gap: 10, marginBottom: 16 },
   pulseCard: {
     flex: 1, background: 'var(--bg-card, #fff)', borderRadius: 14,
     padding: '14px 10px', textAlign: 'center',
     boxShadow: 'var(--shadow-xs)',
     border: '1px solid var(--border, #EDE9E4)',
+    cursor: 'pointer', fontFamily: 'inherit',
+    WebkitTapHighlightColor: 'transparent',
+    transition: 'transform 0.1s, box-shadow 0.15s',
   },
   pulseLabel: { display: 'block', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 },
   pulseValue: { display: 'block', fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' },
@@ -471,6 +616,13 @@ const styles = {
   // Activity
   activitySection: { marginBottom: 22 },
   activityRow: { display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border-light, #F5F2EF)' },
+  activityRowBtn: {
+    display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0',
+    borderBottom: '1px solid var(--border-light, #F5F2EF)',
+    background: 'none', border: 'none', width: '100%', cursor: 'pointer',
+    fontFamily: 'inherit', textAlign: 'left',
+    WebkitTapHighlightColor: 'transparent',
+  },
   activityIcon: { fontSize: 14, flexShrink: 0, paddingTop: 1 },
   activityText: { flex: 1, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.45 },
   activityTime: { fontSize: 10, color: 'var(--text-muted)', flexShrink: 0, whiteSpace: 'nowrap' },
@@ -487,4 +639,35 @@ const styles = {
   emptyState: { textAlign: 'center', padding: '48px 24px' },
   emptyTitle: { fontSize: 17, fontWeight: 600, margin: '0 0 6px', fontFamily: "var(--font-display, 'Playfair Display', serif)" },
   emptyDesc: { fontSize: 13, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 },
+
+  // Welcome card — shown to brand-new users with no data
+  welcomeCard: {
+    background: 'var(--bg-card, #fff)',
+    borderRadius: 20, padding: '28px 20px',
+    border: '1px solid var(--border, #EDE9E4)',
+    boxShadow: 'var(--shadow-md)',
+    textAlign: 'center', marginBottom: 16,
+  },
+  welcomeTitle: {
+    fontSize: 20, fontWeight: 600, margin: '0 0 8px',
+    fontFamily: "var(--font-display, 'Playfair Display', serif)",
+    color: 'var(--text-primary)',
+  },
+  welcomeDesc: {
+    fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6,
+    margin: '0 0 20px', maxWidth: 320, marginLeft: 'auto', marginRight: 'auto',
+  },
+  welcomeActions: {
+    display: 'flex', flexDirection: 'column', gap: 8,
+  },
+  welcomeBtn: {
+    width: '100%', padding: '12px 16px', borderRadius: 12,
+    border: '1px solid var(--border, #EDE9E4)',
+    background: 'var(--bg-subtle, #F9F7F4)',
+    fontSize: 14, fontWeight: 500, cursor: 'pointer',
+    fontFamily: 'inherit', textAlign: 'left',
+    color: 'var(--text-primary)',
+    WebkitTapHighlightColor: 'transparent',
+    transition: 'background 0.12s',
+  },
 };

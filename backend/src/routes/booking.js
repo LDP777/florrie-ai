@@ -12,7 +12,10 @@ const FRONTEND_URL = process.env.FRONTEND_URL;
 
 const bookingSchema = z.object({
   treatment_id: z.string().uuid('Invalid treatment ID'),
-  starts_at: z.string().datetime({ message: 'Invalid date/time format' }),
+  starts_at: z.string().refine(
+    v => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(v) && !isNaN(Date.parse(v)),
+    { message: 'Invalid date/time format — expected ISO 8601 (e.g. 2026-03-28T14:00:00)' }
+  ),
   client_name: z.string().min(1, 'Name is required').max(200).trim(),
   client_email: z.string().email('Invalid email').optional().nullable().default(null),
   client_phone: z.string().min(5, 'Phone number too short').max(30).trim(),
