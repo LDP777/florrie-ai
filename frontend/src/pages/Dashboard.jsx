@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBeautician, supabase, isDevMode, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import SpotlightSearch from '../components/SpotlightSearch.jsx';
 
 /**
  * Dashboard v2 — Operational command centre.
@@ -190,6 +191,11 @@ export default function Dashboard() {
           🔔
           <div style={styles.bellDot} />
         </button>
+      </div>
+
+      {/* Spotlight search — find any feature */}
+      <div style={{ marginBottom: 14 }}>
+        <SpotlightSearch />
       </div>
 
       {/* Next Client Hero */}
