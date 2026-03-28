@@ -310,7 +310,7 @@ export default function VoiceCommander() {
               onClick={handleRecord}
               style={{
                 ...styles.micBtn,
-                background: isRecording ? '#E57373' : 'linear-gradient(135deg, #C76B8A 0%, #D4899F 100%)',
+                background: isRecording ? 'var(--danger)' : 'linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%)',
                 animation: pulseAnim ? 'pulse 1.5s ease infinite' : 'none',
               }}
             >
@@ -334,12 +334,13 @@ export default function VoiceCommander() {
 const styles = {
   page: {
     display: 'flex', flexDirection: 'column', minHeight: '100vh',
-    background: '#FAF8F5', fontFamily: '"DM Sans", -apple-system, sans-serif',
-    maxWidth: 480, margin: '0 auto', color: '#2D2A26',
+    background: 'var(--bg)', fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)",
+    maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)',
+    animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
   },
   header: { padding: '28px 16px 12px', flexShrink: 0 },
-  title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
-  subtitle: { fontSize: 13, color: '#C76B8A', margin: 0, fontWeight: 500 },
+  title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
+  subtitle: { fontSize: 13, color: 'var(--accent)', margin: 0, fontWeight: 500 },
 
   // Messages
   messagesContainer: {
@@ -348,7 +349,7 @@ const styles = {
   },
   msgRow: { display: 'flex', gap: 8, alignItems: 'flex-end' },
   agentAvatar: {
-    width: 30, height: 30, borderRadius: 15, background: '#FBF0F3',
+    width: 30, height: 30, borderRadius: 15, background: 'var(--accent-light)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     flexShrink: 0,
   },
@@ -357,13 +358,13 @@ const styles = {
     animation: 'fadeIn 0.2s ease',
   },
   userBubble: {
-    background: 'linear-gradient(135deg, #C76B8A 0%, #D4899F 100%)',
+    background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%)',
     color: '#fff', borderBottomRightRadius: 4,
   },
   aiBubble: {
-    background: '#fff', color: '#2D2A26',
+    background: 'var(--bg-card)', color: 'var(--text-primary)',
     borderBottomLeftRadius: 4,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))',
   },
   agentTag: {
     display: 'inline-block', padding: '2px 8px', borderRadius: 4,
@@ -374,40 +375,40 @@ const styles = {
   voiceBadge: { display: 'inline-block', fontSize: 10, opacity: 0.7, marginTop: 4 },
   actionBtn: {
     display: 'block', marginTop: 8, padding: '6px 12px', borderRadius: 8,
-    border: '1.5px solid #F0ECE8', background: 'transparent',
-    color: '#C76B8A', fontSize: 12, fontWeight: 600,
+    border: '1.5px solid var(--border)', background: 'transparent',
+    color: 'var(--accent)', fontSize: 12, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
 
   // Typing indicator
   typingDots: { display: 'flex', gap: 2, padding: '4px 0' },
   typingDot: {
-    fontSize: 28, lineHeight: '16px', color: '#C4BDB6',
+    fontSize: 28, lineHeight: '16px', color: 'var(--text-muted)',
     animation: 'pulse 1.2s ease infinite',
   },
 
   // Example prompts
   promptsSection: { padding: '0 16px 12px', flexShrink: 0 },
-  promptsLabel: { display: 'block', fontSize: 11, color: '#AAA5A0', marginBottom: 8, fontWeight: 500 },
+  promptsLabel: { display: 'block', fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 500 },
   promptsGrid: { display: 'flex', flexWrap: 'wrap', gap: 6 },
   promptChip: {
     padding: '8px 12px', borderRadius: 10,
-    border: '1.5px solid #F0ECE8', background: '#fff',
-    color: '#5A5550', fontSize: 12, lineHeight: 1.3,
+    border: '1.5px solid var(--border)', background: 'var(--bg-card)',
+    color: 'var(--text-secondary)', fontSize: 12, lineHeight: 1.3,
     cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
   },
 
   // Input area
-  inputArea: { flexShrink: 0, padding: '8px 16px 24px', background: '#FAF8F5' },
+  inputArea: { flexShrink: 0, padding: '8px 16px 24px', background: 'var(--bg)' },
   inputForm: { display: 'flex', gap: 8, alignItems: 'center' },
   textInput: {
     flex: 1, padding: '12px 16px', borderRadius: 24,
-    border: '1.5px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit',
-    outline: 'none', background: '#fff', boxSizing: 'border-box',
+    border: '1.5px solid var(--border)', fontSize: 14, fontFamily: 'inherit',
+    outline: 'none', background: 'var(--bg-card)', boxSizing: 'border-box',
   },
   sendBtn: {
     width: 44, height: 44, borderRadius: 22, border: 'none',
-    background: '#C76B8A', color: '#fff', fontSize: 18, fontWeight: 700,
+    background: 'var(--accent)', color: '#fff', fontSize: 18, fontWeight: 700,
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
     flexShrink: 0,
   },
@@ -422,12 +423,12 @@ const styles = {
   recordingBar: {
     display: 'flex', alignItems: 'center', gap: 8,
     padding: '8px 12px', marginTop: 8, borderRadius: 10,
-    background: '#FEF2F2',
+    background: 'var(--danger-bg)',
   },
   recordingDot: {
-    width: 8, height: 8, borderRadius: 4, background: '#E57373',
+    width: 8, height: 8, borderRadius: 4, background: 'var(--danger)',
     animation: 'pulse 1s ease infinite',
   },
-  recordingText: { fontSize: 12, fontWeight: 600, color: '#E57373', flex: 1 },
-  recordingHint: { fontSize: 11, color: '#AAA5A0' },
+  recordingText: { fontSize: 12, fontWeight: 600, color: 'var(--danger)', flex: 1 },
+  recordingHint: { fontSize: 11, color: 'var(--text-muted)' },
 };

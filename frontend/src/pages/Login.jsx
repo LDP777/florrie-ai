@@ -70,13 +70,14 @@ export default function Login({ supabase }) {
     <div style={styles.page}>
       <div style={styles.logoSection}>
         <h1 style={styles.logo}>florrie.ai</h1>
+        <div style={{ width: 40, height: 2, background: 'var(--gold, #C9A96E)', margin: '12px auto 0', borderRadius: 1 }} />
         <p style={styles.tagline}>Your AI team, sorted</p>
       </div>
 
       {mode === 'confirm' ? (
         <div style={styles.form}>
           <h2 style={styles.formTitle}>Check your email</h2>
-          <p style={{ fontSize: 14, color: '#666', lineHeight: 1.5, marginBottom: 20 }}>
+          <p style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 20 }}>
             We've sent a confirmation link to <strong>{email}</strong>. Click it to confirm your account, then come back and sign in.
           </p>
           <button
@@ -127,9 +128,9 @@ export default function Login({ supabase }) {
 
         {/* Divider */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '16px 0' }}>
-          <div style={{ flex: 1, height: 1, background: '#E8E4E0' }} />
-          <span style={{ fontSize: 12, color: '#AAA5A0' }}>or</span>
-          <div style={{ flex: 1, height: 1, background: '#E8E4E0' }} />
+          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>or</span>
+          <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
         </div>
 
         {/* Google Sign In */}
@@ -145,9 +146,9 @@ export default function Login({ supabase }) {
           }}
           style={{
             width: '100%', padding: '12px 0', borderRadius: 12,
-            border: '1.5px solid #E8E4E0', background: '#fff',
+            border: '1.5px solid var(--border)', background: 'var(--bg-card)',
             fontSize: 14, fontWeight: 500, cursor: 'pointer',
-            fontFamily: 'inherit', color: '#2D2A26',
+            fontFamily: 'inherit', color: 'var(--text-primary)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
           }}
         >
@@ -177,14 +178,15 @@ export default function Login({ supabase }) {
 const styles = {
   page: {
     minHeight: '100vh',
-    background: '#FAF8F5',
-    fontFamily: '"DM Sans", -apple-system, sans-serif',
+    background: 'var(--bg)',
+    fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)",
     padding: '0 24px',
     maxWidth: 400,
     margin: '0 auto',
     display: 'flex',
     flexDirection: 'column',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    animation: 'fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
   },
   logoSection: {
     textAlign: 'center',
@@ -193,32 +195,36 @@ const styles = {
   logo: {
     fontSize: 36,
     fontWeight: 700,
-    color: '#C76B8A',
+    color: 'var(--accent)',
     margin: '0 0 4px',
-    letterSpacing: '-0.03em'
+    letterSpacing: '-0.03em',
+    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)"
   },
   tagline: {
     fontSize: 14,
-    color: '#AAA5A0',
+    color: 'var(--text-muted)',
     margin: 0
   },
   form: {
-    background: '#fff',
-    borderRadius: 16,
+    background: 'var(--bg-card)',
+    borderRadius: 20,
     padding: 24,
-    boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+    boxShadow: 'var(--shadow-lg)',
+    position: 'relative'
   },
   formTitle: {
     fontSize: 18,
     fontWeight: 600,
     margin: '0 0 20px',
-    color: '#2D2A26'
+    color: 'var(--text-primary)',
+    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
+    letterSpacing: '-0.02em'
   },
   formGroup: { marginBottom: 14 },
   label: {
     display: 'block',
     fontSize: 12,
-    color: '#AAA5A0',
+    color: 'var(--text-muted)',
     marginBottom: 4,
     fontWeight: 500
   },
@@ -226,19 +232,19 @@ const styles = {
     width: '100%',
     padding: '12px 14px',
     borderRadius: 10,
-    border: '1.5px solid #F0ECE8',
+    border: '1.5px solid var(--border)',
     fontSize: 15,
     fontFamily: 'inherit',
     outline: 'none',
     boxSizing: 'border-box',
-    transition: 'border-color 0.2s'
+    transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
   },
   error: {
     fontSize: 13,
-    color: '#E57373',
+    color: 'var(--danger)',
     margin: '0 0 10px',
     padding: '8px 12px',
-    background: '#FEF2F2',
+    background: 'var(--danger-bg)',
     borderRadius: 8
   },
   submitBtn: {
@@ -246,20 +252,22 @@ const styles = {
     padding: '14px 0',
     borderRadius: 12,
     border: 'none',
-    background: '#C76B8A',
-    color: '#fff',
+    background: 'var(--accent)',
+    color: 'var(--bg-card)',
     fontSize: 15,
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
-    marginBottom: 10
+    marginBottom: 10,
+    boxShadow: '0 2px 8px rgba(199, 107, 138, 0.25)',
+    transition: 'all 0.15s ease'
   },
   switchBtn: {
     width: '100%',
     padding: '10px 0',
     background: 'none',
     border: 'none',
-    color: '#C76B8A',
+    color: 'var(--accent)',
     fontSize: 13,
     cursor: 'pointer',
     fontFamily: 'inherit'
@@ -267,7 +275,7 @@ const styles = {
   trialNote: {
     textAlign: 'center',
     fontSize: 12,
-    color: '#C4BDB6',
+    color: 'var(--text-muted)',
     marginTop: 16
   }
 };

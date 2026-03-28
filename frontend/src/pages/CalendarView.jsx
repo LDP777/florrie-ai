@@ -100,8 +100,8 @@ export default function CalendarView() {
           <button onClick={() => navigateDate(1)} style={styles.navBtn}>›</button>
         </div>
         <div style={styles.viewToggle}>
-          <button onClick={() => setView('day')} style={{ ...styles.toggleBtn, background: view === 'day' ? '#C4A882' : 'transparent', color: view === 'day' ? '#fff' : '#8A8580' }}>Day</button>
-          <button onClick={() => setView('week')} style={{ ...styles.toggleBtn, background: view === 'week' ? '#C4A882' : 'transparent', color: view === 'week' ? '#fff' : '#8A8580' }}>Week</button>
+          <button onClick={() => setView('day')} style={{ ...styles.toggleBtn, background: view === 'day' ? 'var(--gold)' : 'transparent', color: view === 'day' ? '#fff' : 'var(--text-secondary)' }}>Day</button>
+          <button onClick={() => setView('week')} style={{ ...styles.toggleBtn, background: view === 'week' ? 'var(--gold)' : 'transparent', color: view === 'week' ? '#fff' : 'var(--text-secondary)' }}>Week</button>
         </div>
       </div>
 
@@ -129,7 +129,7 @@ export default function CalendarView() {
               const statusColor = getStatusColor(appt.status);
               return (
                 <button key={appt.id} onClick={() => setSelectedAppointment(selectedAppointment?.id === appt.id ? null : appt)}
-                  style={{ ...styles.appointmentBlock, top: pos.top, height: pos.height, borderLeftColor: statusColor, background: selectedAppointment?.id === appt.id ? '#F5F2EF' : '#fff' }}>
+                  style={{ ...styles.appointmentBlock, top: pos.top, height: pos.height, borderLeftColor: statusColor, background: selectedAppointment?.id === appt.id ? 'var(--border-light)' : 'var(--bg-card)' }}>
                   <div style={styles.apptContent}>
                     <span style={styles.apptTime}>{new Date(appt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
                     <span style={styles.apptClient}>{appt.clients?.first_name} {appt.clients?.last_name || ''}</span>
@@ -154,7 +154,7 @@ export default function CalendarView() {
           <div style={styles.weekHeader}>
             {getWeekDays().map(day => (
               <button key={day.toISOString()} onClick={() => { setCurrentDate(day); setView('day'); }}
-                style={{ ...styles.weekDayHeader, background: isToday(day) ? '#C4A882' : 'transparent', color: isToday(day) ? '#fff' : '#2D2A26' }}>
+                style={{ ...styles.weekDayHeader, background: isToday(day) ? 'var(--gold)' : 'transparent', color: isToday(day) ? '#fff' : 'var(--text-primary)' }}>
                 <span style={styles.weekDayName}>{day.toLocaleDateString('en-GB', { weekday: 'short' })}</span>
                 <span style={styles.weekDayNumber}>{day.getDate()}</span>
               </button>
@@ -304,7 +304,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
             <div style={styles.paymentOptions}>
               {['card', 'cash', 'transfer', 'unpaid'].map(m => (
                 <button key={m} onClick={() => setPaymentMethod(m)}
-                  style={{ ...styles.paymentChip, background: paymentMethod === m ? '#C76B8A' : '#F5F2EF', color: paymentMethod === m ? '#fff' : '#666' }}>
+                  style={{ ...styles.paymentChip, background: paymentMethod === m ? 'var(--accent)' : 'var(--border-light)', color: paymentMethod === m ? '#fff' : '#666' }}>
                   {m === 'card' ? '💳' : m === 'cash' ? '💵' : m === 'transfer' ? '🏦' : '⏳'} {m}
                 </button>
               ))}
@@ -360,7 +360,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
             <div style={styles.rebookOptions}>
               {[3, 4, 5, 6, 8].map(w => (
                 <button key={w} onClick={() => setRebookWeeks(w)}
-                  style={{ ...styles.rebookChip, background: rebookWeeks === w ? '#C76B8A' : '#F5F2EF', color: rebookWeeks === w ? '#fff' : '#666' }}>
+                  style={{ ...styles.rebookChip, background: rebookWeeks === w ? 'var(--accent)' : 'var(--border-light)', color: rebookWeeks === w ? '#fff' : '#666' }}>
                   {w} weeks
                 </button>
               ))}
@@ -384,64 +384,64 @@ function getWeekEnd(d) { const e = getWeekStart(d); e.setDate(e.getDate() + 6); 
 function getNowPosition() { const now = new Date(); return ((now.getHours() * 60 + now.getMinutes() - START_HOUR * 60) / 60) * HOUR_HEIGHT; }
 
 const styles = {
-  page: { minHeight: '100vh', background: '#FAF8F5', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: '#2D2A26' },
+  page: { minHeight: '100vh', background: 'var(--bg)', fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)", padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)', animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' },
   header: { paddingTop: 20, paddingBottom: 16 },
   headerTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   headerCenter: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 },
-  dateTitle: { fontSize: 17, fontWeight: 600, margin: 0, textAlign: 'center' },
-  todayBtn: { background: 'none', border: '1px solid #E8E4DF', borderRadius: 8, padding: '4px 12px', fontSize: 12, color: '#8A8580', cursor: 'pointer', fontFamily: 'inherit' },
-  navBtn: { background: 'none', border: 'none', fontSize: 28, color: '#8A8580', cursor: 'pointer', padding: '0 8px' },
-  viewToggle: { display: 'flex', gap: 4, background: '#F0ECE8', borderRadius: 10, padding: 3 },
+  dateTitle: { fontSize: 17, fontWeight: 600, margin: 0, textAlign: 'center', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
+  todayBtn: { background: 'none', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 12px', fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' },
+  navBtn: { background: 'none', border: 'none', fontSize: 28, color: 'var(--text-secondary)', cursor: 'pointer', padding: '0 8px' },
+  viewToggle: { display: 'flex', gap: 4, background: 'var(--border)', borderRadius: 10, padding: 3 },
   toggleBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'inherit' },
-  dayGrid: { display: 'flex', gap: 0, background: '#fff', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
-  timeColumn: { width: 50, position: 'relative', borderRight: '1px solid #F0ECE8', flexShrink: 0 },
-  timeLabel: { position: 'absolute', right: 8, fontSize: 11, color: '#AAA5A0', transform: 'translateY(-6px)' },
+  dayGrid: { display: 'flex', gap: 0, background: 'var(--bg-card)', borderRadius: 14, overflow: 'hidden', boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))' },
+  timeColumn: { width: 50, position: 'relative', borderRight: '1px solid var(--border)', flexShrink: 0 },
+  timeLabel: { position: 'absolute', right: 8, fontSize: 11, color: 'var(--text-muted)', transform: 'translateY(-6px)' },
   appointmentColumn: { flex: 1, position: 'relative', minHeight: 720 },
-  hourLine: { position: 'absolute', left: 0, right: 0, height: 1, background: '#F5F2EF' },
-  nowLine: { position: 'absolute', left: -4, right: 0, height: 2, background: '#DC2626', zIndex: 10 },
-  nowDot: { width: 8, height: 8, borderRadius: '50%', background: '#DC2626', position: 'absolute', left: -2, top: -3 },
-  appointmentBlock: { position: 'absolute', left: 4, right: 4, borderRadius: 8, padding: '6px 10px', cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'inherit', textAlign: 'left', border: 'none', borderLeft: '3px solid', boxShadow: '0 1px 3px rgba(0,0,0,0.06)', overflow: 'hidden', width: 'calc(100% - 8px)' },
+  hourLine: { position: 'absolute', left: 0, right: 0, height: 1, background: 'var(--border-light)' },
+  nowLine: { position: 'absolute', left: -4, right: 0, height: 2, background: 'var(--danger)', zIndex: 10 },
+  nowDot: { width: 8, height: 8, borderRadius: '50%', background: 'var(--danger)', position: 'absolute', left: -2, top: -3 },
+  appointmentBlock: { position: 'absolute', left: 4, right: 4, borderRadius: 8, padding: '6px 10px', cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'inherit', textAlign: 'left', border: 'none', borderLeft: '3px solid', boxShadow: 'var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.06))', overflow: 'hidden', width: 'calc(100% - 8px)' },
   apptContent: { display: 'flex', flexDirection: 'column', gap: 1 },
   apptTime: { fontSize: 11, fontWeight: 600, color: '#666' },
-  apptClient: { fontSize: 13, fontWeight: 600, color: '#2D2A26' },
-  apptTreatment: { fontSize: 11, color: '#8A8580' },
+  apptClient: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
+  apptTreatment: { fontSize: 11, color: 'var(--text-secondary)' },
   aiTag: { display: 'inline-block', padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600, background: '#EEF4FC', color: '#4A90D9', letterSpacing: '0.03em', marginTop: 2, width: 'fit-content' },
   weekHeader: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 8 },
   weekDayHeader: { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '8px 0', borderRadius: 10, border: 'none', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s' },
   weekDayName: { fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' },
   weekDayNumber: { fontSize: 16, fontWeight: 700 },
-  weekBody: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, background: '#fff', borderRadius: 14, padding: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  weekBody: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, background: 'var(--bg-card)', borderRadius: 14, padding: 8, boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))' },
   weekDayColumn: { display: 'flex', flexDirection: 'column', gap: 3, minHeight: 80 },
   weekApptChip: { padding: '4px 4px', borderRadius: 4, borderLeft: '2px solid', background: '#FDFCFB', display: 'flex', flexDirection: 'column', gap: 0 },
   weekApptTime: { fontSize: 9, fontWeight: 600, color: '#666' },
-  weekApptName: { fontSize: 10, color: '#2D2A26', fontWeight: 500 },
+  weekApptName: { fontSize: 10, color: 'var(--text-primary)', fontWeight: 500 },
   weekEmpty: { height: 40, borderRadius: 4, background: '#FDFCFB' },
-  detailPanel: { background: '#fff', borderRadius: 14, padding: 20, marginTop: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  detailPanel: { background: 'var(--bg-card)', borderRadius: 14, padding: 20, marginTop: 16, boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))' },
   detailHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   detailTitle: { fontSize: 17, fontWeight: 600, margin: 0 },
-  detailClose: { background: 'none', border: 'none', fontSize: 22, color: '#AAA5A0', cursor: 'pointer' },
+  detailClose: { background: 'none', border: 'none', fontSize: 22, color: 'var(--text-muted)', cursor: 'pointer' },
   detailGrid: { display: 'flex', flexDirection: 'column', gap: 0 },
-  detailRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #F5F2EF' },
-  detailLabel: { fontSize: 13, color: '#8A8580' },
+  detailRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border-light)' },
+  detailLabel: { fontSize: 13, color: 'var(--text-secondary)' },
   detailValue: { fontSize: 13, fontWeight: 500, textAlign: 'right' },
   statusBadge: { padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600, textTransform: 'capitalize' },
-  completeBtn: { width: '100%', padding: '12px 0', borderRadius: 10, border: 'none', background: '#5BA67F', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 14 },
+  completeBtn: { width: '100%', padding: '12px 0', borderRadius: 10, border: 'none', background: 'var(--success)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 14 },
   completionFlow: { display: 'flex', flexDirection: 'column', gap: 16 },
   completionSection: { display: 'flex', flexDirection: 'column', gap: 6 },
-  completionLabel: { fontSize: 12, fontWeight: 600, color: '#8A8580', textTransform: 'uppercase', letterSpacing: '0.05em' },
+  completionLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' },
   paymentOptions: { display: 'flex', gap: 6, flexWrap: 'wrap' },
   paymentChip: { padding: '8px 14px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', textTransform: 'capitalize', transition: 'all 0.15s' },
-  notesInput: { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
-  photoHint: { fontSize: 12, color: '#C4BDB6', margin: 0 },
-  photoUploadBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 10, border: '2px dashed #E8E4E0', fontSize: 14, fontWeight: 500, color: '#8A8580', cursor: 'pointer', fontFamily: 'inherit' },
+  notesInput: { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
+  photoHint: { fontSize: 12, color: 'var(--text-muted)', margin: 0 },
+  photoUploadBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 10, border: '2px dashed var(--border)', fontSize: 14, fontWeight: 500, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' },
   photoPreview: { position: 'relative', borderRadius: 10, overflow: 'hidden' },
   photoImg: { width: '100%', borderRadius: 10, maxHeight: 200, objectFit: 'cover' },
   photoRemove: { position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  confirmCompleteBtn: { width: '100%', padding: '14px 0', borderRadius: 10, border: 'none', background: '#5BA67F', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  confirmCompleteBtn: { width: '100%', padding: '14px 0', borderRadius: 10, border: 'none', background: 'var(--success)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   doneScreen: { textAlign: 'center', padding: '20px 0' },
-  rebookSection: { background: '#FAF8F5', borderRadius: 12, padding: 16, textAlign: 'left', marginBottom: 12 },
+  rebookSection: { background: 'var(--bg)', borderRadius: 12, padding: 16, textAlign: 'left', marginBottom: 12 },
   rebookOptions: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 },
   rebookChip: { padding: '6px 12px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' },
-  rebookSendBtn: { width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  doneCloseBtn: { width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: '#F5F2EF', color: '#666', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
+  rebookSendBtn: { width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  doneCloseBtn: { width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: 'var(--border-light)', color: '#666', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
 };

@@ -2,15 +2,12 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 
-const BRAND_COLOR = '#C4A882'; // dusty rose accent
-
 export default function SMSUsageWidget() {
   const [usage, setUsage] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchUsage();
-    // Refresh every 30 seconds (user might send SMS from elsewhere)
     const interval = setInterval(fetchUsage, 30000);
     return () => clearInterval(interval);
   }, []);
@@ -41,7 +38,6 @@ export default function SMSUsageWidget() {
           percentUsed: Math.min(100, percentUsed),
         });
       } else {
-        // No usage yet this week
         setUsage({
           messagesSent: 0,
           freeLimit: 50,
@@ -77,7 +73,7 @@ export default function SMSUsageWidget() {
   return (
     <div style={styles.widget}>
       <div style={styles.header}>
-        <h3 style={styles.title}>SMS This Week</h3>
+        <h3 style={styles.title}>SMS this week</h3>
         <span style={styles.badge}>{usage.messagesSent}/{usage.freeLimit}</span>
       </div>
 
@@ -88,7 +84,7 @@ export default function SMSUsageWidget() {
             style={{
               ...styles.progressFill,
               width: `${usage.percentUsed}%`,
-              backgroundColor: isSurplus ? '#EF4444' : BRAND_COLOR,
+              backgroundColor: isSurplus ? 'var(--danger)' : 'var(--accent)',
             }}
           />
         </div>
@@ -101,7 +97,7 @@ export default function SMSUsageWidget() {
             {usage.freeRemaining} free SMS remaining
           </p>
         ) : (
-          <div style={styles.warnStatus}>
+          <div>
             <p style={styles.warnText}>
               {usage.surplusCount} surplus texts
             </p>
@@ -115,12 +111,12 @@ export default function SMSUsageWidget() {
       {/* Details */}
       <div style={styles.details}>
         <div style={styles.detailRow}>
-          <span style={styles.detailLabel}>Free limit:</span>
+          <span style={styles.detailLabel}>Free limit</span>
           <span style={styles.detailValue}>50/week (resets Mon)</span>
         </div>
         <div style={styles.detailRow}>
-          <span style={styles.detailLabel}>Surplus rate:</span>
-          <span style={styles.detailValue}>2p per text</span>
+          <span style={styles.detailLabel}>Surplus rate</span>
+          <span style={styles.detailValue}>6p per text</span>
         </div>
       </div>
     </div>
@@ -129,97 +125,96 @@ export default function SMSUsageWidget() {
 
 const styles = {
   widget: {
-    backgroundColor: '#ffffff',
-    border: `1px solid #E5E7EB`,
-    borderRadius: '10px',
-    padding: '16px',
-    marginBottom: '16px',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+    background: 'var(--bg-card)',
+    border: '1px solid var(--border)',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 12,
+    boxShadow: 'var(--shadow-xs)',
   },
   header: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '12px',
+    marginBottom: 12,
   },
   title: {
-    margin: '0',
-    fontSize: '14px',
-    fontWeight: '600',
-    color: '#1F2937',
+    margin: 0,
+    fontSize: 14,
+    fontWeight: 600,
+    color: 'var(--text-primary)',
   },
   badge: {
-    fontSize: '13px',
-    fontWeight: '600',
-    color: BRAND_COLOR,
-    backgroundColor: 'rgba(196, 168, 130, 0.1)',
-    padding: '4px 8px',
-    borderRadius: '6px',
+    fontSize: 13,
+    fontWeight: 600,
+    color: 'var(--accent)',
+    background: 'var(--accent-light)',
+    padding: '4px 10px',
+    borderRadius: 8,
   },
   progressContainer: {
-    marginBottom: '12px',
+    marginBottom: 12,
   },
   progressBg: {
-    height: '8px',
-    backgroundColor: '#F3F4F6',
-    borderRadius: '4px',
+    height: 6,
+    background: 'var(--border-light)',
+    borderRadius: 3,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
+    borderRadius: 3,
     transition: 'width 0.3s ease',
   },
   status: {
-    marginBottom: '12px',
+    marginBottom: 12,
   },
   goodStatus: {
-    margin: '0',
-    fontSize: '13px',
-    color: '#059669',
-    fontWeight: '500',
-  },
-  warnStatus: {
-    margin: '0',
+    margin: 0,
+    fontSize: 13,
+    color: 'var(--success)',
+    fontWeight: 500,
   },
   warnText: {
-    margin: '0 0 4px 0',
-    fontSize: '13px',
-    color: '#DC2626',
-    fontWeight: '600',
+    margin: '0 0 4px',
+    fontSize: 13,
+    color: 'var(--danger)',
+    fontWeight: 600,
   },
   costText: {
-    margin: '0',
-    fontSize: '12px',
-    color: '#7F1D1D',
+    margin: 0,
+    fontSize: 12,
+    color: 'var(--danger-text, var(--danger))',
   },
   details: {
-    borderTop: '1px solid #F3F4F6',
-    paddingTop: '12px',
-    fontSize: '12px',
+    borderTop: '1px solid var(--border-light)',
+    paddingTop: 12,
   },
   detailRow: {
     display: 'flex',
     justifyContent: 'space-between',
-    marginBottom: '6px',
-    color: '#6B7280',
+    marginBottom: 6,
+    fontSize: 12,
+    color: 'var(--text-muted)',
   },
   detailLabel: {
-    fontWeight: '500',
+    fontWeight: 500,
   },
   detailValue: {
-    color: '#1F2937',
+    color: 'var(--text-secondary)',
+    fontWeight: 500,
   },
   skeleton: {
-    backgroundColor: '#ffffff',
-    border: `1px solid #E5E7EB`,
-    borderRadius: '10px',
-    padding: '16px',
-    marginBottom: '16px',
+    background: 'var(--bg-card)',
+    border: '1px solid var(--border)',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 12,
   },
   skeletonBar: {
-    height: '12px',
-    backgroundColor: '#F3F4F6',
-    borderRadius: '6px',
-    animation: 'pulse 2s infinite',
+    height: 12,
+    background: 'var(--border-light)',
+    borderRadius: 6,
+    animation: 'shimmer 1.5s infinite',
   },
 };

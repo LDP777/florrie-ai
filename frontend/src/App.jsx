@@ -83,8 +83,29 @@ const NotFound = lazy(() => import('./pages/NotFound.jsx'));
 
 function PageLoader() {
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '40vh' }}>
-      <span style={{ fontSize: 14, color: '#AAA5A0', fontFamily: '"DM Sans", sans-serif' }}>Loading...</span>
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: '40vh',
+      gap: 12,
+      animation: 'fadeIn 0.3s ease'
+    }}>
+      <div style={{
+        width: 32,
+        height: 32,
+        border: '2.5px solid var(--border, #EDE9E4)',
+        borderTopColor: 'var(--accent, #C76B8A)',
+        borderRadius: '50%',
+        animation: 'spin 0.8s linear infinite',
+      }} />
+      <span style={{
+        fontSize: 12,
+        color: 'var(--text-muted, #B5AFA8)',
+        fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+        letterSpacing: '0.04em',
+      }}>Loading...</span>
     </div>
   );
 }
@@ -335,6 +356,7 @@ const styles = {
     minHeight: '100vh',
     background: 'var(--bg, #FAF8F5)',
     gap: 8,
+    animation: 'fadeIn 0.6s ease',
   },
   loadingLogo: {
     fontSize: 30,
@@ -370,6 +392,7 @@ const styles = {
     padding: '5px 0 env(safe-area-inset-bottom, 8px)',
     zIndex: 100,
     fontFamily: "'DM Sans', -apple-system, sans-serif",
+    boxShadow: '0 -1px 12px rgba(0,0,0,0.03)',
   },
   navItem: {
     display: 'flex',
@@ -383,6 +406,7 @@ const styles = {
     position: 'relative',
     fontFamily: 'inherit',
     WebkitTapHighlightColor: 'transparent',
+    transition: 'color 0.15s ease',
   },
   navIcon: { fontSize: 20, lineHeight: 1 },
   navLabel: { fontSize: 10, lineHeight: 1, letterSpacing: '0.01em' },

@@ -300,7 +300,7 @@ export default function MoneyTracker() {
 
   const pulse = !loading ? computePulse() : null;
   const changeArrow = pulse?.incomeChange != null ? (pulse.incomeChange >= 0 ? '↑' : '↓') : '';
-  const changeColor = pulse?.incomeChange >= 0 ? '#4CAF50' : '#E57373';
+  const changeColor = pulse?.incomeChange >= 0 ? 'var(--success)' : 'var(--danger)';
 
   return (
     <div style={styles.page}>
@@ -319,8 +319,8 @@ export default function MoneyTracker() {
             onClick={() => setTab(t)}
             style={{
               ...styles.tab,
-              borderBottomColor: tab === t ? '#C76B8A' : 'transparent',
-              color: tab === t ? '#C76B8A' : '#AAA5A0'
+              borderBottomColor: tab === t ? 'var(--accent)' : 'transparent',
+              color: tab === t ? 'var(--accent)' : 'var(--text-muted)'
             }}
           >
             {t === 'pulse' ? 'Pulse' : t === 'expenses' ? 'Expenses' : t === 'income' ? 'Income' : 'Tax'}
@@ -683,12 +683,13 @@ const DEV_TRANSACTIONS = [
 const styles = {
   page: {
     minHeight: '100vh',
-    background: '#FAF8F5',
-    fontFamily: '"DM Sans", -apple-system, sans-serif',
+    background: 'var(--bg)',
+    fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)",
     padding: '0 16px 40px',
     maxWidth: 480,
     margin: '0 auto',
-    color: '#2D2A26'
+    color: 'var(--text-primary)',
+    animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
   },
   header: {
     display: 'flex',
@@ -697,12 +698,12 @@ const styles = {
     paddingTop: 28,
     paddingBottom: 8
   },
-  title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
-  subtitle: { fontSize: 13, color: '#C76B8A', margin: 0, fontWeight: 500 },
+  title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
+  subtitle: { fontSize: 13, color: 'var(--accent)', margin: 0, fontWeight: 500 },
   tabs: {
     display: 'flex',
     gap: 16,
-    borderBottom: '1px solid #F0ECE8',
+    borderBottom: '1px solid var(--border)',
     marginBottom: 16,
     overflowX: 'auto'
   },
@@ -718,64 +719,64 @@ const styles = {
     transition: 'all 0.2s',
     whiteSpace: 'nowrap'
   },
-  loadingText: { textAlign: 'center', color: '#AAA5A0', padding: 40, fontSize: 14 },
+  loadingText: { textAlign: 'center', color: 'var(--text-muted)', padding: 40, fontSize: 14 },
 
   // Pulse
   pulseGrid: { display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 },
   pulseCard: {
-    background: '#fff',
+    background: 'var(--bg-card)',
     borderRadius: 14,
     padding: '16px 18px',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+    boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))'
   },
-  profitCard: { border: '1.5px solid #F0ECE8' },
-  pulseLabel: { display: 'block', fontSize: 12, color: '#AAA5A0', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 },
-  pulseValue: { display: 'block', fontSize: 24, fontWeight: 700, color: '#2D2A26' },
-  pulseChange: { display: 'block', fontSize: 12, color: '#AAA5A0', marginTop: 4 },
+  profitCard: { border: '1.5px solid var(--border)' },
+  pulseLabel: { display: 'block', fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 },
+  pulseValue: { display: 'block', fontSize: 24, fontWeight: 700, color: 'var(--text-primary)' },
+  pulseChange: { display: 'block', fontSize: 12, color: 'var(--text-muted)', marginTop: 4 },
 
   statsRow: { display: 'flex', gap: 10, marginBottom: 16 },
   statBox: {
     flex: 1,
-    background: '#fff',
+    background: 'var(--bg-card)',
     borderRadius: 12,
     padding: '14px 12px',
     textAlign: 'center',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+    boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))'
   },
-  statNum: { display: 'block', fontSize: 20, fontWeight: 700, color: '#C76B8A' },
-  statLabel: { display: 'block', fontSize: 10, color: '#AAA5A0', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 2 },
+  statNum: { display: 'block', fontSize: 20, fontWeight: 700, color: 'var(--accent)' },
+  statLabel: { display: 'block', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 2 },
 
   breakdownSection: {
-    background: '#fff',
+    background: 'var(--bg-card)',
     borderRadius: 14,
     padding: 16,
     marginBottom: 12,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+    boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))'
   },
-  sectionTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: '#2D2A26' },
+  sectionTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: 'var(--text-primary)' },
   breakdownRow: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: '8px 0',
-    borderBottom: '1px solid #FAF8F5'
+    borderBottom: '1px solid var(--bg)'
   },
-  breakdownCat: { fontSize: 13, textTransform: 'capitalize', color: '#5A5550' },
-  breakdownCount: { fontSize: 11, color: '#C4BDB6' },
-  breakdownAmt: { fontSize: 13, fontWeight: 600, color: '#2D2A26' },
+  breakdownCat: { fontSize: 13, textTransform: 'capitalize', color: 'var(--text-secondary)' },
+  breakdownCount: { fontSize: 11, color: 'var(--text-muted)' },
+  breakdownAmt: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
 
   comparisonCard: {
-    background: '#fff',
+    background: 'var(--bg-card)',
     borderRadius: 14,
     padding: 16,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+    boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))'
   },
   compRow: {
     display: 'flex',
     justifyContent: 'space-between',
     padding: '6px 0',
     fontSize: 13,
-    color: '#5A5550'
+    color: 'var(--text-secondary)'
   },
 
   // Expenses
@@ -785,7 +786,7 @@ const styles = {
     padding: '10px 0',
     borderRadius: 10,
     border: 'none',
-    background: '#C76B8A',
+    background: 'var(--accent)',
     color: '#fff',
     fontSize: 13,
     fontWeight: 600,
@@ -796,8 +797,8 @@ const styles = {
     flex: 1,
     padding: '10px 0',
     borderRadius: 10,
-    border: '1.5px solid #E8E4E0',
-    background: '#fff',
+    border: '1.5px solid var(--border)',
+    background: 'var(--bg-card)',
     color: '#666',
     fontSize: 13,
     fontWeight: 600,
@@ -810,20 +811,20 @@ const styles = {
   },
 
   addForm: {
-    background: '#fff',
+    background: 'var(--bg-card)',
     borderRadius: 14,
     padding: 16,
     marginBottom: 14,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+    boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))'
   },
   formRow: { display: 'flex', gap: 10, marginBottom: 10 },
   formGroup: { flex: 1, marginBottom: 10 },
-  formLabel: { display: 'block', fontSize: 12, color: '#AAA5A0', marginBottom: 4, fontWeight: 500 },
+  formLabel: { display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4, fontWeight: 500 },
   formInput: {
     width: '100%',
     padding: '10px 12px',
     borderRadius: 8,
-    border: '1.5px solid #F0ECE8',
+    border: '1.5px solid var(--border)',
     fontSize: 14,
     fontFamily: 'inherit',
     outline: 'none',
@@ -834,18 +835,18 @@ const styles = {
     width: '100%',
     padding: '10px 12px',
     borderRadius: 8,
-    border: '1.5px solid #F0ECE8',
+    border: '1.5px solid var(--border)',
     fontSize: 14,
     fontFamily: 'inherit',
     outline: 'none',
-    background: '#fff',
+    background: 'var(--bg-card)',
     boxSizing: 'border-box'
   },
   checkboxLabel: {
     display: 'flex',
     alignItems: 'center',
     fontSize: 13,
-    color: '#5A5550',
+    color: 'var(--text-secondary)',
     marginBottom: 12,
     cursor: 'pointer'
   },
@@ -855,7 +856,7 @@ const styles = {
     padding: '10px 0',
     borderRadius: 10,
     border: 'none',
-    background: '#C76B8A',
+    background: 'var(--accent)',
     color: '#fff',
     fontSize: 13,
     fontWeight: 600,
@@ -866,8 +867,8 @@ const styles = {
     padding: '10px 16px',
     borderRadius: 10,
     border: 'none',
-    background: '#F5F2EF',
-    color: '#8A8580',
+    background: 'var(--border-light)',
+    color: 'var(--text-secondary)',
     fontSize: 13,
     cursor: 'pointer',
     fontFamily: 'inherit'
@@ -879,23 +880,23 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    background: '#fff',
+    background: 'var(--bg-card)',
     borderRadius: 12,
     padding: '14px 16px',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+    boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))'
   },
   listLeft: { display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 },
-  listTitle: { fontSize: 14, fontWeight: 600, color: '#2D2A26', textTransform: 'capitalize' },
-  listDesc: { fontSize: 12, color: '#8A8580', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  listMeta: { fontSize: 11, color: '#C4BDB6' },
-  listAmount: { fontSize: 15, fontWeight: 700, color: '#E57373', marginLeft: 12, whiteSpace: 'nowrap' },
+  listTitle: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', textTransform: 'capitalize' },
+  listDesc: { fontSize: 12, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  listMeta: { fontSize: 11, color: 'var(--text-muted)' },
+  listAmount: { fontSize: 15, fontWeight: 700, color: 'var(--danger)', marginLeft: 12, whiteSpace: 'nowrap' },
 
   // Tax
   taxHeader: { marginBottom: 16 },
-  taxPeriod: { fontSize: 12, color: '#AAA5A0' },
+  taxPeriod: { fontSize: 12, color: 'var(--text-muted)' },
   taxNote: {
     fontSize: 12,
-    color: '#C4BDB6',
+    color: 'var(--text-muted)',
     textAlign: 'center',
     padding: '16px 20px',
     lineHeight: 1.5,

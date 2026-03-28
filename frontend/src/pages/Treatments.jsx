@@ -229,7 +229,7 @@ export default function Treatments() {
                 onClick={() => setForm(p => ({ ...p, requires_consultation: !p.requires_consultation }))}
                 style={{
                   ...styles.toggleBtn,
-                  background: form.requires_consultation ? '#C76B8A' : '#E8E4E0',
+                  background: form.requires_consultation ? 'var(--accent)' : 'var(--border)',
                   color: form.requires_consultation ? '#fff' : '#888'
                 }}
               >
@@ -270,7 +270,7 @@ export default function Treatments() {
                 onClick={() => setForm(p => ({ ...p, booking_enabled: !p.booking_enabled }))}
                 style={{
                   ...styles.toggleBtn,
-                  background: form.booking_enabled !== false ? '#C76B8A' : '#E8E4E0',
+                  background: form.booking_enabled !== false ? 'var(--accent)' : 'var(--border)',
                   color: form.booking_enabled !== false ? '#fff' : '#888'
                 }}
               >
@@ -369,92 +369,93 @@ export default function Treatments() {
 
 const styles = {
   page: {
-    minHeight: '100vh', background: '#FAF8F5',
-    fontFamily: '"DM Sans", -apple-system, sans-serif',
-    padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: '#2D2A26'
+    minHeight: '100vh', background: 'var(--bg)',
+    fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)",
+    padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)',
+    animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
   },
   header: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     paddingTop: 28, paddingBottom: 12
   },
-  title: { fontSize: 22, fontWeight: 700, margin: 0 },
+  title: { fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
   addBtn: {
     padding: '8px 16px', borderRadius: 10, border: 'none',
-    background: '#C76B8A', color: '#fff', fontSize: 13, fontWeight: 600,
+    background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit'
   },
   addForm: {
-    background: '#fff', borderRadius: 14, padding: 16, marginBottom: 14,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+    background: 'var(--bg-card)', borderRadius: 14, padding: 16, marginBottom: 14,
+    boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))'
   },
-  formTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 14px', color: '#C76B8A' },
+  formTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 14px', color: 'var(--accent)' },
   formRow: { display: 'flex', gap: 10 },
   formGroup: { flex: 1, marginBottom: 10 },
-  formLabel: { display: 'block', fontSize: 12, color: '#AAA5A0', marginBottom: 4, fontWeight: 500 },
+  formLabel: { display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4, fontWeight: 500 },
   formInput: {
     width: '100%', padding: '10px 12px', borderRadius: 8,
-    border: '1.5px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit',
+    border: '1.5px solid var(--border)', fontSize: 14, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box'
   },
   formSelect: {
     width: '100%', padding: '10px 12px', borderRadius: 8,
-    border: '1.5px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit',
-    outline: 'none', background: '#fff', boxSizing: 'border-box'
+    border: '1.5px solid var(--border)', fontSize: 14, fontFamily: 'inherit',
+    outline: 'none', background: 'var(--bg-card)', boxSizing: 'border-box'
   },
-  formHint: { display: 'block', fontSize: 11, color: '#C4BDB6', marginTop: 4 },
+  formHint: { display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 4 },
   toggleBtn: {
     width: '100%', padding: '10px 12px', borderRadius: 8, border: 'none',
     fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     transition: 'all 0.2s'
   },
   consultBadge: {
-    fontSize: 11, color: '#C76B8A', fontWeight: 500, marginTop: 2
+    fontSize: 11, color: 'var(--accent)', fontWeight: 500, marginTop: 2
   },
   formActions: { display: 'flex', gap: 8, marginTop: 4 },
   saveBtn: {
     flex: 1, padding: '10px 0', borderRadius: 10, border: 'none',
-    background: '#C76B8A', color: '#fff', fontSize: 13, fontWeight: 600,
+    background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit'
   },
   cancelBtn: {
     padding: '10px 16px', borderRadius: 10, border: 'none',
-    background: '#F5F2EF', color: '#8A8580', fontSize: 13,
+    background: 'var(--border-light)', color: 'var(--text-secondary)', fontSize: 13,
     cursor: 'pointer', fontFamily: 'inherit'
   },
   categorySection: { marginBottom: 16 },
-  categoryTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 8px', color: '#5A5550' },
+  categoryTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 8px', color: 'var(--text-secondary)' },
   treatmentCard: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    background: '#fff', borderRadius: 12, padding: '12px 14px', marginBottom: 6,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+    background: 'var(--bg-card)', borderRadius: 12, padding: '12px 14px', marginBottom: 6,
+    boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))'
   },
   treatmentInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 },
-  treatmentName: { fontSize: 14, fontWeight: 600, color: '#2D2A26' },
-  treatmentMeta: { fontSize: 12, color: '#AAA5A0' },
-  treatmentDesc: { fontSize: 11, color: '#C4BDB6', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  treatmentName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' },
+  treatmentMeta: { fontSize: 12, color: 'var(--text-muted)' },
+  treatmentDesc: { fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   treatmentActions: { display: 'flex', gap: 6, marginLeft: 10, flexShrink: 0 },
   editBtn: {
     padding: '5px 10px', borderRadius: 6, border: 'none',
-    background: '#FBF0F3', color: '#C76B8A', fontSize: 11, fontWeight: 500,
+    background: 'var(--accent-light)', color: 'var(--accent)', fontSize: 11, fontWeight: 500,
     cursor: 'pointer', fontFamily: 'inherit'
   },
   deactivateBtn: {
     padding: '5px 10px', borderRadius: 6, border: 'none',
-    background: '#F5F2EF', color: '#8A8580', fontSize: 11, fontWeight: 500,
+    background: 'var(--border-light)', color: 'var(--text-secondary)', fontSize: 11, fontWeight: 500,
     cursor: 'pointer', fontFamily: 'inherit'
   },
   reactivateBtn: {
     padding: '5px 10px', borderRadius: 6, border: 'none',
-    background: '#E8F5E9', color: '#4CAF50', fontSize: 11, fontWeight: 500,
+    background: 'var(--success-bg)', color: 'var(--success)', fontSize: 11, fontWeight: 500,
     cursor: 'pointer', fontFamily: 'inherit'
   },
   inactiveSection: { marginTop: 20 },
   inactiveToggle: {
     width: '100%', padding: '10px 0', background: 'none', border: 'none',
-    color: '#AAA5A0', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit'
+    color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit'
   },
-  loadingText: { textAlign: 'center', color: '#AAA5A0', padding: 40, fontSize: 14 },
+  loadingText: { textAlign: 'center', color: 'var(--text-muted)', padding: 40, fontSize: 14 },
   emptyState: { textAlign: 'center', padding: '40px 20px' },
   emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 6px' },
-  emptyDesc: { fontSize: 13, color: '#AAA5A0', margin: 0, lineHeight: 1.5 }
+  emptyDesc: { fontSize: 13, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }
 };

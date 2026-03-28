@@ -276,6 +276,7 @@ const S = {
   page: {
     ...ds.page,
     paddingTop: 20,
+    animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
   },
   header: {
     marginBottom: 20,
@@ -283,6 +284,7 @@ const S = {
   title: {
     ...type.displayLg,
     margin: 0,
+    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
   },
   subtitle: {
     ...type.bodySmall,
@@ -460,7 +462,7 @@ const S = {
   lockBadge: {
     fontSize: 8,
     fontWeight: 700,
-    background: 'linear-gradient(135deg, #C9A96E, #B8953E)',
+    background: 'linear-gradient(135deg, var(--gold), #B8953E)',
     color: '#fff',
     padding: '2px 5px',
     borderRadius: 6,

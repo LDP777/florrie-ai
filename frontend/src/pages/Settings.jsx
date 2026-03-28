@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useBeautician, updateRow, supabase } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
+import SMSUsageWidget from '../components/SMSUsageWidget.jsx';
 import logger from '../lib/logger.js';
 
 /**
@@ -476,6 +477,9 @@ export default function Settings({ onLogout }) {
               </div>
             </div>
           </div>
+
+          {/* SMS Usage */}
+          <SMSUsageWidget />
         </div>
       )}
 

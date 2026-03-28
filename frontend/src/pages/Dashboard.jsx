@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBeautician, supabase, isDevMode, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
-import SMSUsageWidget from '../components/SMSUsageWidget.jsx';
 import logger from '../lib/logger.js';
 
 /**
@@ -270,9 +269,6 @@ export default function Dashboard() {
           <span style={{ ...styles.pulseValue, color: '#FF9800' }}>{today.filter(a => a.status === 'pending').length}</span>
         </div>
       </div>
-
-      {/* SMS Usage Widget */}
-      <SMSUsageWidget />
 
       {/* Quick Actions */}
       <div style={styles.quickGrid}>
