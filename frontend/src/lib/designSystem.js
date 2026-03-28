@@ -1,5 +1,5 @@
 /**
- * Florrie Design System — Shared Style Constants
+ * florrie.ai Design System — Shared Style Constants
  *
  * Import into any page:
  *   import { ds } from '../lib/designSystem.js';

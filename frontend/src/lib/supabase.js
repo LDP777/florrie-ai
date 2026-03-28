@@ -1,5 +1,5 @@
 /**
- * Supabase client + React helpers for Florrie.
+ * Supabase client + React helpers for florrie.ai.
  *
  * Centralises the client so every page imports from here
  * instead of creating its own. Provides hooks for common patterns:

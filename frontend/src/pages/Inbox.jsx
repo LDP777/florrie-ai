@@ -236,7 +236,7 @@ export default function Inbox({ token }) {
         {showAiDraft && active.aiDraft && (
           <div style={s.aiDraftCard}>
             <div style={s.aiDraftHeader}>
-              <span style={s.aiDraftLabel}>Florrie suggests</span>
+              <span style={s.aiDraftLabel}>florrie.ai suggests</span>
               <button onClick={() => setShowAiDraft(false)} style={s.aiDismiss}>×</button>
             </div>
             <p style={s.aiDraftText}>{active.aiDraft}</p>

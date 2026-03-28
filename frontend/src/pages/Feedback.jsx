@@ -1,7 +1,7 @@
 /**
  * Feedback — Client satisfaction surveys & NPS tracking.
  *
- * After each appointment, Florrie can auto-send a quick survey.
+ * After each appointment, florrie.ai can auto-send a quick survey.
  * This page shows results, trends, and lets Ellie manage her
  * feedback settings. Happy clients get nudged to leave a Google review.
  */

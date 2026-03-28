@@ -259,12 +259,12 @@ const DEV_ESCALATIONS = [
 const styles = {
   page: {
     minHeight: '100vh',
-    background: '#FAF8F5',
+    background: 'var(--bg)',
     fontFamily: '"DM Sans", -apple-system, sans-serif',
     padding: '0 16px 40px',
     maxWidth: 480,
     margin: '0 auto',
-    color: '#2D2A26'
+    color: 'var(--text-primary)'
   },
   header: {
     display: 'flex',
@@ -275,7 +275,7 @@ const styles = {
   },
   title: { fontSize: 22, fontWeight: 700, margin: 0 },
   badge: {
-    background: '#EF4444',
+    background: 'var(--danger)',
     color: '#fff',
     fontSize: 12,
     fontWeight: 700,
@@ -286,13 +286,13 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center'
   },
-  loading: { textAlign: 'center', padding: 60, color: '#AAA5A0' },
+  loading: { textAlign: 'center', padding: 60, color: 'var(--text-muted)' },
   list: { display: 'flex', flexDirection: 'column', gap: 12 },
   card: {
-    background: '#fff',
+    background: 'var(--bg-card)',
     borderRadius: 14,
     padding: 18,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+    boxShadow: 'var(--shadow-xs)'
   },
   cardHeader: {
     display: 'flex',
@@ -302,35 +302,35 @@ const styles = {
   },
   clientInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
   clientName: { fontSize: 15, fontWeight: 600 },
-  channel: { fontSize: 11, color: '#AAA5A0', textTransform: 'uppercase', letterSpacing: '0.04em' },
-  time: { fontSize: 12, color: '#C4BDB6' },
+  channel: { fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' },
+  time: { fontSize: 12, color: 'var(--text-secondary)' },
   reasonBadge: {
     display: 'inline-block',
     padding: '4px 10px',
     borderRadius: 6,
     fontSize: 11,
     fontWeight: 500,
-    background: '#FEF3C7',
-    color: '#B45309',
+    background: 'var(--warning-bg)',
+    color: 'var(--warning-text)',
     marginBottom: 12
   },
   inboundBubble: {
-    background: '#F5F2EF',
+    background: 'var(--bg-subtle)',
     borderRadius: 12,
     padding: '10px 14px',
     marginBottom: 8
   },
   suggestionBubble: {
-    background: '#EEF4FC',
+    background: 'var(--bg-hover)',
     borderRadius: 12,
     padding: '10px 14px',
     marginBottom: 12,
-    borderLeft: '3px solid #4A90D9'
+    borderLeft: '3px solid var(--accent)'
   },
   bubbleLabel: {
     fontSize: 10,
     fontWeight: 600,
-    color: '#8A8580',
+    color: 'var(--text-secondary)',
     textTransform: 'uppercase',
     letterSpacing: '0.04em',
     display: 'block',
@@ -342,21 +342,21 @@ const styles = {
     width: '100%',
     padding: '12px 14px',
     borderRadius: 10,
-    border: '1.5px solid #C4A882',
+    border: '1.5px solid var(--gold)',
     fontSize: 14,
     fontFamily: 'inherit',
     resize: 'vertical',
     outline: 'none',
     lineHeight: 1.5,
     boxSizing: 'border-box',
-    background: '#FDFCFB'
+    background: 'var(--bg-card)'
   },
   editActions: { display: 'flex', gap: 8, marginTop: 8 },
   sendBtn: {
     padding: '10px 20px',
     borderRadius: 10,
     border: 'none',
-    background: '#C4A882',
+    background: 'var(--gold)',
     color: '#fff',
     fontSize: 14,
     fontWeight: 600,
@@ -367,8 +367,8 @@ const styles = {
     padding: '10px 16px',
     borderRadius: 10,
     border: 'none',
-    background: '#F5F2EF',
-    color: '#8A8580',
+    background: 'var(--bg-subtle)',
+    color: 'var(--text-secondary)',
     fontSize: 14,
     cursor: 'pointer',
     fontFamily: 'inherit'
@@ -379,7 +379,7 @@ const styles = {
     padding: '10px 0',
     borderRadius: 10,
     border: 'none',
-    background: '#5BA67F',
+    background: 'var(--success)',
     color: '#fff',
     fontSize: 13,
     fontWeight: 600,
@@ -391,8 +391,8 @@ const styles = {
     padding: '10px 0',
     borderRadius: 10,
     border: 'none',
-    background: '#EEF4FC',
-    color: '#4A90D9',
+    background: 'var(--bg-hover)',
+    color: 'var(--accent)',
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
@@ -402,13 +402,13 @@ const styles = {
     padding: '10px 14px',
     borderRadius: 10,
     border: 'none',
-    background: '#F5F2EF',
-    color: '#AAA5A0',
+    background: 'var(--bg-subtle)',
+    color: 'var(--text-muted)',
     fontSize: 13,
     cursor: 'pointer',
     fontFamily: 'inherit'
   },
   emptyState: { textAlign: 'center', padding: '60px 20px' },
   emptyTitle: { fontSize: 17, fontWeight: 600, margin: '0 0 6px' },
-  emptyDesc: { fontSize: 13, color: '#AAA5A0', margin: 0, lineHeight: 1.5, maxWidth: 280, marginInline: 'auto' }
+  emptyDesc: { fontSize: 13, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5, maxWidth: 280, marginInline: 'auto' }
 };

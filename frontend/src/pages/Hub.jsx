@@ -91,10 +91,10 @@ const CATEGORIES = [
   {
     id: 'ai',
     label: 'AI & Intelligence',
-    description: 'Florrie\'s brain',
+    description: 'florrie.ai\'s brain',
     accent: '#C76B8A',
     items: [
-      { path: '/voice', label: 'Florrie AI', desc: 'Your AI assistant', icon: '✨' },
+      { path: '/voice', label: 'florrie.ai', desc: 'Your AI assistant', icon: '✨' },
       { path: '/ai-insights', label: 'AI Insights', desc: 'Predictions and trends', icon: '🧠' },
       { path: '/segments', label: 'Client Segments', desc: 'Smart grouping', icon: '🎯' },
       { path: '/churn', label: 'Churn Prevention', desc: 'At-risk clients', icon: '🛡️' },

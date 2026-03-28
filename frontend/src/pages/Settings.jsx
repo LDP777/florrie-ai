@@ -47,7 +47,7 @@ export default function Settings({ onLogout }) {
   const confidence = beautician.confidence_threshold || 0.85;
 
   return (
-    <div style={styles.page}>
+    <div style={{ ...styles.page, animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' }}>
       <div style={styles.header}>
         <h1 style={styles.title}>Settings</h1>
         {saved && <span style={styles.savedBadge}>Saved</span>}
@@ -69,8 +69,8 @@ export default function Settings({ onLogout }) {
             onClick={() => setSection(s.key)}
             style={{
               ...styles.sectionTab,
-              background: section === s.key ? '#C76B8A' : '#F5F2EF',
-              color: section === s.key ? '#fff' : '#8A8580'
+              background: section === s.key ? 'var(--accent)' : 'var(--border-light)',
+              color: section === s.key ? 'var(--bg-card)' : 'var(--text-secondary)'
             }}
           >
             {s.label}
@@ -92,7 +92,7 @@ export default function Settings({ onLogout }) {
           ) : (
             <div style={styles.fieldRow}>
               <span style={styles.fieldLabel}>Booking link</span>
-              <span style={{ fontSize: 13, color: '#C4BDB6' }}>Set a booking slug below to get your link</span>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Set a booking slug below to get your link</span>
             </div>
           )}
           <FieldEditor
@@ -122,7 +122,7 @@ export default function Settings({ onLogout }) {
                       saveProfile({ working_hours: newHours });
                     }}
                   />
-                  <span style={{ ...styles.dayName, color: enabled ? '#2D2A26' : '#C4BDB6' }}>
+                  <span style={{ ...styles.dayName, color: enabled ? 'var(--text-primary)' : 'var(--text-muted)' }}>
                     {DAYS[idx]}
                   </span>
                 </label>
@@ -148,7 +148,7 @@ export default function Settings({ onLogout }) {
             <div style={styles.connectionStatus}>
               <div style={{
                 ...styles.statusDot,
-                background: beautician.stripe_onboarding_complete ? '#4CAF50' : '#F5A623',
+                background: beautician.stripe_onboarding_complete ? 'var(--success)' : 'var(--warning)',
               }} />
               <span style={styles.connectionLabel}>
                 {beautician.stripe_onboarding_complete ? 'Connected' : 'Not connected'}
@@ -210,7 +210,7 @@ export default function Settings({ onLogout }) {
                 <span style={styles.depositLabel}>Require deposit</span>
                 <span style={styles.depositHint}>Clients pay upfront when booking</span>
               </div>
-              <div style={{ ...styles.toggle, background: '#C76B8A' }}>
+              <div style={{ ...styles.toggle, background: 'var(--accent)' }}>
                 <div style={{ ...styles.toggleDot, transform: 'translateX(16px)' }} />
               </div>
             </div>
@@ -238,7 +238,7 @@ export default function Settings({ onLogout }) {
                 <span style={styles.depositLabel}>No-show fee</span>
                 <span style={styles.depositHint}>Charge clients who don't show up</span>
               </div>
-              <div style={{ ...styles.toggle, background: '#C76B8A' }}>
+              <div style={{ ...styles.toggle, background: 'var(--accent)' }}>
                 <div style={{ ...styles.toggleDot, transform: 'translateX(16px)' }} />
               </div>
             </div>
@@ -273,7 +273,7 @@ export default function Settings({ onLogout }) {
           <div style={styles.card}>
             <div style={styles.cardTitle}>Calendar sync</div>
             <p style={styles.cardHint}>
-              Connect your calendar so Florrie can check availability and avoid double-bookings.
+              Connect your calendar so florrie.ai can check availability and avoid double-bookings.
             </p>
           </div>
 
@@ -310,7 +310,7 @@ export default function Settings({ onLogout }) {
                 <span style={styles.syncLabel}>Block personal events</span>
                 <span style={styles.syncHint}>Personal calendar events block booking slots</span>
               </div>
-              <div style={{ ...styles.toggle, background: '#C76B8A' }}>
+              <div style={{ ...styles.toggle, background: 'var(--accent)' }}>
                 <div style={{ ...styles.toggleDot, transform: 'translateX(16px)' }} />
               </div>
             </div>
@@ -320,7 +320,7 @@ export default function Settings({ onLogout }) {
                 <span style={styles.syncLabel}>Push bookings to calendar</span>
                 <span style={styles.syncHint}>New bookings appear in your connected calendar</span>
               </div>
-              <div style={{ ...styles.toggle, background: '#C76B8A' }}>
+              <div style={{ ...styles.toggle, background: 'var(--accent)' }}>
                 <div style={{ ...styles.toggleDot, transform: 'translateX(16px)' }} />
               </div>
             </div>
@@ -330,7 +330,7 @@ export default function Settings({ onLogout }) {
                 <span style={styles.syncLabel}>Two-way sync</span>
                 <span style={styles.syncHint}>Changes in either calendar stay in sync</span>
               </div>
-              <div style={{ ...styles.toggle, background: '#E0DBD5' }}>
+              <div style={{ ...styles.toggle, background: 'var(--border)' }}>
                 <div style={{ ...styles.toggleDot, transform: 'translateX(0)' }} />
               </div>
             </div>
@@ -493,7 +493,7 @@ export default function Settings({ onLogout }) {
               <span style={styles.toggleLabel}>Auto-reply enabled</span>
               <button
                 onClick={() => saveProfile({ auto_reply_enabled: !beautician.auto_reply_enabled })}
-                style={{ ...styles.toggle, background: beautician.auto_reply_enabled ? '#C76B8A' : '#E0DBD5' }}
+                style={{ ...styles.toggle, background: beautician.auto_reply_enabled ? 'var(--accent)' : 'var(--border)' }}
               >
                 <div style={{ ...styles.toggleDot, transform: beautician.auto_reply_enabled ? 'translateX(20px)' : 'translateX(2px)' }} />
               </button>
@@ -561,7 +561,7 @@ export default function Settings({ onLogout }) {
               <span style={styles.toggleLabel}>{isDark ? '🌙 Dark mode' : '☀️ Light mode'}</span>
               <button
                 onClick={toggleDark}
-                style={{ ...styles.toggle, background: isDark ? '#C76B8A' : '#E0DBD5' }}
+                style={{ ...styles.toggle, background: isDark ? 'var(--accent)' : 'var(--border)' }}
               >
                 <div style={{ ...styles.toggleDot, transform: isDark ? 'translateX(20px)' : 'translateX(2px)' }} />
               </button>
@@ -618,8 +618,8 @@ function NotificationToggle({ label, desc, prefs, onChange }) {
           onClick={() => onChange({ ...prefs, email: !prefs.email })}
           style={{
             ...styles.notifChip,
-            background: prefs.email ? '#E8F5E9' : '#F5F2EF',
-            color: prefs.email ? '#4CAF50' : '#C4BDB6'
+            background: prefs.email ? 'var(--success-bg)' : 'var(--border-light)',
+            color: prefs.email ? 'var(--success)' : 'var(--text-muted)'
           }}
         >
           📧
@@ -628,8 +628,8 @@ function NotificationToggle({ label, desc, prefs, onChange }) {
           onClick={() => onChange({ ...prefs, push: !prefs.push })}
           style={{
             ...styles.notifChip,
-            background: prefs.push ? '#E8F5E9' : '#F5F2EF',
-            color: prefs.push ? '#4CAF50' : '#C4BDB6'
+            background: prefs.push ? 'var(--success-bg)' : 'var(--border-light)',
+            color: prefs.push ? 'var(--success)' : 'var(--text-muted)'
           }}
         >
           🔔
@@ -645,7 +645,7 @@ function ClientReminderRow({ label, enabled, onChange }) {
       <span style={styles.reminderLabel}>{label}</span>
       <button
         onClick={() => onChange(!enabled)}
-        style={{ ...styles.toggle, background: enabled ? '#C76B8A' : '#E0DBD5', width: 44, height: 24 }}
+        style={{ ...styles.toggle, background: enabled ? 'var(--accent)' : 'var(--border)', width: 44, height: 24 }}
       >
         <div style={{ ...styles.toggleDot, transform: enabled ? 'translateX(20px)' : 'translateX(2px)' }} />
       </button>
@@ -689,20 +689,20 @@ function BookingLinkCard({ slug }) {
   return (
     <div style={styles.bookingLinkCard}>
       <div style={styles.bookingLinkHeader}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: '#C76B8A', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Your booking link</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Your booking link</span>
       </div>
       <div style={styles.bookingLinkUrl}>
-        <span style={{ fontSize: 14, color: '#888', wordBreak: 'break-all' }}>{url}</span>
+        <span style={{ fontSize: 14, color: 'var(--text-secondary)', wordBreak: 'break-all' }}>{url}</span>
       </div>
       <div style={styles.bookingLinkActions}>
         <button onClick={handleCopy} style={styles.bookingLinkBtn}>
           {copied ? '✓ Copied!' : '📋 Copy link'}
         </button>
-        <button onClick={handleShare} style={{ ...styles.bookingLinkBtn, background: '#C76B8A', color: '#fff' }}>
+        <button onClick={handleShare} style={{ ...styles.bookingLinkBtn, background: 'var(--accent)', color: 'var(--bg-card)' }}>
           📤 Share
         </button>
       </div>
-      <p style={{ fontSize: 11, color: '#C4BDB6', marginTop: 8, textAlign: 'center' }}>
+      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>
         Add this link to your Instagram bio, WhatsApp status, or send it directly to clients
       </p>
     </div>
@@ -710,90 +710,90 @@ function BookingLinkCard({ slug }) {
 }
 
 const styles = {
-  page: { minHeight: '100vh', background: '#FAF8F5', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: '#2D2A26' },
+  page: { minHeight: '100vh', background: 'var(--bg)', fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)", padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 28, paddingBottom: 12 },
-  title: { fontSize: 22, fontWeight: 700, margin: 0 },
-  savedBadge: { padding: '4px 10px', borderRadius: 6, background: '#E8F5E9', color: '#4CAF50', fontSize: 12, fontWeight: 600 },
-  loadingText: { textAlign: 'center', color: '#AAA5A0', padding: 60, fontSize: 14, fontFamily: '"DM Sans", sans-serif' },
+  title: { fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)", letterSpacing: '-0.02em' },
+  savedBadge: { padding: '4px 10px', borderRadius: 6, background: 'var(--success-bg)', color: 'var(--success)', fontSize: 12, fontWeight: 600 },
+  loadingText: { textAlign: 'center', color: 'var(--text-muted)', padding: 60, fontSize: 14, fontFamily: "var(--font-body, 'DM Sans', sans-serif)" },
   sectionNav: { display: 'flex', gap: 6, marginBottom: 16 },
   sectionTab: { flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s' },
-  card: { background: '#fff', borderRadius: 14, padding: 16, marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
-  cardTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 6px', color: '#2D2A26' },
-  cardDesc: { fontSize: 13, color: '#AAA5A0', margin: '0 0 16px', lineHeight: 1.5 },
-  fieldRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #FAF8F5' },
-  fieldLabel: { fontSize: 13, color: '#8A8580', fontWeight: 500 },
-  fieldValue: { fontSize: 13, color: '#2D2A26', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right', padding: 0 },
-  fieldInput: { fontSize: 13, fontWeight: 500, fontFamily: 'inherit', textAlign: 'right', border: 'none', borderBottom: '1.5px solid #C76B8A', outline: 'none', padding: '2px 0', background: 'transparent', color: '#2D2A26' },
-  bookingLinkCard: { background: '#FFF0F3', borderRadius: 12, padding: 16, marginBottom: 8, border: '1.5px solid #C76B8A30' },
+  card: { background: 'var(--bg-card)', borderRadius: 14, padding: 16, marginBottom: 12, boxShadow: 'var(--shadow-sm)' },
+  cardTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 6px', color: 'var(--text-primary)' },
+  cardDesc: { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 16px', lineHeight: 1.5 },
+  fieldRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border-light)' },
+  fieldLabel: { fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 },
+  fieldValue: { fontSize: 13, color: 'var(--text-primary)', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right', padding: 0 },
+  fieldInput: { fontSize: 13, fontWeight: 500, fontFamily: 'inherit', textAlign: 'right', border: 'none', borderBottom: '1.5px solid var(--accent)', outline: 'none', padding: '2px 0', background: 'transparent', color: 'var(--text-primary)' },
+  bookingLinkCard: { background: 'var(--accent-light)', borderRadius: 12, padding: 16, marginBottom: 8, border: '1.5px solid rgba(199, 107, 138, 0.2)' },
   bookingLinkHeader: { marginBottom: 8 },
-  bookingLinkUrl: { background: '#fff', borderRadius: 8, padding: '10px 12px', marginBottom: 10 },
+  bookingLinkUrl: { background: 'var(--bg-card)', borderRadius: 8, padding: '10px 12px', marginBottom: 10 },
   bookingLinkActions: { display: 'flex', gap: 8 },
-  bookingLinkBtn: { flex: 1, padding: '10px 0', borderRadius: 8, border: '1.5px solid #E8E4E0', background: '#fff', color: '#444', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  bookingLinkBtn: { flex: 1, padding: '10px 0', borderRadius: 8, border: '1.5px solid var(--border)', background: 'var(--bg-card)', color: '#444', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   slugDisplay: { display: 'flex', alignItems: 'center', gap: 2 },
-  slugPrefix: { fontSize: 12, color: '#C4BDB6' },
-  slugValue: { fontSize: 13, fontWeight: 600, color: '#C76B8A' },
-  dayRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #FAF8F5' },
+  slugPrefix: { fontSize: 12, color: 'var(--text-muted)' },
+  slugValue: { fontSize: 13, fontWeight: 600, color: 'var(--accent)' },
+  dayRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border-light)' },
   dayToggle: { display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' },
   dayName: { fontSize: 14, fontWeight: 500 },
   timeInputs: { display: 'flex', alignItems: 'center', gap: 6 },
-  timeInput: { padding: '5px 6px', borderRadius: 6, border: '1.5px solid #F0ECE8', fontSize: 12, fontFamily: 'inherit', outline: 'none', width: 80 },
-  timeSep: { fontSize: 11, color: '#AAA5A0' },
-  toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #FAF8F5' },
+  timeInput: { padding: '5px 6px', borderRadius: 6, border: '1.5px solid var(--border)', fontSize: 12, fontFamily: 'inherit', outline: 'none', width: 80 },
+  timeSep: { fontSize: 11, color: 'var(--text-muted)' },
+  toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border-light)' },
   toggleLabel: { fontSize: 13, fontWeight: 500 },
   toggle: { width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', padding: 0 },
-  toggleDot: { width: 20, height: 20, borderRadius: 10, background: '#fff', transition: 'transform 0.2s', position: 'absolute', top: 2 },
+  toggleDot: { width: 20, height: 20, borderRadius: 10, background: 'var(--bg-card)', transition: 'transform 0.2s', position: 'absolute', top: 2 },
   sliderSection: { padding: '14px 0' },
   sliderHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   sliderLabel: { fontSize: 13, fontWeight: 500 },
-  sliderValue: { fontSize: 14, fontWeight: 700, color: '#C76B8A' },
-  slider: { width: '100%', appearance: 'none', height: 4, borderRadius: 2, background: '#F0ECE8', outline: 'none' },
-  sliderHints: { display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10, color: '#C4BDB6' },
-  toneItem: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #FAF8F5' },
-  toneLabel: { fontSize: 12, color: '#AAA5A0', fontWeight: 500 },
-  toneValue: { fontSize: 13, color: '#2D2A26', textAlign: 'right', maxWidth: '60%' },
-  logoutBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: '1.5px solid #E57373', background: 'transparent', color: '#E57373', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
+  sliderValue: { fontSize: 14, fontWeight: 700, color: 'var(--accent)' },
+  slider: { width: '100%', appearance: 'none', height: 4, borderRadius: 2, background: 'var(--border)', outline: 'none' },
+  sliderHints: { display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10, color: 'var(--text-muted)' },
+  toneItem: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border-light)' },
+  toneLabel: { fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 },
+  toneValue: { fontSize: 13, color: 'var(--text-primary)', textAlign: 'right', maxWidth: '60%' },
+  logoutBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: '1.5px solid var(--danger)', background: 'transparent', color: 'var(--danger)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
 
   // Notification styles
-  notifRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #FAF8F5' },
+  notifRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border-light)' },
   notifInfo: { display: 'flex', flexDirection: 'column', gap: 2, flex: 1 },
-  notifLabel: { fontSize: 13, fontWeight: 600, color: '#2D2A26' },
-  notifDesc: { fontSize: 11, color: '#AAA5A0' },
+  notifLabel: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
+  notifDesc: { fontSize: 11, color: 'var(--text-muted)' },
   notifChannels: { display: 'flex', gap: 4 },
   notifChip: { width: 32, height: 32, borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  reminderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #FAF8F5' },
-  reminderLabel: { fontSize: 13, fontWeight: 500, color: '#2D2A26' },
+  reminderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border-light)' },
+  reminderLabel: { fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' },
   channelPicker: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 14, marginTop: 4 },
-  channelLabel: { fontSize: 12, fontWeight: 600, color: '#8A8580' },
+  channelLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' },
   channelOptions: { display: 'flex', gap: 6 },
   channelChip: { padding: '6px 12px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   // Payments
   connectionStatus: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },
   statusDot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
-  connectionLabel: { fontSize: 14, fontWeight: 600, color: '#2D2A26' },
-  connectBtn: { padding: '10px 20px', borderRadius: 10, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  paymentMethodRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid #F5F2EF' },
-  methodLabel: { display: 'block', fontSize: 13, fontWeight: 600, color: '#2D2A26' },
-  methodDesc: { display: 'block', fontSize: 11, color: '#AAA5A0', marginTop: 1 },
-  depositRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid #F5F2EF' },
-  depositLabel: { display: 'block', fontSize: 13, fontWeight: 600, color: '#2D2A26' },
-  depositHint: { display: 'block', fontSize: 11, color: '#AAA5A0', marginTop: 1 },
-  depositAmountRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #F5F2EF' },
-  depositAmountLabel: { fontSize: 13, fontWeight: 500, color: '#5A5550' },
+  connectionLabel: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' },
+  connectBtn: { padding: '10px 20px', borderRadius: 10, border: 'none', background: 'var(--accent)', color: 'var(--bg-card)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  paymentMethodRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border-light)' },
+  methodLabel: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
+  methodDesc: { display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 1 },
+  depositRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border-light)' },
+  depositLabel: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
+  depositHint: { display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 1 },
+  depositAmountRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border-light)' },
+  depositAmountLabel: { fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' },
   depositOptions: { display: 'flex', gap: 6 },
   depositChip: { padding: '6px 14px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  depositFooter: { fontSize: 11, color: '#C4BDB6', margin: '10px 0 0', lineHeight: 1.5 },
-  payoutRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #F5F2EF' },
-  payoutLabel: { fontSize: 12, color: '#AAA5A0' },
-  payoutValue: { fontSize: 12, fontWeight: 600, color: '#2D2A26' },
+  depositFooter: { fontSize: 11, color: 'var(--text-muted)', margin: '10px 0 0', lineHeight: 1.5 },
+  payoutRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border-light)' },
+  payoutLabel: { fontSize: 12, color: 'var(--text-muted)' },
+  payoutValue: { fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' },
 
   // Calendar sync
   calendarProviderRow: { display: 'flex', alignItems: 'center', gap: 12 },
-  calProviderLabel: { display: 'block', fontSize: 14, fontWeight: 600, color: '#2D2A26' },
-  calProviderStatus: { display: 'block', fontSize: 11, color: '#AAA5A0', marginTop: 2 },
-  syncRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid #F5F2EF' },
-  syncLabel: { display: 'block', fontSize: 13, fontWeight: 600, color: '#2D2A26' },
-  syncHint: { display: 'block', fontSize: 11, color: '#AAA5A0', marginTop: 1 },
+  calProviderLabel: { display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' },
+  calProviderStatus: { display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 },
+  syncRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border-light)' },
+  syncLabel: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
+  syncHint: { display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 1 },
   bufferOptions: { display: 'flex', gap: 6, flexWrap: 'wrap' },
   bufferChip: { padding: '8px 14px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 };

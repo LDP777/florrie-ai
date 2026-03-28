@@ -3,10 +3,10 @@ import { useBeautician, supabase, isDevMode, fetchRows } from '../lib/supabase.j
 import logger from '../lib/logger.js';
 
 /**
- * Voice Commander — Talk to Florrie.
+ * Voice Commander — Talk to florrie.ai.
  *
  * This is the conversational voice interface to the entire AI agent network.
- * Speak naturally and Florrie routes your request to the right agent:
+ * Speak naturally and florrie.ai routes your request to the right agent:
  *
  *   "Move Shauna to Thursday 2pm"       → Calendar agent
  *   "Send a comeback message to Daisy"  → Campaign agent
@@ -25,7 +25,7 @@ const AGENT_ROUTES = {
   money: { label: 'Money', icon: '💰', color: '#4CAF50' },
   content: { label: 'Content', icon: '📸', color: '#F5A623' },
   settings: { label: 'Settings', icon: '⚙️', color: '#8A8580' },
-  general: { label: 'Florrie', icon: '✨', color: '#C76B8A' },
+  general: { label: 'florrie.ai', icon: '✨', color: '#C76B8A' },
 };
 
 // Simulated conversation for dev mode
@@ -200,7 +200,7 @@ export default function VoiceCommander() {
     <div style={styles.page}>
       {/* Header */}
       <div style={styles.header}>
-        <h1 style={styles.title}>Talk to Florrie</h1>
+        <h1 style={styles.title}>Talk to florrie.ai</h1>
         <p style={styles.subtitle}>Your AI receptionist. Just ask.</p>
       </div>
 

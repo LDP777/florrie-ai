@@ -230,7 +230,7 @@ export default function Clients() {
               onClick={() => loadClientDetail(c.id)}
               style={{
                 ...styles.clientCard,
-                borderLeftColor: selected === c.id ? '#C76B8A' : 'transparent'
+                borderLeftColor: selected === c.id ? 'var(--accent)' : 'transparent'
               }}
             >
               <div style={styles.clientAvatar}>
@@ -294,7 +294,17 @@ function ClientDetailPanel({ detail, onClose }) {
           </div>
           <h2 style={styles.detailName}>{client?.first_name} {client?.last_name || ''}</h2>
           <div style={styles.detailBadges}>
-            <span style={{ ...styles.healthBadge, background: healthColor + '18', color: healthColor }}>
+            <span style={{
+              ...styles.healthBadge,
+              background: healthColor === '#4CAF50' ? 'var(--success-bg)'
+                : healthColor === '#F5A623' ? 'var(--warning-bg)'
+                : healthColor === '#E57373' ? 'var(--danger-bg)'
+                : 'var(--accent-light)',
+              color: healthColor === '#4CAF50' ? 'var(--success)'
+                : healthColor === '#F5A623' ? 'var(--warning)'
+                : healthColor === '#E57373' ? 'var(--danger)'
+                : 'var(--accent)',
+            }}>
               {healthLabel}
             </span>
             {client?.status === 'vip' && <span style={styles.tagVip}>VIP</span>}
@@ -338,8 +348,8 @@ function ClientDetailPanel({ detail, onClose }) {
               onClick={() => setDetailTab(t)}
               style={{
                 ...styles.detailTabBtn,
-                borderBottomColor: detailTab === t ? '#C76B8A' : 'transparent',
-                color: detailTab === t ? '#C76B8A' : '#AAA5A0',
+                borderBottomColor: detailTab === t ? 'var(--accent)' : 'transparent',
+                color: detailTab === t ? 'var(--accent)' : 'var(--text-muted)',
               }}
             >
               {t === 'overview' ? 'Overview' : t === 'history' ? 'History' : 'Notes'}
@@ -416,9 +426,9 @@ function ClientDetailPanel({ detail, onClose }) {
                     <div style={styles.timelineDot}>
                       <div style={{
                         ...styles.dot,
-                        background: appt.status === 'completed' ? '#4CAF50'
-                          : appt.status === 'no_show' ? '#E57373'
-                          : '#F5A623',
+                        background: appt.status === 'completed' ? 'var(--success)'
+                          : appt.status === 'no_show' ? 'var(--danger)'
+                          : 'var(--warning)',
                       }} />
                       {i < appointments.length - 1 && <div style={styles.timelineLine} />}
                     </div>
@@ -429,12 +439,12 @@ function ClientDetailPanel({ detail, onClose }) {
                       </span>
                       <span style={{
                         ...styles.historyStatusBadge,
-                        background: appt.status === 'completed' ? '#E8F5E9'
-                          : appt.status === 'no_show' ? '#FEF2F2'
-                          : '#FFF8E1',
-                        color: appt.status === 'completed' ? '#4CAF50'
-                          : appt.status === 'no_show' ? '#E57373'
-                          : '#F5A623',
+                        background: appt.status === 'completed' ? 'var(--success-bg)'
+                          : appt.status === 'no_show' ? 'var(--danger-bg)'
+                          : 'var(--warning-bg)',
+                        color: appt.status === 'completed' ? 'var(--success)'
+                          : appt.status === 'no_show' ? 'var(--danger)'
+                          : 'var(--warning)',
                       }}>
                         {appt.status?.replace(/_/g, ' ')}
                       </span>
@@ -492,78 +502,98 @@ function ClientDetailPanel({ detail, onClose }) {
 }
 
 const styles = {
-  page: { minHeight: '100vh', background: '#FAF8F5', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: '#2D2A26' },
+  page: {
+    minHeight: '100vh',
+    background: 'var(--bg)',
+    fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)",
+    padding: '0 16px 40px',
+    maxWidth: 480,
+    margin: '0 auto',
+    color: 'var(--text-primary)',
+    animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+  },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 28, paddingBottom: 12 },
-  title: { fontSize: 22, fontWeight: 700, margin: 0 },
+  title: {
+    fontSize: 22,
+    fontWeight: 700,
+    margin: 0,
+    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
+    letterSpacing: '-0.02em',
+  },
   headerActions: { display: 'flex', gap: 8, alignItems: 'center' },
-  exportBtn: { padding: '8px 12px', borderRadius: 10, border: '1px solid #F0ECE8', background: '#fff', color: '#8A8580', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  addBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  exportBtn: { padding: '8px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  addBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent)', color: 'var(--bg-card)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   searchWrap: { position: 'relative', marginBottom: 14 },
-  searchInput: { width: '100%', padding: '12px 36px 12px 14px', borderRadius: 12, border: '1.5px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: '#fff' },
-  clearBtn: { position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', fontSize: 20, color: '#AAA5A0', cursor: 'pointer' },
-  addForm: { background: '#fff', borderRadius: 14, padding: 16, marginBottom: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  searchInput: { width: '100%', padding: '12px 36px 12px 14px', borderRadius: 12, border: '1.5px solid var(--border)', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: 'var(--bg-card)' },
+  clearBtn: { position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', fontSize: 20, color: 'var(--text-muted)', cursor: 'pointer' },
+  addForm: { background: 'var(--bg-card)', borderRadius: 14, padding: 16, marginBottom: 14, boxShadow: 'var(--shadow-sm)' },
   formRow: { display: 'flex', gap: 10 },
   formGroup: { flex: 1, marginBottom: 10 },
-  formLabel: { display: 'block', fontSize: 12, color: '#AAA5A0', marginBottom: 4, fontWeight: 500 },
-  formInput: { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' },
+  formLabel: { display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4, fontWeight: 500 },
+  formInput: { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' },
   formActions: { display: 'flex', gap: 8, marginTop: 4 },
-  saveBtn: { flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  cancelBtn: { padding: '10px 16px', borderRadius: 10, border: 'none', background: '#F5F2EF', color: '#8A8580', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' },
+  saveBtn: { flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: 'var(--accent)', color: 'var(--bg-card)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  cancelBtn: { padding: '10px 16px', borderRadius: 10, border: 'none', background: 'var(--border-light)', color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' },
   list: { display: 'flex', flexDirection: 'column', gap: 6 },
-  clientCard: { display: 'flex', alignItems: 'center', gap: 12, background: '#fff', borderRadius: 12, padding: '12px 14px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', border: 'none', borderLeft: '3px solid transparent', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%' },
-  clientAvatar: { width: 38, height: 38, borderRadius: 19, background: '#FBF0F3', color: '#C76B8A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, flexShrink: 0 },
+  clientCard: { display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg-card)', borderRadius: 12, padding: '12px 14px', boxShadow: 'var(--shadow-sm)', border: 'none', borderLeft: '3px solid transparent', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%' },
+  clientAvatar: { width: 38, height: 38, borderRadius: 19, background: 'var(--accent-light)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, flexShrink: 0 },
   clientInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 },
-  clientName: { fontSize: 14, fontWeight: 600, color: '#2D2A26' },
-  clientMeta: { fontSize: 11, color: '#AAA5A0' },
-  chevron: { fontSize: 18, color: '#D5D0CB', flexShrink: 0 },
-  detailOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', justifyContent: 'center', alignItems: 'flex-end' },
-  detailPanel: { background: '#FAF8F5', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto', padding: '20px 16px 40px', position: 'relative' },
-  closeBtn: { position: 'absolute', top: 12, right: 16, background: 'none', border: 'none', fontSize: 24, color: '#AAA5A0', cursor: 'pointer' },
+  clientName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' },
+  clientMeta: { fontSize: 11, color: 'var(--text-muted)' },
+  chevron: { fontSize: 18, color: 'var(--text-muted)', flexShrink: 0 },
+  detailOverlay: { position: 'fixed', inset: 0, background: 'var(--overlay)', zIndex: 200, display: 'flex', justifyContent: 'center', alignItems: 'flex-end' },
+  detailPanel: { background: 'var(--bg)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto', padding: '20px 16px 40px', position: 'relative' },
+  closeBtn: { position: 'absolute', top: 12, right: 16, background: 'none', border: 'none', fontSize: 24, color: 'var(--text-muted)', cursor: 'pointer' },
   detailHeader: { textAlign: 'center', paddingTop: 8, paddingBottom: 16 },
-  detailAvatar: { width: 56, height: 56, borderRadius: 28, background: '#FBF0F3', color: '#C76B8A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700, margin: '0 auto 10px' },
-  detailName: { fontSize: 20, fontWeight: 700, margin: '0 0 4px' },
-  detailContact: { display: 'block', fontSize: 13, color: '#C76B8A', textDecoration: 'none' },
-  detailContactSub: { display: 'block', fontSize: 12, color: '#AAA5A0', marginTop: 2 },
+  detailAvatar: { width: 56, height: 56, borderRadius: 28, background: 'var(--accent-light)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 700, margin: '0 auto 10px' },
+  detailName: {
+    fontSize: 20,
+    fontWeight: 700,
+    margin: '0 0 4px',
+    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
+  },
+  detailContact: { display: 'block', fontSize: 13, color: 'var(--accent)', textDecoration: 'none' },
+  detailContactSub: { display: 'block', fontSize: 12, color: 'var(--text-muted)', marginTop: 2 },
   tagsSection: { display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 16, flexWrap: 'wrap' },
-  tagVip: { padding: '4px 10px', borderRadius: 6, background: '#FFF8E1', color: '#F5A623', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' },
-  tagDormant: { padding: '4px 10px', borderRadius: 6, background: '#FEF2F2', color: '#E57373', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' },
-  tagLate: { padding: '4px 10px', borderRadius: 6, background: '#FFF3E0', color: '#FF9800', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' },
-  tagNoShow: { padding: '4px 10px', borderRadius: 6, background: '#FEF2F2', color: '#E57373', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' },
-  notesSection: { background: '#fff', borderRadius: 12, padding: 14, marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
-  sectionLabel: { fontSize: 12, fontWeight: 600, color: '#AAA5A0', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 8px' },
-  notesText: { fontSize: 13, color: '#5A5550', margin: 0, lineHeight: 1.5 },
+  tagVip: { padding: '4px 10px', borderRadius: 6, background: 'var(--warning-bg)', color: 'var(--warning)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' },
+  tagDormant: { padding: '4px 10px', borderRadius: 6, background: 'var(--danger-bg)', color: 'var(--danger)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' },
+  tagLate: { padding: '4px 10px', borderRadius: 6, background: 'var(--warning-bg)', color: 'var(--warning)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' },
+  tagNoShow: { padding: '4px 10px', borderRadius: 6, background: 'var(--danger-bg)', color: 'var(--danger)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' },
+  notesSection: { background: 'var(--bg-card)', borderRadius: 12, padding: 14, marginBottom: 12, boxShadow: 'var(--shadow-sm)' },
+  sectionLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 8px' },
+  notesText: { fontSize: 13, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 },
   statsRow: { display: 'flex', gap: 10, marginBottom: 16 },
-  statBox: { flex: 1, background: '#fff', borderRadius: 12, padding: '12px 10px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
-  statNum: { display: 'block', fontSize: 18, fontWeight: 700, color: '#C76B8A' },
-  statLabel: { display: 'block', fontSize: 10, color: '#AAA5A0', textTransform: 'uppercase', marginTop: 2 },
-  historySection: { background: '#fff', borderRadius: 12, padding: 14, marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
-  noHistory: { fontSize: 13, color: '#C4BDB6', margin: 0 },
-  historyItem: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #FAF8F5' },
-  historyTreatment: { display: 'block', fontSize: 13, fontWeight: 500, color: '#2D2A26' },
-  historyDate: { display: 'block', fontSize: 11, color: '#C4BDB6' },
+  statBox: { flex: 1, background: 'var(--bg-card)', borderRadius: 12, padding: '12px 10px', textAlign: 'center', boxShadow: 'var(--shadow-sm)' },
+  statNum: { display: 'block', fontSize: 18, fontWeight: 700, color: 'var(--accent)' },
+  statLabel: { display: 'block', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', marginTop: 2 },
+  historySection: { background: 'var(--bg-card)', borderRadius: 12, padding: 14, marginBottom: 12, boxShadow: 'var(--shadow-sm)' },
+  noHistory: { fontSize: 13, color: 'var(--text-muted)', margin: 0 },
+  historyItem: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--bg)' },
+  historyTreatment: { display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' },
+  historyDate: { display: 'block', fontSize: 11, color: 'var(--text-muted)' },
   historyStatus: { fontSize: 11, fontWeight: 600, textTransform: 'capitalize' },
-  msgBubble: { padding: '8px 0', borderBottom: '1px solid #FAF8F5', display: 'flex', gap: 8, alignItems: 'flex-start' },
-  msgDir: { fontSize: 10, color: '#C4BDB6', whiteSpace: 'nowrap', marginTop: 2 },
-  msgText: { fontSize: 12, color: '#5A5550', flex: 1, lineHeight: 1.4 },
-  msgTime: { fontSize: 10, color: '#D5D0CB', whiteSpace: 'nowrap' },
-  loadingText: { textAlign: 'center', color: '#AAA5A0', padding: 40, fontSize: 14, fontFamily: '"DM Sans", sans-serif' },
+  msgBubble: { padding: '8px 0', borderBottom: '1px solid var(--bg)', display: 'flex', gap: 8, alignItems: 'flex-start' },
+  msgDir: { fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap', marginTop: 2 },
+  msgText: { fontSize: 12, color: 'var(--text-secondary)', flex: 1, lineHeight: 1.4 },
+  msgTime: { fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' },
+  loadingText: { textAlign: 'center', color: 'var(--text-muted)', padding: 40, fontSize: 14, fontFamily: "var(--font-body, 'DM Sans', sans-serif)" },
   emptyState: { textAlign: 'center', padding: '40px 20px' },
   emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 6px' },
-  emptyDesc: { fontSize: 13, color: '#AAA5A0', margin: 0, lineHeight: 1.5 },
+  emptyDesc: { fontSize: 13, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 },
 
   // Enhanced detail panel
   detailBadges: { display: 'flex', gap: 6, justifyContent: 'center', marginTop: 8, flexWrap: 'wrap' },
   healthBadge: { padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' },
   contactRow: { display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 12 },
-  contactChip: { fontSize: 12, color: '#5A5550', textDecoration: 'none', padding: '4px 10px', borderRadius: 8, background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  contactChip: { fontSize: 12, color: 'var(--text-secondary)', textDecoration: 'none', padding: '4px 10px', borderRadius: 8, background: 'var(--bg-card)', boxShadow: 'var(--shadow-sm)' },
   quickActions: { display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 16 },
   quickActionBtn: {
     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
     padding: '10px 16px', borderRadius: 10, border: 'none',
-    background: '#FBF0F3', color: '#C76B8A', fontSize: 11, fontWeight: 600,
+    background: 'var(--accent-light)', color: 'var(--accent)', fontSize: 11, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
-  detailTabs: { display: 'flex', gap: 20, borderBottom: '1px solid #F0ECE8', marginBottom: 14 },
+  detailTabs: { display: 'flex', gap: 20, borderBottom: '1px solid var(--border)', marginBottom: 14 },
   detailTabBtn: {
     padding: '8px 0', background: 'none', border: 'none',
     borderBottom: '2px solid transparent', fontSize: 13, fontWeight: 600,
@@ -571,32 +601,32 @@ const styles = {
   },
   lastVisitCard: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '10px 14px', borderRadius: 10, background: '#fff',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 10,
+    padding: '10px 14px', borderRadius: 10, background: 'var(--bg-card)',
+    boxShadow: 'var(--shadow-sm)', marginBottom: 10,
   },
-  lastVisitLabel: { fontSize: 12, color: '#AAA5A0' },
-  lastVisitValue: { fontSize: 13, fontWeight: 600, color: '#2D2A26' },
+  lastVisitLabel: { fontSize: 12, color: 'var(--text-muted)' },
+  lastVisitValue: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
   aiInsight: {
     display: 'flex', gap: 8, alignItems: 'flex-start',
-    padding: 12, borderRadius: 10, background: 'linear-gradient(135deg, #FBF0F3 0%, #F5EFFC 100%)',
+    padding: 12, borderRadius: 10, background: 'linear-gradient(135deg, var(--accent-light) 0%, #F5EFFC 100%)',
     marginBottom: 12,
   },
-  aiInsightText: { fontSize: 12, color: '#5A5550', lineHeight: 1.5 },
+  aiInsightText: { fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 },
   timeline: { display: 'flex', flexDirection: 'column' },
   timelineItem: { display: 'flex', gap: 12, minHeight: 50 },
   timelineDot: { display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, flexShrink: 0 },
   dot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
-  timelineLine: { width: 2, flex: 1, background: '#F0ECE8', marginTop: 4 },
+  timelineLine: { width: 2, flex: 1, background: 'var(--border)', marginTop: 4 },
   timelineContent: { flex: 1, paddingBottom: 12 },
   historyStatusBadge: {
     display: 'inline-block', padding: '2px 8px', borderRadius: 4,
     fontSize: 10, fontWeight: 600, textTransform: 'capitalize', marginTop: 4,
   },
-  historyPrice: { display: 'inline-block', fontSize: 12, color: '#C76B8A', fontWeight: 600, marginLeft: 8, marginTop: 4 },
+  historyPrice: { display: 'inline-block', fontSize: 12, color: 'var(--accent)', fontWeight: 600, marginLeft: 8, marginTop: 4 },
   notesTab: { display: 'flex', flexDirection: 'column', gap: 12 },
-  prefsSection: { background: '#fff', borderRadius: 12, padding: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
-  prefRow: { display: 'flex', gap: 10, alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #FAF8F5' },
+  prefsSection: { background: 'var(--bg-card)', borderRadius: 12, padding: 14, boxShadow: 'var(--shadow-sm)' },
+  prefRow: { display: 'flex', gap: 10, alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--bg)' },
   prefIcon: { fontSize: 16, flexShrink: 0 },
-  prefText: { fontSize: 13, color: '#5A5550' },
-  clientSince: { textAlign: 'center', fontSize: 11, color: '#C4BDB6', paddingTop: 8 },
+  prefText: { fontSize: 13, color: 'var(--text-secondary)' },
+  clientSince: { textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', paddingTop: 8 },
 };

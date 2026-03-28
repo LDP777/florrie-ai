@@ -235,8 +235,8 @@ export default function WhatsAppConfig({ token }) {
       {activeTab === 'autoreplies' && (
         <div>
           <div style={styles.autoReplyHint}>
-            Florrie AI reads incoming messages and auto-responds when it's confident about the intent.
-            You can customise responses or let Florrie draft them in Ellie's tone.
+            florrie.ai reads incoming messages and auto-responds when it's confident about the intent.
+            You can customise responses or let florrie.ai draft them in Ellie's tone.
           </div>
           {autoReplies.map(rule => (
             <div key={rule.id} style={styles.autoReplyCard}>
@@ -267,9 +267,9 @@ export default function WhatsAppConfig({ token }) {
 
           <div style={styles.aiToggleCard}>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: '#2D2A26', marginBottom: 4 }}>🧠 Florrie AI Drafting</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#2D2A26', marginBottom: 4 }}>🧠 florrie.ai Drafting</div>
               <div style={{ fontSize: 12, color: '#6B6560', lineHeight: 1.4 }}>
-                Let Florrie draft replies to unmatched messages using Ellie's tone model.
+                Let florrie.ai draft replies to unmatched messages using Ellie's tone model.
                 Drafts appear in your Inbox for approval before sending.
               </div>
             </div>

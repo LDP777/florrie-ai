@@ -211,7 +211,7 @@ export default function DailyChecklist({ token }) {
       <div style={S.tipCard}>
         <span style={S.tipIcon}>💡</span>
         <p style={S.tipText}>
-          Completing your opening checklist every day keeps your streak going and helps Florrie track your salon readiness score.
+          Completing your opening checklist every day keeps your streak going and helps florrie.ai track your salon readiness score.
         </p>
       </div>
     </div>

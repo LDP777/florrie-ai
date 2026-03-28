@@ -18,7 +18,7 @@ const integrations = [
   },
   {
     id: 'google-cal', name: 'Google Calendar', icon: '📅', category: 'Calendar',
-    description: 'Two-way sync between Florrie and Google Calendar',
+    description: 'Two-way sync between florrie.ai and Google Calendar',
     status: 'connected', connectedAt: 'Mar 14, 2026',
     stats: { label: 'Events synced', value: '156' },
     features: ['Two-way sync', 'Block personal events', 'Staff calendar merge', 'Availability check'],

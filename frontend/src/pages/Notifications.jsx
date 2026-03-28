@@ -7,7 +7,7 @@ import { useBeautician, isDevMode } from '../lib/supabase.js';
  * Categories:
  *   Bookings  — confirmed, cancelled, rescheduled, no-shows
  *   Payments  — received, refunds, deposits
- *   AI        — Florrie escalations, auto-reply confirmations
+ *   AI        — florrie.ai escalations, auto-reply confirmations
  *   Clients   — new sign-ups, review left, rebook due
  *   System    — updates, reminders, subscription alerts
  *
@@ -19,7 +19,7 @@ import { useBeautician, isDevMode } from '../lib/supabase.js';
 const CATEGORIES = {
   booking: { label: 'Bookings', icon: '📅', color: '#E3F2FD', textColor: '#1565C0' },
   payment: { label: 'Payments', icon: '💷', color: '#E8F5E9', textColor: '#2E7D32' },
-  ai: { label: 'Florrie AI', icon: '✨', color: '#FBF0F3', textColor: '#C76B8A' },
+  ai: { label: 'florrie.ai', icon: '✨', color: '#FBF0F3', textColor: '#C76B8A' },
   client: { label: 'Clients', icon: '👤', color: '#FFF3E0', textColor: '#E65100' },
   system: { label: 'System', icon: '⚙️', color: '#F5F2EF', textColor: '#5A5550' },
 };
@@ -33,7 +33,7 @@ const DEV_NOTIFICATIONS = [
   },
   {
     id: 'n2', category: 'ai', type: 'auto_reply',
-    title: 'Florrie replied for you',
+    title: 'florrie.ai replied for you',
     body: "Sent Daisy a rebook confirmation for Tuesday. Message: \"Hey lovely, you're all booked in for Tue at 2pm xx\"",
     time: new Date(Date.now() - 45 * 60000).toISOString(), read: false, actionUrl: '/voice',
   },
@@ -51,8 +51,8 @@ const DEV_NOTIFICATIONS = [
   },
   {
     id: 'n5', category: 'ai', type: 'escalation',
-    title: 'Florrie needs your input',
-    body: "Megan asked about availability for a treatment you don't offer. Florrie wasn't sure how to reply.",
+    title: 'florrie.ai needs your input',
+    body: "Megan asked about availability for a treatment you don't offer. florrie.ai wasn't sure how to reply.",
     time: new Date(Date.now() - 6 * 3600000).toISOString(), read: true, actionUrl: '/escalations',
   },
   {

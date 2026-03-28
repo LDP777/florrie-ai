@@ -329,7 +329,7 @@ export default function BookingPage() {
         </div>
         <div style={styles.footer}>
           <span style={styles.footerText}>Powered by </span>
-          <span style={{ ...styles.footerBrand, color: brand }}>Florrie</span>
+          <span style={{ ...styles.footerBrand, color: brand }}>florrie.ai</span>
         </div>
       </div>
     );
@@ -636,7 +636,7 @@ export default function BookingPage() {
 
       <div style={styles.footer}>
         <span style={styles.footerText}>Powered by </span>
-        <span style={{ ...styles.footerBrand, color: brand }}>Florrie</span>
+        <span style={{ ...styles.footerBrand, color: brand }}>florrie.ai</span>
       </div>
     </div>
   );
@@ -662,87 +662,88 @@ const DEV_BOOKING_BEAUTICIAN = {
 const styles = {
   page: {
     minHeight: '100vh',
-    background: '#FAF8F5',
-    fontFamily: '"DM Sans", -apple-system, sans-serif',
+    background: 'var(--bg)',
+    fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)",
     padding: '0 16px 40px',
     maxWidth: 480,
     margin: '0 auto',
-    color: '#2D2A26'
+    color: 'var(--text-primary)',
+    animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
   },
   loadingContainer: {
     minHeight: '100vh',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    background: '#FAF8F5'
+    background: 'var(--bg)'
   },
   spinner: {
     width: 32, height: 32,
-    border: '3px solid #E8E4DF',
-    borderTopColor: '#C76B8A',
+    border: '3px solid var(--border-light)',
+    borderTopColor: 'var(--accent)',
     borderRadius: '50%',
     animation: 'spin 0.8s linear infinite'
   },
   header: { textAlign: 'center', paddingTop: 48, paddingBottom: 24 },
-  businessName: { fontSize: 24, fontWeight: 700, margin: '0 0 4px', letterSpacing: '-0.02em' },
-  subtitle: { fontSize: 14, color: '#8A8580', margin: 0 },
+  businessName: { fontSize: 24, fontWeight: 700, margin: '0 0 4px', letterSpacing: '-0.02em', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
+  subtitle: { fontSize: 14, color: 'var(--text-secondary)', margin: 0 },
   progressContainer: { display: 'flex', justifyContent: 'center', gap: 24, marginBottom: 24 },
   progressStep: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 },
   progressDot: { width: 10, height: 10, borderRadius: '50%', transition: 'all 0.3s ease' },
   progressLabel: { fontSize: 11, letterSpacing: '0.02em', transition: 'all 0.3s ease' },
   card: {
-    background: '#fff',
+    background: 'var(--bg-card)',
     borderRadius: 16,
     padding: '28px 24px',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.03)'
+    boxShadow: 'var(--shadow-md)'
   },
-  stepTitle: { fontSize: 18, fontWeight: 600, marginBottom: 20, marginTop: 0 },
+  stepTitle: { fontSize: 18, fontWeight: 600, marginBottom: 20, marginTop: 0, fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
   treatmentList: { display: 'flex', flexDirection: 'column', gap: 10 },
   treatmentCard: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '16px 18px', borderRadius: 12, border: '1.5px solid #E8E4DF',
+    padding: '16px 18px', borderRadius: 12, border: '1.5px solid var(--border)',
     cursor: 'pointer', transition: 'all 0.2s', textAlign: 'left',
-    background: '#fff', width: '100%', fontFamily: 'inherit'
+    background: 'var(--bg-card)', width: '100%', fontFamily: 'inherit'
   },
   treatmentInfo: { display: 'flex', flexDirection: 'column', gap: 3 },
-  treatmentName: { fontSize: 15, fontWeight: 600, color: '#2D2A26' },
-  treatmentDesc: { fontSize: 13, color: '#8A8580' },
-  treatmentDuration: { fontSize: 12, color: '#AAA5A0' },
+  treatmentName: { fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' },
+  treatmentDesc: { fontSize: 13, color: 'var(--text-secondary)' },
+  treatmentDuration: { fontSize: 12, color: 'var(--text-muted)' },
   treatmentPrice: { fontSize: 16, fontWeight: 700 },
   dateScroller: { display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
   dateChip: {
-    padding: '10px 14px', borderRadius: 10, border: '1.5px solid #E8E4DF',
+    padding: '10px 14px', borderRadius: 10, border: '1.5px solid var(--border)',
     fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap'
   },
   slotGrid: { display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
   slotChip: {
-    padding: '10px 16px', borderRadius: 10, border: '1.5px solid #E8E4DF',
+    padding: '10px 16px', borderRadius: 10, border: '1.5px solid var(--border)',
     fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit'
   },
-  noSlots: { color: '#AAA5A0', fontSize: 14, padding: '20px 0' },
+  noSlots: { color: 'var(--text-muted)', fontSize: 14, padding: '20px 0' },
   form: { display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 },
   input: {
-    padding: '14px 16px', borderRadius: 10, border: '1.5px solid #E8E4DF',
-    fontSize: 15, fontFamily: 'inherit', outline: 'none', color: '#2D2A26', background: '#FDFCFB'
+    padding: '14px 16px', borderRadius: 10, border: '1.5px solid var(--border)',
+    fontSize: 15, fontFamily: 'inherit', outline: 'none', color: 'var(--text-primary)', background: 'var(--bg-subtle, #FDFCFB)'
   },
   summaryCard: {
-    background: '#FDFCFB', borderRadius: 12, padding: '4px 18px',
-    marginBottom: 16, border: '1px solid #E8E4DF'
+    background: 'var(--bg-subtle, #FDFCFB)', borderRadius: 12, padding: '4px 18px',
+    marginBottom: 16, border: '1px solid var(--border)'
   },
   summaryRow: {
     display: 'flex', justifyContent: 'space-between',
-    padding: '14px 0', borderBottom: '1px solid #F0ECE8'
+    padding: '14px 0', borderBottom: '1px solid var(--border-light)'
   },
-  summaryLabel: { fontSize: 14, color: '#8A8580' },
+  summaryLabel: { fontSize: 14, color: 'var(--text-secondary)' },
   summaryValue: { fontSize: 14, fontWeight: 500, textAlign: 'right' },
-  summaryClient: { marginBottom: 20, fontSize: 14, color: '#666', lineHeight: 1.6 },
+  summaryClient: { marginBottom: 20, fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.6 },
   depositBanner: {
     padding: '10px 14px', borderRadius: 8, fontSize: 13, fontWeight: 500,
     marginTop: 8, marginBottom: 8, border: '1px solid', textAlign: 'center'
   },
   buttonRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   backBtn: {
-    background: 'none', border: 'none', fontSize: 14, color: '#8A8580',
+    background: 'none', border: 'none', fontSize: 14, color: 'var(--text-secondary)',
     cursor: 'pointer', padding: '10px 0', fontFamily: 'inherit'
   },
   primaryBtn: {
@@ -754,22 +755,22 @@ const styles = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 28, fontWeight: 700, margin: '0 auto 16px'
   },
-  successTitle: { fontSize: 22, fontWeight: 700, textAlign: 'center', margin: '0 0 16px' },
+  successTitle: { fontSize: 22, fontWeight: 700, textAlign: 'center', margin: '0 0 16px', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
   successDetails: { textAlign: 'center', fontSize: 15, lineHeight: 1.6, marginBottom: 16 },
-  confirmText: { textAlign: 'center', fontSize: 13, color: '#AAA5A0' },
-  depositNote: { fontSize: 13, color: '#8A8580', marginTop: 8 },
+  confirmText: { textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' },
+  depositNote: { fontSize: 13, color: 'var(--text-secondary)', marginTop: 8 },
   errorBanner: {
-    background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10,
-    padding: '12px 16px', marginBottom: 16, fontSize: 14, color: '#DC2626',
+    background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 10,
+    padding: '12px 16px', marginBottom: 16, fontSize: 14, color: 'var(--danger)',
     display: 'flex', justifyContent: 'space-between', alignItems: 'center'
   },
-  errorClose: { background: 'none', border: 'none', fontSize: 18, color: '#DC2626', cursor: 'pointer' },
+  errorClose: { background: 'none', border: 'none', fontSize: 18, color: 'var(--danger)', cursor: 'pointer' },
   inlineError: {
-    background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8,
-    padding: '10px 12px', marginBottom: 12, fontSize: 13, color: '#DC2626'
+    background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 8,
+    padding: '10px 12px', marginBottom: 12, fontSize: 13, color: 'var(--danger)'
   },
-  fieldErrorText: { display: 'block', fontSize: 12, color: '#DC2626', marginTop: 4 },
+  fieldErrorText: { display: 'block', fontSize: 12, color: 'var(--danger)', marginTop: 4 },
   footer: { textAlign: 'center', paddingTop: 32, fontSize: 12 },
-  footerText: { color: '#C4BDB6' },
+  footerText: { color: 'var(--text-muted)' },
   footerBrand: { fontWeight: 600 }
 };

@@ -47,7 +47,7 @@ const DEV_CONSENTS = [
 ];
 
 const SCOPE_OPTIONS = [
-  { value: 'portfolio', label: 'Portfolio', desc: 'Visible in your Florrie portfolio' },
+  { value: 'portfolio', label: 'Portfolio', desc: 'Visible in your florrie.ai portfolio' },
   { value: 'booking-page', label: 'Booking Page', desc: 'Shown on your public booking page' },
   { value: 'instagram', label: 'Instagram', desc: 'Shared on your Instagram feed/stories' },
   { value: 'tiktok', label: 'TikTok', desc: 'Used in TikTok content' },

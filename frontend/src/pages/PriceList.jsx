@@ -113,7 +113,7 @@ export default function PriceList({ token }) {
             <p style={{ ...S.footerText, color: currentTheme.bg === '#1A1A2E' ? '#666' : '#AAA5A0' }}>
               Patch test required 48hrs before semi-permanent treatments. Prices valid as of March 2026.
             </p>
-            <p style={{ ...S.footerBrand, color: currentTheme.accent }}>Powered by Florrie</p>
+            <p style={{ ...S.footerBrand, color: currentTheme.accent }}>Powered by florrie.ai</p>
           </div>
         </div>
       )}

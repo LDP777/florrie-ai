@@ -404,7 +404,7 @@ export default function IntakeForms() {
           <div style={styles.sendRow}>
             <div>
               <span style={styles.sendLabel}>Auto-send before appointments</span>
-              <span style={styles.sendHint}>Florrie sends this form to the client automatically</span>
+              <span style={styles.sendHint}>florrie.ai sends this form to the client automatically</span>
             </div>
             <button
               onClick={() => setForm(p => ({ ...p, auto_send: !p.auto_send }))}

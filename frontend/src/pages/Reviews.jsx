@@ -232,7 +232,7 @@ export default function Reviews() {
             <span style={{ fontSize: 28, display: 'block', marginBottom: 8 }}>📱</span>
             <h3 style={styles.requestTitle}>Request a review</h3>
             <p style={styles.requestDesc}>
-              Send a friendly review request to a client after their appointment. Florrie writes the message in your voice.
+              Send a friendly review request to a client after their appointment. florrie.ai writes the message in your voice.
             </p>
 
             <div style={styles.requestPreview}>
@@ -274,7 +274,7 @@ export default function Reviews() {
             <div style={styles.settingRow}>
               <div style={{ flex: 1 }}>
                 <span style={styles.settingLabel}>Auto-ask after appointments</span>
-                <span style={styles.settingHint}>Florrie sends a review request 2 hours after each completed appointment</span>
+                <span style={styles.settingHint}>florrie.ai sends a review request 2 hours after each completed appointment</span>
               </div>
               <div style={{ ...styles.toggle, background: '#C76B8A' }}>
                 <div style={{ ...styles.toggleDot, transform: 'translateX(16px)' }} />

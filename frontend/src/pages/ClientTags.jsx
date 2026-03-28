@@ -2,7 +2,7 @@
  * Client Tags & Segments — Group, filter & target clients.
  *
  * Every beautician mentally labels clients ("VIP", "patch-test needed",
- * "always late"). This page makes it explicit so Florrie can use the
+ * "always late"). This page makes it explicit so florrie.ai can use the
  * tags across campaigns, waitlist priority, and smart scheduling.
  */
 import { useState, useEffect } from 'react';

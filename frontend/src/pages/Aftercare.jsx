@@ -5,7 +5,7 @@ import logger from '../lib/logger.js';
 /**
  * Aftercare — Post-treatment care cards.
  *
- * Each treatment can have an aftercare card that Florrie
+ * Each treatment can have an aftercare card that florrie.ai
  * automatically sends to clients after their appointment.
  * Beauticians can customise the content, toggle auto-send,
  * and preview exactly what clients receive.
@@ -381,7 +381,7 @@ export default function Aftercare() {
             <div style={styles.emptyState}>
               <span style={{ fontSize: 32, display: 'block', marginBottom: 8 }}>💆</span>
               <p style={styles.emptyTitle}>No care cards yet</p>
-              <p style={styles.emptyDesc}>Create an aftercare card for each treatment. Florrie sends them automatically after appointments.</p>
+              <p style={styles.emptyDesc}>Create an aftercare card for each treatment. florrie.ai sends them automatically after appointments.</p>
             </div>
           ) : (
             <div style={styles.cardList}>
@@ -446,7 +446,7 @@ export default function Aftercare() {
             <div style={styles.settingsRow}>
               <div>
                 <span style={styles.settingsLabel}>Auto-send aftercare messages</span>
-                <span style={styles.settingsHint}>Florrie sends the card after each appointment</span>
+                <span style={styles.settingsHint}>florrie.ai sends the card after each appointment</span>
               </div>
               <button
                 onClick={() => setSettings(p => ({ ...p, auto_send_enabled: !p.auto_send_enabled }))}
@@ -557,7 +557,7 @@ export default function Aftercare() {
             <div style={styles.settingsRow}>
               <div>
                 <span style={styles.settingsLabel}>Follow-up check-in</span>
-                <span style={styles.settingsHint}>Florrie asks how they're getting on after {settings.follow_up_days} days</span>
+                <span style={styles.settingsHint}>florrie.ai asks how they're getting on after {settings.follow_up_days} days</span>
               </div>
               <button
                 onClick={() => setSettings(p => ({ ...p, follow_up_check_in: !p.follow_up_check_in }))}
@@ -592,7 +592,7 @@ export default function Aftercare() {
                 {/* Message bubble */}
                 <div style={styles.phoneMessage}>
                   <div style={styles.phoneSender}>
-                    <span style={{ fontWeight: 600, fontSize: 13 }}>Florrie for {beautician?.business_name || 'Ellindigo'}</span>
+                    <span style={{ fontWeight: 600, fontSize: 13 }}>florrie.ai for {beautician?.business_name || 'Ellindigo'}</span>
                     <span style={{ fontSize: 11, color: '#AAA5A0' }}>Just now</span>
                   </div>
 

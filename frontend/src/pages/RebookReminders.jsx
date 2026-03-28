@@ -302,7 +302,7 @@ export default function RebookReminders({ token }) {
           <div style={s.toggleRow}>
             <div>
               <span style={s.toggleLabel}>Auto-send reminders</span>
-              <span style={s.toggleDesc}>Florrie sends rebook nudges automatically</span>
+              <span style={s.toggleDesc}>florrie.ai sends rebook nudges automatically</span>
             </div>
             <button
               onClick={() => setAutoSend(!autoSend)}
@@ -378,7 +378,7 @@ export default function RebookReminders({ token }) {
 
           <div style={s.settingCard}>
             <span style={s.settingLabel}>Message templates</span>
-            <span style={s.settingDesc}>Customise the messages Florrie sends on your behalf</span>
+            <span style={s.settingDesc}>Customise the messages florrie.ai sends on your behalf</span>
             {MESSAGE_TEMPLATES.map(t => (
               <div key={t.id} style={s.templatePreview}>
                 <span style={s.templatePreviewName}>{t.name}</span>

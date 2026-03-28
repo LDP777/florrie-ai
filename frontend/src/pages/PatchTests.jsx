@@ -19,10 +19,10 @@ import logger from '../lib/logger.js';
  */
 
 const PATCH_STATUS = {
-  valid: { label: 'Valid', color: '#4CAF50', bg: '#E8F5E9', icon: '✅' },
-  expiring: { label: 'Expiring soon', color: '#FF9800', bg: '#FFF3E0', icon: '⚠️' },
-  expired: { label: 'Expired', color: '#E57373', bg: '#FEF2F2', icon: '❌' },
-  none: { label: 'No test', color: '#AAA5A0', bg: '#F5F2EF', icon: '❓' },
+  valid: { label: 'Valid', color: 'var(--success)', bg: 'var(--success-bg)', icon: '✅' },
+  expiring: { label: 'Expiring soon', color: 'var(--warning)', bg: 'var(--warning-bg)', icon: '⚠️' },
+  expired: { label: 'Expired', color: 'var(--danger)', bg: 'var(--danger-bg)', icon: '❌' },
+  none: { label: 'No test', color: 'var(--text-muted)', bg: 'var(--bg-subtle)', icon: '❓' },
 };
 
 function getStatus(testDate, expiryMonths) {
@@ -154,22 +154,22 @@ export default function PatchTests() {
 
       {/* Status summary */}
       <div style={styles.summaryRow}>
-        <div style={{ ...styles.summaryChip, background: '#E8F5E9' }}>
-          <span style={{ color: '#4CAF50', fontWeight: 700 }}>{validCount}</span>
-          <span style={{ fontSize: 10, color: '#4CAF50' }}>Valid</span>
+        <div style={{ ...styles.summaryChip, background: 'var(--success-bg)' }}>
+          <span style={{ color: 'var(--success)', fontWeight: 700 }}>{validCount}</span>
+          <span style={{ fontSize: 10, color: 'var(--success)' }}>Valid</span>
         </div>
-        <div style={{ ...styles.summaryChip, background: '#FFF3E0' }}>
-          <span style={{ color: '#FF9800', fontWeight: 700 }}>{expiringCount}</span>
-          <span style={{ fontSize: 10, color: '#FF9800' }}>Expiring</span>
+        <div style={{ ...styles.summaryChip, background: 'var(--warning-bg)' }}>
+          <span style={{ color: 'var(--warning)', fontWeight: 700 }}>{expiringCount}</span>
+          <span style={{ fontSize: 10, color: 'var(--warning)' }}>Expiring</span>
         </div>
-        <div style={{ ...styles.summaryChip, background: '#FEF2F2' }}>
-          <span style={{ color: '#E57373', fontWeight: 700 }}>{expiredCount}</span>
-          <span style={{ fontSize: 10, color: '#E57373' }}>Expired</span>
+        <div style={{ ...styles.summaryChip, background: 'var(--danger-bg)' }}>
+          <span style={{ color: 'var(--danger)', fontWeight: 700 }}>{expiredCount}</span>
+          <span style={{ fontSize: 10, color: 'var(--danger)' }}>Expired</span>
         </div>
         {alertCount > 0 && (
-          <div style={{ ...styles.summaryChip, background: '#FCE4EC' }}>
-            <span style={{ color: '#C76B8A', fontWeight: 700 }}>{alertCount}</span>
-            <span style={{ fontSize: 10, color: '#C76B8A' }}>Need test</span>
+          <div style={{ ...styles.summaryChip, background: 'var(--accent-light)' }}>
+            <span style={{ color: 'var(--accent)', fontWeight: 700 }}>{alertCount}</span>
+            <span style={{ fontSize: 10, color: 'var(--accent)' }}>Need test</span>
           </div>
         )}
       </div>
@@ -213,8 +213,8 @@ export default function PatchTests() {
                   onClick={() => setForm(p => ({ ...p, result: r.value }))}
                   style={{
                     ...styles.resultBtn,
-                    background: form.result === r.value ? (r.value === 'pass' ? '#E8F5E9' : r.value === 'fail' ? '#FEF2F2' : '#FFF3E0') : '#fff',
-                    borderColor: form.result === r.value ? (r.value === 'pass' ? '#4CAF50' : r.value === 'fail' ? '#E57373' : '#FF9800') : '#F0ECE8',
+                    background: form.result === r.value ? (r.value === 'pass' ? 'var(--success-bg)' : r.value === 'fail' ? 'var(--danger-bg)' : 'var(--warning-bg)') : 'var(--bg-card)',
+                    borderColor: form.result === r.value ? (r.value === 'pass' ? 'var(--success)' : r.value === 'fail' ? 'var(--danger)' : 'var(--warning)') : 'var(--border)',
                   }}
                 >
                   <span>{r.icon}</span>
@@ -249,8 +249,8 @@ export default function PatchTests() {
             onClick={() => setTab(t)}
             style={{
               ...styles.tab,
-              borderBottomColor: tab === t ? '#C76B8A' : 'transparent',
-              color: tab === t ? '#C76B8A' : '#AAA5A0',
+              borderBottomColor: tab === t ? 'var(--accent)' : 'transparent',
+              color: tab === t ? 'var(--accent)' : 'var(--text-muted)',
             }}
           >
             {t === 'alerts' ? `Alerts (${alertCount})` : t === 'all' ? 'All Tests' : 'Settings'}
@@ -399,11 +399,11 @@ export default function PatchTests() {
             <div style={styles.settingsRow}>
               <div>
                 <span style={styles.settingsLabel}>Auto-remind clients</span>
-                <span style={styles.settingsHint}>Florrie messages clients when their test is expiring</span>
+                <span style={styles.settingsHint}>florrie.ai messages clients when their test is expiring</span>
               </div>
               <button
                 onClick={() => setSettings(p => ({ ...p, auto_remind: !p.auto_remind }))}
-                style={{ ...styles.toggle, background: settings.auto_remind ? '#C76B8A' : '#E8E4E0' }}
+                style={{ ...styles.toggle, background: settings.auto_remind ? 'var(--accent)' : 'var(--border)' }}
               >
                 <div style={{ ...styles.toggleDot, transform: settings.auto_remind ? 'translateX(18px)' : 'translateX(2px)' }} />
               </button>
@@ -456,7 +456,7 @@ export default function PatchTests() {
                           : [...p.require_for, t.id],
                       }));
                     }}
-                    style={{ ...styles.toggle, background: isRequired ? '#C76B8A' : '#E8E4E0', width: 38, height: 22 }}
+                    style={{ ...styles.toggle, background: isRequired ? 'var(--accent)' : 'var(--border)', width: 38, height: 22 }}
                   >
                     <div style={{ ...styles.toggleDot, width: 18, height: 18, borderRadius: 9, transform: isRequired ? 'translateX(16px)' : 'translateX(2px)' }} />
                   </button>
@@ -472,13 +472,13 @@ export default function PatchTests() {
 
 const styles = {
   page: {
-    minHeight: '100vh', background: '#FAF8F5',
+    minHeight: '100vh', background: 'var(--bg)',
     fontFamily: '"DM Sans", -apple-system, sans-serif',
-    padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: '#2D2A26',
+    padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)',
   },
   header: { paddingTop: 28, paddingBottom: 8 },
   title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
-  subtitle: { fontSize: 13, color: '#C76B8A', margin: 0, fontWeight: 500 },
+  subtitle: { fontSize: 13, color: 'var(--accent)', margin: 0, fontWeight: 500 },
 
   summaryRow: { display: 'flex', gap: 8, marginBottom: 12 },
   summaryChip: {
@@ -488,11 +488,11 @@ const styles = {
 
   addBtn: {
     width: '100%', padding: '12px 0', borderRadius: 10, border: 'none',
-    background: '#C76B8A', color: '#fff', fontSize: 14, fontWeight: 600,
+    background: 'var(--accent)', color: '#fff', fontSize: 14, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit', marginBottom: 16,
   },
 
-  tabs: { display: 'flex', gap: 16, borderBottom: '1px solid #F0ECE8', marginBottom: 16 },
+  tabs: { display: 'flex', gap: 16, borderBottom: '1px solid var(--border-light)', marginBottom: 16 },
   tab: {
     padding: '10px 0', background: 'none', border: 'none',
     borderBottom: '2px solid transparent', fontSize: 14, fontWeight: 600,
@@ -500,75 +500,75 @@ const styles = {
   },
 
   // Form
-  formCard: { background: '#fff', borderRadius: 14, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 16 },
-  formTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 14px', color: '#2D2A26' },
+  formCard: { background: 'var(--bg-card)', borderRadius: 14, padding: 16, boxShadow: 'var(--shadow-xs)', marginBottom: 16 },
+  formTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 14px', color: 'var(--text-primary)' },
   formGroup: { marginBottom: 14 },
-  formLabel: { display: 'block', fontSize: 12, color: '#AAA5A0', marginBottom: 6, fontWeight: 500 },
-  formInput: { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' },
+  formLabel: { display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 6, fontWeight: 500 },
+  formInput: { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' },
   formRow: { display: 'flex', gap: 10, marginBottom: 14 },
   resultRow: { display: 'flex', gap: 6 },
   resultBtn: {
-    flex: 1, padding: '8px 4px', borderRadius: 8, border: '1.5px solid #F0ECE8',
+    flex: 1, padding: '8px 4px', borderRadius: 8, border: '1.5px solid var(--border)',
     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   formActions: { display: 'flex', gap: 8 },
-  saveBtn: { flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  cancelBtn: { padding: '10px 16px', borderRadius: 10, border: 'none', background: '#F5F2EF', color: '#8A8580', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' },
+  saveBtn: { flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  cancelBtn: { padding: '10px 16px', borderRadius: 10, border: 'none', background: 'var(--bg-subtle)', color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' },
 
   // Alerts
   alertList: { display: 'flex', flexDirection: 'column', gap: 10 },
-  alertIntro: { fontSize: 13, color: '#8A8580', margin: '0 0 10px', lineHeight: 1.4 },
-  alertCard: { background: '#fff', borderRadius: 14, padding: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.04)', borderLeft: '3px solid #E57373' },
+  alertIntro: { fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.4 },
+  alertCard: { background: 'var(--bg-card)', borderRadius: 14, padding: 14, boxShadow: 'var(--shadow-xs)', borderLeft: '3px solid var(--danger)' },
   alertTop: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 },
-  alertAvatar: { width: 34, height: 34, borderRadius: 17, background: '#FBF0F3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, color: '#C76B8A', flexShrink: 0 },
+  alertAvatar: { width: 34, height: 34, borderRadius: 17, background: 'var(--accent-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, color: 'var(--accent)', flexShrink: 0 },
   alertInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2 },
-  alertName: { fontSize: 13, fontWeight: 600, color: '#2D2A26' },
-  alertDetail: { fontSize: 11, color: '#AAA5A0' },
+  alertName: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
+  alertDetail: { fontSize: 11, color: 'var(--text-muted)' },
   alertBadge: { padding: '3px 8px', borderRadius: 5, fontSize: 10, fontWeight: 600, flexShrink: 0 },
   alertActions: { display: 'flex', gap: 8 },
-  remindBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  logBtn: { padding: '8px 14px', borderRadius: 8, border: '1.5px solid #F0ECE8', background: '#fff', color: '#5A5550', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  sentLabel: { fontSize: 12, color: '#4CAF50', fontWeight: 600 },
+  remindBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  logBtn: { padding: '8px 14px', borderRadius: 8, border: '1.5px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  sentLabel: { fontSize: 12, color: 'var(--success)', fontWeight: 600 },
 
-  sectionTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 10px', color: '#2D2A26' },
+  sectionTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 10px', color: 'var(--text-primary)' },
 
-  testRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid #F5F2EF' },
-  testAvatar: { width: 30, height: 30, borderRadius: 15, background: '#FFF3E0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, color: '#FF9800', flexShrink: 0 },
+  testRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border-light)' },
+  testAvatar: { width: 30, height: 30, borderRadius: 15, background: 'var(--warning-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, color: 'var(--warning)', flexShrink: 0 },
   testInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 1 },
-  testName: { fontSize: 13, fontWeight: 500, color: '#2D2A26' },
-  testMeta: { fontSize: 11, color: '#FF9800' },
-  smallRemindBtn: { padding: '5px 10px', borderRadius: 6, border: 'none', background: '#FFF3E0', color: '#FF9800', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  testName: { fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' },
+  testMeta: { fontSize: 11, color: 'var(--warning)' },
+  smallRemindBtn: { padding: '5px 10px', borderRadius: 6, border: 'none', background: 'var(--warning-bg)', color: 'var(--warning)', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   // All tests
   testList: { display: 'flex', flexDirection: 'column', gap: 10 },
-  testCard: { background: '#fff', borderRadius: 14, padding: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  testCard: { background: 'var(--bg-card)', borderRadius: 14, padding: 14, boxShadow: 'var(--shadow-xs)' },
   testCardTop: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 },
   testStatusIcon: { width: 34, height: 34, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 },
   testCardInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 1 },
-  testCardName: { fontSize: 14, fontWeight: 600, color: '#2D2A26' },
-  testCardDate: { fontSize: 11, color: '#AAA5A0' },
+  testCardName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' },
+  testCardDate: { fontSize: 11, color: 'var(--text-muted)' },
   statusBadge: { padding: '3px 8px', borderRadius: 5, fontSize: 10, fontWeight: 600, flexShrink: 0 },
   testCardBody: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  testResult: { fontSize: 12, color: '#5A5550' },
-  testExpiry: { fontSize: 11, color: '#AAA5A0' },
-  testNotes: { fontSize: 12, color: '#8A8580', fontStyle: 'italic', margin: '4px 0 0', lineHeight: 1.4 },
+  testResult: { fontSize: 12, color: 'var(--text-secondary)' },
+  testExpiry: { fontSize: 11, color: 'var(--text-muted)' },
+  testNotes: { fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', margin: '4px 0 0', lineHeight: 1.4 },
 
   // Settings
-  settingsCard: { background: '#fff', borderRadius: 14, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 12 },
-  settingsSectionTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 14px', color: '#2D2A26' },
-  settingsRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #FAF8F5' },
-  settingsLabel: { display: 'block', fontSize: 13, fontWeight: 500, color: '#2D2A26' },
-  settingsHint: { display: 'block', fontSize: 11, color: '#AAA5A0', marginTop: 2 },
-  settingsSelect: { padding: '6px 10px', borderRadius: 8, border: '1.5px solid #F0ECE8', fontSize: 12, fontFamily: 'inherit', background: '#fff', color: '#5A5550' },
+  settingsCard: { background: 'var(--bg-card)', borderRadius: 14, padding: 16, boxShadow: 'var(--shadow-xs)', marginBottom: 12 },
+  settingsSectionTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 14px', color: 'var(--text-primary)' },
+  settingsRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border-light)' },
+  settingsLabel: { display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' },
+  settingsHint: { display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 },
+  settingsSelect: { padding: '6px 10px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 12, fontFamily: 'inherit', background: 'var(--bg-card)', color: 'var(--text-secondary)' },
   toggle: { width: 44, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s' },
   toggleDot: { width: 22, height: 22, borderRadius: 11, background: '#fff', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
-  treatmentRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #FAF8F5' },
-  treatmentName: { fontSize: 13, color: '#5A5550' },
+  treatmentRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border-light)' },
+  treatmentName: { fontSize: 13, color: 'var(--text-secondary)' },
 
   // Empty
-  loadingText: { textAlign: 'center', color: '#AAA5A0', padding: 40, fontSize: 14 },
+  loadingText: { textAlign: 'center', color: 'var(--text-muted)', padding: 40, fontSize: 14 },
   emptyState: { textAlign: 'center', padding: '40px 20px' },
-  emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 4px', color: '#2D2A26' },
-  emptyDesc: { fontSize: 13, color: '#AAA5A0', margin: 0, lineHeight: 1.5 },
+  emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 4px', color: 'var(--text-primary)' },
+  emptyDesc: { fontSize: 13, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 },
 };

@@ -145,7 +145,7 @@ export default function StaffPerformance() {
 
           {/* AI insight */}
           <div style={s.aiCard}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#C76B8A', marginBottom: 6 }}>🤖 Florrie's Take</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#C76B8A', marginBottom: 6 }}>🤖 florrie.ai's Take</div>
             <p style={{ margin: 0, fontSize: 13, color: 'var(--text, #2D2A26)', lineHeight: 1.5 }}>
               {detail.utilisation >= 80
                 ? `${detail.name} is running near capacity — consider adding buffer time between appointments or adjusting pricing upward for peak slots.`

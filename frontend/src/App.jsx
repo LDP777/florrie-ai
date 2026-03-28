@@ -135,7 +135,7 @@ export default function App() {
   if (loading) {
     return (
       <div style={styles.loadingScreen}>
-        <span style={styles.loadingLogo}>florrie</span>
+        <span style={styles.loadingLogo}>florrie.ai</span>
         <span style={{ fontSize: 11, color: 'var(--text-muted, #B5AFA8)', fontFamily: "'DM Sans', sans-serif", letterSpacing: '0.08em', textTransform: 'uppercase' }}>your AI team</span>
       </div>
     );
@@ -293,7 +293,7 @@ function BottomNav({ current }) {
   const tabs = [
     { path: '/', label: 'Home', icon: '🏠' },
     { path: '/calendar', label: 'Calendar', icon: '📅' },
-    { path: '/voice', label: 'Florrie', icon: '✨' },
+    { path: '/voice', label: 'florrie.ai', icon: '✨' },
     { path: '/money', label: 'Money', icon: '💰' },
     { path: '/hub', label: 'Hub', icon: '🧭' }
   ];

@@ -467,7 +467,7 @@ export default function SmartSchedule() {
           <div style={styles.tipCard}>
             <span style={{ fontSize: 16, marginRight: 8 }}>💡</span>
             <div>
-              <span style={styles.tipTitle}>Florrie's suggestion</span>
+              <span style={styles.tipTitle}>florrie.ai's suggestion</span>
               <span style={styles.tipText}>Your Monday mornings are consistently quiet. Consider offering a 10% "Monday morning" discount or moving your start time to 12pm to free up your morning.</span>
             </div>
           </div>

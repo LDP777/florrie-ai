@@ -192,7 +192,7 @@ export default function MultiLocation() {
         <div>
           <div style={{ ...ds.card, marginBottom: 16, background: 'var(--bg-warm)' }}>
             <div style={{ ...type.heading, marginBottom: 4 }}>Cross-Location Booking</div>
-            <div style={{ ...type.bodySmall, lineHeight: 1.5 }}>Clients can book at any of your locations. Florrie automatically suggests the nearest branch with availability.</div>
+            <div style={{ ...type.bodySmall, lineHeight: 1.5 }}>Clients can book at any of your locations. florrie.ai automatically suggests the nearest branch with availability.</div>
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
               <div style={{ flex: 1, ...ds.statCard, padding: 10, textAlign: 'center' }}>
                 <div style={{ ...ds.statValue, fontSize: 18 }}>12</div>

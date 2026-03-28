@@ -69,7 +69,7 @@ export default function Login({ supabase }) {
   return (
     <div style={styles.page}>
       <div style={styles.logoSection}>
-        <h1 style={styles.logo}>florrie</h1>
+        <h1 style={styles.logo}>florrie.ai</h1>
         <p style={styles.tagline}>Your AI team, sorted</p>
       </div>
 

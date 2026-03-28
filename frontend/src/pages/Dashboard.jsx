@@ -12,7 +12,7 @@ import logger from '../lib/logger.js';
  *   Today's schedule strip
  *   Revenue pulse (this week)
  *   Quick actions grid
- *   AI insights from Florrie
+ *   AI insights from florrie.ai
  *   Recent activity feed
  */
 
@@ -26,21 +26,21 @@ const DEV_TODAY = [
 const DEV_INSIGHTS = [
   { id: 'i1', icon: '📈', text: "You're on track for £385 this week — that's 12% up on last week.", type: 'positive' },
   { id: 'i2', icon: '🔄', text: 'Daisy S is 12 days overdue for her usual rebook. Send a nudge?', type: 'action', actionLabel: 'Send nudge', actionPath: '/clients' },
-  { id: 'i3', icon: '⭐', text: 'Jasmin left a 5★ review yesterday. Florrie drafted a reply for you.', type: 'action', actionLabel: 'View reply', actionPath: '/reviews' },
+  { id: 'i3', icon: '⭐', text: 'Jasmin left a 5★ review yesterday. florrie.ai drafted a reply for you.', type: 'action', actionLabel: 'View reply', actionPath: '/reviews' },
   { id: 'i4', icon: '📋', text: "Emma's patch test is needed before Friday's appointment.", type: 'warning', actionLabel: 'Send reminder', actionPath: '/patch-tests' },
 ];
 
 const DEV_ACTIVITY = [
-  { id: 'act1', icon: '💬', text: 'Florrie confirmed Shauna\'s 11am booking', time: '10 min ago' },
+  { id: 'act1', icon: '💬', text: 'florrie.ai confirmed Shauna\'s 11am booking', time: '10 min ago' },
   { id: 'act2', icon: '📸', text: 'Content draft ready: "Tuesday transformation ✨"', time: '1h ago' },
   { id: 'act3', icon: '💷', text: '£45.00 payment received from Shauna', time: '2h ago' },
   { id: 'act4', icon: '📅', text: 'Megan R booked HD Brows for today 3:30pm', time: '3h ago' },
-  { id: 'act5', icon: '✨', text: 'Florrie sent aftercare card to Daisy after yesterday\'s appointment', time: '18h ago' },
+  { id: 'act5', icon: '✨', text: 'florrie.ai sent aftercare card to Daisy after yesterday\'s appointment', time: '18h ago' },
 ];
 
 const QUICK_ACTIONS = [
   { icon: '📅', label: 'Calendar', path: '/calendar', color: '#E3F2FD' },
-  { icon: '💬', label: 'Florrie', path: '/voice', color: '#FBF0F3' },
+  { icon: '💬', label: 'florrie.ai', path: '/voice', color: '#FBF0F3' },
   { icon: '👤', label: 'Clients', path: '/clients', color: '#FFF3E0' },
   { icon: '💰', label: 'Money', path: '/money', color: '#E8F5E9' },
   { icon: '📸', label: 'Content', path: '/content', color: '#F3F0FA' },
@@ -286,7 +286,7 @@ export default function Dashboard() {
 
       {/* AI Insights */}
       <div style={styles.insightsSection}>
-        <h3 style={styles.sectionTitle}>✨ Florrie's insights</h3>
+        <h3 style={styles.sectionTitle}>✨ florrie.ai's insights</h3>
         {insights.map(insight => (
           <div key={insight.id} style={{
             ...styles.insightCard,

@@ -305,7 +305,7 @@ export default function HoursExceptions() {
           <div style={styles.notifyRow}>
             <div>
               <span style={styles.notifyLabel}>Notify affected clients</span>
-              <span style={styles.notifyHint}>Florrie will message anyone booked on these dates</span>
+              <span style={styles.notifyHint}>florrie.ai will message anyone booked on these dates</span>
             </div>
             <button
               onClick={() => setForm(p => ({ ...p, notify_clients: !p.notify_clients }))}

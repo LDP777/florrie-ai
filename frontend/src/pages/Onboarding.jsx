@@ -269,14 +269,14 @@ export default function Onboarding({ onComplete }) {
       {/* === STEP 1: Welcome === */}
       {step === 1 && (
         <div style={styles.stepContent}>
-          <h1 style={styles.stepTitle}>Welcome to Florrie</h1>
+          <h1 style={styles.stepTitle}>Welcome to florrie.ai</h1>
           <p style={styles.stepDesc}>
             Let's get your business set up. This takes about 2 minutes.
           </p>
 
           {error && (
             <div style={styles.errorBanner}>
-              <span style={{ fontSize: 13, color: '#C53030', fontWeight: 500 }}>⚠ {error}</span>
+              <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>⚠ {error}</span>
             </div>
           )}
 
@@ -331,7 +331,7 @@ export default function Onboarding({ onComplete }) {
 
           {error && (
             <div style={styles.errorBanner}>
-              <span style={{ fontSize: 13, color: '#C53030', fontWeight: 500 }}>⚠ {error}</span>
+              <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>⚠ {error}</span>
             </div>
           )}
 
@@ -429,7 +429,7 @@ export default function Onboarding({ onComplete }) {
 
           {error && (
             <div style={styles.errorBanner}>
-              <span style={{ fontSize: 13, color: '#C53030', fontWeight: 500 }}>⚠ {error}</span>
+              <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>⚠ {error}</span>
             </div>
           )}
 
@@ -443,7 +443,7 @@ export default function Onboarding({ onComplete }) {
                 />
                 <span style={{
                   ...styles.dayName,
-                  color: hours[day].enabled ? '#2D2A26' : '#C4BDB6'
+                  color: hours[day].enabled ? 'var(--text-primary)' : 'var(--text-muted)'
                 }}>
                   {DAYS[idx]}
                 </span>
@@ -492,7 +492,7 @@ export default function Onboarding({ onComplete }) {
 
           {error && (
             <div style={styles.errorBanner}>
-              <span style={{ fontSize: 13, color: '#C53030', fontWeight: 500 }}>⚠ {error}</span>
+              <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>⚠ {error}</span>
             </div>
           )}
 
@@ -530,7 +530,7 @@ export default function Onboarding({ onComplete }) {
 
           {error && (
             <div style={styles.errorBanner}>
-              <span style={{ fontSize: 13, color: '#C53030', fontWeight: 500 }}>⚠ {error}</span>
+              <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>⚠ {error}</span>
             </div>
           )}
 
@@ -540,7 +540,7 @@ export default function Onboarding({ onComplete }) {
               <span style={{ fontSize: 20 }}>⏱️</span>
               <span style={{ fontSize: 15, fontWeight: 600 }}>Import from Timely</span>
             </div>
-            <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: '#666', lineHeight: 1.8 }}>
+            <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
               <li>In Timely, go to <b>Clients → Export</b></li>
               <li>Download the CSV file</li>
               <li>Upload it below — we'll match the columns automatically</li>
@@ -553,13 +553,13 @@ export default function Onboarding({ onComplete }) {
               <span style={{ fontSize: 20 }}>🟢</span>
               <span style={{ fontSize: 15, fontWeight: 600 }}>Import from Fresha</span>
             </div>
-            <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: '#666', lineHeight: 1.8 }}>
+            <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
               <li>In Fresha, go to <b>Clients → Export to CSV</b></li>
               <li>Upload it here — same thing, we sort the columns</li>
             </ol>
           </div>
 
-          <p style={{ fontSize: 12, color: '#AAA', textAlign: 'center', margin: '8px 0 12px' }}>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', margin: '8px 0 12px' }}>
             Works with any CSV that has name, email, or phone columns
           </p>
 
@@ -604,17 +604,18 @@ export default function Onboarding({ onComplete }) {
 const styles = {
   page: {
     minHeight: '100vh',
-    background: '#FAF8F5',
-    fontFamily: '"DM Sans", -apple-system, sans-serif',
+    background: 'var(--bg)',
+    fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)",
     padding: '0 20px 60px',
     maxWidth: 480,
     margin: '0 auto',
-    color: '#2D2A26'
+    color: 'var(--text-primary)',
+    animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
   },
-  loadingText: { textAlign: 'center', color: '#AAA5A0', padding: 60, fontSize: 14, fontFamily: '"DM Sans", sans-serif' },
+  loadingText: { textAlign: 'center', color: 'var(--text-muted)', padding: 60, fontSize: 14, fontFamily: "var(--font-body, 'DM Sans', sans-serif)" },
   progressBar: {
     height: 4,
-    background: '#F0ECE8',
+    background: 'var(--border)',
     borderRadius: 2,
     marginTop: 20,
     marginBottom: 8,
@@ -622,13 +623,13 @@ const styles = {
   },
   progressFill: {
     height: '100%',
-    background: '#C76B8A',
+    background: 'var(--accent)',
     borderRadius: 2,
     transition: 'width 0.3s ease'
   },
   stepIndicator: {
     fontSize: 12,
-    color: '#AAA5A0',
+    color: 'var(--text-muted)',
     marginBottom: 24,
     textAlign: 'right'
   },
@@ -641,11 +642,13 @@ const styles = {
     fontSize: 24,
     fontWeight: 700,
     margin: '0 0 4px',
-    color: '#2D2A26'
+    color: 'var(--text-primary)',
+    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
+    letterSpacing: '-0.02em'
   },
   stepDesc: {
     fontSize: 14,
-    color: '#8A8580',
+    color: 'var(--text-secondary)',
     margin: '0 0 20px',
     lineHeight: 1.5
   },
@@ -653,12 +656,12 @@ const styles = {
   // Forms
   formGroup: { marginBottom: 14 },
   formRow: { display: 'flex', gap: 10 },
-  formLabel: { display: 'block', fontSize: 12, color: '#AAA5A0', marginBottom: 4, fontWeight: 500 },
+  formLabel: { display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4, fontWeight: 500 },
   formInput: {
     width: '100%',
     padding: '12px 14px',
     borderRadius: 10,
-    border: '1.5px solid #F0ECE8',
+    border: '1.5px solid var(--border)',
     fontSize: 15,
     fontFamily: 'inherit',
     outline: 'none',
@@ -669,11 +672,11 @@ const styles = {
     width: '100%',
     padding: '12px 14px',
     borderRadius: 10,
-    border: '1.5px solid #F0ECE8',
+    border: '1.5px solid var(--border)',
     fontSize: 15,
     fontFamily: 'inherit',
     outline: 'none',
-    background: '#fff',
+    background: 'var(--bg-card)',
     boxSizing: 'border-box'
   },
 
@@ -683,7 +686,7 @@ const styles = {
     padding: '14px 0',
     borderRadius: 12,
     border: 'none',
-    background: '#C76B8A',
+    background: 'var(--accent)',
     color: '#fff',
     fontSize: 15,
     fontWeight: 600,
@@ -695,9 +698,9 @@ const styles = {
     width: '100%',
     padding: '12px 0',
     borderRadius: 10,
-    border: '1.5px dashed #E0DBD5',
+    border: '1.5px dashed var(--border)',
     background: 'transparent',
-    color: '#8A8580',
+    color: 'var(--text-secondary)',
     fontSize: 13,
     fontWeight: 500,
     cursor: 'pointer',
@@ -706,11 +709,11 @@ const styles = {
 
   // Treatments
   treatmentCard: {
-    background: '#fff',
+    background: 'var(--bg-card)',
     borderRadius: 14,
     padding: 16,
     marginBottom: 10,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+    boxShadow: 'var(--shadow-sm)'
   },
   treatmentHeader: {
     display: 'flex',
@@ -718,13 +721,13 @@ const styles = {
     alignItems: 'center',
     marginBottom: 12
   },
-  treatmentNum: { fontSize: 12, fontWeight: 600, color: '#C76B8A', textTransform: 'uppercase', letterSpacing: '0.04em' },
+  treatmentNum: { fontSize: 12, fontWeight: 600, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.04em' },
   removeBtn: {
     padding: '4px 10px',
     borderRadius: 6,
     border: 'none',
-    background: '#FEF2F2',
-    color: '#E57373',
+    background: 'var(--danger-bg)',
+    color: 'var(--danger)',
     fontSize: 11,
     cursor: 'pointer',
     fontFamily: 'inherit'
@@ -736,7 +739,7 @@ const styles = {
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: '10px 0',
-    borderBottom: '1px solid #F5F2EF'
+    borderBottom: '1px solid var(--border-light)'
   },
   dayToggle: {
     display: 'flex',
@@ -749,24 +752,24 @@ const styles = {
   timeInput: {
     padding: '6px 8px',
     borderRadius: 6,
-    border: '1.5px solid #F0ECE8',
+    border: '1.5px solid var(--border)',
     fontSize: 13,
     fontFamily: 'inherit',
     outline: 'none',
     width: 90
   },
-  timeSep: { fontSize: 12, color: '#AAA5A0' },
+  timeSep: { fontSize: 12, color: 'var(--text-muted)' },
 
   // Slug
   slugPreview: {
     display: 'flex',
     alignItems: 'center',
-    background: '#fff',
+    background: 'var(--bg-card)',
     borderRadius: 12,
     padding: '4px 4px 4px 14px',
-    border: '1.5px solid #F0ECE8'
+    border: '1.5px solid var(--border)'
   },
-  slugPrefix: { fontSize: 14, color: '#AAA5A0', whiteSpace: 'nowrap' },
+  slugPrefix: { fontSize: 14, color: 'var(--text-muted)', whiteSpace: 'nowrap' },
   slugInput: {
     flex: 1,
     border: 'none',
@@ -775,32 +778,32 @@ const styles = {
     fontWeight: 600,
     fontFamily: 'inherit',
     padding: '10px 10px',
-    color: '#2D2A26'
+    color: 'var(--text-primary)'
   },
 
   // Import
   importGuide: {
-    background: '#fff',
+    background: 'var(--bg-card)',
     borderRadius: 12,
     padding: 16,
     marginBottom: 10,
-    border: '1.5px solid #C76B8A30',
+    border: '1.5px solid rgba(199, 107, 138, 0.19)',
   },
   importArea: {
-    background: '#fff',
+    background: 'var(--bg-card)',
     borderRadius: 14,
     padding: 20,
     textAlign: 'center',
     marginBottom: 12,
-    border: '1.5px dashed #E0DBD5'
+    border: '1.5px dashed var(--border)'
   },
   fileInput: { marginBottom: 12, fontSize: 13 },
-  importResult: { fontSize: 13, color: '#4CAF50', marginTop: 10, fontWeight: 500 },
+  importResult: { fontSize: 13, color: 'var(--success)', marginTop: 10, fontWeight: 500 },
 
   // Error and skip
   errorBanner: {
-    background: '#FEF2F2',
-    border: '1px solid #FECACA',
+    background: 'var(--danger-bg)',
+    border: '1px solid var(--danger-bg)',
     borderRadius: 10,
     padding: '12px 14px',
     marginBottom: 16,
@@ -811,7 +814,7 @@ const styles = {
     borderRadius: 10,
     border: 'none',
     background: 'transparent',
-    color: '#AAA5A0',
+    color: 'var(--text-muted)',
     fontSize: 13,
     fontWeight: 500,
     cursor: 'pointer',

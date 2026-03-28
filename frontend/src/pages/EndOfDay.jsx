@@ -241,7 +241,7 @@ export default function EndOfDay({ token }) {
           <div style={styles.insightCard}>
             <div style={{ fontSize: 16 }}>🧠</div>
             <div>
-              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Florrie's take</div>
+              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>florrie.ai's take</div>
               <div style={{ fontSize: 13, color: '#6B6560', lineHeight: 1.5 }}>
                 Solid day — 82% utilisation is above your weekly average (74%). Danielle's second no-show
                 this month means the deposit auto-triggered. Consider offering Sophie D. a loyalty perk —

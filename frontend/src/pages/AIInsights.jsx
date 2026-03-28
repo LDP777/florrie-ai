@@ -91,7 +91,7 @@ export default function AIInsights() {
       {/* Header */}
       <div style={{ marginBottom: 20 }}>
         <h1 style={ds.pageTitle}>AI Insights</h1>
-        <p style={{ ...type.bodySmall, marginTop: 4 }}>Florrie's brain — predictions, risks, and opportunities</p>
+        <p style={{ ...type.bodySmall, marginTop: 4 }}>florrie.ai's brain — predictions, risks, and opportunities</p>
       </div>
 
       {/* Confidence hero */}
@@ -179,7 +179,7 @@ export default function AIInsights() {
           <div style={ds.insightCard}>
             <span style={{ fontSize: 20 }}>✨</span>
             <div>
-              <div style={{ ...type.heading, fontSize: 13, marginBottom: 4 }}>Florrie's Take</div>
+              <div style={{ ...type.heading, fontSize: 13, marginBottom: 4 }}>florrie.ai's Take</div>
               <div style={{ ...type.bodySmall, lineHeight: 1.5 }}>
                 Thursday–Saturday is your money window. You're consistently under-booked on Mondays — consider a "Monday Glow" promo to shift demand. Revenue is tracking 8% above last month.
               </div>
@@ -330,7 +330,7 @@ export default function AIInsights() {
           <div style={{ ...ds.insightCard, marginTop: 16 }}>
             <span style={{ fontSize: 20 }}>🔮</span>
             <div style={{ ...type.bodySmall, lineHeight: 1.5 }}>
-              Anomaly detection improves with time. Florrie has identified 3 patterns this week. The more data flows through, the sharper the alerts become.
+              Anomaly detection improves with time. florrie.ai has identified 3 patterns this week. The more data flows through, the sharper the alerts become.
             </div>
           </div>
         </div>

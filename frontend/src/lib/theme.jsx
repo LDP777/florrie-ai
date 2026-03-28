@@ -1,5 +1,5 @@
 /**
- * Florrie Theme System v2
+ * florrie.ai Theme System v2
  *
  * Extended CSS-variable system with Soft Luxury palette.
  * Light + Dark modes. Gold accent for premium touches.

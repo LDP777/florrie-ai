@@ -249,7 +249,7 @@ export default function ClientImport() {
         <div style={styles.mapCard}>
           <p style={styles.mapIntro}>
             Found {csvRows.length} client{csvRows.length !== 1 ? 's' : ''} and {csvHeaders.length} columns.
-            Map each column to a Florrie field:
+            Map each column to a florrie.ai field:
           </p>
 
           {csvHeaders.map(header => (
@@ -378,7 +378,7 @@ export default function ClientImport() {
             <p style={styles.doneErrors}>{errors.length} skipped due to errors</p>
           )}
           <p style={styles.doneDesc}>
-            They're now in your client list. Florrie will start building profiles as they book.
+            They're now in your client list. florrie.ai will start building profiles as they book.
           </p>
           <button
             onClick={() => { setMode(null); setStep('upload'); setCsvHeaders([]); setCsvRows([]); setColumnMap({}); setBulkText(''); setManualParsed([]); }}
