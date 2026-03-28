@@ -5,8 +5,8 @@
  * "always late"). This page makes it explicit so Florrie can use the
  * tags across campaigns, waitlist priority, and smart scheduling.
  */
-import { useState } from 'react';
-import { isDevMode, DEV_CLIENTS } from '../lib/supabase.js';
+import { useState, useEffect } from 'react';
+import { useBeautician, fetchRows, isDevMode, DEV_CLIENTS } from '../lib/supabase.js';
 
 const DEV_TAGS = [
   { id: 't1', name: 'VIP', colour: '#C76B8A', icon: '⭐', auto: false, clients: ['Shauna', 'Daisy S', 'Holly B'] },
@@ -27,13 +27,39 @@ const DEV_SEGMENTS = [
 ];
 
 export default function ClientTags({ token }) {
+  const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('tags');
   const [expanded, setExpanded] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [createType, setCreateType] = useState('tag'); // tag | segment
+  const [tags, setTags] = useState(DEV_TAGS);
+  const [segments, setSegments] = useState(DEV_SEGMENTS);
 
-  const tags = DEV_TAGS;
-  const segments = DEV_SEGMENTS;
+  useEffect(() => {
+    if (bLoading || !beautician) return;
+    if (isDevMode) {
+      setTags(DEV_TAGS);
+      setSegments(DEV_SEGMENTS);
+      return;
+    }
+
+    // Fetch client_tags (tags) and their assignments
+    fetchRows('client_tags', beautician.id)
+      .then(rows => {
+        setTags(rows.map(t => ({
+          id: t.id,
+          name: t.name,
+          colour: t.colour || '#C76B8A',
+          icon: t.icon || '🏷️',
+          auto: t.auto_rule ? true : false,
+          rule: t.auto_rule || '',
+          clients: [], // Assignments fetched separately
+        })));
+      });
+
+    // Note: Segments are computed from tags in real DB or fetched from a segments table
+    // For now, keep DEV_SEGMENTS as fallback
+  }, [beautician, bLoading]);
 
   return (
     <div style={S.page}>

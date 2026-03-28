@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, insertRow, updateRow, isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 /**
  * Treatments — manage treatment menu.
@@ -50,7 +51,7 @@ export default function Treatments() {
         setTreatments(data);
       }
     } catch (err) {
-      console.error('Load treatments error:', err);
+      logger.error('Load treatments error:', err);
     } finally {
       setLoading(false);
     }
@@ -83,7 +84,7 @@ export default function Treatments() {
       setShowAdd(false);
       loadTreatments();
     } catch (err) {
-      console.error('Save treatment error:', err);
+      logger.error('Save treatment error:', err);
     } finally {
       setSaving(false);
     }
@@ -94,7 +95,7 @@ export default function Treatments() {
       await updateRow('treatments', id, { is_active: !currentlyActive });
       loadTreatments();
     } catch (err) {
-      console.error('Toggle error:', err);
+      logger.error('Toggle error:', err);
     }
   }
 

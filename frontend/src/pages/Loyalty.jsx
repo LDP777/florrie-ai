@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { useBeautician, isDevMode, DEV_CLIENTS } from '../lib/supabase.js';
+import { useState, useEffect } from 'react';
+import { useBeautician, supabase, isDevMode, fetchRows, DEV_CLIENTS } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 /**
  * Loyalty & Rewards — keep clients coming back.
@@ -46,18 +47,60 @@ function getNextTier(points) {
 }
 
 export default function Loyalty() {
-  const { beautician } = useBeautician();
+  const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('overview');
   const [showRewardDetail, setShowRewardDetail] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loyaltyConfig, setLoyaltyConfig] = useState(null);
+  const [pointsHistory, setPointsHistory] = useState([]);
 
-  // Dev mode: assign mock points to clients
-  const clients = isDevMode ? DEV_CLIENTS.map(c => ({
-    ...c,
-    loyalty_points: Math.round((c.total_spend_cents || 0) / 100),
-  })) : [];
+  useEffect(() => {
+    if (beautician && !bLoading) loadLoyalty();
+  }, [beautician, bLoading]);
 
-  const totalPointsIssued = clients.reduce((s, c) => s + c.loyalty_points, 0);
-  const activeMembers = clients.filter(c => c.loyalty_points > 0).length;
+  async function loadLoyalty() {
+    setLoading(true);
+    try {
+      if (isDevMode) {
+        setLoyaltyConfig({ enabled: true, points_per_dollar: 1, reset_interval_days: 365 });
+        const pts = DEV_CLIENTS.map(c => ({
+          id: c.id,
+          client_name: c.first_name,
+          points: Math.round((c.total_spend_cents || 0) / 100),
+        }));
+        setPointsHistory(pts);
+      } else {
+        // Fetch config
+        const { data: config } = await supabase
+          .from('loyalty_config')
+          .select('*')
+          .eq('beautician_id', beautician.id)
+          .single();
+        setLoyaltyConfig(config || { enabled: true, points_per_dollar: 1 });
+
+        // Fetch points history
+        const { data: history } = await supabase
+          .from('loyalty_points')
+          .select('*, clients(first_name)')
+          .eq('beautician_id', beautician.id)
+          .order('created_at', { ascending: false });
+        setPointsHistory(history || []);
+      }
+    } catch (err) {
+      logger.error('Load loyalty error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Compute stats from points history
+  const clients = pointsHistory;
+  const totalPointsIssued = clients.reduce((s, c) => s + (c.points || 0), 0);
+  const activeMembers = clients.filter(c => (c.points || 0) > 0).length;
+
+  if (bLoading || loading) {
+    return <div style={styles.page}><div style={{ textAlign: 'center', padding: 60, color: '#AAA5A0' }}>Loading...</div></div>;
+  }
 
   return (
     <div style={styles.page}>

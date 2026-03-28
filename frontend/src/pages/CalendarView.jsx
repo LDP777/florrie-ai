@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, supabase, isDevMode, updateRow, insertRow } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 /**
  * CalendarView — Day and Week view of appointments.
@@ -42,10 +43,10 @@ export default function CalendarView() {
         .lte('starts_at', `${to}T23:59:59Z`)
         .order('starts_at');
 
-      if (error) console.error('Calendar load:', error);
+      if (error) logger.error('Calendar load:', error);
       setAppointments(data || []);
     } catch (err) {
-      console.error('Calendar load error:', err);
+      logger.error('Calendar load error:', err);
     } finally {
       setLoading(false);
     }
@@ -230,7 +231,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
       }
       setMode('done');
     } catch (err) {
-      console.error('Complete error:', err);
+      logger.error('Complete error:', err);
     } finally {
       setSaving(false);
     }
@@ -252,7 +253,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
         setBeforeAfterUrl(URL.createObjectURL(file));
       }
     } catch (err) {
-      console.error('Upload error:', err);
+      logger.error('Upload error:', err);
     } finally {
       setUploading(false);
     }

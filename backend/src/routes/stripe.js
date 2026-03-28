@@ -2,10 +2,24 @@ import { Router } from 'express';
 import Stripe from 'stripe';
 import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
+import { notifyBookingConfirmed } from '../services/notifications.js';
+import { cleanupStripeEvents } from '../services/stripe-cleanup.js';
+import logger from '../lib/logger.js';
 
 const router = Router();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const stripe = process.env.STRIPE_SECRET_KEY
+  ? new Stripe(process.env.STRIPE_SECRET_KEY)
+  : null;
+const FRONTEND_URL = process.env.FRONTEND_URL;
+
+// Guard: if Stripe isn't configured, return 503 for all Stripe endpoints
+// except webhook (which uses its own error handling)
+function requireStripe(req, res, next) {
+  if (!stripe) {
+    return res.status(503).json({ error: 'Stripe not configured. Add STRIPE_SECRET_KEY to environment.' });
+  }
+  next();
+}
 
 // ═══════════════════════════════════════════════
 // STRIPE CONNECT — Beautician payment onboarding
@@ -16,7 +30,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
  * Creates a Stripe Connect Express account and returns the onboarding link.
  * The beautician completes KYC on Stripe's hosted page (not ours — PCI safe).
  */
-router.post('/connect/onboard', requireAuth, async (req, res) => {
+router.post('/connect/onboard', requireAuth, requireStripe, async (req, res) => {
   try {
     let accountId = req.beautician.stripe_account_id;
 
@@ -57,7 +71,7 @@ router.post('/connect/onboard', requireAuth, async (req, res) => {
 
     res.json({ url: accountLink.url });
   } catch (err) {
-    console.error('Stripe Connect onboard error:', err);
+    logger.error({ err }, 'Stripe Connect onboard error');
     res.status(500).json({ error: err.message });
   }
 });
@@ -66,7 +80,7 @@ router.post('/connect/onboard', requireAuth, async (req, res) => {
  * GET /api/stripe/connect/status
  * Check if the beautician's Stripe account is fully onboarded.
  */
-router.get('/connect/status', requireAuth, async (req, res) => {
+router.get('/connect/status', requireAuth, requireStripe, async (req, res) => {
   const accountId = req.beautician.stripe_account_id;
 
   if (!accountId) {
@@ -93,7 +107,7 @@ router.get('/connect/status', requireAuth, async (req, res) => {
       default_currency: account.default_currency,
     });
   } catch (err) {
-    console.error('Stripe status error:', err);
+    logger.error({ err }, 'Stripe status error');
     res.status(500).json({ error: err.message });
   }
 });
@@ -107,7 +121,7 @@ router.get('/connect/status', requireAuth, async (req, res) => {
  * Creates a Stripe Checkout session for a booking deposit.
  * Redirects the client to Stripe's hosted payment page.
  */
-router.post('/checkout', async (req, res) => {
+router.post('/checkout', requireStripe, async (req, res) => {
   const { appointment_id, beautician_id, amount_cents, description } = req.body;
 
   if (!appointment_id || !beautician_id || !amount_cents) {
@@ -126,9 +140,6 @@ router.post('/checkout', async (req, res) => {
   }
 
   try {
-    // Platform fee: 5% of the transaction
-    const platformFee = Math.round(amount_cents * 0.05);
-
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       line_items: [{
@@ -142,7 +153,7 @@ router.post('/checkout', async (req, res) => {
         quantity: 1,
       }],
       payment_intent_data: {
-        application_fee_amount: platformFee,
+        // No platform fee on deposits — Florrie revenue comes from subscriptions
         transfer_data: {
           destination: beautician.stripe_account_id,
         },
@@ -171,7 +182,7 @@ router.post('/checkout', async (req, res) => {
 
     res.json({ url: session.url, session_id: session.id });
   } catch (err) {
-    console.error('Checkout session error:', err);
+    logger.error({ err }, 'Checkout session error');
     res.status(500).json({ error: err.message });
   }
 });
@@ -184,7 +195,7 @@ router.post('/checkout', async (req, res) => {
  * POST /api/stripe/subscribe
  * Creates a Checkout session for a Florrie subscription plan.
  */
-router.post('/subscribe', requireAuth, async (req, res) => {
+router.post('/subscribe', requireAuth, requireStripe, async (req, res) => {
   const { plan_id } = req.body;
 
   // Get plan details
@@ -227,7 +238,7 @@ router.post('/subscribe', requireAuth, async (req, res) => {
 
     res.json({ url: session.url });
   } catch (err) {
-    console.error('Subscribe error:', err);
+    logger.error({ err }, 'Subscribe error');
     res.status(500).json({ error: err.message });
   }
 });
@@ -236,7 +247,7 @@ router.post('/subscribe', requireAuth, async (req, res) => {
  * POST /api/stripe/portal
  * Opens the Stripe Customer Portal for managing subscription.
  */
-router.post('/portal', requireAuth, async (req, res) => {
+router.post('/portal', requireAuth, requireStripe, async (req, res) => {
   const customerId = req.beautician.stripe_customer_id;
   if (!customerId) {
     return res.status(400).json({ error: 'No Stripe customer found' });
@@ -249,7 +260,32 @@ router.post('/portal', requireAuth, async (req, res) => {
     });
     res.json({ url: session.url });
   } catch (err) {
-    console.error('Portal error:', err);
+    logger.error({ err }, 'Portal error');
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ═══════════════════════════════════════════════
+// MAINTENANCE — Stripe event cleanup
+// ═══════════════════════════════════════════════
+
+/**
+ * POST /api/stripe/cleanup-events
+ * Deletes stripe_events older than 90 days.
+ * Protected by x-cron-key header (same as process-reminders).
+ * Can be called by: cron job, admin endpoint, Supabase Edge Function.
+ */
+router.post('/cleanup-events', async (req, res) => {
+  const cronKey = req.headers['x-cron-key'];
+  if (cronKey !== process.env.CRON_SECRET) {
+    return res.status(401).json({ error: 'Invalid cron key' });
+  }
+
+  try {
+    const result = await cleanupStripeEvents();
+    res.json({ success: true, ...result });
+  } catch (err) {
+    logger.error({ err }, 'Stripe cleanup error');
     res.status(500).json({ error: err.message });
   }
 });
@@ -263,6 +299,10 @@ router.post('/portal', requireAuth, async (req, res) => {
  * Handles Stripe webhook events. Must use raw body for signature verification.
  */
 router.post('/webhook', async (req, res) => {
+  if (!stripe) {
+    return res.status(200).json({ received: true, note: 'Stripe not configured, ignoring webhook' });
+  }
+
   const sig = req.headers['stripe-signature'];
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -271,7 +311,7 @@ router.post('/webhook', async (req, res) => {
     // req.rawBody is set by Express raw body middleware (see index.js)
     event = stripe.webhooks.constructEvent(req.rawBody || req.body, sig, webhookSecret);
   } catch (err) {
-    console.error('Webhook signature verification failed:', err.message);
+    logger.error({ err }, 'Webhook signature verification failed');
     return res.status(400).json({ error: 'Invalid signature' });
   }
 
@@ -292,9 +332,10 @@ router.post('/webhook', async (req, res) => {
       case 'checkout.session.completed': {
         const session = event.data.object;
         if (session.mode === 'payment' && session.metadata?.appointment_id) {
+          // Mark deposit as paid AND confirm the appointment (was 'pending' waiting for payment)
           await supabase
             .from('appointments')
-            .update({ deposit_status: 'paid', deposit_paid: true })
+            .update({ deposit_status: 'paid', deposit_paid: true, status: 'confirmed' })
             .eq('id', session.metadata.appointment_id);
 
           // Log the transaction
@@ -306,6 +347,19 @@ router.post('/webhook', async (req, res) => {
             status: 'completed',
             stripe_payment_intent_id: session.payment_intent,
           });
+
+          // If client paid, store their Stripe customer for faster future payments
+          if (session.customer && session.metadata?.client_id) {
+            await supabase
+              .from('clients')
+              .update({ stripe_customer_id: session.customer })
+              .eq('id', session.metadata.client_id);
+          }
+
+          // Send booking confirmation now that payment is confirmed
+          notifyBookingConfirmed(session.metadata.appointment_id).catch(err =>
+            logger.warn({ err }, 'Post-payment confirmation notification failed (non-fatal)')
+          );
         }
         break;
       }
@@ -376,7 +430,7 @@ router.post('/webhook', async (req, res) => {
 
     res.json({ received: true });
   } catch (err) {
-    console.error('Webhook processing error:', err);
+    logger.error({ err }, 'Webhook processing error');
     res.status(500).json({ error: 'Webhook processing failed' });
   }
 });

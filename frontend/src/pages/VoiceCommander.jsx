@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { useBeautician, isDevMode } from '../lib/supabase.js';
+import { useBeautician, supabase, isDevMode, fetchRows } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 /**
  * Voice Commander — Talk to Florrie.
@@ -48,14 +49,43 @@ const EXAMPLE_PROMPTS = [
 ];
 
 export default function VoiceCommander() {
-  const { beautician } = useBeautician();
-  const [messages, setMessages] = useState(DEV_CONVERSATION);
+  const { beautician, loading: bLoading } = useBeautician();
+  const [messages, setMessages] = useState(isDevMode ? DEV_CONVERSATION : []);
+  const [loading, setLoading] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [textInput, setTextInput] = useState('');
   const [pulseAnim, setPulseAnim] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (beautician && !bLoading) loadHistory();
+  }, [beautician, bLoading]);
+
+  async function loadHistory() {
+    setLoading(true);
+    try {
+      if (isDevMode) {
+        setMessages(DEV_CONVERSATION);
+      } else {
+        const data = await fetchRows('ai_actions', beautician.id, { order: 'created_at', ascending: false, limit: 50 });
+        const mapped = (data || []).map(action => ({
+          id: action.id,
+          role: 'assistant',
+          text: action.result || action.action_name,
+          agent: action.agent_type || 'general',
+          timestamp: action.created_at,
+        }));
+        setMessages([{ id: '0', role: 'assistant', text: "Hey lovely! I'm here whenever you need me.", agent: 'general', timestamp: new Date().toISOString() }, ...mapped]);
+      }
+    } catch (err) {
+      logger.error('Load action history error:', err);
+      setMessages(DEV_CONVERSATION);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

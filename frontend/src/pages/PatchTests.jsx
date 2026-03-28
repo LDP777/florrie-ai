@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, isDevMode, insertRow, updateRow, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useBeautician, fetchRows, isDevMode, insertRow, updateRow, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 /**
  * Patch Test Tracker — Regulatory compliance for brow & lash treatments.
@@ -58,8 +59,8 @@ const DEV_UPCOMING_NEEDING_TEST = [
 ];
 
 export default function PatchTests() {
-  const { beautician } = useBeautician();
-  const [tests, setTests] = useState([]);
+  const { beautician, loading: bLoading } = useBeautician();
+  const [tests, setTests] = useState(DEV_PATCH_TESTS);
   const [tab, setTab] = useState('alerts');
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -80,14 +81,24 @@ export default function PatchTests() {
     require_for: REQUIRES_TEST,
   });
 
-  useEffect(() => { loadData(); }, [beautician]);
+  useEffect(() => { loadData(); }, [beautician, bLoading]);
 
   async function loadData() {
     setLoading(true);
+    if (bLoading || !beautician) {
+      setLoading(false);
+      return;
+    }
     if (isDevMode) {
       setTests(DEV_PATCH_TESTS);
       setLoading(false);
       return;
+    }
+    try {
+      const rows = await fetchRows('patch_tests', beautician.id, { order: 'test_date', ascending: false });
+      setTests(rows);
+    } catch (err) {
+      logger.error('Failed to load patch tests:', err);
     }
     setLoading(false);
   }

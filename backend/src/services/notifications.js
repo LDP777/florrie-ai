@@ -1,10 +1,12 @@
 /**
  * Notification service — email (Resend), SMS (Twilio), WhatsApp.
  *
- * Each channel is opt-in per beautician (notification_prefs).
- * Falls back gracefully if credentials aren't configured.
+ * Email defaults to ON for all notifications unless the beautician
+ * explicitly disables it. SMS and WhatsApp are opt-in.
  */
 import { supabase } from '../index.js';
+import logger from '../lib/logger.js';
+import { trackSMSUsage } from './sms-metering.js';
 
 // ── Email via Resend ─────────────────────────
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
@@ -12,32 +14,43 @@ const FROM_EMAIL = process.env.FROM_EMAIL || 'Florrie <noreply@florrie.ai>';
 
 export async function sendEmail({ to, subject, html, text }) {
   if (!RESEND_API_KEY) {
-    console.log('[Notifications] Resend not configured, skipping email');
+    logger.debug('Resend not configured, skipping email');
     return null;
   }
 
-  try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: FROM_EMAIL,
-        to: [to],
-        subject,
-        html,
-        text,
-      }),
-    });
+  const maxRetries = 2;
+  const retryDelay = 1000; // 1 second
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Resend error');
-    return data;
-  } catch (err) {
-    console.error('[Notifications] Email send error:', err.message);
-    return null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: FROM_EMAIL,
+          to: [to],
+          subject,
+          html,
+          text,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Resend error');
+      logger.info({ to, subject }, 'Email sent');
+      return data;
+    } catch (err) {
+      if (attempt < maxRetries) {
+        logger.debug({ attempt: attempt + 1, err }, 'Email send failed, retrying...');
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      } else {
+        logger.error({ err, attempts: maxRetries + 1 }, 'Email send failed after retries');
+        return null;
+      }
+    }
   }
 }
 
@@ -46,42 +59,59 @@ const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const TWILIO_FROM = process.env.TWILIO_PHONE_NUMBER;
 
-export async function sendSMS({ to, body }) {
+export async function sendSMS({ to, body, beauticianId }) {
   if (!TWILIO_SID || !TWILIO_TOKEN || !TWILIO_FROM) {
-    console.log('[Notifications] Twilio not configured, skipping SMS');
+    logger.debug('Twilio not configured, skipping SMS');
     return null;
   }
 
-  try {
-    const auth = Buffer.from(`${TWILIO_SID}:${TWILIO_TOKEN}`).toString('base64');
-    const res = await fetch(
-      `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Basic ${auth}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({ To: to, From: TWILIO_FROM, Body: body }),
-      }
-    );
+  // Track SMS usage if beauticianId provided
+  let usageInfo = null;
+  if (beauticianId) {
+    usageInfo = await trackSMSUsage(beauticianId);
+  }
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || 'Twilio error');
-    return data;
-  } catch (err) {
-    console.error('[Notifications] SMS send error:', err.message);
-    return null;
+  const maxRetries = 2;
+  const retryDelay = 1000; // 1 second
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const auth = Buffer.from(`${TWILIO_SID}:${TWILIO_TOKEN}`).toString('base64');
+      const res = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${auth}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({ To: to, From: TWILIO_FROM, Body: body }),
+        }
+      );
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Twilio error');
+      return { ...data, usageInfo };
+    } catch (err) {
+      if (attempt < maxRetries) {
+        logger.debug({ attempt: attempt + 1, err }, 'SMS send failed, retrying...');
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
+      } else {
+        logger.error({ err, attempts: maxRetries + 1 }, 'SMS send failed after retries');
+        return null;
+      }
+    }
   }
 }
 
 // ── WhatsApp via Meta Cloud API ──────────────
+// Note: WhatsApp is being deprioritized. Twilio SMS is primary.
 const WA_TOKEN = process.env.WHATSAPP_TOKEN;
 const WA_PHONE_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
 export async function sendWhatsApp({ to, templateName, templateParams }) {
   if (!WA_TOKEN || !WA_PHONE_ID) {
-    console.log('[Notifications] WhatsApp not configured, skipping');
+    logger.debug('WhatsApp not configured, skipping');
     return null;
   }
 
@@ -114,20 +144,46 @@ export async function sendWhatsApp({ to, templateName, templateParams }) {
     if (!res.ok) throw new Error(JSON.stringify(data.error || data));
     return data;
   } catch (err) {
-    console.error('[Notifications] WhatsApp send error:', err.message);
+    logger.error({ err }, 'WhatsApp send error');
     return null;
   }
+}
+
+// ── Branded HTML email wrapper ───────────────
+function emailTemplate({ bizName, brandColor, content }) {
+  const color = brandColor || '#C4A882';
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#faf9f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#faf9f7;padding:32px 16px">
+<tr><td align="center">
+<table width="100%" style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
+  <tr><td style="background:${color};padding:24px 32px">
+    <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:600;letter-spacing:-0.3px">${bizName}</h1>
+    <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:12px">Powered by Florrie</p>
+  </td></tr>
+  <tr><td style="padding:32px">${content}</td></tr>
+  <tr><td style="padding:16px 32px 24px;border-top:1px solid #f0eeeb">
+    <p style="margin:0;color:#a09a93;font-size:12px;text-align:center">Sent via Florrie — the AI-powered booking assistant</p>
+  </td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
 }
 
 // ── Template-based notifications ─────────────
 
 /**
  * Send a booking confirmation to the client.
+ * Email sends by default unless explicitly disabled.
  */
 export async function notifyBookingConfirmed(appointmentId) {
   const { data: appt } = await supabase
     .from('appointments')
-    .select('*, clients(first_name, phone, email), treatments(name), beauticians(business_name, first_name, client_reminder_prefs)')
+    .select('*, clients(first_name, phone, email), treatments(name, duration_minutes), beauticians(business_name, first_name, client_reminder_prefs, brand_color)')
     .eq('id', appointmentId)
     .single();
 
@@ -138,39 +194,66 @@ export async function notifyBookingConfirmed(appointmentId) {
   const biz = appt.beauticians;
   const prefs = biz?.client_reminder_prefs || {};
   const bizName = biz?.business_name || biz?.first_name;
-  const dateStr = new Date(appt.starts_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  const dateStr = new Date(appt.starts_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
   const timeStr = new Date(appt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const shortDate = new Date(appt.starts_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 
-  if (!prefs.booking_confirmation) return;
+  const textMsg = `Hi ${client.first_name}, your ${treatment.name} with ${bizName} is confirmed for ${shortDate} at ${timeStr}.`;
 
-  const msg = `Hi ${client.first_name}, your ${treatment.name} is confirmed for ${dateStr} at ${timeStr}. Reply CANCEL to cancel. — ${bizName}`;
-
-  // Send via preferred channel
-  const channel = prefs.channel || 'sms';
-  if (channel === 'whatsapp' && client.phone) {
-    await sendWhatsApp({ to: client.phone, templateName: 'booking_confirmation', templateParams: [client.first_name, treatment.name, dateStr, timeStr] });
-  } else if (client.phone) {
-    await sendSMS({ to: client.phone, body: msg });
+  // SMS/WhatsApp — only if beautician has opted in
+  if (prefs.booking_confirmation !== false) {
+    const channel = prefs.channel || 'email';
+    if (channel === 'whatsapp' && client.phone) {
+      await sendWhatsApp({ to: client.phone, templateName: 'booking_confirmation', templateParams: [client.first_name, treatment.name, shortDate, timeStr] });
+    } else if (channel === 'sms' && client.phone) {
+      await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id });
+    }
   }
 
-  // Always send email if available
-  if (client.email) {
+  // Email — always send unless explicitly disabled (prefs.email_confirmation === false)
+  if (client.email && prefs.email_confirmation !== false) {
+    const depositLine = appt.deposit_cents > 0
+      ? `<p style="margin:12px 0 0;color:#6b6560;font-size:14px">Deposit paid: <strong>&pound;${(appt.deposit_cents / 100).toFixed(2)}</strong></p>`
+      : '';
+
+    const html = emailTemplate({
+      bizName,
+      brandColor: biz.brand_color,
+      content: `
+        <h2 style="margin:0 0 8px;color:#2d2a26;font-size:18px;font-weight:600">Booking Confirmed</h2>
+        <p style="margin:0 0 20px;color:#6b6560;font-size:14px">Hi ${client.first_name}, you're all booked in.</p>
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#faf9f7;border-radius:8px;padding:20px">
+          <tr><td>
+            <p style="margin:0;color:#a09a93;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">Treatment</p>
+            <p style="margin:4px 0 16px;color:#2d2a26;font-size:16px;font-weight:600">${treatment.name}</p>
+            <p style="margin:0;color:#a09a93;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">When</p>
+            <p style="margin:4px 0 16px;color:#2d2a26;font-size:16px;font-weight:600">${dateStr} at ${timeStr}</p>
+            <p style="margin:0;color:#a09a93;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">Duration</p>
+            <p style="margin:4px 0 0;color:#2d2a26;font-size:16px;font-weight:600">${treatment.duration_minutes} minutes</p>
+            ${depositLine}
+          </td></tr>
+        </table>
+        <p style="margin:20px 0 0;color:#6b6560;font-size:14px">Need to cancel or reschedule? Get in touch with ${bizName} directly.</p>
+      `,
+    });
+
     await sendEmail({
       to: client.email,
-      subject: `Booking confirmed — ${treatment.name} on ${dateStr}`,
-      text: msg,
-      html: `<p>${msg}</p>`,
+      subject: `Confirmed: ${treatment.name} — ${shortDate} at ${timeStr}`,
+      text: textMsg,
+      html,
     });
   }
 }
 
 /**
  * Send a 24-hour reminder.
+ * Email sends by default unless explicitly disabled.
  */
 export async function notifyReminder24h(appointmentId) {
   const { data: appt } = await supabase
     .from('appointments')
-    .select('*, clients(first_name, phone, email), treatments(name), beauticians(business_name, first_name, client_reminder_prefs)')
+    .select('*, clients(first_name, phone, email), treatments(name, duration_minutes), beauticians(business_name, first_name, client_reminder_prefs, brand_color)')
     .eq('id', appointmentId)
     .single();
 
@@ -182,24 +265,47 @@ export async function notifyReminder24h(appointmentId) {
   const prefs = biz?.client_reminder_prefs || {};
   const bizName = biz?.business_name || biz?.first_name;
   const timeStr = new Date(appt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const dateStr = new Date(appt.starts_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 
-  if (!prefs.reminder_24h) return;
+  const textMsg = `Reminder: ${client.first_name}, your ${treatment.name} with ${bizName} is tomorrow at ${timeStr}. See you then!`;
 
-  const msg = `Reminder: ${client.first_name}, your ${treatment.name} is tomorrow at ${timeStr}. See you then! — ${bizName}`;
-
-  const channel = prefs.channel || 'sms';
-  if (channel === 'whatsapp' && client.phone) {
-    await sendWhatsApp({ to: client.phone, templateName: 'reminder_24h', templateParams: [client.first_name, treatment.name, timeStr] });
-  } else if (client.phone) {
-    await sendSMS({ to: client.phone, body: msg });
+  // SMS/WhatsApp — only if opted in
+  if (prefs.reminder_24h !== false) {
+    const channel = prefs.channel || 'email';
+    if (channel === 'whatsapp' && client.phone) {
+      await sendWhatsApp({ to: client.phone, templateName: 'reminder_24h', templateParams: [client.first_name, treatment.name, timeStr] });
+    } else if (channel === 'sms' && client.phone) {
+      await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id });
+    }
   }
 
-  if (client.email) {
+  // Email — always send unless explicitly disabled
+  if (client.email && prefs.email_reminder !== false) {
+    const html = emailTemplate({
+      bizName,
+      brandColor: biz.brand_color,
+      content: `
+        <h2 style="margin:0 0 8px;color:#2d2a26;font-size:18px;font-weight:600">Appointment Tomorrow</h2>
+        <p style="margin:0 0 20px;color:#6b6560;font-size:14px">Hi ${client.first_name}, just a quick reminder about your appointment.</p>
+        <table width="100%" cellpadding="0" cellspacing="0" style="background:#faf9f7;border-radius:8px;padding:20px">
+          <tr><td>
+            <p style="margin:0;color:#a09a93;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">Treatment</p>
+            <p style="margin:4px 0 16px;color:#2d2a26;font-size:16px;font-weight:600">${treatment.name}</p>
+            <p style="margin:0;color:#a09a93;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">When</p>
+            <p style="margin:4px 0 16px;color:#2d2a26;font-size:16px;font-weight:600">${dateStr} at ${timeStr}</p>
+            <p style="margin:0;color:#a09a93;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">Duration</p>
+            <p style="margin:4px 0 0;color:#2d2a26;font-size:16px;font-weight:600">${treatment.duration_minutes} minutes</p>
+          </td></tr>
+        </table>
+        <p style="margin:20px 0 0;color:#6b6560;font-size:14px">If you can't make it, please let ${bizName} know as soon as possible.</p>
+      `,
+    });
+
     await sendEmail({
       to: client.email,
       subject: `Reminder: ${treatment.name} tomorrow at ${timeStr}`,
-      text: msg,
-      html: `<p>${msg}</p>`,
+      text: textMsg,
+      html,
     });
   }
 }
@@ -225,8 +331,12 @@ export async function processReminders() {
 
   let sent = 0;
   for (const appt of appointments) {
-    await notifyReminder24h(appt.id);
-    sent++;
+    try {
+      await notifyReminder24h(appt.id);
+      sent++;
+    } catch (err) {
+      logger.error({ appointmentId: appt.id, err }, 'Reminder failed');
+    }
   }
 
   return { sent, total: appointments.length };

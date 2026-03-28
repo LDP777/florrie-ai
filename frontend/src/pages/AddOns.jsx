@@ -5,8 +5,9 @@
  * suggest at booking or during the appointment. This page manages
  * the add-on menu and tracks upsell performance.
  */
-import { useState } from 'react';
-import { isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useState, useEffect } from 'react';
+import { useBeautician, fetchRows, isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 
@@ -26,12 +27,24 @@ const CATEGORIES = [
 ];
 
 export default function AddOns({ token }) {
+  const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('addons');
   const [expanded, setExpanded] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: '', price: '', duration: '', category: 'treatment', suggestWith: [], autoSuggest: true });
+  const [addons, setAddons] = useState(DEV_ADDONS);
 
-  const addons = DEV_ADDONS;
+  // Fetch add-ons on mount
+  useEffect(() => {
+    if (bLoading || !beautician) return;
+    if (isDevMode) {
+      setAddons(DEV_ADDONS);
+      return;
+    }
+    fetchRows('add_ons', beautician.id)
+      .then(rows => setAddons(rows))
+      .catch(err => logger.error('Failed to load add-ons:', err));
+  }, [beautician, bLoading]);
   const active = addons.filter(a => a.active);
   const totalRevenue = addons.reduce((s, a) => s + a.stats.revenue, 0);
   const avgAcceptRate = addons.length > 0 ? Math.round(addons.reduce((s, a) => s + (a.stats.offered > 0 ? (a.stats.accepted / a.stats.offered) * 100 : 0), 0) / addons.length) : 0;

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, insertRow, updateRow, deleteRow, isDevMode } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 const triggerOptions = [
   { id: 'appointment_booked', label: 'Appointment booked', icon: '📅' },
@@ -109,7 +110,7 @@ export default function AutomationRules({ token }) {
     const newEnabled = !rule.enabled;
     setRules(rules.map(r => r.id === id ? { ...r, enabled: newEnabled } : r));
     if (!isDevMode && beautician) {
-      try { await updateRow('automation_rules', id, { enabled: newEnabled }); } catch (e) { console.error(e); }
+      try { await updateRow('automation_rules', id, { enabled: newEnabled }); } catch (e) { logger.error(e); }
     }
   };
 
@@ -237,7 +238,7 @@ export default function AutomationRules({ token }) {
                 setRules([{ ...saved, lastRun: 'Never' }, ...rules]);
                 setNewRule({ name: '', trigger: null, actions: [], conditions: [], delay: '0' });
                 setCreating(false);
-              } catch (e) { console.error('Save rule failed:', e); }
+              } catch (e) { logger.error('Save rule failed:', e); }
             }}
             style={{
               ...styles.saveRuleBtn,

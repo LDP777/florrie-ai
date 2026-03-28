@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useBeautician, supabase, isDevMode, fetchRows, insertRow, updateRow, deleteRow, DEV_TREATMENTS } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 /**
  * Content Autopilot — Ellie's #1 pain point.
@@ -137,7 +138,7 @@ export default function ContentAutopilot() {
       setDrafts(d);
       setPosted(p);
     } catch (err) {
-      console.error('Load content error:', err);
+      logger.error('Load content error:', err);
     } finally {
       setLoading(false);
     }
@@ -165,7 +166,7 @@ export default function ContentAutopilot() {
       });
       setGallery(data);
     } catch (err) {
-      console.error('Load gallery:', err);
+      logger.error('Load gallery:', err);
     }
   }
 
@@ -228,7 +229,7 @@ export default function ContentAutopilot() {
       setGalleryBeforePreview(null);
       setGalleryAfterPreview(null);
     } catch (err) {
-      console.error('Save gallery:', err);
+      logger.error('Save gallery:', err);
     }
     setSavingGallery(false);
   }
@@ -271,7 +272,7 @@ export default function ContentAutopilot() {
           const { data: urlData } = supabase.storage.from('content-images').getPublicUrl(path);
           imageUrl = urlData?.publicUrl || null;
         } else {
-          console.warn('Image upload failed:', uploadErr.message);
+          logger.warn('Image upload failed:', uploadErr.message);
         }
       }
 
@@ -291,7 +292,7 @@ export default function ContentAutopilot() {
       setComposing(false);
       setTab('drafts');
     } catch (err) {
-      console.error('Save draft error:', err);
+      logger.error('Save draft error:', err);
     } finally {
       setSaving(false);
     }
@@ -314,7 +315,7 @@ export default function ContentAutopilot() {
         setPosted(p);
       }
     } catch (err) {
-      console.error('Approve error:', err);
+      logger.error('Approve error:', err);
     } finally {
       setPublishing(null);
     }
@@ -326,7 +327,7 @@ export default function ContentAutopilot() {
       setDrafts(prev => prev.map(p => p.id === postId ? { ...p, caption: editCaption } : p));
       setEditingId(null);
     } catch (err) {
-      console.error('Edit error:', err);
+      logger.error('Edit error:', err);
     }
   }
 
@@ -335,7 +336,7 @@ export default function ContentAutopilot() {
       await deleteRow('content_posts', postId);
       setDrafts(prev => prev.filter(p => p.id !== postId));
     } catch (err) {
-      console.error('Discard error:', err);
+      logger.error('Discard error:', err);
     }
   }
 

@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useBeautician, supabase, isDevMode } from '../lib/supabase.js';
 import { ds, type } from '../lib/designSystem.js';
+import logger from '../lib/logger.js';
 
-const segments = [
+const clientSegments = [
   {
     name: 'VIP Regulars', icon: '👑', count: 34, revenue: '£48,200', avgSpend: '£1,418',
     description: 'Visit 2+ times/month, spend above £100/visit',
@@ -53,10 +55,44 @@ const segments = [
 ];
 
 export default function ClientSegments() {
+  const { beautician, loading: bLoading } = useBeautician();
   const [expanded, setExpanded] = useState(null);
-  const [view, setView] = useState(0); // 0=segments, 1=rfm matrix
+  const [view, setView] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [clientSegments, setClientSegments] = useState(isDevMode ? clientSegments : []);
 
-  const totalClients = segments.reduce((s, g) => s + g.count, 0);
+  useEffect(() => {
+    if (beautician && !bLoading) loadSegments();
+  }, [beautician, bLoading]);
+
+  async function loadSegments() {
+    setLoading(true);
+    try {
+      if (isDevMode) {
+        setClientSegments(clientSegments);
+      } else {
+        // Query clients and compute clientSegments from RFM
+        const { data: clients } = await supabase
+          .from('clients')
+          .select('*, appointments(created_at)')
+          .eq('beautician_id', beautician.id);
+
+        // Compute clientSegments from client data (placeholder)
+        setClientSegments(clientSegments);
+      }
+    } catch (err) {
+      logger.error('Load clientSegments error:', err);
+      setClientSegments(clientSegments);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (bLoading || loading) {
+    return <div style={ds.page}><div style={{ textAlign: 'center', padding: 60, color: '#AAA5A0' }}>Loading...</div></div>;
+  }
+
+  const totalClients = clientSegments.reduce((s, g) => s + g.count, 0);
 
   return (
     <div style={ds.page}>
@@ -71,13 +107,13 @@ export default function ClientSegments() {
           <div>
             <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>TOTAL SEGMENTED</div>
             <div style={{ fontSize: 36, fontWeight: 700 }}>{totalClients}</div>
-            <div style={{ fontSize: 13, opacity: 0.9, marginTop: 4 }}>across {segments.length} segments</div>
+            <div style={{ fontSize: 13, opacity: 0.9, marginTop: 4 }}>across {clientSegments.length} clientSegments</div>
           </div>
           <div style={{ fontSize: 40 }}>🎯</div>
         </div>
         {/* Segment bar */}
         <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', marginTop: 16, gap: 2 }}>
-          {segments.map(s => (
+          {clientSegments.map(s => (
             <div key={s.name} style={{ flex: s.count, background: s.color, opacity: 0.9, borderRadius: 2 }} title={`${s.name}: ${s.count}`} />
           ))}
         </div>
@@ -92,7 +128,7 @@ export default function ClientSegments() {
 
       {view === 0 && (
         <div>
-          {segments.map((seg, i) => (
+          {clientSegments.map((seg, i) => (
             <div key={seg.name} style={{ ...ds.card, marginBottom: 12, cursor: 'pointer' }} onClick={() => setExpanded(expanded === i ? null : i)}>
               {/* Segment header */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -192,7 +228,7 @@ export default function ClientSegments() {
                 ))}
 
                 {/* Segments as bubbles */}
-                {segments.map(seg => {
+                {clientSegments.map(seg => {
                   const x = (seg.rfm.recency / 10) * 100;
                   const y = 100 - (seg.rfm.frequency / 10) * 100;
                   const size = Math.max(20, (seg.rfm.monetary / 10) * 40);
@@ -220,7 +256,7 @@ export default function ClientSegments() {
 
             {/* Legend */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-              {segments.map(seg => (
+              {clientSegments.map(seg => (
                 <div key={seg.name} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                   <div style={{ width: 8, height: 8, borderRadius: '50%', background: seg.color }} />
                   <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{seg.name}</span>

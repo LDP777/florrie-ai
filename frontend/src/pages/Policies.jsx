@@ -6,12 +6,11 @@
  *   Cancellation — cancellation window, fee structure
  *   No-shows     — fee, strike system, auto-block
  *   Client-facing — preview of the policy clients see at booking
- *
- * Dev-mode only. Supabase wiring later.
  */
-import { useState } from 'react';
-import { isDevMode } from '../lib/supabase.js';
+import { useState, useEffect } from 'react';
+import { useBeautician, supabase, isDevMode, updateRow } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
+import logger from '../lib/logger.js';
 
 const DEPOSIT_TYPES = [
   { key: 'fixed', label: 'Fixed amount' },
@@ -32,6 +31,8 @@ const NOSHOW_ACTIONS = [
 
 export default function Policies({ token }) {
   const { dark } = useTheme();
+  const { beautician, loading: bLoading } = useBeautician();
+  const [loading, setLoading] = useState(true);
 
   // Deposit settings
   const [depositEnabled, setDepositEnabled] = useState(true);
@@ -64,7 +65,74 @@ export default function Policies({ token }) {
   const [tab, setTab] = useState('deposits');
   const [saved, setSaved] = useState(false);
 
-  function handleSave() {
+  useEffect(() => { if (beautician) loadPolicies(); }, [beautician]);
+
+  async function loadPolicies() {
+    setLoading(true);
+    try {
+      if (!isDevMode && beautician) {
+        const { data } = await supabase
+          .from('policies')
+          .select('*')
+          .eq('beautician_id', beautician.id)
+          .single();
+        if (data) {
+          setDepositEnabled(data.deposit_enabled ?? true);
+          setDepositType(data.deposit_type ?? 'fixed');
+          setDepositAmount(data.deposit_amount ?? 10);
+          setDepositPercent(data.deposit_percent ?? 50);
+          setDepositMinPrice(data.deposit_min_price ?? 25);
+          setDepositRefundable(data.deposit_refundable ?? true);
+          setCancelWindow(data.cancel_window ?? 24);
+          setCancelFeeEnabled(data.cancel_fee_enabled ?? true);
+          setCancelFeeType(data.cancel_fee_type ?? 'deposit');
+          setCancelFeeFixed(data.cancel_fee_fixed ?? 10);
+          setCancelFeePercent(data.cancel_fee_percent ?? 50);
+          setLateCancelMessage(data.late_cancel_message ?? "Hey lovely, just so you know we need at least 24 hours notice for cancellations — otherwise a fee may apply. No stress, just a heads up xx");
+          setNoshowAction(data.noshow_action ?? 'strike');
+          setNoshowFee(data.noshow_fee ?? 20);
+          setNoshowStrikesMax(data.noshow_strikes_max ?? 2);
+          setNoshowBlockEnabled(data.noshow_block_enabled ?? true);
+          setNoshowBlockAfter(data.noshow_block_after ?? 3);
+        }
+      }
+    } catch (err) {
+      logger.error('Load policies error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSave() {
+    if (!beautician || isDevMode) {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+      return;
+    }
+    const payload = {
+      deposit_enabled: depositEnabled,
+      deposit_type: depositType,
+      deposit_amount: depositAmount,
+      deposit_percent: depositPercent,
+      deposit_min_price: depositMinPrice,
+      deposit_refundable: depositRefundable,
+      cancel_window: cancelWindow,
+      cancel_fee_enabled: cancelFeeEnabled,
+      cancel_fee_type: cancelFeeType,
+      cancel_fee_fixed: cancelFeeFixed,
+      cancel_fee_percent: cancelFeePercent,
+      late_cancel_message: lateCancelMessage,
+      noshow_action: noshowAction,
+      noshow_fee: noshowFee,
+      noshow_strikes_max: noshowStrikesMax,
+      noshow_block_enabled: noshowBlockEnabled,
+      noshow_block_after: noshowBlockAfter,
+    };
+    try {
+      await updateRow('policies', beautician.id, payload);
+    } catch (err) {
+      logger.error('Save policies error:', err);
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }

@@ -5,8 +5,9 @@
  * manages chair rentals, and prevents double-bookings.
  * Works for solo too: shows her own availability at a glance.
  */
-import { useState } from 'react';
-import { isDevMode } from '../lib/supabase.js';
+import { useState, useEffect } from 'react';
+import { useBeautician, supabase, isDevMode, fetchRows } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
@@ -35,13 +36,48 @@ const DEV_EXCEPTIONS = [
 ];
 
 export default function StaffRota({ token }) {
+  const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('week');
+  const [loading, setLoading] = useState(true);
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [showAddTimeOff, setShowAddTimeOff] = useState(false);
   const [timeOffForm, setTimeOffForm] = useState({ staffId: 's1', date: '', reason: '', allDay: true, start: '', end: '' });
+  const [staff, setStaff] = useState(isDevMode ? DEV_STAFF : []);
+  const [exceptions, setExceptions] = useState(isDevMode ? DEV_EXCEPTIONS : []);
 
-  const staff = DEV_STAFF;
+  useEffect(() => {
+    if (beautician && !bLoading) loadRota();
+  }, [beautician, bLoading]);
+
+  async function loadRota() {
+    setLoading(true);
+    try {
+      if (isDevMode) {
+        setStaff(DEV_STAFF);
+        setExceptions(DEV_EXCEPTIONS);
+      } else {
+        const teamData = await fetchRows('team_members', beautician.id, { order: 'created_at' });
+        setStaff(teamData || []);
+
+        const { data: excepData } = await supabase
+          .from('hours_exceptions')
+          .select('*')
+          .eq('beautician_id', beautician.id);
+        setExceptions(excepData || []);
+      }
+    } catch (err) {
+      logger.error('Load rota error:', err);
+      setStaff(DEV_STAFF);
+      setExceptions(DEV_EXCEPTIONS);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (bLoading || loading) {
+    return <div style={S.page}><div style={{ textAlign: 'center', padding: 60, color: '#AAA5A0' }}>Loading...</div></div>;
+  }
 
   // Current week dates
   const getWeekDates = () => {

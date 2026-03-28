@@ -1,5 +1,6 @@
-import Anthropic from 'anthropic';
+import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from '../index.js';
+import logger from '../lib/logger.js';
 
 /**
  * AI Front Desk — The core agentic service.
@@ -87,6 +88,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
       // 7a. Send the response
       await sendResponse(beautician, client, result.response, messageContent);
 
+      logger.info({ handled: true, intent: classification.intent }, 'AI Front Desk handled message');
       return { handled: true, intent: classification.intent, response: result.response };
 
     } else {
@@ -127,11 +129,12 @@ export async function processInboundMessage(messageId, beautician, client, messa
         notification_text: `New message from ${client?.first_name || 'someone'} needs your attention`
       });
 
+      logger.info({ handled: false, intent: classification.intent, escalated: true }, 'AI Front Desk escalated message');
       return { handled: false, intent: classification.intent, escalated: true, suggestion };
     }
 
   } catch (err) {
-    console.error('AI Front Desk error:', err);
+    logger.error({ err }, 'AI Front Desk error');
 
     // On any error, escalate
     await supabase.from('messages').update({
@@ -246,7 +249,7 @@ Only include extracted fields if they're mentioned in the message. Confidence is
     const jsonStr = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     return JSON.parse(jsonStr);
   } catch (err) {
-    console.error('Classification parse error:', err);
+    logger.error({ err }, 'Classification parse error');
     return { intent: INTENTS.UNKNOWN, confidence: 0.0, extracted: {} };
   }
 }
@@ -347,6 +350,9 @@ Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`,
 
   const replyText = response.content[0].text.trim();
 
+  // Calculate tone match score by comparing against beautician's correction history
+  const toneScore = await calculateToneScore(beautician, replyText);
+
   // Take any additional actions based on intent
   if (intent === INTENTS.BOOKING_REQUEST && extracted?.treatment && extracted?.date) {
     actions.push({ type: 'booking_suggested', treatment: extracted.treatment, date: extracted.date });
@@ -354,10 +360,67 @@ Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`,
 
   return {
     response: replyText,
-    toneScore: 0.85, // TODO: implement tone comparison scoring
+    toneScore,
     actions,
     intent
   };
+}
+
+/**
+ * Calculate how well the AI response matches the beautician's learned tone.
+ * If no correction history exists, default to 0.85.
+ * Otherwise, use Claude to rate similarity on 0-1 scale.
+ */
+async function calculateToneScore(beautician, generatedResponse) {
+  const toneModel = beautician.tone_model || {};
+  const corrections = toneModel.corrections || [];
+
+  // No correction history — default to 0.85
+  if (!corrections || corrections.length === 0) {
+    return 0.85;
+  }
+
+  // Build examples from correction history
+  const correctionExamples = corrections.slice(0, 5).map(c =>
+    `Beautician's actual message: "${c.corrected}"`
+  ).join('\n');
+
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 100,
+      system: `You are evaluating how well a generated response matches a beautician's communication style.
+
+Examples of the beautician's actual messages:
+${correctionExamples}
+
+Rate the generated response on a scale of 0.0 to 1.0 based on:
+- Formality level (matches their professionalism)
+- Tone and warmth (matches their personality)
+- Greeting/closing style (matches how they start/end)
+- Vocabulary and phrasing (matches their word choices)
+
+Respond with ONLY a number between 0.0 and 1.0 (e.g., 0.78). No explanation.`,
+      messages: [{
+        role: 'user',
+        content: `Generated response to evaluate: "${generatedResponse}"`
+      }]
+    });
+
+    const scoreStr = response.content[0].text.trim();
+    const score = parseFloat(scoreStr);
+
+    // Validate the score is a number between 0 and 1
+    if (!isNaN(score) && score >= 0 && score <= 1) {
+      return score;
+    }
+
+    logger.warn({ scoreStr }, 'Invalid tone score from Claude, defaulting to 0.85');
+    return 0.85;
+  } catch (err) {
+    logger.error({ err }, 'Tone scoring failed, defaulting to 0.85');
+    return 0.85;
+  }
 }
 
 
@@ -520,7 +583,8 @@ Return JSON with:
     const text = response.content[0].text.trim();
     const jsonStr = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     return JSON.parse(jsonStr);
-  } catch {
+  } catch (err) {
+    logger.warn({ err }, 'Tone pattern analysis parse error');
     return {};
   }
 }
@@ -573,7 +637,7 @@ async function sendResponse(beautician, client, responseText, originalMessage) {
         })
       });
     } catch (err) {
-      console.error('WhatsApp send error:', err);
+      logger.error({ err }, 'WhatsApp send error');
     }
   }
 

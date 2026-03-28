@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, insertRow, updateRow, isDevMode, DEV_CLIENTS } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 /**
  * Campaigns — AI-powered client outreach.
@@ -62,8 +63,8 @@ const MESSAGE_TEMPLATES = {
 };
 
 export default function Campaigns() {
-  const { beautician } = useBeautician();
-  const [campaigns, setCampaigns] = useState([]);
+  const { beautician, loading: bLoading } = useBeautician();
+  const [campaigns, setCampaigns] = useState(isDevMode ? [] : []);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('active'); // active | history | create
   const [creating, setCreating] = useState(false);
@@ -72,7 +73,7 @@ export default function Campaigns() {
   const [saving, setSaving] = useState(false);
   const [detail, setDetail] = useState(null);
 
-  useEffect(() => { if (beautician) loadCampaigns(); }, [beautician]);
+  useEffect(() => { if (beautician && !bLoading) loadCampaigns(); }, [beautician, bLoading]);
 
   async function loadCampaigns() {
     setLoading(true);
@@ -85,7 +86,7 @@ export default function Campaigns() {
       const data = await fetchRows('campaigns', beautician.id, { order: 'created_at', ascending: false });
       setCampaigns(data);
     } catch (err) {
-      console.error('Load campaigns:', err);
+      logger.error('Load campaigns:', err);
     }
     setLoading(false);
   }
@@ -127,7 +128,7 @@ export default function Campaigns() {
       setCreating(false);
       setTab('active');
     } catch (err) {
-      console.error('Save campaign:', err);
+      logger.error('Save campaign:', err);
     }
     setSaving(false);
   }
@@ -137,7 +138,7 @@ export default function Campaigns() {
       await updateRow('campaigns', id, { status: 'approved', approved_at: new Date().toISOString() });
       setCampaigns(prev => prev.map(c => c.id === id ? { ...c, status: 'approved' } : c));
     } catch (err) {
-      console.error('Approve campaign:', err);
+      logger.error('Approve campaign:', err);
     }
   }
 
@@ -146,7 +147,7 @@ export default function Campaigns() {
       await updateRow('campaigns', id, { status: 'cancelled' });
       setCampaigns(prev => prev.map(c => c.id === id ? { ...c, status: 'cancelled' } : c));
     } catch (err) {
-      console.error('Cancel campaign:', err);
+      logger.error('Cancel campaign:', err);
     }
   }
 

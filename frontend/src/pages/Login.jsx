@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE } from '../lib/config.js';
 
 /**
  * Login / Signup — clean, single-screen auth.
  * Supports email+password with Supabase Auth.
  * Dev mode fallback when Supabase isn't configured.
  */
-
-const API_BASE = import.meta.env?.VITE_API_URL || 'http://localhost:3001';
 
 export default function Login({ supabase }) {
   const [mode, setMode] = useState('login'); // login | signup | confirm

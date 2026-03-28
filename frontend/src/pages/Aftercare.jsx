@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, isDevMode, fetchRows, insertRow, updateRow } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 /**
  * Aftercare — Post-treatment care cards.
@@ -117,7 +118,7 @@ export default function Aftercare() {
       const rows = await fetchRows('aftercare_cards', beautician?.id, { order: 'created_at', ascending: false });
       setCards(rows);
     } catch (err) {
-      console.error('Aftercare load error:', err);
+      logger.error('Aftercare load error:', err);
     } finally {
       setLoading(false);
     }
@@ -180,7 +181,7 @@ export default function Aftercare() {
         });
         card.id = saved.id;
       } catch (err) {
-        console.error('Save aftercare card error:', err);
+        logger.error('Save aftercare card error:', err);
       }
     }
 

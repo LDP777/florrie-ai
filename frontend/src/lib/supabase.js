@@ -8,6 +8,7 @@
  */
 import { createClient } from '@supabase/supabase-js';
 import { useState, useEffect, useCallback } from 'react';
+import logger from './logger.js';
 
 const url = import.meta.env?.VITE_SUPABASE_URL || '';
 const key = import.meta.env?.VITE_SUPABASE_ANON_KEY || '';
@@ -54,13 +55,13 @@ export function useBeautician() {
           })
           .select()
           .single();
-        if (createErr) console.error('Failed to create beautician profile:', createErr);
+        if (createErr) logger.error('Failed to create beautician profile:', createErr);
         data = created;
       }
 
       setBeautician(data);
     } catch (err) {
-      console.error('useBeautician error:', err);
+      logger.error('useBeautician error:', err);
     } finally {
       setLoading(false);
     }
@@ -83,28 +84,28 @@ export async function fetchRows(table, beauticianId, opts = {}) {
   if (opts.eq) Object.entries(opts.eq).forEach(([k, v]) => { q = q.eq(k, v); });
   if (opts.limit) q = q.limit(opts.limit);
   const { data, error } = await q;
-  if (error) console.error(`fetchRows(${table}):`, error);
+  if (error) logger.error(`fetchRows(${table}):`, error);
   return data || [];
 }
 
 export async function insertRow(table, row) {
   if (isDevMode) return { ...row, id: crypto.randomUUID() };
   const { data, error } = await supabase.from(table).insert(row).select().single();
-  if (error) { console.error(`insertRow(${table}):`, error); throw error; }
+  if (error) { logger.error(`insertRow(${table}):`, error); throw error; }
   return data;
 }
 
 export async function updateRow(table, id, updates) {
   if (isDevMode) return updates;
   const { data, error } = await supabase.from(table).update(updates).eq('id', id).select().single();
-  if (error) { console.error(`updateRow(${table}):`, error); throw error; }
+  if (error) { logger.error(`updateRow(${table}):`, error); throw error; }
   return data;
 }
 
 export async function deleteRow(table, id) {
   if (isDevMode) return true;
   const { error } = await supabase.from(table).delete().eq('id', id);
-  if (error) { console.error(`deleteRow(${table}):`, error); throw error; }
+  if (error) { logger.error(`deleteRow(${table}):`, error); throw error; }
   return true;
 }
 

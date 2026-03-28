@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useBeautician, supabase, isDevMode, insertRow } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 /**
  * Money Tracker — Ellie's #2 pain point.
@@ -93,7 +94,7 @@ export default function MoneyTracker() {
       setExpenses(expRes.data || []);
       setTransactions(txRes.data || []);
     } catch (err) {
-      console.error('Money load error:', err);
+      logger.error('Money load error:', err);
     } finally {
       setLoading(false);
     }
@@ -260,7 +261,7 @@ export default function MoneyTracker() {
       };
       reader.readAsDataURL(file);
     } catch (err) {
-      console.error('Receipt scan error:', err);
+      logger.error('Receipt scan error:', err);
       setScanning(false);
     }
   }
@@ -289,7 +290,7 @@ export default function MoneyTracker() {
       setReceiptPreview(null);
       setShowAddExpense(false);
     } catch (err) {
-      console.error('Add expense error:', err);
+      logger.error('Add expense error:', err);
     }
   }
 

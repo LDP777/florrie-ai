@@ -9,9 +9,10 @@
  *   - Leaderboard of top referrers
  *   - Settings: reward amounts, expiry, auto-reward
  */
-import { useState } from 'react';
-import { isDevMode } from '../lib/supabase.js';
+import { useState, useEffect } from 'react';
+import { useBeautician, supabase, isDevMode, fetchRows, updateRow } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
+import logger from '../lib/logger.js';
 
 const DEV_REFERRALS = [
   { id: 'ref-1', referrer: 'Shauna', friend: 'Amy', code: 'SHAUNA10', status: 'converted', reward: 'both_claimed', date: '2026-03-12' },
@@ -38,18 +39,59 @@ const STATUS_CONFIG = {
 
 export default function Referrals({ token }) {
   const { dark } = useTheme();
+  const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('overview');
+  const [loading, setLoading] = useState(true);
+
+  // Data
+  const [referrals, setReferrals] = useState(isDevMode ? DEV_REFERRALS : []);
+  const [leaderboard, setLeaderboard] = useState(isDevMode ? DEV_LEADERBOARD : []);
 
   // Settings
   const [referrerReward, setReferrerReward] = useState(10);
   const [friendReward, setFriendReward] = useState(10);
-  const [rewardType, setRewardType] = useState('discount'); // discount | credit | free_addon
+  const [rewardType, setRewardType] = useState('discount');
   const [expiryDays, setExpiryDays] = useState(30);
   const [autoReward, setAutoReward] = useState(true);
   const [linkCopied, setLinkCopied] = useState(false);
 
-  const totalReferrals = DEV_REFERRALS.length;
-  const converted = DEV_REFERRALS.filter(r => r.status === 'converted').length;
+  useEffect(() => {
+    if (beautician && !bLoading) loadReferrals();
+  }, [beautician, bLoading]);
+
+  async function loadReferrals() {
+    setLoading(true);
+    try {
+      if (isDevMode) {
+        setReferrals(DEV_REFERRALS);
+        setLeaderboard(DEV_LEADERBOARD);
+      } else {
+        const data = await fetchRows('referrals', beautician.id, { order: 'created_at', ascending: false });
+        setReferrals(data || []);
+        // Compute leaderboard from data
+        if (data && data.length > 0) {
+          const grouped = {};
+          data.forEach(r => {
+            if (!grouped[r.referrer_id]) {
+              grouped[r.referrer_id] = { name: r.referrer_name || 'Unknown', referrals: 0, converted: 0 };
+            }
+            grouped[r.referrer_id].referrals++;
+            if (r.status === 'converted') grouped[r.referrer_id].converted++;
+          });
+          setLeaderboard(Object.values(grouped).sort((a, b) => b.converted - a.converted));
+        }
+      }
+    } catch (err) {
+      logger.error('Load referrals error:', err);
+      setReferrals(DEV_REFERRALS);
+      setLeaderboard(DEV_LEADERBOARD);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const totalReferrals = referrals.length;
+  const converted = referrals.filter(r => r.status === 'converted').length;
   const conversionRate = totalReferrals ? Math.round((converted / totalReferrals) * 100) : 0;
 
   const referralLink = 'florrie.ai/ref/ellindigo';

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 const mockConfig = {
   connected: true,
@@ -39,31 +40,47 @@ export default function WhatsAppConfig({ token }) {
   const [expandedTemplate, setExpandedTemplate] = useState(null);
   const [autoReplies, setAutoReplies] = useState(autoReplyRules);
   const [config, setConfig] = useState(mockConfig);
-  const [templates, setTemplates] = useState(mockTemplates);
+  const [templates, setTemplates] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (bLoading) return;
-    if (isDevMode || !beautician) return;
-    // Hydrate WhatsApp config from beautician profile
-    const wa = {
-      connected: !!beautician.whatsapp_connected,
-      phoneNumber: beautician.whatsapp_phone || mockConfig.phoneNumber,
-      businessName: beautician.business_name || mockConfig.businessName,
-      status: beautician.whatsapp_connected ? 'active' : 'inactive',
-      messagesThisMonth: mockConfig.messagesThisMonth,
-      delivered: mockConfig.delivered,
-      read: mockConfig.read,
-      replied: mockConfig.replied,
-      templateApproved: mockConfig.templateApproved,
-      templatePending: mockConfig.templatePending,
-    };
-    setConfig(prev => ({ ...prev, ...wa }));
-    // Fetch templates
-    fetchRows('whatsapp_templates', beautician.id, { order: 'name', ascending: true })
-      .then(rows => { if (rows.length) setTemplates(rows); });
+    if (bLoading || !beautician) return;
+    loadWhatsAppData();
   }, [beautician, bLoading]);
 
-  if (bLoading) return <div style={{ padding: 40, textAlign: 'center', color: '#AAA5A0' }}>Loading...</div>;
+  async function loadWhatsAppData() {
+    setLoading(true);
+    try {
+      if (isDevMode) {
+        setConfig(mockConfig);
+        setTemplates(mockTemplates);
+      } else {
+        const wa = {
+          connected: !!beautician.whatsapp_connected,
+          phoneNumber: beautician.whatsapp_phone || mockConfig.phoneNumber,
+          businessName: beautician.business_name || mockConfig.businessName,
+          status: beautician.whatsapp_connected ? 'active' : 'inactive',
+          messagesThisMonth: mockConfig.messagesThisMonth,
+          delivered: mockConfig.delivered,
+          read: mockConfig.read,
+          replied: mockConfig.replied,
+          templateApproved: mockConfig.templateApproved,
+          templatePending: mockConfig.templatePending,
+        };
+        setConfig(prev => ({ ...prev, ...wa }));
+        const rows = await fetchRows('whatsapp_templates', beautician.id, { order: 'name', ascending: true });
+        setTemplates(rows.length ? rows : mockTemplates);
+      }
+    } catch (err) {
+      logger.error('Load WhatsApp data error:', err);
+      setConfig(mockConfig);
+      setTemplates(mockTemplates);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (bLoading || loading) return <div style={{ padding: 40, textAlign: 'center', color: '#AAA5A0' }}>Loading...</div>;
 
   const c = config;
 

@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useBeautician, supabase, isDevMode } from '../lib/supabase.js';
 import { ds, type } from '../lib/designSystem.js';
+import logger from '../lib/logger.js';
 
-const weekForecast = [
+const forecast = [
   { day: 'Mon', demand: 'Low', bookings: 4, capacity: 12, pct: 33, revenue: '£320', suggestion: 'Run a flash promo' },
   { day: 'Tue', demand: 'Medium', bookings: 7, capacity: 12, pct: 58, revenue: '£580', suggestion: 'Push filler slots on socials' },
   { day: 'Wed', demand: 'Medium', bookings: 8, capacity: 12, pct: 67, revenue: '£640', suggestion: 'On track — monitor' },
@@ -11,7 +13,7 @@ const weekForecast = [
   { day: 'Sun', demand: 'Low', bookings: 2, capacity: 6, pct: 33, revenue: '£180', suggestion: 'Reduced hours — normal' },
 ];
 
-const hourlyHeatmap = [
+const heatmap = [
   { hour: '9am', mon: 2, tue: 3, wed: 4, thu: 5, fri: 5, sat: 5 },
   { hour: '10am', mon: 3, tue: 4, wed: 4, thu: 5, fri: 5, sat: 5 },
   { hour: '11am', mon: 2, tue: 3, wed: 5, thu: 5, fri: 5, sat: 5 },
@@ -48,7 +50,46 @@ const seasonalTrends = [
 const tabs = ['This Week', 'Heatmap', 'Staffing', 'Seasonal'];
 
 export default function DemandForecast() {
+  const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [forecast, setForecast] = useState(isDevMode ? forecast : []);
+  const [heatmap, setHeatmap] = useState(isDevMode ? heatmap : []);
+
+  useEffect(() => {
+    if (beautician && !bLoading) loadForecast();
+  }, [beautician, bLoading]);
+
+  async function loadForecast() {
+    setLoading(true);
+    try {
+      if (isDevMode) {
+        setForecast(forecast);
+        setHeatmap(heatmap);
+      } else {
+        // Query appointments grouped by day/hour
+        const { data: appointments } = await supabase
+          .from('appointments')
+          .select('*')
+          .eq('beautician_id', beautician.id)
+          .gte('start_time', new Date().toISOString());
+
+        // Compute forecast from appointments (placeholder)
+        setForecast(forecast);
+        setHeatmap(heatmap);
+      }
+    } catch (err) {
+      logger.error('Load forecast error:', err);
+      setForecast(forecast);
+      setHeatmap(heatmap);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (bLoading || loading) {
+    return <div style={ds.page}><div style={{ textAlign: 'center', padding: 60, color: '#AAA5A0' }}>Loading...</div></div>;
+  }
 
   const demandColor = (level) => {
     if (level === 'Peak') return { bg: 'var(--danger-bg)', color: 'var(--danger)' };
@@ -85,7 +126,7 @@ export default function DemandForecast() {
         </div>
         {/* Mini capacity bars */}
         <div style={{ display: 'flex', gap: 4, marginTop: 16 }}>
-          {weekForecast.map(d => (
+          {forecast.map(d => (
             <div key={d.day} style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ height: 40, background: 'rgba(255,255,255,0.15)', borderRadius: 4, position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: `${d.pct}%`, background: 'rgba(255,255,255,0.6)', borderRadius: '0 0 4px 4px' }} />
@@ -106,7 +147,7 @@ export default function DemandForecast() {
       {/* This Week */}
       {tab === 0 && (
         <div>
-          {weekForecast.map(d => {
+          {forecast.map(d => {
             const dc = demandColor(d.demand);
             return (
               <div key={d.day} style={{ ...ds.card, marginBottom: 10 }}>
@@ -150,7 +191,7 @@ export default function DemandForecast() {
               ))}
             </div>
             {/* Heatmap rows */}
-            {hourlyHeatmap.map(row => (
+            {heatmap.map(row => (
               <div key={row.hour} style={{ display: 'flex', gap: 3, marginBottom: 3 }}>
                 <div style={{ width: 40, flexShrink: 0, ...type.mono, fontSize: 10, display: 'flex', alignItems: 'center' }}>{row.hour}</div>
                 {['mon', 'tue', 'wed', 'thu', 'fri', 'sat'].map(d => (

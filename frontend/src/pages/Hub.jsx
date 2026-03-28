@@ -13,7 +13,7 @@ const CATEGORIES = [
     accent: '#C76B8A',
     items: [
       { path: '/calendar', label: 'Calendar', desc: 'View and manage appointments', icon: '📅' },
-      { path: '/smart-schedule', label: 'Smart Schedule', desc: 'AI-optimised time slots', icon: '🧠', gate: 'smart_schedule' },
+      { path: '/smart-schedule', label: 'Smart Schedule', desc: 'AI-optimised time slots', icon: '🧠' },
       { path: '/checklist', label: 'Daily Checklist', desc: 'Opening and closing tasks', icon: '☑️' },
       { path: '/end-of-day', label: 'End of Day', desc: 'Cash-up and close', icon: '🌙' },
       { path: '/notifications', label: 'Notifications', desc: 'Alerts and reminders', icon: '🔔' },
@@ -26,11 +26,10 @@ const CATEGORIES = [
     accent: '#7B9E6B',
     items: [
       { path: '/clients', label: 'All Clients', desc: 'Client list and profiles', icon: '👤' },
+      { path: '/import', label: 'Import Clients', desc: 'CSV and bulk import', icon: '📥' },
       { path: '/client-timeline', label: 'Client Timeline', desc: 'Full history per client', icon: '📜' },
       { path: '/tags', label: 'Tags & Groups', desc: 'Organise and segment', icon: '🏷️' },
-      { path: '/import', label: 'Import Clients', desc: 'CSV and bulk import', icon: '📥' },
       { path: '/waitlist', label: 'Waitlist', desc: 'Manage waiting clients', icon: '📋' },
-      { path: '/waitlist-pro', label: 'Smart Waitlist', desc: 'Priority and auto-notify', icon: '⏳' },
     ]
   },
   {
@@ -40,13 +39,11 @@ const CATEGORIES = [
     accent: '#C9A96E',
     items: [
       { path: '/treatments', label: 'Treatments', desc: 'Manage your services', icon: '💅' },
-      { path: '/price-list', label: 'Price List', desc: 'Pricing and durations', icon: '💲' },
-      { path: '/packages', label: 'Packages', desc: 'Bundle deals', icon: '📦' },
-      { path: '/addons', label: 'Add-ons & Upsells', desc: 'Bolt-on extras', icon: '✨' },
-      { path: '/treatment-stats', label: 'Treatment Stats', desc: 'Popularity and revenue', icon: '📊' },
       { path: '/consultations', label: 'Consultations', desc: 'Pre-treatment bookings', icon: '🩺' },
       { path: '/patch-tests', label: 'Patch Tests', desc: 'Allergy test tracking', icon: '🩹' },
       { path: '/aftercare', label: 'Aftercare', desc: 'Post-treatment messages', icon: '💆' },
+      { path: '/packages', label: 'Packages', desc: 'Bundle deals and courses', icon: '📦' },
+      { path: '/addons', label: 'Add-ons', desc: 'Bolt-on extras', icon: '✨' },
     ]
   },
   {
@@ -56,13 +53,12 @@ const CATEGORIES = [
     accent: '#6B9BC7',
     items: [
       { path: '/money', label: 'Money Tracker', desc: 'Revenue dashboard', icon: '💰' },
-      { path: '/goals', label: 'Revenue Goals', desc: 'Targets and progress', icon: '🎯' },
       { path: '/expenses', label: 'Expenses', desc: 'Track outgoings', icon: '💳' },
       { path: '/deposits', label: 'Deposits', desc: 'Held payments', icon: '🔒' },
-      { path: '/vouchers', label: 'Gift Vouchers', desc: 'Create and track', icon: '🎁' },
-      { path: '/promos', label: 'Promo Codes', desc: 'Discounts and offers', icon: '🎟️' },
-      { path: '/memberships', label: 'Memberships', desc: 'Recurring packages', icon: '💎' },
       { path: '/cancellations', label: 'Cancellations', desc: 'No-shows and late cancels', icon: '❌' },
+      { path: '/goals', label: 'Revenue Goals', desc: 'Targets and progress', icon: '🎯' },
+      { path: '/vouchers', label: 'Gift Vouchers', desc: 'Create and track', icon: '🎁' },
+      { path: '/memberships', label: 'Memberships', desc: 'Recurring packages', icon: '💎' },
     ]
   },
   {
@@ -71,14 +67,12 @@ const CATEGORIES = [
     description: 'Attract and retain',
     accent: '#B85D7B',
     items: [
-      { path: '/content', label: 'Content Autopilot', desc: 'AI-written captions', icon: '📸', gate: 'content_autopilot' },
-      { path: '/campaigns', label: 'Campaigns', desc: 'Email and SMS blasts', icon: '💌', gate: 'campaigns' },
+      { path: '/content', label: 'Content Autopilot', desc: 'AI-written captions', icon: '📸' },
       { path: '/reviews', label: 'Reviews', desc: 'Collect and respond', icon: '⭐' },
       { path: '/referrals', label: 'Referrals', desc: 'Word-of-mouth tracking', icon: '🤝' },
       { path: '/loyalty', label: 'Loyalty', desc: 'Points and rewards', icon: '🏆' },
-      { path: '/portfolio', label: 'Portfolio', desc: 'Before & after gallery', icon: '📸' },
-      { path: '/feedback', label: 'Feedback', desc: 'Client satisfaction', icon: '💬' },
       { path: '/rebook', label: 'Rebook Reminders', desc: 'Bring clients back', icon: '🔄' },
+      { path: '/campaigns', label: 'Campaigns', desc: 'Email and SMS blasts', icon: '💌' },
     ]
   },
   {
@@ -89,11 +83,8 @@ const CATEGORIES = [
     items: [
       { path: '/inbox', label: 'Inbox', desc: 'All messages in one place', icon: '💬' },
       { path: '/escalations', label: 'Escalations', desc: 'AI-flagged messages', icon: '🚨' },
-      { path: '/whatsapp', label: 'WhatsApp', desc: 'Business messaging', icon: '💬', gate: 'whatsapp' },
-      { path: '/sms', label: 'SMS Config', desc: 'Text message gateway', icon: '📱', gate: 'sms' },
-      { path: '/sequences', label: 'Follow-up Sequences', desc: 'Automated flows', icon: '🔄' },
+      { path: '/whatsapp', label: 'WhatsApp', desc: 'Business messaging', icon: '📱' },
       { path: '/templates', label: 'Message Templates', desc: 'Reusable messages', icon: '📋' },
-      { path: '/comms', label: 'Comms Log', desc: 'Full message history', icon: '📨' },
       { path: '/automations', label: 'Automations', desc: 'If-this-then-that rules', icon: '⚡' },
     ]
   },
@@ -104,10 +95,10 @@ const CATEGORIES = [
     accent: '#C76B8A',
     items: [
       { path: '/voice', label: 'Florrie AI', desc: 'Your AI assistant', icon: '✨' },
-      { path: '/ai-insights', label: 'AI Insights', desc: 'Predictions and trends', icon: '🧠', gate: 'ai_insights' },
-      { path: '/segments', label: 'Client Segments', desc: 'Smart grouping', icon: '🎯', gate: 'client_segments' },
-      { path: '/churn', label: 'Churn Prevention', desc: 'At-risk clients', icon: '🛡️', gate: 'churn_prevention' },
-      { path: '/demand', label: 'Demand Forecast', desc: 'Capacity planning', icon: '📊', gate: 'demand_forecast' },
+      { path: '/ai-insights', label: 'AI Insights', desc: 'Predictions and trends', icon: '🧠' },
+      { path: '/segments', label: 'Client Segments', desc: 'Smart grouping', icon: '🎯' },
+      { path: '/churn', label: 'Churn Prevention', desc: 'At-risk clients', icon: '🛡️' },
+      { path: '/demand', label: 'Demand Forecast', desc: 'Capacity planning', icon: '📊' },
     ]
   },
   {
@@ -118,19 +109,7 @@ const CATEGORIES = [
     items: [
       { path: '/team', label: 'Team Members', desc: 'Staff profiles', icon: '👥' },
       { path: '/rota', label: 'Staff Rota', desc: 'Weekly schedule', icon: '🗓️' },
-      { path: '/staff-performance', label: 'Staff KPIs', desc: 'Performance metrics', icon: '🏅' },
       { path: '/hours', label: 'Hours & Closures', desc: 'Working hours and holidays', icon: '🏖️' },
-    ]
-  },
-  {
-    id: 'reports',
-    label: 'Reports & Analytics',
-    description: 'Numbers and trends',
-    accent: '#C9A96E',
-    items: [
-      { path: '/analytics', label: 'Analytics', desc: 'Business overview', icon: '📊' },
-      { path: '/reports', label: 'Reports', desc: 'Detailed breakdowns', icon: '📈' },
-      { path: '/digest', label: 'Weekly Digest', desc: 'Week-in-review summary', icon: '📬' },
     ]
   },
   {
@@ -141,16 +120,12 @@ const CATEGORIES = [
     items: [
       { path: '/settings', label: 'Settings', desc: 'Account preferences', icon: '⚙️' },
       { path: '/business', label: 'Business Profile', desc: 'Name, logo, details', icon: '🏪' },
+      { path: '/integrations', label: 'Integrations', desc: 'Connected apps', icon: '🔌' },
+      { path: '/api-settings', label: 'API & Webhooks', desc: 'Developer tools', icon: '⚡' },
       { path: '/policies', label: 'Policies', desc: 'Cancellation and terms', icon: '📜' },
       { path: '/forms', label: 'Consent Forms', desc: 'Client intake forms', icon: '📝' },
-      { path: '/photo-consent', label: 'Photo Consent', desc: 'GDPR compliance', icon: '📋' },
-      { path: '/notes', label: 'Appointment Notes', desc: 'Treatment notes setup', icon: '📝' },
       { path: '/portal', label: 'Client Portal', desc: 'Self-service settings', icon: '🌐' },
-      { path: '/locations', label: 'Multi-Location', desc: 'Branch management', icon: '🏢', gate: 'multi_location' },
-      { path: '/integrations', label: 'Integrations', desc: 'Connected apps', icon: '🔌' },
-      { path: '/inventory', label: 'Product Inventory', desc: 'Stock management', icon: '📦' },
-      { path: '/supplier-orders', label: 'Supplier Orders', desc: 'Restock and orders', icon: '📦' },
-      { path: '/api-settings', label: 'API & Webhooks', desc: 'Developer tools', icon: '⚡' },
+      { path: '/locations', label: 'Multi-Location', desc: 'Branch management', icon: '🏢' },
     ]
   },
 ];
@@ -210,8 +185,8 @@ export default function Hub() {
           {[
             { path: '/money', icon: '💰', label: 'Money' },
             { path: '/clients', icon: '👤', label: 'Clients' },
-            { path: '/analytics', icon: '📊', label: 'Analytics' },
-            { path: '/inbox', icon: '💬', label: 'Inbox' },
+            { path: '/treatments', icon: '💅', label: 'Treatments' },
+            { path: '/expenses', icon: '💳', label: 'Expenses' },
           ].map(q => (
             <button key={q.path} onClick={() => handleNav(q.path)} style={S.quickBtn}>
               <span style={S.quickIcon}>{q.icon}</span>
@@ -249,7 +224,7 @@ export default function Hub() {
               <div style={S.itemGrid}>
                 {visibleItems.map(item => {
                   const locked = item.gate && !hasFeature(plan, item.gate);
-                  const isActive = location.pathname === item.path;
+                  const isActive = !locked && location.pathname === item.path;
                   return (
                     <button
                       key={item.path}

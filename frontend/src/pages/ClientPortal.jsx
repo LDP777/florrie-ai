@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, updateRow, isDevMode } from '../lib/supabase.js';
+import { useBeautician, supabase, fetchRows, updateRow, isDevMode } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 const mockPortalConfig = {
   enabled: true,
@@ -48,23 +49,37 @@ export default function ClientPortal({ token }) {
   const [config, setConfig] = useState(mockPortalConfig);
   const { beautician, loading: bLoading, refresh } = useBeautician();
   const [activity, setActivity] = useState(mockRecentActivity);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (bLoading) return;
-    if (isDevMode || !beautician) return;
-    // Hydrate portal config from beautician profile
-    if (beautician.portal_config) {
-      setConfig(prev => ({ ...prev, ...beautician.portal_config }));
-    }
-    if (beautician.booking_slug) {
-      setConfig(prev => ({ ...prev, url: `https://app.florrie.ai/portal/${beautician.booking_slug}` }));
-    }
-    // Fetch recent portal activity
-    fetchRows('portal_activity', beautician.id, { order: 'created_at', ascending: false, limit: 10 })
-      .then(rows => { if (rows.length) setActivity(rows); });
+    if (bLoading || !beautician) return;
+    loadPortalData();
   }, [beautician, bLoading]);
 
-  if (bLoading) return <div style={{ padding: 40, textAlign: 'center', color: '#AAA5A0' }}>Loading...</div>;
+  async function loadPortalData() {
+    setLoading(true);
+    try {
+      if (isDevMode) {
+        setConfig(mockPortalConfig);
+        setActivity(mockRecentActivity);
+      } else {
+        if (beautician.portal_config) {
+          setConfig(prev => ({ ...prev, ...beautician.portal_config }));
+        }
+        if (beautician.booking_slug) {
+          setConfig(prev => ({ ...prev, url: `https://app.florrie.ai/portal/${beautician.booking_slug}` }));
+        }
+        const rows = await fetchRows('portal_activity', beautician.id, { order: 'created_at', ascending: false, limit: 10 });
+        if (rows.length) setActivity(rows);
+      }
+    } catch (err) {
+      logger.error('Load portal data error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (bLoading || loading) return <div style={{ padding: 40, textAlign: 'center', color: '#AAA5A0' }}>Loading...</div>;
 
   const c = config;
   const features = c.features;

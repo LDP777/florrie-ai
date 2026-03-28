@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useBeautician, updateRow, supabase } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
+import logger from '../lib/logger.js';
 
 /**
  * Settings — beautician profile and app configuration.
@@ -27,7 +28,7 @@ export default function Settings({ onLogout }) {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
-      console.error('Save error:', err);
+      logger.error('Save error:', err);
     } finally {
       setSaving(false);
     }
@@ -164,6 +165,11 @@ export default function Settings({ onLogout }) {
               </button>
             )}
           </div>
+
+          {/* Subscription management */}
+          {beautician.stripe_customer_id && (
+            <SubscriptionManager beautician={beautician} />
+          )}
 
           {/* Payment methods */}
           <div style={styles.card}>
@@ -791,3 +797,56 @@ const styles = {
   bufferOptions: { display: 'flex', gap: 6, flexWrap: 'wrap' },
   bufferChip: { padding: '8px 14px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 };
+
+/**
+ * SubscriptionManager — Opens Stripe Customer Portal to manage subscription
+ */
+function SubscriptionManager({ beautician }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function handleManageSubscription() {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const response = await fetch('/api/stripe/portal', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setError(data.error || 'Failed to open subscription portal');
+      }
+    } catch (err) {
+      logger.error('Portal error:', err);
+      setError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={styles.card}>
+      <div style={styles.cardTitle}>Manage Subscription</div>
+      <p style={styles.cardHint}>Update payment method, billing address, or cancel your subscription.</p>
+      {error && <p style={{ ...styles.cardHint, color: '#E57373', marginTop: 8 }}>{error}</p>}
+      <button
+        onClick={handleManageSubscription}
+        disabled={loading}
+        style={{
+          ...styles.connectBtn,
+          opacity: loading ? 0.6 : 1,
+          cursor: loading ? 'not-allowed' : 'pointer',
+        }}
+      >
+        {loading ? 'Opening...' : 'Open Stripe Portal'}
+      </button>
+    </div>
+  );
+}

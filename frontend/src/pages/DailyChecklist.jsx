@@ -5,8 +5,9 @@
  * This page keeps the routine tight: stock checks, hygiene prep,
  * end-of-day cash-up, social posting — all in one tappable list.
  */
-import { useState } from 'react';
-import { isDevMode } from '../lib/supabase.js';
+import { useState, useEffect } from 'react';
+import { useBeautician, fetchRows, updateRow, insertRow, isDevMode } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -41,17 +42,59 @@ const DEV_CHECKLISTS = {
 const STREAK_DATA = { current: 5, best: 12, thisWeek: 3, thisMonth: 18 };
 
 export default function DailyChecklist({ token }) {
+  const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('opening');
   const [checklists, setChecklists] = useState(DEV_CHECKLISTS);
   const [showAdd, setShowAdd] = useState(false);
 
-  const toggleItem = (listKey, itemId) => {
+  // Fetch daily checklists on mount or when beautician changes
+  useEffect(() => {
+    if (bLoading || !beautician) return;
+    if (isDevMode) {
+      setChecklists(DEV_CHECKLISTS);
+      return;
+    }
+    const todayStr = today();
+    fetchRows('daily_checklists', beautician.id, { eq: { date: todayStr }, order: 'type', ascending: true })
+      .then(rows => {
+        if (rows.length === 0) return;
+        const byType = {};
+        rows.forEach(row => {
+          const type = row.type || 'custom';
+          if (!byType[type]) byType[type] = [];
+          byType[type].push(row);
+        });
+        setChecklists(prev => ({ ...prev, ...byType }));
+      });
+  }, [beautician, bLoading]);
+
+  const toggleItem = async (listKey, itemId) => {
+    const item = checklists[listKey]?.find(i => i.id === itemId);
+    if (!item) return;
+
+    // Optimistic update
     setChecklists(prev => ({
       ...prev,
-      [listKey]: prev[listKey].map(item =>
-        item.id === itemId ? { ...item, done: !item.done } : item
+      [listKey]: prev[listKey].map(i =>
+        i.id === itemId ? { ...i, done: !i.done } : i
       ),
     }));
+
+    // Update in DB if not in dev mode
+    if (!isDevMode && beautician) {
+      try {
+        await updateRow('daily_checklists', itemId, { done: !item.done });
+      } catch (err) {
+        logger.error('Failed to update checklist item:', err);
+        // Revert on error
+        setChecklists(prev => ({
+          ...prev,
+          [listKey]: prev[listKey].map(i =>
+            i.id === itemId ? { ...i, done: item.done } : i
+          ),
+        }));
+      }
+    }
   };
 
   const currentList = checklists[tab] || [];

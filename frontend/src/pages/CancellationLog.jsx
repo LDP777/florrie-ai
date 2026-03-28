@@ -5,8 +5,9 @@
  * offering them. If one client has 3 no-shows, the system flags it.
  * Revenue lost, reasons, and trends — all in one place.
  */
-import { useState } from 'react';
-import { isDevMode } from '../lib/supabase.js';
+import { useState, useEffect } from 'react';
+import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 
@@ -30,11 +31,38 @@ const TYPE_CONFIG = {
 };
 
 export default function CancellationLog({ token }) {
+  const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('log');
   const [filterType, setFilterType] = useState('all');
   const [period, setPeriod] = useState('30d');
+  const [cancellations, setCancellations] = useState(DEV_CANCELLATIONS);
 
-  const cancellations = DEV_CANCELLATIONS;
+  // Fetch cancelled/no-show appointments
+  useEffect(() => {
+    if (bLoading || !beautician) return;
+    if (isDevMode) {
+      setCancellations(DEV_CANCELLATIONS);
+      return;
+    }
+    fetchRows('appointments', beautician.id, { order: 'start_time', ascending: false })
+      .then(appts => {
+        const cancelled = appts.filter(a => a.status && (a.status.startsWith('cancelled') || a.status === 'no_show'));
+        setCancellations(cancelled.map(a => ({
+          id: a.id,
+          client: a.client_name || 'Client',
+          treatment: a.treatment_name || '',
+          date: a.start_time?.slice(0, 10) || '',
+          time: a.start_time?.slice(11, 16) || '',
+          type: a.status === 'no_show' ? 'no-show' : a.cancellation_reason ? 'late-cancel' : 'cancelled',
+          reason: a.cancellation_reason || '',
+          revenue_lost: a.price_cents || 0,
+          deposit: a.deposit_cents || 0,
+          notice: '0h',
+          rebooked: false,
+        })));
+      })
+      .catch(err => logger.error('Failed to load cancellations:', err));
+  }, [beautician, bLoading]);
 
   // Period filter
   const now = new Date();

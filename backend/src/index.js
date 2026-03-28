@@ -1,7 +1,13 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import rateLimit from 'express-rate-limit';
 import { createClient } from '@supabase/supabase-js';
+import logger from './lib/logger.js';
+
+// Services
+import { processReminders } from './services/notifications.js';
+import { cleanupStaleBookings } from './services/cleanup.js';
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -17,8 +23,45 @@ import moneyRoutes from './routes/money.js';
 import stripeRoutes from './routes/stripe.js';
 import notificationRoutes from './routes/notifications.js';
 import gcalRoutes from './routes/google-calendar.js';
+import featureRoutes from './routes/features.js';
+import hoursExceptionsRoutes from './routes/hours-exceptions.js';
+import exportsRoutes from './routes/exports.js';
+import promoCodesRoutes from './routes/promo-codes.js';
+import photoConsentRoutes from './routes/photo-consent.js';
+import locationsRoutes from './routes/locations.js';
+import voiceRoutes from './routes/voice.js';
 
 dotenv.config();
+
+// ── Startup validation ──────────────────────────────
+const REQUIRED_ENV = [
+  'SUPABASE_URL',
+  'SUPABASE_ANON_KEY',
+  'SUPABASE_SERVICE_KEY',
+  'FRONTEND_URL',
+  'STRIPE_WEBHOOK_SECRET',
+];
+const OPTIONAL_ENV = [
+  'STRIPE_SECRET_KEY',
+  'RESEND_API_KEY',
+  'ANTHROPIC_API_KEY',
+  'TWILIO_ACCOUNT_SID',
+  'TWILIO_AUTH_TOKEN',
+  'GOOGLE_CLIENT_ID',
+  'GOOGLE_CLIENT_SECRET',
+  'ENCRYPTION_KEY',
+];
+
+const missing = REQUIRED_ENV.filter(k => !process.env[k]);
+if (missing.length) {
+  logger.fatal({ missing }, 'Missing required env vars');
+  process.exit(1);
+}
+
+const unset = OPTIONAL_ENV.filter(k => !process.env[k]);
+if (unset.length) {
+  logger.warn({ unset }, 'Optional env vars not set — some features disabled');
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -36,7 +79,31 @@ export const supabaseAnon = createClient(
 );
 
 // Middleware
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173' }));
+app.use(cors({ origin: process.env.FRONTEND_URL }));
+
+// Rate limiting for public endpoints
+const publicLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' },
+});
+
+const webhookLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20, // strict for auth
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many login attempts, please try again later' },
+});
 
 // Raw body for Stripe webhook signature verification
 app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }), (req, res, next) => {
@@ -44,7 +111,8 @@ app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }), (req, 
   next();
 });
 
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Health check
 app.get('/health', (req, res) => {
@@ -52,26 +120,70 @@ app.get('/health', (req, res) => {
 });
 
 // API routes
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/treatments', treatmentRoutes);
 app.use('/api/clients', clientRoutes);
 app.use('/api/appointments', appointmentRoutes);
-app.use('/api/booking', bookingRoutes); // public booking page API
+app.use('/api/booking', publicLimiter, bookingRoutes); // public booking page API
 app.use('/api/ai-actions', aiActionRoutes);
-app.use('/api/webhooks', webhookRoutes); // WhatsApp + Stripe webhooks
+app.use('/api/webhooks', webhookLimiter, webhookRoutes); // WhatsApp + Stripe webhooks
 app.use('/api/escalations', escalationRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/money', moneyRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/gcal', gcalRoutes);
+app.use('/api/features', featureRoutes);
+app.use('/api/hours-exceptions', hoursExceptionsRoutes);
+app.use('/api/exports', exportsRoutes);
+app.use('/api/promo-codes', promoCodesRoutes);
+app.use('/api/photo-consent', photoConsentRoutes);
+app.use('/api/locations', locationsRoutes);
+app.use('/api/voice', voiceRoutes);
 
 // Error handler
 app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err);
+  logger.error({ err }, 'Unhandled error');
   res.status(500).json({ error: 'Internal server error' });
 });
 
 app.listen(PORT, () => {
-  console.log(`Florrie API running on port ${PORT}`);
+  logger.info({ port: PORT }, 'Florrie API started');
+
+  // Run 24h appointment reminders every hour
+  // Finds appointments in a 1-hour window around the 24h mark and sends reminders
+  const REMINDER_INTERVAL = 60 * 60 * 1000; // 1 hour
+  setInterval(async () => {
+    try {
+      const result = await processReminders();
+      if (result.sent > 0) {
+        logger.info({ sent: result.sent, total: result.total }, 'Reminder cron: sent appointment reminders');
+      }
+    } catch (err) {
+      logger.error({ err }, 'Reminder cron: processing failed');
+    }
+  }, REMINDER_INTERVAL);
+
+  // Also run once on startup (catches any missed during deploys)
+  processReminders().then(r => {
+    if (r?.sent > 0) logger.info({ sent: r.sent }, 'Startup: sent reminders');
+  }).catch(() => {});
+
+  // Auto-cancel unpaid deposit bookings after 15 minutes
+  const CLEANUP_INTERVAL = 5 * 60 * 1000; // check every 5 minutes
+  setInterval(async () => {
+    try {
+      const result = await cleanupStaleBookings();
+      if (result.cancelled > 0) {
+        logger.info({ cancelled: result.cancelled }, 'Cleanup cron: cancelled stale unpaid bookings');
+      }
+    } catch (err) {
+      logger.error({ err }, 'Cleanup cron: booking cleanup failed');
+    }
+  }, CLEANUP_INTERVAL);
+
+  // Run cleanup on startup
+  cleanupStaleBookings().then(r => {
+    if (r?.cancelled > 0) logger.info({ cancelled: r.cancelled }, 'Startup: cancelled stale bookings');
+  }).catch(() => {});
 });

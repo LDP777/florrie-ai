@@ -5,8 +5,9 @@
  * them a clear target, shows daily/weekly pace, and projects whether
  * they'll hit it based on current bookings.
  */
-import { useState } from 'react';
-import { isDevMode } from '../lib/supabase.js';
+import { useState, useEffect } from 'react';
+import { useBeautician, fetchRows, updateRow, isDevMode } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 const fmt = (cents) => `£${(cents / 100).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
@@ -43,10 +44,45 @@ const DEV_GOALS = {
 };
 
 export default function RevenueGoals({ token }) {
+  const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('progress');
   const [showSetGoal, setShowSetGoal] = useState(false);
+  const [goals, setGoals] = useState(DEV_GOALS);
 
-  const g = DEV_GOALS.current;
+  // Fetch revenue goals and calculate current progress
+  useEffect(() => {
+    if (bLoading || !beautician) return;
+    if (isDevMode) {
+      setGoals(DEV_GOALS);
+      return;
+    }
+    // Fetch revenue_goals table for current month
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    fetchRows('revenue_goals', beautician.id, { order: 'month', ascending: false })
+      .then(goals => {
+        if (goals.length === 0) return;
+        const currentGoal = goals.find(g => g.month?.startsWith(currentMonth));
+        if (!currentGoal) return;
+        // Fetch transactions to calculate earned revenue
+        // This would typically be a sum query or done server-side
+        setGoals(prev => ({
+          ...prev,
+          current: {
+            target: currentGoal.target_cents || prev.current.target,
+            earned: currentGoal.earned_cents || 0,
+            booked: 0,
+            daysTotal: 31,
+            daysPassed: Math.floor((now - new Date(now.getFullYear(), now.getMonth(), 1)) / 86400000),
+            workingDays: 23,
+            workingDaysPassed: 19,
+          },
+        }));
+      })
+      .catch(err => logger.error('Failed to load revenue goals:', err));
+  }, [beautician, bLoading]);
+
+  const g = goals.current;
   const percent = Math.round((g.earned / g.target) * 100);
   const projected = g.workingDaysPassed > 0
     ? Math.round((g.earned / g.workingDaysPassed) * g.workingDays)

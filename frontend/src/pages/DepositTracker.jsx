@@ -5,8 +5,9 @@
  * deposits are everywhere. This page tracks every penny held,
  * when it was taken, and what happened to it.
  */
-import { useState } from 'react';
-import { isDevMode } from '../lib/supabase.js';
+import { useState, useEffect } from 'react';
+import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 const fmt = (cents) => `£${(Math.abs(cents) / 100).toFixed(2)}`;
 
@@ -29,11 +30,36 @@ const STATUS_CONFIG = {
 };
 
 export default function DepositTracker({ token }) {
+  const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('held');
   const [expanded, setExpanded] = useState(null);
   const [showAction, setShowAction] = useState(null);
+  const [deposits, setDeposits] = useState(DEV_DEPOSITS);
 
-  const deposits = DEV_DEPOSITS;
+  // Fetch deposits (query appointments where deposit_cents > 0)
+  useEffect(() => {
+    if (bLoading || !beautician) return;
+    if (isDevMode) {
+      setDeposits(DEV_DEPOSITS);
+      return;
+    }
+    fetchRows('appointments', beautician.id, { order: 'start_time', ascending: false })
+      .then(appts => {
+        const withDeposits = appts.filter(a => a.deposit_cents && a.deposit_cents > 0);
+        setDeposits(withDeposits.map(a => ({
+          id: a.id,
+          client: a.client_name || 'Client',
+          treatment: a.treatment_name || '',
+          amount: a.deposit_cents || 0,
+          takenDate: a.created_at?.slice(0, 10) || '',
+          status: a.deposit_status || 'held',
+          method: a.payment_method || 'card',
+          appointmentDate: a.start_time?.slice(0, 10) || null,
+          notes: a.notes || '',
+        })));
+      })
+      .catch(err => logger.error('Failed to load deposits:', err));
+  }, [beautician, bLoading]);
 
   const held = deposits.filter(d => d.status === 'held');
   const history = deposits.filter(d => d.status !== 'held');

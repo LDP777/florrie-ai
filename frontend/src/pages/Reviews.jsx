@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, isDevMode } from '../lib/supabase.js';
+import { useBeautician, supabase, isDevMode, fetchRows } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 /**
  * Reviews & Reputation — track, respond to, and request client reviews.
@@ -11,26 +12,47 @@ import { useBeautician, isDevMode } from '../lib/supabase.js';
  *   - Reputation score tracking over time
  */
 
+const DEV_REVIEWS = [
+  {
+    id: 'dev-rev-1', author: 'Sophie M', rating: 5,
+    text: 'Ellie is an absolute artist with brows! She spent ages getting them perfect and they look incredible. Already booked my next appointment. Highly recommend!',
+    date: '2 days ago', replied: false,
+  },
+  {
+    id: 'dev-rev-2', author: 'Hannah J', rating: 5,
+    text: 'Best lash lift I\'ve ever had. Natural and fluffy. The whole experience was so relaxing.',
+    date: '1 week ago', replied: false,
+  },
+];
+
 export default function Reviews() {
-  const { beautician } = useBeautician();
+  const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('reviews');
-  const [reviews, setReviews] = useState([]);
+  const [reviews, setReviews] = useState(isDevMode ? DEV_REVIEWS : []);
   const [loading, setLoading] = useState(true);
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyText, setReplyText] = useState('');
 
   useEffect(() => {
-    if (beautician) loadReviews();
-  }, [beautician]);
+    if (beautician && !bLoading) loadReviews();
+  }, [beautician, bLoading]);
 
   async function loadReviews() {
     setLoading(true);
-    if (isDevMode) {
+    try {
+      if (isDevMode) {
+        setReviews(DEV_REVIEWS);
+      } else {
+        // Fetch reviews from DB
+        const data = await fetchRows('reviews', beautician.id, { order: 'created_at', ascending: false });
+        setReviews(data || []);
+      }
+    } catch (err) {
+      logger.error('Load reviews error:', err);
       setReviews(DEV_REVIEWS);
+    } finally {
       setLoading(false);
-      return;
     }
-    setLoading(false);
   }
 
   function startReply(review) {
@@ -52,6 +74,10 @@ export default function Reviews() {
   const fiveStarPct = reviews.length > 0
     ? Math.round((reviews.filter(r => r.rating === 5).length / reviews.length) * 100)
     : 0;
+
+  if (bLoading || loading) {
+    return <div style={styles.page}><div style={{ textAlign: 'center', padding: 60, color: '#AAA5A0' }}>Loading...</div></div>;
+  }
 
   return (
     <div style={styles.page}>
@@ -303,32 +329,6 @@ export default function Reviews() {
     </div>
   );
 }
-
-// Dev mock data
-const DEV_REVIEWS = [
-  {
-    id: 'r1', author: 'Shauna M', rating: 5, text: 'Absolutely love my brows! Ellie is so talented and makes you feel really comfortable. Already booked my next appointment.',
-    treatment: 'Lamination & Hybrid Dye', created_at: '2026-03-15T14:00:00Z',
-    reply: "Thank you so much Shauna! So glad you love them 💕 Can't wait to see you again xx",
-  },
-  {
-    id: 'r2', author: 'Daisy S', rating: 5, text: 'Best brow lady in Sheffield, been going for over a year now and never disappointed. The studio is gorgeous too.',
-    treatment: 'Lamination & Tint', created_at: '2026-03-08T11:00:00Z', reply: null,
-  },
-  {
-    id: 'r3', author: 'Chloe R', rating: 4, text: 'Really happy with my lash lift. Only thing is I had to wait a few minutes past my appointment time. But the results are amazing.',
-    treatment: 'Lash Lift & Tint', created_at: '2026-02-22T16:00:00Z', reply: null,
-  },
-  {
-    id: 'r4', author: 'Jasmin K', rating: 5, text: 'First time getting my brows done properly and I\'m obsessed! Ellie explained everything and the result is so natural.',
-    treatment: 'HD Brows', created_at: '2026-02-10T10:00:00Z',
-    reply: "Ahh so happy you love them Jasmin! Welcome to the brow club 💕 xx",
-  },
-  {
-    id: 'r5', author: 'Amy T', rating: 5, text: 'The ombre brows are INCREDIBLE. Worth every penny. Healing is going great too.',
-    treatment: 'Ombre Brows (Semi-Permanent)', created_at: '2026-01-28T13:00:00Z', reply: null,
-  },
-];
 
 const DEV_REQUESTS = [
   { id: 'rq1', name: 'Shauna M', status: 'Left review' },

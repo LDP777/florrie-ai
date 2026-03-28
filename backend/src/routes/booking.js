@@ -1,7 +1,29 @@
 import { Router } from 'express';
+import { z } from 'zod';
+import Stripe from 'stripe';
 import { supabase } from '../index.js';
+import { notifyBookingConfirmed } from '../services/notifications.js';
+import { validate } from '../middleware/validate.js';
+import { requireAuth } from '../middleware/auth.js';
+import logger from '../lib/logger.js';
 
 const router = Router();
+const FRONTEND_URL = process.env.FRONTEND_URL;
+
+const bookingSchema = z.object({
+  treatment_id: z.string().uuid('Invalid treatment ID'),
+  starts_at: z.string().datetime({ message: 'Invalid date/time format' }),
+  client_name: z.string().min(1, 'Name is required').max(200).trim(),
+  client_email: z.string().email('Invalid email').optional().nullable().default(null),
+  client_phone: z.string().min(5, 'Phone number too short').max(30).trim(),
+  notes: z.string().max(2000).optional().nullable().default(null),
+  consultation: z.record(z.any()).optional().nullable().default(null),
+});
+
+// Only init Stripe if key is present (avoids crash in dev without keys)
+const stripe = process.env.STRIPE_SECRET_KEY
+  ? new Stripe(process.env.STRIPE_SECRET_KEY)
+  : null;
 
 /**
  * GET /api/booking/:slug
@@ -44,21 +66,113 @@ router.get('/:slug', async (req, res) => {
 });
 
 /**
+ * PATCH /api/booking/appointments/:id/status
+ * Transition appointment status with validation.
+ * Only allows valid state transitions.
+ * Requires authentication.
+ */
+const statusTransitionSchema = z.object({
+  status: z.enum(['confirmed', 'cancelled', 'no_show', 'completed'], {
+    errorMap: () => ({ message: 'Invalid status. Must be: confirmed, cancelled, no_show, or completed' })
+  })
+});
+
+const VALID_TRANSITIONS = {
+  'pending': ['confirmed', 'cancelled'],
+  'confirmed': ['completed', 'cancelled', 'no_show'],
+  'completed': [],
+  'cancelled': [],
+  'no_show': []
+};
+
+router.patch('/appointments/:id/status', requireAuth, validate(statusTransitionSchema), async (req, res) => {
+  const { id } = req.params;
+  const { status: newStatus } = req.body;
+
+  try {
+    // Get current appointment
+    const { data: appointment, error: fetchError } = await supabase
+      .from('appointments')
+      .select('id, status, starts_at, ends_at, beautician_id, price_cents, client_id')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !appointment) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+
+    // Verify ownership
+    if (appointment.beautician_id !== req.beautician.id) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    // Validate transition
+    const currentStatus = appointment.status;
+    const allowedTransitions = VALID_TRANSITIONS[currentStatus] || [];
+
+    if (!allowedTransitions.includes(newStatus)) {
+      return res.status(400).json({
+        error: `Cannot transition from '${currentStatus}' to '${newStatus}'`,
+        currentStatus,
+        allowedTransitions
+      });
+    }
+
+    // Build update object
+    const updates = { status: newStatus };
+
+    // Set completion timestamp
+    if (newStatus === 'completed') {
+      updates.completed_at = new Date().toISOString();
+    }
+
+    // Set cancellation timestamp
+    if (newStatus === 'cancelled') {
+      updates.cancelled_at = new Date().toISOString();
+    }
+
+    // Set no-show timestamp
+    if (newStatus === 'no_show') {
+      updates.no_showed_at = new Date().toISOString();
+    }
+
+    // Perform update
+    const { data: updated, error: updateError } = await supabase
+      .from('appointments')
+      .update(updates)
+      .eq('id', id)
+      .eq('beautician_id', req.beautician.id)
+      .select('*, clients(first_name, last_name, phone), treatments(name, duration_minutes, price_cents)')
+      .single();
+
+    if (updateError) {
+      return res.status(500).json({ error: 'Failed to update appointment status' });
+    }
+
+    res.json({
+      message: `Appointment status updated to '${newStatus}'`,
+      appointment: updated
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * POST /api/booking/:slug/book
  * Public endpoint — creates a booking from the booking page.
  * Creates or finds the client, creates the appointment.
+ * If deposit is required and beautician has Stripe Connect, creates a
+ * Checkout session and returns checkout_url for redirect.
+ * Returning clients with a saved Stripe customer see their saved cards.
  */
-router.post('/:slug/book', async (req, res) => {
-  const { treatment_id, starts_at, client_name, client_email, client_phone, notes } = req.body;
+router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
+  const { treatment_id, starts_at, client_name, client_email, client_phone, notes, consultation } = req.body;
 
-  if (!treatment_id || !starts_at || !client_name || !client_phone) {
-    return res.status(400).json({ error: 'Treatment, time, name, and phone are required' });
-  }
-
-  // Get beautician from slug
+  // Get beautician from slug (include Stripe fields for deposit flow)
   const { data: beautician } = await supabase
     .from('beauticians')
-    .select('id')
+    .select('id, business_name, first_name, stripe_account_id, stripe_onboarding_complete')
     .eq('booking_slug', req.params.slug)
     .single();
 
@@ -84,10 +198,10 @@ router.post('/:slug/book', async (req, res) => {
   // Try to find existing client by phone
   const { data: existingClient } = await supabase
     .from('clients')
-    .select('id')
+    .select('id, stripe_customer_id')
     .eq('beautician_id', beautician.id)
     .eq('phone', client_phone)
-    .single();
+    .maybeSingle();
 
   if (existingClient) {
     client = existingClient;
@@ -103,7 +217,7 @@ router.post('/:slug/book', async (req, res) => {
         phone: client_phone,
         status: 'new'
       })
-      .select()
+      .select('id, stripe_customer_id')
       .single();
 
     if (cError) return res.status(500).json({ error: 'Failed to create client record' });
@@ -111,7 +225,7 @@ router.post('/:slug/book', async (req, res) => {
   }
 
   // Calculate times
-  const totalMinutes = treatment.duration_minutes + treatment.buffer_minutes;
+  const totalMinutes = treatment.duration_minutes + (treatment.buffer_minutes || 0);
   const startsDate = new Date(starts_at);
   const endsDate = new Date(startsDate.getTime() + totalMinutes * 60 * 1000);
 
@@ -128,7 +242,14 @@ router.post('/:slug/book', async (req, res) => {
     return res.status(409).json({ error: 'This time slot is no longer available' });
   }
 
+  // Build client_notes — combine free text notes + consultation form answers
+  let clientNotes = notes || null;
+  if (consultation && Object.keys(consultation).length > 0) {
+    clientNotes = JSON.stringify({ notes: notes || '', consultation });
+  }
+
   // Create appointment
+  const depositRequired = treatment.deposit_cents > 0;
   const { data: appointment, error: aError } = await supabase
     .from('appointments')
     .insert({
@@ -138,17 +259,20 @@ router.post('/:slug/book', async (req, res) => {
       starts_at,
       ends_at: endsDate.toISOString(),
       duration_minutes: treatment.duration_minutes,
-      buffer_minutes: treatment.buffer_minutes,
+      buffer_minutes: treatment.buffer_minutes || 0,
       price_cents: treatment.price_cents,
-      deposit_cents: treatment.deposit_cents,
-      client_notes: notes || null,
+      deposit_cents: treatment.deposit_cents || 0,
+      client_notes: clientNotes,
       booked_via: 'booking_page',
-      status: treatment.deposit_cents > 0 ? 'pending' : 'confirmed'
+      status: depositRequired ? 'pending' : 'confirmed'
     })
     .select()
     .single();
 
-  if (aError) return res.status(500).json({ error: 'Failed to create booking' });
+  if (aError) {
+    logger.error({ err: aError }, 'Appointment insert error');
+    return res.status(500).json({ error: 'Failed to create booking' });
+  }
 
   // Log AI action
   await supabase.from('ai_actions').insert({
@@ -156,7 +280,7 @@ router.post('/:slug/book', async (req, res) => {
     action_type: 'booking_created',
     digital_employee: 'front_desk',
     summary: `${firstName} booked ${treatment.name} for ${startsDate.toLocaleDateString('en-GB')} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`,
-    details: { appointment_id: appointment.id, treatment: treatment.name, client_name: client_name },
+    details: { appointment_id: appointment.id, treatment: treatment.name, client_name },
     client_id: client.id,
     appointment_id: appointment.id,
     confidence: 1.0,
@@ -164,7 +288,100 @@ router.post('/:slug/book', async (req, res) => {
     outcome: 'success',
     notification_sent: true,
     notification_text: `New booking: ${firstName} — ${treatment.name}, ${startsDate.toLocaleDateString('en-GB')} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
-  });
+  }).catch(err => logger.warn({ err }, 'AI action log failed (non-fatal)'));
+
+  // ── DEPOSIT FLOW ──────────────────────────────────────────
+  // If deposit required and beautician has Stripe Connect, create Checkout session.
+  // Returning clients with a saved stripe_customer_id see saved payment methods.
+  if (depositRequired && stripe && beautician.stripe_account_id && beautician.stripe_onboarding_complete) {
+    try {
+      const bookingSlug = req.params.slug;
+      const dateLabel = startsDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+
+      // Ensure client has a Stripe Customer for saved card reuse
+      let stripeCustomerId = client.stripe_customer_id;
+      if (!stripeCustomerId) {
+        const customer = await stripe.customers.create({
+          name: client_name,
+          email: client_email || undefined,
+          phone: client_phone,
+          metadata: { client_id: client.id, beautician_id: beautician.id },
+        });
+        stripeCustomerId = customer.id;
+        await supabase.from('clients').update({ stripe_customer_id: stripeCustomerId }).eq('id', client.id);
+      }
+
+      const session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        customer: stripeCustomerId,
+        line_items: [{
+          price_data: {
+            currency: 'gbp',
+            product_data: {
+              name: `${treatment.name} — deposit`,
+              description: `${dateLabel} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} with ${beautician.business_name || beautician.first_name}`,
+            },
+            unit_amount: treatment.deposit_cents,
+          },
+          quantity: 1,
+        }],
+        payment_intent_data: {
+          // No platform fee on deposits — Florrie revenue comes from subscriptions
+          transfer_data: {
+            destination: beautician.stripe_account_id,
+          },
+          setup_future_usage: 'off_session', // saves card for returning clients
+          metadata: {
+            appointment_id: appointment.id,
+            beautician_id: beautician.id,
+            client_id: client.id,
+          },
+        },
+        success_url: `${FRONTEND_URL}/book/${bookingSlug}/confirmed?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${FRONTEND_URL}/book/${bookingSlug}?cancelled=true`,
+        metadata: {
+          appointment_id: appointment.id,
+          beautician_id: beautician.id,
+          client_id: client.id,
+        },
+      });
+
+      // Store payment intent on the appointment
+      await supabase.from('appointments').update({
+        stripe_payment_intent_id: session.payment_intent,
+        deposit_amount_cents: treatment.deposit_cents,
+        deposit_status: 'pending',
+      }).eq('id', appointment.id);
+
+      // Fire confirmation notification for pending deposit booking (non-blocking)
+      notifyBookingConfirmed(appointment.id).catch(err =>
+        logger.warn({ err }, 'Booking confirmation notification failed (non-fatal)')
+      );
+
+      return res.status(201).json({
+        booking: {
+          id: appointment.id,
+          treatment: treatment.name,
+          date: startsDate.toLocaleDateString('en-GB'),
+          time: startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+          price: `£${(treatment.price_cents / 100).toFixed(2)}`,
+          deposit: `£${(treatment.deposit_cents / 100).toFixed(2)}`,
+          status: 'pending',
+        },
+        checkout_url: session.url,
+      });
+    } catch (err) {
+      logger.error({ err }, 'Stripe checkout creation failed');
+      // Booking was created but payment setup failed — still return the booking
+      // The beautician can send a payment link manually
+    }
+  }
+
+  // No deposit or Stripe not configured — booking is confirmed immediately
+  // Fire confirmation notification (non-blocking)
+  notifyBookingConfirmed(appointment.id).catch(err =>
+    logger.warn({ err }, 'Booking confirmation notification failed (non-fatal)')
+  );
 
   res.status(201).json({
     booking: {
@@ -173,7 +390,7 @@ router.post('/:slug/book', async (req, res) => {
       date: startsDate.toLocaleDateString('en-GB'),
       time: startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
       price: `£${(treatment.price_cents / 100).toFixed(2)}`,
-      deposit: treatment.deposit_cents > 0 ? `£${(treatment.deposit_cents / 100).toFixed(2)}` : null,
+      deposit: null,
       status: appointment.status
     }
   });

@@ -1,4 +1,5 @@
 import { supabaseAnon } from '../index.js';
+import logger from '../lib/logger.js';
 
 /**
  * Auth middleware — extracts the Supabase JWT from Authorization header,
@@ -33,7 +34,7 @@ export async function requireAuth(req, res, next) {
     req.beautician = beautician;
     next();
   } catch (err) {
-    console.error('Auth middleware error:', err);
+    logger.error({ err }, 'Auth middleware error');
     return res.status(500).json({ error: 'Authentication failed' });
   }
 }

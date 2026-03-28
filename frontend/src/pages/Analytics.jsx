@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 /**
  * Analytics — Weekly digest, trends, top clients, booking patterns.
@@ -102,7 +103,7 @@ export default function Analytics() {
         utilizationRate: 78, // Would calculate from working hours vs booked slots
       });
     } catch (err) {
-      console.error('Analytics load error:', err);
+      logger.error('Analytics load error:', err);
     }
     setLoading(false);
   }

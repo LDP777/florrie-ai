@@ -12,6 +12,7 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, updateRow, isDevMode } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
+import logger from '../lib/logger.js';
 
 const BRAND_COLOURS = [
   '#C76B8A', '#E8A0BF', '#C4A882', '#8B7355',
@@ -89,7 +90,7 @@ export default function BusinessProfile({ token }) {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
-      console.error('Save error:', err);
+      logger.error('Save error:', err);
     } finally {
       setSaving(false);
     }

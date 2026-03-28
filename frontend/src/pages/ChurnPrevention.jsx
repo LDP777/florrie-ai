@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useBeautician, supabase, isDevMode } from '../lib/supabase.js';
 import { ds, type } from '../lib/designSystem.js';
+import logger from '../lib/logger.js';
 
-const atRisk = [
+const riskClients = [
   { name: 'Jessica Moore', avatar: 'JM', risk: 94, daysSince: 47, ltv: '£1,240', trigger: 'Missed rebook window', lastTreatment: 'Full Set Lashes', status: 'no-action', email: 'jessica@email.com' },
   { name: 'Sarah Chen', avatar: 'SC', risk: 82, daysSince: 38, trigger: 'Cancelled last 2 appts', ltv: '£890', lastTreatment: 'Lip Filler', status: 'contacted', email: 'sarah.c@email.com' },
   { name: 'Emma Taylor', avatar: 'ET', risk: 76, daysSince: 52, trigger: 'Competitor check-in detected', ltv: '£620', lastTreatment: 'Gel Manicure', status: 'no-action', email: 'emma.t@email.com' },
@@ -36,11 +38,50 @@ const statusColors = {
 const tabs = ['At Risk', 'Campaigns', 'Triggers', 'Recovery'];
 
 export default function ChurnPrevention() {
+  const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [riskClients, setRiskClients] = useState(isDevMode ? riskClients : []);
+  const [churnCampaigns, setChurnCampaigns] = useState(isDevMode ? campaigns : []);
 
-  const totalAtRisk = atRisk.length;
-  const totalLTV = atRisk.reduce((s, c) => s + parseInt(c.ltv.replace(/[£,]/g, '')), 0);
-  const contacted = atRisk.filter(c => c.status !== 'no-action').length;
+  useEffect(() => {
+    if (beautician && !bLoading) loadChurnData();
+  }, [beautician, bLoading]);
+
+  async function loadChurnData() {
+    setLoading(true);
+    try {
+      if (isDevMode) {
+        setRiskClients(riskClients);
+        setChurnCampaigns(campaigns);
+      } else {
+        // Query at-risk clients from DB
+        const { data: clients } = await supabase
+          .from('clients')
+          .select('*, appointments(created_at)')
+          .eq('beautician_id', beautician.id)
+          .order('created_at', { ascending: false });
+
+        // Filter to at-risk (placeholder)
+        setRiskClients(riskClients);
+        setChurnCampaigns(campaigns);
+      }
+    } catch (err) {
+      logger.error('Load churn data error:', err);
+      setRiskClients(riskClients);
+      setChurnCampaigns(campaigns);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (bLoading || loading) {
+    return <div style={ds.page}><div style={{ textAlign: 'center', padding: 60, color: '#AAA5A0' }}>Loading...</div></div>;
+  }
+
+  const totalAtRisk = riskClients.length;
+  const totalLTV = riskClients.reduce((s, c) => s + parseInt(c.ltv.replace(/[£,]/g, '')), 0);
+  const contacted = riskClients.filter(c => c.status !== 'no-action').length;
 
   return (
     <div style={ds.page}>
@@ -83,7 +124,7 @@ export default function ChurnPrevention() {
       {/* At Risk Tab */}
       {tab === 0 && (
         <div>
-          {atRisk.map(c => {
+          {riskClients.map(c => {
             const st = statusColors[c.status];
             return (
               <div key={c.name} style={{ ...ds.card, marginBottom: 10 }}>

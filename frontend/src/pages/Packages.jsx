@@ -9,9 +9,10 @@
  *
  * Dev-mode mock data. Supabase wiring later.
  */
-import { useState } from 'react';
-import { isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useState, useEffect } from 'react';
+import { useBeautician, fetchRows, isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
+import logger from '../lib/logger.js';
 
 const pence = v => `£${(v / 100).toFixed(2)}`;
 const pounds = v => `£${Math.round(v / 100)}`;
@@ -73,9 +74,29 @@ const DEV_CLIENT_PACKAGES = [
 ];
 
 export default function Packages({ token }) {
+  const { beautician, loading: bLoading } = useBeautician();
   const { dark } = useTheme();
   const [tab, setTab] = useState('packages');
   const [showCreate, setShowCreate] = useState(false);
+  const [packages, setPackages] = useState(DEV_PACKAGES);
+  const [clientPackages, setClientPackages] = useState(DEV_CLIENT_PACKAGES);
+
+  // Load packages on mount
+  useEffect(() => {
+    if (bLoading || !beautician) return;
+    if (isDevMode) {
+      setPackages(DEV_PACKAGES);
+      setClientPackages(DEV_CLIENT_PACKAGES);
+      return;
+    }
+    Promise.all([
+      fetchRows('packages', beautician.id),
+      fetchRows('client_packages', beautician.id),
+    ]).then(([pkgs, cpkgs]) => {
+      setPackages(pkgs);
+      setClientPackages(cpkgs);
+    }).catch(err => logger.error('Failed to load packages:', err));
+  }, [beautician, bLoading]);
 
   // Create form state
   const [newType, setNewType] = useState('bundle');

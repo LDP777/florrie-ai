@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, supabase, isDevMode, updateRow } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 /**
  * Escalations — the "needs your attention" inbox.
@@ -46,10 +47,10 @@ export default function Escalations() {
         .eq('direction', 'inbound')
         .order('created_at', { ascending: false });
 
-      if (error) console.error('Escalations load error:', error);
+      if (error) logger.error('Escalations load error:', error);
       setEscalations(data || []);
     } catch (err) {
-      console.error('Failed to load escalations:', err);
+      logger.error('Failed to load escalations:', err);
     } finally {
       setLoading(false);
     }
@@ -69,13 +70,32 @@ export default function Escalations() {
       }
 
       await updateRow('messages', messageId, updates);
+
+      // Send the response via SMS (Twilio)
+      if (action === 'send_as_is' || action === 'send_edited') {
+        const message = action === 'send_edited' ? editedResponse :
+          escalations.find(e => e.id === messageId)?.ai_response;
+
+        if (message) {
+          const response = await fetch(`/api/escalations/${messageId}/resolve`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              response: message,
+              action: action
+            })
+          });
+
+          if (!response.ok) {
+            logger.error('Failed to send message via API');
+          }
+        }
+      }
+
       setEscalations(prev => prev.filter(e => e.id !== messageId));
       setEditingId(null);
-
-      // TODO: When WhatsApp/Instagram API is connected, actually send the response
-      // For now, just marking as resolved is sufficient
     } catch (err) {
-      console.error('Resolve error:', err);
+      logger.error('Resolve error:', err);
     } finally {
       setSending(null);
     }

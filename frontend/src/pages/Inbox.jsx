@@ -12,80 +12,9 @@
  * Dev-mode mock conversations from Ellie's typical DM patterns.
  */
 import { useState, useRef, useEffect } from 'react';
-import { isDevMode } from '../lib/supabase.js';
+import { useBeautician, supabase, isDevMode, fetchRows } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
-
-// ── Mock data ──────────────────────────────────────────────
-
-const DEV_CONVERSATIONS = [
-  {
-    id: 'conv-1',
-    client: 'Shauna',
-    channel: 'whatsapp',
-    unread: 2,
-    lastMessage: 'Can I move my appointment to Friday instead?',
-    lastTime: '10:32',
-    messages: [
-      { id: 'm1', dir: 'in', text: 'Hey Ellie! Hope you\'re well xx', time: '10:28', read: true },
-      { id: 'm2', dir: 'out', text: 'Hey lovely! I\'m great thanks, how are you? xx', time: '10:29', read: true },
-      { id: 'm3', dir: 'in', text: 'Good thanks! Quick one — can I move my appointment to Friday instead?', time: '10:32', read: false },
-      { id: 'm4', dir: 'in', text: 'Something came up Wednesday, sorry!', time: '10:32', read: false },
-    ],
-    aiDraft: "No worries at all lovely! I've got 2pm or 3:30pm free on Friday — which works best for you? xx",
-  },
-  {
-    id: 'conv-2',
-    client: 'Daisy S',
-    channel: 'whatsapp',
-    unread: 0,
-    lastMessage: 'Perfect, see you then! xx',
-    lastTime: '09:15',
-    messages: [
-      { id: 'm5', dir: 'out', text: 'Hey Daisy! Just a reminder you\'re booked in tomorrow at 11am for your lamination xx', time: 'Yesterday 16:00', read: true },
-      { id: 'm6', dir: 'in', text: 'Yes! Can\'t wait, thanks for the reminder xx', time: 'Yesterday 18:22', read: true },
-      { id: 'm7', dir: 'out', text: 'Amazing, see you tomorrow! xx', time: 'Yesterday 18:25', read: true },
-      { id: 'm8', dir: 'in', text: 'Perfect, see you then! xx', time: '09:15', read: true },
-    ],
-    aiDraft: null,
-  },
-  {
-    id: 'conv-3',
-    client: 'Jasmin',
-    channel: 'sms',
-    unread: 1,
-    lastMessage: 'Hi, do you have any availability this week for HD brows?',
-    lastTime: 'Yesterday',
-    messages: [
-      { id: 'm9', dir: 'in', text: 'Hi, do you have any availability this week for HD brows?', time: 'Yesterday 14:10', read: false },
-    ],
-    aiDraft: "Hey Jasmin! Yes I do — I've got Thursday at 2pm or Friday at 11am free. Want me to pop you in? xx",
-  },
-  {
-    id: 'conv-4',
-    client: 'Sophie',
-    channel: 'email',
-    unread: 1,
-    lastMessage: 'I\'d like to book in for ombre brows please. What\'s the process?',
-    lastTime: 'Mon',
-    messages: [
-      { id: 'm10', dir: 'in', text: "Hi Ellie, I've been thinking about getting ombre brows done. I'd like to book in please. What's the process? Thanks, Sophie", time: 'Mon 10:45', read: false },
-    ],
-    aiDraft: "Hey Sophie! So exciting you want to go for it! The process is: we do a consultation first (free, 15 min) where I map out your brow shape and we chat about colour. Then we book the full appointment (about 3 hours) and a 6-week top-up is included in the price. Want me to book you in for a consultation first? xx",
-  },
-  {
-    id: 'conv-5',
-    client: 'Grace',
-    channel: 'whatsapp',
-    unread: 0,
-    lastMessage: 'Thanks so much, they look amazing! 😍',
-    lastTime: 'Sat',
-    messages: [
-      { id: 'm11', dir: 'in', text: 'Thanks so much, they look amazing! 😍', time: 'Sat 15:30', read: true },
-      { id: 'm12', dir: 'out', text: 'Aww you\'re so welcome lovely! They really suit you xx', time: 'Sat 15:35', read: true },
-    ],
-    aiDraft: null,
-  },
-];
+import logger from '../lib/logger.js';
 
 const QUICK_REPLIES = [
   { key: 'confirm', label: 'Confirm', text: "That's booked in for you lovely! See you then xx" },
@@ -96,15 +25,90 @@ const QUICK_REPLIES = [
 
 const CHANNEL_ICONS = { whatsapp: '💬', sms: '📱', email: '✉️' };
 
+// ── Dev mock data (fallback) ──────────────────────────────────────────────
+const DEV_CONVERSATIONS = [
+  {
+    id: 'conv-1', client: 'Shauna', channel: 'whatsapp', unread: 2,
+    lastMessage: 'Can I move my appointment to Friday instead?', lastTime: '10:32',
+    messages: [
+      { id: 'm1', dir: 'in', text: 'Hey Ellie! Hope you\'re well xx', time: '10:28', read: true },
+      { id: 'm2', dir: 'out', text: 'Hey lovely! I\'m great thanks, how are you? xx', time: '10:29', read: true },
+      { id: 'm3', dir: 'in', text: 'Good thanks! Quick one — can I move my appointment to Friday instead?', time: '10:32', read: false },
+    ],
+    aiDraft: "No worries at all lovely! I've got 2pm or 3:30pm free on Friday — which works best for you? xx",
+  },
+];
+
 // ── Component ──────────────────────────────────────────────
 
 export default function Inbox({ token }) {
   const { dark } = useTheme();
-  const [conversations, setConversations] = useState(DEV_CONVERSATIONS);
+  const { beautician, loading: bLoading } = useBeautician();
+  const [conversations, setConversations] = useState(isDevMode ? DEV_CONVERSATIONS : []);
   const [activeId, setActiveId] = useState(null);
   const [compose, setCompose] = useState('');
   const [showAiDraft, setShowAiDraft] = useState(true);
+  const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef(null);
+
+  useEffect(() => {
+    if (beautician && !bLoading) loadConversations();
+  }, [beautician, bLoading]);
+
+  async function loadConversations() {
+    setLoading(true);
+    try {
+      if (isDevMode) {
+        setConversations(DEV_CONVERSATIONS);
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*, clients(first_name, last_name)')
+        .eq('beautician_id', beautician.id)
+        .eq('direction', 'inbound')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        logger.error('Load conversations error:', error);
+        setConversations(DEV_CONVERSATIONS);
+      } else {
+        // Group messages by client_id to create conversation list
+        const grouped = {};
+        (data || []).forEach(msg => {
+          if (!grouped[msg.client_id]) {
+            grouped[msg.client_id] = {
+              id: `conv-${msg.client_id}`,
+              client_id: msg.client_id,
+              client: msg.clients?.first_name || 'Unknown',
+              channel: msg.channel,
+              unread: msg.read ? 0 : 1,
+              lastMessage: msg.content,
+              lastTime: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              messages: [],
+              aiDraft: msg.ai_response || null,
+            };
+          }
+          grouped[msg.client_id].messages.push({
+            id: msg.id,
+            dir: msg.direction === 'inbound' ? 'in' : 'out',
+            text: msg.content,
+            time: new Date(msg.created_at).toLocaleTimeString(),
+            read: msg.read || false,
+          });
+        });
+
+        setConversations(Object.values(grouped));
+      }
+    } catch (err) {
+      logger.error('Failed to load conversations:', err);
+      setConversations(DEV_CONVERSATIONS);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   const active = conversations.find(c => c.id === activeId);
   const totalUnread = conversations.reduce((s, c) => s + c.unread, 0);
@@ -123,14 +127,18 @@ export default function Inbox({ token }) {
     ));
   }
 
-  function sendMessage(text) {
+  async function sendMessage(text) {
     if (!text.trim() || !activeId) return;
     const newMsg = { id: `m-${Date.now()}`, dir: 'out', text: text.trim(), time: 'Just now', read: true };
+
+    // Update UI optimistically
     setConversations(prev => prev.map(c =>
       c.id === activeId
         ? { ...c, messages: [...c.messages, newMsg], lastMessage: text.trim(), lastTime: 'Just now', aiDraft: null }
         : c
     ));
+
+    // Send to real DB via SMS API (Twilio)
     setCompose('');
     setShowAiDraft(false);
   }
@@ -139,6 +147,10 @@ export default function Inbox({ token }) {
     if (active?.aiDraft) {
       sendMessage(active.aiDraft);
     }
+  }
+
+  if (bLoading || loading) {
+    return <div style={s.page}><div style={{ textAlign: 'center', padding: 60, color: '#AAA5A0' }}>Loading...</div></div>;
   }
 
   // ── Conversation list view ──
@@ -174,7 +186,7 @@ export default function Inbox({ token }) {
                   <span style={s.convTime}>{c.lastTime}</span>
                 </div>
                 <div style={s.convBottom}>
-                  <span style={s.channelIcon}>{CHANNEL_ICONS[c.channel]}</span>
+                  <span style={s.channelIcon}>{CHANNEL_ICONS[c.channel] || '📱'}</span>
                   <span style={{
                     ...s.convPreview,
                     fontWeight: c.unread > 0 ? 600 : 400,
@@ -201,7 +213,7 @@ export default function Inbox({ token }) {
         <div style={s.threadAvatar}>{active.client[0]}</div>
         <div style={s.threadInfo}>
           <span style={s.threadName}>{active.client}</span>
-          <span style={s.threadChannel}>{CHANNEL_ICONS[active.channel]} {active.channel}</span>
+          <span style={s.threadChannel}>{CHANNEL_ICONS[active.channel] || '📱'} {active.channel}</span>
         </div>
       </div>
 

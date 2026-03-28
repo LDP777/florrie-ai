@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
-import Anthropic from 'anthropic';
+import Anthropic from '@anthropic-ai/sdk';
+import logger from '../lib/logger.js';
 
 const router = Router();
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -205,34 +206,79 @@ router.post('/expenses', requireAuth, async (req, res) => {
 
 /**
  * POST /api/money/expenses/scan
- * Scan a receipt photo with Claude Vision, extract amount + vendor.
+ * Scan a receipt photo with Claude Vision, extract amount + vendor + date + category + line items.
+ *
+ * Body: {
+ *   image_url?: "https://...",  (public URL to image)
+ *   image_base64?: "iVBORw0KG..." (base64-encoded image with optional data URI prefix)
+ * }
+ *
+ * Returns: {
+ *   extracted: { vendor, total_amount (pence), date, category, description, line_items? },
+ *   confidence: 0.95 (0.0-1.0, assessed by Claude)
+ * }
  */
 router.post('/expenses/scan', requireAuth, async (req, res) => {
-  const { image_url } = req.body;
+  const { image_url, image_base64 } = req.body;
 
-  if (!image_url) return res.status(400).json({ error: 'image_url is required' });
+  if (!image_url && !image_base64) {
+    return res.status(400).json({ error: 'image_url or image_base64 is required' });
+  }
 
   try {
+    // Build image source for Claude API
+    let imageSource;
+
+    if (image_url) {
+      imageSource = { type: 'url', url: image_url };
+    } else if (image_base64) {
+      // Handle base64 with or without data URI prefix
+      let base64Data = image_base64;
+      let mediaType = 'image/jpeg'; // default
+
+      // Extract media type if data URI is provided
+      const dataUriMatch = image_base64.match(/^data:([^;]+);base64,(.+)$/);
+      if (dataUriMatch) {
+        mediaType = dataUriMatch[1];
+        base64Data = dataUriMatch[2];
+      }
+
+      imageSource = { type: 'base64', media_type: mediaType, data: base64Data };
+    }
+
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 200,
+      max_tokens: 400,
       messages: [{
         role: 'user',
         content: [
           {
             type: 'image',
-            source: { type: 'url', url: image_url }
+            source: imageSource
           },
           {
             type: 'text',
-            text: `Extract from this receipt:
-- total_amount (in pence, e.g. 1299 for £12.99)
-- vendor (shop/company name)
-- date (YYYY-MM-DD format)
-- category (one of: products, rent, training, travel, equipment, insurance, marketing, software, utilities, other)
-- description (brief, e.g. "Brow tint x3, wax strips")
+            text: `Extract structured data from this receipt:
 
-Return JSON only: {"total_amount": 1299, "vendor": "...", "date": "...", "category": "...", "description": "..."}`
+Required fields:
+- vendor: Shop or company name (e.g., "Boots the Chemist")
+- total_amount: Total price in pence (e.g., 1299 for £12.99). If not visible, estimate from line items.
+- date: Date of purchase in YYYY-MM-DD format. If only month/year visible, use first day of month.
+- category: One of: products, rent, training, travel, equipment, insurance, marketing, software, utilities, other
+- description: Brief summary (e.g., "Salon products: dyes, scissors, clips")
+
+Optional fields:
+- line_items: Array of {description, amount_cents} for individual items if visible
+- confidence: (You provide this, don't make Claude guess)
+
+Assess clarity and confidence:
+- 0.95-1.0: All text crisp, clear vendor/amount/date visible
+- 0.80-0.94: Mostly readable, minor blur or shadows, date clear
+- 0.70-0.79: Partially blurry, some guessing from context
+- Below 0.70: Mostly unreadable, heavy artifacts, mostly guessing
+
+Return ONLY valid JSON (no markdown, no code blocks):
+{"vendor": "...", "total_amount": 1299, "date": "2026-03-28", "category": "...", "description": "...", "confidence": 0.92}`
           }
         ]
       }]
@@ -242,13 +288,21 @@ Return JSON only: {"total_amount": 1299, "vendor": "...", "date": "...", "catego
     const jsonStr = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const extracted = JSON.parse(jsonStr);
 
+    // Use Claude's self-assessed confidence, default to 0.8 if not returned
+    const confidence = typeof extracted.confidence === 'number'
+      ? Math.min(1, Math.max(0, extracted.confidence))
+      : 0.8;
+
+    // Remove confidence from the extracted data (it's metadata, not receipt data)
+    delete extracted.confidence;
+
     res.json({
       extracted,
-      confidence: 0.9 // TODO: implement real confidence scoring
+      confidence,
     });
 
   } catch (err) {
-    console.error('Receipt scan error:', err);
+    logger.error({ err }, 'Receipt scan error');
     res.status(500).json({ error: 'Failed to scan receipt' });
   }
 });

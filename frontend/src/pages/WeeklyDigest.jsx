@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 /**
  * Weekly Digest — an email-style summary of the week's activity.
@@ -80,7 +81,7 @@ export default function WeeklyDigest() {
         highlights: buildHighlights(completed, noShows, cancelled, revenue, newClients, nextWeekAppts),
       });
     } catch (err) {
-      console.error('Digest load error:', err);
+      logger.error('Digest load error:', err);
     }
     setLoading(false);
   }

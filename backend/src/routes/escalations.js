@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { learnFromCorrection } from '../services/ai-front-desk.js';
+import { sendSMS } from '../services/notifications.js';
+import logger from '../lib/logger.js';
 
 const router = Router();
 
@@ -64,22 +66,36 @@ router.post('/:messageId/resolve', requireAuth, async (req, res) => {
     ai_response: finalResponse
   }).eq('id', message.id);
 
-  // TODO: Actually send the message via WhatsApp
-  // For now, store the outbound message
-  const client = await supabase
+  // Fetch client for sending
+  const { data: client } = await supabase
     .from('clients')
     .select('*')
     .eq('id', message.client_id)
     .single();
 
+  // Send the response via SMS (WhatsApp migration planned — using Twilio SMS for now)
+  if (client?.phone) {
+    try {
+      const result = await sendSMS({ to: client.phone, body: finalResponse, beauticianId: req.beautician.id });
+      if (result?.sid) {
+        logger.info({ clientId: client.id, sid: result.sid }, 'Escalation response sent via SMS');
+      } else {
+        logger.warn({ clientId: client.id }, 'SMS send returned no SID — check Twilio config');
+      }
+    } catch (err) {
+      logger.error({ err }, 'Escalation SMS send error');
+    }
+  }
+
+  // Store outbound message record
   await supabase.from('messages').insert({
     beautician_id: req.beautician.id,
     client_id: message.client_id,
-    channel: message.channel,
+    channel: 'sms',
     direction: 'outbound',
     content: finalResponse,
     ai_handled: action === 'send_as_is',
-    digital_employee: 'front_desk'
+    digital_employee: 'front_desk',
   });
 
   res.json({ success: true, sent: finalResponse });

@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useBeautician, supabase, isDevMode } from '../lib/supabase.js';
 import { ds, type } from '../lib/designSystem.js';
+import logger from '../lib/logger.js';
 
 const locations = [
   {
@@ -33,10 +35,38 @@ const crossBookings = [
 const tabs = ['Overview', 'Locations', 'Cross-Booking', 'Compare'];
 
 export default function MultiLocation() {
+  const { beautician, loading: bLoading } = useBeautician();
+  const [locs, setLocs] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState(0);
   const [expanded, setExpanded] = useState(null);
 
-  const activeLocations = locations.filter(l => l.status === 'active');
+  useEffect(() => { if (beautician) loadLocations(); }, [beautician]);
+
+  async function loadLocations() {
+    setLoading(true);
+    try {
+      if (isDevMode) {
+        setLocs(locations);
+      } else {
+        const { data } = await supabase
+          .from('locations')
+          .select('*')
+          .eq('beautician_id', beautician.id)
+          .order('is_primary', { ascending: false });
+        setLocs(data || []);
+      }
+    } catch (err) {
+      logger.error('Load locations error:', err);
+      setLocs(isDevMode ? locations : []);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (bLoading || loading) return <div style={{ padding: 40, textAlign: 'center', color: '#AAA5A0' }}>Loading...</div>;
+
+  const activeLocations = locs.filter(l => l.status === 'active');
   const totalRevenue = activeLocations.reduce((s, l) => s + l.weeklyRevenue, 0);
   const totalClients = activeLocations.reduce((s, l) => s + l.clients, 0);
   const totalStaff = activeLocations.reduce((s, l) => s + l.staff, 0);
@@ -54,8 +84,8 @@ export default function MultiLocation() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
             <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>YOUR NETWORK</div>
-            <div style={{ fontSize: 36, fontWeight: 700 }}>{locations.length} locations</div>
-            <div style={{ fontSize: 13, opacity: 0.9, marginTop: 4 }}>{activeLocations.length} active · 1 setting up</div>
+            <div style={{ fontSize: 36, fontWeight: 700 }}>{locs.length} locations</div>
+            <div style={{ fontSize: 13, opacity: 0.9, marginTop: 4 }}>{activeLocations.length} active · {locs.filter(l => l.status === 'setup').length} setting up</div>
           </div>
           <div style={{ fontSize: 40 }}>🏢</div>
         </div>
@@ -78,7 +108,7 @@ export default function MultiLocation() {
       {/* Overview */}
       {tab === 0 && (
         <div>
-          {locations.map(loc => (
+          {locs.map(loc => (
             <div key={loc.id} style={{ ...ds.card, marginBottom: 12, borderLeft: `3px solid ${loc.status === 'active' ? 'var(--success)' : 'var(--gold)'}` }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <div>
@@ -112,7 +142,7 @@ export default function MultiLocation() {
       {/* Locations Detail */}
       {tab === 1 && (
         <div>
-          {locations.filter(l => l.status === 'active').map((loc, i) => (
+          {locs.filter(l => l.status === 'active').map((loc, i) => (
             <div key={loc.id} style={{ ...ds.card, marginBottom: 12, cursor: 'pointer' }} onClick={() => setExpanded(expanded === i ? null : i)}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>

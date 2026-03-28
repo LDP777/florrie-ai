@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { processReminders, sendSMS, sendEmail } from '../services/notifications.js';
+import { getSMSUsage } from '../services/sms-metering.js';
+import logger from '../lib/logger.js';
 
 const router = Router();
 
@@ -21,7 +23,7 @@ router.post('/process-reminders', async (req, res) => {
     const result = await processReminders();
     res.json({ success: true, ...result });
   } catch (err) {
-    console.error('Reminder processing error:', err);
+    logger.error({ err }, 'Reminder processing error');
     res.status(500).json({ error: err.message });
   }
 });
@@ -49,7 +51,7 @@ router.post('/send-sms', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Client has no phone number' });
   }
 
-  const result = await sendSMS({ to: client.phone, body: message });
+  const result = await sendSMS({ to: client.phone, body: message, beauticianId: req.beautician.id });
 
   // Log the message
   await supabase.from('messages').insert({
@@ -61,7 +63,7 @@ router.post('/send-sms', requireAuth, async (req, res) => {
     status: result ? 'sent' : 'failed',
   });
 
-  res.json({ success: !!result, sid: result?.sid });
+  res.json({ success: !!result, sid: result?.sid, usageInfo: result?.usageInfo });
 });
 
 /**
@@ -129,6 +131,23 @@ router.patch('/preferences', requireAuth, async (req, res) => {
 
   if (error) return res.status(500).json({ error: error.message });
   res.json(data);
+});
+
+/**
+ * GET /api/sms/usage
+ * Get current week's SMS usage stats for the authenticated beautician.
+ */
+router.get('/sms/usage', requireAuth, async (req, res) => {
+  try {
+    const usage = await getSMSUsage(req.beautician.id);
+    if (!usage) {
+      return res.status(500).json({ error: 'Failed to fetch SMS usage' });
+    }
+    res.json(usage);
+  } catch (err) {
+    logger.error({ err }, 'SMS usage fetch error');
+    res.status(500).json({ error: err.message });
+  }
 });
 
 export default router;

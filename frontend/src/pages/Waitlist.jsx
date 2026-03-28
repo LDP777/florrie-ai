@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, insertRow, updateRow, deleteRow, isDevMode, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 /**
  * Waitlist — clients waiting for a cancellation slot.
@@ -82,7 +83,7 @@ export default function Waitlist() {
       setClients(cl);
       setTreatments(tr);
     } catch (err) {
-      console.error('Waitlist load error:', err);
+      logger.error('Waitlist load error:', err);
     }
     setLoading(false);
   }

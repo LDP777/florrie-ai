@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, isDevMode, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useBeautician, fetchRows, isDevMode, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 /**
  * Smart Schedule — Gap Finder & Fill Assistant.
@@ -88,8 +89,102 @@ export default function SmartSchedule() {
       setLoading(false);
       return;
     }
-    // Production: fetch appointments for this week, compute gaps from working hours
-    setLoading(false);
+    if (!beautician) {
+      setLoading(false);
+      return;
+    }
+    // Fetch appointments for this week, compute gaps from working hours
+    const now = new Date();
+    const weekEnd = new Date(now);
+    weekEnd.setDate(now.getDate() + 7);
+    const startStr = now.toISOString().slice(0, 10);
+    const endStr = weekEnd.toISOString().slice(0, 10);
+
+    try {
+      const appts = await fetchRows('appointments', beautician.id, {
+        order: 'start_time',
+        ascending: true,
+      });
+
+      // Filter to this week, build gaps from working hours
+      const thisWeekAppts = appts.filter(a =>
+        a.start_time && a.start_time.slice(0, 10) >= startStr && a.start_time.slice(0, 10) <= endStr
+      );
+
+      const computedGaps = computeGapsFromAppointments(thisWeekAppts, beautician.working_hours);
+      setGaps(computedGaps);
+    } catch (err) {
+      logger.error('Failed to load appointments:', err);
+      setGaps([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Helper to compute gaps from real appointments and working hours
+  function computeGapsFromAppointments(appts, workingHours) {
+    const gaps = [];
+    const now = new Date();
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const workingDaysMap = { 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 0: 'sun', 6: 'sat' };
+
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(now);
+      date.setDate(now.getDate() + i);
+      const dow = date.getDay();
+      const dayKey = workingDaysMap[dow];
+      const dayHours = workingHours?.[dayKey];
+      if (!dayHours) continue;
+
+      const dateStr = date.toISOString().split('T')[0];
+      const dayLabel = date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+      const [startH, startM] = dayHours.start.split(':').map(Number);
+      const [endH, endM] = dayHours.end.split(':').map(Number);
+      const dayStartMins = startH * 60 + startM;
+      const dayEndMins = endH * 60 + endM;
+
+      const dayAppts = appts
+        .filter(a => a.start_time?.slice(0, 10) === dateStr)
+        .map(a => {
+          const [h, m] = a.start_time?.slice(11, 16).split(':').map(Number) || [0, 0];
+          return { start: h * 60 + m, duration: a.duration_minutes || 0 };
+        })
+        .sort((a, b) => a.start - b.start);
+
+      // Build gaps
+      let currentTime = dayStartMins;
+      dayAppts.forEach(appt => {
+        if (appt.start > currentTime) {
+          gaps.push({
+            id: `gap-${dateStr}-${currentTime}`,
+            date: dateStr,
+            dayLabel,
+            start: `${String(Math.floor(currentTime / 60)).padStart(2, '0')}:${String(currentTime % 60).padStart(2, '0')}`,
+            end: `${String(Math.floor(appt.start / 60)).padStart(2, '0')}:${String(appt.start % 60).padStart(2, '0')}`,
+            duration_minutes: appt.start - currentTime,
+            fillability: appt.start - currentTime >= 60 ? 'high' : 'medium',
+            suggestions: Math.floor(Math.random() * 3) + 1,
+          });
+        }
+        currentTime = appt.start + appt.duration;
+      });
+
+      // Closing gap
+      if (currentTime < dayEndMins) {
+        gaps.push({
+          id: `gap-${dateStr}-${currentTime}`,
+          date: dateStr,
+          dayLabel,
+          start: `${String(Math.floor(currentTime / 60)).padStart(2, '0')}:${String(currentTime % 60).padStart(2, '0')}`,
+          end: `${String(Math.floor(dayEndMins / 60)).padStart(2, '0')}:${String(dayEndMins % 60).padStart(2, '0')}`,
+          duration_minutes: dayEndMins - currentTime,
+          fillability: dayEndMins - currentTime >= 90 ? 'high' : 'low',
+          suggestions: 1,
+        });
+      }
+    }
+
+    return gaps;
   }
 
   function handleSendOffer(clientName, gapId) {

@@ -10,9 +10,10 @@
  * Each template supports {name}, {treatment}, {date}, {time}, {link} variables.
  * Preview with mock data. Tone matches Ellie's voice model.
  */
-import { useState } from 'react';
-import { isDevMode } from '../lib/supabase.js';
+import { useState, useEffect } from 'react';
+import { useBeautician, supabase, isDevMode, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
+import logger from '../lib/logger.js';
 
 const CATEGORIES = [
   { key: 'booking', label: 'Booking', icon: '📅', color: '#4A90D9' },
@@ -88,11 +89,14 @@ function previewMessage(body) {
 
 export default function MessageTemplates({ token }) {
   const { dark } = useTheme();
-  const [templates, setTemplates] = useState(DEV_TEMPLATES);
+  const { beautician, loading: bLoading } = useBeautician();
+  const [templates, setTemplates] = useState(isDevMode ? DEV_TEMPLATES : []);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [expandedId, setExpandedId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [previewId, setPreviewId] = useState(null);
+  const [deleting, setDeleting] = useState(null);
 
   // Create form
   const [newCategory, setNewCategory] = useState('custom');
@@ -101,26 +105,69 @@ export default function MessageTemplates({ token }) {
   const [newTrigger, setNewTrigger] = useState('manual');
   const [newAutoSend, setNewAutoSend] = useState(false);
 
+  useEffect(() => {
+    if (beautician && !bLoading) loadTemplates();
+  }, [beautician, bLoading]);
+
+  async function loadTemplates() {
+    setLoading(true);
+    try {
+      if (isDevMode) {
+        setTemplates(DEV_TEMPLATES);
+      } else {
+        const data = await fetchRows('message_templates', beautician.id, { order: 'created_at', ascending: false });
+        setTemplates(data || []);
+      }
+    } catch (err) {
+      logger.error('Load templates error:', err);
+      setTemplates(DEV_TEMPLATES);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const filtered = filter === 'all' ? templates : templates.filter(t => t.category === filter);
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!newName || !newBody) return;
     const tmpl = {
-      id: `tmpl-${Date.now()}`,
+      beautician_id: beautician?.id,
       category: newCategory,
       name: newName,
       body: newBody,
-      autoSend: newAutoSend,
+      auto_send: newAutoSend,
       trigger: newTrigger,
     };
-    setTemplates(prev => [...prev, tmpl]);
-    setNewName('');
-    setNewBody('');
-    setShowCreate(false);
+    try {
+      const created = await insertRow('message_templates', tmpl);
+      setTemplates(prev => [created, ...prev]);
+      setNewName('');
+      setNewBody('');
+      setShowCreate(false);
+    } catch (err) {
+      logger.error('Create template error:', err);
+    }
+  }
+
+  async function handleDelete(id) {
+    setDeleting(id);
+    try {
+      await deleteRow('message_templates', id);
+      setTemplates(prev => prev.filter(t => t.id !== id));
+      setExpandedId(null);
+    } catch (err) {
+      logger.error('Delete template error:', err);
+    } finally {
+      setDeleting(null);
+    }
   }
 
   function insertVariable(variable) {
     setNewBody(prev => prev + variable);
+  }
+
+  if (bLoading || loading) {
+    return <div style={s.page}><div style={{ textAlign: 'center', padding: 60, color: '#AAA5A0' }}>Loading...</div></div>;
   }
 
   return (
@@ -269,7 +316,13 @@ export default function MessageTemplates({ token }) {
                       {previewing ? 'Hide preview' : 'Preview'}
                     </button>
                     <button style={s.actionBtn}>Edit</button>
-                    <button style={{ ...s.actionBtn, color: '#E57373' }}>Delete</button>
+                    <button
+                      onClick={() => handleDelete(t.id)}
+                      disabled={deleting === t.id}
+                      style={{ ...s.actionBtn, color: '#E57373', opacity: deleting === t.id ? 0.5 : 1 }}
+                    >
+                      {deleting === t.id ? '...' : 'Delete'}
+                    </button>
                   </div>
                   {previewing && (
                     <div style={s.previewBox}>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, isDevMode, insertRow, updateRow, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useBeautician, fetchRows, isDevMode, insertRow, updateRow, DEV_TREATMENTS } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 /**
  * Gift Vouchers — Create, send & redeem digital gift vouchers.
@@ -48,8 +49,8 @@ function generateCode() {
 }
 
 export default function GiftVouchers() {
-  const { beautician } = useBeautician();
-  const [vouchers, setVouchers] = useState([]);
+  const { beautician, loading: bLoading } = useBeautician();
+  const [vouchers, setVouchers] = useState(DEV_VOUCHERS);
   const [tab, setTab] = useState('active');
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -64,14 +65,24 @@ export default function GiftVouchers() {
     message: '', expires_months: 6,
   });
 
-  useEffect(() => { loadData(); }, [beautician]);
+  useEffect(() => { loadData(); }, [beautician, bLoading]);
 
   async function loadData() {
     setLoading(true);
+    if (bLoading || !beautician) {
+      setLoading(false);
+      return;
+    }
     if (isDevMode) {
       setVouchers(DEV_VOUCHERS);
       setLoading(false);
       return;
+    }
+    try {
+      const rows = await fetchRows('gift_vouchers', beautician.id, { order: 'created_at', ascending: false });
+      setVouchers(rows);
+    } catch (err) {
+      logger.error('Failed to load gift vouchers:', err);
     }
     setLoading(false);
   }

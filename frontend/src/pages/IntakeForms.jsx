@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, isDevMode, insertRow, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useBeautician, supabase, isDevMode, insertRow } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 /**
  * Intake & Consent Forms — Pre-appointment questionnaires.
@@ -105,17 +106,36 @@ export default function IntakeForms() {
     fields: [{ id: crypto.randomUUID(), type: 'yes_no', label: '', required: true, options: [] }],
   });
 
-  useEffect(() => { loadData(); }, [beautician]);
+  useEffect(() => { if (beautician) loadData(); }, [beautician]);
 
   async function loadData() {
     setLoading(true);
-    if (isDevMode) {
-      setTemplates(DEV_TEMPLATES);
-      setResponses(DEV_RESPONSES);
+    try {
+      if (isDevMode) {
+        setTemplates(DEV_TEMPLATES);
+        setResponses(DEV_RESPONSES);
+      } else {
+        const { data: tmpl } = await supabase
+          .from('intake_templates')
+          .select('*')
+          .eq('beautician_id', beautician.id)
+          .order('created_at', { ascending: false });
+        setTemplates(tmpl || []);
+
+        const { data: resp } = await supabase
+          .from('intake_responses')
+          .select('*')
+          .eq('beautician_id', beautician.id)
+          .order('submitted_at', { ascending: false });
+        setResponses(resp || []);
+      }
+    } catch (err) {
+      logger.error('Load intake data error:', err);
+      setTemplates(isDevMode ? DEV_TEMPLATES : []);
+      setResponses(isDevMode ? DEV_RESPONSES : []);
+    } finally {
       setLoading(false);
-      return;
     }
-    setLoading(false);
   }
 
   function addField(type) {

@@ -1,13 +1,26 @@
 import { Router } from 'express';
 import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
+import { encrypt, decrypt, isEncrypted } from '../lib/crypto.js';
+import logger from '../lib/logger.js';
 
 const router = Router();
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3001/api/gcal/callback';
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const FRONTEND_URL = process.env.FRONTEND_URL;
+
+// Validate required Google OAuth credentials
+function validateGoogleConfig() {
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
+    const missing = [
+      !GOOGLE_CLIENT_ID && 'GOOGLE_CLIENT_ID',
+      !GOOGLE_CLIENT_SECRET && 'GOOGLE_CLIENT_SECRET',
+    ].filter(Boolean);
+    throw new Error(`Google Calendar not configured. Missing: ${missing.join(', ')}`);
+  }
+}
 
 // ═══════════════════════════════════════════════
 // OAuth flow
@@ -18,6 +31,12 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
  * Initiates the Google Calendar OAuth flow.
  */
 router.get('/connect', requireAuth, (req, res) => {
+  try {
+    validateGoogleConfig();
+  } catch (err) {
+    logger.error({ err }, 'Google Calendar config error');
+    return res.status(500).json({ error: 'Google Calendar integration not available — contact support' });
+  }
   const scopes = [
     'https://www.googleapis.com/auth/calendar.events',
     'https://www.googleapis.com/auth/calendar.readonly',
@@ -63,22 +82,23 @@ router.get('/callback', async (req, res) => {
     const tokens = await tokenRes.json();
     if (!tokenRes.ok) throw new Error(tokens.error_description || 'Token exchange failed');
 
-    // Store tokens (encrypted in production — TODO)
+    // Store tokens (encrypted at rest)
+    const tokenData = {
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      expiry_date: Date.now() + tokens.expires_in * 1000,
+    };
     await supabase
       .from('beauticians')
       .update({
-        google_calendar_tokens: {
-          access_token: tokens.access_token,
-          refresh_token: tokens.refresh_token,
-          expiry_date: Date.now() + tokens.expires_in * 1000,
-        },
+        google_calendar_tokens: encrypt(tokenData),
         google_calendar_connected: true,
       })
       .eq('id', beauticianId);
 
     res.redirect(`${FRONTEND_URL}/settings?gcal=success`);
   } catch (err) {
-    console.error('Google Calendar OAuth error:', err);
+    logger.error({ err }, 'Google Calendar OAuth error');
     res.redirect(`${FRONTEND_URL}/settings?gcal=error`);
   }
 });
@@ -117,39 +137,65 @@ router.get('/status', requireAuth, (req, res) => {
 
 /**
  * Helper: Get a valid access token (refreshing if needed).
+ * Returns null if token is invalid/expired and refresh fails.
+ * Marks integration as disconnected if refresh fails.
  */
 async function getAccessToken(beautician) {
-  const tokens = beautician.google_calendar_tokens;
-  if (!tokens) throw new Error('Not connected to Google Calendar');
+  const raw = beautician.google_calendar_tokens;
+  if (!raw) throw new Error('Not connected to Google Calendar');
+
+  // Decrypt tokens (supports both encrypted strings and legacy plain objects)
+  const tokens = typeof raw === 'string' && isEncrypted(raw) ? decrypt(raw) : raw;
 
   // Refresh if expired
   if (Date.now() >= tokens.expiry_date - 60000) {
-    const res = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_id: GOOGLE_CLIENT_ID,
-        client_secret: GOOGLE_CLIENT_SECRET,
-        refresh_token: tokens.refresh_token,
-        grant_type: 'refresh_token',
-      }),
-    });
+    try {
+      const res = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: GOOGLE_CLIENT_ID,
+          client_secret: GOOGLE_CLIENT_SECRET,
+          refresh_token: tokens.refresh_token,
+          grant_type: 'refresh_token',
+        }),
+      });
 
-    const data = await res.json();
-    if (!res.ok) throw new Error('Token refresh failed');
+      const data = await res.json();
 
-    const updatedTokens = {
-      ...tokens,
-      access_token: data.access_token,
-      expiry_date: Date.now() + data.expires_in * 1000,
-    };
+      // If refresh fails (401, invalid_grant, etc), disconnect the integration
+      if (!res.ok) {
+        const errorMsg = data?.error_description || data?.error || 'Unknown error';
+        logger.warn({ beauticianId: beautician.id, error: errorMsg }, 'Google token refresh failed');
 
-    await supabase
-      .from('beauticians')
-      .update({ google_calendar_tokens: updatedTokens })
-      .eq('id', beautician.id);
+        // Mark integration as disconnected
+        await supabase
+          .from('beauticians')
+          .update({
+            google_calendar_tokens: null,
+            google_calendar_connected: false,
+          })
+          .eq('id', beautician.id);
 
-    return data.access_token;
+        throw new Error('Google Calendar token expired — please reconnect in Settings');
+      }
+
+      const updatedTokens = {
+        ...tokens,
+        access_token: data.access_token,
+        expiry_date: Date.now() + data.expires_in * 1000,
+      };
+
+      await supabase
+        .from('beauticians')
+        .update({ google_calendar_tokens: encrypt(updatedTokens) })
+        .eq('id', beautician.id);
+
+      return data.access_token;
+    } catch (err) {
+      logger.error({ beauticianId: beautician.id, err }, 'Google token refresh exception');
+      throw err;
+    }
   }
 
   return tokens.access_token;
@@ -163,7 +209,15 @@ router.post('/sync', requireAuth, async (req, res) => {
   const { appointment_id } = req.body;
 
   try {
-    const accessToken = await getAccessToken(req.beautician);
+    let accessToken;
+    try {
+      accessToken = await getAccessToken(req.beautician);
+    } catch (err) {
+      if (err.message.includes('token expired')) {
+        return res.status(401).json({ error: err.message, disconnected: true });
+      }
+      throw err;
+    }
 
     const { data: appt } = await supabase
       .from('appointments')
@@ -197,7 +251,21 @@ router.post('/sync', requireAuth, async (req, res) => {
     );
 
     const gcalEvent = await gcalRes.json();
-    if (!gcalRes.ok) throw new Error(gcalEvent.error?.message || 'GCal API error');
+
+    // Handle 401 specifically — token was revoked or access denied
+    if (gcalRes.status === 401) {
+      logger.warn({ beauticianId: req.beautician.id }, 'Google Calendar 401 — access denied');
+      await supabase
+        .from('beauticians')
+        .update({
+          google_calendar_tokens: null,
+          google_calendar_connected: false,
+        })
+        .eq('id', req.beautician.id);
+      return res.status(401).json({ error: 'Google Calendar access denied — please reconnect in Settings', disconnected: true });
+    }
+
+    if (!gcalRes.ok) throw new Error(gcalEvent.error?.message || 'Google Calendar sync failed — check your connection in Settings');
 
     // Store the Google event ID on the appointment
     await supabase
@@ -207,7 +275,7 @@ router.post('/sync', requireAuth, async (req, res) => {
 
     res.json({ success: true, event_id: gcalEvent.id });
   } catch (err) {
-    console.error('GCal sync error:', err);
+    logger.error({ err }, 'GCal sync error');
     res.status(500).json({ error: err.message });
   }
 });
@@ -227,9 +295,22 @@ router.post('/sync-all', requireAuth, async (req, res) => {
       .is('google_event_id', null);
 
     let synced = 0;
+    let errors = 0;
+    let disconnected = false;
+
     for (const appt of (appointments || [])) {
       try {
-        const accessToken = await getAccessToken(req.beautician);
+        let accessToken;
+        try {
+          accessToken = await getAccessToken(req.beautician);
+        } catch (err) {
+          if (err.message.includes('token expired')) {
+            disconnected = true;
+            break;
+          }
+          throw err;
+        }
+
         // Re-fetch full appointment for each sync
         const { data: fullAppt } = await supabase
           .from('appointments')
@@ -258,19 +339,44 @@ router.post('/sync-all', requireAuth, async (req, res) => {
           }
         );
 
+        // Handle 401 specifically
+        if (gcalRes.status === 401) {
+          logger.warn({ beauticianId: req.beautician.id }, 'Google Calendar 401 during sync-all');
+          await supabase
+            .from('beauticians')
+            .update({
+              google_calendar_tokens: null,
+              google_calendar_connected: false,
+            })
+            .eq('id', req.beautician.id);
+          disconnected = true;
+          break;
+        }
+
         const gcalEvent = await gcalRes.json();
         if (gcalRes.ok) {
           await supabase.from('appointments').update({ google_event_id: gcalEvent.id }).eq('id', appt.id);
           synced++;
+        } else {
+          errors++;
+          logger.warn({ appointmentId: appt.id, gcalError: gcalEvent.error?.message }, 'Failed to sync appointment');
         }
       } catch (e) {
-        console.error(`GCal sync-all error for ${appt.id}:`, e.message);
+        errors++;
+        logger.error({ appointmentId: appt.id, err: e }, 'GCal sync-all error');
       }
     }
 
-    res.json({ success: true, synced, total: appointments?.length || 0 });
+    res.json({
+      success: !disconnected,
+      synced,
+      total: appointments?.length || 0,
+      errors,
+      disconnected,
+      message: disconnected ? 'Google Calendar token expired — please reconnect' : undefined,
+    });
   } catch (err) {
-    console.error('GCal sync-all error:', err);
+    logger.error({ err }, 'GCal sync-all error');
     res.status(500).json({ error: err.message });
   }
 });

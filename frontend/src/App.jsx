@@ -4,6 +4,7 @@ import { supabase, isDevMode } from './lib/supabase.js';
 import { useTheme } from './lib/theme.jsx';
 import { useBeautician } from './lib/supabase.js';
 import QuickBook from './components/QuickBook.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 
 // Lazy-loaded pages (code splitting — each becomes its own chunk)
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
@@ -78,6 +79,7 @@ const Integrations = lazy(() => import('./pages/Integrations.jsx'));
 const SMSConfig = lazy(() => import('./pages/SMSConfig.jsx'));
 const APISettings = lazy(() => import('./pages/APISettings.jsx'));
 const Hub = lazy(() => import('./pages/Hub.jsx'));
+const NotFound = lazy(() => import('./pages/NotFound.jsx'));
 
 function PageLoader() {
   return (
@@ -145,6 +147,7 @@ export default function App() {
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/book/:slug" element={<BookingPage />} />
+          <Route path="/book/:slug/confirmed" element={<BookingPage />} />
         </Routes>
       </Suspense>
     );
@@ -181,10 +184,17 @@ export default function App() {
   const showNav = !isAuthRoute && !location.pathname.startsWith('/onboarding');
 
   return (
-    <div style={styles.appShell}>
-      <div style={styles.pageContainer}>
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
+    <ErrorBoundary>
+      <div style={styles.appShell}>
+        {isDevMode && (
+          <div style={styles.devModeBanner}>
+            <span style={{ fontSize: 12, fontWeight: 600 }}>🔧 Running in demo mode</span>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)' }}>— Connect Supabase to see real data</span>
+          </div>
+        )}
+        <div style={styles.pageContainer}>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
             <Route path="/" element={<Dashboard token={token} />} />
             <Route path="/calendar" element={<CalendarView token={token} />} />
             <Route path="/escalations" element={<Escalations />} />
@@ -258,14 +268,15 @@ export default function App() {
               <Onboarding token={token} onComplete={() => navigate('/')} />
             } />
             <Route path="/login" element={<Navigate to="/" replace />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
       </div>
 
       {showNav && <QuickBook />}
       {showNav && <BottomNav current={location.pathname} />}
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }
 
@@ -283,7 +294,7 @@ function BottomNav({ current }) {
     { path: '/', label: 'Home', icon: '🏠' },
     { path: '/calendar', label: 'Calendar', icon: '📅' },
     { path: '/voice', label: 'Florrie', icon: '✨' },
-    { path: '/content', label: 'Content', icon: '📸' },
+    { path: '/money', label: 'Money', icon: '💰' },
     { path: '/hub', label: 'Hub', icon: '🧭' }
   ];
 
@@ -382,6 +393,18 @@ const styles = {
     background: 'var(--accent, #C76B8A)',
     position: 'absolute',
     bottom: -1,
+  },
+
+  devModeBanner: {
+    background: 'linear-gradient(135deg, #2D2A26, #3D3A36)',
+    color: '#fff',
+    padding: '10px 16px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    fontSize: 12,
+    fontFamily: "'DM Sans', -apple-system, sans-serif",
+    borderBottom: '1px solid rgba(255,255,255,0.1)',
   },
 
 };

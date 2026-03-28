@@ -1,5 +1,6 @@
-import Anthropic from 'anthropic';
+import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from '../index.js';
+import logger from '../lib/logger.js';
 
 /**
  * Content Autopilot — the "Content" digital employee.
@@ -295,7 +296,7 @@ export async function publishPost(beauticianId, postId) {
     return { published: true, instagramId: published.id };
 
   } catch (err) {
-    console.error('Instagram publish error:', err);
+    logger.error({ err }, 'Instagram publish error');
     await supabase.from('content_posts').update({ status: 'failed' }).eq('id', postId);
     return { published: false, reason: err.message };
   }

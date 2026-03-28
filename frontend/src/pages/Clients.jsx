@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, insertRow, supabase, isDevMode, DEV_CLIENTS } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 /**
  * Clients — view, search, add, and manage the client list.
@@ -58,10 +59,10 @@ export default function Clients() {
       }
 
       const { data, error } = await q;
-      if (error) console.error('Load clients:', error);
+      if (error) logger.error('Load clients:', error);
       setClients(data || []);
     } catch (err) {
-      console.error('Load clients error:', err);
+      logger.error('Load clients error:', err);
     } finally {
       setLoading(false);
     }
@@ -89,7 +90,7 @@ export default function Clients() {
       });
       setSelected(id);
     } catch (err) {
-      console.error('Client detail error:', err);
+      logger.error('Client detail error:', err);
     }
   }
 
@@ -102,7 +103,7 @@ export default function Clients() {
       setShowAdd(false);
       loadClients();
     } catch (err) {
-      console.error('Add client error:', err);
+      logger.error('Add client error:', err);
     } finally {
       setSaving(false);
     }

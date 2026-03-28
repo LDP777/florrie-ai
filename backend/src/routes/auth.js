@@ -1,19 +1,40 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
+import { validate } from '../middleware/validate.js';
 
 const router = Router();
+
+const signupSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  firstName: z.string().min(1).max(100).trim(),
+  lastName: z.string().max(100).trim().optional().default(''),
+  businessName: z.string().max(200).trim().optional().nullable(),
+});
+
+const profileUpdateSchema = z.object({
+  first_name: z.string().min(1).max(100).trim().optional(),
+  last_name: z.string().max(100).trim().optional(),
+  business_name: z.string().max(200).trim().optional().nullable(),
+  phone: z.string().max(30).trim().optional().nullable(),
+  avatar_url: z.string().url().optional().nullable(),
+  booking_slug: z.string().min(2).max(60).regex(/^[a-z0-9-]+$/, 'Slug must be lowercase alphanumeric with dashes').optional(),
+  working_hours: z.record(z.any()).optional(),
+  brand_color: z.string().max(20).optional(),
+  brand_font: z.string().max(50).optional(),
+  logo_url: z.string().url().optional().nullable(),
+  confidence_threshold: z.number().min(0).max(1).optional(),
+  auto_reply_enabled: z.boolean().optional(),
+}).strict();
 
 /**
  * POST /api/auth/signup
  * Creates a Supabase auth user + beautician profile in one step.
  */
-router.post('/signup', async (req, res) => {
+router.post('/signup', validate(signupSchema), async (req, res) => {
   const { email, password, firstName, lastName, businessName } = req.body;
-
-  if (!email || !password || !firstName) {
-    return res.status(400).json({ error: 'Email, password, and first name are required' });
-  }
 
   // Create auth user
   const { data: authData, error: authError } = await supabase.auth.admin.createUser({
@@ -61,19 +82,8 @@ router.get('/me', requireAuth, (req, res) => {
  * PATCH /api/auth/me
  * Updates the current beautician's profile.
  */
-router.patch('/me', requireAuth, async (req, res) => {
-  const allowedFields = [
-    'first_name', 'last_name', 'business_name', 'phone', 'avatar_url',
-    'booking_slug', 'working_hours', 'brand_color', 'brand_font', 'logo_url',
-    'confidence_threshold', 'auto_reply_enabled'
-  ];
-
-  const updates = {};
-  for (const field of allowedFields) {
-    if (req.body[field] !== undefined) {
-      updates[field] = req.body[field];
-    }
-  }
+router.patch('/me', requireAuth, validate(profileUpdateSchema), async (req, res) => {
+  const updates = { ...req.body };
 
   const { data, error } = await supabase
     .from('beauticians')

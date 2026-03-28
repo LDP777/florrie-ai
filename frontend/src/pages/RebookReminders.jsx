@@ -9,9 +9,10 @@
  *
  * Uses DEV_CLIENTS + synthetic appointment data in dev mode.
  */
-import { useState, useMemo } from 'react';
-import { isDevMode, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useState, useMemo, useEffect } from 'react';
+import { useBeautician, supabase, isDevMode, fetchRows, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
+import logger from '../lib/logger.js';
 
 // ── Mock rebook data ───────────────────────────────────────
 
@@ -75,9 +76,48 @@ function daysSinceLabel(dateStr) {
 
 export default function RebookReminders({ token }) {
   const { dark } = useTheme();
+  const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('due');
+  const [loading, setLoading] = useState(true);
+  const [clients, setClients] = useState(isDevMode ? DEV_REBOOK_CLIENTS : []);
   const [sentIds, setSentIds] = useState(new Set());
   const [selectedTemplate, setSelectedTemplate] = useState('gentle');
+
+  useEffect(() => {
+    if (beautician && !bLoading) loadRebookData();
+  }, [beautician, bLoading]);
+
+  async function loadRebookData() {
+    setLoading(true);
+    try {
+      if (isDevMode) {
+        setClients(DEV_REBOOK_CLIENTS);
+      } else {
+        // Fetch clients with last appointment date
+        const { data } = await supabase
+          .from('clients')
+          .select('*, appointments(created_at, treatment_name)')
+          .eq('beautician_id', beautician.id)
+          .order('created_at', { ascending: false });
+
+        const processedClients = (data || []).map(c => ({
+          id: c.id,
+          name: c.first_name,
+          lastVisit: c.appointments?.[0]?.created_at || c.created_at,
+          treatment: c.appointments?.[0]?.treatment_name || 'Treatment',
+          avgInterval: 28, // Default, could be computed from history
+          phone: !!c.phone_number,
+          status: c.status || 'due',
+        }));
+        setClients(processedClients);
+      }
+    } catch (err) {
+      logger.error('Load rebook data error:', err);
+      setClients(DEV_REBOOK_CLIENTS);
+    } finally {
+      setLoading(false);
+    }
+  }
   const [previewClient, setPreviewClient] = useState(null);
 
   // Settings state
@@ -86,11 +126,15 @@ export default function RebookReminders({ token }) {
   const [sendChannel, setSendChannel] = useState('whatsapp');
   const [remindDaysBefore, setRemindDaysBefore] = useState(3);
 
-  const due = DEV_REBOOK_CLIENTS.filter(c => c.status === 'due');
-  const overdue = DEV_REBOOK_CLIENTS.filter(c => c.status === 'overdue');
-  const dormant = DEV_REBOOK_CLIENTS.filter(c => c.status === 'dormant');
+  const due = clients.filter(c => c.status === 'due');
+  const overdue = clients.filter(c => c.status === 'overdue');
+  const dormant = clients.filter(c => c.status === 'dormant');
 
   const activeList = tab === 'due' ? due : tab === 'overdue' ? overdue : tab === 'dormant' ? dormant : [];
+
+  if (bLoading || loading) {
+    return <div style={s.page}><div style={{ textAlign: 'center', padding: 60, color: '#AAA5A0' }}>Loading...</div></div>;
+  }
 
   function handleSend(clientId) {
     setSentIds(prev => new Set([...prev, clientId]));

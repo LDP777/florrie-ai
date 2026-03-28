@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBeautician, supabase, isDevMode, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
+import SMSUsageWidget from '../components/SMSUsageWidget.jsx';
+import logger from '../lib/logger.js';
 
 /**
  * Dashboard v2 — Operational command centre.
@@ -52,8 +54,8 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [today, setToday] = useState([]);
   const [weeklyPulse, setWeeklyPulse] = useState({ income: 0, expenses: 0, profit: 0, incomeChange: null });
-  const [insights, setInsights] = useState(DEV_INSIGHTS);
-  const [activity, setActivity] = useState(DEV_ACTIVITY);
+  const [insights, setInsights] = useState(isDevMode ? DEV_INSIGHTS : []);
+  const [activity, setActivity] = useState(isDevMode ? DEV_ACTIVITY : []);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -116,6 +118,22 @@ export default function Dashboard() {
       const change = lastInc > 0 ? Math.round(((thisInc - lastInc) / lastInc) * 100) : null;
       setWeeklyPulse({ income: thisInc, expenses: thisExp, profit: thisInc - thisExp, incomeChange: change });
 
+      // Generate real insights from data
+      const realInsights = [];
+      if (change !== null && change > 0) {
+        realInsights.push({ id: 'ri1', icon: '📈', text: `Revenue is up ${change}% this week compared to last. Keep it going.`, type: 'positive' });
+      } else if (change !== null && change < -10) {
+        realInsights.push({ id: 'ri1', icon: '📉', text: `Revenue is down ${Math.abs(change)}% vs last week. Consider sending rebook reminders.`, type: 'action', actionLabel: 'View clients', actionPath: '/clients' });
+      }
+      const todayCount = (apptData || []).length;
+      if (todayCount === 0) {
+        realInsights.push({ id: 'ri2', icon: '📅', text: 'No appointments today. A good day to update your treatment menu or reach out to clients.', type: 'neutral' });
+      } else {
+        const todayRevenue = (apptData || []).reduce((s, a) => s + (a.price_cents || 0), 0);
+        realInsights.push({ id: 'ri2', icon: '💷', text: `${todayCount} appointment${todayCount > 1 ? 's' : ''} today, worth £${(todayRevenue / 100).toFixed(0)} in total.`, type: 'positive' });
+      }
+      if (realInsights.length > 0) setInsights(realInsights);
+
       // AI activity feed
       const { data: actions } = await supabase
         .from('ai_actions')
@@ -133,7 +151,7 @@ export default function Dashboard() {
         })));
       }
     } catch (err) {
-      console.error('Dashboard load error:', err);
+      logger.error('Dashboard load error:', err);
     } finally {
       setLoading(false);
     }
@@ -252,6 +270,9 @@ export default function Dashboard() {
           <span style={{ ...styles.pulseValue, color: '#FF9800' }}>{today.filter(a => a.status === 'pending').length}</span>
         </div>
       </div>
+
+      {/* SMS Usage Widget */}
+      <SMSUsageWidget />
 
       {/* Quick Actions */}
       <div style={styles.quickGrid}>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useBeautician, updateRow, insertRow, isDevMode } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 /**
  * Onboarding — first-run wizard after signup.
@@ -32,6 +33,7 @@ export default function Onboarding({ onComplete }) {
   const { beautician, loading: bLoading, refresh } = useBeautician();
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
 
   // Step 1: Business info
   const [businessName, setBusinessName] = useState('');
@@ -64,7 +66,13 @@ export default function Onboarding({ onComplete }) {
   async function saveBusinessInfo() {
     if (!beautician) return;
     setSaving(true);
+    setError(null);
     try {
+      if (!firstName.trim()) {
+        setError('First name is required');
+        setSaving(false);
+        return;
+      }
       await updateRow('beauticians', beautician.id, {
         first_name: firstName.trim(),
         business_name: businessName.trim()
@@ -72,7 +80,8 @@ export default function Onboarding({ onComplete }) {
       await refresh();
       setStep(2);
     } catch (err) {
-      console.error('Save error:', err);
+      logger.error('Save error:', err);
+      setError('Failed to save. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -81,8 +90,14 @@ export default function Onboarding({ onComplete }) {
   async function saveTreatments() {
     if (!beautician) return;
     setSaving(true);
+    setError(null);
     try {
       const valid = treatments.filter(t => t.name.trim());
+      if (valid.length === 0) {
+        setError('Please add at least one treatment');
+        setSaving(false);
+        return;
+      }
       for (const t of valid) {
         await insertRow('treatments', {
           beautician_id: beautician.id,
@@ -95,7 +110,8 @@ export default function Onboarding({ onComplete }) {
       }
       setStep(3);
     } catch (err) {
-      console.error('Treatment save error:', err);
+      logger.error('Treatment save error:', err);
+      setError('Failed to save treatments. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -104,6 +120,7 @@ export default function Onboarding({ onComplete }) {
   async function saveHours() {
     if (!beautician) return;
     setSaving(true);
+    setError(null);
     try {
       const workingHours = {};
       DAY_KEYS.forEach(day => {
@@ -117,7 +134,8 @@ export default function Onboarding({ onComplete }) {
       await refresh();
       setStep(4);
     } catch (err) {
-      console.error('Hours save error:', err);
+      logger.error('Hours save error:', err);
+      setError('Failed to save hours. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -126,8 +144,14 @@ export default function Onboarding({ onComplete }) {
   async function saveSlug() {
     if (!beautician) return;
     setSaving(true);
+    setError(null);
     try {
       const cleanSlug = slug.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+      if (!cleanSlug) {
+        setError('Booking link cannot be empty');
+        setSaving(false);
+        return;
+      }
       await updateRow('beauticians', beautician.id, {
         booking_slug: cleanSlug,
         onboarding_completed_at: new Date().toISOString()
@@ -135,7 +159,8 @@ export default function Onboarding({ onComplete }) {
       await refresh();
       setStep(5);
     } catch (err) {
-      console.error('Slug save error:', err);
+      logger.error('Slug save error:', err);
+      setError('Failed to save booking link. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -145,11 +170,16 @@ export default function Onboarding({ onComplete }) {
     if (!importFile || !beautician) return;
     setSaving(true);
     setImportStatus(null);
+    setError(null);
 
     try {
       const text = await importFile.text();
       const lines = text.trim().split('\n');
-      if (lines.length < 2) { setImportStatus('No data rows found'); setSaving(false); return; }
+      if (lines.length < 2) {
+        setImportStatus('No data rows found');
+        setSaving(false);
+        return;
+      }
 
       // Simple CSV parsing — expects header row with first_name, last_name, email, phone
       const headerRow = lines[0].toLowerCase();
@@ -176,12 +206,12 @@ export default function Onboarding({ onComplete }) {
           });
           imported++;
         } catch (e) {
-          console.warn('Row import failed:', e);
+          logger.warn('Row import failed:', e);
         }
       }
       setImportStatus(`Imported ${imported} client${imported !== 1 ? 's' : ''}`);
     } catch (err) {
-      setImportStatus('Import failed — check the file format');
+      setError('Import failed — check the file format');
     } finally {
       setSaving(false);
     }
@@ -189,6 +219,13 @@ export default function Onboarding({ onComplete }) {
 
   function finishOnboarding() {
     if (onComplete) onComplete();
+  }
+
+  function skipStep() {
+    setError(null);
+    if (step < 5) {
+      setStep(step + 1);
+    }
   }
 
   // Treatment helpers
@@ -236,6 +273,12 @@ export default function Onboarding({ onComplete }) {
           <p style={styles.stepDesc}>
             Let's get your business set up. This takes about 2 minutes.
           </p>
+
+          {error && (
+            <div style={styles.errorBanner}>
+              <span style={{ fontSize: 13, color: '#C53030', fontWeight: 500 }}>⚠ {error}</span>
+            </div>
+          )}
 
           <div style={styles.formGroup}>
             <label style={styles.formLabel}>Your first name</label>
@@ -285,6 +328,12 @@ export default function Onboarding({ onComplete }) {
           <p style={styles.stepDesc}>
             Add the services you offer. You can always add more later.
           </p>
+
+          {error && (
+            <div style={styles.errorBanner}>
+              <span style={{ fontSize: 13, color: '#C53030', fontWeight: 500 }}>⚠ {error}</span>
+            </div>
+          )}
 
           {treatments.map((t, idx) => (
             <div key={idx} style={styles.treatmentCard}>
@@ -364,6 +413,9 @@ export default function Onboarding({ onComplete }) {
           >
             {saving ? 'Saving...' : 'Next'}
           </button>
+          <button onClick={skipStep} style={styles.skipBtn}>
+            Skip for now
+          </button>
         </div>
       )}
 
@@ -374,6 +426,12 @@ export default function Onboarding({ onComplete }) {
           <p style={styles.stepDesc}>
             When are you available for bookings?
           </p>
+
+          {error && (
+            <div style={styles.errorBanner}>
+              <span style={{ fontSize: 13, color: '#C53030', fontWeight: 500 }}>⚠ {error}</span>
+            </div>
+          )}
 
           {DAY_KEYS.map((day, idx) => (
             <div key={day} style={styles.dayRow}>
@@ -418,6 +476,9 @@ export default function Onboarding({ onComplete }) {
           >
             {saving ? 'Saving...' : 'Next'}
           </button>
+          <button onClick={skipStep} style={styles.skipBtn}>
+            Skip for now
+          </button>
         </div>
       )}
 
@@ -428,6 +489,12 @@ export default function Onboarding({ onComplete }) {
           <p style={styles.stepDesc}>
             Clients will use this link to book with you.
           </p>
+
+          {error && (
+            <div style={styles.errorBanner}>
+              <span style={{ fontSize: 13, color: '#C53030', fontWeight: 500 }}>⚠ {error}</span>
+            </div>
+          )}
 
           <div style={styles.slugPreview}>
             <span style={styles.slugPrefix}>florrie.ai/book/</span>
@@ -460,6 +527,12 @@ export default function Onboarding({ onComplete }) {
           <p style={styles.stepDesc}>
             Switching takes 2 minutes. Export your client list and upload it here.
           </p>
+
+          {error && (
+            <div style={styles.errorBanner}>
+              <span style={{ fontSize: 13, color: '#C53030', fontWeight: 500 }}>⚠ {error}</span>
+            </div>
+          )}
 
           {/* Import from Timely — branded */}
           <div style={styles.importGuide}>
@@ -517,6 +590,11 @@ export default function Onboarding({ onComplete }) {
           >
             {importStatus ? 'Done — Go to Dashboard' : 'Skip — Go to Dashboard'}
           </button>
+          {!importStatus && (
+            <button onClick={skipStep} style={styles.skipBtn}>
+              Skip this step
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -717,5 +795,28 @@ const styles = {
     border: '1.5px dashed #E0DBD5'
   },
   fileInput: { marginBottom: 12, fontSize: 13 },
-  importResult: { fontSize: 13, color: '#4CAF50', marginTop: 10, fontWeight: 500 }
+  importResult: { fontSize: 13, color: '#4CAF50', marginTop: 10, fontWeight: 500 },
+
+  // Error and skip
+  errorBanner: {
+    background: '#FEF2F2',
+    border: '1px solid #FECACA',
+    borderRadius: 10,
+    padding: '12px 14px',
+    marginBottom: 16,
+  },
+  skipBtn: {
+    width: '100%',
+    padding: '12px 0',
+    borderRadius: 10,
+    border: 'none',
+    background: 'transparent',
+    color: '#AAA5A0',
+    fontSize: 13,
+    fontWeight: 500,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    marginTop: 8,
+    textDecoration: 'underline',
+  }
 };

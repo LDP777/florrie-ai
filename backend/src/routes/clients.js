@@ -1,17 +1,71 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
+import { validate } from '../middleware/validate.js';
+import { refreshAllIntelligence } from '../services/client-intelligence.js';
 
 const router = Router();
 
+const createClientSchema = z.object({
+  first_name: z.string().min(1, 'First name is required').max(100).trim(),
+  last_name: z.string().max(100).trim().optional().nullable(),
+  email: z.string().email('Invalid email').optional().nullable(),
+  phone: z.string().max(30).trim().optional().nullable(),
+  preferred_channel: z.enum(['whatsapp', 'sms', 'email']).optional().default('whatsapp'),
+  notes: z.string().max(5000).optional().nullable(),
+});
+
+const updateClientSchema = z.object({
+  first_name: z.string().min(1).max(100).trim().optional(),
+  last_name: z.string().max(100).trim().optional().nullable(),
+  email: z.string().email().optional().nullable(),
+  phone: z.string().max(30).trim().optional().nullable(),
+  preferred_channel: z.enum(['whatsapp', 'sms', 'email']).optional(),
+  marketing_consent: z.boolean().optional(),
+  health_data_consent: z.boolean().optional(),
+  notes: z.string().max(5000).optional().nullable(),
+  status: z.enum(['new', 'active', 'dormant', 'vip']).optional(),
+  preferences: z.record(z.any()).optional().nullable(),
+  life_events: z.record(z.any()).optional().nullable(),
+}).strict();
+
+const importClientsSchema = z.object({
+  clients: z.array(z.object({
+    first_name: z.string().optional(),
+    firstName: z.string().optional(),
+    last_name: z.string().optional(),
+    lastName: z.string().optional(),
+    name: z.string().optional(),
+    email: z.string().email().optional().nullable(),
+    phone: z.string().optional().nullable(),
+    mobile: z.string().optional().nullable(),
+    notes: z.string().optional().nullable(),
+    id: z.any().optional(),
+    external_id: z.any().optional(),
+  })).min(1, 'Provide at least one client'),
+  source: z.enum(['fresha', 'timely', 'csv']).optional().default('csv'),
+});
+
 /**
  * GET /api/clients
- * List all clients. Supports ?status=dormant&search=sarah
+ * List all clients. Supports pagination and filtering.
+ * Query params:
+ *   - page=1 (default 1)
+ *   - per_page=25 (default 25, max 100)
+ *   - status=dormant
+ *   - search=sarah
  */
 router.get('/', requireAuth, async (req, res) => {
+  // Pagination params
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const per_page = Math.min(100, Math.max(1, parseInt(req.query.per_page) || 25));
+  const offset = (page - 1) * per_page;
+
+  // Build query
   let query = supabase
     .from('clients')
-    .select('*')
+    .select('*', { count: 'exact' })
     .eq('beautician_id', req.beautician.id)
     .order('last_visit_at', { ascending: false, nullsFirst: false });
 
@@ -23,9 +77,22 @@ router.get('/', requireAuth, async (req, res) => {
     query = query.or(`first_name.ilike.%${req.query.search}%,last_name.ilike.%${req.query.search}%,email.ilike.%${req.query.search}%`);
   }
 
-  const { data, error } = await query;
+  // Apply pagination
+  const { data, error, count } = await query.range(offset, offset + per_page - 1);
   if (error) return res.status(500).json({ error: error.message });
-  res.json({ clients: data });
+
+  const total = count || 0;
+  const total_pages = Math.ceil(total / per_page);
+
+  res.json({
+    data: data || [],
+    pagination: {
+      page,
+      per_page,
+      total,
+      total_pages
+    }
+  });
 });
 
 /**
@@ -65,12 +132,8 @@ router.get('/:id', requireAuth, async (req, res) => {
  * POST /api/clients
  * Create a new client.
  */
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', requireAuth, validate(createClientSchema), async (req, res) => {
   const { first_name, last_name, email, phone, preferred_channel, notes } = req.body;
-
-  if (!first_name) {
-    return res.status(400).json({ error: 'First name is required' });
-  }
 
   const { data, error } = await supabase
     .from('clients')
@@ -94,17 +157,8 @@ router.post('/', requireAuth, async (req, res) => {
 /**
  * PATCH /api/clients/:id
  */
-router.patch('/:id', requireAuth, async (req, res) => {
-  const allowedFields = [
-    'first_name', 'last_name', 'email', 'phone', 'preferred_channel',
-    'marketing_consent', 'health_data_consent', 'notes', 'status',
-    'preferences', 'life_events'
-  ];
-
-  const updates = {};
-  for (const field of allowedFields) {
-    if (req.body[field] !== undefined) updates[field] = req.body[field];
-  }
+router.patch('/:id', requireAuth, validate(updateClientSchema), async (req, res) => {
+  const updates = { ...req.body };
 
   // Track consent timestamps
   if (req.body.marketing_consent !== undefined) {
@@ -130,12 +184,8 @@ router.patch('/:id', requireAuth, async (req, res) => {
  * POST /api/clients/import
  * Bulk import clients from CSV (Fresha/Timely format).
  */
-router.post('/import', requireAuth, async (req, res) => {
-  const { clients, source } = req.body; // source: 'fresha', 'timely', 'csv'
-
-  if (!Array.isArray(clients) || clients.length === 0) {
-    return res.status(400).json({ error: 'Provide an array of clients' });
-  }
+router.post('/import', requireAuth, validate(importClientsSchema), async (req, res) => {
+  const { clients, source } = req.body;
 
   const records = clients.map(c => ({
     beautician_id: req.beautician.id,
@@ -156,6 +206,25 @@ router.post('/import', requireAuth, async (req, res) => {
 
   if (error) return res.status(500).json({ error: error.message });
   res.json({ imported: data.length, clients: data });
+});
+
+/**
+ * POST /api/clients/refresh-intelligence
+ * Refresh client intelligence for all clients of this beautician.
+ * Recalculates: visits, spend, booking gaps, churn risk, etc.
+ */
+router.post('/refresh-intelligence', requireAuth, async (req, res) => {
+  try {
+    const result = await refreshAllIntelligence(req.beautician.id);
+    res.json({
+      success: true,
+      total_clients: result.count,
+      completed: result.completed,
+      message: `Refreshed intelligence for ${result.completed}/${result.count} clients`
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 export default router;

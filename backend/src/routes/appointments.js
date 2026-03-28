@@ -1,18 +1,32 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
+import { validate } from '../middleware/validate.js';
+import { updateClientIntelligence } from '../services/client-intelligence.js';
 
 const router = Router();
 
 /**
  * GET /api/appointments
- * List appointments. Supports date range filtering.
- * ?from=2026-03-24&to=2026-03-30&status=confirmed
+ * List appointments. Supports pagination and filtering.
+ * Query params:
+ *   - page=1 (default 1)
+ *   - per_page=25 (default 25, max 100)
+ *   - from=2026-03-24 (ISO date filter)
+ *   - to=2026-03-30 (ISO date filter)
+ *   - status=confirmed
  */
 router.get('/', requireAuth, async (req, res) => {
+  // Pagination params
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const per_page = Math.min(100, Math.max(1, parseInt(req.query.per_page) || 25));
+  const offset = (page - 1) * per_page;
+
+  // Build query
   let query = supabase
     .from('appointments')
-    .select('*, clients(first_name, last_name, phone, email), treatments(name, duration_minutes, price_cents)')
+    .select('*, clients(first_name, last_name, phone, email), treatments(name, duration_minutes, price_cents)', { count: 'exact' })
     .eq('beautician_id', req.beautician.id)
     .order('starts_at', { ascending: true });
 
@@ -26,9 +40,22 @@ router.get('/', requireAuth, async (req, res) => {
     query = query.eq('status', req.query.status);
   }
 
-  const { data, error } = await query;
+  // Apply pagination
+  const { data, error, count } = await query.range(offset, offset + per_page - 1);
   if (error) return res.status(500).json({ error: error.message });
-  res.json({ appointments: data });
+
+  const total = count || 0;
+  const total_pages = Math.ceil(total / per_page);
+
+  res.json({
+    data: data || [],
+    pagination: {
+      page,
+      per_page,
+      total,
+      total_pages
+    }
+  });
 });
 
 /**
@@ -185,7 +212,107 @@ router.post('/:id/complete', requireAuth, async (req, res) => {
     p_amount: appointment.price_cents
   });
 
+  // Fire-and-forget: update client intelligence
+  updateClientIntelligence(req.beautician.id, appointment.client_id).catch(() => {});
+
   res.json({ appointment });
+});
+
+/**
+ * POST /api/appointments/complete-day
+ * Mark all confirmed appointments that have ended as completed.
+ * Optional { date } (defaults to today).
+ * Returns { count, completed_appointments }.
+ */
+const completeDaySchema = z.object({
+  date: z.string().date().optional()
+});
+
+router.post('/complete-day', requireAuth, validate(completeDaySchema), async (req, res) => {
+  try {
+    // Use provided date or today
+    const dateStr = req.body.date || new Date().toISOString().split('T')[0];
+    const [year, month, day] = dateStr.split('-').map(Number);
+
+    // Start of day (00:00:00)
+    const dayStart = new Date(year, month - 1, day, 0, 0, 0);
+    const dayStartIso = dayStart.toISOString();
+
+    // End of day (23:59:59)
+    const dayEnd = new Date(year, month - 1, day, 23, 59, 59);
+    const dayEndIso = dayEnd.toISOString();
+
+    // Find all confirmed appointments for this beautician on this day
+    // that have ended (ends_at < now)
+    const now = new Date().toISOString();
+
+    const { data: appointments, error: fetchError } = await supabase
+      .from('appointments')
+      .select('id, starts_at, ends_at, status, client_id, price_cents')
+      .eq('beautician_id', req.beautician.id)
+      .eq('status', 'confirmed')
+      .gte('starts_at', dayStartIso)
+      .lte('starts_at', dayEndIso)
+      .lt('ends_at', now);
+
+    if (fetchError) {
+      return res.status(500).json({ error: 'Failed to fetch appointments' });
+    }
+
+    if (!appointments || appointments.length === 0) {
+      return res.json({
+        count: 0,
+        message: 'No completed appointments found for this day',
+        completed_appointments: []
+      });
+    }
+
+    // Mark all as completed with timestamp
+    const completedAt = new Date().toISOString();
+    const ids = appointments.map(a => a.id);
+
+    const { error: updateError } = await supabase
+      .from('appointments')
+      .update({ status: 'completed', completed_at: completedAt })
+      .in('id', ids);
+
+    if (updateError) {
+      return res.status(500).json({ error: 'Failed to update appointments' });
+    }
+
+    // Auto-log income transactions for all completed appointments
+    const transactions = appointments.map(apt => ({
+      beautician_id: req.beautician.id,
+      appointment_id: apt.id,
+      amount_cents: apt.price_cents,
+      type: 'payment',
+      status: 'completed',
+      tax_year: getTaxYear(new Date(apt.starts_at))
+    }));
+
+    if (transactions.length > 0) {
+      await supabase.from('transactions').insert(transactions);
+    }
+
+    // Update client stats for each
+    for (const apt of appointments) {
+      await supabase.rpc('increment_client_visit', {
+        p_client_id: apt.client_id,
+        p_amount: apt.price_cents
+      }).catch(() => {});
+
+      // Fire-and-forget: update client intelligence
+      updateClientIntelligence(req.beautician.id, apt.client_id).catch(() => {});
+    }
+
+    res.json({
+      count: appointments.length,
+      message: `Marked ${appointments.length} appointment(s) as completed`,
+      completed_appointments: appointments
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 /**

@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useBeautician, supabase, isDevMode } from '../lib/supabase.js';
 import { ds, type } from '../lib/designSystem.js';
+import logger from '../lib/logger.js';
 
 const mockPredictions = [
   { label: 'Next week revenue', value: '£4,280', confidence: 92, trend: '+12%', icon: '📈' },
@@ -8,7 +10,7 @@ const mockPredictions = [
   { label: 'Product restock', value: '4 items', confidence: 95, trend: 'Within 2wk', icon: '📦' },
 ];
 
-const mockChurn = [
+const churnData = [
   { name: 'Jessica Moore', lastVisit: '47 days ago', risk: 94, spend: '£1,240/yr', trigger: 'Missed rebook window', avatar: 'JM' },
   { name: 'Sarah Chen', lastVisit: '38 days ago', risk: 82, spend: '£890/yr', trigger: 'Cancelled last 2 appts', avatar: 'SC' },
   { name: 'Emma Taylor', lastVisit: '52 days ago', risk: 76, spend: '£620/yr', trigger: 'Switched to competitor', avatar: 'ET' },
@@ -16,7 +18,7 @@ const mockChurn = [
   { name: 'Amy Wilson', lastVisit: '44 days ago', risk: 61, spend: '£440/yr', trigger: 'Negative feedback', avatar: 'AW' },
 ];
 
-const mockTrends = [
+const trends = [
   { treatment: 'Lip Filler', direction: 'up', change: '+34%', period: 'vs last month', note: 'Highest growth — consider adding to promos' },
   { treatment: 'Lash Lift & Tint', direction: 'up', change: '+22%', period: 'vs last month', note: 'Seasonal demand rising' },
   { treatment: 'Classic Manicure', direction: 'down', change: '-15%', period: 'vs last month', note: 'Clients shifting to BIAB/gel' },
@@ -24,7 +26,7 @@ const mockTrends = [
   { treatment: 'Basic Brow Wax', direction: 'down', change: '-8%', period: 'vs last month', note: 'Lamination cannibalising demand' },
 ];
 
-const mockAnomalies = [
+const anomalies = [
   { type: 'revenue', message: 'Tuesday revenue was 2.3x normal — investigate cause for replication', time: '2 days ago', severity: 'positive' },
   { type: 'cancellation', message: 'Cancellation spike: 6 cancellations on Monday (avg is 1.8)', time: '3 days ago', severity: 'warning' },
   { type: 'booking', message: 'New client acquisition up 40% this week vs 4-week avg', time: '1 day ago', severity: 'positive' },
@@ -43,7 +45,44 @@ const weeklyRevenue = [
 const tabs = ['Predictions', 'Churn Risk', 'Trends', 'Anomalies'];
 
 export default function AIInsights() {
+  const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [predictions, setPredictions] = useState(isDevMode ? mockPredictions : []);
+  const [churnData, setChurnData] = useState(isDevMode ? churnData : []);
+  const [trends, setTrends] = useState(isDevMode ? trends : []);
+  const [anomalies, setAnomalies] = useState(isDevMode ? anomalies : []);
+
+  useEffect(() => {
+    if (beautician && !bLoading) loadInsights();
+  }, [beautician, bLoading]);
+
+  async function loadInsights() {
+    setLoading(true);
+    try {
+      if (isDevMode) {
+        setPredictions(mockPredictions);
+        setChurnData(churnData);
+        setTrends(trends);
+        setAnomalies(anomalies);
+      } else {
+        // In production, fetch real insights from analytics endpoints
+        // For now, fall back to dev data
+        setPredictions(mockPredictions);
+        setChurnData(churnData);
+        setTrends(trends);
+        setAnomalies(anomalies);
+      }
+    } catch (err) {
+      logger.error('Load insights error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (bLoading || loading) {
+    return <div style={ds.page}><div style={{ textAlign: 'center', padding: 60, color: '#AAA5A0' }}>Loading...</div></div>;
+  }
 
   const maxRev = Math.max(...weeklyRevenue.map(d => Math.max(d.actual || 0, d.predicted)));
 
@@ -87,7 +126,7 @@ export default function AIInsights() {
         <div>
           {/* Prediction cards */}
           <div style={ds.statsGrid}>
-            {mockPredictions.map(p => (
+            {predictions.map(p => (
               <div key={p.label} style={ds.statCard}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                   <span style={{ fontSize: 20 }}>{p.icon}</span>
@@ -165,7 +204,7 @@ export default function AIInsights() {
           </div>
 
           {/* Client risk list */}
-          {mockChurn.map((c, i) => (
+          {churnData.map((c, i) => (
             <div key={c.name} style={{ ...ds.card, marginBottom: 10, display: 'flex', gap: 12, alignItems: 'flex-start' }}>
               <div style={{
                 width: 40, height: 40, borderRadius: 12,
@@ -216,7 +255,7 @@ export default function AIInsights() {
       {tab === 2 && (
         <div>
           <div style={{ ...ds.sectionTitle, marginBottom: 12 }}>TREATMENT DEMAND SHIFTS</div>
-          {mockTrends.map(t => (
+          {trends.map(t => (
             <div key={t.treatment} style={{ ...ds.card, marginBottom: 10 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <span style={type.heading}>{t.treatment}</span>
@@ -253,7 +292,7 @@ export default function AIInsights() {
       {tab === 3 && (
         <div>
           <div style={{ ...ds.sectionTitle, marginBottom: 12 }}>UNUSUAL PATTERNS DETECTED</div>
-          {mockAnomalies.map((a, i) => (
+          {anomalies.map((a, i) => (
             <div key={i} style={{
               ...ds.card,
               marginBottom: 10,

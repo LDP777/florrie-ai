@@ -5,8 +5,8 @@
  * appointments, messages, notes, payments, feedback, consent —
  * so Ellie never walks into an appointment blind.
  */
-import { useState } from 'react';
-import { isDevMode } from '../lib/supabase.js';
+import { useState, useEffect } from 'react';
+import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
 
 const DEV_CLIENTS_FULL = [
   { id: 'c1', name: 'Shauna', visits: 8, totalSpent: 32000, since: '2025-09-15', tags: ['VIP', 'Regular'] },
@@ -58,19 +58,63 @@ const TYPE_CONFIG = {
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 
 export default function ClientTimeline({ token }) {
+  const { beautician, loading: bLoading } = useBeautician();
   const [selectedClient, setSelectedClient] = useState('c1');
   const [filterType, setFilterType] = useState('all');
   const [expanded, setExpanded] = useState(null);
+  const [clients, setClients] = useState(DEV_CLIENTS_FULL);
+  const [allEvents, setAllEvents] = useState({});
 
-  const client = DEV_CLIENTS_FULL.find(c => c.id === selectedClient);
-  const allEvents = (DEV_EVENTS[selectedClient] || []).sort((a, b) => new Date(b.date) - new Date(a.date));
-  const events = filterType === 'all' ? allEvents : allEvents.filter(e => e.type === filterType);
+  // Fetch clients and their appointment history
+  useEffect(() => {
+    if (bLoading || !beautician) return;
+    if (isDevMode) {
+      setClients(DEV_CLIENTS_FULL);
+      setAllEvents(DEV_EVENTS);
+      return;
+    }
+
+    fetchRows('clients', beautician.id)
+      .then(rows => {
+        setClients(rows.map(c => ({
+          id: c.id,
+          name: c.first_name + (c.last_name ? ' ' + c.last_name : ''),
+          visits: c.total_visits || 0,
+          totalSpent: c.total_spend_cents || 0,
+          since: c.created_at?.slice(0, 10) || '',
+          tags: c.tags || [],
+        })));
+      });
+
+    // Fetch appointments as events for all clients
+    fetchRows('appointments', beautician.id)
+      .then(appts => {
+        const byClient = {};
+        appts.forEach(a => {
+          if (!byClient[a.client_id]) byClient[a.client_id] = [];
+          byClient[a.client_id].push({
+            id: a.id,
+            type: 'appointment',
+            date: a.start_time || '',
+            title: a.treatment_name || '',
+            detail: a.notes || '',
+            amount: a.price_cents || 0,
+            status: a.status || 'completed',
+          });
+        });
+        setAllEvents(byClient);
+      });
+  }, [beautician, bLoading]);
+
+  const client = clients.find(c => c.id === selectedClient);
+  const clientEvents = (allEvents[selectedClient] || []).sort((a, b) => new Date(b.date) - new Date(a.date));
+  const events = filterType === 'all' ? clientEvents : clientEvents.filter(e => e.type === filterType);
 
   // Client stats
-  const appointments = allEvents.filter(e => e.type === 'appointment');
-  const totalPaid = allEvents.filter(e => e.type === 'payment').reduce((s, e) => s + (e.amount || 0), 0);
+  const appointments = clientEvents.filter(e => e.type === 'appointment');
+  const totalPaid = clientEvents.filter(e => e.type === 'payment').reduce((s, e) => s + (e.amount || 0), 0);
   const avgRating = (() => {
-    const fb = allEvents.filter(e => e.type === 'feedback');
+    const fb = clientEvents.filter(e => e.type === 'feedback');
     if (fb.length === 0) return null;
     const stars = fb.map(f => { const m = f.title.match(/(\d)★/); return m ? parseInt(m[1]) : 0; }).filter(Boolean);
     return stars.length ? (stars.reduce((a, b) => a + b, 0) / stars.length).toFixed(1) : null;
@@ -91,7 +135,7 @@ export default function ClientTimeline({ token }) {
 
       {/* Client selector */}
       <div style={S.clientRow}>
-        {DEV_CLIENTS_FULL.map(c => (
+        {clients.map(c => (
           <button key={c.id} onClick={() => { setSelectedClient(c.id); setExpanded(null); }} style={{ ...S.clientChip, ...(selectedClient === c.id ? S.clientActive : {}) }}>
             <div style={{ ...S.clientAvatar, background: selectedClient === c.id ? '#fff' : '#F0E6ED', color: selectedClient === c.id ? '#C76B8A' : '#C76B8A' }}>{c.name[0]}</div>
             <span>{c.name}</span>

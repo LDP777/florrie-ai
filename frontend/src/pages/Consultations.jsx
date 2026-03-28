@@ -6,8 +6,9 @@
  * regular appointments: different duration, different questions,
  * different follow-up flow.
  */
-import { useState } from 'react';
-import { isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useState, useEffect } from 'react';
+import { useBeautician, fetchRows, updateRow, isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 const DEV_CONSULTS = [
   {
@@ -76,10 +77,12 @@ const OUTCOME_CONFIG = {
 };
 
 export default function Consultations({ token }) {
+  const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('upcoming');
   const [expanded, setExpanded] = useState(null);
   const [showBook, setShowBook] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [consultations, setConsultations] = useState(DEV_CONSULTS);
   const [settings, setSettings] = useState({
     duration: 30,
     fee: 0,
@@ -92,21 +95,48 @@ export default function Consultations({ token }) {
   });
   const [bookForm, setBookForm] = useState({ client: '', treatment: '', date: '', time: '', type: 'in-person', notes: '' });
 
-  const upcoming = DEV_CONSULTS.filter(c => c.status === 'confirmed');
-  const past = DEV_CONSULTS.filter(c => c.status === 'completed' || c.status === 'no-show' || c.status === 'cancelled');
+  // Fetch consultations on mount
+  useEffect(() => {
+    if (bLoading || !beautician) return;
+    if (isDevMode) {
+      setConsultations(DEV_CONSULTS);
+      return;
+    }
+    fetchRows('consultations', beautician.id, { order: 'scheduled_date', ascending: false })
+      .then(rows => {
+        setConsultations(rows.map(c => ({
+          id: c.id,
+          client: c.client_name || 'Client',
+          treatment: c.treatment_name || '',
+          date: c.scheduled_date?.slice(0, 10) || '',
+          time: c.scheduled_date?.slice(11, 16) || '',
+          status: c.status || 'confirmed',
+          type: c.type || 'in-person',
+          notes: c.notes || '',
+          questions: c.screening_questions || [],
+          answers: c.screening_answers || {},
+          outcome: c.outcome || null,
+          followUp: c.followup_appointment_id ? { appointment_id: c.followup_appointment_id } : null,
+        })));
+      })
+      .catch(err => logger.error('Failed to load consultations:', err));
+  }, [beautician, bLoading]);
+
+  const upcoming = consultations.filter(c => c.status === 'confirmed');
+  const past = consultations.filter(c => c.status === 'completed' || c.status === 'no-show' || c.status === 'cancelled');
 
   const stats = {
     upcoming: upcoming.length,
-    completed: DEV_CONSULTS.filter(c => c.status === 'completed').length,
-    conversionRate: Math.round((DEV_CONSULTS.filter(c => c.outcome === 'approved').length / DEV_CONSULTS.filter(c => c.status === 'completed').length) * 100) || 0,
-    noShows: DEV_CONSULTS.filter(c => c.status === 'no-show').length,
+    completed: consultations.filter(c => c.status === 'completed').length,
+    conversionRate: Math.round((consultations.filter(c => c.outcome === 'approved').length / consultations.filter(c => c.status === 'completed').length) * 100) || 0,
+    noShows: consultations.filter(c => c.status === 'no-show').length,
   };
 
   return (
     <div style={S.page}>
       <div style={S.header}>
         <h1 style={S.title}>Consultations</h1>
-        <button style={S.bookBtn} onClick={() => setShowBook(true)}>+ Book Consult</button>
+        {upcoming.length > 0 && <button style={S.bookBtn} onClick={() => setShowBook(true)}>+ Book Consult</button>}
       </div>
 
       {/* Stats */}

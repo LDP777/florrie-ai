@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, isDevMode, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
+import { useBeautician, supabase, isDevMode, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 /**
  * Business Hours Exceptions — Holidays, sick days & one-off closures.
@@ -103,16 +104,27 @@ export default function HoursExceptions() {
     notify_clients: true,
   });
 
-  useEffect(() => { loadData(); }, [beautician]);
+  useEffect(() => { if (beautician) loadData(); }, [beautician]);
 
   async function loadData() {
     setLoading(true);
-    if (isDevMode) {
-      setExceptions(DEV_EXCEPTIONS);
+    try {
+      if (isDevMode) {
+        setExceptions(DEV_EXCEPTIONS);
+      } else {
+        const { data } = await supabase
+          .from('hours_exceptions')
+          .select('*')
+          .eq('beautician_id', beautician.id)
+          .order('date', { ascending: false });
+        setExceptions(data || []);
+      }
+    } catch (err) {
+      logger.error('Load exceptions error:', err);
+      setExceptions(isDevMode ? DEV_EXCEPTIONS : []);
+    } finally {
       setLoading(false);
-      return;
     }
-    setLoading(false);
   }
 
   async function handleSave() {

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase, isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
+import { API_BASE } from '../lib/config.js';
 
 /**
  * BookingPage — the public-facing branded booking link.
@@ -19,11 +20,16 @@ const STEPS = ['Treatment', 'Date & Time', 'Your Details', 'Confirm'];
 
 export default function BookingPage() {
   const { slug } = useParams();
+  const location = useLocation();
+  const isConfirmedReturn = location.pathname.endsWith('/confirmed');
+  const isCancelled = new URLSearchParams(location.search).get('cancelled') === 'true';
+
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState(null);
-  const [success, setSuccess] = useState(null);
+  const [error, setError] = useState(isCancelled ? 'Payment was cancelled. Your booking slot is held for 15 minutes — you can try again.' : null);
+  const [success, setSuccess] = useState(isConfirmedReturn ? { depositPaid: true } : null);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   // Data
   const [beautician, setBeautician] = useState(null);
@@ -154,7 +160,7 @@ export default function BookingPage() {
     loadSlots();
   }, [selectedDate, selectedTreatment, beautician]);
 
-  // Submit booking
+  // Submit booking via backend API (handles client creation, conflict checks, deposits)
   async function handleBook() {
     setSubmitting(true);
     setError(null);
@@ -170,79 +176,86 @@ export default function BookingPage() {
         return;
       }
 
-      // Find or create client
-      const nameParts = clientDetails.name.trim().split(/\s+/);
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.slice(1).join(' ') || '';
-
-      let clientId = null;
-      if (clientDetails.phone) {
-        // Check if client exists by phone
-        const { data: existing } = await supabase
-          .from('clients')
-          .select('id')
-          .eq('beautician_id', beautician.id)
-          .eq('phone', clientDetails.phone)
-          .maybeSingle();
-
-        if (existing) {
-          clientId = existing.id;
-        }
-      }
-
-      if (!clientId) {
-        const { data: newClient, error: cErr } = await supabase
-          .from('clients')
-          .insert({
-            beautician_id: beautician.id,
-            first_name: firstName,
-            last_name: lastName,
-            email: clientDetails.email || null,
-            phone: clientDetails.phone,
-            status: 'active',
-          })
-          .select('id')
-          .single();
-
-        if (cErr) throw new Error('Failed to create client record');
-        clientId = newClient.id;
-      }
-
-      // Create appointment
-      const { data: appt, error: aErr } = await supabase
-        .from('appointments')
-        .insert({
-          beautician_id: beautician.id,
-          client_id: clientId,
+      // Call backend API — handles client lookup/creation, RLS, conflict check, deposit flow
+      const res = await fetch(`${API_BASE}/api/booking/${slug}/book`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           treatment_id: selectedTreatment.id,
           starts_at: selectedSlot.starts_at,
-          duration_minutes: selectedTreatment.duration_minutes,
-          buffer_minutes: selectedTreatment.buffer_minutes || 0,
-          price_cents: selectedTreatment.price_cents,
-          status: 'confirmed',
-          booked_via: 'booking_page',
+          client_name: clientDetails.name,
+          client_email: clientDetails.email || null,
+          client_phone: clientDetails.phone,
           notes: clientDetails.notes || null,
-          client_notes: needsConsultation ? JSON.stringify(consultationAnswers) : null,
-        })
-        .select()
-        .single();
+          consultation: needsConsultation ? consultationAnswers : null,
+        }),
+      });
 
-      if (aErr) throw new Error('Failed to create booking');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Booking failed');
+
+      // If deposit required and checkout URL returned, redirect to Stripe
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url;
+        return;
+      }
 
       setSuccess({
         treatment: selectedTreatment.name,
         date: new Date(selectedSlot.starts_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }),
         time: selectedSlot.display,
         price: `£${(selectedTreatment.price_cents / 100).toFixed(2)}`,
-        deposit: selectedTreatment.deposit_cents > 0
-          ? `£${(selectedTreatment.deposit_cents / 100).toFixed(2)}`
-          : null,
+        deposit: data.booking?.deposit || null,
       });
     } catch (err) {
       setError(err.message || 'Booking failed');
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // Validation helpers
+  function isValidEmail(email) {
+    if (!email) return true; // Optional field
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(email);
+  }
+
+  function isValidPhone(phone) {
+    const cleaned = phone.replace(/[^\d]/g, '');
+    return cleaned.length >= 10; // At least 10 digits
+  }
+
+  function validateStep(currentStep) {
+    const errors = {};
+
+    if (currentStep === 0) {
+      if (!selectedTreatment) {
+        errors.treatment = 'Please select a treatment to continue';
+      }
+    } else if (currentStep === 1) {
+      if (!selectedDate) {
+        errors.date = 'Please select a date';
+      }
+      if (!selectedSlot) {
+        errors.slot = 'Please select a time slot';
+      }
+    } else if (currentStep === 2) {
+      if (!clientDetails.name || !clientDetails.name.trim()) {
+        errors.name = 'Name is required';
+      }
+      if (!clientDetails.phone || !clientDetails.phone.trim()) {
+        errors.phone = 'Phone number is required';
+      } else if (!isValidPhone(clientDetails.phone)) {
+        errors.phone = 'Please enter a valid phone number (at least 10 digits)';
+      }
+      if (clientDetails.email && !isValidEmail(clientDetails.email)) {
+        errors.email = 'Please enter a valid email address';
+      }
+    }
+
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
   }
 
   // Generate next 14 days for date picker
@@ -294,16 +307,25 @@ export default function BookingPage() {
       <div style={styles.page}>
         <div style={styles.card}>
           <div style={{ ...styles.successIcon, background: brandLight, color: brand }}>✓</div>
-          <h2 style={styles.successTitle}>You're booked</h2>
+          <h2 style={styles.successTitle}>
+            {success.depositPaid ? "You're booked — deposit paid" : "You're booked"}
+          </h2>
           <div style={styles.successDetails}>
-            <p><strong>{success.treatment}</strong></p>
-            <p>{success.date} at {success.time}</p>
-            <p style={{ color: brand, fontWeight: 600, marginTop: 12 }}>{success.price}</p>
-            {success.deposit && (
-              <p style={styles.depositNote}>Deposit of {success.deposit} required to confirm</p>
+            {success.depositPaid ? (
+              <p>Your deposit has been received and your appointment is confirmed. You'll get a confirmation message shortly.</p>
+            ) : (
+              <>
+                <p><strong>{success.treatment}</strong></p>
+                <p>{success.date} at {success.time}</p>
+                <p style={{ color: brand, fontWeight: 600, marginTop: 12 }}>{success.price}</p>
+              </>
             )}
           </div>
-          <p style={styles.confirmText}>You'll receive a confirmation message shortly.</p>
+          <p style={styles.confirmText}>
+            {success.depositPaid
+              ? 'Your card has been saved for faster checkout next time.'
+              : "You'll receive a confirmation message shortly."}
+          </p>
         </div>
         <div style={styles.footer}>
           <span style={styles.footerText}>Powered by </span>
@@ -351,11 +373,14 @@ export default function BookingPage() {
         {step === 0 && (
           <div>
             <h2 style={styles.stepTitle}>Choose your treatment</h2>
+            {fieldErrors.treatment && (
+              <div style={styles.inlineError}>{fieldErrors.treatment}</div>
+            )}
             <div style={styles.treatmentList}>
               {treatments.map(t => (
                 <button
                   key={t.id}
-                  onClick={() => { setSelectedTreatment(t); setStep(1); }}
+                  onClick={() => { setSelectedTreatment(t); setFieldErrors({}); setStep(1); }}
                   style={{
                     ...styles.treatmentCard,
                     borderColor: selectedTreatment?.id === t.id ? brand : '#E8E4DF',
@@ -373,6 +398,9 @@ export default function BookingPage() {
                 </button>
               ))}
             </div>
+            {treatments.length === 0 && (
+              <p style={styles.noSlots}>No treatments available</p>
+            )}
           </div>
         )}
 
@@ -380,11 +408,14 @@ export default function BookingPage() {
         {step === 1 && (
           <div>
             <h2 style={styles.stepTitle}>Pick a date and time</h2>
+            {fieldErrors.date && (
+              <div style={styles.inlineError}>{fieldErrors.date}</div>
+            )}
             <div style={styles.dateScroller}>
               {getDateOptions().map(d => (
                 <button
                   key={d.value}
-                  onClick={() => setSelectedDate(d.value)}
+                  onClick={() => { setSelectedDate(d.value); setFieldErrors({}); }}
                   style={{
                     ...styles.dateChip,
                     borderColor: selectedDate === d.value ? brand : '#E8E4DF',
@@ -405,7 +436,7 @@ export default function BookingPage() {
                   slots.map(s => (
                     <button
                       key={s.starts_at}
-                      onClick={() => { setSelectedSlot(s); setStep(2); }}
+                      onClick={() => { setSelectedSlot(s); setFieldErrors({}); setStep(2); }}
                       style={{
                         ...styles.slotChip,
                         borderColor: selectedSlot?.starts_at === s.starts_at ? brand : '#E8E4DF',
@@ -419,6 +450,9 @@ export default function BookingPage() {
                 )}
               </div>
             )}
+            {fieldErrors.slot && (
+              <div style={styles.inlineError}>{fieldErrors.slot}</div>
+            )}
 
             <button onClick={() => setStep(0)} style={styles.backBtn}>← Back</button>
           </div>
@@ -429,24 +463,42 @@ export default function BookingPage() {
           <div>
             <h2 style={styles.stepTitle}>Your details</h2>
             <div style={styles.form}>
-              <input
-                type="text" placeholder="Your name"
-                value={clientDetails.name}
-                onChange={e => setClientDetails({ ...clientDetails, name: e.target.value })}
-                style={styles.input} required
-              />
-              <input
-                type="tel" placeholder="Phone number"
-                value={clientDetails.phone}
-                onChange={e => setClientDetails({ ...clientDetails, phone: e.target.value })}
-                style={styles.input} required
-              />
-              <input
-                type="email" placeholder="Email (optional)"
-                value={clientDetails.email}
-                onChange={e => setClientDetails({ ...clientDetails, email: e.target.value })}
-                style={styles.input}
-              />
+              <div>
+                <input
+                  type="text" placeholder="Your name"
+                  value={clientDetails.name}
+                  onChange={e => setClientDetails({ ...clientDetails, name: e.target.value })}
+                  style={{
+                    ...styles.input,
+                    borderColor: fieldErrors.name ? '#DC2626' : '#E8E4DF'
+                  }} required
+                />
+                {fieldErrors.name && <span style={styles.fieldErrorText}>{fieldErrors.name}</span>}
+              </div>
+              <div>
+                <input
+                  type="tel" placeholder="Phone number"
+                  value={clientDetails.phone}
+                  onChange={e => setClientDetails({ ...clientDetails, phone: e.target.value })}
+                  style={{
+                    ...styles.input,
+                    borderColor: fieldErrors.phone ? '#DC2626' : '#E8E4DF'
+                  }} required
+                />
+                {fieldErrors.phone && <span style={styles.fieldErrorText}>{fieldErrors.phone}</span>}
+              </div>
+              <div>
+                <input
+                  type="email" placeholder="Email (optional)"
+                  value={clientDetails.email}
+                  onChange={e => setClientDetails({ ...clientDetails, email: e.target.value })}
+                  style={{
+                    ...styles.input,
+                    borderColor: fieldErrors.email ? '#DC2626' : '#E8E4DF'
+                  }}
+                />
+                {fieldErrors.email && <span style={styles.fieldErrorText}>{fieldErrors.email}</span>}
+              </div>
               <textarea
                 placeholder="Any notes for your appointment? (optional)"
                 value={clientDetails.notes}
@@ -458,7 +510,11 @@ export default function BookingPage() {
             <div style={styles.buttonRow}>
               <button onClick={() => setStep(1)} style={styles.backBtn}>← Back</button>
               <button
-                onClick={() => setStep(needsConsultation ? 2.5 : 3)}
+                onClick={() => {
+                  if (validateStep(2)) {
+                    setStep(needsConsultation ? 2.5 : 3);
+                  }
+                }}
                 disabled={!clientDetails.name || !clientDetails.phone}
                 style={{
                   ...styles.primaryBtn,
@@ -571,7 +627,7 @@ export default function BookingPage() {
                   minWidth: 160
                 }}
               >
-                {submitting ? 'Booking...' : 'Confirm booking'}
+                {submitting ? 'Booking...' : selectedTreatment.deposit_cents > 0 ? `Pay £${(selectedTreatment.deposit_cents / 100).toFixed(2)} deposit` : 'Confirm booking'}
               </button>
             </div>
           </div>
@@ -708,6 +764,11 @@ const styles = {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center'
   },
   errorClose: { background: 'none', border: 'none', fontSize: 18, color: '#DC2626', cursor: 'pointer' },
+  inlineError: {
+    background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8,
+    padding: '10px 12px', marginBottom: 12, fontSize: 13, color: '#DC2626'
+  },
+  fieldErrorText: { display: 'block', fontSize: 12, color: '#DC2626', marginTop: 4 },
   footer: { textAlign: 'center', paddingTop: 32, fontSize: 12 },
   footerText: { color: '#C4BDB6' },
   footerBrand: { fontWeight: 600 }

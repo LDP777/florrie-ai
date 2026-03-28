@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, isDevMode, supabase } from '../lib/supabase.js';
+import { useBeautician, fetchRows, updateRow, insertRow, isDevMode, supabase } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 const mockToday = {
   date: 'Wed 26 Mar 2026',
@@ -89,6 +90,40 @@ export default function EndOfDay({ token }) {
         });
     }
   }, [beautician, bLoading]);
+
+  // Save end-of-day report (upsert)
+  const saveEndOfDay = async () => {
+    if (isDevMode || !beautician) return;
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    // Check if report exists for today
+    const existing = await fetchRows('end_of_day_reports', beautician.id, { eq: { date: todayStr } });
+    const reportData = {
+      beautician_id: beautician.id,
+      date: todayStr,
+      total_revenue_cents: Math.round(dayData.totalRevenue * 100),
+      appointments_total: dayData.appointments,
+      appointments_completed: dayData.completed,
+      appointments_noshow: dayData.noShows,
+      appointments_cancelled: dayData.cancelled,
+      cash_expected_cents: Math.round(dayData.cashTaken * 100),
+      cash_counted_cents: cashCounted ? Math.round(parseFloat(cashCounted) * 100) : null,
+      card_taken_cents: Math.round(dayData.cardTaken * 100),
+      tips_cents: Math.round(dayData.tipsReceived * 100),
+      closing_notes: closingNotes,
+    };
+
+    try {
+      if (existing.length > 0) {
+        await updateRow('end_of_day_reports', existing[0].id, reportData);
+      } else {
+        await insertRow('end_of_day_reports', reportData);
+      }
+      setDayClosed(true);
+    } catch (err) {
+      logger.error('Failed to save end of day report:', err);
+    }
+  };
 
   if (bLoading) return <div style={{ padding: 40, textAlign: 'center', color: '#AAA5A0' }}>Loading...</div>;
 
@@ -336,7 +371,7 @@ export default function EndOfDay({ token }) {
       {!dayClosed && (
         <div style={styles.closeDayWrap}>
           <button
-            onClick={() => setDayClosed(true)}
+            onClick={saveEndOfDay}
             style={{
               ...styles.closeDayBtn,
               opacity: isReconciled ? 1 : 0.6,
