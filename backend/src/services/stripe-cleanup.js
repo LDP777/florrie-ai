@@ -17,7 +17,7 @@ export async function cleanupStripeEvents() {
     const { data, error } = await supabase
       .from('stripe_events')
       .delete()
-      .lt('created_at', cutoffDate);
+      .lt('processed_at', cutoffDate);
 
     if (error) {
       logger.error({ error }, 'Failed to cleanup stripe events');
