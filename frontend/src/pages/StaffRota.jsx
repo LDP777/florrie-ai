@@ -229,7 +229,7 @@ export default function StaffRota() {
       {/* Stats */}
       <div style={S.statsRow}>
         <div style={S.statCard}>
-          <span style={{ ...S.statValue, color: '#C76B8A' }}>{staff.length}</span>
+          <span style={{ ...S.statValue, color: 'var(--accent, #C76B8A)' }}>{staff.length}</span>
           <span style={S.statLabel}>Team</span>
         </div>
         <div style={S.statCard}>

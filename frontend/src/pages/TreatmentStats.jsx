@@ -35,7 +35,7 @@ const SORT_OPTIONS = [
 ];
 
 const TREND_ICONS = { up: '📈', down: '📉', stable: '➡️' };
-const TREND_COLORS = { up: 'var(--success, #5BA97B)', down: '#F44336', stable: 'var(--text-muted, var(--text-muted, #B5AFA8))' };
+const TREND_COLORS = { up: 'var(--success, #5BA97B)', down: 'var(--danger, #F44336)', stable: 'var(--text-muted, var(--text-muted, #B5AFA8))' };
 
 export default function TreatmentStats() {
   const [tab, setTab] = useState('ranking');
@@ -183,7 +183,7 @@ export default function TreatmentStats() {
             const catStats = stats.filter(s => s.category === cat);
             const catRev = catStats.reduce((s, t) => s + t.revenue, 0);
             const catPct = totalRevenue > 0 ? Math.round((catRev / totalRevenue) * 100) : 0;
-            const colors = { brows: 'var(--accent, #C76B8A)', lashes: '#9C27B0', semi: '#FF9800', waxing: 'var(--success, #5BA97B)' };
+            const colors = { brows: 'var(--accent, #C76B8A)', lashes: 'var(--accent-dark, #9C27B0)', semi: 'var(--warning, #FF9800)', waxing: 'var(--success, #5BA97B)' };
             return (
               <div key={cat} style={S.catRow}>
                 <span style={S.catLabel}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</span>
@@ -256,12 +256,12 @@ const S = {
   sortRow: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, overflowX: 'auto' },
   sortLabel: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontWeight: 600, flexShrink: 0 },
   sortBtn: { padding: '5px 10px', borderRadius: 8, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--card, #fff)', fontSize: 11, fontWeight: 600, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
-  sortBtnActive: { background: '#F0E6ED', color: 'var(--accent, #C76B8A)', border: '1px solid var(--accent, #C76B8A)20' },
+  sortBtnActive: { background: 'var(--accent-light, #F0E6ED)', color: 'var(--accent, #C76B8A)', border: '1px solid var(--accent, #C76B8A)20' },
 
   list: { display: 'flex', flexDirection: 'column', gap: 8 },
   card: { background: 'var(--card, #fff)', borderRadius: 14, padding: 14 },
   cardHeader: { display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8 },
-  rankBadge: { width: 28, height: 28, borderRadius: 8, background: '#F0E6ED', color: 'var(--accent, #C76B8A)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 },
+  rankBadge: { width: 28, height: 28, borderRadius: 8, background: 'var(--accent-light, #F0E6ED)', color: 'var(--accent, #C76B8A)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 },
   cardInfo: { flex: 1, minWidth: 0 },
   cardNameRow: { display: 'flex', alignItems: 'center', gap: 6 },
   cardName: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
@@ -286,7 +286,7 @@ const S = {
   effName: { flex: 1, fontSize: 13, color: 'var(--text, var(--text-primary, #2D2A26))' },
   effRate: { fontSize: 13, fontWeight: 700, color: 'var(--success, #5BA97B)' },
 
-  tipCard: { background: '#F9F7F4', borderRadius: 12, padding: 12, display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 8 },
+  tipCard: { background: 'var(--bg-subtle, #F9F7F4)', borderRadius: 12, padding: 12, display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 8 },
   tipIcon: { fontSize: 16, flexShrink: 0 },
   tipText: { fontSize: 12, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.4, margin: 0 },
 };

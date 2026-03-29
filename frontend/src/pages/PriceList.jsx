@@ -33,10 +33,10 @@ const DEV_PRICE_LIST = [
 ];
 
 const THEMES = [
-  { key: 'rose', label: 'Rose', accent: '#C76B8A', bg: '#FAF8F5' },
+  { key: 'rose', label: 'Rose', accent: 'var(--accent, #C76B8A)', bg: 'var(--bg, var(--bg, #FAF8F5))' },
   { key: 'dark', label: 'Midnight', accent: '#D4A574', bg: '#1A1A2E' },
   { key: 'sage', label: 'Sage', accent: '#7D9D74', bg: '#F5F7F3' },
-  { key: 'mono', label: 'Mono', accent: '#333', bg: '#fff' },
+  { key: 'mono', label: 'Mono', accent: '#333', bg: 'var(--bg-card, #fff)' },
 ];
 
 export default function PriceList() {
@@ -69,18 +69,18 @@ export default function PriceList() {
 
       {/* Preview tab */}
       {tab === 'preview' && (
-        <div style={{ ...S.previewCard, background: currentTheme.bg, color: currentTheme.bg === '#1A1A2E' ? '#eee' : '#2D2A26' }}>
+        <div style={{ ...S.previewCard, background: currentTheme.bg, color: currentTheme.bg === '#1A1A2E' ? '#eee' : 'var(--text-primary, #2D2A26)' }}>
           {/* Header */}
           <div style={S.previewHeader}>
             <h2 style={{ ...S.previewBrand, color: currentTheme.accent }}>Ellindigo</h2>
-            <p style={{ ...S.previewSub, color: currentTheme.bg === '#1A1A2E' ? '#999' : '#AAA5A0' }}>Brows & Beauty · Sheffield</p>
+            <p style={{ ...S.previewSub, color: currentTheme.bg === '#1A1A2E' ? '#999' : 'var(--text-muted, #AAA5A0)' }}>Brows & Beauty · Sheffield</p>
           </div>
 
           {/* Category filter inside preview */}
           <div style={S.catFilterRow}>
-            <button onClick={() => setSelectedCat('all')} style={{ ...S.catChip, ...(selectedCat === 'all' ? { background: currentTheme.accent, color: '#fff' } : {}) }}>All</button>
+            <button onClick={() => setSelectedCat('all')} style={{ ...S.catChip, ...(selectedCat === 'all' ? { background: currentTheme.accent, color: 'var(--bg-card, #fff)' } : {}) }}>All</button>
             {CATEGORIES.map(c => (
-              <button key={c.key} onClick={() => setSelectedCat(c.key)} style={{ ...S.catChip, ...(selectedCat === c.key ? { background: currentTheme.accent, color: '#fff' } : {}) }}>
+              <button key={c.key} onClick={() => setSelectedCat(c.key)} style={{ ...S.catChip, ...(selectedCat === c.key ? { background: currentTheme.accent, color: 'var(--bg-card, #fff)' } : {}) }}>
                 {c.icon} {c.label}
               </button>
             ))}
@@ -97,11 +97,11 @@ export default function PriceList() {
                       <span style={S.priceName}>{item.name}</span>
                       {item.popular && <span style={{ ...S.popularBadge, background: currentTheme.accent + '20', color: currentTheme.accent }}>Popular</span>}
                     </div>
-                    {item.description && showNotes && <span style={{ ...S.priceDesc, color: currentTheme.bg === '#1A1A2E' ? '#888' : '#AAA5A0' }}>{item.description}</span>}
+                    {item.description && showNotes && <span style={{ ...S.priceDesc, color: currentTheme.bg === '#1A1A2E' ? '#888' : 'var(--text-muted, #AAA5A0)' }}>{item.description}</span>}
                   </div>
                   <div style={S.priceRight}>
                     <span style={{ ...S.priceAmount, color: currentTheme.accent }}>{fmt(item.price)}</span>
-                    <span style={{ ...S.priceDuration, color: currentTheme.bg === '#1A1A2E' ? '#777' : '#AAA5A0' }}>{item.duration} min</span>
+                    <span style={{ ...S.priceDuration, color: currentTheme.bg === '#1A1A2E' ? '#777' : 'var(--text-muted, #AAA5A0)' }}>{item.duration} min</span>
                   </div>
                 </div>
               ))}
@@ -110,7 +110,7 @@ export default function PriceList() {
 
           {/* Footer */}
           <div style={S.previewFooter}>
-            <p style={{ ...S.footerText, color: currentTheme.bg === '#1A1A2E' ? '#666' : '#AAA5A0' }}>
+            <p style={{ ...S.footerText, color: currentTheme.bg === '#1A1A2E' ? '#666' : 'var(--text-muted, #AAA5A0)' }}>
               Patch test required 48hrs before semi-permanent treatments. Prices valid as of March 2026.
             </p>
             <p style={{ ...S.footerBrand, color: currentTheme.accent }}>Powered by florrie.ai</p>
@@ -130,7 +130,7 @@ export default function PriceList() {
                 border: theme === t.key ? `2px solid ${t.accent}` : '2px solid #F0ECE8',
               }}>
                 <div style={{ width: 16, height: 16, borderRadius: 8, background: t.accent }} />
-                <span style={{ fontSize: 11, fontWeight: 600, color: t.bg === '#1A1A2E' ? '#eee' : '#2D2A26' }}>{t.label}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: t.bg === '#1A1A2E' ? '#eee' : 'var(--text-primary, #2D2A26)' }}>{t.label}</span>
               </button>
             ))}
           </div>
@@ -138,7 +138,7 @@ export default function PriceList() {
           <h3 style={S.sectionTitle}>Options</h3>
           <div style={S.optionRow} onClick={() => setShowNotes(!showNotes)}>
             <span style={S.optionLabel}>Show treatment descriptions</span>
-            <div style={{ ...S.toggle, background: showNotes ? '#C76B8A' : '#D0CBC5' }}>
+            <div style={{ ...S.toggle, background: showNotes ? 'var(--accent, #C76B8A)' : '#D0CBC5' }}>
               <div style={{ ...S.toggleDot, transform: showNotes ? 'translateX(18px)' : 'translateX(2px)' }} />
             </div>
           </div>
@@ -148,7 +148,7 @@ export default function PriceList() {
           {items.map(item => (
             <div key={item.id} style={S.treatmentToggle}>
               <span style={S.treatmentToggleName}>{item.name}</span>
-              <span style={{ ...S.treatmentTogglePrice, color: '#C76B8A' }}>{fmt(item.price)}</span>
+              <span style={{ ...S.treatmentTogglePrice, color: 'var(--accent, #C76B8A)' }}>{fmt(item.price)}</span>
             </div>
           ))}
         </div>
@@ -209,15 +209,15 @@ const S = {
   page: { padding: '20px 16px 100px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 16px' },
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
-  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: '#AAA5A0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: '#C76B8A', color: '#fff' },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: 'var(--text-muted, #AAA5A0)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)' },
 
   previewCard: { borderRadius: 16, padding: 20, marginBottom: 16, border: '1px solid #F0ECE8' },
   previewHeader: { textAlign: 'center', marginBottom: 20 },
   previewBrand: { fontSize: 24, fontWeight: 700, margin: '0 0 4px', fontFamily: 'inherit' },
   previewSub: { fontSize: 13, margin: 0 },
   catFilterRow: { display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 16, paddingBottom: 4 },
-  catChip: { padding: '5px 12px', borderRadius: 20, border: '1px solid #F0ECE8', background: 'transparent', fontSize: 11, fontWeight: 600, color: '#AAA5A0', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  catChip: { padding: '5px 12px', borderRadius: 20, border: '1px solid #F0ECE8', background: 'transparent', fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
   previewGroup: { marginBottom: 16 },
   groupTitle: { fontSize: 14, fontWeight: 700, margin: '0 0 8px' },
   priceRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '10px 0' },
@@ -240,8 +240,8 @@ const S = {
   optionRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card, #fff)', borderRadius: 12, padding: '12px 14px', marginBottom: 16, cursor: 'pointer' },
   optionLabel: { fontSize: 14, fontWeight: 500, color: 'var(--text, #2D2A26)' },
   toggle: { width: 42, height: 24, borderRadius: 12, position: 'relative', transition: 'background .2s' },
-  toggleDot: { width: 20, height: 20, borderRadius: 10, background: '#fff', position: 'absolute', top: 2, transition: 'transform .2s', boxShadow: '0 1px 3px rgba(0,0,0,.2)' },
-  hint: { fontSize: 12, color: '#AAA5A0', margin: '0 0 8px' },
+  toggleDot: { width: 20, height: 20, borderRadius: 10, background: 'var(--bg-card, #fff)', position: 'absolute', top: 2, transition: 'transform .2s', boxShadow: '0 1px 3px rgba(0,0,0,.2)' },
+  hint: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)', margin: '0 0 8px' },
   treatmentToggle: { display: 'flex', justifyContent: 'space-between', background: 'var(--card, #fff)', borderRadius: 10, padding: '10px 12px', marginBottom: 4 },
   treatmentToggleName: { fontSize: 13, color: 'var(--text, #2D2A26)' },
   treatmentTogglePrice: { fontSize: 13, fontWeight: 600 },
@@ -250,9 +250,9 @@ const S = {
   shareIcon: { fontSize: 22 },
   shareInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2 },
   shareLabel: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  shareLink: { fontSize: 12, color: '#C76B8A', fontWeight: 500 },
-  shareSub: { fontSize: 12, color: '#AAA5A0' },
-  copyBtn: { padding: '8px 16px', borderRadius: 8, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  shareLink: { fontSize: 12, color: 'var(--accent, #C76B8A)', fontWeight: 500 },
+  shareSub: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)' },
+  copyBtn: { padding: '8px 16px', borderRadius: 8, border: 'none', background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   tipCard: { background: '#F9F7F4', borderRadius: 12, padding: 14, display: 'flex', gap: 10, alignItems: 'flex-start', marginTop: 12 },
   tipIcon: { fontSize: 16, flexShrink: 0 },

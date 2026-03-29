@@ -155,7 +155,7 @@ export default function Consultations() {
                   <div style={S.cardRight}>
                     <span style={S.cardDate}>{formatDate(c.date)}</span>
                     <span style={S.cardTime}>{c.time}</span>
-                    <span style={{ ...S.typeBadge, background: c.type === 'video' ? '#E3F2FD' : 'var(--border, var(--border, #EDE9E4))', color: c.type === 'video' ? '#2196F3' : 'var(--text-secondary, #8B6F5E)' }}>
+                    <span style={{ ...S.typeBadge, background: c.type === 'video' ? '#E3F2FD' : 'var(--border, var(--border, var(--border, #EDE9E4)))', color: c.type === 'video' ? '#2196F3' : 'var(--text-secondary, #8B6F5E)' }}>
                       {c.type === 'video' ? '📹 Video' : '👤 In-person'}
                     </span>
                   </div>
@@ -181,7 +181,7 @@ export default function Consultations() {
                     <div style={S.actionRow}>
                       <button style={S.actionBtn} onClick={e => { e.stopPropagation(); /* TODO: reschedule modal */ }}>Reschedule</button>
                       <button style={S.actionBtn} onClick={e => { e.stopPropagation(); /* TODO: send reminder */ }}>Send Reminder</button>
-                      <button style={{ ...S.actionBtn, background: 'var(--accent, #C76B8A)', color: '#fff' }} onClick={async (e) => {
+                      <button style={{ ...S.actionBtn, background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)' }} onClick={async (e) => {
                         e.stopPropagation();
                         try {
                           await updateRow('consultations', c.id, { status: 'completed', outcome: 'approved' });
@@ -253,7 +253,7 @@ export default function Consultations() {
                     {!c.followUp?.booked && c.outcome === 'approved' && (
                       <button style={S.bookTreatmentBtn}>Book Treatment →</button>
                     )}
-                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, var(--border, #EDE9E4))' }}>
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))' }}>
                       <button style={{ ...S.actionBtn, background: 'var(--danger-bg, #FDF0EF)', color: '#F44336', width: '100%' }} onClick={async (e) => {
                         e.stopPropagation();
                         if (!window.confirm('Delete this consultation?')) return;
@@ -298,7 +298,7 @@ export default function Consultations() {
             {settings.fee > 0 && (
               <div style={S.toggleRow}>
                 <span style={S.toggleLabel}>Deduct from treatment price</span>
-                <button style={{ ...S.toggle, background: settings.deductFromTreatment ? 'var(--accent, #C76B8A)' : 'var(--border, #EDE9E4)' }} onClick={() => setSettings(s => ({ ...s, deductFromTreatment: !s.deductFromTreatment }))}>
+                <button style={{ ...S.toggle, background: settings.deductFromTreatment ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, #EDE9E4))' }} onClick={() => setSettings(s => ({ ...s, deductFromTreatment: !s.deductFromTreatment }))}>
                   <div style={{ ...S.toggleDot, transform: settings.deductFromTreatment ? 'translateX(18px)' : 'translateX(2px)' }} />
                 </button>
               </div>
@@ -309,7 +309,7 @@ export default function Consultations() {
             <h3 style={S.settingsTitle}>Reminders</h3>
             <div style={S.toggleRow}>
               <span style={S.toggleLabel}>Auto-send reminder</span>
-              <button style={{ ...S.toggle, background: settings.autoReminder ? 'var(--accent, #C76B8A)' : 'var(--border, #EDE9E4)' }} onClick={() => setSettings(s => ({ ...s, autoReminder: !s.autoReminder }))}>
+              <button style={{ ...S.toggle, background: settings.autoReminder ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, #EDE9E4))' }} onClick={() => setSettings(s => ({ ...s, autoReminder: !s.autoReminder }))}>
                 <div style={{ ...S.toggleDot, transform: settings.autoReminder ? 'translateX(18px)' : 'translateX(2px)' }} />
               </button>
             </div>
@@ -339,7 +339,7 @@ export default function Consultations() {
                     questions: active ? s.questions.filter(x => x !== q) : [...s.questions, q],
                   }));
                 }}>
-                  <div style={{ ...S.checkbox, background: active ? 'var(--accent, #C76B8A)' : '#fff', borderColor: active ? 'var(--accent, #C76B8A)' : 'var(--border, #EDE9E4)' }}>
+                  <div style={{ ...S.checkbox, background: active ? 'var(--accent, #C76B8A)' : 'var(--bg-card, #fff)', borderColor: active ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, #EDE9E4))' }}>
                     {active && <span style={S.checkmark}>✓</span>}
                   </div>
                   <span style={S.questionText}>{q}</span>
@@ -352,7 +352,7 @@ export default function Consultations() {
             <h3 style={S.settingsTitle}>Patch Test Requirement</h3>
             <div style={S.toggleRow}>
               <span style={S.toggleLabel}>Require patch test before treatment</span>
-              <button style={{ ...S.toggle, background: settings.requirePatchTest ? 'var(--accent, #C76B8A)' : 'var(--border, #EDE9E4)' }} onClick={() => setSettings(s => ({ ...s, requirePatchTest: !s.requirePatchTest }))}>
+              <button style={{ ...S.toggle, background: settings.requirePatchTest ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, #EDE9E4))' }} onClick={() => setSettings(s => ({ ...s, requirePatchTest: !s.requirePatchTest }))}>
                 <div style={{ ...S.toggleDot, transform: settings.requirePatchTest ? 'translateX(18px)' : 'translateX(2px)' }} />
               </button>
             </div>
@@ -464,7 +464,7 @@ const S = {
   page: { padding: '20px 16px 32px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text, var(--text-primary, #2D2A26))', margin: 0 },
-  bookBtn: { background: 'var(--accent, #C76B8A)', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  bookBtn: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   statsRow: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 },
   statCard: { background: 'var(--card, #fff)', borderRadius: 12, padding: '10px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
@@ -473,7 +473,7 @@ const S = {
 
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
   tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
+  tabActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)' },
 
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
   empty: { textAlign: 'center', color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontSize: 14, padding: 32 },
@@ -494,7 +494,7 @@ const S = {
   outcomeBanner: { margin: '10px 0 0', padding: '8px 12px', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 600 },
   followUpTag: { fontSize: 11, fontWeight: 500, opacity: 0.8 },
 
-  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, var(--border, #EDE9E4))' },
+  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))' },
   notes: { fontSize: 13, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.5, margin: '0 0 12px' },
   qSection: { marginBottom: 12 },
   sectionLabel: { fontSize: 11, fontWeight: 700, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 8 },
@@ -502,8 +502,8 @@ const S = {
   question: { fontSize: 12, color: 'var(--text-secondary, #8B6F5E)' },
   answer: { fontSize: 12, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))', maxWidth: '50%', textAlign: 'right' },
   actionRow: { display: 'flex', gap: 8 },
-  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
-  bookTreatmentBtn: { width: '100%', padding: '12px 0', borderRadius: 10, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
+  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
+  bookTreatmentBtn: { width: '100%', padding: '12px 0', borderRadius: 10, border: 'none', background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
 
   // Settings
   settingsContainer: { display: 'flex', flexDirection: 'column', gap: 12 },
@@ -512,23 +512,23 @@ const S = {
   settingsDesc: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', margin: '0 0 12px' },
   fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #8B6F5E)', marginBottom: 6, marginTop: 12 },
   chipRow: { display: 'flex', gap: 8, flexWrap: 'wrap' },
-  chip: { padding: '8px 14px', borderRadius: 10, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--card, #fff)', color: 'var(--text-secondary, #8B6F5E)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
-  chipActive: { background: 'var(--accent, #C76B8A)', color: '#fff', border: '1px solid var(--accent, #C76B8A)' },
+  chip: { padding: '8px 14px', borderRadius: 10, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', background: 'var(--card, #fff)', color: 'var(--text-secondary, #8B6F5E)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
+  chipActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', border: '1px solid var(--accent, #C76B8A)' },
   toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, padding: '8px 0' },
   toggleLabel: { fontSize: 14, fontWeight: 500, color: 'var(--text, var(--text-primary, #2D2A26))' },
   toggle: { width: 44, height: 26, borderRadius: 13, border: 'none', padding: 0, cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 },
-  toggleDot: { width: 22, height: 22, borderRadius: 11, background: '#fff', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
+  toggleDot: { width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #fff)', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
   questionRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', cursor: 'pointer' },
   checkbox: { width: 22, height: 22, borderRadius: 6, border: '2px solid', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  checkmark: { color: '#fff', fontSize: 13, fontWeight: 700 },
+  checkmark: { color: 'var(--bg-card, #fff)', fontSize: 13, fontWeight: 700 },
   questionText: { fontSize: 13, color: 'var(--text, var(--text-primary, #2D2A26))' },
 
   // Modal
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
-  modal: { background: '#fff', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
+  modal: { background: 'var(--bg-card, #fff)', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
   modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: '0 0 16px' },
-  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', outline: 'none', boxSizing: 'border-box' },
-  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', background: '#fff', outline: 'none', boxSizing: 'border-box' },
-  textarea: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
-  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
+  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', outline: 'none', boxSizing: 'border-box' },
+  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', background: 'var(--bg-card, #fff)', outline: 'none', boxSizing: 'border-box' },
+  textarea: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
+  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
 };

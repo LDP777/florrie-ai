@@ -234,8 +234,8 @@ export default function SmartSchedule() {
             onClick={() => setTab(t)}
             style={{
               ...styles.tab,
-              borderBottomColor: tab === t ? '#C76B8A' : 'transparent',
-              color: tab === t ? '#C76B8A' : '#AAA5A0',
+              borderBottomColor: tab === t ? 'var(--accent, #C76B8A)' : 'transparent',
+              color: tab === t ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #AAA5A0)',
             }}
           >
             {t === 'gaps' ? 'Gaps' : t === 'suggestions' ? 'Fill Ideas' : 'Insights'}
@@ -478,22 +478,22 @@ export default function SmartSchedule() {
 
 const styles = {
   page: {
-    minHeight: '100vh', background: '#FAF8F5',
+    minHeight: '100vh', background: 'var(--bg, var(--bg, #FAF8F5))',
     fontFamily: '"DM Sans", -apple-system, sans-serif',
-    padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: '#2D2A26',
+    padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)',
   },
   header: { paddingTop: 28, paddingBottom: 8 },
   title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
-  subtitle: { fontSize: 13, color: '#C76B8A', margin: 0, fontWeight: 500 },
+  subtitle: { fontSize: 13, color: 'var(--accent, #C76B8A)', margin: 0, fontWeight: 500 },
 
   // Utilisation
   utilisationCard: {
-    background: '#fff', borderRadius: 14, padding: 16,
+    background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16,
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 16,
   },
   utilisationHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  utilisationLabel: { fontSize: 12, color: '#AAA5A0', textTransform: 'uppercase', letterSpacing: '0.04em' },
-  utilisationPct: { fontSize: 14, fontWeight: 700, color: '#2D2A26' },
+  utilisationLabel: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)', textTransform: 'uppercase', letterSpacing: '0.04em' },
+  utilisationPct: { fontSize: 14, fontWeight: 700, color: 'var(--text-primary, #2D2A26)' },
   utilisationBar: {
     height: 8, borderRadius: 4, background: '#F0ECE8', overflow: 'hidden', marginBottom: 8,
   },
@@ -503,7 +503,7 @@ const styles = {
     transition: 'width 0.6s ease',
   },
   utilisationStats: { display: 'flex', justifyContent: 'space-between' },
-  utilisationStat: { fontSize: 11, color: '#AAA5A0' },
+  utilisationStat: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
 
   tabs: { display: 'flex', gap: 16, borderBottom: '1px solid #F0ECE8', marginBottom: 16 },
   tab: {
@@ -515,15 +515,15 @@ const styles = {
   // Gap cards
   gapList: { display: 'flex', flexDirection: 'column', gap: 10 },
   gapCard: {
-    background: '#fff', borderRadius: 14, padding: 14,
+    background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 14,
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)', cursor: 'pointer',
     transition: 'box-shadow 0.2s',
   },
   gapHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   gapTime: { display: 'flex', flexDirection: 'column', gap: 2 },
-  gapDay: { fontSize: 12, fontWeight: 600, color: '#C76B8A' },
-  gapSlot: { fontSize: 15, fontWeight: 700, color: '#2D2A26' },
-  gapDuration: { fontSize: 11, color: '#AAA5A0' },
+  gapDay: { fontSize: 12, fontWeight: 600, color: 'var(--accent, #C76B8A)' },
+  gapSlot: { fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #2D2A26)' },
+  gapDuration: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
   fillBadge: {
     padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
   },
@@ -535,27 +535,27 @@ const styles = {
     display: 'flex', flexDirection: 'column', gap: 10,
   },
   suggestionCard: {
-    background: '#FAF8F5', borderRadius: 10, padding: 12,
+    background: 'var(--bg, var(--bg, #FAF8F5))', borderRadius: 10, padding: 12,
   },
   suggestionTop: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 },
   suggAvatar: {
     width: 34, height: 34, borderRadius: 17, background: '#FBF0F3',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 14, fontWeight: 600, color: '#C76B8A', flexShrink: 0,
+    fontSize: 14, fontWeight: 600, color: 'var(--accent, #C76B8A)', flexShrink: 0,
   },
   suggInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 1 },
-  suggName: { fontSize: 13, fontWeight: 600, color: '#2D2A26' },
+  suggName: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
   suggReason: { fontSize: 11, color: '#8A8580', lineHeight: 1.3 },
-  suggDetail: { fontSize: 11, color: '#AAA5A0' },
+  suggDetail: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
   suggTreatment: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     padding: '6px 0', marginBottom: 6,
   },
   suggTreatLabel: { fontSize: 12, fontWeight: 500, color: '#5A5550' },
-  suggTreatDur: { fontSize: 11, color: '#AAA5A0' },
+  suggTreatDur: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
   offerBtn: {
     width: '100%', padding: '8px 0', borderRadius: 8, border: 'none',
-    background: '#C76B8A', color: '#fff', fontSize: 12, fontWeight: 600,
+    background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 12, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   sentBadge: {
@@ -565,10 +565,10 @@ const styles = {
 
   // Full suggestion cards
   suggSection: { marginBottom: 20 },
-  suggSectionTitle: { fontSize: 15, fontWeight: 600, margin: '0 0 2px', color: '#2D2A26' },
-  suggSectionDesc: { fontSize: 12, color: '#AAA5A0', margin: '0 0 12px' },
+  suggSectionTitle: { fontSize: 15, fontWeight: 600, margin: '0 0 2px', color: 'var(--text-primary, #2D2A26)' },
+  suggSectionDesc: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)', margin: '0 0 12px' },
   suggFullCard: {
-    background: '#fff', borderRadius: 14, padding: 14,
+    background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 14,
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 10,
   },
   suggReasonText: { fontSize: 12, color: '#8A8580', margin: '8px 0', lineHeight: 1.4 },
@@ -580,38 +580,38 @@ const styles = {
   // Insights
   insightGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 },
   insightCard: {
-    background: '#fff', borderRadius: 14, padding: '16px 14px', textAlign: 'center',
+    background: 'var(--bg-card, #fff)', borderRadius: 14, padding: '16px 14px', textAlign: 'center',
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
   },
-  insightNum: { display: 'block', fontSize: 22, fontWeight: 700, color: '#C76B8A' },
-  insightLabel: { display: 'block', fontSize: 11, color: '#AAA5A0', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 4 },
+  insightNum: { display: 'block', fontSize: 22, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
+  insightLabel: { display: 'block', fontSize: 11, color: 'var(--text-muted, #AAA5A0)', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 4 },
 
   insightSection: {
-    background: '#fff', borderRadius: 14, padding: 16, marginBottom: 12,
+    background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16, marginBottom: 12,
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
   },
-  insightSectionTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: '#2D2A26' },
+  insightSectionTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: 'var(--text-primary, #2D2A26)' },
   dayRow: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 },
   dayName: { fontSize: 12, color: '#5A5550', width: 70, flexShrink: 0 },
   dayBar: { flex: 1, height: 6, borderRadius: 3, background: '#F0ECE8', overflow: 'hidden' },
   dayBarFill: { height: '100%', borderRadius: 3, transition: 'width 0.6s ease' },
-  dayPct: { fontSize: 11, fontWeight: 600, color: '#2D2A26', width: 30, textAlign: 'right' },
+  dayPct: { fontSize: 11, fontWeight: 600, color: 'var(--text-primary, #2D2A26)', width: 30, textAlign: 'right' },
 
   hardSlotList: { display: 'flex', flexDirection: 'column', gap: 8 },
   hardSlot: { display: 'flex', flexDirection: 'column', gap: 2, padding: '8px 0', borderBottom: '1px solid #FAF8F5' },
   hardSlotText: { fontSize: 13, fontWeight: 600, color: '#E57373' },
-  hardSlotNote: { fontSize: 11, color: '#AAA5A0' },
+  hardSlotNote: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
 
   tipCard: {
     display: 'flex', alignItems: 'flex-start', gap: 4,
     background: '#FBF0F3', borderRadius: 14, padding: 14,
   },
-  tipTitle: { display: 'block', fontSize: 12, fontWeight: 600, color: '#C76B8A', marginBottom: 4 },
+  tipTitle: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--accent, #C76B8A)', marginBottom: 4 },
   tipText: { display: 'block', fontSize: 12, color: '#5A5550', lineHeight: 1.5 },
 
   // Empty
-  loadingText: { textAlign: 'center', color: '#AAA5A0', padding: 40, fontSize: 14 },
+  loadingText: { textAlign: 'center', color: 'var(--text-muted, #AAA5A0)', padding: 40, fontSize: 14 },
   emptyState: { textAlign: 'center', padding: '40px 20px' },
-  emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 4px', color: '#2D2A26' },
-  emptyDesc: { fontSize: 13, color: '#AAA5A0', margin: 0, lineHeight: 1.5 },
+  emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 4px', color: 'var(--text-primary, #2D2A26)' },
+  emptyDesc: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', margin: 0, lineHeight: 1.5 },
 };

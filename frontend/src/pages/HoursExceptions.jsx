@@ -221,8 +221,8 @@ export default function HoursExceptions() {
                   onClick={() => setForm(p => ({ ...p, type: key }))}
                   style={{
                     ...styles.typeBtn,
-                    background: form.type === key ? cfg.bg : '#fff',
-                    borderColor: form.type === key ? cfg.color : 'var(--border, var(--border, #EDE9E4))',
+                    background: form.type === key ? cfg.bg : 'var(--bg-card, #fff)',
+                    borderColor: form.type === key ? cfg.color : 'var(--border, var(--border, var(--border, #EDE9E4)))',
                   }}
                 >
                   <span style={{ fontSize: 18 }}>{cfg.icon}</span>
@@ -285,8 +285,8 @@ export default function HoursExceptions() {
                   onClick={() => setForm(p => ({ ...p, reason: r.value }))}
                   style={{
                     ...styles.reasonChip,
-                    background: form.reason === r.value ? 'var(--text-primary, #2D2A26)' : '#fff',
-                    color: form.reason === r.value ? '#fff' : '#5A5550',
+                    background: form.reason === r.value ? 'var(--text-primary, #2D2A26)' : 'var(--bg-card, #fff)',
+                    color: form.reason === r.value ? 'var(--bg-card, #fff)' : '#5A5550',
                   }}
                 >
                   {r.label}
@@ -314,7 +314,7 @@ export default function HoursExceptions() {
               onClick={() => setForm(p => ({ ...p, notify_clients: !p.notify_clients }))}
               style={{
                 ...styles.toggle,
-                background: form.notify_clients ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, #EDE9E4))',
+                background: form.notify_clients ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, var(--border, #EDE9E4)))',
               }}
             >
               <div style={{
@@ -401,7 +401,7 @@ export default function HoursExceptions() {
 
 const styles = {
   page: {
-    minHeight: '100vh', background: 'var(--bg, #FAF8F5)',
+    minHeight: '100vh', background: 'var(--bg, var(--bg, #FAF8F5))',
     fontFamily: '"DM Sans", -apple-system, sans-serif',
     padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)',
   },
@@ -412,7 +412,7 @@ const styles = {
   // Next closure
   nextCard: {
     background: 'linear-gradient(135deg, var(--accent, #C76B8A) 0%, #E8A0B5 100%)',
-    borderRadius: 14, padding: 18, marginBottom: 12, color: '#fff',
+    borderRadius: 14, padding: 18, marginBottom: 12, color: 'var(--bg-card, #fff)',
   },
   nextLabel: { display: 'block', fontSize: 11, opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 },
   nextDate: { display: 'block', fontSize: 18, fontWeight: 700, marginBottom: 4 },
@@ -421,13 +421,13 @@ const styles = {
 
   addBtn: {
     width: '100%', padding: '12px 0', borderRadius: 10, border: 'none',
-    background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 14, fontWeight: 600,
+    background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 14, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit', marginBottom: 16,
   },
 
   // Form
   formCard: {
-    background: '#fff', borderRadius: 14, padding: 16,
+    background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16,
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 16,
   },
   formTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 14px', color: 'var(--text-primary, #2D2A26)' },
@@ -435,19 +435,19 @@ const styles = {
   formLabel: { display: 'block', fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', marginBottom: 6, fontWeight: 500 },
   formInput: {
     width: '100%', padding: '10px 12px', borderRadius: 8,
-    border: '1.5px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit',
+    border: '1.5px solid var(--border, var(--border, var(--border, #EDE9E4)))', fontSize: 14, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box',
   },
   formRow: { display: 'flex', gap: 10, marginBottom: 14 },
   typeRow: { display: 'flex', gap: 8 },
   typeBtn: {
-    flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid var(--border, var(--border, #EDE9E4))',
+    flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid var(--border, var(--border, var(--border, #EDE9E4)))',
     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   reasonGrid: { display: 'flex', flexWrap: 'wrap', gap: 6 },
   reasonChip: {
-    padding: '6px 12px', borderRadius: 8, border: '1.5px solid var(--border, var(--border, #EDE9E4))',
+    padding: '6px 12px', borderRadius: 8, border: '1.5px solid var(--border, var(--border, var(--border, #EDE9E4)))',
     fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
   },
   notifyRow: {
@@ -462,19 +462,19 @@ const styles = {
     transition: 'background 0.2s',
   },
   toggleDot: {
-    width: 22, height: 22, borderRadius: 11, background: '#fff',
+    width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #fff)',
     position: 'absolute', top: 2, transition: 'transform 0.2s',
     boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
   },
   formActions: { display: 'flex', gap: 8 },
   saveBtn: {
     flex: 1, padding: '10px 0', borderRadius: 10, border: 'none',
-    background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600,
+    background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   cancelBtn: {
     padding: '10px 16px', borderRadius: 10, border: 'none',
-    background: 'var(--bg-hover, #F5F2EF)', color: '#8A8580', fontSize: 13,
+    background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', color: '#8A8580', fontSize: 13,
     cursor: 'pointer', fontFamily: 'inherit',
   },
 
@@ -485,7 +485,7 @@ const styles = {
   excList: { display: 'flex', flexDirection: 'column', gap: 8 },
   excCard: {
     display: 'flex', alignItems: 'flex-start', gap: 10,
-    background: '#fff', borderRadius: 12, padding: '12px 10px',
+    background: 'var(--bg-card, #fff)', borderRadius: 12, padding: '12px 10px',
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)', position: 'relative',
   },
   excIcon: {
@@ -513,7 +513,7 @@ const styles = {
   // Empty
   loadingText: { textAlign: 'center', color: 'var(--text-muted, var(--text-muted, #B5AFA8))', padding: 40, fontSize: 14 },
   emptyCard: {
-    background: '#fff', borderRadius: 12, padding: 20, textAlign: 'center',
+    background: 'var(--bg-card, #fff)', borderRadius: 12, padding: 20, textAlign: 'center',
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
   },
   emptyText: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', margin: 0 },

@@ -23,7 +23,7 @@ const CATEGORIES = {
   payment: { label: 'Payments', icon: '💷', color: 'var(--success-bg, #E8F5E9)', textColor: '#2E7D32' },
   ai: { label: 'florrie.ai', icon: '✨', color: 'var(--accent-light, #FFF0F3)', textColor: 'var(--accent, #C76B8A)' },
   client: { label: 'Clients', icon: '👤', color: '#FFF3E0', textColor: '#E65100' },
-  system: { label: 'System', icon: '⚙️', color: 'var(--bg-hover, #F5F2EF)', textColor: '#5A5550' },
+  system: { label: 'System', icon: '⚙️', color: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', textColor: '#5A5550' },
 };
 
 const DEV_NOTIFICATIONS = [
@@ -167,8 +167,8 @@ export default function Notifications() {
           onClick={() => setFilter('all')}
           style={{
             ...styles.filterChip,
-            background: filter === 'all' ? 'var(--text-primary, #2D2A26)' : '#fff',
-            color: filter === 'all' ? '#fff' : '#5A5550',
+            background: filter === 'all' ? 'var(--text-primary, #2D2A26)' : 'var(--bg-card, #fff)',
+            color: filter === 'all' ? 'var(--bg-card, #fff)' : '#5A5550',
           }}
         >
           All
@@ -179,9 +179,9 @@ export default function Notifications() {
             onClick={() => setFilter(key)}
             style={{
               ...styles.filterChip,
-              background: filter === key ? cat.color : '#fff',
+              background: filter === key ? cat.color : 'var(--bg-card, #fff)',
               color: filter === key ? cat.textColor : '#5A5550',
-              borderColor: filter === key ? cat.textColor : 'var(--border, var(--border, #EDE9E4))',
+              borderColor: filter === key ? cat.textColor : 'var(--border, var(--border, var(--border, #EDE9E4)))',
             }}
           >
             {cat.icon} {cat.label}
@@ -206,7 +206,7 @@ export default function Notifications() {
                     key={n.id}
                     style={{
                       ...styles.notifCard,
-                      background: n.read ? '#fff' : '#FFFBF9',
+                      background: n.read ? 'var(--bg-card, #fff)' : '#FFFBF9',
                       borderLeft: n.read ? '3px solid transparent' : `3px solid ${cat.textColor}`,
                     }}
                     onClick={() => markRead(n.id)}
@@ -240,7 +240,7 @@ export default function Notifications() {
 
 const styles = {
   page: {
-    minHeight: '100vh', background: 'var(--bg, #FAF8F5)',
+    minHeight: '100vh', background: 'var(--bg, var(--bg, #FAF8F5))',
     fontFamily: '"DM Sans", -apple-system, sans-serif',
     padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)',
   },
@@ -262,7 +262,7 @@ const styles = {
     scrollbarWidth: 'none',
   },
   filterChip: {
-    padding: '7px 12px', borderRadius: 8, border: '1.5px solid var(--border, var(--border, #EDE9E4))',
+    padding: '7px 12px', borderRadius: 8, border: '1.5px solid var(--border, var(--border, var(--border, #EDE9E4)))',
     fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     whiteSpace: 'nowrap', flexShrink: 0,
   },

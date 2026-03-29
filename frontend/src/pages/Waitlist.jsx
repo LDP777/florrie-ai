@@ -243,8 +243,8 @@ export default function Waitlist() {
                     onClick={() => toggleDay(d.key)}
                     style={{
                       ...styles.dayChip,
-                      background: form.preferred_days.includes(d.key) ? 'var(--accent, #C76B8A)' : 'var(--bg-hover, #F5F2EF)',
-                      color: form.preferred_days.includes(d.key) ? '#fff' : 'var(--text-secondary, #7A756F)'
+                      background: form.preferred_days.includes(d.key) ? 'var(--accent, #C76B8A)' : 'var(--bg-hover, var(--bg-subtle, #F5F2EF))',
+                      color: form.preferred_days.includes(d.key) ? 'var(--bg-card, #fff)' : 'var(--text-secondary, #7A756F)'
                     }}
                   >
                     {d.label}
@@ -279,7 +279,7 @@ export default function Waitlist() {
 
 function WaitlistCard({ entry, isOffered, onBook, onRemove }) {
   const priorityColor = entry.priority_score >= 0.8 ? '#4CAF50'
-    : entry.priority_score >= 0.6 ? '#F57C00' : '#AAA5A0';
+    : entry.priority_score >= 0.6 ? '#F57C00' : 'var(--text-muted, #AAA5A0)';
   const priorityLabel = entry.priority_score >= 0.8 ? 'High'
     : entry.priority_score >= 0.6 ? 'Medium' : 'Low';
 
@@ -337,17 +337,17 @@ function SkeletonCard() {
   return (
     <div style={{ ...styles.card, height: 80, display: 'flex', flexDirection: 'column', gap: 10, justifyContent: 'center' }}>
       <div style={{ height: 14, width: '50%', borderRadius: 7, background: '#F0ECE8' }} />
-      <div style={{ height: 12, width: '70%', borderRadius: 6, background: '#F5F2EF' }} />
+      <div style={{ height: 12, width: '70%', borderRadius: 6, background: 'var(--bg-subtle, var(--bg-subtle, #F5F2EF))' }} />
     </div>
   );
 }
 
 const styles = {
-  page: { minHeight: '100vh', background: 'var(--bg, #FAF8F5)', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)' },
+  page: { minHeight: '100vh', background: 'var(--bg, var(--bg, #FAF8F5))', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 28, paddingBottom: 12 },
   title: { fontSize: 22, fontWeight: 700, margin: 0 },
-  subtitle: { fontSize: 13, color: '#AAA5A0', margin: '4px 0 0' },
-  addBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  subtitle: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', margin: '4px 0 0' },
+  addBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   infoCard: { display: 'flex', gap: 10, padding: 14, borderRadius: 12, background: '#EEF4FC', marginBottom: 16, alignItems: 'flex-start' },
   infoIcon: { fontSize: 18, flexShrink: 0, marginTop: 1 },
@@ -365,20 +365,20 @@ const styles = {
   priorityText: { fontSize: 11, fontWeight: 600 },
 
   cardPrefs: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
-  prefChip: { padding: '3px 8px', borderRadius: 6, background: 'var(--bg-hover, #F5F2EF)', fontSize: 11, color: 'var(--text-secondary, #7A756F)' },
+  prefChip: { padding: '3px 8px', borderRadius: 6, background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', fontSize: 11, color: 'var(--text-secondary, #7A756F)' },
 
   offeredBanner: { padding: '8px 12px', borderRadius: 8, background: '#FFF3E0', color: '#F57C00', fontSize: 12, fontWeight: 500, marginBottom: 10 },
 
   cardActions: { display: 'flex', gap: 8 },
-  bookBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  removeBtn: { padding: '8px 14px', borderRadius: 8, border: 'none', background: 'var(--bg-hover, #F5F2EF)', color: 'var(--text-muted, #B5AFA8)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' },
+  bookBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  removeBtn: { padding: '8px 14px', borderRadius: 8, border: 'none', background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', color: 'var(--text-muted, #B5AFA8)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' },
 
   // Empty state
   emptyState: { textAlign: 'center', padding: '40px 20px' },
   emptyIcon: { fontSize: 48, marginBottom: 12 },
   emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 8px' },
   emptyDesc: { fontSize: 13, color: 'var(--text-muted, #B5AFA8)', lineHeight: 1.5, margin: '0 0 20px' },
-  emptyBtn: { padding: '12px 24px', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  emptyBtn: { padding: '12px 24px', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   loadingWrap: { display: 'flex', flexDirection: 'column', gap: 8 },
 
@@ -387,16 +387,16 @@ const styles = {
   modal: { background: 'var(--bg-card, #FFFFFF)', borderRadius: '20px 20px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 18, fontWeight: 700, margin: 0 },
-  closeBtn: { width: 32, height: 32, borderRadius: 16, border: 'none', background: 'var(--bg-hover, #F5F2EF)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary, #7A756F)' },
+  closeBtn: { width: 32, height: 32, borderRadius: 16, border: 'none', background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary, #7A756F)' },
 
   formGroup: { marginBottom: 16 },
   label: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #7A756F)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.03em' },
-  select: { width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid var(--border, #EDE9E4)', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: '#FAFAFA', appearance: 'none' },
+  select: { width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: '#FAFAFA', appearance: 'none' },
   dayGrid: { display: 'flex', gap: 6, flexWrap: 'wrap' },
   dayChip: { padding: '8px 14px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   hint: { display: 'block', fontSize: 11, color: 'var(--text-muted, #B5AFA8)', marginTop: 6 },
   timeRow: { display: 'flex', alignItems: 'center', gap: 8 },
-  timeInput: { flex: 1, padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border, #EDE9E4)', fontSize: 13, fontFamily: 'inherit', outline: 'none' },
+  timeInput: { flex: 1, padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border, var(--border, #EDE9E4))', fontSize: 13, fontFamily: 'inherit', outline: 'none' },
   timeSep: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },
-  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 };

@@ -6,7 +6,7 @@ import ErrorCard from '../components/ErrorCard.jsx';
 
 const DEV_PLANS = [
   { id: 1, name: 'Brow Babe', price: 39, interval: 'month', perks: ['1 brow treatment/month', '10% off retail', 'Priority booking'], color: '#E8A838', members: 12, active: true },
-  { id: 2, name: 'Lash Queen', price: 59, interval: 'month', perks: ['1 lash treatment/month', '15% off add-ons', 'Free aftercare kit', 'Priority booking'], color: '#C76B8A', members: 8, active: true },
+  { id: 2, name: 'Lash Queen', price: 59, interval: 'month', perks: ['1 lash treatment/month', '15% off add-ons', 'Free aftercare kit', 'Priority booking'], color: 'var(--accent, #C76B8A)', members: 8, active: true },
   { id: 3, name: 'VIP All Access', price: 99, interval: 'month', perks: ['Any 2 treatments/month', '20% off everything', 'Free birthday treatment', 'Priority booking', 'Exclusive previews'], color: '#7C4DFF', members: 4, active: true },
   { id: 4, name: 'Annual Brow', price: 399, interval: 'year', perks: ['12 brow treatments', '15% off retail', 'Priority booking', '1 free upgrade'], color: '#26A69A', members: 3, active: true },
 ];
@@ -68,10 +68,10 @@ export default function ClientMemberships() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 4 }}>Monthly Recurring</div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: '#fff' }}>£{Math.round(monthlyRecurring)}<span style={{ fontSize: 14, fontWeight: 400, opacity: 0.7 }}>/mo</span></div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--bg-card, #fff)' }}>£{Math.round(monthlyRecurring)}<span style={{ fontSize: 14, fontWeight: 400, opacity: 0.7 }}>/mo</span></div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 20, fontWeight: 700, color: '#fff' }}>{activeMembers}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--bg-card, #fff)' }}>{activeMembers}</div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>active members</div>
           </div>
         </div>
@@ -254,7 +254,7 @@ const s = {
   heroCard: { padding: 20, borderRadius: 16, background: 'linear-gradient(135deg, var(--accent, #C76B8A), var(--accent-hover, #B85D7B))', marginBottom: 16 },
   tabRow: { display: 'flex', gap: 0, marginBottom: 16, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--card-border, #F0ECE8)' },
   tab: { flex: 1, padding: '10px 0', border: 'none', background: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', color: 'var(--text-muted, #AAA5A0)', fontFamily: 'inherit' },
-  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
+  tabActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)' },
   planList: { display: 'flex', flexDirection: 'column', gap: 12 },
   planCard: { padding: 16, borderRadius: 14, background: 'var(--card-bg, #fff)', border: '1px solid var(--card-border, #F0ECE8)' },
   planHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
@@ -264,7 +264,7 @@ const s = {
   addBtn: { padding: '14px', borderRadius: 10, border: '2px dashed var(--card-border, #F0ECE8)', background: 'none', fontSize: 14, fontWeight: 600, color: 'var(--accent, #C76B8A)', cursor: 'pointer', fontFamily: 'inherit' },
   formCard: { padding: 16, borderRadius: 12, background: 'var(--card-bg, #fff)', border: '1px solid var(--card-border, #F0ECE8)' },
   input: { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--card-border, #F0ECE8)', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box', background: 'var(--card-bg, #fff)', color: 'var(--text, #2D2A26)' },
-  primaryBtn: { padding: '10px 20px', borderRadius: 8, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  primaryBtn: { padding: '10px 20px', borderRadius: 8, border: 'none', background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   ghostBtn: { padding: '10px 20px', borderRadius: 8, border: '1px solid var(--card-border, #F0ECE8)', background: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted, #AAA5A0)' },
   memberList: { display: 'flex', flexDirection: 'column', gap: 10 },
   memberCard: { padding: '14px 12px', borderRadius: 12, background: 'var(--card-bg, #fff)', border: '1px solid var(--card-border, #F0ECE8)', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' },
@@ -276,6 +276,6 @@ const s = {
   settingCard: { padding: '14px 12px', borderRadius: 12, background: 'var(--card-bg, #fff)', border: '1px solid var(--card-border, #F0ECE8)' },
   settingRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   toggle: { width: 44, height: 24, borderRadius: 12, background: 'var(--accent, #C76B8A)', padding: 2, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexShrink: 0 },
-  toggleDot: { width: 20, height: 20, borderRadius: 10, background: '#fff' },
+  toggleDot: { width: 20, height: 20, borderRadius: 10, background: 'var(--bg-card, #fff)' },
   aiCard: { padding: 14, borderRadius: 12, background: 'linear-gradient(135deg, rgba(199,107,138,0.06), rgba(232,168,56,0.06))', border: '1px solid rgba(199,107,138,0.15)', marginTop: 4 },
 };

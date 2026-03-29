@@ -34,10 +34,10 @@ const DEV_LEADERBOARD = [
 ];
 
 const STATUS_CONFIG = {
-  shared: { label: 'Shared', color: '#9E9E9E', bg: '#F5F5F5' },
-  pending: { label: 'Pending', color: '#F5A623', bg: '#FFF8E1' },
-  booked: { label: 'Booked', color: '#4A90D9', bg: '#E3F2FD' },
-  converted: { label: 'Converted', color: 'var(--success, #5BA97B)', bg: 'var(--success-bg, #E8F5E9)' },
+  shared: { label: 'Shared', color: 'var(--text-muted)', bg: 'var(--bg-subtle)' },
+  pending: { label: 'Pending', color: 'var(--warning)', bg: 'var(--warning-bg)' },
+  booked: { label: 'Booked', color: 'var(--info)', bg: 'var(--info-bg)' },
+  converted: { label: 'Converted', color: 'var(--success)', bg: 'var(--success-bg)' },
 };
 
 export default function Referrals() {

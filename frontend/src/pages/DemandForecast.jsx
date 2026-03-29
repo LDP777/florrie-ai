@@ -91,7 +91,7 @@ export default function DemandForecast() {
   }
 
   if (bLoading || loading) {
-    return <div style={ds.page}><div style={{ textAlign: 'center', padding: 60, color: '#AAA5A0' }}>Loading...</div></div>;
+    return <div style={ds.page}><div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted, #AAA5A0)' }}>Loading...</div></div>;
   }
 
   const demandColor = (level) => {
@@ -203,7 +203,7 @@ export default function DemandForecast() {
                     background: heatColor(row[d]),
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 9, fontWeight: 600,
-                    color: row[d] >= 4 ? '#fff' : 'var(--text-muted)',
+                    color: row[d] >= 4 ? 'var(--bg-card, #fff)' : 'var(--text-muted)',
                   }}>
                     {row[d] > 0 ? row[d] : ''}
                   </div>

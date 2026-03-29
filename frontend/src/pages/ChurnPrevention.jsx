@@ -145,7 +145,7 @@ export default function ChurnPrevention() {
                     <div style={{
                       position: 'absolute', top: -4, right: -4, width: 20, height: 20, borderRadius: 10,
                       background: c.risk > 80 ? 'var(--danger)' : c.risk > 60 ? 'var(--warning)' : 'var(--accent)',
-                      color: '#fff', fontSize: 9, fontWeight: 700,
+                      color: 'var(--bg-card, #fff)', fontSize: 9, fontWeight: 700,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       border: '2px solid var(--bg-card)',
                     }}>{c.risk}</div>

@@ -24,9 +24,9 @@ const DEV_ADDONS = [
 ];
 
 const CATEGORIES = [
-  { value: 'treatment', label: 'Treatment', colour: '#C76B8A' },
-  { value: 'waxing', label: 'Waxing', colour: '#8B6F5E' },
-  { value: 'retail', label: 'Retail Product', colour: '#6B8F7B' },
+  { value: 'treatment', label: 'Treatment', colour: 'var(--accent, #C76B8A)' },
+  { value: 'waxing', label: 'Waxing', colour: 'var(--text-secondary, #8B6F5E)' },
+  { value: 'retail', label: 'Retail Product', colour: 'var(--success, #6B8F7B)' },
 ];
 
 const EMPTY_FORM = { name: '', price: '', duration: '', category: 'treatment', suggestWith: [], autoSuggest: true };

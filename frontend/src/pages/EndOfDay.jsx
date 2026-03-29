@@ -128,7 +128,7 @@ export default function EndOfDay() {
     }
   };
 
-  if (bLoading) return <div style={{ padding: 40, textAlign: 'center', color: '#AAA5A0' }}>Loading...</div>;
+  if (bLoading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted, #AAA5A0)' }}>Loading...</div>;
 
   const d = dayData;
   const cashDiff = cashCounted ? (parseFloat(cashCounted) - d.cashTaken).toFixed(2) : null;
@@ -153,7 +153,7 @@ export default function EndOfDay() {
           <span style={{ fontSize: 18 }}>✅</span>
           <div>
             <div style={{ fontWeight: 600, fontSize: 14 }}>Day Closed</div>
-            <div style={{ fontSize: 12, color: '#AAA5A0' }}>All reconciled and logged</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)' }}>All reconciled and logged</div>
           </div>
         </div>
       )}
@@ -294,7 +294,7 @@ export default function EndOfDay() {
             <div style={{ marginBottom: 16 }}>
               <label style={styles.inputLabel}>Cash counted</label>
               <div style={styles.cashInput}>
-                <span style={{ color: '#AAA5A0', fontSize: 18 }}>£</span>
+                <span style={{ color: 'var(--text-muted, #AAA5A0)', fontSize: 18 }}>£</span>
                 <input
                   type="number"
                   value={cashCounted}
@@ -338,7 +338,7 @@ export default function EndOfDay() {
               ...styles.reconBtn,
               opacity: cashCounted ? 1 : 0.5,
               pointerEvents: cashCounted ? 'auto' : 'none',
-              background: isReconciled ? '#2E7D32' : '#C76B8A'
+              background: isReconciled ? '#2E7D32' : 'var(--accent, #C76B8A)'
             }}
           >
             {isReconciled ? '✓ Reconciled' : 'Mark as Reconciled'}
@@ -395,12 +395,12 @@ export default function EndOfDay() {
 const styles = {
   page: { padding: '16px 16px 100px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 700, color: '#2D2A26', margin: 0 },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: 0 },
   dateChip: { fontSize: 12, color: '#6B6560', background: '#F0ECE8', padding: '4px 10px', borderRadius: 12 },
 
   closedBanner: { display: 'flex', alignItems: 'center', gap: 12, background: '#E8F5E9', borderRadius: 12, padding: '12px 16px', marginBottom: 16 },
 
-  heroCard: { background: 'linear-gradient(135deg, #C76B8A 0%, #A85575 100%)', borderRadius: 16, padding: 20, marginBottom: 16, color: '#fff' },
+  heroCard: { background: 'linear-gradient(135deg, #C76B8A 0%, #A85575 100%)', borderRadius: 16, padding: 20, marginBottom: 16, color: 'var(--bg-card, #fff)' },
   heroLabel: { fontSize: 12, opacity: 0.8, marginBottom: 4 },
   heroAmount: { fontSize: 32, fontWeight: 700, marginBottom: 8 },
   heroBreakdown: { display: 'flex', gap: 16, fontSize: 13, opacity: 0.9, marginBottom: 16 },
@@ -411,44 +411,44 @@ const styles = {
 
   tabs: { display: 'flex', gap: 4, marginBottom: 16, background: '#F0ECE8', borderRadius: 12, padding: 4 },
   tab: { flex: 1, padding: '8px 0', fontSize: 13, fontWeight: 500, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', background: 'none', color: '#6B6560' },
-  tabActive: { background: '#fff', color: '#2D2A26', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' },
+  tabActive: { background: 'var(--bg-card, #fff)', color: 'var(--text-primary, #2D2A26)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' },
 
   section: { marginBottom: 24 },
 
   statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 },
-  statCard: { background: '#fff', borderRadius: 12, padding: 14, border: '1px solid #F0ECE8' },
+  statCard: { background: 'var(--bg-card, #fff)', borderRadius: 12, padding: 14, border: '1px solid #F0ECE8' },
   statIcon: { fontSize: 16, marginBottom: 6 },
-  statValue: { fontSize: 20, fontWeight: 700, color: '#2D2A26' },
-  statLabel: { fontSize: 11, color: '#AAA5A0', marginTop: 2 },
+  statValue: { fontSize: 20, fontWeight: 700, color: 'var(--text-primary, #2D2A26)' },
+  statLabel: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)', marginTop: 2 },
   utilBar: { height: 4, background: '#F0ECE8', borderRadius: 2, marginTop: 8 },
-  utilFill: { height: '100%', background: '#C76B8A', borderRadius: 2, transition: 'width 0.3s' },
+  utilFill: { height: '100%', background: 'var(--accent, #C76B8A)', borderRadius: 2, transition: 'width 0.3s' },
 
   insightCard: { display: 'flex', gap: 12, background: '#FFF8F0', border: '1px solid #FFE8CC', borderRadius: 12, padding: 14 },
 
   timelineRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid #F0ECE8' },
-  timelineTime: { fontSize: 13, fontWeight: 600, color: '#AAA5A0', width: 42, flexShrink: 0 },
+  timelineTime: { fontSize: 13, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)', width: 42, flexShrink: 0 },
   timelineDot: (status) => ({ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: status === 'completed' ? '#4CAF50' : status === 'no-show' ? '#E85D75' : '#FFB74D' }),
-  timelineClient: { fontSize: 14, fontWeight: 600, color: '#2D2A26' },
-  timelineTreatment: { fontSize: 12, color: '#AAA5A0' },
-  timelineAmount: { fontSize: 14, fontWeight: 600, color: '#2D2A26' },
-  timelineMethod: { fontSize: 11, color: '#AAA5A0' },
+  timelineClient: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
+  timelineTreatment: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)' },
+  timelineAmount: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
+  timelineMethod: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
   badgeNoShow: { fontSize: 11, color: '#E85D75', background: '#FDEDF0', padding: '3px 8px', borderRadius: 8, fontWeight: 600 },
   badgeCancelled: { fontSize: 11, color: '#F57C00', background: '#FFF3E0', padding: '3px 8px', borderRadius: 8, fontWeight: 600 },
 
-  cashupCard: { background: '#fff', borderRadius: 14, padding: 16, border: '1px solid #F0ECE8', marginBottom: 16 },
+  cashupCard: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16, border: '1px solid #F0ECE8', marginBottom: 16 },
   cashupRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' },
   cashupDivider: { height: 1, background: '#F0ECE8', margin: '8px 0' },
   inputLabel: { fontSize: 12, fontWeight: 600, color: '#6B6560', display: 'block', marginBottom: 6 },
-  cashInput: { display: 'flex', alignItems: 'center', gap: 6, background: '#FAF8F5', border: '1.5px solid #E8E4E0', borderRadius: 10, padding: '10px 12px' },
-  input: { border: 'none', background: 'none', fontSize: 18, fontWeight: 600, outline: 'none', width: '100%', fontFamily: 'inherit', color: '#2D2A26' },
+  cashInput: { display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg, var(--bg, #FAF8F5))', border: '1.5px solid #E8E4E0', borderRadius: 10, padding: '10px 12px' },
+  input: { border: 'none', background: 'none', fontSize: 18, fontWeight: 600, outline: 'none', width: '100%', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
   diffBadge: { padding: '10px 14px', borderRadius: 10, fontSize: 14, fontWeight: 600, textAlign: 'center', marginBottom: 12 },
-  reconBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  reconBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', color: 'var(--bg-card, #fff)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
-  notesHeader: { fontSize: 13, fontWeight: 600, color: '#AAA5A0', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-  noteCard: { display: 'flex', gap: 8, background: '#fff', borderRadius: 10, padding: 12, border: '1px solid #F0ECE8', marginBottom: 8 },
-  textarea: { width: '100%', padding: 12, borderRadius: 10, border: '1.5px solid #E8E4E0', fontSize: 14, fontFamily: 'inherit', resize: 'vertical', outline: 'none', background: '#FAF8F5', color: '#2D2A26', boxSizing: 'border-box' },
+  notesHeader: { fontSize: 13, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
+  noteCard: { display: 'flex', gap: 8, background: 'var(--bg-card, #fff)', borderRadius: 10, padding: 12, border: '1px solid #F0ECE8', marginBottom: 8 },
+  textarea: { width: '100%', padding: 12, borderRadius: 10, border: '1.5px solid #E8E4E0', fontSize: 14, fontFamily: 'inherit', resize: 'vertical', outline: 'none', background: 'var(--bg, var(--bg, #FAF8F5))', color: 'var(--text-primary, #2D2A26)', boxSizing: 'border-box' },
 
   closeDayWrap: { textAlign: 'center', marginTop: 8, paddingBottom: 20 },
-  closeDayBtn: { width: '100%', padding: '16px 0', borderRadius: 14, border: 'none', background: '#2D2A26', color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
-  closeDayHint: { fontSize: 12, color: '#AAA5A0', marginTop: 8 },
+  closeDayBtn: { width: '100%', padding: '16px 0', borderRadius: 14, border: 'none', background: 'var(--text-primary, #2D2A26)', color: 'var(--bg-card, #fff)', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
+  closeDayHint: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)', marginTop: 8 },
 };

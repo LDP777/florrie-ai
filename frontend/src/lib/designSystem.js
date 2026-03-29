@@ -8,6 +8,12 @@
  * Use alongside page-specific inline styles.
  */
 
+// ─── Spacing Scale ──────────────────────────────────
+export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24, xxxl: 32, huge: 48 };
+
+// ─── Border Radius Scale ────────────────────────────
+export const radius = { sm: 8, md: 12, lg: 14, xl: 16, xxl: 20, full: 9999 };
+
 // ─── Typography ──────────────────────────────────────
 
 export const type = {

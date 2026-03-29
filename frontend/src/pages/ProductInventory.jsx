@@ -72,12 +72,12 @@ export default function ProductInventory() {
           <span style={S.summaryNum}>{products.length}</span>
           <span style={S.summaryLabel}>Products</span>
         </div>
-        <div style={{ ...S.summaryCard, ...(lowCount > 0 ? { border: '1px solid #FF9800' } : {}) }}>
-          <span style={{ ...S.summaryNum, color: '#FF9800' }}>{lowCount}</span>
+        <div style={{ ...S.summaryCard, ...(lowCount > 0 ? { border: '1px solid var(--warning, #FF9800)' } : {}) }}>
+          <span style={{ ...S.summaryNum, color: 'var(--warning, #FF9800)' }}>{lowCount}</span>
           <span style={S.summaryLabel}>Low Stock</span>
         </div>
-        <div style={{ ...S.summaryCard, ...(outCount > 0 ? { border: '1px solid #F44336' } : {}) }}>
-          <span style={{ ...S.summaryNum, color: '#F44336' }}>{outCount}</span>
+        <div style={{ ...S.summaryCard, ...(outCount > 0 ? { border: '1px solid var(--danger, #F44336)' } : {}) }}>
+          <span style={{ ...S.summaryNum, color: 'var(--danger, #F44336)' }}>{outCount}</span>
           <span style={S.summaryLabel}>Out</span>
         </div>
         <div style={S.summaryCard}>
@@ -91,8 +91,8 @@ export default function ProductInventory() {
         <div style={S.alertCard}>
           <span style={S.alertIcon}>⚠️</span>
           <div style={S.alertText}>
-            {outCount > 0 && <span style={{ color: '#F44336', fontWeight: 600, fontSize: 13 }}>{outCount} product{outCount !== 1 ? 's' : ''} out of stock. </span>}
-            {lowCount > 0 && <span style={{ color: '#FF9800', fontWeight: 600, fontSize: 13 }}>{lowCount} running low.</span>}
+            {outCount > 0 && <span style={{ color: 'var(--danger, #F44336)', fontWeight: 600, fontSize: 13 }}>{outCount} product{outCount !== 1 ? 's' : ''} out of stock. </span>}
+            {lowCount > 0 && <span style={{ color: 'var(--warning, #FF9800)', fontWeight: 600, fontSize: 13 }}>{lowCount} running low.</span>}
           </div>
         </div>
       )}
@@ -246,7 +246,7 @@ const S = {
   summaryCard: { flex: 1, background: 'var(--card, #fff)', borderRadius: 12, padding: '12px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   summaryNum: { fontSize: 18, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
   summaryLabel: { fontSize: 10, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontWeight: 500 },
-  alertCard: { background: '#FFF5E6', borderRadius: 12, padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12 },
+  alertCard: { background: 'var(--warning-bg, #FFF5E6)', borderRadius: 12, padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12 },
   alertIcon: { fontSize: 18 },
   alertText: { flex: 1 },
   filterRow: { display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 10, paddingBottom: 4 },

@@ -127,8 +127,8 @@ export default function Analytics() {
             onClick={() => setPeriod(p.key)}
             style={{
               ...styles.periodTab,
-              background: period === p.key ? '#C76B8A' : '#F5F2EF',
-              color: period === p.key ? '#fff' : '#8A8580'
+              background: period === p.key ? 'var(--accent, #C76B8A)' : 'var(--bg-subtle, var(--bg-subtle, #F5F2EF))',
+              color: period === p.key ? 'var(--bg-card, #fff)' : '#8A8580'
             }}
           >
             {p.label}
@@ -261,10 +261,10 @@ function DayBarChart({ data }) {
               <div style={{
                 ...styles.barFill,
                 height: `${Math.max(pct, 4)}%`,
-                background: val === max ? '#C76B8A' : '#E8E4E0'
+                background: val === max ? 'var(--accent, #C76B8A)' : '#E8E4E0'
               }} />
             </div>
-            <span style={{ ...styles.barLabel, color: val === max ? '#C76B8A' : '#AAA5A0' }}>
+            <span style={{ ...styles.barLabel, color: val === max ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #AAA5A0)' }}>
               {days[i]}
             </span>
           </div>
@@ -278,7 +278,7 @@ function SkeletonCard({ height = 80 }) {
   return (
     <div style={{ ...styles.card, height, display: 'flex', flexDirection: 'column', gap: 10, justifyContent: 'center' }}>
       <div style={{ height: 14, width: '40%', borderRadius: 7, background: '#F0ECE8' }} />
-      <div style={{ height: 14, width: '65%', borderRadius: 7, background: '#F5F2EF' }} />
+      <div style={{ height: 14, width: '65%', borderRadius: 7, background: 'var(--bg-subtle, var(--bg-subtle, #F5F2EF))' }} />
     </div>
   );
 }
@@ -341,7 +341,7 @@ function getDevDayBreakdown() {
 }
 
 const styles = {
-  page: { minHeight: '100vh', background: '#FAF8F5', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: '#2D2A26' },
+  page: { minHeight: '100vh', background: 'var(--bg, var(--bg, #FAF8F5))', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)' },
   header: { paddingTop: 28, paddingBottom: 8 },
   title: { fontSize: 22, fontWeight: 700, margin: 0 },
 
@@ -349,7 +349,7 @@ const styles = {
   periodTab: { flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s' },
 
   // Hero revenue
-  heroCard: { background: 'linear-gradient(135deg, #C76B8A 0%, #D4899F 100%)', borderRadius: 16, padding: 20, marginBottom: 12, color: '#fff' },
+  heroCard: { background: 'linear-gradient(135deg, #C76B8A 0%, #D4899F 100%)', borderRadius: 16, padding: 20, marginBottom: 12, color: 'var(--bg-card, #fff)' },
   heroLabel: { fontSize: 12, fontWeight: 600, opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.05em' },
   heroAmount: { display: 'block', fontSize: 36, fontWeight: 800, marginTop: 4, letterSpacing: '-0.02em' },
   heroRow: { display: 'flex', justifyContent: 'space-between', marginTop: 16, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.2)' },
@@ -360,8 +360,8 @@ const styles = {
 
   // Stats grid
   statsGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 },
-  statCard: { background: '#fff', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
-  statLabel: { fontSize: 11, color: '#AAA5A0', fontWeight: 500 },
+  statCard: { background: 'var(--bg-card, #fff)', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  statLabel: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)', fontWeight: 500 },
   statValue: { fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' },
   statSub: { fontSize: 11, color: '#C4BDB6' },
 
@@ -373,22 +373,22 @@ const styles = {
   insightText: { fontSize: 13, color: '#8A8580' },
 
   // Card
-  card: { background: '#fff', borderRadius: 14, padding: 16, marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
-  cardTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: '#2D2A26' },
+  card: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16, marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  cardTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: 'var(--text-primary, #2D2A26)' },
 
   // Top clients
   clientRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #FAF8F5' },
-  clientRank: { width: 24, height: 24, borderRadius: 12, background: '#F5F2EF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#AAA5A0', flexShrink: 0 },
+  clientRank: { width: 24, height: 24, borderRadius: 12, background: 'var(--bg-subtle, var(--bg-subtle, #F5F2EF))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: 'var(--text-muted, #AAA5A0)', flexShrink: 0 },
   clientInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 1 },
-  clientName: { fontSize: 13, fontWeight: 600, color: '#2D2A26' },
-  clientVisits: { fontSize: 11, color: '#AAA5A0' },
-  clientSpend: { fontSize: 14, fontWeight: 700, color: '#C76B8A' },
+  clientName: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
+  clientVisits: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
+  clientSpend: { fontSize: 14, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
 
   // Bar chart
   barChart: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 120, gap: 4, paddingTop: 8 },
   barCol: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flex: 1 },
-  barValue: { fontSize: 10, fontWeight: 600, color: '#AAA5A0' },
-  barTrack: { width: '100%', height: 80, borderRadius: 4, background: '#FAF8F5', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', overflow: 'hidden' },
+  barValue: { fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)' },
+  barTrack: { width: '100%', height: 80, borderRadius: 4, background: 'var(--bg, var(--bg, #FAF8F5))', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', overflow: 'hidden' },
   barFill: { width: '100%', borderRadius: 4, transition: 'height 0.4s ease', minHeight: 3 },
   barLabel: { fontSize: 10, fontWeight: 600 },
 
@@ -402,7 +402,7 @@ const styles = {
   emptyState: { textAlign: 'center', padding: '40px 20px' },
   emptyIcon: { fontSize: 48, marginBottom: 12 },
   emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 8px' },
-  emptyDesc: { fontSize: 13, color: '#AAA5A0', lineHeight: 1.5 },
+  emptyDesc: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', lineHeight: 1.5 },
 
   // Skeleton
   skeletonGroup: { display: 'flex', flexDirection: 'column', gap: 10 },

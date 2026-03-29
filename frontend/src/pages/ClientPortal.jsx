@@ -24,7 +24,7 @@ const mockPortalConfig = {
   },
   branding: {
     welcomeMessage: "Welcome back, gorgeous! 💕",
-    accentColour: '#C76B8A',
+    accentColour: 'var(--accent, #C76B8A)',
     showLogo: true,
     showTestimonials: true,
   },
@@ -127,7 +127,7 @@ export default function ClientPortal() {
           onClick={() => setConfig({ ...c, enabled: !c.enabled })}
           style={{
             ...styles.toggle,
-            background: c.enabled ? '#C76B8A' : '#E8E4E0'
+            background: c.enabled ? 'var(--accent, #C76B8A)' : '#E8E4E0'
           }}
         >
           <div style={{
@@ -230,14 +230,14 @@ export default function ClientPortal() {
             <div key={f.key} style={styles.featureRow}>
               <span style={{ fontSize: 18 }}>{f.icon}</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 500, color: '#2D2A26' }}>{f.label}</div>
-                <div style={{ fontSize: 12, color: '#AAA5A0' }}>{f.desc}</div>
+                <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary, #2D2A26)' }}>{f.label}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)' }}>{f.desc}</div>
               </div>
               <button
                 onClick={() => toggleFeature(f.key)}
                 style={{
                   ...styles.toggle,
-                  background: features[f.key] ? '#C76B8A' : '#E8E4E0'
+                  background: features[f.key] ? 'var(--accent, #C76B8A)' : '#E8E4E0'
                 }}
               >
                 <div style={{
@@ -267,7 +267,7 @@ export default function ClientPortal() {
             <div style={styles.inputGroup}>
               <label style={styles.inputLabel}>Accent colour</label>
               <div style={styles.colourRow}>
-                {['#C76B8A', '#6B8AC7', '#8AC76B', '#C7A86B', '#8B6BC7', '#2D2A26'].map(col => (
+                {['var(--accent, #C76B8A)', '#6B8AC7', '#8AC76B', '#C7A86B', '#8B6BC7', 'var(--text-primary, #2D2A26)'].map(col => (
                   <button
                     key={col}
                     onClick={() => setConfig({ ...c, branding: { ...c.branding, accentColour: col } })}
@@ -282,20 +282,20 @@ export default function ClientPortal() {
             </div>
 
             <div style={styles.toggleRow}>
-              <span style={{ fontSize: 14, color: '#2D2A26' }}>Show logo</span>
+              <span style={{ fontSize: 14, color: 'var(--text-primary, #2D2A26)' }}>Show logo</span>
               <button
                 onClick={() => setConfig({ ...c, branding: { ...c.branding, showLogo: !c.branding.showLogo } })}
-                style={{ ...styles.toggle, background: c.branding.showLogo ? '#C76B8A' : '#E8E4E0' }}
+                style={{ ...styles.toggle, background: c.branding.showLogo ? 'var(--accent, #C76B8A)' : '#E8E4E0' }}
               >
                 <div style={{ ...styles.toggleDot, transform: c.branding.showLogo ? 'translateX(18px)' : 'translateX(0)' }} />
               </button>
             </div>
 
             <div style={styles.toggleRow}>
-              <span style={{ fontSize: 14, color: '#2D2A26' }}>Show testimonials</span>
+              <span style={{ fontSize: 14, color: 'var(--text-primary, #2D2A26)' }}>Show testimonials</span>
               <button
                 onClick={() => setConfig({ ...c, branding: { ...c.branding, showTestimonials: !c.branding.showTestimonials } })}
-                style={{ ...styles.toggle, background: c.branding.showTestimonials ? '#C76B8A' : '#E8E4E0' }}
+                style={{ ...styles.toggle, background: c.branding.showTestimonials ? 'var(--accent, #C76B8A)' : '#E8E4E0' }}
               >
                 <div style={{ ...styles.toggleDot, transform: c.branding.showTestimonials ? 'translateX(18px)' : 'translateX(0)' }} />
               </button>
@@ -311,7 +311,7 @@ export default function ClientPortal() {
                   {c.branding.showLogo && (
                     <div style={{ fontSize: 22, fontWeight: 700, color: c.branding.accentColour, marginBottom: 4 }}>florrie</div>
                   )}
-                  <div style={{ fontSize: 14, color: '#2D2A26', marginBottom: 16 }}>{c.branding.welcomeMessage}</div>
+                  <div style={{ fontSize: 14, color: 'var(--text-primary, #2D2A26)', marginBottom: 16 }}>{c.branding.welcomeMessage}</div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 16 }}>
                     {[
                       { icon: '📅', label: 'My Bookings' },
@@ -319,16 +319,16 @@ export default function ClientPortal() {
                       { icon: '🏆', label: 'Loyalty' },
                       { icon: '🤝', label: 'Refer' },
                     ].map((item, i) => (
-                      <div key={i} style={{ background: '#fff', borderRadius: 10, padding: '14px 8px', border: '1px solid #F0ECE8', textAlign: 'center' }}>
+                      <div key={i} style={{ background: 'var(--bg-card, #fff)', borderRadius: 10, padding: '14px 8px', border: '1px solid #F0ECE8', textAlign: 'center' }}>
                         <div style={{ fontSize: 20, marginBottom: 4 }}>{item.icon}</div>
-                        <div style={{ fontSize: 11, fontWeight: 500, color: '#2D2A26' }}>{item.label}</div>
+                        <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-primary, #2D2A26)' }}>{item.label}</div>
                       </div>
                     ))}
                   </div>
-                  <div style={{ background: '#fff', borderRadius: 10, padding: 12, border: '1px solid #F0ECE8', textAlign: 'left' }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: '#2D2A26', marginBottom: 6 }}>Next appointment</div>
+                  <div style={{ background: 'var(--bg-card, #fff)', borderRadius: 10, padding: 12, border: '1px solid #F0ECE8', textAlign: 'left' }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary, #2D2A26)', marginBottom: 6 }}>Next appointment</div>
                     <div style={{ fontSize: 13, color: '#6B6560' }}>Brow Lamination</div>
-                    <div style={{ fontSize: 12, color: '#AAA5A0' }}>Fri 28 Mar · 10:00</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)' }}>Fri 28 Mar · 10:00</div>
                   </div>
                 </div>
               </div>
@@ -344,10 +344,10 @@ export default function ClientPortal() {
           {activity.map((item, i) => (
             <div key={i} style={styles.activityRow}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#2D2A26' }}>{item.client} <span style={{ fontWeight: 400, color: '#6B6560' }}>{item.action}</span></div>
-                <div style={{ fontSize: 12, color: '#AAA5A0', marginTop: 2 }}>{item.detail}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' }}>{item.client} <span style={{ fontWeight: 400, color: '#6B6560' }}>{item.action}</span></div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)', marginTop: 2 }}>{item.detail}</div>
               </div>
-              <div style={{ fontSize: 11, color: '#AAA5A0', flexShrink: 0 }}>{item.time}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted, #AAA5A0)', flexShrink: 0 }}>{item.time}</div>
             </div>
           ))}
         </div>
@@ -359,55 +359,55 @@ export default function ClientPortal() {
 const styles = {
   page: { padding: '16px 16px 100px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 700, color: '#2D2A26', margin: 0 },
-  subtitle: { fontSize: 13, color: '#AAA5A0', marginTop: 2 },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: 0 },
+  subtitle: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', marginTop: 2 },
 
-  linkCard: { background: 'linear-gradient(135deg, #C76B8A 0%, #A85575 100%)', borderRadius: 14, padding: 16, marginBottom: 16, color: '#fff' },
+  linkCard: { background: 'linear-gradient(135deg, #C76B8A 0%, #A85575 100%)', borderRadius: 14, padding: 16, marginBottom: 16, color: 'var(--bg-card, #fff)' },
   linkLabel: { fontSize: 11, opacity: 0.8, marginBottom: 6 },
   linkRow: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 },
   linkUrl: { flex: 1, fontSize: 12, background: 'rgba(255,255,255,0.15)', borderRadius: 8, padding: '8px 10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  copyBtn: { padding: '8px 12px', borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.2)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
+  copyBtn: { padding: '8px 12px', borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.2)', color: 'var(--bg-card, #fff)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
   shareRow: { display: 'flex', gap: 8 },
-  shareBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
+  shareBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.1)', color: 'var(--bg-card, #fff)', fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
 
   tabs: { display: 'flex', gap: 4, marginBottom: 16, background: '#F0ECE8', borderRadius: 12, padding: 4 },
   tab: { flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 500, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', background: 'none', color: '#6B6560' },
-  tabActive: { background: '#fff', color: '#2D2A26', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' },
+  tabActive: { background: 'var(--bg-card, #fff)', color: 'var(--text-primary, #2D2A26)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' },
 
   statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 },
-  statCard: { background: '#fff', borderRadius: 12, padding: 14, border: '1px solid #F0ECE8', textAlign: 'center' },
-  statValue: { fontSize: 22, fontWeight: 700, color: '#2D2A26' },
-  statLabel: { fontSize: 11, color: '#AAA5A0', marginTop: 2 },
+  statCard: { background: 'var(--bg-card, #fff)', borderRadius: 12, padding: 14, border: '1px solid #F0ECE8', textAlign: 'center' },
+  statValue: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #2D2A26)' },
+  statLabel: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)', marginTop: 2 },
 
-  adoptionCard: { background: '#fff', borderRadius: 14, padding: 16, border: '1px solid #F0ECE8', marginBottom: 16 },
-  adoptionTitle: { fontSize: 13, fontWeight: 600, color: '#2D2A26', marginBottom: 12 },
+  adoptionCard: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16, border: '1px solid #F0ECE8', marginBottom: 16 },
+  adoptionTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)', marginBottom: 12 },
   adoptionRow: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },
   adoptionLabel: { fontSize: 12, color: '#6B6560', width: 90 },
   adoptionBarBg: { flex: 1, height: 8, background: '#F0ECE8', borderRadius: 4 },
-  adoptionBarFill: { height: '100%', background: '#C76B8A', borderRadius: 4, transition: 'width 0.5s' },
-  adoptionPct: { fontSize: 12, fontWeight: 600, color: '#2D2A26', width: 32, textAlign: 'right' },
+  adoptionBarFill: { height: '100%', background: 'var(--accent, #C76B8A)', borderRadius: 4, transition: 'width 0.5s' },
+  adoptionPct: { fontSize: 12, fontWeight: 600, color: 'var(--text-primary, #2D2A26)', width: 32, textAlign: 'right' },
 
   insightCard: { display: 'flex', gap: 10, background: '#FFF8F0', border: '1px solid #FFE8CC', borderRadius: 12, padding: 14, marginBottom: 16 },
 
-  featuresHint: { fontSize: 13, color: '#AAA5A0', marginBottom: 12 },
+  featuresHint: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', marginBottom: 12 },
   featureRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid #F0ECE8' },
 
   toggle: { width: 42, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s' },
-  toggleDot: { width: 20, height: 20, borderRadius: 10, background: '#fff', position: 'absolute', top: 2, left: 2, transition: 'transform 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.15)' },
+  toggleDot: { width: 20, height: 20, borderRadius: 10, background: 'var(--bg-card, #fff)', position: 'absolute', top: 2, left: 2, transition: 'transform 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.15)' },
 
-  brandingCard: { background: '#fff', borderRadius: 14, padding: 16, border: '1px solid #F0ECE8', marginBottom: 16 },
+  brandingCard: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16, border: '1px solid #F0ECE8', marginBottom: 16 },
   inputGroup: { marginBottom: 16 },
   inputLabel: { fontSize: 12, fontWeight: 600, color: '#6B6560', display: 'block', marginBottom: 6 },
-  textInput: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #E8E4E0', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: '#FAF8F5', color: '#2D2A26' },
+  textInput: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #E8E4E0', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: 'var(--bg, var(--bg, #FAF8F5))', color: 'var(--text-primary, #2D2A26)' },
   colourRow: { display: 'flex', gap: 8 },
   colourChip: { width: 32, height: 32, borderRadius: 8, cursor: 'pointer' },
   toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #F0ECE8' },
 
   previewSection: { marginTop: 16 },
-  previewTitle: { fontSize: 13, fontWeight: 600, color: '#2D2A26', marginBottom: 10 },
-  phoneFrame: { background: '#2D2A26', borderRadius: 24, padding: '8px', maxWidth: 280, margin: '0 auto' },
-  phoneScreen: { background: '#FAF8F5', borderRadius: 18, minHeight: 340, overflow: 'hidden' },
+  previewTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)', marginBottom: 10 },
+  phoneFrame: { background: 'var(--text-primary, #2D2A26)', borderRadius: 24, padding: '8px', maxWidth: 280, margin: '0 auto' },
+  phoneScreen: { background: 'var(--bg, var(--bg, #FAF8F5))', borderRadius: 18, minHeight: 340, overflow: 'hidden' },
 
-  activityHint: { fontSize: 13, color: '#AAA5A0', marginBottom: 12 },
+  activityHint: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', marginBottom: 12 },
   activityRow: { display: 'flex', gap: 10, padding: '12px 0', borderBottom: '1px solid #F0ECE8' },
 };

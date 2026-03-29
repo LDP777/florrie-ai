@@ -121,7 +121,7 @@ export default function RevenueGoals() {
       {/* Key numbers */}
       <div style={S.statsRow}>
         <div style={S.statCard}>
-          <span style={{ ...S.statNum, color: '#C76B8A' }}>{fmt(g.earned)}</span>
+          <span style={{ ...S.statNum, color: 'var(--accent, #C76B8A)' }}>{fmt(g.earned)}</span>
           <span style={S.statLabel}>Earned</span>
         </div>
         <div style={S.statCard}>
@@ -167,7 +167,7 @@ export default function RevenueGoals() {
               <div key={i} style={S.barRow}>
                 <span style={S.barLabel}>{w.week}</span>
                 <div style={S.barTrack}>
-                  <div style={{ ...S.barFill, width: `${wp}%`, background: wp >= 100 ? '#4CAF50' : '#C76B8A' }} />
+                  <div style={{ ...S.barFill, width: `${wp}%`, background: wp >= 100 ? '#4CAF50' : 'var(--accent, #C76B8A)' }} />
                 </div>
                 <span style={S.barValue}>{fmt(w.earned)}</span>
               </div>
@@ -192,7 +192,7 @@ export default function RevenueGoals() {
                   <span style={S.breakdownPct}>{cp}%</span>
                 </div>
                 <div style={S.barTrack}>
-                  <div style={{ ...S.barFill, width: `${cp}%`, background: cp >= 100 ? '#4CAF50' : '#C76B8A' }} />
+                  <div style={{ ...S.barFill, width: `${cp}%`, background: cp >= 100 ? '#4CAF50' : 'var(--accent, #C76B8A)' }} />
                 </div>
                 <div style={S.breakdownNums}>
                   <span style={S.breakdownEarned}>{fmt(cat.earned)}</span>
@@ -262,18 +262,18 @@ export default function RevenueGoals() {
 const S = {
   page: { padding: '20px 16px 100px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 2px' },
-  subtitle: { fontSize: 13, color: '#AAA5A0', margin: '0 0 20px' },
+  subtitle: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', margin: '0 0 20px' },
 
   ringContainer: { position: 'relative', width: 140, height: 140, margin: '0 auto 20px' },
   ringSvg: { display: 'block' },
   ringCenter: { position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' },
   ringPercent: { fontSize: 28, fontWeight: 700, color: 'var(--text, #2D2A26)' },
-  ringLabel: { fontSize: 11, color: '#AAA5A0' },
+  ringLabel: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
 
   statsRow: { display: 'flex', gap: 8, marginBottom: 14 },
   statCard: { flex: 1, background: 'var(--card, #fff)', borderRadius: 12, padding: '12px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   statNum: { fontSize: 16, fontWeight: 700 },
-  statLabel: { fontSize: 10, color: '#AAA5A0', fontWeight: 500 },
+  statLabel: { fontSize: 10, color: 'var(--text-muted, #AAA5A0)', fontWeight: 500 },
 
   projCard: { borderRadius: 12, padding: '14px 16px', display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16 },
   projIcon: { fontSize: 22 },
@@ -282,50 +282,50 @@ const S = {
   projDetail: { fontSize: 12, color: '#8B6F5E', lineHeight: 1.4 },
 
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
-  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: '#AAA5A0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: '#C76B8A', color: '#fff' },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: 'var(--text-muted, #AAA5A0)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)' },
 
   section: { marginBottom: 16 },
   sectionTitle: { fontSize: 14, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 12px' },
 
   barRow: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 },
-  barLabel: { fontSize: 11, color: '#AAA5A0', width: 70, flexShrink: 0 },
+  barLabel: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)', width: 70, flexShrink: 0 },
   barTrack: { flex: 1, height: 8, borderRadius: 4, background: '#F0ECE8', overflow: 'hidden' },
   barFill: { height: '100%', borderRadius: 4, transition: 'width .4s' },
   barValue: { fontSize: 12, fontWeight: 600, color: 'var(--text, #2D2A26)', width: 55, textAlign: 'right' },
   targetLine: { paddingTop: 6, borderTop: '1px dashed #D0CBC5' },
-  targetLineLabel: { fontSize: 11, color: '#AAA5A0' },
+  targetLineLabel: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
 
   breakdownCard: { background: 'var(--card, #fff)', borderRadius: 12, padding: 12, marginBottom: 8 },
   breakdownHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: 6 },
   breakdownLabel: { fontSize: 13, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  breakdownPct: { fontSize: 13, fontWeight: 700, color: '#C76B8A' },
+  breakdownPct: { fontSize: 13, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
   breakdownNums: { display: 'flex', gap: 4, marginTop: 6 },
   breakdownEarned: { fontSize: 12, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  breakdownTarget: { fontSize: 12, color: '#AAA5A0' },
+  breakdownTarget: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)' },
 
   historyCard: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card, #fff)', borderRadius: 12, padding: '12px 14px', marginBottom: 8 },
   historyLeft: { display: 'flex', flexDirection: 'column', gap: 2 },
   historyMonth: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  historyNums: { fontSize: 12, color: '#AAA5A0' },
+  historyNums: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)' },
   historyBadge: { padding: '4px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600 },
   streakCard: { background: '#F9F7F4', borderRadius: 10, padding: 12, textAlign: 'center' },
   streakText: { fontSize: 13, fontWeight: 600, color: '#8B6F5E' },
 
-  setGoalBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: '1px dashed #C76B8A', background: 'transparent', fontSize: 14, fontWeight: 600, color: '#C76B8A', cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
+  setGoalBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: '1px dashed #C76B8A', background: 'transparent', fontSize: 14, fontWeight: 600, color: 'var(--accent, #C76B8A)', cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
 
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
-  modal: { background: 'var(--bg, #FAF8F5)', borderRadius: '18px 18px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', overflow: 'auto', padding: '20px 16px 32px' },
+  modal: { background: 'var(--bg, var(--bg, #FAF8F5))', borderRadius: '18px 18px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', overflow: 'auto', padding: '20px 16px 32px' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },
-  closeBtn: { background: 'none', border: 'none', fontSize: 18, color: '#AAA5A0', cursor: 'pointer' },
+  closeBtn: { background: 'none', border: 'none', fontSize: 18, color: 'var(--text-muted, #AAA5A0)', cursor: 'pointer' },
   formBody: { display: 'flex', flexDirection: 'column', gap: 10 },
-  fLabel: { fontSize: 12, fontWeight: 600, color: '#AAA5A0', marginTop: 4 },
+  fLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)', marginTop: 4 },
   input: { padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', background: 'var(--card, #fff)' },
   suggestionCard: { background: '#F9F7F4', borderRadius: 10, padding: 12, display: 'flex', gap: 8, alignItems: 'flex-start' },
   suggestionIcon: { fontSize: 16, flexShrink: 0 },
   suggestionText: { fontSize: 12, color: '#8B6F5E', lineHeight: 1.4 },
   breakdownInputRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   breakdownInputLabel: { fontSize: 13, color: 'var(--text, #2D2A26)' },
-  saveBtn: { marginTop: 16, width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  saveBtn: { marginTop: 16, width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 };

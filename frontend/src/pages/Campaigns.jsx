@@ -22,18 +22,18 @@ import ErrorCard from '../components/ErrorCard.jsx';
 const TYPE_CONFIG = {
   reactivation: { label: 'Comeback', icon: '💌', color: 'var(--accent, #C76B8A)', desc: 'Win back clients who haven\'t visited in a while' },
   rescue: { label: 'Rescue', icon: '🆘', color: 'var(--danger, #D4605C)', desc: 'Save a cancellation with a quick rebook offer' },
-  weather: { label: 'Weather', icon: '🌧️', color: '#4A90D9', desc: 'Bad weather = pamper day. Triggered by forecast' },
+  weather: { label: 'Weather', icon: '🌧️', color: 'var(--info, #4A90D9)', desc: 'Bad weather = pamper day. Triggered by forecast' },
   bank_holiday: { label: 'Bank Holiday', icon: '🎉', color: 'var(--warning, #D4943A)', desc: 'Promo blast before long weekends' },
   event: { label: 'Seasonal', icon: '🎄', color: 'var(--success, #5BA97B)', desc: 'Christmas, Valentine\'s, Mother\'s Day specials' },
   custom: { label: 'Custom', icon: '✏️', color: 'var(--text-secondary, #8A8580)', desc: 'Write your own campaign from scratch' },
 };
 
 const STATUS_LABELS = {
-  draft: { label: 'Draft', color: 'var(--warning, #D4943A)', bg: '#FFF8E1' },
-  approved: { label: 'Ready', color: '#4A90D9', bg: '#EEF4FC' },
+  draft: { label: 'Draft', color: 'var(--warning, #D4943A)', bg: 'var(--warning-bg, #FFF8E1)' },
+  approved: { label: 'Ready', color: 'var(--info, #4A90D9)', bg: 'var(--info-bg, #EEF4FC)' },
   sending: { label: 'Sending', color: 'var(--accent, #C76B8A)', bg: 'var(--accent-light, #FFF0F3)' },
   sent: { label: 'Sent', color: 'var(--success, #5BA97B)', bg: 'var(--success-bg, #EDF7F0)' },
-  cancelled: { label: 'Cancelled', color: 'var(--text-muted, #AAA5A0)', bg: 'var(--bg-hover, #F5F2EF)' },
+  cancelled: { label: 'Cancelled', color: 'var(--text-muted, #AAA5A0)', bg: 'var(--bg-subtle, #F5F2EF)' },
 };
 
 // Message templates per type (Ellie's tone)

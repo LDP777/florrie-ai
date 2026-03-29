@@ -19,10 +19,10 @@ import ErrorCard from '../components/ErrorCard.jsx';
  */
 
 const TIERS = [
-  { name: 'Bronze', min: 0, color: 'var(--text-secondary, #7A756F)', icon: '🥉', perks: 'Early access to new slots' },
-  { name: 'Silver', min: 200, color: 'var(--text-muted, #B5AFA8)', icon: '🥈', perks: '5% off every 5th visit' },
-  { name: 'Gold', min: 500, color: 'var(--warning, #D4943A)', icon: '🥇', perks: '10% off + free brow mask' },
-  { name: 'VIP', min: 1000, color: 'var(--accent, #C76B8A)', icon: '💎', perks: 'Priority booking + birthday treat' },
+  { name: 'Bronze', min: 0, color: 'var(--text-secondary)', icon: '🥉', perks: 'Early access to new slots' },
+  { name: 'Silver', min: 200, color: 'var(--text-muted)', icon: '🥈', perks: '5% off every 5th visit' },
+  { name: 'Gold', min: 500, color: 'var(--gold)', icon: '🥇', perks: '10% off + free brow mask' },
+  { name: 'VIP', min: 1000, color: 'var(--accent)', icon: '💎', perks: 'Priority booking + birthday treat' },
 ];
 
 const REWARDS = [

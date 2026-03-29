@@ -23,12 +23,12 @@ import ErrorCard from '../components/ErrorCard.jsx';
 
 const AGENT_ROUTES = {
   calendar: { label: 'Calendar', icon: '📅', color: '#4A90D9' },
-  clients: { label: 'Clients', icon: '👤', color: '#C76B8A' },
+  clients: { label: 'Clients', icon: '👤', color: 'var(--accent, #C76B8A)' },
   campaigns: { label: 'Campaigns', icon: '💌', color: '#E57373' },
   money: { label: 'Money', icon: '💰', color: '#4CAF50' },
   content: { label: 'Content', icon: '📸', color: '#F5A623' },
   settings: { label: 'Settings', icon: '⚙️', color: '#8A8580' },
-  general: { label: 'florrie.ai', icon: '✨', color: '#C76B8A' },
+  general: { label: 'florrie.ai', icon: '✨', color: 'var(--accent, #C76B8A)' },
 };
 
 // Simulated conversation for dev mode
@@ -362,7 +362,7 @@ const styles = {
   },
   userBubble: {
     background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%)',
-    color: '#fff', borderBottomRightRadius: 4,
+    color: 'var(--bg-card, #fff)', borderBottomRightRadius: 4,
   },
   aiBubble: {
     background: 'var(--bg-card)', color: 'var(--text-primary)',
@@ -411,13 +411,13 @@ const styles = {
   },
   sendBtn: {
     width: 44, height: 44, borderRadius: 22, border: 'none',
-    background: 'var(--accent)', color: '#fff', fontSize: 18, fontWeight: 700,
+    background: 'var(--accent)', color: 'var(--bg-card, #fff)', fontSize: 18, fontWeight: 700,
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
     flexShrink: 0,
   },
   micBtn: {
     width: 44, height: 44, borderRadius: 22, border: 'none',
-    color: '#fff', fontSize: 18,
+    color: 'var(--bg-card, #fff)', fontSize: 18,
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
     flexShrink: 0, boxShadow: '0 2px 8px rgba(199,107,138,0.3)',
   },

@@ -61,7 +61,7 @@ const STATUS_CONFIG = {
   granted: { label: 'Granted', bg: '#E8F5E9', color: '#4CAF50' },
   pending: { label: 'Pending', bg: '#FFF5E6', color: '#B8860B' },
   declined: { label: 'Declined', bg: '#FFEBEE', color: '#F44336' },
-  expired: { label: 'Expired', bg: '#F0ECE8', color: '#AAA5A0' },
+  expired: { label: 'Expired', bg: '#F0ECE8', color: 'var(--text-muted, #AAA5A0)' },
 };
 
 export default function PhotoConsent() {
@@ -226,7 +226,7 @@ export default function PhotoConsent() {
         {[
           { label: 'Granted', value: stats.granted, colour: '#4CAF50' },
           { label: 'Pending', value: stats.pending, colour: '#B8860B' },
-          { label: 'Expired', value: stats.expired, colour: '#AAA5A0' },
+          { label: 'Expired', value: stats.expired, colour: 'var(--text-muted, #AAA5A0)' },
           { label: 'Declined', value: stats.declined, colour: '#F44336' },
         ].map(s => (
           <div key={s.label} style={S.statCard}>
@@ -292,7 +292,7 @@ export default function PhotoConsent() {
 
                   <div style={S.actionRow}>
                     {c.status === 'granted' && <button style={S.actionBtn}>Revoke</button>}
-                    {c.status === 'expired' && <button style={{ ...S.actionBtn, background: '#C76B8A', color: '#fff' }}>Request Renewal</button>}
+                    {c.status === 'expired' && <button style={{ ...S.actionBtn, background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)' }}>Request Renewal</button>}
                     {c.status === 'pending' && <button style={S.actionBtn}>Send Reminder</button>}
                     {c.status === 'granted' && <button style={S.actionBtn}>Update Scope</button>}
                   </div>
@@ -333,7 +333,7 @@ export default function PhotoConsent() {
                     scope: active ? f.scope.filter(s => s !== opt.value) : [...f.scope, opt.value],
                   }));
                 }}>
-                  <div style={{ ...S.checkbox, background: active ? '#C76B8A' : '#fff', borderColor: active ? '#C76B8A' : '#E0DCD8' }}>
+                  <div style={{ ...S.checkbox, background: active ? 'var(--accent, #C76B8A)' : 'var(--bg-card, #fff)', borderColor: active ? 'var(--accent, #C76B8A)' : '#E0DCD8' }}>
                     {active && <span style={S.checkmark}>✓</span>}
                   </div>
                   <div style={S.scopeOptionInfo}>
@@ -372,39 +372,39 @@ const S = {
   page: { padding: '20px 16px 32px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },
-  reqBtn: { background: '#C76B8A', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  reqBtn: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   statsRow: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 },
   statCard: { background: 'var(--card, #fff)', borderRadius: 12, padding: '10px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   statValue: { fontSize: 18, fontWeight: 700 },
-  statLabel: { fontSize: 10, color: '#AAA5A0' },
+  statLabel: { fontSize: 10, color: 'var(--text-muted, #AAA5A0)' },
 
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
-  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: '#AAA5A0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: '#C76B8A', color: '#fff' },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: 'var(--text-muted, #AAA5A0)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)' },
 
   list: { display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 },
-  empty: { textAlign: 'center', color: '#AAA5A0', fontSize: 14, padding: 32 },
+  empty: { textAlign: 'center', color: 'var(--text-muted, #AAA5A0)', fontSize: 14, padding: 32 },
 
   consentCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 14, cursor: 'pointer' },
   consentHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   consentLeft: { display: 'flex', gap: 10, alignItems: 'center' },
-  avatar: { width: 36, height: 36, borderRadius: 18, background: '#F0E6ED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: '#C76B8A', flexShrink: 0 },
+  avatar: { width: 36, height: 36, borderRadius: 18, background: '#F0E6ED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: 'var(--accent, #C76B8A)', flexShrink: 0 },
   consentInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
   consentClient: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  consentDate: { fontSize: 11, color: '#AAA5A0' },
+  consentDate: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
   statusBadge: { padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600 },
 
   scopeRow: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 },
-  scopeTag: { padding: '3px 8px', borderRadius: 6, background: '#F0E6ED', color: '#C76B8A', fontSize: 11 },
+  scopeTag: { padding: '3px 8px', borderRadius: 6, background: '#F0E6ED', color: 'var(--accent, #C76B8A)', fontSize: 11 },
 
   expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid #F0ECE8' },
   consentNotes: { fontSize: 13, color: '#8B6F5E', lineHeight: 1.4, margin: '0 0 10px', fontStyle: 'italic' },
   detailRow: { display: 'flex', justifyContent: 'space-between', padding: '6px 0' },
-  detailLabel: { fontSize: 12, color: '#AAA5A0' },
+  detailLabel: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)' },
   detailValue: { fontSize: 12, fontWeight: 600, color: 'var(--text, #2D2A26)' },
   actionRow: { display: 'flex', gap: 8, marginTop: 10 },
-  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: '#2D2A26' },
+  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
 
   gdprCard: { background: '#F9F7F4', borderRadius: 12, padding: 14, marginTop: 4 },
   gdprTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text, #2D2A26)' },
@@ -412,19 +412,19 @@ const S = {
 
   // Modal
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
-  modal: { background: '#fff', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
-  modalTitle: { fontSize: 18, fontWeight: 700, color: '#2D2A26', margin: '0 0 16px' },
+  modal: { background: 'var(--bg-card, #fff)', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
+  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: '0 0 16px' },
   fieldLabel: { fontSize: 12, fontWeight: 600, color: '#8B6F5E', marginBottom: 6, marginTop: 12 },
-  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: '#2D2A26', background: '#fff', outline: 'none', boxSizing: 'border-box' },
+  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', background: 'var(--bg-card, #fff)', outline: 'none', boxSizing: 'border-box' },
   scopeOption: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', cursor: 'pointer' },
   checkbox: { width: 22, height: 22, borderRadius: 6, border: '2px solid', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  checkmark: { color: '#fff', fontSize: 13, fontWeight: 700 },
+  checkmark: { color: 'var(--bg-card, #fff)', fontSize: 13, fontWeight: 700 },
   scopeOptionInfo: { display: 'flex', flexDirection: 'column', gap: 1 },
   scopeOptionLabel: { fontSize: 13, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  scopeOptionDesc: { fontSize: 11, color: '#AAA5A0' },
+  scopeOptionDesc: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
   chipRow: { display: 'flex', gap: 8 },
-  chip: { flex: 1, padding: '10px 0', borderRadius: 10, border: '1px solid #F0ECE8', background: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: '#2D2A26', textAlign: 'center' },
-  chipActive: { background: '#C76B8A', color: '#fff', border: '1px solid #C76B8A' },
-  textarea: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 13, fontFamily: 'inherit', color: '#2D2A26', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
-  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
+  chip: { flex: 1, padding: '10px 0', borderRadius: 10, border: '1px solid #F0ECE8', background: 'var(--bg-card, #fff)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', textAlign: 'center' },
+  chipActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', border: '1px solid #C76B8A' },
+  textarea: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 13, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
+  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
 };

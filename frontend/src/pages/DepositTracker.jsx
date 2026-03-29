@@ -241,7 +241,7 @@ export default function DepositTracker() {
                   {d.status === 'held' && (
                     <div style={S.actionRow}>
                       <button
-                        style={{ ...S.actionBtn, background: 'var(--success, #5BA97B)', color: '#fff' }}
+                        style={{ ...S.actionBtn, background: 'var(--success, #5BA97B)', color: 'var(--bg-card, #fff)' }}
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDepositAction(d.id, 'applied');
@@ -303,7 +303,7 @@ const S = {
   errorClose: { background: 'none', border: 'none', color: '#C62828', cursor: 'pointer', fontSize: 16, fontWeight: 600, padding: 0 },
 
   summaryCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 16, marginBottom: 16 },
-  summaryMain: { display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border, var(--border, #EDE9E4))' },
+  summaryMain: { display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))' },
   summaryLabel: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontWeight: 500 },
   summaryValue: { fontSize: 28, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
   summaryCount: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
@@ -314,7 +314,7 @@ const S = {
 
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
   tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
+  tabActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)' },
 
   list: { display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 },
   empty: { textAlign: 'center', color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontSize: 14, padding: 32 },
@@ -330,14 +330,14 @@ const S = {
   depositAmount: { fontSize: 16, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
   statusBadge: { padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600 },
 
-  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, var(--border, #EDE9E4))' },
+  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))' },
   detailGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 10 },
   detailItem: { display: 'flex', flexDirection: 'column', gap: 2 },
   detailLabel: { fontSize: 11, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontWeight: 600 },
   detailValue: { fontSize: 13, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
   depositNotes: { fontSize: 12, color: 'var(--text-secondary, #8B6F5E)', fontStyle: 'italic', margin: '8px 0' },
   actionRow: { display: 'flex', gap: 8, marginTop: 8 },
-  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
+  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
 
   policyCard: { background: '#F9F7F4', borderRadius: 12, padding: 14 },
   policyTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },

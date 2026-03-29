@@ -198,9 +198,9 @@ function MiniStat({ icon, value, label, color }) {
 
 function SkeletonBlock({ height = 80 }) {
   return (
-    <div style={{ background: '#fff', borderRadius: 14, height, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8, padding: 16, justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-      <div style={{ height: 14, width: '40%', borderRadius: 7, background: 'var(--border, var(--border, #EDE9E4))' }} />
-      <div style={{ height: 12, width: '65%', borderRadius: 6, background: 'var(--bg-hover, #F5F2EF)' }} />
+    <div style={{ background: 'var(--bg-card, #fff)', borderRadius: 14, height, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8, padding: 16, justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+      <div style={{ height: 14, width: '40%', borderRadius: 7, background: 'var(--border, var(--border, var(--border, #EDE9E4)))' }} />
+      <div style={{ height: 12, width: '65%', borderRadius: 6, background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))' }} />
     </div>
   );
 }
@@ -263,7 +263,7 @@ function getDevDigest() {
 }
 
 const styles = {
-  page: { minHeight: '100vh', background: 'var(--bg, #FAF8F5)', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)' },
+  page: { minHeight: '100vh', background: 'var(--bg, var(--bg, #FAF8F5))', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)' },
   header: { paddingTop: 28, paddingBottom: 8 },
   title: { fontSize: 22, fontWeight: 700, margin: 0 },
 
@@ -275,12 +275,12 @@ const styles = {
 
   digestBody: { display: 'flex', flexDirection: 'column', gap: 10 },
 
-  greetingCard: { display: 'flex', gap: 12, padding: 16, borderRadius: 14, background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', alignItems: 'flex-start' },
+  greetingCard: { display: 'flex', gap: 12, padding: 16, borderRadius: 14, background: 'var(--bg-card, #fff)', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', alignItems: 'flex-start' },
   greetingEmoji: { fontSize: 28, flexShrink: 0 },
   greetingTitle: { fontSize: 15, fontWeight: 600, margin: '0 0 4px', color: 'var(--text-primary, #2D2A26)' },
   greetingText: { fontSize: 13, color: '#8A8580', margin: 0, lineHeight: 1.5 },
 
-  revenueCard: { background: 'linear-gradient(135deg, var(--accent, #C76B8A) 0%, #D4899F 100%)', borderRadius: 14, padding: 18, color: '#fff' },
+  revenueCard: { background: 'linear-gradient(135deg, var(--accent, #C76B8A) 0%, #D4899F 100%)', borderRadius: 14, padding: 18, color: 'var(--bg-card, #fff)' },
   revenueRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   revCol: { display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 },
   revLabel: { fontSize: 10, opacity: 0.7, textTransform: 'uppercase', letterSpacing: '0.04em' },
@@ -288,14 +288,14 @@ const styles = {
   revDivider: { width: 1, height: 36, background: 'rgba(255,255,255,0.2)' },
 
   statsGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 },
-  miniStat: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '12px 8px', borderRadius: 12, background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  miniStat: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '12px 8px', borderRadius: 12, background: 'var(--bg-card, #fff)', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
   miniStatValue: { fontSize: 20, fontWeight: 700 },
   miniStatLabel: { fontSize: 10, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
 
-  card: { background: '#fff', borderRadius: 14, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  card: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
   cardTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: 'var(--text-primary, #2D2A26)' },
 
-  highlightRow: { display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 0', borderBottom: '1px solid var(--bg, #FAF8F5)' },
+  highlightRow: { display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 0', borderBottom: '1px solid var(--bg, var(--bg, #FAF8F5))' },
   highlightIcon: { fontSize: 16, flexShrink: 0, marginTop: 1 },
   highlightText: { fontSize: 13, color: '#5A5550', lineHeight: 1.5 },
 

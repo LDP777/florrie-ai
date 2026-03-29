@@ -187,7 +187,7 @@ export default function Feedback() {
                 <span style={S.settingLabel}>Auto-send surveys</span>
                 <span style={S.settingDesc}>Send feedback request after each appointment</span>
               </div>
-              <button style={{ ...S.toggle, background: settings.autoSend ? '#C76B8A' : '#E0DCD8' }} onClick={() => setSettings(s => ({ ...s, autoSend: !s.autoSend }))}>
+              <button style={{ ...S.toggle, background: settings.autoSend ? 'var(--accent, #C76B8A)' : '#E0DCD8' }} onClick={() => setSettings(s => ({ ...s, autoSend: !s.autoSend }))}>
                 <div style={{ ...S.toggleDot, transform: settings.autoSend ? 'translateX(18px)' : 'translateX(2px)' }} />
               </button>
             </div>
@@ -219,7 +219,7 @@ export default function Feedback() {
                 <span style={S.settingLabel}>Ask happy clients to review</span>
                 <span style={S.settingDesc}>Clients who rate {settings.reviewThreshold}+ stars get a Google Review link</span>
               </div>
-              <button style={{ ...S.toggle, background: settings.askReview ? '#C76B8A' : '#E0DCD8' }} onClick={() => setSettings(s => ({ ...s, askReview: !s.askReview }))}>
+              <button style={{ ...S.toggle, background: settings.askReview ? 'var(--accent, #C76B8A)' : '#E0DCD8' }} onClick={() => setSettings(s => ({ ...s, askReview: !s.askReview }))}>
                 <div style={{ ...S.toggleDot, transform: settings.askReview ? 'translateX(18px)' : 'translateX(2px)' }} />
               </button>
             </div>
@@ -269,7 +269,7 @@ const S = {
 
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
   tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: 'var(--text-muted, #B5AFA8)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
+  tabActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)' },
 
   // Stats
   statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 },
@@ -284,7 +284,7 @@ const S = {
   // Rating distribution
   distRow: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 },
   distStars: { fontSize: 13, fontWeight: 600, color: 'var(--accent, #C76B8A)', width: 28 },
-  distBarBg: { flex: 1, height: 8, borderRadius: 4, background: 'var(--border, #EDE9E4)' },
+  distBarBg: { flex: 1, height: 8, borderRadius: 4, background: 'var(--border, var(--border, #EDE9E4))' },
   distBarFill: { height: 8, borderRadius: 4, transition: 'width 0.3s' },
   distCount: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)', width: 20, textAlign: 'right' },
 
@@ -297,7 +297,7 @@ const S = {
   npsLabel: { fontSize: 10, color: 'var(--text-muted, #B5AFA8)' },
 
   // Comments
-  commentCard: { padding: '10px 0', borderBottom: '1px solid var(--border, #EDE9E4)' },
+  commentCard: { padding: '10px 0', borderBottom: '1px solid var(--border, var(--border, #EDE9E4))' },
   commentHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: 4 },
   commentClient: { fontSize: 13, fontWeight: 600, color: 'var(--text, #2D2A26)' },
   commentRating: { fontSize: 12, color: 'var(--accent, #C76B8A)' },
@@ -318,12 +318,12 @@ const S = {
   responseDate: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
   responseComment: { fontSize: 13, color: 'var(--text-secondary, #7A756F)', lineHeight: 1.4, margin: '8px 0', fontStyle: 'italic' },
   responseMeta: { display: 'flex', gap: 8, marginTop: 4 },
-  npsTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--border, #EDE9E4)', color: 'var(--text-secondary, #7A756F)', fontSize: 11, fontWeight: 500 },
+  npsTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--border, var(--border, #EDE9E4))', color: 'var(--text-secondary, #7A756F)', fontSize: 11, fontWeight: 500 },
   reviewedTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--success-bg, #EDF7F0)', color: 'var(--success, #5BA97B)', fontSize: 11, fontWeight: 500 },
 
   // Settings
   settingsContainer: { display: 'flex', flexDirection: 'column', gap: 0 },
-  settingRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border, #EDE9E4)' },
+  settingRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border, var(--border, #EDE9E4))' },
   settingInfo: { display: 'flex', flexDirection: 'column', gap: 2, flex: 1, marginRight: 12 },
   settingLabel: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
   settingDesc: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },
@@ -332,12 +332,12 @@ const S = {
 
   fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #7A756F)', marginBottom: 6, marginTop: 14 },
   chipRow: { display: 'flex', gap: 8, flexWrap: 'wrap' },
-  chip: { padding: '8px 14px', borderRadius: 10, border: '1px solid var(--border, #EDE9E4)', background: 'var(--card, #fff)', color: 'var(--text-secondary, #7A756F)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
-  chipActive: { background: 'var(--accent, #C76B8A)', color: '#fff', border: '1px solid var(--accent, #C76B8A)' },
-  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #EDE9E4)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', outline: 'none', boxSizing: 'border-box', marginTop: 4 },
+  chip: { padding: '8px 14px', borderRadius: 10, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--card, #fff)', color: 'var(--text-secondary, #7A756F)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
+  chipActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', border: '1px solid var(--accent, #C76B8A)' },
+  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', outline: 'none', boxSizing: 'border-box', marginTop: 4 },
 
   // Survey preview
-  previewCard: { background: 'var(--bg-hover, #F5F2EF)', borderRadius: 12, padding: 16 },
+  previewCard: { background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', borderRadius: 12, padding: 16 },
   previewGreeting: { fontSize: 15, fontWeight: 600, color: 'var(--accent, #C76B8A)', margin: '0 0 6px' },
   previewText: { fontSize: 13, color: 'var(--text, #2D2A26)', lineHeight: 1.4, margin: '0 0 12px' },
   previewQ: { display: 'flex', gap: 8, marginBottom: 8 },

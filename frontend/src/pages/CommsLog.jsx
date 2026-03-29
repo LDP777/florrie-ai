@@ -141,7 +141,7 @@ export default function CommsLog() {
       {/* Channel filter */}
       <div style={s.channelRow}>
         {CHANNELS.map(c => (
-          <button key={c} onClick={() => setChannel(c)} style={{ ...s.channelChip, ...(channel === c ? { background: c === 'all' ? 'var(--accent, #C76B8A)' : CHANNEL_COLORS[c], color: '#fff', borderColor: c === 'all' ? 'var(--accent, #C76B8A)' : CHANNEL_COLORS[c] } : {}) }}>
+          <button key={c} onClick={() => setChannel(c)} style={{ ...s.channelChip, ...(channel === c ? { background: c === 'all' ? 'var(--accent, #C76B8A)' : CHANNEL_COLORS[c], color: 'var(--bg-card, #fff)', borderColor: c === 'all' ? 'var(--accent, #C76B8A)' : CHANNEL_COLORS[c] } : {}) }}>
             {c === 'all' ? 'All' : CHANNEL_ICONS[c]} {c !== 'all' ? c.replace('_', ' ') : ''}
           </button>
         ))}
@@ -177,7 +177,7 @@ export default function CommsLog() {
                 </div>
               </div>
               {expanded && (
-                <div style={{ marginTop: 10, borderTop: '1px solid var(--card-border, var(--border, var(--border, #EDE9E4)))', paddingTop: 10 }}>
+                <div style={{ marginTop: 10, borderTop: '1px solid var(--card-border, var(--border, var(--border, var(--border, #EDE9E4))))', paddingTop: 10 }}>
                   <div style={{ fontSize: 13, color: 'var(--text, var(--text-primary, #2D2A26))', lineHeight: 1.5, marginBottom: 8 }}>{msg.subject}</div>
                   <div style={{ display: 'flex', gap: 12, fontSize: 12, color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))', flexWrap: 'wrap' }}>
                     <span>📅 {msg.time}</span>
@@ -205,17 +205,17 @@ const s = {
   header: { marginBottom: 12 },
   title: { fontSize: 22, fontWeight: 700, margin: 0, color: 'var(--text, var(--text-primary, #2D2A26))' },
   subtitle: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))', margin: '4px 0 0' },
-  statsToggle: { background: 'none', border: '1px solid var(--card-border, var(--border, var(--border, #EDE9E4)))', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: 'var(--accent, #C76B8A)', fontFamily: 'inherit' },
-  statsPanel: { padding: 14, borderRadius: 12, background: 'var(--card-bg, #fff)', border: '1px solid var(--card-border, var(--border, var(--border, #EDE9E4)))', marginBottom: 12 },
+  statsToggle: { background: 'none', border: '1px solid var(--card-border, var(--border, var(--border, var(--border, #EDE9E4))))', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: 'var(--accent, #C76B8A)', fontFamily: 'inherit' },
+  statsPanel: { padding: 14, borderRadius: 12, background: 'var(--card-bg, #fff)', border: '1px solid var(--card-border, var(--border, var(--border, var(--border, #EDE9E4))))', marginBottom: 12 },
   statsGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 },
   statCard: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
-  search: { width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--card-border, var(--border, var(--border, #EDE9E4)))', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 10, background: 'var(--card-bg, #fff)', color: 'var(--text, var(--text-primary, #2D2A26))' },
+  search: { width: '100%', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--card-border, var(--border, var(--border, var(--border, #EDE9E4))))', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 10, background: 'var(--card-bg, #fff)', color: 'var(--text, var(--text-primary, #2D2A26))' },
   channelRow: { display: 'flex', gap: 6, marginBottom: 14, overflowX: 'auto' },
-  channelChip: { padding: '6px 12px', borderRadius: 20, border: '1px solid var(--card-border, var(--border, var(--border, #EDE9E4)))', background: 'none', fontSize: 11, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', color: 'var(--text, var(--text-primary, #2D2A26))', fontFamily: 'inherit', textTransform: 'capitalize' },
+  channelChip: { padding: '6px 12px', borderRadius: 20, border: '1px solid var(--card-border, var(--border, var(--border, var(--border, #EDE9E4))))', background: 'none', fontSize: 11, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', color: 'var(--text, var(--text-primary, #2D2A26))', fontFamily: 'inherit', textTransform: 'capitalize' },
   msgList: { display: 'flex', flexDirection: 'column', gap: 8 },
-  msgCard: { padding: '12px 12px', borderRadius: 12, background: 'var(--card-bg, #fff)', border: '1px solid var(--card-border, var(--border, var(--border, #EDE9E4)))', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' },
+  msgCard: { padding: '12px 12px', borderRadius: 12, background: 'var(--card-bg, #fff)', border: '1px solid var(--card-border, var(--border, var(--border, var(--border, #EDE9E4))))', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' },
   msgTop: { display: 'flex', alignItems: 'flex-start', gap: 8 },
   channelDot: { width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 },
   statusBadge: { display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 600, marginTop: 4 },
-  actionBtn: { background: 'none', border: '1px solid var(--card-border, var(--border, var(--border, #EDE9E4)))', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 500, cursor: 'pointer', color: 'var(--accent, #C76B8A)', fontFamily: 'inherit' },
+  actionBtn: { background: 'none', border: '1px solid var(--card-border, var(--border, var(--border, var(--border, #EDE9E4))))', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 500, cursor: 'pointer', color: 'var(--accent, #C76B8A)', fontFamily: 'inherit' },
 };

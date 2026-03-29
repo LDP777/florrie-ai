@@ -118,7 +118,7 @@ export default function Integrations() {
           <button key={c} onClick={() => setFilter(c)} style={{
             ...ds.btnGhost, fontSize: 11, padding: '6px 12px', whiteSpace: 'nowrap',
             background: filter === c ? 'var(--accent)' : 'var(--bg-subtle)',
-            color: filter === c ? '#fff' : 'var(--text-secondary)',
+            color: filter === c ? 'var(--bg-card, #fff)' : 'var(--text-secondary)',
           }}>{c}</button>
         ))}
       </div>

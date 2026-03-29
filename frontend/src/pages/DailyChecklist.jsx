@@ -157,7 +157,7 @@ export default function DailyChecklist() {
           <span>{allOpeningDone ? '✅' : '⏳'}</span>
           <span style={{ color: allOpeningDone ? 'var(--success, #5BA97B)' : 'var(--warning, #D4943A)', fontSize: 12, fontWeight: 600 }}>Opening</span>
         </div>
-        <div style={{ ...S.statusChip, background: allClosingDone ? 'var(--success-bg, #EDF7F0)' : 'var(--bg-hover, #F5F2EF)' }}>
+        <div style={{ ...S.statusChip, background: allClosingDone ? 'var(--success-bg, #EDF7F0)' : 'var(--bg-hover, var(--bg-subtle, #F5F2EF))' }}>
           <span>{allClosingDone ? '✅' : '🔲'}</span>
           <span style={{ color: allClosingDone ? 'var(--success, #5BA97B)' : 'var(--text-muted, #B5AFA8)', fontSize: 12, fontWeight: 600 }}>Closing</span>
         </div>
@@ -289,18 +289,18 @@ const S = {
 
   tabs: { display: 'flex', gap: 8, marginBottom: 12 },
   tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--bg-card, #FFFFFF)', color: 'var(--text-muted, #B5AFA8)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
+  tabActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)' },
 
   progressSection: { marginBottom: 14 },
-  progressTrack: { height: 6, borderRadius: 3, background: 'var(--border, #EDE9E4)', overflow: 'hidden', marginBottom: 4 },
+  progressTrack: { height: 6, borderRadius: 3, background: 'var(--border, var(--border, #EDE9E4))', overflow: 'hidden', marginBottom: 4 },
   progressFill: { height: '100%', borderRadius: 3, background: 'var(--accent, #C76B8A)', transition: 'width .3s' },
   progressText: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },
 
   list: { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 },
   checkItem: { display: 'flex', gap: 12, alignItems: 'center', background: 'var(--bg-card, #FFFFFF)', borderRadius: 12, padding: '12px 14px', cursor: 'pointer' },
-  checkbox: { width: 24, height: 24, borderRadius: 7, border: '2px solid var(--border, #EDE9E4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .2s' },
+  checkbox: { width: 24, height: 24, borderRadius: 7, border: '2px solid var(--border, var(--border, #EDE9E4))', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .2s' },
   checkboxDone: { background: 'var(--accent, #C76B8A)', borderColor: 'var(--accent, #C76B8A)' },
-  checkmark: { color: '#fff', fontSize: 14, fontWeight: 700 },
+  checkmark: { color: 'var(--bg-card, #fff)', fontSize: 14, fontWeight: 700 },
   checkContent: { display: 'flex', flexDirection: 'column', gap: 2 },
   checkLabel: { fontSize: 14, color: 'var(--text-primary, #2D2A26)', lineHeight: 1.3 },
   dueDate: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
@@ -309,14 +309,14 @@ const S = {
   celebrationEmoji: { fontSize: 24 },
   celebrationText: { fontSize: 14, fontWeight: 600, color: 'var(--success, #5BA97B)' },
 
-  addBtn: { width: '100%', padding: '12px 0', borderRadius: 10, border: '1px dashed var(--border, #EDE9E4)', background: 'transparent', fontSize: 14, fontWeight: 600, color: 'var(--accent, #C76B8A)', cursor: 'pointer', fontFamily: 'inherit', marginBottom: 14 },
+  addBtn: { width: '100%', padding: '12px 0', borderRadius: 10, border: '1px dashed var(--border, var(--border, #EDE9E4))', background: 'transparent', fontSize: 14, fontWeight: 600, color: 'var(--accent, #C76B8A)', cursor: 'pointer', fontFamily: 'inherit', marginBottom: 14 },
   addForm: { background: 'var(--bg-card, #FFFFFF)', borderRadius: 12, padding: 14, marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 8 },
   addFormRow: { display: 'flex', gap: 8 },
-  addFormSave: { padding: '10px 20px', borderRadius: 10, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  addFormCancel: { padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border, #EDE9E4)', background: 'var(--bg-card, #FFFFFF)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted, #B5AFA8)' },
-  input: { padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #EDE9E4)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', background: 'var(--bg-card, #FFFFFF)' },
+  addFormSave: { padding: '10px 20px', borderRadius: 10, border: 'none', background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  addFormCancel: { padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--bg-card, #FFFFFF)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted, #B5AFA8)' },
+  input: { padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', background: 'var(--bg-card, #FFFFFF)' },
 
-  tipCard: { background: 'var(--bg-hover, #F5F2EF)', borderRadius: 12, padding: 14, display: 'flex', gap: 10, alignItems: 'flex-start' },
+  tipCard: { background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', borderRadius: 12, padding: 14, display: 'flex', gap: 10, alignItems: 'flex-start' },
   tipIcon: { fontSize: 18, flexShrink: 0 },
   tipText: { fontSize: 12, color: 'var(--text-secondary, #7A756F)', lineHeight: 1.4, margin: 0 },
 };

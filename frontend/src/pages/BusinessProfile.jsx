@@ -18,9 +18,9 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 const BRAND_COLOURS = [
-  '#C76B8A', '#E8A0BF', '#C4A882', '#8B7355',
+  'var(--accent, #C76B8A)', '#E8A0BF', '#C4A882', '#8B7355',
   '#7B9E89', '#5B8F6F', '#6B8EC4', '#4A6FA5',
-  '#9B8EC4', '#7B68AE', '#2D2A26', '#5A5550',
+  '#9B8EC4', '#7B68AE', 'var(--text-primary, #2D2A26)', '#5A5550',
 ];
 
 const SOCIAL_PLATFORMS = [
@@ -99,7 +99,7 @@ export default function BusinessProfile() {
     }
   }
 
-  if (bLoading) return <p style={{ padding: 40, textAlign: 'center', color: '#AAA5A0' }}>Loading...</p>;
+  if (bLoading) return <p style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted, #AAA5A0)' }}>Loading...</p>;
 
   const tabs = [
     { key: 'info', label: 'Info' },
@@ -351,13 +351,13 @@ const s = {
   heroInitial: {
     fontSize: 24,
     fontWeight: 700,
-    color: '#fff',
+    color: 'var(--bg-card, #fff)',
   },
   heroName: {
     display: 'block',
     fontSize: 18,
     fontWeight: 700,
-    color: '#fff',
+    color: 'var(--bg-card, #fff)',
   },
   heroTagline: {
     display: 'block',
@@ -475,7 +475,7 @@ const s = {
     width: 72,
     height: 72,
     borderRadius: 14,
-    background: 'var(--bg, #FAF8F5)',
+    background: 'var(--bg, var(--bg, #FAF8F5))',
     border: '2px dashed var(--border, #E8E4E0)',
     display: 'flex',
     alignItems: 'center',
@@ -519,7 +519,7 @@ const s = {
   previewButton: {
     padding: '6px 14px',
     borderRadius: 8,
-    color: '#fff',
+    color: 'var(--bg-card, #fff)',
     fontSize: 12,
     fontWeight: 600,
   },
@@ -562,7 +562,7 @@ const s = {
     gap: 8,
     marginTop: 8,
     padding: '10px 12px',
-    background: 'var(--bg, #FAF8F5)',
+    background: 'var(--bg, var(--bg, #FAF8F5))',
     borderRadius: 10,
   },
   urlText: {
@@ -592,7 +592,7 @@ const s = {
     padding: '10px 0',
     borderRadius: 10,
     border: '1px solid var(--border, #E8E4E0)',
-    background: 'var(--bg, #FAF8F5)',
+    background: 'var(--bg, var(--bg, #FAF8F5))',
     fontSize: 13,
     fontWeight: 500,
     cursor: 'pointer',
@@ -613,7 +613,7 @@ const s = {
     display: 'block',
     fontSize: 16,
     fontWeight: 700,
-    color: '#fff',
+    color: 'var(--bg-card, #fff)',
   },
   bpTagline: {
     display: 'block',
@@ -645,7 +645,7 @@ const s = {
     marginTop: 12,
     padding: '10px 0',
     borderRadius: 10,
-    color: '#fff',
+    color: 'var(--bg-card, #fff)',
     fontSize: 13,
     fontWeight: 600,
     textAlign: 'center',
@@ -657,7 +657,7 @@ const s = {
     borderRadius: 12,
     border: 'none',
     background: 'linear-gradient(135deg, var(--accent, #C76B8A), var(--accent-hover, #B85D7B))',
-    color: '#fff',
+    color: 'var(--bg-card, #fff)',
     fontSize: 15,
     fontWeight: 700,
     cursor: 'pointer',

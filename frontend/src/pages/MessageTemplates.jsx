@@ -204,7 +204,7 @@ export default function MessageTemplates() {
                 style={{
                   ...s.catChip,
                   background: newCategory === c.key ? c.color + '18' : 'transparent',
-                  border: newCategory === c.key ? `1px solid ${c.color}` : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+                  border: newCategory === c.key ? `1px solid ${c.color}` : '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
                   color: newCategory === c.key ? c.color : 'var(--text, var(--text-primary, #2D2A26))',
                 }}
               >
@@ -241,8 +241,8 @@ export default function MessageTemplates() {
                 style={{
                   ...s.triggerChip,
                   background: newTrigger === t.key ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                  color: newTrigger === t.key ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
-                  border: newTrigger === t.key ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+                  color: newTrigger === t.key ? 'var(--bg-card, #fff)' : 'var(--text, var(--text-primary, #2D2A26))',
+                  border: newTrigger === t.key ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
                 }}
               >
                 {t.label}
@@ -255,7 +255,7 @@ export default function MessageTemplates() {
             <span style={s.toggleLabel}>Auto-send</span>
             <button
               onClick={() => setNewAutoSend(!newAutoSend)}
-              style={{ ...s.toggle, background: newAutoSend ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, #EDE9E4))' }}
+              style={{ ...s.toggle, background: newAutoSend ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, var(--border, #EDE9E4)))' }}
             >
               <div style={{ ...s.toggleThumb, transform: newAutoSend ? 'translateX(18px)' : 'translateX(2px)' }} />
             </button>
@@ -279,7 +279,7 @@ export default function MessageTemplates() {
       <div style={s.filterRow}>
         <button
           onClick={() => setFilter('all')}
-          style={{ ...s.filterChip, background: filter === 'all' ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)', color: filter === 'all' ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))', border: filter === 'all' ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))' }}
+          style={{ ...s.filterChip, background: filter === 'all' ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)', color: filter === 'all' ? 'var(--bg-card, #fff)' : 'var(--text, var(--text-primary, #2D2A26))', border: filter === 'all' ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))' }}
         >
           All
         </button>
@@ -287,7 +287,7 @@ export default function MessageTemplates() {
           <button
             key={c.key}
             onClick={() => setFilter(c.key)}
-            style={{ ...s.filterChip, background: filter === c.key ? c.color + '18' : 'var(--card-bg, #fff)', color: filter === c.key ? c.color : 'var(--text, var(--text-primary, #2D2A26))', border: filter === c.key ? `1px solid ${c.color}` : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))' }}
+            style={{ ...s.filterChip, background: filter === c.key ? c.color + '18' : 'var(--card-bg, #fff)', color: filter === c.key ? c.color : 'var(--text, var(--text-primary, #2D2A26))', border: filter === c.key ? `1px solid ${c.color}` : '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))' }}
           >
             {c.icon}
           </button>
@@ -359,30 +359,30 @@ const s = {
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   title: { fontSize: 24, fontWeight: 700, color: 'var(--text, var(--text-primary, #2D2A26))', margin: 0 },
   sub: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))', margin: '4px 0 0' },
-  addBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  createCard: { background: 'var(--card-bg, #fff)', borderRadius: 14, padding: 16, marginBottom: 16, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))' },
+  addBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  createCard: { background: 'var(--card-bg, #fff)', borderRadius: 14, padding: 16, marginBottom: 16, border: '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))' },
   catRow: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 },
   catChip: { padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
-  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border, var(--border, var(--border, #EDE9E4)))', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', marginBottom: 10, background: 'var(--bg, var(--bg, #FAF8F5))', color: 'var(--text, var(--text-primary, #2D2A26))' },
-  textarea: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border, var(--border, var(--border, #EDE9E4)))', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', resize: 'vertical', marginBottom: 8, background: 'var(--bg, var(--bg, #FAF8F5))', color: 'var(--text, var(--text-primary, #2D2A26))', lineHeight: 1.5 },
+  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', marginBottom: 10, background: 'var(--bg, var(--bg, var(--bg, #FAF8F5)))', color: 'var(--text, var(--text-primary, #2D2A26))' },
+  textarea: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', resize: 'vertical', marginBottom: 8, background: 'var(--bg, var(--bg, var(--bg, #FAF8F5)))', color: 'var(--text, var(--text-primary, #2D2A26))', lineHeight: 1.5 },
   varRow: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 12 },
   varLabel: { fontSize: 11, color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))', fontWeight: 500 },
-  varChip: { padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', background: 'var(--bg, var(--bg, #FAF8F5))', fontSize: 11, fontFamily: 'monospace', cursor: 'pointer', color: 'var(--accent, #C76B8A)' },
+  varChip: { padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))', background: 'var(--bg, var(--bg, var(--bg, #FAF8F5)))', fontSize: 11, fontFamily: 'monospace', cursor: 'pointer', color: 'var(--accent, #C76B8A)' },
   fieldLabel: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))', marginBottom: 6 },
   triggerRow: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 },
   triggerChip: { padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
   toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   toggleLabel: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
   toggle: { width: 44, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s' },
-  toggleThumb: { width: 22, height: 22, borderRadius: 11, background: '#fff', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
-  previewBox: { background: 'var(--bg, var(--bg, #FAF8F5))', borderRadius: 10, padding: 12, marginBottom: 10 },
+  toggleThumb: { width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #fff)', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
+  previewBox: { background: 'var(--bg, var(--bg, var(--bg, #FAF8F5)))', borderRadius: 10, padding: 12, marginBottom: 10 },
   previewLabel: { display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 },
   previewText: { fontSize: 13, lineHeight: 1.5, color: 'var(--text, #5A5550)', margin: 0 },
-  saveBtn: { width: '100%', padding: '12px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  saveBtn: { width: '100%', padding: '12px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   filterRow: { display: 'flex', gap: 6, marginBottom: 14 },
   filterChip: { padding: '6px 12px', borderRadius: 16, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
   list: { display: 'flex', flexDirection: 'column', gap: 6 },
-  tmplCard: { background: 'var(--card-bg, #fff)', borderRadius: 12, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', overflow: 'hidden' },
+  tmplCard: { background: 'var(--card-bg, #fff)', borderRadius: 12, border: '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))', overflow: 'hidden' },
   tmplHeader: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%' },
   catDot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
   tmplInfo: { flex: 1, minWidth: 0 },
@@ -390,7 +390,7 @@ const s = {
   tmplMeta: { display: 'block', fontSize: 11, color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))' },
   chevron: { fontSize: 14, color: 'var(--text-muted, #D5D0CB)', flexShrink: 0 },
   tmplBody: { padding: '0 14px 14px' },
-  tmplText: { fontSize: 13, lineHeight: 1.5, color: 'var(--text, #5A5550)', margin: '0 0 10px', background: 'var(--bg, var(--bg, #FAF8F5))', padding: '10px 12px', borderRadius: 8 },
+  tmplText: { fontSize: 13, lineHeight: 1.5, color: 'var(--text, #5A5550)', margin: '0 0 10px', background: 'var(--bg, var(--bg, var(--bg, #FAF8F5)))', padding: '10px 12px', borderRadius: 8 },
   tmplActions: { display: 'flex', gap: 8 },
-  actionBtn: { padding: '6px 14px', borderRadius: 8, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', background: 'transparent', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text, var(--text-primary, #2D2A26))' },
+  actionBtn: { padding: '6px 14px', borderRadius: 8, border: '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))', background: 'transparent', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text, var(--text-primary, #2D2A26))' },
 };

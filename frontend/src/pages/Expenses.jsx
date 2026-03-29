@@ -15,14 +15,14 @@ import ErrorCard from '../components/ErrorCard.jsx';
 const CATEGORIES = [
   { value: 'products', label: 'Products', icon: '🧴', color: 'var(--accent, #C76B8A)' },
   { value: 'rent', label: 'Rent', icon: '🏠', color: 'var(--text-secondary, #8B6F5E)' },
-  { value: 'training', label: 'Training', icon: '📚', color: '#6B8F7B' },
+  { value: 'training', label: 'Training', icon: '📚', color: 'var(--success, #6B8F7B)' },
   { value: 'travel', label: 'Travel', icon: '🚗', color: 'var(--gold, #C9A96E)' },
-  { value: 'equipment', label: 'Equipment', icon: '🔧', color: '#7B6B8F' },
-  { value: 'insurance', label: 'Insurance', icon: '🛡️', color: '#5E8B8B' },
-  { value: 'marketing', label: 'Marketing', icon: '📣', color: '#8F6B7B' },
-  { value: 'software', label: 'Software', icon: '💻', color: '#6B7B8F' },
-  { value: 'utilities', label: 'Utilities', icon: '⚡', color: '#8F8B6B' },
-  { value: 'other', label: 'Other', icon: '📌', color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
+  { value: 'equipment', label: 'Equipment', icon: '🔧', color: 'var(--info, #7B6B8F)' },
+  { value: 'insurance', label: 'Insurance', icon: '🛡️', color: 'var(--info, #5E8B8B)' },
+  { value: 'marketing', label: 'Marketing', icon: '📣', color: 'var(--accent-dark, #8F6B7B)' },
+  { value: 'software', label: 'Software', icon: '💻', color: 'var(--info, #6B7B8F)' },
+  { value: 'utilities', label: 'Utilities', icon: '⚡', color: 'var(--warning, #8F8B6B)' },
+  { value: 'other', label: 'Other', icon: '📌', color: 'var(--text-muted, #B5AFA8)' },
 ];
 
 const getCat = (v) => CATEGORIES.find(c => c.value === v) || CATEGORIES[9];

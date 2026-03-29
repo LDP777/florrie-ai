@@ -376,7 +376,7 @@ const S = {
   page: { padding: '20px 16px 32px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },
-  createBtn: { background: 'var(--accent, #C76B8A)', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  createBtn: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   statsRow: { display: 'flex', gap: 10, marginBottom: 16 },
   statCard: { flex: 1, background: 'var(--card, #fff)', borderRadius: 12, padding: '12px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
@@ -385,7 +385,7 @@ const S = {
 
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
   tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: 'var(--text-muted, #AAA5A0)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
+  tabActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)' },
 
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
 
@@ -411,7 +411,7 @@ const S = {
   stepHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: 4 },
   stepDelay: { fontSize: 12, fontWeight: 600, color: 'var(--accent, #C76B8A)' },
   stepChannel: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
-  stepMessage: { fontSize: 13, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.4, margin: 0, background: 'var(--bg-hover, #F5F2EF)', borderRadius: 8, padding: '8px 10px' },
+  stepMessage: { fontSize: 13, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.4, margin: 0, background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', borderRadius: 8, padding: '8px 10px' },
 
   treatmentRow: { display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginBottom: 12 },
   treatmentLabel: { fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)' },
@@ -442,9 +442,9 @@ const S = {
   input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #F0ECE8)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', outline: 'none', boxSizing: 'border-box' },
   chipRow: { display: 'flex', gap: 6, flexWrap: 'wrap' },
   chip: { padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border, #F0ECE8)', background: 'var(--bg-card, #fff)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text, #2D2A26)' },
-  chipActive: { background: 'var(--accent, #C76B8A)', color: '#fff', border: '1px solid var(--accent, #C76B8A)' },
+  chipActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', border: '1px solid var(--accent, #C76B8A)' },
 
-  stepForm: { background: 'var(--bg-hover, #F5F2EF)', borderRadius: 10, padding: 12, marginBottom: 8 },
+  stepForm: { background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', borderRadius: 10, padding: 12, marginBottom: 8 },
   stepFormHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: 8 },
   stepNum: { fontSize: 12, fontWeight: 600, color: 'var(--accent, #C76B8A)' },
   removeBtn: { background: 'none', border: 'none', color: 'var(--text-muted, #AAA5A0)', fontSize: 14, cursor: 'pointer' },
@@ -455,5 +455,5 @@ const S = {
   varChip: { padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border, #E0DCD8)', background: 'var(--bg-card, #fff)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-secondary, #8B6F5E)' },
 
   addStepBtn: { width: '100%', padding: '10px 0', borderRadius: 10, border: '1px dashed var(--border, #E0DCD8)', background: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-secondary, #8B6F5E)', marginTop: 4 },
-  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 16 },
+  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 16 },
 };

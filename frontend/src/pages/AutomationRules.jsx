@@ -278,7 +278,7 @@ export default function AutomationRules() {
                   <div style={styles.ruleDesc}>{rule.description}</div>
                   <div style={styles.ruleMeta}>
                     <span>{triggerOptions.find(t => t.id === rule.trigger)?.icon} {triggerOptions.find(t => t.id === rule.trigger)?.label}</span>
-                    <span style={{ color: 'var(--border, var(--border, #EDE9E4))' }}>→</span>
+                    <span style={{ color: 'var(--border, var(--border, var(--border, #EDE9E4)))' }}>→</span>
                     <span>{rule.actions.map(a => actionOptions.find(o => o.id === a)?.icon).join(' ')}</span>
                   </div>
                 </div>
@@ -286,7 +286,7 @@ export default function AutomationRules() {
                   onClick={e => { e.stopPropagation(); toggleRule(rule.id); }}
                   style={{
                     ...styles.toggle,
-                    background: rule.enabled ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, #EDE9E4))'
+                    background: rule.enabled ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, var(--border, #EDE9E4)))'
                   }}
                 >
                   <div style={{
@@ -373,44 +373,44 @@ const styles = {
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: 0 },
   subtitle: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', marginTop: 2 },
-  createBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  createBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
-  createCard: { background: '#fff', borderRadius: 16, padding: 16, border: '1px solid var(--border, var(--border, #EDE9E4))', marginBottom: 16 },
+  createCard: { background: 'var(--bg-card, #fff)', borderRadius: 16, padding: 16, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', marginBottom: 16 },
   createTitle: { fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', marginBottom: 12 },
-  ruleInput: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 16, boxSizing: 'border-box', background: 'var(--bg, #FAF8F5)' },
+  ruleInput: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border, var(--border, var(--border, #EDE9E4)))', fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 16, boxSizing: 'border-box', background: 'var(--bg, var(--bg, #FAF8F5))' },
   stepLabel: { fontSize: 12, fontWeight: 700, color: '#6B6560', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginTop: 12 },
   chipGrid: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 },
-  chip: { display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--bg, #FAF8F5)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#4A4540' },
+  chip: { display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', background: 'var(--bg, var(--bg, #FAF8F5))', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#4A4540' },
   chipSelected: { background: 'var(--accent-light, #FFF0F3)', borderColor: 'var(--accent, #C76B8A)', color: 'var(--accent, #C76B8A)' },
   delayRow: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 },
-  delayChip: { padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--bg, #FAF8F5)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#4A4540' },
+  delayChip: { padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', background: 'var(--bg, var(--bg, #FAF8F5))', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#4A4540' },
   conditionsList: { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 },
   conditionRow: { display: 'flex', alignItems: 'center', gap: 6 },
-  condSelect: { padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border, var(--border, #EDE9E4))', fontSize: 11, fontFamily: 'inherit', background: 'var(--bg, #FAF8F5)', color: '#4A4540' },
-  condInput: { width: 60, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border, var(--border, #EDE9E4))', fontSize: 11, fontFamily: 'inherit', background: 'var(--bg, #FAF8F5)' },
-  saveRuleBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
+  condSelect: { padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', fontSize: 11, fontFamily: 'inherit', background: 'var(--bg, var(--bg, #FAF8F5))', color: '#4A4540' },
+  condInput: { width: 60, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', fontSize: 11, fontFamily: 'inherit', background: 'var(--bg, var(--bg, #FAF8F5))' },
+  saveRuleBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
 
-  tabs: { display: 'flex', gap: 4, marginBottom: 16, background: 'var(--border, var(--border, #EDE9E4))', borderRadius: 12, padding: 4 },
+  tabs: { display: 'flex', gap: 4, marginBottom: 16, background: 'var(--border, var(--border, var(--border, #EDE9E4)))', borderRadius: 12, padding: 4 },
   tab: { flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 500, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', background: 'none', color: '#6B6560' },
-  tabActive: { background: '#fff', color: 'var(--text-primary, #2D2A26)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' },
+  tabActive: { background: 'var(--bg-card, #fff)', color: 'var(--text-primary, #2D2A26)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' },
 
-  ruleCard: { background: '#fff', borderRadius: 14, border: '1px solid var(--border, var(--border, #EDE9E4))', marginBottom: 10, overflow: 'hidden' },
+  ruleCard: { background: 'var(--bg-card, #fff)', borderRadius: 14, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', marginBottom: 10, overflow: 'hidden' },
   ruleHeader: { display: 'flex', alignItems: 'center', gap: 12, padding: 14, cursor: 'pointer' },
   ruleName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)', marginBottom: 2 },
   ruleDesc: { fontSize: 12, color: '#6B6560', lineHeight: 1.4, marginBottom: 6 },
   ruleMeta: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
   toggle: { width: 42, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s' },
-  toggleDot: { width: 20, height: 20, borderRadius: 10, background: '#fff', position: 'absolute', top: 2, left: 2, transition: 'transform 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.15)' },
-  ruleExpanded: { padding: '0 14px 14px', borderTop: '1px solid var(--border, var(--border, #EDE9E4))' },
+  toggleDot: { width: 20, height: 20, borderRadius: 10, background: 'var(--bg-card, #fff)', position: 'absolute', top: 2, left: 2, transition: 'transform 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.15)' },
+  ruleExpanded: { padding: '0 14px 14px', borderTop: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))' },
   ruleStatRow: { display: 'flex', gap: 24, padding: '12px 0' },
   ruleStatItem: { textAlign: 'center' },
   ruleActions: { display: 'flex', gap: 8 },
-  ruleActionBtn: { padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--bg, #FAF8F5)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#6B6560' },
+  ruleActionBtn: { padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', background: 'var(--bg, var(--bg, #FAF8F5))', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#6B6560' },
 
   templatesHint: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', marginBottom: 12 },
-  templateCard: { display: 'flex', alignItems: 'center', gap: 12, background: '#fff', borderRadius: 14, padding: 14, border: '1px solid var(--border, var(--border, #EDE9E4))', marginBottom: 10 },
-  useTemplateBtn: { padding: '8px 14px', borderRadius: 8, border: 'none', background: 'var(--border, var(--border, #EDE9E4))', color: 'var(--text-primary, #2D2A26)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
+  templateCard: { display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 14, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', marginBottom: 10 },
+  useTemplateBtn: { padding: '8px 14px', borderRadius: 8, border: 'none', background: 'var(--border, var(--border, var(--border, #EDE9E4)))', color: 'var(--text-primary, #2D2A26)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
 
-  logRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', borderBottom: '1px solid var(--border, var(--border, #EDE9E4))' },
+  logRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', borderBottom: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))' },
   logDot: { width: 6, height: 6, borderRadius: 3, flexShrink: 0 },
 };

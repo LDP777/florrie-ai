@@ -178,7 +178,7 @@ export default function Policies() {
             </div>
             <button
               onClick={() => setDepositEnabled(!depositEnabled)}
-              style={{ ...s.toggle, background: depositEnabled ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, #EDE9E4))' }}
+              style={{ ...s.toggle, background: depositEnabled ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, var(--border, #EDE9E4)))' }}
             >
               <div style={{ ...s.toggleThumb, transform: depositEnabled ? 'translateX(18px)' : 'translateX(2px)' }} />
             </button>
@@ -196,8 +196,8 @@ export default function Policies() {
                       style={{
                         ...s.chip,
                         background: depositType === t.key ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                        color: depositType === t.key ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
-                        border: depositType === t.key ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+                        color: depositType === t.key ? 'var(--bg-card, #fff)' : 'var(--text, var(--text-primary, #2D2A26))',
+                        border: depositType === t.key ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
                       }}
                     >
                       {t.label}
@@ -217,8 +217,8 @@ export default function Policies() {
                         style={{
                           ...s.amountChip,
                           background: depositAmount === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                          color: depositAmount === v ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
-                          border: depositAmount === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+                          color: depositAmount === v ? 'var(--bg-card, #fff)' : 'var(--text, var(--text-primary, #2D2A26))',
+                          border: depositAmount === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
                         }}
                       >
                         £{v}
@@ -239,8 +239,8 @@ export default function Policies() {
                         style={{
                           ...s.amountChip,
                           background: depositPercent === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                          color: depositPercent === v ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
-                          border: depositPercent === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+                          color: depositPercent === v ? 'var(--bg-card, #fff)' : 'var(--text, var(--text-primary, #2D2A26))',
+                          border: depositPercent === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
                         }}
                       >
                         {v}%
@@ -260,8 +260,8 @@ export default function Policies() {
                       style={{
                         ...s.amountChip,
                         background: depositMinPrice === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                        color: depositMinPrice === v ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
-                        border: depositMinPrice === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+                        color: depositMinPrice === v ? 'var(--bg-card, #fff)' : 'var(--text, var(--text-primary, #2D2A26))',
+                        border: depositMinPrice === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
                       }}
                     >
                       {v === 0 ? 'All' : `£${v}+`}
@@ -277,7 +277,7 @@ export default function Policies() {
                 </div>
                 <button
                   onClick={() => setDepositRefundable(!depositRefundable)}
-                  style={{ ...s.toggle, background: depositRefundable ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, #EDE9E4))' }}
+                  style={{ ...s.toggle, background: depositRefundable ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, var(--border, #EDE9E4)))' }}
                 >
                   <div style={{ ...s.toggleThumb, transform: depositRefundable ? 'translateX(18px)' : 'translateX(2px)' }} />
                 </button>
@@ -301,8 +301,8 @@ export default function Policies() {
                   style={{
                     ...s.chip,
                     background: cancelWindow === w.key ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                    color: cancelWindow === w.key ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
-                    border: cancelWindow === w.key ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+                    color: cancelWindow === w.key ? 'var(--bg-card, #fff)' : 'var(--text, var(--text-primary, #2D2A26))',
+                    border: cancelWindow === w.key ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
                   }}
                 >
                   {w.label}
@@ -318,7 +318,7 @@ export default function Policies() {
             </div>
             <button
               onClick={() => setCancelFeeEnabled(!cancelFeeEnabled)}
-              style={{ ...s.toggle, background: cancelFeeEnabled ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, #EDE9E4))' }}
+              style={{ ...s.toggle, background: cancelFeeEnabled ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, var(--border, #EDE9E4)))' }}
             >
               <div style={{ ...s.toggleThumb, transform: cancelFeeEnabled ? 'translateX(18px)' : 'translateX(2px)' }} />
             </button>
@@ -333,8 +333,8 @@ export default function Policies() {
                   style={{
                     ...s.chip,
                     background: cancelFeeType === 'deposit' ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                    color: cancelFeeType === 'deposit' ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
-                    border: cancelFeeType === 'deposit' ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+                    color: cancelFeeType === 'deposit' ? 'var(--bg-card, #fff)' : 'var(--text, var(--text-primary, #2D2A26))',
+                    border: cancelFeeType === 'deposit' ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
                   }}
                 >
                   Keep deposit
@@ -344,8 +344,8 @@ export default function Policies() {
                   style={{
                     ...s.chip,
                     background: cancelFeeType === 'fixed' ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                    color: cancelFeeType === 'fixed' ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
-                    border: cancelFeeType === 'fixed' ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+                    color: cancelFeeType === 'fixed' ? 'var(--bg-card, #fff)' : 'var(--text, var(--text-primary, #2D2A26))',
+                    border: cancelFeeType === 'fixed' ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
                   }}
                 >
                   Fixed fee
@@ -355,8 +355,8 @@ export default function Policies() {
                   style={{
                     ...s.chip,
                     background: cancelFeeType === 'percent' ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                    color: cancelFeeType === 'percent' ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
-                    border: cancelFeeType === 'percent' ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+                    color: cancelFeeType === 'percent' ? 'var(--bg-card, #fff)' : 'var(--text, var(--text-primary, #2D2A26))',
+                    border: cancelFeeType === 'percent' ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
                   }}
                 >
                   % of price
@@ -371,8 +371,8 @@ export default function Policies() {
                       style={{
                         ...s.amountChip,
                         background: cancelFeeFixed === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                        color: cancelFeeFixed === v ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
-                        border: cancelFeeFixed === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+                        color: cancelFeeFixed === v ? 'var(--bg-card, #fff)' : 'var(--text, var(--text-primary, #2D2A26))',
+                        border: cancelFeeFixed === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
                       }}
                     >
                       £{v}
@@ -389,8 +389,8 @@ export default function Policies() {
                       style={{
                         ...s.amountChip,
                         background: cancelFeePercent === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                        color: cancelFeePercent === v ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
-                        border: cancelFeePercent === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+                        color: cancelFeePercent === v ? 'var(--bg-card, #fff)' : 'var(--text, var(--text-primary, #2D2A26))',
+                        border: cancelFeePercent === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
                       }}
                     >
                       {v}%
@@ -426,7 +426,7 @@ export default function Policies() {
                   onClick={() => setNoshowAction(a.key)}
                   style={{
                     ...s.actionCard,
-                    border: noshowAction === a.key ? '2px solid var(--accent, #C76B8A)' : '2px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+                    border: noshowAction === a.key ? '2px solid var(--accent, #C76B8A)' : '2px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
                     background: noshowAction === a.key ? 'var(--accent-light, #FFF0F3)' : 'var(--card-bg, #fff)',
                   }}
                 >
@@ -452,8 +452,8 @@ export default function Policies() {
                     style={{
                       ...s.amountChip,
                       background: noshowFee === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                      color: noshowFee === v ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
-                      border: noshowFee === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+                      color: noshowFee === v ? 'var(--bg-card, #fff)' : 'var(--text, var(--text-primary, #2D2A26))',
+                      border: noshowFee === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
                     }}
                   >
                     £{v}
@@ -474,8 +474,8 @@ export default function Policies() {
                     style={{
                       ...s.amountChip,
                       background: noshowStrikesMax === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                      color: noshowStrikesMax === v ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
-                      border: noshowStrikesMax === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+                      color: noshowStrikesMax === v ? 'var(--bg-card, #fff)' : 'var(--text, var(--text-primary, #2D2A26))',
+                      border: noshowStrikesMax === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
                     }}
                   >
                     {v} strike{v !== 1 ? 's' : ''}
@@ -492,7 +492,7 @@ export default function Policies() {
             </div>
             <button
               onClick={() => setNoshowBlockEnabled(!noshowBlockEnabled)}
-              style={{ ...s.toggle, background: noshowBlockEnabled ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, #EDE9E4))' }}
+              style={{ ...s.toggle, background: noshowBlockEnabled ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, var(--border, #EDE9E4)))' }}
             >
               <div style={{ ...s.toggleThumb, transform: noshowBlockEnabled ? 'translateX(18px)' : 'translateX(2px)' }} />
             </button>
@@ -509,8 +509,8 @@ export default function Policies() {
                     style={{
                       ...s.amountChip,
                       background: noshowBlockAfter === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                      color: noshowBlockAfter === v ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
-                      border: noshowBlockAfter === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+                      color: noshowBlockAfter === v ? 'var(--bg-card, #fff)' : 'var(--text, var(--text-primary, #2D2A26))',
+                      border: noshowBlockAfter === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
                     }}
                   >
                     {v} no-shows
@@ -587,7 +587,7 @@ const s = {
   },
   tabBar: {
     display: 'flex',
-    borderBottom: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+    borderBottom: '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
     marginBottom: 16,
   },
   tab: {
@@ -609,7 +609,7 @@ const s = {
     background: 'var(--card-bg, #fff)',
     borderRadius: 14,
     padding: 16,
-    border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+    border: '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
   },
   cardLabel: {
     display: 'block',
@@ -658,7 +658,7 @@ const s = {
     padding: '14px 16px',
     background: 'var(--card-bg, #fff)',
     borderRadius: 14,
-    border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+    border: '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
   },
   toggleLabel: {
     display: 'block',
@@ -686,7 +686,7 @@ const s = {
     width: 22,
     height: 22,
     borderRadius: 11,
-    background: '#fff',
+    background: 'var(--bg-card, #fff)',
     position: 'absolute',
     top: 2,
     transition: 'transform 0.2s',
@@ -696,14 +696,14 @@ const s = {
     width: '100%',
     padding: '10px 12px',
     borderRadius: 10,
-    border: '1.5px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+    border: '1.5px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
     fontSize: 13,
     fontFamily: 'inherit',
     outline: 'none',
     boxSizing: 'border-box',
     resize: 'vertical',
     marginTop: 6,
-    background: 'var(--bg, var(--bg, #FAF8F5))',
+    background: 'var(--bg, var(--bg, var(--bg, #FAF8F5)))',
     color: 'var(--text, var(--text-primary, #2D2A26))',
     lineHeight: 1.5,
   },
@@ -729,7 +729,7 @@ const s = {
     padding: '12px 0',
     marginTop: 20,
     borderRadius: 10,
-    border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+    border: '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
     background: 'var(--card-bg, #fff)',
     fontSize: 13,
     fontWeight: 600,
@@ -741,7 +741,7 @@ const s = {
     marginTop: 12,
     borderRadius: 14,
     overflow: 'hidden',
-    border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+    border: '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
   },
   previewHeader: {
     background: 'linear-gradient(135deg, var(--accent, #C76B8A), #B55A79)',
@@ -758,7 +758,7 @@ const s = {
     display: 'block',
     fontSize: 18,
     fontWeight: 700,
-    color: '#fff',
+    color: 'var(--bg-card, #fff)',
     marginTop: 2,
   },
   previewBody: {
@@ -778,7 +778,7 @@ const s = {
     borderRadius: 12,
     border: 'none',
     background: 'linear-gradient(135deg, var(--accent, #C76B8A), #B55A79)',
-    color: '#fff',
+    color: 'var(--bg-card, #fff)',
     fontSize: 15,
     fontWeight: 700,
     cursor: 'pointer',

@@ -388,8 +388,8 @@ export default function ContentAutopilot() {
             onClick={() => { setTab(t); setComposing(false); }}
             style={{
               ...styles.tab,
-              borderBottomColor: (tab === t || (tab === 'compose' && t === 'drafts')) ? '#C76B8A' : 'transparent',
-              color: (tab === t || (tab === 'compose' && t === 'drafts')) ? '#C76B8A' : '#AAA5A0'
+              borderBottomColor: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--accent, #C76B8A)' : 'transparent',
+              color: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #AAA5A0)'
             }}
           >
             {t === 'ideas' ? 'Ideas' : t === 'drafts' ? `Drafts${drafts.length ? ` (${drafts.length})` : ''}` : t === 'posted' ? 'Posted' : 'Gallery'}
@@ -428,8 +428,8 @@ export default function ContentAutopilot() {
                 onClick={() => setComposeType(type)}
                 style={{
                   ...styles.composeTypeBtn,
-                  background: composeType === type ? '#FBF0F3' : '#F5F2EF',
-                  color: composeType === type ? '#C76B8A' : '#8A8580',
+                  background: composeType === type ? '#FBF0F3' : 'var(--bg-subtle, var(--bg-subtle, #F5F2EF))',
+                  color: composeType === type ? 'var(--accent, #C76B8A)' : '#8A8580',
                   fontWeight: composeType === type ? 600 : 400,
                 }}
               >
@@ -448,7 +448,7 @@ export default function ContentAutopilot() {
             ) : (
               <div style={styles.photoPlaceholder}>
                 <span style={{ fontSize: 28 }}>📸</span>
-                <span style={{ fontSize: 12, color: '#AAA5A0' }}>Add photo (optional)</span>
+                <span style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)' }}>Add photo (optional)</span>
               </div>
             )}
             <input
@@ -521,7 +521,7 @@ export default function ContentAutopilot() {
               <div style={{
                 ...styles.typeBadge,
                 background: post.post_type === 'last_minute_availability' ? '#FEF3C7' : '#FBF0F3',
-                color: post.post_type === 'last_minute_availability' ? '#B45309' : '#C76B8A'
+                color: post.post_type === 'last_minute_availability' ? '#B45309' : 'var(--accent, #C76B8A)'
               }}>
                 {POST_TYPE_LABELS[post.post_type] || 'Post'}
               </div>
@@ -796,7 +796,7 @@ const DEV_DRAFTS = [
 const styles = {
   page: {
     minHeight: '100vh',
-    background: 'var(--bg, #FAF8F5)',
+    background: 'var(--bg, var(--bg, #FAF8F5))',
     fontFamily: '"DM Sans", -apple-system, sans-serif',
     padding: '0 16px 40px',
     maxWidth: 480,
@@ -817,7 +817,7 @@ const styles = {
     borderRadius: 10,
     border: 'none',
     background: 'var(--accent, #C76B8A)',
-    color: '#fff',
+    color: 'var(--bg-card, #fff)',
     fontSize: 14,
     fontWeight: 600,
     cursor: 'pointer',
@@ -826,7 +826,7 @@ const styles = {
   tabs: {
     display: 'flex',
     gap: 24,
-    borderBottom: '1px solid var(--border, #EDE9E4)',
+    borderBottom: '1px solid var(--border, var(--border, #EDE9E4))',
     marginBottom: 16
   },
   tab: {
@@ -871,7 +871,7 @@ const styles = {
   },
   photoArea: {
     borderRadius: 12,
-    border: '1.5px dashed var(--border, #EDE9E4)',
+    border: '1.5px dashed var(--border, var(--border, #EDE9E4))',
     overflow: 'hidden',
     cursor: 'pointer',
     minHeight: 120,
@@ -885,7 +885,7 @@ const styles = {
     width: '100%',
     padding: '14px',
     borderRadius: 12,
-    border: '1.5px solid var(--border, #EDE9E4)',
+    border: '1.5px solid var(--border, var(--border, #EDE9E4))',
     fontSize: 14,
     fontFamily: 'inherit',
     resize: 'vertical',
@@ -897,7 +897,7 @@ const styles = {
     alignSelf: 'flex-start',
     padding: '6px 14px',
     borderRadius: 8,
-    border: '1.5px solid var(--border, #EDE9E4)',
+    border: '1.5px solid var(--border, var(--border, #EDE9E4))',
     background: 'transparent',
     color: 'var(--text-secondary, #7A756F)',
     fontSize: 12,
@@ -909,7 +909,7 @@ const styles = {
     width: '100%',
     padding: '10px 14px',
     borderRadius: 10,
-    border: '1.5px solid var(--border, #EDE9E4)',
+    border: '1.5px solid var(--border, var(--border, #EDE9E4))',
     fontSize: 13,
     fontFamily: 'inherit',
     outline: 'none',
@@ -923,7 +923,7 @@ const styles = {
     borderRadius: 12,
     border: 'none',
     background: 'var(--accent, #C76B8A)',
-    color: '#fff',
+    color: 'var(--bg-card, #fff)',
     fontSize: 15,
     fontWeight: 600,
     cursor: 'pointer',
@@ -933,7 +933,7 @@ const styles = {
     padding: '14px 20px',
     borderRadius: 12,
     border: 'none',
-    background: 'var(--bg-hover, #F5F2EF)',
+    background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))',
     color: 'var(--text-secondary, #7A756F)',
     fontSize: 15,
     cursor: 'pointer',
@@ -968,7 +968,7 @@ const styles = {
     borderRadius: 10,
     border: 'none',
     background: 'var(--accent, #C76B8A)',
-    color: '#fff',
+    color: 'var(--bg-card, #fff)',
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
@@ -989,7 +989,7 @@ const styles = {
     padding: '10px 14px',
     borderRadius: 10,
     border: 'none',
-    background: 'var(--bg-hover, #F5F2EF)',
+    background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))',
     color: 'var(--text-muted, #B5AFA8)',
     fontSize: 13,
     cursor: 'pointer',
@@ -1011,19 +1011,19 @@ const styles = {
   editActions: { display: 'flex', gap: 8, marginTop: 8 },
   saveEditBtn: {
     padding: '8px 16px', borderRadius: 8, border: 'none',
-    background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600,
+    background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit'
   },
   cancelEditBtn: {
     padding: '8px 16px', borderRadius: 8, border: 'none',
-    background: 'var(--bg-hover, #F5F2EF)', color: 'var(--text-secondary, #7A756F)', fontSize: 13,
+    background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', color: 'var(--text-secondary, #7A756F)', fontSize: 13,
     cursor: 'pointer', fontFamily: 'inherit'
   },
   statsRow: {
     display: 'flex',
     gap: 16,
     padding: '10px 0',
-    borderTop: '1px solid var(--bg-hover, #F5F2EF)',
+    borderTop: '1px solid var(--bg-hover, var(--bg-subtle, #F5F2EF))',
     marginTop: 8
   },
   stat: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
@@ -1038,7 +1038,7 @@ const styles = {
   galleryHeaderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
   galleryAddBtn: {
     padding: '8px 14px', borderRadius: 8, border: 'none',
-    background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 12, fontWeight: 600,
+    background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 12, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
   },
   galleryAddCard: {
@@ -1049,7 +1049,7 @@ const styles = {
   galleryPhotoPair: { display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' },
   galleryPhotoSlot: {
     flex: 1, maxWidth: 160, aspectRatio: '1', borderRadius: 12,
-    border: '1.5px dashed var(--border, #EDE9E4)', overflow: 'hidden', cursor: 'pointer',
+    border: '1.5px dashed var(--border, var(--border, #EDE9E4))', overflow: 'hidden', cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   galleryPlaceholder: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 },
@@ -1058,12 +1058,12 @@ const styles = {
   galleryArrow: { fontSize: 18, color: 'var(--text-muted, #B5AFA8)', flexShrink: 0 },
   gallerySelect: {
     width: '100%', padding: '10px 12px', borderRadius: 10,
-    border: '1.5px solid var(--border, #EDE9E4)', fontSize: 13, fontFamily: 'inherit',
+    border: '1.5px solid var(--border, var(--border, #EDE9E4))', fontSize: 13, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box', color: 'var(--text-primary, #2D2A26)', background: 'var(--bg-card, #FFFFFF)',
   },
   galleryNotesInput: {
     width: '100%', padding: '10px 12px', borderRadius: 10,
-    border: '1.5px solid var(--border, #EDE9E4)', fontSize: 13, fontFamily: 'inherit',
+    border: '1.5px solid var(--border, var(--border, #EDE9E4))', fontSize: 13, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box',
   },
   galleryFormActions: { display: 'flex', gap: 8 },
@@ -1077,7 +1077,7 @@ const styles = {
   galleryLabel: {
     position: 'absolute', bottom: 6, left: 6,
     padding: '2px 8px', borderRadius: 4,
-    background: 'rgba(0,0,0,0.5)', color: '#fff',
+    background: 'rgba(0,0,0,0.5)', color: 'var(--bg-card, #fff)',
     fontSize: 10, fontWeight: 600,
   },
   galleryCardFooter: { padding: '10px 14px' },

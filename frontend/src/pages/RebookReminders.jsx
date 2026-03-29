@@ -186,7 +186,7 @@ export default function RebookReminders() {
             onClick={() => setTab(t.key)}
             style={{
               ...s.tab,
-              color: tab === t.key ? '#C76B8A' : 'var(--text-muted, #AAA5A0)',
+              color: tab === t.key ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #AAA5A0)',
               borderBottom: tab === t.key ? '2px solid #C76B8A' : '2px solid transparent',
               fontWeight: tab === t.key ? 600 : 400,
             }}
@@ -211,7 +211,7 @@ export default function RebookReminders() {
                   style={{
                     ...s.templateChip,
                     background: selectedTemplate === t.id ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                    color: selectedTemplate === t.id ? '#fff' : 'var(--text, #2D2A26)',
+                    color: selectedTemplate === t.id ? 'var(--bg-card, #fff)' : 'var(--text, #2D2A26)',
                     border: selectedTemplate === t.id ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, #E8E4E0)',
                   }}
                 >
@@ -325,7 +325,7 @@ export default function RebookReminders() {
                   style={{
                     ...s.intervalChip,
                     background: defaultInterval === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                    color: defaultInterval === v ? '#fff' : 'var(--text, #2D2A26)',
+                    color: defaultInterval === v ? 'var(--bg-card, #fff)' : 'var(--text, #2D2A26)',
                     border: defaultInterval === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, #E8E4E0)',
                   }}
                 >
@@ -345,7 +345,7 @@ export default function RebookReminders() {
                   style={{
                     ...s.intervalChip,
                     background: remindDaysBefore === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                    color: remindDaysBefore === v ? '#fff' : 'var(--text, #2D2A26)',
+                    color: remindDaysBefore === v ? 'var(--bg-card, #fff)' : 'var(--text, #2D2A26)',
                     border: remindDaysBefore === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, #E8E4E0)',
                   }}
                 >
@@ -369,7 +369,7 @@ export default function RebookReminders() {
                   style={{
                     ...s.intervalChip,
                     background: sendChannel === ch.key ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                    color: sendChannel === ch.key ? '#fff' : 'var(--text, #2D2A26)',
+                    color: sendChannel === ch.key ? 'var(--bg-card, #fff)' : 'var(--text, #2D2A26)',
                     border: sendChannel === ch.key ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, #E8E4E0)',
                   }}
                 >
@@ -450,7 +450,7 @@ const s = {
     width: 38, height: 38, borderRadius: 19,
     background: 'linear-gradient(135deg, #C76B8A22, #C76B8A44)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 14, fontWeight: 700, color: '#C76B8A', flexShrink: 0,
+    fontSize: 14, fontWeight: 700, color: 'var(--accent, #C76B8A)', flexShrink: 0,
   },
   clientName: { display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
   clientMeta: { display: 'block', fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
@@ -460,7 +460,7 @@ const s = {
   },
   messagePreview: {
     padding: '10px 12px', borderRadius: 10,
-    background: 'var(--bg, #FAF8F5)', marginBottom: 10,
+    background: 'var(--bg, var(--bg, #FAF8F5))', marginBottom: 10,
   },
   messageText: {
     fontSize: 12, color: 'var(--text, #5A5550)', lineHeight: 1.5, margin: 0,
@@ -468,7 +468,7 @@ const s = {
   cardActions: { display: 'flex', gap: 8 },
   sendBtn: {
     flex: 1, padding: '9px 0', borderRadius: 10, border: 'none',
-    background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600,
+    background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   editBtn: {
@@ -483,7 +483,7 @@ const s = {
   bulkBtn: {
     width: '100%', padding: '13px 0', marginTop: 16, borderRadius: 12,
     border: 'none', background: 'linear-gradient(135deg, var(--accent, #C76B8A), var(--accent-hover, #B85D7B))',
-    color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+    color: 'var(--bg-card, #fff)', fontSize: 14, fontWeight: 700, cursor: 'pointer',
     fontFamily: 'inherit', boxShadow: '0 4px 14px rgba(199,107,138,0.3)',
   },
   empty: { textAlign: 'center', padding: '32px 20px' },
@@ -502,7 +502,7 @@ const s = {
     cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s', background: 'var(--accent, #C76B8A)',
   },
   toggleThumb: {
-    width: 22, height: 22, borderRadius: 11, background: '#fff',
+    width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #fff)',
     position: 'absolute', top: 2, transition: 'transform 0.2s',
     boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
   },

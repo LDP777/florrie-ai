@@ -159,7 +159,7 @@ export default function ClientTimeline() {
       <div style={S.clientRow}>
         {clients.map(c => (
           <button key={c.id} onClick={() => { setSelectedClient(c.id); setExpanded(null); }} style={{ ...S.clientChip, ...(selectedClient === c.id ? S.clientActive : {}) }}>
-            <div style={{ ...S.clientAvatar, background: selectedClient === c.id ? '#fff' : 'var(--accent-light, #FFF0F3)', color: selectedClient === c.id ? 'var(--accent, #C76B8A)' : 'var(--accent, #C76B8A)' }}>{c.name[0]}</div>
+            <div style={{ ...S.clientAvatar, background: selectedClient === c.id ? 'var(--bg-card, #fff)' : 'var(--accent-light, #FFF0F3)', color: selectedClient === c.id ? 'var(--accent, #C76B8A)' : 'var(--accent, #C76B8A)' }}>{c.name[0]}</div>
             <span>{c.name}</span>
           </button>
         ))}
@@ -276,8 +276,8 @@ const S = {
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 16px' },
 
   clientRow: { display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto' },
-  clientChip: { display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px 6px 6px', borderRadius: 20, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: '#2D2A26', whiteSpace: 'nowrap' },
-  clientActive: { background: 'var(--accent, #C76B8A)', color: '#fff', border: '1px solid var(--accent, #C76B8A)' },
+  clientChip: { display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px 6px 6px', borderRadius: 20, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', whiteSpace: 'nowrap' },
+  clientActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', border: '1px solid var(--accent, #C76B8A)' },
   clientAvatar: { width: 26, height: 26, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, flexShrink: 0 },
 
   profileCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 16, marginBottom: 16 },
@@ -289,13 +289,13 @@ const S = {
   tagRow: { display: 'flex', gap: 6 },
   tag: { padding: '2px 8px', borderRadius: 6, background: 'var(--accent-light, #FFF0F3)', color: 'var(--accent, #C76B8A)', fontSize: 10, fontWeight: 600 },
   profileStats: { display: 'flex', gap: 12 },
-  profileStat: { flex: 1, background: 'var(--bg-hover, #F5F2EF)', borderRadius: 10, padding: '8px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
+  profileStat: { flex: 1, background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', borderRadius: 10, padding: '8px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   profileStatVal: { fontSize: 15, fontWeight: 700, color: 'var(--text, #2D2A26)' },
   profileStatLabel: { fontSize: 10, color: 'var(--text-muted, #B5AFA8)' },
 
   filterRow: { display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', paddingBottom: 2 },
   filterChip: { padding: '6px 12px', borderRadius: 16, border: '1px solid var(--border, #F0ECE8)', background: 'var(--card, #fff)', color: 'var(--text-secondary, #8B6F5E)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
-  filterActive: { background: 'var(--text-primary, #2D2A26)', color: '#fff', border: '1px solid var(--text-primary, #2D2A26)' },
+  filterActive: { background: 'var(--text-primary, #2D2A26)', color: 'var(--bg-card, #fff)', border: '1px solid var(--text-primary, #2D2A26)' },
 
   timeline: {},
   monthHeader: { fontSize: 13, fontWeight: 700, color: 'var(--text-muted, #B5AFA8)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '12px 0 8px' },

@@ -185,11 +185,11 @@ export default function WhatsAppConfig() {
           <div style={styles.templateSummary}>
             <div style={styles.templateSumItem}>
               <span style={{ fontSize: 20, fontWeight: 700 }}>{c.templateApproved}</span>
-              <span style={{ fontSize: 12, color: '#AAA5A0' }}>Approved</span>
+              <span style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)' }}>Approved</span>
             </div>
             <div style={styles.templateSumItem}>
               <span style={{ fontSize: 20, fontWeight: 700, color: '#FFB74D' }}>{c.templatePending}</span>
-              <span style={{ fontSize: 12, color: '#AAA5A0' }}>Pending</span>
+              <span style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)' }}>Pending</span>
             </div>
           </div>
         </div>
@@ -215,9 +215,9 @@ export default function WhatsAppConfig() {
                     }}>{tmpl.status}</span>
                     <span style={styles.tmplCategory}>{tmpl.category}</span>
                   </div>
-                  <div style={{ fontSize: 12, color: '#AAA5A0' }}>Used {tmpl.uses} times · Last: {tmpl.lastUsed}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)' }}>Used {tmpl.uses} times · Last: {tmpl.lastUsed}</div>
                 </div>
-                <span style={{ fontSize: 18, color: '#AAA5A0' }}>{expandedTemplate === tmpl.id ? '▾' : '▸'}</span>
+                <span style={{ fontSize: 18, color: 'var(--text-muted, #AAA5A0)' }}>{expandedTemplate === tmpl.id ? '▾' : '▸'}</span>
               </div>
               {expandedTemplate === tmpl.id && (
                 <div style={styles.templatePreview}>
@@ -261,7 +261,7 @@ export default function WhatsAppConfig() {
               {rule.response ? (
                 <div style={styles.autoReplyPreview}>{rule.response}</div>
               ) : (
-                <div style={{ fontSize: 12, color: '#AAA5A0', fontStyle: 'italic' }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)', fontStyle: 'italic' }}>
                   No auto-reply — messages go to Inbox for manual response
                 </div>
               )}
@@ -270,7 +270,7 @@ export default function WhatsAppConfig() {
 
           <div style={styles.aiToggleCard}>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: '#2D2A26', marginBottom: 4 }}>🧠 florrie.ai Drafting</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)', marginBottom: 4 }}>🧠 florrie.ai Drafting</div>
               <div style={{ fontSize: 12, color: '#6B6560', lineHeight: 1.4 }}>
                 Let florrie.ai draft replies to unmatched messages using Ellie's tone model.
                 Drafts appear in your Inbox for approval before sending.
@@ -296,8 +296,8 @@ export default function WhatsAppConfig() {
           ].map((setting, i) => (
             <div key={i} style={styles.settingRow}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 500, color: '#2D2A26' }}>{setting.label}</div>
-                <div style={{ fontSize: 12, color: '#AAA5A0', marginTop: 2 }}>{setting.desc}</div>
+                <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary, #2D2A26)' }}>{setting.label}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)', marginTop: 2 }}>{setting.desc}</div>
               </div>
               <button style={{
                 ...styles.toggle,
@@ -362,15 +362,15 @@ const styles = {
   templatePreview: { padding: '0 14px 14px', borderTop: '1px solid var(--border, #F0ECE8)' },
   previewBubble: { background: 'var(--success-bg, #EDF7F0)', borderRadius: '12px 12px 12px 0', padding: 12, fontSize: 13, color: 'var(--text, #2D2A26)', lineHeight: 1.5, marginTop: 12, marginBottom: 10 },
   previewActions: { display: 'flex', gap: 8 },
-  previewBtn: { padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border, #F0ECE8)', background: 'var(--bg, #FAF8F5)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-secondary, #8B6F5E)' },
+  previewBtn: { padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border, #F0ECE8)', background: 'var(--bg, var(--bg, #FAF8F5))', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-secondary, #8B6F5E)' },
 
-  autoReplyHint: { fontSize: 13, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.5, marginBottom: 16, background: 'var(--bg, #FAF8F5)', padding: 12, borderRadius: 12 },
+  autoReplyHint: { fontSize: 13, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.5, marginBottom: 16, background: 'var(--bg, var(--bg, #FAF8F5))', padding: 12, borderRadius: 12 },
   autoReplyCard: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 14, border: '1px solid var(--border, #F0ECE8)', marginBottom: 10 },
-  autoReplyPreview: { fontSize: 13, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.5, background: 'var(--bg, #FAF8F5)', borderRadius: 10, padding: 10 },
+  autoReplyPreview: { fontSize: 13, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.5, background: 'var(--bg, var(--bg, #FAF8F5))', borderRadius: 10, padding: 10 },
   aiToggleCard: { display: 'flex', alignItems: 'center', gap: 12, background: '#FFF8F0', border: '1px solid #FFE8CC', borderRadius: 14, padding: 14, marginTop: 16 },
 
   toggle: { width: 42, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s' },
-  toggleDot: { width: 20, height: 20, borderRadius: 10, background: '#fff', position: 'absolute', top: 2, left: 2, transition: 'transform 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.15)' },
+  toggleDot: { width: 20, height: 20, borderRadius: 10, background: 'var(--bg-card, #fff)', position: 'absolute', top: 2, left: 2, transition: 'transform 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.15)' },
 
   settingRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '14px 0', borderBottom: '1px solid var(--border, #F0ECE8)' },
   dangerZone: { marginTop: 24, padding: 16, background: 'var(--danger-bg, #FDF0EF)', borderRadius: 14, border: '1px solid var(--danger, #D4605C)' },
