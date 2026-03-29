@@ -4,6 +4,7 @@ import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { updateClientIntelligence } from '../services/client-intelligence.js';
+import logger from '../lib/logger.js';
 
 const router = Router();
 
@@ -42,7 +43,10 @@ router.get('/', requireAuth, async (req, res) => {
 
   // Apply pagination
   const { data, error, count } = await query.range(offset, offset + per_page - 1);
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Failed to fetch appointments');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
 
   const total = count || 0;
   const total_pages = Math.ceil(total / per_page);
@@ -129,7 +133,10 @@ router.post('/', requireAuth, async (req, res) => {
     .select('*, clients(first_name, last_name), treatments(name)')
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Failed to create appointment');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ appointment });
 });
 
@@ -177,7 +184,10 @@ router.patch('/:id', requireAuth, async (req, res) => {
     .select('*, clients(first_name, last_name), treatments(name)')
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Failed to update appointment');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ appointment: data });
 });
 
@@ -194,7 +204,10 @@ router.post('/:id/complete', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Failed to mark appointment as completed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
 
   // Auto-log the income transaction
   await supabase.from('transactions').insert({

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
+import logger from '../lib/logger.js';
 
 const router = Router();
 
@@ -24,7 +25,10 @@ router.get('/daily-checklists', requireAuth, async (req, res) => {
   }
 
   const { data, error } = await query;
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ checklists: data });
 });
 
@@ -49,7 +53,10 @@ router.post('/daily-checklists', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ checklist: data });
 });
 
@@ -72,7 +79,10 @@ router.patch('/daily-checklists/:id', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ checklist: data });
 });
 
@@ -86,7 +96,10 @@ router.delete('/daily-checklists/:id', requireAuth, async (req, res) => {
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ success: true });
 });
 
@@ -104,7 +117,10 @@ router.get('/consultations', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ consultations: data });
 });
 
@@ -130,7 +146,10 @@ router.post('/consultations', requireAuth, async (req, res) => {
     .select('*, clients(first_name, last_name, email), treatments(name)')
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ consultation: data });
 });
 
@@ -152,7 +171,10 @@ router.patch('/consultations/:id', requireAuth, async (req, res) => {
     .select('*, clients(first_name, last_name, email), treatments(name)')
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ consultation: data });
 });
 
@@ -166,7 +188,10 @@ router.delete('/consultations/:id', requireAuth, async (req, res) => {
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ success: true });
 });
 
@@ -184,7 +209,10 @@ router.get('/patch-tests', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ patchTests: data });
 });
 
@@ -210,7 +238,10 @@ router.post('/patch-tests', requireAuth, async (req, res) => {
     .select('*, clients(first_name, last_name, email), treatments(name)')
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ patchTest: data });
 });
 
@@ -231,7 +262,10 @@ router.patch('/patch-tests/:id', requireAuth, async (req, res) => {
     .select('*, clients(first_name, last_name, email), treatments(name)')
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ patchTest: data });
 });
 
@@ -245,7 +279,10 @@ router.delete('/patch-tests/:id', requireAuth, async (req, res) => {
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ success: true });
 });
 
@@ -263,7 +300,10 @@ router.get('/aftercare-messages', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ aftercareMessages: data });
 });
 
@@ -288,7 +328,10 @@ router.post('/aftercare-messages', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ aftercareMessage: data });
 });
 
@@ -310,7 +353,10 @@ router.patch('/aftercare-messages/:id', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ aftercareMessage: data });
 });
 
@@ -324,7 +370,10 @@ router.delete('/aftercare-messages/:id', requireAuth, async (req, res) => {
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ success: true });
 });
 
@@ -342,7 +391,10 @@ router.get('/packages', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ packages: data });
 });
 
@@ -368,7 +420,10 @@ router.post('/packages', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ package: data });
 });
 
@@ -392,7 +447,10 @@ router.patch('/packages/:id', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ package: data });
 });
 
@@ -406,7 +464,10 @@ router.delete('/packages/:id', requireAuth, async (req, res) => {
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ success: true });
 });
 
@@ -424,7 +485,10 @@ router.get('/client-packages', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ clientPackages: data });
 });
 
@@ -449,7 +513,10 @@ router.post('/client-packages', requireAuth, async (req, res) => {
     .select('*, clients(first_name, last_name, email), packages(name, price)')
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ clientPackage: data });
 });
 
@@ -471,7 +538,10 @@ router.patch('/client-packages/:id', requireAuth, async (req, res) => {
     .select('*, clients(first_name, last_name, email), packages(name, price)')
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ clientPackage: data });
 });
 
@@ -489,7 +559,10 @@ router.get('/add-ons', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ addOns: data });
 });
 
@@ -521,7 +594,10 @@ router.post('/add-ons', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ addOn: data });
 });
 
@@ -550,7 +626,10 @@ router.patch('/add-ons/:id', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ addOn: data });
 });
 
@@ -564,7 +643,10 @@ router.delete('/add-ons/:id', requireAuth, async (req, res) => {
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ success: true });
 });
 
@@ -582,7 +664,10 @@ router.get('/gift-vouchers', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ giftVouchers: data });
 });
 
@@ -609,7 +694,10 @@ router.post('/gift-vouchers', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ giftVoucher: data });
 });
 
@@ -638,7 +726,10 @@ router.patch('/gift-vouchers/:id', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ giftVoucher: data });
 });
 
@@ -652,7 +743,10 @@ router.delete('/gift-vouchers/:id', requireAuth, async (req, res) => {
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ success: true });
 });
 
@@ -670,7 +764,10 @@ router.get('/client-memberships', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ clientMemberships: data });
 });
 
@@ -696,7 +793,10 @@ router.post('/client-memberships', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ clientMembership: data });
 });
 
@@ -718,7 +818,10 @@ router.patch('/client-memberships/:id', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ clientMembership: data });
 });
 
@@ -732,7 +835,10 @@ router.delete('/client-memberships/:id', requireAuth, async (req, res) => {
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ success: true });
 });
 
@@ -750,7 +856,10 @@ router.get('/membership-subscriptions', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ membershipSubscriptions: data });
 });
 
@@ -775,7 +884,10 @@ router.post('/membership-subscriptions', requireAuth, async (req, res) => {
     .select('*, clients(first_name, last_name, email), client_memberships(membership_id)')
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ membershipSubscription: data });
 });
 
@@ -797,7 +909,10 @@ router.patch('/membership-subscriptions/:id', requireAuth, async (req, res) => {
     .select('*, clients(first_name, last_name, email), client_memberships(membership_id)')
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ membershipSubscription: data });
 });
 
@@ -817,7 +932,8 @@ router.get('/loyalty-config', requireAuth, async (req, res) => {
     .single();
 
   if (error && error.code !== 'PGRST116') {
-    return res.status(500).json({ error: error.message });
+    logger.error({ err: error }, 'Failed to fetch loyalty config');
+    return res.status(500).json({ error: 'Something went wrong' });
   }
 
   res.json({ loyaltyConfig: data || null });
@@ -841,7 +957,10 @@ router.post('/loyalty-config', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ loyaltyConfig: data });
 });
 
@@ -865,7 +984,10 @@ router.get('/loyalty-points', requireAuth, async (req, res) => {
     .eq('client_id', req.query.client_id)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ loyaltyPoints: data });
 });
 
@@ -891,7 +1013,10 @@ router.post('/loyalty-points', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ loyaltyPoints: data });
 });
 
@@ -909,7 +1034,10 @@ router.get('/referrals', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ referrals: data });
 });
 
@@ -935,7 +1063,10 @@ router.post('/referrals', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ referral: data });
 });
 
@@ -957,7 +1088,10 @@ router.patch('/referrals/:id', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ referral: data });
 });
 
@@ -975,7 +1109,10 @@ router.get('/revenue-goals', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .order('target_month', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ revenueGoals: data });
 });
 
@@ -1000,7 +1137,10 @@ router.post('/revenue-goals', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ revenueGoal: data });
 });
 
@@ -1022,7 +1162,10 @@ router.patch('/revenue-goals/:id', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ revenueGoal: data });
 });
 
@@ -1036,7 +1179,10 @@ router.delete('/revenue-goals/:id', requireAuth, async (req, res) => {
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ success: true });
 });
 
@@ -1054,7 +1200,10 @@ router.get('/message-templates', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ messageTemplates: data });
 });
 
@@ -1079,7 +1228,10 @@ router.post('/message-templates', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ messageTemplate: data });
 });
 
@@ -1102,7 +1254,10 @@ router.patch('/message-templates/:id', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ messageTemplate: data });
 });
 
@@ -1116,7 +1271,10 @@ router.delete('/message-templates/:id', requireAuth, async (req, res) => {
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ success: true });
 });
 
@@ -1134,7 +1292,10 @@ router.get('/automation-rules', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ automationRules: data });
 });
 
@@ -1161,7 +1322,10 @@ router.post('/automation-rules', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ automationRule: data });
 });
 
@@ -1186,7 +1350,10 @@ router.patch('/automation-rules/:id', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ automationRule: data });
 });
 
@@ -1200,7 +1367,10 @@ router.delete('/automation-rules/:id', requireAuth, async (req, res) => {
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ success: true });
 });
 
@@ -1218,7 +1388,10 @@ router.get('/policies', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ policies: data });
 });
 
@@ -1243,7 +1416,10 @@ router.post('/policies', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ policy: data });
 });
 
@@ -1266,7 +1442,10 @@ router.patch('/policies/:id', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ policy: data });
 });
 
@@ -1280,7 +1459,10 @@ router.delete('/policies/:id', requireAuth, async (req, res) => {
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ success: true });
 });
 
@@ -1298,7 +1480,10 @@ router.get('/intake-forms', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ intakeForms: data });
 });
 
@@ -1322,7 +1507,10 @@ router.post('/intake-forms', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ intakeForm: data });
 });
 
@@ -1344,7 +1532,10 @@ router.patch('/intake-forms/:id', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ intakeForm: data });
 });
 
@@ -1358,7 +1549,10 @@ router.delete('/intake-forms/:id', requireAuth, async (req, res) => {
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ success: true });
 });
 
@@ -1386,7 +1580,10 @@ router.get('/form-submissions', requireAuth, async (req, res) => {
   }
 
   const { data, error } = await query;
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ formSubmissions: data });
 });
 
@@ -1411,7 +1608,10 @@ router.post('/form-submissions', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ formSubmission: data });
 });
 
@@ -1439,7 +1639,10 @@ router.get('/hours-exceptions', requireAuth, async (req, res) => {
   }
 
   const { data, error } = await query;
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ hoursExceptions: data });
 });
 
@@ -1464,7 +1667,10 @@ router.post('/hours-exceptions', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ hoursException: data });
 });
 
@@ -1478,7 +1684,10 @@ router.delete('/hours-exceptions/:id', requireAuth, async (req, res) => {
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ success: true });
 });
 
@@ -1496,7 +1705,10 @@ router.get('/client-tags', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ clientTags: data });
 });
 
@@ -1520,7 +1732,10 @@ router.post('/client-tags', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ clientTag: data });
 });
 
@@ -1534,7 +1749,10 @@ router.delete('/client-tags/:id', requireAuth, async (req, res) => {
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ success: true });
 });
 
@@ -1558,7 +1776,10 @@ router.get('/client-tag-assignments', requireAuth, async (req, res) => {
   }
 
   const { data, error } = await query;
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ clientTagAssignments: data });
 });
 
@@ -1582,7 +1803,10 @@ router.post('/client-tag-assignments', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ clientTagAssignment: data });
 });
 
@@ -1596,7 +1820,10 @@ router.delete('/client-tag-assignments/:id', requireAuth, async (req, res) => {
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ success: true });
 });
 
@@ -1614,7 +1841,10 @@ router.get('/reviews', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ reviews: data });
 });
 
@@ -1640,7 +1870,10 @@ router.post('/reviews', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ review: data });
 });
 
@@ -1662,7 +1895,10 @@ router.patch('/reviews/:id', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ review: data });
 });
 
@@ -1686,7 +1922,10 @@ router.get('/end-of-day-reports', requireAuth, async (req, res) => {
   }
 
   const { data, error } = await query;
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ endOfDayReports: data });
 });
 
@@ -1714,7 +1953,10 @@ router.post('/end-of-day-reports', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ endOfDayReport: data });
 });
 
@@ -1734,7 +1976,8 @@ router.get('/portal-settings', requireAuth, async (req, res) => {
     .single();
 
   if (error && error.code !== 'PGRST116') {
-    return res.status(500).json({ error: error.message });
+    logger.error({ err: error }, 'Failed to fetch portal settings');
+    return res.status(500).json({ error: 'Something went wrong' });
   }
 
   res.json({ portalSettings: data || null });
@@ -1759,7 +2002,10 @@ router.post('/portal-settings', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ portalSettings: data });
 });
 
@@ -1777,7 +2023,10 @@ router.get('/rebook-reminders', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ rebookReminders: data });
 });
 
@@ -1804,7 +2053,10 @@ router.post('/rebook-reminders', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ rebookReminder: data });
 });
 
@@ -1826,7 +2078,10 @@ router.patch('/rebook-reminders/:id', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ rebookReminder: data });
 });
 
@@ -1840,7 +2095,10 @@ router.delete('/rebook-reminders/:id', requireAuth, async (req, res) => {
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ success: true });
 });
 
@@ -1858,7 +2116,10 @@ router.get('/waitlist', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ waitlist: data });
 });
 
@@ -1884,7 +2145,10 @@ router.post('/waitlist', requireAuth, async (req, res) => {
     .select('*, clients(first_name, last_name, email), treatments(name)')
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ waitlistEntry: data });
 });
 
@@ -1906,7 +2170,10 @@ router.patch('/waitlist/:id', requireAuth, async (req, res) => {
     .select('*, clients(first_name, last_name, email), treatments(name)')
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ waitlistEntry: data });
 });
 
@@ -1920,7 +2187,10 @@ router.delete('/waitlist/:id', requireAuth, async (req, res) => {
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ success: true });
 });
 
@@ -1938,7 +2208,10 @@ router.get('/messages', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ messages: data });
 });
 
@@ -1963,7 +2236,10 @@ router.post('/messages', requireAuth, async (req, res) => {
     .select('*, clients(first_name, last_name, email)')
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ message: data });
 });
 
@@ -1981,7 +2257,10 @@ router.get('/campaigns', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ campaigns: data });
 });
 
@@ -2007,7 +2286,10 @@ router.post('/campaigns', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ campaign: data });
 });
 
@@ -2030,7 +2312,10 @@ router.patch('/campaigns/:id', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ campaign: data });
 });
 
@@ -2048,7 +2333,10 @@ router.get('/content-posts', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ contentPosts: data });
 });
 
@@ -2073,7 +2361,10 @@ router.post('/content-posts', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ contentPost: data });
 });
 
@@ -2096,7 +2387,10 @@ router.patch('/content-posts/:id', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ contentPost: data });
 });
 
@@ -2110,7 +2404,10 @@ router.delete('/content-posts/:id', requireAuth, async (req, res) => {
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ success: true });
 });
 
@@ -2128,7 +2425,10 @@ router.get('/team-members', requireAuth, async (req, res) => {
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ teamMembers: data });
 });
 
@@ -2154,7 +2454,10 @@ router.post('/team-members', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ teamMember: data });
 });
 
@@ -2178,7 +2481,10 @@ router.patch('/team-members/:id', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ teamMember: data });
 });
 
@@ -2192,7 +2498,10 @@ router.delete('/team-members/:id', requireAuth, async (req, res) => {
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ success: true });
 });
 

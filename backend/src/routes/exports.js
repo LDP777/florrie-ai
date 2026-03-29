@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
+import logger from '../lib/logger.js';
 
 const router = Router();
 
@@ -54,7 +55,8 @@ router.get('/clients', requireAuth, async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (error) {
-      return res.status(500).json({ error: error.message });
+      logger.error({ err: error }, 'Failed to export clients');
+      return res.status(500).json({ error: 'Something went wrong' });
     }
 
     const headers = [
@@ -82,7 +84,8 @@ router.get('/clients', requireAuth, async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(csv);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    logger.error({ err }, 'Failed to generate clients export');
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 
@@ -111,7 +114,8 @@ router.get('/appointments', requireAuth, async (req, res) => {
     const { data: appointments, error } = await query;
 
     if (error) {
-      return res.status(500).json({ error: error.message });
+      logger.error({ err: error }, 'Failed to export appointments');
+      return res.status(500).json({ error: 'Something went wrong' });
     }
 
     // Flatten nested relationships for CSV
@@ -159,7 +163,8 @@ router.get('/appointments', requireAuth, async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(csv);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    logger.error({ err }, 'Failed to generate appointments export');
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 

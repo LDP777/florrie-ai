@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
+import logger from '../lib/logger.js';
 
 const router = Router();
 
@@ -40,12 +41,14 @@ router.get('/', requireAuth, async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (error) {
-      return res.status(500).json({ error: error.message });
+      logger.error({ err: error }, 'Failed to fetch promo codes');
+      return res.status(500).json({ error: 'Something went wrong' });
     }
 
     res.json({ data: data || [] });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    logger.error({ err }, 'Failed to fetch promo codes');
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 
@@ -84,12 +87,14 @@ router.post('/', requireAuth, validate(createPromoCodeSchema), async (req, res) 
       if (error.code === '23505') {
         return res.status(400).json({ error: 'This code already exists for your account' });
       }
-      return res.status(500).json({ error: error.message });
+      logger.error({ err: error }, 'Failed to create promo code');
+      return res.status(500).json({ error: 'Something went wrong' });
     }
 
     res.status(201).json({ data });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    logger.error({ err }, 'Failed to create promo code');
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 
@@ -112,7 +117,8 @@ router.get('/:id', requireAuth, async (req, res) => {
 
     res.json({ data });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    logger.error({ err }, 'Failed to fetch promo code');
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 
@@ -145,7 +151,8 @@ router.patch('/:id', requireAuth, validate(updatePromoCodeSchema), async (req, r
       .single();
 
     if (error) {
-      return res.status(500).json({ error: error.message });
+      logger.error({ err: error }, 'Failed to update promo code');
+      return res.status(500).json({ error: 'Something went wrong' });
     }
 
     if (!data) {
@@ -154,7 +161,8 @@ router.patch('/:id', requireAuth, validate(updatePromoCodeSchema), async (req, r
 
     res.json({ data });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    logger.error({ err }, 'Failed to update promo code');
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 
@@ -176,7 +184,8 @@ router.delete('/:id', requireAuth, async (req, res) => {
       .single();
 
     if (error) {
-      return res.status(500).json({ error: error.message });
+      logger.error({ err: error }, 'Failed to delete promo code');
+      return res.status(500).json({ error: 'Something went wrong' });
     }
 
     if (!data) {
@@ -185,7 +194,8 @@ router.delete('/:id', requireAuth, async (req, res) => {
 
     res.json({ data });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    logger.error({ err }, 'Failed to delete promo code');
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 
@@ -254,7 +264,8 @@ router.post('/validate', validate(validatePromoCodeSchema), async (req, res) => 
       beautician_id: data.beautician_id
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    logger.error({ err }, 'Failed to validate promo code');
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 

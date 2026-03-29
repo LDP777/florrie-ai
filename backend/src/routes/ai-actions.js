@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
+import logger from '../lib/logger.js';
 
 const router = Router();
 
@@ -26,7 +27,10 @@ router.get('/', requireAuth, async (req, res) => {
   }
 
   const { data, error } = await query;
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Failed to fetch ai_actions');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ actions: data });
 });
 

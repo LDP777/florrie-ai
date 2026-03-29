@@ -48,7 +48,10 @@ router.get('/:clientId', requireAuth, async (req, res) => {
       .eq('client_id', clientId)
       .order('created_at', { ascending: false });
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+      logger.error({ err: error }, 'Failed to complete photo consent operation');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
     res.json({ consents: data || [] });
   } catch (err) {
     logger.error({ err }, 'Get photo consents error');
@@ -100,7 +103,10 @@ router.post('/', requireAuth, validate(createPhotoConsentSchema), async (req, re
       .select()
       .single();
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+      logger.error({ err: error }, 'Failed to complete photo consent operation');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
     res.status(201).json({ consent: data });
   } catch (err) {
     logger.error({ err }, 'Create photo consent error');
@@ -147,7 +153,10 @@ router.patch('/:id/revoke', requireAuth, validate(revokePhotoConsentSchema), asy
       .select()
       .single();
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+      logger.error({ err: error }, 'Failed to complete photo consent operation');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
     res.json({ consent: data });
   } catch (err) {
     logger.error({ err }, 'Revoke photo consent error');

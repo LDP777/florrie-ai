@@ -26,7 +26,10 @@ router.get('/', requireAuth, async (req, res) => {
     .eq('is_active', true)
     .order('created_at', { ascending: false });
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Failed to fetch consultation forms');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ forms: data || [] });
 });
 
@@ -93,7 +96,10 @@ router.post('/', requireAuth, validate(createFormSchema), async (req, res) => {
     .select()
     .single();
 
-  if (formError) return res.status(500).json({ error: formError.message });
+  if (formError) {
+    logger.error({ err: formError }, 'Failed to create consultation form');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
 
   // Insert fields if provided
   if (fields.length > 0) {
@@ -130,76 +136,91 @@ router.post('/', requireAuth, validate(createFormSchema), async (req, res) => {
  * Update form metadata and/or replace all fields.
  */
 router.patch('/:id', requireAuth, async (req, res) => {
-  const { id } = req.params;
-  const { name, consent_text, is_default, fields } = req.body;
+  try {
+    const { id } = req.params;
+    const { name, consent_text, is_default, fields } = req.body;
 
-  // Verify ownership
-  const { data: existing } = await supabase
-    .from('consultation_forms')
-    .select('id')
-    .eq('id', id)
-    .eq('beautician_id', req.beautician.id)
-    .single();
+    // Verify ownership
+    const { data: existing } = await supabase
+      .from('consultation_forms')
+      .select('id')
+      .eq('id', id)
+      .eq('beautician_id', req.beautician.id)
+      .single();
 
-  if (!existing) return res.status(404).json({ error: 'Form not found' });
+    if (!existing) return res.status(404).json({ error: 'Form not found' });
 
-  // Update form metadata
-  const updates = {};
-  if (name !== undefined) updates.name = name;
-  if (consent_text !== undefined) updates.consent_text = consent_text;
-  if (is_default !== undefined) {
-    if (is_default) {
-      // Unset other defaults
-      await supabase
-        .from('consultation_forms')
-        .update({ is_default: false })
-        .eq('beautician_id', req.beautician.id)
-        .eq('is_default', true);
+    // Update form metadata
+    const updates = {};
+    if (name !== undefined) updates.name = name;
+    if (consent_text !== undefined) updates.consent_text = consent_text;
+    if (is_default !== undefined) {
+      if (is_default) {
+        // Unset other defaults
+        await supabase
+          .from('consultation_forms')
+          .update({ is_default: false })
+          .eq('beautician_id', req.beautician.id)
+          .eq('is_default', true);
+      }
+      updates.is_default = is_default;
     }
-    updates.is_default = is_default;
-  }
-  updates.updated_at = new Date().toISOString();
+    updates.updated_at = new Date().toISOString();
 
-  await supabase
-    .from('consultation_forms')
-    .update(updates)
-    .eq('id', id);
+    const { error: updateError } = await supabase
+      .from('consultation_forms')
+      .update(updates)
+      .eq('id', id);
 
-  // Replace fields if provided (delete all, re-insert)
-  if (fields !== undefined && Array.isArray(fields)) {
-    await supabase
-      .from('consultation_form_fields')
-      .delete()
-      .eq('form_id', id);
+    if (updateError) {
+      logger.error({ err: updateError }, 'Failed to update consultation form');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
 
-    if (fields.length > 0) {
-      const fieldRows = fields.map((f, i) => ({
-        form_id: id,
-        type: f.type,
-        label: f.label,
-        options: f.options || [],
-        required: f.required || false,
-        sort_order: f.sort_order ?? i,
-      }));
-
+    // Replace fields if provided (delete all, re-insert)
+    if (fields !== undefined && Array.isArray(fields)) {
       await supabase
         .from('consultation_form_fields')
-        .insert(fieldRows);
+        .delete()
+        .eq('form_id', id);
+
+      if (fields.length > 0) {
+        const fieldRows = fields.map((f, i) => ({
+          form_id: id,
+          type: f.type,
+          label: f.label,
+          options: f.options || [],
+          required: f.required || false,
+          sort_order: f.sort_order ?? i,
+        }));
+
+        const { error: fieldsError } = await supabase
+          .from('consultation_form_fields')
+          .insert(fieldRows);
+
+        if (fieldsError) {
+          logger.error({ err: fieldsError }, 'Failed to update form fields');
+          return res.status(500).json({ error: 'Something went wrong' });
+        }
+      }
     }
+
+    // Return full updated form
+    const { data: fullForm } = await supabase
+      .from('consultation_forms')
+      .select('*, consultation_form_fields(*)')
+      .eq('id', id)
+      .single();
+
+    if (fullForm?.consultation_form_fields) {
+      fullForm.consultation_form_fields.sort((a, b) => a.sort_order - b.sort_order);
+    }
+
+    res.json({ form: fullForm });
+  } catch (err) {
+    logger.error({ err }, 'Unexpected error updating consultation form');
+    res.status(500).json({ error: 'Something went wrong' });
   }
-
-  // Return full updated form
-  const { data: fullForm } = await supabase
-    .from('consultation_forms')
-    .select('*, consultation_form_fields(*)')
-    .eq('id', id)
-    .single();
-
-  if (fullForm?.consultation_form_fields) {
-    fullForm.consultation_form_fields.sort((a, b) => a.sort_order - b.sort_order);
-  }
-
-  res.json({ form: fullForm });
 });
 
 /**
@@ -213,7 +234,10 @@ router.delete('/:id', requireAuth, async (req, res) => {
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Failed to delete consultation form');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ success: true });
 });
 
@@ -235,7 +259,10 @@ router.get('/responses/list', requireAuth, async (req, res) => {
   if (appointment_id) query = query.eq('appointment_id', appointment_id);
 
   const { data, error } = await query;
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Failed to fetch consultation responses');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ responses: data || [] });
 });
 

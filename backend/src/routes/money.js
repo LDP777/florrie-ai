@@ -13,97 +13,127 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
  * The "Money" digital employee's main output.
  */
 router.get('/pulse', requireAuth, async (req, res) => {
-  const now = new Date();
-  const weekStart = new Date(now);
-  weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1); // Monday
-  weekStart.setHours(0, 0, 0, 0);
+  try {
+    const now = new Date();
+    const weekStart = new Date(now);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1); // Monday
+    weekStart.setHours(0, 0, 0, 0);
 
-  const lastWeekStart = new Date(weekStart);
-  lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+    const lastWeekStart = new Date(weekStart);
+    lastWeekStart.setDate(lastWeekStart.getDate() - 7);
 
-  // This week's income
-  const { data: thisWeekIncome } = await supabase
-    .from('transactions')
-    .select('amount_cents')
-    .eq('beautician_id', req.beautician.id)
-    .in('type', ['payment', 'deposit', 'no_show_fee'])
-    .eq('status', 'completed')
-    .gte('created_at', weekStart.toISOString());
+    // This week's income
+    const { data: thisWeekIncome, error: err1 } = await supabase
+      .from('transactions')
+      .select('amount_cents')
+      .eq('beautician_id', req.beautician.id)
+      .in('type', ['payment', 'deposit', 'no_show_fee'])
+      .eq('status', 'completed')
+      .gte('created_at', weekStart.toISOString());
 
-  // Last week's income
-  const { data: lastWeekIncome } = await supabase
-    .from('transactions')
-    .select('amount_cents')
-    .eq('beautician_id', req.beautician.id)
-    .in('type', ['payment', 'deposit', 'no_show_fee'])
-    .eq('status', 'completed')
-    .gte('created_at', lastWeekStart.toISOString())
-    .lt('created_at', weekStart.toISOString());
-
-  // This week's expenses
-  const { data: thisWeekExpenses } = await supabase
-    .from('expenses')
-    .select('amount_cents, category')
-    .eq('beautician_id', req.beautician.id)
-    .gte('date', weekStart.toISOString().split('T')[0]);
-
-  // Last week's expenses
-  const { data: lastWeekExpenses } = await supabase
-    .from('expenses')
-    .select('amount_cents')
-    .eq('beautician_id', req.beautician.id)
-    .gte('date', lastWeekStart.toISOString().split('T')[0])
-    .lt('date', weekStart.toISOString().split('T')[0]);
-
-  // This week's appointments
-  const { data: thisWeekAppts } = await supabase
-    .from('appointments')
-    .select('id, status')
-    .eq('beautician_id', req.beautician.id)
-    .gte('starts_at', weekStart.toISOString())
-    .lt('starts_at', now.toISOString());
-
-  const sumCents = (arr) => (arr || []).reduce((sum, r) => sum + (r.amount_cents || 0), 0);
-  const thisIncome = sumCents(thisWeekIncome);
-  const lastIncome = sumCents(lastWeekIncome);
-  const thisExpense = sumCents(thisWeekExpenses);
-  const lastExpense = sumCents(lastWeekExpenses);
-
-  const completedAppts = (thisWeekAppts || []).filter(a => a.status === 'completed').length;
-  const noShows = (thisWeekAppts || []).filter(a => a.status === 'no_show').length;
-  const totalAppts = completedAppts + noShows;
-
-  // Expense breakdown by category
-  const expenseByCategory = {};
-  (thisWeekExpenses || []).forEach(e => {
-    expenseByCategory[e.category] = (expenseByCategory[e.category] || 0) + e.amount_cents;
-  });
-
-  const incomeChange = lastIncome > 0
-    ? Math.round(((thisIncome - lastIncome) / lastIncome) * 100)
-    : null;
-
-  res.json({
-    thisWeek: {
-      income: thisIncome,
-      expenses: thisExpense,
-      profit: thisIncome - thisExpense,
-      appointments: completedAppts,
-      noShows,
-      noShowRate: totalAppts > 0 ? Math.round((noShows / totalAppts) * 100) : 0,
-      expenseByCategory
-    },
-    lastWeek: {
-      income: lastIncome,
-      expenses: lastExpense,
-      profit: lastIncome - lastExpense
-    },
-    incomeChange,
-    period: {
-      start: weekStart.toISOString(),
-      end: now.toISOString()
+    if (err1) {
+      logger.error({ err: err1 }, 'Failed to fetch this week income');
+      return res.status(500).json({ error: 'Something went wrong' });
     }
-  });
+
+    // Last week's income
+    const { data: lastWeekIncome, error: err2 } = await supabase
+      .from('transactions')
+      .select('amount_cents')
+      .eq('beautician_id', req.beautician.id)
+      .in('type', ['payment', 'deposit', 'no_show_fee'])
+      .eq('status', 'completed')
+      .gte('created_at', lastWeekStart.toISOString())
+      .lt('created_at', weekStart.toISOString());
+
+    if (err2) {
+      logger.error({ err: err2 }, 'Failed to fetch last week income');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
+
+    // This week's expenses
+    const { data: thisWeekExpenses, error: err3 } = await supabase
+      .from('expenses')
+      .select('amount_cents, category')
+      .eq('beautician_id', req.beautician.id)
+      .gte('date', weekStart.toISOString().split('T')[0]);
+
+    if (err3) {
+      logger.error({ err: err3 }, 'Failed to fetch this week expenses');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
+
+    // Last week's expenses
+    const { data: lastWeekExpenses, error: err4 } = await supabase
+      .from('expenses')
+      .select('amount_cents')
+      .eq('beautician_id', req.beautician.id)
+      .gte('date', lastWeekStart.toISOString().split('T')[0])
+      .lt('date', weekStart.toISOString().split('T')[0]);
+
+    if (err4) {
+      logger.error({ err: err4 }, 'Failed to fetch last week expenses');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
+
+    // This week's appointments
+    const { data: thisWeekAppts, error: err5 } = await supabase
+      .from('appointments')
+      .select('id, status')
+      .eq('beautician_id', req.beautician.id)
+      .gte('starts_at', weekStart.toISOString())
+      .lt('starts_at', now.toISOString());
+
+    if (err5) {
+      logger.error({ err: err5 }, 'Failed to fetch this week appointments');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
+
+    const sumCents = (arr) => (arr || []).reduce((sum, r) => sum + (r.amount_cents || 0), 0);
+    const thisIncome = sumCents(thisWeekIncome);
+    const lastIncome = sumCents(lastWeekIncome);
+    const thisExpense = sumCents(thisWeekExpenses);
+    const lastExpense = sumCents(lastWeekExpenses);
+
+    const completedAppts = (thisWeekAppts || []).filter(a => a.status === 'completed').length;
+    const noShows = (thisWeekAppts || []).filter(a => a.status === 'no_show').length;
+    const totalAppts = completedAppts + noShows;
+
+    // Expense breakdown by category
+    const expenseByCategory = {};
+    (thisWeekExpenses || []).forEach(e => {
+      expenseByCategory[e.category] = (expenseByCategory[e.category] || 0) + e.amount_cents;
+    });
+
+    const incomeChange = lastIncome > 0
+      ? Math.round(((thisIncome - lastIncome) / lastIncome) * 100)
+      : null;
+
+    res.json({
+      thisWeek: {
+        income: thisIncome,
+        expenses: thisExpense,
+        profit: thisIncome - thisExpense,
+        appointments: completedAppts,
+        noShows,
+        noShowRate: totalAppts > 0 ? Math.round((noShows / totalAppts) * 100) : 0,
+        expenseByCategory
+      },
+      lastWeek: {
+        income: lastIncome,
+        expenses: lastExpense,
+        profit: lastIncome - lastExpense
+      },
+      incomeChange,
+      period: {
+        start: weekStart.toISOString(),
+        end: now.toISOString()
+      }
+    });
+  } catch (err) {
+    logger.error({ err }, 'Unexpected error in money pulse');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
 });
 
 /**
@@ -112,66 +142,81 @@ router.get('/pulse', requireAuth, async (req, res) => {
  * Generates categorised income/expenses for the given tax year.
  */
 router.get('/tax-summary', requireAuth, async (req, res) => {
-  const taxYear = req.query.year || getCurrentTaxYear();
-  const [startYear] = taxYear.split('-').map(Number);
+  try {
+    const taxYear = req.query.year || getCurrentTaxYear();
+    const [startYear] = taxYear.split('-').map(Number);
 
-  // UK tax year: 6 April to 5 April
-  const periodStart = `${startYear}-04-06`;
-  const periodEnd = `${startYear + 1}-04-05`;
+    // UK tax year: 6 April to 5 April
+    const periodStart = `${startYear}-04-06`;
+    const periodEnd = `${startYear + 1}-04-05`;
 
-  // Total income
-  const { data: income } = await supabase
-    .from('transactions')
-    .select('amount_cents, type, created_at')
-    .eq('beautician_id', req.beautician.id)
-    .eq('status', 'completed')
-    .gte('created_at', `${periodStart}T00:00:00Z`)
-    .lte('created_at', `${periodEnd}T23:59:59Z`);
+    // Total income
+    const { data: income, error: incomeError } = await supabase
+      .from('transactions')
+      .select('amount_cents, type, created_at')
+      .eq('beautician_id', req.beautician.id)
+      .eq('status', 'completed')
+      .gte('created_at', `${periodStart}T00:00:00Z`)
+      .lte('created_at', `${periodEnd}T23:59:59Z`);
 
-  // All expenses
-  const { data: expenses } = await supabase
-    .from('expenses')
-    .select('amount_cents, category, vendor, date, tax_deductible')
-    .eq('beautician_id', req.beautician.id)
-    .gte('date', periodStart)
-    .lte('date', periodEnd);
-
-  const totalIncome = (income || []).reduce((s, t) => s + t.amount_cents, 0);
-  const totalExpenses = (expenses || []).filter(e => e.tax_deductible).reduce((s, e) => s + e.amount_cents, 0);
-
-  // Group expenses by category
-  const expensesByCategory = {};
-  (expenses || []).filter(e => e.tax_deductible).forEach(e => {
-    if (!expensesByCategory[e.category]) {
-      expensesByCategory[e.category] = { total_cents: 0, count: 0, items: [] };
+    if (incomeError) {
+      logger.error({ err: incomeError }, 'Failed to fetch tax year income');
+      return res.status(500).json({ error: 'Something went wrong' });
     }
-    expensesByCategory[e.category].total_cents += e.amount_cents;
-    expensesByCategory[e.category].count += 1;
-    expensesByCategory[e.category].items.push({
-      amount: e.amount_cents,
-      vendor: e.vendor,
-      date: e.date
+
+    // All expenses
+    const { data: expenses, error: expenseError } = await supabase
+      .from('expenses')
+      .select('amount_cents, category, vendor, date, tax_deductible')
+      .eq('beautician_id', req.beautician.id)
+      .gte('date', periodStart)
+      .lte('date', periodEnd);
+
+    if (expenseError) {
+      logger.error({ err: expenseError }, 'Failed to fetch tax year expenses');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
+
+    const totalIncome = (income || []).reduce((s, t) => s + t.amount_cents, 0);
+    const totalExpenses = (expenses || []).filter(e => e.tax_deductible).reduce((s, e) => s + e.amount_cents, 0);
+
+    // Group expenses by category
+    const expensesByCategory = {};
+    (expenses || []).filter(e => e.tax_deductible).forEach(e => {
+      if (!expensesByCategory[e.category]) {
+        expensesByCategory[e.category] = { total_cents: 0, count: 0, items: [] };
+      }
+      expensesByCategory[e.category].total_cents += e.amount_cents;
+      expensesByCategory[e.category].count += 1;
+      expensesByCategory[e.category].items.push({
+        amount: e.amount_cents,
+        vendor: e.vendor,
+        date: e.date
+      });
     });
-  });
 
-  // Monthly income breakdown
-  const monthlyIncome = {};
-  (income || []).forEach(t => {
-    const month = new Date(t.created_at).toISOString().slice(0, 7); // YYYY-MM
-    monthlyIncome[month] = (monthlyIncome[month] || 0) + t.amount_cents;
-  });
+    // Monthly income breakdown
+    const monthlyIncome = {};
+    (income || []).forEach(t => {
+      const month = new Date(t.created_at).toISOString().slice(0, 7); // YYYY-MM
+      monthlyIncome[month] = (monthlyIncome[month] || 0) + t.amount_cents;
+    });
 
-  res.json({
-    taxYear,
-    period: { start: periodStart, end: periodEnd },
-    totalIncome,
-    totalExpenses,
-    taxableProfit: totalIncome - totalExpenses,
-    expensesByCategory,
-    monthlyIncome,
-    transactionCount: (income || []).length,
-    expenseCount: (expenses || []).length
-  });
+    res.json({
+      taxYear,
+      period: { start: periodStart, end: periodEnd },
+      totalIncome,
+      totalExpenses,
+      taxableProfit: totalIncome - totalExpenses,
+      expensesByCategory,
+      monthlyIncome,
+      transactionCount: (income || []).length,
+      expenseCount: (expenses || []).length
+    });
+  } catch (err) {
+    logger.error({ err }, 'Unexpected error in tax summary');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
 });
 
 /**
@@ -200,7 +245,10 @@ router.post('/expenses', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Failed to create expense');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ expense: data });
 });
 
@@ -324,7 +372,10 @@ router.get('/expenses', requireAuth, async (req, res) => {
   if (req.query.to) query = query.lte('date', req.query.to);
 
   const { data, error } = await query;
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Failed to fetch expenses');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ expenses: data });
 });
 
@@ -341,7 +392,10 @@ router.get('/transactions', requireAuth, async (req, res) => {
     .limit(50);
 
   const { data, error } = await query;
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Failed to fetch transactions');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ transactions: data });
 });
 

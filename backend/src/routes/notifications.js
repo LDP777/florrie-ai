@@ -24,7 +24,7 @@ router.post('/process-reminders', async (req, res) => {
     res.json({ success: true, ...result });
   } catch (err) {
     logger.error({ err }, 'Reminder processing error');
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 
@@ -33,37 +33,51 @@ router.post('/process-reminders', async (req, res) => {
  * Send a manual SMS to a client. Used by campaign and rebook features.
  */
 router.post('/send-sms', requireAuth, async (req, res) => {
-  const { client_id, message } = req.body;
+  try {
+    const { client_id, message } = req.body;
 
-  if (!client_id || !message) {
-    return res.status(400).json({ error: 'client_id and message required' });
+    if (!client_id || !message) {
+      return res.status(400).json({ error: 'client_id and message required' });
+    }
+
+    // Get client phone
+    const { data: client, error: clientError } = await supabase
+      .from('clients')
+      .select('phone, first_name')
+      .eq('id', client_id)
+      .eq('beautician_id', req.beautician.id)
+      .single();
+
+    if (clientError) {
+      logger.error({ err: clientError }, 'Failed to fetch client for SMS');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
+
+    if (!client?.phone) {
+      return res.status(400).json({ error: 'Client has no phone number' });
+    }
+
+    const result = await sendSMS({ to: client.phone, body: message, beauticianId: req.beautician.id });
+
+    // Log the message
+    const { error: logError } = await supabase.from('messages').insert({
+      beautician_id: req.beautician.id,
+      client_id,
+      direction: 'outbound',
+      channel: 'sms',
+      content: message,
+      status: result ? 'sent' : 'failed',
+    });
+
+    if (logError) {
+      logger.warn({ err: logError }, 'Failed to log SMS message');
+    }
+
+    res.json({ success: !!result, sid: result?.sid, usageInfo: result?.usageInfo });
+  } catch (err) {
+    logger.error({ err }, 'Unexpected error sending SMS');
+    res.status(500).json({ error: 'Something went wrong' });
   }
-
-  // Get client phone
-  const { data: client } = await supabase
-    .from('clients')
-    .select('phone, first_name')
-    .eq('id', client_id)
-    .eq('beautician_id', req.beautician.id)
-    .single();
-
-  if (!client?.phone) {
-    return res.status(400).json({ error: 'Client has no phone number' });
-  }
-
-  const result = await sendSMS({ to: client.phone, body: message, beauticianId: req.beautician.id });
-
-  // Log the message
-  await supabase.from('messages').insert({
-    beautician_id: req.beautician.id,
-    client_id,
-    direction: 'outbound',
-    channel: 'sms',
-    content: message,
-    status: result ? 'sent' : 'failed',
-  });
-
-  res.json({ success: !!result, sid: result?.sid, usageInfo: result?.usageInfo });
 });
 
 /**
@@ -71,35 +85,49 @@ router.post('/send-sms', requireAuth, async (req, res) => {
  * Send a manual email to a client.
  */
 router.post('/send-email', requireAuth, async (req, res) => {
-  const { client_id, subject, html, text } = req.body;
+  try {
+    const { client_id, subject, html, text } = req.body;
 
-  if (!client_id || !subject) {
-    return res.status(400).json({ error: 'client_id and subject required' });
+    if (!client_id || !subject) {
+      return res.status(400).json({ error: 'client_id and subject required' });
+    }
+
+    const { data: client, error: clientError } = await supabase
+      .from('clients')
+      .select('email, first_name')
+      .eq('id', client_id)
+      .eq('beautician_id', req.beautician.id)
+      .single();
+
+    if (clientError) {
+      logger.error({ err: clientError }, 'Failed to fetch client for email');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
+
+    if (!client?.email) {
+      return res.status(400).json({ error: 'Client has no email' });
+    }
+
+    const result = await sendEmail({ to: client.email, subject, html, text });
+
+    const { error: logError } = await supabase.from('messages').insert({
+      beautician_id: req.beautician.id,
+      client_id,
+      direction: 'outbound',
+      channel: 'email',
+      content: text || subject,
+      status: result ? 'sent' : 'failed',
+    });
+
+    if (logError) {
+      logger.warn({ err: logError }, 'Failed to log email message');
+    }
+
+    res.json({ success: !!result });
+  } catch (err) {
+    logger.error({ err }, 'Unexpected error sending email');
+    res.status(500).json({ error: 'Something went wrong' });
   }
-
-  const { data: client } = await supabase
-    .from('clients')
-    .select('email, first_name')
-    .eq('id', client_id)
-    .eq('beautician_id', req.beautician.id)
-    .single();
-
-  if (!client?.email) {
-    return res.status(400).json({ error: 'Client has no email' });
-  }
-
-  const result = await sendEmail({ to: client.email, subject, html, text });
-
-  await supabase.from('messages').insert({
-    beautician_id: req.beautician.id,
-    client_id,
-    direction: 'outbound',
-    channel: 'email',
-    content: text || subject,
-    status: result ? 'sent' : 'failed',
-  });
-
-  res.json({ success: !!result });
 });
 
 /**
@@ -129,7 +157,10 @@ router.patch('/preferences', requireAuth, async (req, res) => {
     .select('notification_prefs, client_reminder_prefs')
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Failed to update notification preferences');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json(data);
 });
 
@@ -146,7 +177,7 @@ router.get('/sms/usage', requireAuth, async (req, res) => {
     res.json(usage);
   } catch (err) {
     logger.error({ err }, 'SMS usage fetch error');
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 

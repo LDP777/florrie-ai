@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
+import logger from '../lib/logger.js';
 
 const router = Router();
 
@@ -93,7 +94,8 @@ router.patch('/me', requireAuth, validate(profileUpdateSchema), async (req, res)
     .single();
 
   if (error) {
-    return res.status(500).json({ error: error.message });
+    logger.error({ err: error }, 'Failed to update beautician profile');
+    return res.status(500).json({ error: 'Something went wrong' });
   }
 
   res.json({ beautician: data });

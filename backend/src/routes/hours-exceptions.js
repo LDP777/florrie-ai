@@ -17,7 +17,10 @@ router.get('/', requireAuth, async (req, res) => {
       .eq('beautician_id', req.beautician.id)
       .order('date', { ascending: false });
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+      logger.error({ err: error }, 'Failed to fetch hours exceptions');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
     res.json({ exceptions: data || [] });
   } catch (err) {
     logger.error({ err }, 'List hours exceptions error');
@@ -74,7 +77,10 @@ router.post('/', requireAuth, async (req, res) => {
       .select()
       .single();
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+      logger.error({ err: error }, 'Failed to create hours exception');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
     res.status(201).json({ exception: data });
   } catch (err) {
     logger.error({ err }, 'Create hours exception error');
@@ -105,7 +111,10 @@ router.delete('/:id', requireAuth, async (req, res) => {
       .eq('id', req.params.id)
       .eq('beautician_id', req.beautician.id);
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+      logger.error({ err: error }, 'Failed to delete hours exception');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
     res.json({ success: true });
   } catch (err) {
     logger.error({ err }, 'Delete hours exception error');

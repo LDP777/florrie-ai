@@ -21,7 +21,10 @@ router.get('/', requireAuth, async (req, res) => {
     .order('created_at', { ascending: false })
     .limit(30);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Failed to fetch escalations');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ escalations: data });
 });
 
@@ -113,7 +116,10 @@ router.get('/count', requireAuth, async (req, res) => {
     .eq('escalated', true)
     .eq('resolved', false);
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Failed to count escalations');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ count: count || 0 });
 });
 

@@ -23,7 +23,10 @@ router.get('/', requireAuth, async (req, res) => {
   }
 
   const { data, error } = await query;
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Failed to fetch content posts');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ posts: data });
 });
 
@@ -46,7 +49,7 @@ router.post('/generate', requireAuth, async (req, res) => {
     res.status(201).json({ post });
   } catch (err) {
     logger.error({ err }, 'Content generation failed');
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 
@@ -134,7 +137,7 @@ router.get('/suggestions', requireAuth, async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, 'Content suggestions failed');
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 
@@ -156,7 +159,10 @@ router.patch('/:id', requireAuth, async (req, res) => {
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Failed to update content post');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ post: data });
 });
 
@@ -169,7 +175,8 @@ router.post('/:id/publish', requireAuth, async (req, res) => {
     const result = await publishPost(req.beautician.id, req.params.id);
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    logger.error({ err }, 'Failed to publish content post');
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 

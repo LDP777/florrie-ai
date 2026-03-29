@@ -4,6 +4,7 @@ import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { refreshAllIntelligence } from '../services/client-intelligence.js';
+import logger from '../lib/logger.js';
 
 const router = Router();
 
@@ -79,7 +80,10 @@ router.get('/', requireAuth, async (req, res) => {
 
   // Apply pagination
   const { data, error, count } = await query.range(offset, offset + per_page - 1);
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Failed to fetch clients');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
 
   const total = count || 0;
   const total_pages = Math.ceil(total / per_page);
@@ -150,7 +154,10 @@ router.post('/', requireAuth, validate(createClientSchema), async (req, res) => 
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Failed to create client');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.status(201).json({ client: data });
 });
 
@@ -176,7 +183,10 @@ router.patch('/:id', requireAuth, validate(updateClientSchema), async (req, res)
     .select()
     .single();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Failed to update client');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ client: data });
 });
 
@@ -204,7 +214,10 @@ router.post('/import', requireAuth, validate(importClientsSchema), async (req, r
     .upsert(records, { onConflict: 'beautician_id,email', ignoreDuplicates: true })
     .select();
 
-  if (error) return res.status(500).json({ error: error.message });
+  if (error) {
+    logger.error({ err: error }, 'Failed to import clients');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
   res.json({ imported: data.length, clients: data });
 });
 
@@ -223,7 +236,8 @@ router.post('/refresh-intelligence', requireAuth, async (req, res) => {
       message: `Refreshed intelligence for ${result.completed}/${result.count} clients`
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    logger.error({ err }, 'Failed to refresh client intelligence');
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 

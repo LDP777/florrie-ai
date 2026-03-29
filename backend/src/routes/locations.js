@@ -36,7 +36,10 @@ router.get('/', requireAuth, async (req, res) => {
       .order('is_primary', { ascending: false })
       .order('created_at', { ascending: true });
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+      logger.error({ err: error }, 'Failed to complete location operation');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
     res.json({ locations: data || [] });
   } catch (err) {
     logger.error({ err }, 'List locations error');
@@ -83,7 +86,10 @@ router.post('/', requireAuth, validate(createLocationSchema), async (req, res) =
       .select()
       .single();
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+      logger.error({ err: error }, 'Failed to complete location operation');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
     res.status(201).json({ location: data });
   } catch (err) {
     logger.error({ err }, 'Create location error');
@@ -133,7 +139,10 @@ router.patch('/:id', requireAuth, validate(updateLocationSchema), async (req, re
       .select()
       .single();
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+      logger.error({ err: error }, 'Failed to complete location operation');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
     res.json({ location: data });
   } catch (err) {
     logger.error({ err }, 'Update location error');
@@ -172,7 +181,10 @@ router.delete('/:id', requireAuth, async (req, res) => {
       .eq('id', id)
       .eq('beautician_id', req.beautician.id);
 
-    if (error) return res.status(500).json({ error: error.message });
+    if (error) {
+      logger.error({ err: error }, 'Failed to complete location operation');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
     res.json({ success: true });
   } catch (err) {
     logger.error({ err }, 'Delete location error');

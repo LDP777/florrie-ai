@@ -73,7 +73,8 @@ router.post('/connect/onboard', requireAuth, requireStripe, async (req, res) => 
     res.json({ url: accountLink.url });
   } catch (err) {
     logger.error({ err }, 'Stripe Connect onboard error');
-    res.status(500).json({ error: err.message });
+    logger.error({ err }, 'Stripe operation failed');
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 
@@ -109,7 +110,8 @@ router.get('/connect/status', requireAuth, requireStripe, async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, 'Stripe status error');
-    res.status(500).json({ error: err.message });
+    logger.error({ err }, 'Stripe operation failed');
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 
@@ -187,7 +189,8 @@ router.post('/checkout', requireStripe, async (req, res) => {
     res.json({ url: session.url, session_id: session.id });
   } catch (err) {
     logger.error({ err }, 'Checkout session error');
-    res.status(500).json({ error: err.message });
+    logger.error({ err }, 'Stripe operation failed');
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 
@@ -243,7 +246,8 @@ router.post('/subscribe', requireAuth, requireStripe, async (req, res) => {
     res.json({ url: session.url });
   } catch (err) {
     logger.error({ err }, 'Subscribe error');
-    res.status(500).json({ error: err.message });
+    logger.error({ err }, 'Stripe operation failed');
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 
@@ -265,7 +269,8 @@ router.post('/portal', requireAuth, requireStripe, async (req, res) => {
     res.json({ url: session.url });
   } catch (err) {
     logger.error({ err }, 'Portal error');
-    res.status(500).json({ error: err.message });
+    logger.error({ err }, 'Stripe operation failed');
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 
@@ -405,7 +410,8 @@ router.post('/charge-no-show', requireAuth, requireStripe, async (req, res) => {
     }
     if (err.type === 'StripeCardError') {
       return res.status(402).json({
-        error: `Card declined: ${err.message}`,
+        error: 'Card declined. Please try another payment method.',
+        _internal_error: err.message, // logged below
         code: err.code,
       });
     }
@@ -497,7 +503,8 @@ router.post('/refund', requireAuth, requireStripe, async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, 'Refund error');
-    res.status(500).json({ error: err.message || 'Refund failed' });
+    logger.error({ err }, 'Stripe operation failed');
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 
@@ -604,7 +611,8 @@ router.post('/payment-link', requireAuth, requireStripe, async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, 'Payment link error');
-    res.status(500).json({ error: err.message || 'Failed to create payment link' });
+    logger.error({ err }, 'Stripe operation failed');
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 
@@ -629,7 +637,8 @@ router.post('/cleanup-events', async (req, res) => {
     res.json({ success: true, ...result });
   } catch (err) {
     logger.error({ err }, 'Stripe cleanup error');
-    res.status(500).json({ error: err.message });
+    logger.error({ err }, 'Stripe operation failed');
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 

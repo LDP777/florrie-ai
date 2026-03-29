@@ -31,7 +31,7 @@ import exportsRoutes from './routes/exports.js';
 import promoCodesRoutes from './routes/promo-codes.js';
 import photoConsentRoutes from './routes/photo-consent.js';
 import locationsRoutes from './routes/locations.js';
-import voiceRoutes from './routes/voice.js';
+// voice.js removed — stub endpoint, no transcription infrastructure yet
 import consultationFormRoutes from './routes/consultation-forms.js';
 
 dotenv.config();
@@ -139,7 +139,7 @@ app.use('/api/promo-codes', (req, res, next) => {
 }, promoCodesRoutes);
 app.use('/api/photo-consent', apiLimiter, photoConsentRoutes);
 app.use('/api/locations', apiLimiter, locationsRoutes);
-app.use('/api/voice', apiLimiter, voiceRoutes);
+// /api/voice removed — was a stub, no transcription infrastructure yet
 app.use('/api/consultation-forms', apiLimiter, consultationFormRoutes);
 
 // Error handler

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import { supabase } from '../index.js';
 import { processInboundMessage } from '../services/ai-front-desk.js';
 import logger from '../lib/logger.js';
@@ -29,7 +30,45 @@ router.get('/whatsapp', (req, res) => {
  * This is where the AI Front Desk starts.
  */
 router.post('/whatsapp', async (req, res) => {
-  // Always return 200 immediately (Meta retries on failure)
+  // Verify HMAC-SHA256 signature from Meta (WhatsApp)
+  const secret = process.env.WHATSAPP_APP_SECRET;
+  if (secret) {
+    const signature = req.headers['x-hub-signature-256'];
+    if (!signature) {
+      logger.warn('WhatsApp webhook: missing x-hub-signature-256 header');
+      return res.status(403).json({ error: 'Missing signature' });
+    }
+
+    try {
+      const expected = crypto.createHmac('sha256', secret)
+        .update(JSON.stringify(req.body))
+        .digest('hex');
+
+      const signatureParts = signature.split('=');
+      if (signatureParts.length !== 2 || signatureParts[0] !== 'sha256') {
+        logger.warn('WhatsApp webhook: invalid signature format');
+        return res.status(403).json({ error: 'Invalid signature format' });
+      }
+
+      const received = signatureParts[1];
+      const expectedBuffer = Buffer.from(expected);
+      const receivedBuffer = Buffer.from(received);
+
+      if (!crypto.timingSafeEqual(expectedBuffer, receivedBuffer)) {
+        logger.warn({ received, expected: expected.substring(0, 8) + '...' }, 'WhatsApp webhook: signature mismatch');
+        return res.status(403).json({ error: 'Signature verification failed' });
+      }
+
+      logger.debug('WhatsApp webhook signature verified');
+    } catch (err) {
+      logger.warn({ err }, 'WhatsApp webhook: signature verification error');
+      return res.status(403).json({ error: 'Signature verification failed' });
+    }
+  } else {
+    logger.debug('WHATSAPP_APP_SECRET not set, skipping signature verification');
+  }
+
+  // Signature verified or skipped — return 200 immediately (Meta retries on failure)
   res.sendStatus(200);
 
   try {
@@ -169,7 +208,46 @@ router.get('/twilio-sms', (req, res) => {
  * Twilio sends: From, To, Body, MessageSid, NumMedia, MediaUrl0, etc.
  */
 router.post('/twilio-sms', async (req, res) => {
-  // Return TwiML response immediately (empty — AI handles replies via outbound SMS)
+  // Verify Twilio X-Twilio-Signature
+  const authToken = process.env.TWILIO_AUTH_TOKEN;
+  if (authToken) {
+    const signature = req.headers['x-twilio-signature'];
+    if (!signature) {
+      logger.warn('Twilio SMS webhook: missing x-twilio-signature header');
+      return res.status(403).json({ error: 'Missing signature' });
+    }
+
+    try {
+      // Construct URL from request
+      const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+
+      // Build the data string: URL + sorted POST parameters
+      let dataString = url;
+      const sortedKeys = Object.keys(req.body).sort();
+      for (const key of sortedKeys) {
+        dataString += key + req.body[key];
+      }
+
+      // Compute HMAC-SHA1 and base64 encode
+      const expected = crypto.createHmac('sha1', authToken)
+        .update(dataString)
+        .digest('base64');
+
+      if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+        logger.warn({ received: signature.substring(0, 8) + '...', expected: expected.substring(0, 8) + '...' }, 'Twilio SMS webhook: signature mismatch');
+        return res.status(403).json({ error: 'Signature verification failed' });
+      }
+
+      logger.debug('Twilio SMS webhook signature verified');
+    } catch (err) {
+      logger.warn({ err }, 'Twilio SMS webhook: signature verification error');
+      return res.status(403).json({ error: 'Signature verification failed' });
+    }
+  } else {
+    logger.debug('TWILIO_AUTH_TOKEN not set, skipping signature verification');
+  }
+
+  // Signature verified or skipped — return TwiML response (empty — AI handles replies via outbound SMS)
   res.type('text/xml').send('<Response></Response>');
 
   try {

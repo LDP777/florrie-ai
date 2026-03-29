@@ -214,7 +214,8 @@ router.post('/sync', requireAuth, async (req, res) => {
       accessToken = await getAccessToken(req.beautician);
     } catch (err) {
       if (err.message.includes('token expired')) {
-        return res.status(401).json({ error: err.message, disconnected: true });
+        logger.error({ err }, 'Google Calendar token expired during sync');
+        return res.status(401).json({ error: 'Google Calendar token expired — please reconnect', disconnected: true });
       }
       throw err;
     }
@@ -276,7 +277,7 @@ router.post('/sync', requireAuth, async (req, res) => {
     res.json({ success: true, event_id: gcalEvent.id });
   } catch (err) {
     logger.error({ err }, 'GCal sync error');
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 
@@ -305,6 +306,7 @@ router.post('/sync-all', requireAuth, async (req, res) => {
           accessToken = await getAccessToken(req.beautician);
         } catch (err) {
           if (err.message.includes('token expired')) {
+            logger.warn({ beauticianId: req.beautician.id }, 'Google Calendar token expired during sync-all');
             disconnected = true;
             break;
           }
@@ -377,7 +379,7 @@ router.post('/sync-all', requireAuth, async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, 'GCal sync-all error');
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Something went wrong' });
   }
 });
 
