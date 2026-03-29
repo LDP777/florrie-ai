@@ -8,10 +8,6 @@ ALTER TABLE treatments ADD COLUMN IF NOT EXISTS deposit_percent integer DEFAULT 
 -- deposit_percent = 50 means 50% of price_cents taken as deposit
 -- If deposit_percent > 0, it overrides deposit_cents at booking time
 
--- Link treatments to specific consultation forms
-ALTER TABLE treatments ADD COLUMN IF NOT EXISTS consultation_form_id uuid REFERENCES consultation_forms(id) ON DELETE SET NULL;
--- If null, falls back to beautician's default form (if any)
-
 -- ── Consultation form templates ─────────────────────────────
 CREATE TABLE IF NOT EXISTS consultation_forms (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -60,21 +56,25 @@ CREATE INDEX IF NOT EXISTS idx_consultation_responses_token ON consultation_resp
 CREATE INDEX IF NOT EXISTS idx_consultation_responses_client ON consultation_responses(client_id);
 CREATE INDEX IF NOT EXISTS idx_consultation_responses_appointment ON consultation_responses(appointment_id);
 
+-- Now that consultation_forms exists, link treatments to specific forms
+ALTER TABLE treatments ADD COLUMN IF NOT EXISTS consultation_form_id uuid REFERENCES consultation_forms(id) ON DELETE SET NULL;
+-- If null, falls back to beautician's default form (if any)
+
 -- ── RLS policies ────────────────────────────────────────────
 ALTER TABLE consultation_forms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE consultation_form_fields ENABLE ROW LEVEL SECURITY;
 ALTER TABLE consultation_responses ENABLE ROW LEVEL SECURITY;
 
 -- Beauticians can manage their own forms
-CREATE POLICY consultation_forms_owner ON consultation_forms
+CREATE POLICY IF NOT EXISTS consultation_forms_owner ON consultation_forms
   FOR ALL USING (beautician_id = auth.uid());
 
 -- Fields inherit form ownership
-CREATE POLICY consultation_fields_owner ON consultation_form_fields
+CREATE POLICY IF NOT EXISTS consultation_fields_owner ON consultation_form_fields
   FOR ALL USING (form_id IN (SELECT id FROM consultation_forms WHERE beautician_id = auth.uid()));
 
 -- Responses: beautician can read their own, public can insert via token
-CREATE POLICY consultation_responses_owner ON consultation_responses
+CREATE POLICY IF NOT EXISTS consultation_responses_owner ON consultation_responses
   FOR ALL USING (beautician_id = auth.uid());
 
 -- Service role bypasses RLS (backend uses service key)

@@ -476,7 +476,7 @@ export default function BookingPage() {
             <div style={styles.form}>
               <div>
                 <input
-                  type="text" placeholder="Your name"
+                  type="text" placeholder="Your name *"
                   value={clientDetails.name}
                   onChange={e => setClientDetails({ ...clientDetails, name: e.target.value })}
                   style={{
@@ -488,7 +488,7 @@ export default function BookingPage() {
               </div>
               <div>
                 <input
-                  type="tel" placeholder="Phone number"
+                  type="tel" placeholder="Phone number *"
                   value={clientDetails.phone}
                   onChange={e => setClientDetails({ ...clientDetails, phone: e.target.value })}
                   style={{
