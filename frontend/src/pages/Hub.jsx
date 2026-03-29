@@ -30,6 +30,12 @@ const CATEGORIES = [
       { path: '/client-timeline', label: 'Client Timeline', desc: 'Full history per client', icon: '📜' },
       { path: '/tags', label: 'Tags & Groups', desc: 'Organise and segment', icon: '🏷️' },
       { path: '/waitlist', label: 'Waitlist', desc: 'Manage waiting clients', icon: '📋' },
+      { path: '/segments', label: 'Client Segments', desc: 'Smart grouping', icon: '🎯' },
+      { path: '/churn', label: 'Churn Prevention', desc: 'At-risk clients', icon: '🛡️' },
+      { path: '/comms', label: 'Comms Log', desc: 'Message history', icon: '📨' },
+      { path: '/memberships', label: 'Client Memberships', desc: 'Recurring packages', icon: '💎' },
+      { path: '/waitlist-pro', label: 'Waitlist Pro', desc: 'Advanced waitlist', icon: '📋' },
+      { path: '/photo-consent', label: 'Photo Consent', desc: 'Before/after consent', icon: '📷' },
     ]
   },
   {
@@ -45,6 +51,8 @@ const CATEGORIES = [
       { path: '/aftercare', label: 'Aftercare', desc: 'Post-treatment messages', icon: '💆' },
       { path: '/packages', label: 'Packages', desc: 'Bundle deals and courses', icon: '📦' },
       { path: '/addons', label: 'Add-ons', desc: 'Bolt-on extras', icon: '✨' },
+      { path: '/price-list', label: 'Price List', desc: 'Public pricing page', icon: '💲' },
+      { path: '/notes', label: 'Appointment Notes', desc: 'Notes per appointment', icon: '📝' },
     ]
   },
   {
@@ -59,7 +67,8 @@ const CATEGORIES = [
       { path: '/cancellations', label: 'Cancellations', desc: 'No-shows and late cancels', icon: '❌' },
       { path: '/goals', label: 'Revenue Goals', desc: 'Targets and progress', icon: '🎯' },
       { path: '/vouchers', label: 'Gift Vouchers', desc: 'Create and track', icon: '🎁' },
-      { path: '/memberships', label: 'Memberships', desc: 'Recurring packages', icon: '💎' },
+      { path: '/analytics', label: 'Analytics', desc: 'Performance metrics', icon: '📈' },
+      { path: '/reports', label: 'Reports', desc: 'Business reports', icon: '📊' },
     ]
   },
   {
@@ -74,6 +83,9 @@ const CATEGORIES = [
       { path: '/loyalty', label: 'Loyalty', desc: 'Points and rewards', icon: '🏆' },
       { path: '/rebook', label: 'Rebook Reminders', desc: 'Bring clients back', icon: '🔄' },
       { path: '/campaigns', label: 'Campaigns', desc: 'Email and SMS blasts', icon: '💌' },
+      { path: '/digest', label: 'Weekly Digest', desc: 'Weekly summary email', icon: '📧' },
+      { path: '/promos', label: 'Promo Codes', desc: 'Discount codes', icon: '🏷️' },
+      { path: '/portfolio', label: 'Portfolio', desc: 'Showcase your work', icon: '🖼️' },
     ]
   },
   {
@@ -83,9 +95,8 @@ const CATEGORIES = [
     accent: '#8B7BC7',
     items: [
       { path: '/inbox', label: 'Inbox', desc: 'All messages in one place', icon: '💬' },
-      { path: '/escalations', label: 'Escalations', desc: 'AI-flagged messages', icon: '🚨' },
       { path: '/whatsapp', label: 'WhatsApp', desc: 'Business messaging', icon: '📱' },
-      { path: '/templates', label: 'Message Templates', desc: 'Reusable messages', icon: '📋' },
+      { path: '/templates', label: 'Message Templates', desc: 'Reusable messages', icon: '💬' },
       { path: '/automations', label: 'Automations', desc: 'If-this-then-that rules', icon: '⚡' },
     ]
   },
@@ -100,6 +111,8 @@ const CATEGORIES = [
       { path: '/segments', label: 'Client Segments', desc: 'Smart grouping', icon: '🎯' },
       { path: '/churn', label: 'Churn Prevention', desc: 'At-risk clients', icon: '🛡️' },
       { path: '/demand', label: 'Demand Forecast', desc: 'Capacity planning', icon: '📊' },
+      { path: '/escalations', label: 'Escalations', desc: 'AI-flagged messages', icon: '🚨' },
+      { path: '/sequences', label: 'Follow-up Sequences', desc: 'Automated follow-ups', icon: '🔁' },
     ]
   },
   {
@@ -111,6 +124,7 @@ const CATEGORIES = [
       { path: '/team', label: 'Team Members', desc: 'Staff profiles', icon: '👥' },
       { path: '/rota', label: 'Staff Rota', desc: 'Weekly schedule', icon: '🗓️' },
       { path: '/hours', label: 'Hours & Closures', desc: 'Working hours and holidays', icon: '🏖️' },
+      { path: '/staff-performance', label: 'Staff Performance', desc: 'Team analytics', icon: '📈' },
     ]
   },
   {
@@ -126,6 +140,18 @@ const CATEGORIES = [
       { path: '/policies', label: 'Policies', desc: 'Cancellation and terms', icon: '📜' },
       { path: '/portal', label: 'Client Portal', desc: 'Self-service settings', icon: '🌐' },
       { path: '/locations', label: 'Multi-Location', desc: 'Branch management', icon: '🏢' },
+      { path: '/sms', label: 'SMS Config', desc: 'SMS settings', icon: '📲' },
+    ]
+  },
+  {
+    id: 'business',
+    label: 'Business Operations',
+    description: 'Inventory and suppliers',
+    accent: '#7B9E6B',
+    items: [
+      { path: '/inventory', label: 'Product Inventory', desc: 'Stock management', icon: '📦' },
+      { path: '/supplier-orders', label: 'Supplier Orders', desc: 'Order management', icon: '🚚' },
+      { path: '/treatment-stats', label: 'Treatment Stats', desc: 'Service analytics', icon: '📊' },
     ]
   },
 ];

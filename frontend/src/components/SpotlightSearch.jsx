@@ -31,6 +31,7 @@ const FEATURES = [
   { path: '/packages', name: 'Packages', desc: 'Bundle deals and courses', icon: '📦', cat: 'Treatments' },
   { path: '/addons', name: 'Add-ons', desc: 'Bolt-on extras', icon: '✨', cat: 'Treatments' },
   { path: '/price-list', name: 'Price List', desc: 'Public pricing page', icon: '💲', cat: 'Treatments' },
+  { path: '/notes', name: 'Appointment Notes', desc: 'Notes per appointment', icon: '📝', cat: 'Treatments' },
 
   // Money
   { path: '/money', name: 'Money Tracker', desc: 'Revenue dashboard', icon: '💰', cat: 'Money' },
@@ -39,7 +40,7 @@ const FEATURES = [
   { path: '/cancellations', name: 'Cancellations', desc: 'No-shows and late cancels', icon: '❌', cat: 'Money' },
   { path: '/goals', name: 'Revenue Goals', desc: 'Targets and progress', icon: '🎯', cat: 'Money' },
   { path: '/vouchers', name: 'Gift Vouchers', desc: 'Create and track', icon: '🎁', cat: 'Money' },
-  { path: '/memberships', name: 'Memberships', desc: 'Recurring packages', icon: '💎', cat: 'Money' },
+  { path: '/memberships', name: 'Client Memberships', desc: 'Recurring packages', icon: '💎', cat: 'Clients' },
   { path: '/reports', name: 'Reports', desc: 'Business reports', icon: '📊', cat: 'Money' },
   { path: '/analytics', name: 'Analytics', desc: 'Performance metrics', icon: '📈', cat: 'Money' },
 
@@ -55,17 +56,17 @@ const FEATURES = [
 
   // Communications
   { path: '/inbox', name: 'Inbox', desc: 'All messages in one place', icon: '💬', cat: 'Comms' },
-  { path: '/escalations', name: 'Escalations', desc: 'AI-flagged messages', icon: '🚨', cat: 'Comms' },
+  { path: '/escalations', name: 'Escalations', desc: 'AI-flagged messages', icon: '🚨', cat: 'AI' },
   { path: '/whatsapp', name: 'WhatsApp', desc: 'Business messaging', icon: '📱', cat: 'Comms' },
-  { path: '/templates', name: 'Message Templates', desc: 'Reusable messages', icon: '📋', cat: 'Comms' },
+  { path: '/templates', name: 'Message Templates', desc: 'Reusable messages', icon: '💬', cat: 'Comms' },
   { path: '/automations', name: 'Automations', desc: 'If-this-then-that rules', icon: '⚡', cat: 'Comms' },
   { path: '/comms', name: 'Comms Log', desc: 'Message history', icon: '📨', cat: 'Comms' },
-  { path: '/sequences', name: 'Follow-up Sequences', desc: 'Automated follow-ups', icon: '🔁', cat: 'Comms' },
 
   // AI
   { path: '/voice', name: 'florrie.ai', desc: 'Your AI assistant', icon: '✨', cat: 'AI' },
   { path: '/ai-insights', name: 'AI Insights', desc: 'Predictions and trends', icon: '🧠', cat: 'AI' },
   { path: '/demand', name: 'Demand Forecast', desc: 'Capacity planning', icon: '📊', cat: 'AI' },
+  { path: '/sequences', name: 'Follow-up Sequences', desc: 'Automated follow-ups', icon: '🔁', cat: 'AI' },
 
   // Team
   { path: '/team', name: 'Team Members', desc: 'Staff profiles', icon: '👥', cat: 'Team' },
