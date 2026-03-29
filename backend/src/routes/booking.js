@@ -11,6 +11,9 @@ import logger from '../lib/logger.js';
 const router = Router();
 const FRONTEND_URL = process.env.FRONTEND_URL;
 
+// Coerce empty/whitespace strings to null so optional fields don't trip email/format validators
+const emptyToNull = (v) => (typeof v === 'string' && v.trim() === '' ? null : v);
+
 const bookingSchema = z.object({
   treatment_id: z.string().uuid('Invalid treatment ID'),
   starts_at: z.string().refine(
@@ -18,9 +21,9 @@ const bookingSchema = z.object({
     { message: 'Invalid date/time format — expected ISO 8601 (e.g. 2026-03-28T14:00:00)' }
   ),
   client_name: z.string().min(1, 'Name is required').max(200).trim(),
-  client_email: z.string().email('Invalid email').optional().nullable().default(null),
+  client_email: z.preprocess(emptyToNull, z.string().email('Invalid email').nullable().optional().default(null)),
   client_phone: z.string().min(5, 'Phone number too short').max(30).trim(),
-  notes: z.string().max(2000).optional().nullable().default(null),
+  notes: z.preprocess(emptyToNull, z.string().max(2000).nullable().optional().default(null)),
   consultation: z.record(z.any()).optional().nullable().default(null),
 });
 

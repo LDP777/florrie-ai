@@ -161,7 +161,8 @@ export default function BookingPage() {
         const h = Math.floor(m / 60);
         const min = m % 60;
         const display = `${h.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
-        const startsAt = `${selectedDate}T${display}:00`;
+        // Z suffix required — backend Zod expects ISO 8601 with timezone
+        const startsAt = `${selectedDate}T${display}:00Z`;
         generated.push({ starts_at: startsAt, display });
       }
 
@@ -203,7 +204,10 @@ export default function BookingPage() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Booking failed');
+      if (!res.ok) {
+        const detail = data.details?.length ? ` (${data.details.join(', ')})` : '';
+        throw new Error((data.error || 'Booking failed') + detail);
+      }
 
       // If deposit required and checkout URL returned, redirect to Stripe
       if (data.checkout_url) {

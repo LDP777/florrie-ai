@@ -30,6 +30,7 @@ export default function Treatments() {
   const [showAdd, setShowAdd] = useState(false);
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
 
   const blank = {
     name: '', duration_minutes: 60, price_cents: '', deposit_cents: '', deposit_percent: '',
@@ -75,6 +76,7 @@ export default function Treatments() {
     };
 
     try {
+      setSaveError(null);
       if (editing) {
         await updateRow('treatments', editing, body);
       } else {
@@ -86,6 +88,7 @@ export default function Treatments() {
       loadTreatments();
     } catch (err) {
       logger.error('Save treatment error:', err);
+      setSaveError(err.message || 'Failed to save treatment');
     } finally {
       setSaving(false);
     }

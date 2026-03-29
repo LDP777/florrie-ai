@@ -59,8 +59,9 @@ router.post('/', requireAuth, async (req, res) => {
 router.patch('/:id', requireAuth, async (req, res) => {
   const allowedFields = [
     'name', 'description', 'duration_minutes', 'buffer_minutes',
-    'price_cents', 'deposit_cents', 'category', 'product_cost_cents',
-    'contraindications', 'is_active', 'booking_enabled', 'sort_order'
+    'price_cents', 'deposit_cents', 'deposit_percent', 'category', 'product_cost_cents',
+    'contraindications', 'is_active', 'booking_enabled', 'sort_order',
+    'requires_consultation', 'consultation_form_id'
   ];
 
   const updates = {};
