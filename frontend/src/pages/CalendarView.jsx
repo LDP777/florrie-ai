@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useBeautician, supabase, isDevMode, updateRow, insertRow } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
@@ -19,10 +19,20 @@ export default function CalendarView() {
   const [appointments, setAppointments] = useState([]);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [loading, setLoading] = useState(true);
+  const detailRef = useRef(null);
 
   useEffect(() => {
     if (beautician) loadAppointments();
   }, [beautician, currentDate, view]);
+
+  // Auto-scroll to appointment detail when selected
+  useEffect(() => {
+    if (selectedAppointment && detailRef.current) {
+      setTimeout(() => {
+        detailRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 50);
+    }
+  }, [selectedAppointment]);
 
   async function loadAppointments() {
     setLoading(true);
@@ -182,6 +192,7 @@ export default function CalendarView() {
 
       {/* Selected appointment detail + completion flow */}
       {selectedAppointment && (
+        <div ref={detailRef}>
         <AppointmentDetail
           appointment={selectedAppointment}
           beautician={beautician}
@@ -189,6 +200,7 @@ export default function CalendarView() {
           onUpdate={() => { loadAppointments(); setSelectedAppointment(null); }}
           getStatusColor={getStatusColor}
         />
+        </div>
       )}
     </div>
   );
