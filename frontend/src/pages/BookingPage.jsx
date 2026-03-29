@@ -55,9 +55,9 @@ export default function BookingPage() {
   // Membership detection
   const [memberInfo, setMemberInfo] = useState(null); // { is_member, plan_name, client_name }
 
-  // Waitlist
-  const [waitlistSubmitting, setWaitlistSubmitting] = useState(false);
-  const [waitlistDone, setWaitlistDone] = useState(false);
+  // Package redemption
+  const [availablePackages, setAvailablePackages] = useState([]); // { client_package_id, package_name, sessions_remaining, sessions_total }
+  const [selectedPackage, setSelectedPackage] = useState(null);
 
   // Photo consent
   const [photoConsent, setPhotoConsent] = useState(false);
@@ -149,26 +149,41 @@ export default function BookingPage() {
     loadForm();
   }, [selectedTreatment?.consultation_form_id, slug]);
 
-  // Check membership when phone number looks complete
+  // Check membership + packages when phone number looks complete
   useEffect(() => {
     const cleaned = clientDetails.phone.replace(/[^\d]/g, '');
-    if (cleaned.length < 10 || isDevMode) { setMemberInfo(null); return; }
+    if (cleaned.length < 10 || isDevMode) {
+      setMemberInfo(null);
+      setAvailablePackages([]);
+      setSelectedPackage(null);
+      return;
+    }
 
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/booking/${slug}/check-member`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: clientDetails.phone }),
-        });
-        const data = await res.json();
-        setMemberInfo(data.is_member ? data : null);
+        // Check membership and packages in parallel
+        const [memberRes, pkgRes] = await Promise.all([
+          fetch(`${API_BASE}/api/booking/${slug}/check-member`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: clientDetails.phone }),
+          }),
+          fetch(`${API_BASE}/api/booking/${slug}/check-packages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: clientDetails.phone, treatment_id: selectedTreatment?.id }),
+          }),
+        ]);
+        const memberData = await memberRes.json();
+        const pkgData = await pkgRes.json();
+        setMemberInfo(memberData.is_member ? memberData : null);
+        setAvailablePackages(pkgData.packages || []);
       } catch {
-        // Silent fail — membership badge is a nice-to-have
+        // Silent fail
       }
     }, 600);
     return () => clearTimeout(timer);
-  }, [clientDetails.phone, slug]);
+  }, [clientDetails.phone, slug, selectedTreatment?.id]);
 
   // Validate and apply a discount code
   async function validateDiscountCode() {
@@ -354,6 +369,7 @@ export default function BookingPage() {
           discount_code: appliedDiscount?.code || null,
           is_member: memberInfo?.is_member || false,
           photo_consent: photoConsent,
+          client_package_id: selectedPackage?.client_package_id || null,
         }),
       });
 
@@ -670,61 +686,7 @@ export default function BookingPage() {
             {selectedDate && (
               <div style={styles.slotGrid}>
                 {slots.length === 0 ? (
-                  <div>
-                    <p style={styles.noSlots}>No available slots on this day</p>
-                    {!waitlistDone ? (
-                      <button
-                        onClick={async () => {
-                          // If we don't have client details yet, prompt name/phone inline
-                          if (!clientDetails.name || !clientDetails.phone) {
-                            setError('Enter your name and phone below to join the waitlist');
-                            return;
-                          }
-                          setWaitlistSubmitting(true);
-                          try {
-                            const res = await fetch(`${API_BASE}/api/booking/${slug}/waitlist`, {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                treatment_id: selectedTreatment.id,
-                                preferred_date: selectedDate,
-                                client_name: clientDetails.name,
-                                client_phone: clientDetails.phone,
-                              }),
-                            });
-                            if (res.ok) {
-                              setWaitlistDone(true);
-                              setError(null);
-                            }
-                          } catch { /* silent */ }
-                          finally { setWaitlistSubmitting(false); }
-                        }}
-                        disabled={waitlistSubmitting}
-                        style={{
-                          ...styles.primaryBtn, background: 'transparent', color: brand,
-                          border: `1.5px solid ${brand}`, width: '100%', marginTop: 4,
-                          opacity: waitlistSubmitting ? 0.6 : 1,
-                        }}
-                      >
-                        {waitlistSubmitting ? 'Joining...' : 'Join waitlist for this day'}
-                      </button>
-                    ) : (
-                      <p style={{ fontSize: 13, color: 'var(--success, #38A169)', fontWeight: 500, textAlign: 'center', marginTop: 4 }}>
-                        ✓ You're on the waitlist — we'll let you know when a slot opens
-                      </p>
-                    )}
-                    {/* Quick name/phone fields if not yet entered */}
-                    {!clientDetails.name && (
-                      <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        <input type="text" placeholder="Your name" value={clientDetails.name}
-                          onChange={e => setClientDetails(p => ({ ...p, name: e.target.value }))}
-                          style={styles.input} />
-                        <input type="tel" placeholder="Phone number" value={clientDetails.phone}
-                          onChange={e => setClientDetails(p => ({ ...p, phone: e.target.value }))}
-                          style={styles.input} />
-                      </div>
-                    )}
-                  </div>
+                  <p style={styles.noSlots}>No available slots on this day — try another date</p>
                 ) : (
                   slots.map(s => (
                     <button
@@ -1009,7 +971,7 @@ export default function BookingPage() {
                   £{(grandTotalCents / 100).toFixed(2)}
                 </span>
               </div>
-              {hasDeposit && (
+              {hasDeposit && !selectedPackage && (
                 <div style={{ marginTop: 12 }}>
                   <div style={{ ...styles.depositBanner, background: brandLight, borderColor: brandMedium, marginBottom: 10 }}>
                     {paymentType === 'full'
@@ -1056,8 +1018,47 @@ export default function BookingPage() {
               </div>
             )}
 
-            {/* Discount code section */}
-            <div style={{ marginBottom: 16 }}>
+            {/* Package redemption */}
+            {availablePackages.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                {availablePackages.map(pkg => {
+                  const isSelected = selectedPackage?.client_package_id === pkg.client_package_id;
+                  return (
+                    <button
+                      key={pkg.client_package_id}
+                      onClick={() => setSelectedPackage(isSelected ? null : pkg)}
+                      style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        width: '100%', padding: '12px 14px', borderRadius: 10, marginBottom: 6,
+                        border: `1.5px solid ${isSelected ? 'var(--success, #38A169)' : 'var(--border, #E8E4DF)'}`,
+                        background: isSelected ? 'var(--success-bg, #F0FFF4)' : 'var(--bg-card)',
+                        cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: isSelected ? 'var(--success, #38A169)' : 'var(--text-primary)' }}>
+                          {isSelected ? '✓ ' : ''}{pkg.package_name}
+                        </span>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                          {pkg.sessions_remaining} of {pkg.sessions_total} sessions remaining
+                        </span>
+                      </div>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--success, #38A169)' }}>
+                        Use session
+                      </span>
+                    </button>
+                  );
+                })}
+                {selectedPackage && (
+                  <p style={{ fontSize: 12, color: 'var(--success, #38A169)', marginTop: 4 }}>
+                    No payment needed — using a session from your {selectedPackage.package_name} package
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Discount code section (hidden when using a package session) */}
+            {!selectedPackage && <div style={{ marginBottom: 16 }}>
               {appliedDiscount ? (
                 <div style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -1113,7 +1114,7 @@ export default function BookingPage() {
                   )}
                 </>
               )}
-            </div>
+            </div>}
 
             <div style={styles.summaryClient}>
               <p><strong>{clientDetails.name}</strong></p>
@@ -1152,11 +1153,13 @@ export default function BookingPage() {
               >
                 {submitting
                   ? 'Booking...'
-                  : hasDeposit
-                    ? paymentType === 'full'
-                      ? `Pay £${(grandTotalCents / 100).toFixed(2)}`
-                      : `Pay £${((depositCents + addOnTotal) / 100).toFixed(2)} deposit`
-                    : 'Confirm booking'}
+                  : selectedPackage
+                    ? 'Use session & book'
+                    : hasDeposit
+                      ? paymentType === 'full'
+                        ? `Pay £${(grandTotalCents / 100).toFixed(2)}`
+                        : `Pay £${((depositCents + addOnTotal) / 100).toFixed(2)} deposit`
+                      : 'Confirm booking'}
               </button>
             </div>
           </div>

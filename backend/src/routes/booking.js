@@ -34,6 +34,7 @@ const bookingSchema = z.object({
   discount_code: z.preprocess(emptyToNull, z.string().max(50).nullable().optional().default(null)),
   is_member: z.boolean().optional().default(false),
   photo_consent: z.boolean().optional().default(false),
+  client_package_id: z.preprocess(emptyToNull, z.string().uuid().nullable().optional().default(null)),
 });
 
 // Only init Stripe if key is present (avoids crash in dev without keys)
@@ -185,82 +186,6 @@ router.patch('/appointments/:id/status', requireAuth, validate(statusTransitionS
 });
 
 /**
- * POST /api/booking/:slug/waitlist
- * Public endpoint — adds a client to the waitlist for a treatment + preferred date.
- * Creates/finds the client by phone, then inserts a waitlist entry.
- */
-router.post('/:slug/waitlist', async (req, res) => {
-  const { treatment_id, preferred_date, client_name, client_phone } = req.body;
-
-  if (!treatment_id || !client_name || !client_phone) {
-    return res.status(400).json({ error: 'treatment_id, client_name, and client_phone are required' });
-  }
-
-  const { data: beautician } = await supabase
-    .from('beauticians')
-    .select('id')
-    .eq('booking_slug', req.params.slug)
-    .single();
-
-  if (!beautician) return res.status(404).json({ error: 'Booking page not found' });
-
-  // Find or create client
-  const nameParts = client_name.trim().split(' ');
-  const firstName = nameParts[0];
-  const lastName = nameParts.slice(1).join(' ') || null;
-
-  let client;
-  const { data: existing } = await supabase
-    .from('clients')
-    .select('id')
-    .eq('beautician_id', beautician.id)
-    .eq('phone', client_phone.trim())
-    .maybeSingle();
-
-  if (existing) {
-    client = existing;
-  } else {
-    const { data: newClient, error: cErr } = await supabase
-      .from('clients')
-      .insert({ beautician_id: beautician.id, first_name: firstName, last_name: lastName, phone: client_phone.trim(), status: 'new' })
-      .select('id')
-      .single();
-    if (cErr) return res.status(500).json({ error: 'Failed to create client record' });
-    client = newClient;
-  }
-
-  const { error: wErr } = await supabase
-    .from('waitlist')
-    .insert({
-      beautician_id: beautician.id,
-      client_id: client.id,
-      treatment_id,
-      preferred_dates: preferred_date ? [preferred_date] : [],
-      status: 'waiting',
-    });
-
-  if (wErr) {
-    logger.error({ err: wErr }, 'Waitlist insert failed');
-    return res.status(500).json({ error: 'Failed to join waitlist' });
-  }
-
-  // Log AI action
-  supabase.from('ai_actions').insert({
-    beautician_id: beautician.id,
-    action_type: 'waitlist_joined',
-    digital_employee: 'front_desk',
-    summary: `${firstName} joined the waitlist${preferred_date ? ` for ${preferred_date}` : ''}`,
-    details: { client_name, treatment_id, preferred_date },
-    client_id: client.id,
-    confidence: 1.0,
-    autonomous: false,
-    outcome: 'success',
-  }).then();
-
-  res.status(201).json({ success: true, message: "You're on the waitlist — we'll notify you when a slot opens up." });
-});
-
-/**
  * GET /api/booking/:slug/consultation-form/:formId
  * Public endpoint — returns the consultation form fields for inline display in the booking page.
  * No auth required since this powers the public booking flow.
@@ -340,6 +265,67 @@ router.post('/:slug/check-member', async (req, res) => {
     plan_name: plan?.name || 'Active Member',
     client_name: client.first_name,
   });
+});
+
+/**
+ * POST /api/booking/:slug/check-packages
+ * Public endpoint — checks if a phone number has active packages with sessions remaining.
+ * Returns the packages so the booking page can offer "Use a session" instead of paying.
+ */
+router.post('/:slug/check-packages', async (req, res) => {
+  const { phone, treatment_id } = req.body;
+  if (!phone || typeof phone !== 'string' || phone.trim().length < 5) {
+    return res.json({ packages: [] });
+  }
+
+  const { data: beautician } = await supabase
+    .from('beauticians')
+    .select('id')
+    .eq('booking_slug', req.params.slug)
+    .single();
+
+  if (!beautician) return res.json({ packages: [] });
+
+  // Find client by phone
+  const { data: client } = await supabase
+    .from('clients')
+    .select('id')
+    .eq('beautician_id', beautician.id)
+    .eq('phone', phone.trim())
+    .maybeSingle();
+
+  if (!client) return res.json({ packages: [] });
+
+  // Get active client packages with sessions remaining
+  const { data: clientPkgs } = await supabase
+    .from('client_packages')
+    .select('id, sessions_used, package_id, packages(name, sessions, treatment_ids)')
+    .eq('beautician_id', beautician.id)
+    .eq('client_id', client.id)
+    .eq('status', 'active');
+
+  if (!clientPkgs || clientPkgs.length === 0) return res.json({ packages: [] });
+
+  // Filter to packages that have sessions remaining and (optionally) include this treatment
+  const available = clientPkgs
+    .filter(cp => {
+      const totalSessions = cp.packages?.sessions || 0;
+      const used = cp.sessions_used || 0;
+      if (used >= totalSessions) return false;
+      // If treatment_id provided, only show packages that include that treatment
+      if (treatment_id && cp.packages?.treatment_ids?.length > 0) {
+        return cp.packages.treatment_ids.includes(treatment_id);
+      }
+      return true;
+    })
+    .map(cp => ({
+      client_package_id: cp.id,
+      package_name: cp.packages?.name || 'Package',
+      sessions_remaining: (cp.packages?.sessions || 0) - (cp.sessions_used || 0),
+      sessions_total: cp.packages?.sessions || 0,
+    }));
+
+  return res.json({ packages: available });
 });
 
 /**
@@ -428,7 +414,7 @@ router.post('/:slug/validate-code', async (req, res) => {
  * Returning clients with a saved Stripe customer see their saved cards.
  */
 router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
-  const { treatment_id, starts_at, client_name, client_email, client_phone, notes, consultation, add_ons, payment_type, discount_code, photo_consent } = req.body;
+  const { treatment_id, starts_at, client_name, client_email, client_phone, notes, consultation, add_ons, payment_type, discount_code, photo_consent, client_package_id } = req.body;
 
   // Get beautician from slug (include Stripe fields for deposit flow)
   const { data: beautician } = await supabase
@@ -564,21 +550,55 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
     // The frontend already validated it, so this is a safety net.
   }
 
-  // Calculate deposit: percentage overrides flat amount
-  let depositCents = treatment.deposit_cents || 0;
-  if (treatment.deposit_percent > 0 && treatment.price_cents > 0) {
-    depositCents = Math.round(treatment.price_cents * treatment.deposit_percent / 100);
+  // ── PACKAGE SESSION REDEMPTION ──────────────────────────────────
+  let isPackageRedemption = false;
+  if (client_package_id && client) {
+    // Verify the package belongs to this client, is active, and has sessions left
+    const { data: clientPkg } = await supabase
+      .from('client_packages')
+      .select('id, sessions_used, package_id, client_id, packages(sessions, treatment_ids)')
+      .eq('id', client_package_id)
+      .eq('beautician_id', beautician.id)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    if (clientPkg && clientPkg.client_id === client.id) {
+      const totalSessions = clientPkg.packages?.sessions || 0;
+      const used = clientPkg.sessions_used || 0;
+      if (used < totalSessions) {
+        isPackageRedemption = true;
+        // Increment sessions_used
+        await supabase
+          .from('client_packages')
+          .update({
+            sessions_used: used + 1,
+            // Auto-complete if all sessions now used
+            ...(used + 1 >= totalSessions && { status: 'completed' }),
+          })
+          .eq('id', client_package_id);
+      }
+    }
   }
 
-  // If client chose to pay full amount, charge treatment price + add-ons minus discount
+  // Package redemptions skip payment entirely — session already paid for
+  let depositCents = 0;
+  let isFullPayment = false;
+  let depositRequired = false;
   const addOnSum = (add_ons || []).reduce((s, ao) => s + ao.price_cents, 0);
-  const isFullPayment = payment_type === 'full' && treatment.price_cents > 0;
-  const paymentCents = isFullPayment
-    ? Math.max(0, treatment.price_cents + addOnSum - discountCents)
-    : Math.max(0, depositCents - (isFullPayment ? 0 : 0)); // deposit stays full — discount applies to total only
+
+  if (!isPackageRedemption) {
+    // Calculate deposit: percentage overrides flat amount
+    depositCents = treatment.deposit_cents || 0;
+    if (treatment.deposit_percent > 0 && treatment.price_cents > 0) {
+      depositCents = Math.round(treatment.price_cents * treatment.deposit_percent / 100);
+    }
+
+    // If client chose to pay full amount, charge treatment price + add-ons minus discount
+    isFullPayment = payment_type === 'full' && treatment.price_cents > 0;
+    depositRequired = depositCents > 0 || isFullPayment;
+  }
 
   // Create appointment
-  const depositRequired = depositCents > 0 || isFullPayment;
   const { data: appointment, error: aError } = await supabase
     .from('appointments')
     .insert({
@@ -597,6 +617,7 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
       status: depositRequired ? 'pending' : 'confirmed',
       ...(discountMeta && { discount_meta: discountMeta, discount_cents: discountCents }),
       ...(photo_consent && { photo_consent: true }),
+      ...(isPackageRedemption && { package_redemption: true, client_package_id }),
     })
     .select()
     .single();
