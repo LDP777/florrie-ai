@@ -45,7 +45,8 @@ export async function cleanupStaleBookings() {
       cancelled++;
 
       // Log the AI action
-      await supabase.from('ai_actions').insert({
+      // Supabase returns thenable, not Promise — destructure instead of .catch()
+      const { error: _logErr } = await supabase.from('ai_actions').insert({
         beautician_id: appt.beautician_id,
         action_type: 'booking_auto_cancelled',
         digital_employee: 'front_desk',
@@ -56,7 +57,7 @@ export async function cleanupStaleBookings() {
         confidence: 1.0,
         autonomous: true,
         outcome: 'success',
-      }).catch(() => {}); // non-fatal
+      }); // non-fatal — ignore _logErr
     }
   }
 

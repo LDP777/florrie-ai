@@ -68,6 +68,9 @@ if (unset.length) {
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Railway / Render / Fly all run behind a reverse proxy
+app.set('trust proxy', 1);
+
 // Supabase client (service role for backend operations)
 export const supabase = createClient(
   process.env.SUPABASE_URL,

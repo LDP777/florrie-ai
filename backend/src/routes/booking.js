@@ -289,8 +289,8 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
     return res.status(500).json({ error: 'Failed to create booking' });
   }
 
-  // Log AI action
-  await supabase.from('ai_actions').insert({
+  // Log AI action (supabase returns thenable, not a Promise — use .then() not .catch())
+  const { error: logErr } = await supabase.from('ai_actions').insert({
     beautician_id: beautician.id,
     action_type: 'booking_created',
     digital_employee: 'front_desk',
@@ -303,7 +303,8 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
     outcome: 'success',
     notification_sent: true,
     notification_text: `New booking: ${firstName} — ${treatment.name}, ${startsDate.toLocaleDateString('en-GB')} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
-  }).catch(err => logger.warn({ err }, 'AI action log failed (non-fatal)'));
+  });
+  if (logErr) logger.warn({ err: logErr }, 'AI action log failed (non-fatal)');
 
   // ── DEPOSIT FLOW ──────────────────────────────────────────
   // If deposit required and beautician has Stripe Connect, create Checkout session.

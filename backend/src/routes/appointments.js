@@ -296,10 +296,11 @@ router.post('/complete-day', requireAuth, validate(completeDaySchema), async (re
 
     // Update client stats for each
     for (const apt of appointments) {
-      await supabase.rpc('increment_client_visit', {
+      // Supabase returns thenable, not Promise — destructure instead of .catch()
+      const { error: _rpcErr } = await supabase.rpc('increment_client_visit', {
         p_client_id: apt.client_id,
         p_amount: apt.price_cents
-      }).catch(() => {});
+      });
 
       // Fire-and-forget: update client intelligence
       updateClientIntelligence(req.beautician.id, apt.client_id).catch(() => {});
