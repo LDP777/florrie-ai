@@ -52,16 +52,46 @@ export default function BookingPage() {
   // Payment type: 'deposit' or 'full'
   const [paymentType, setPaymentType] = useState('deposit');
 
-  // Default consultation questions for treatments that require them
-  const CONSULTATION_QUESTIONS = [
+  // Membership detection
+  const [memberInfo, setMemberInfo] = useState(null); // { is_member, plan_name, client_name }
+
+  // Waitlist
+  const [waitlistSubmitting, setWaitlistSubmitting] = useState(false);
+  const [waitlistDone, setWaitlistDone] = useState(false);
+
+  // Photo consent
+  const [photoConsent, setPhotoConsent] = useState(false);
+
+  // Discount code
+  const [discountOpen, setDiscountOpen] = useState(false);
+  const [discountInput, setDiscountInput] = useState('');
+  const [discountLoading, setDiscountLoading] = useState(false);
+  const [discountError, setDiscountError] = useState(null);
+  const [appliedDiscount, setAppliedDiscount] = useState(null); // { code, type, discount_type, discount_value, promo_id?, voucher_id? }
+
+  // Dynamic consultation form (loaded from form builder, falls back to defaults)
+  const [consultationForm, setConsultationForm] = useState(null);
+
+  const DEFAULT_CONSULTATION_QUESTIONS = [
     { key: 'allergies', label: 'Do you have any known allergies? (e.g. latex, adhesive, tint)', type: 'text' },
-    { key: 'patch_test', label: 'Have you had a patch test in the last 6 months?', type: 'yesno' },
+    { key: 'patch_test', label: 'Have you had a patch test in the last 6 months?', type: 'yes_no' },
     { key: 'medical', label: 'Any medical conditions, medications, or recent treatments we should know about?', type: 'text' },
-    { key: 'pregnant', label: 'Are you pregnant or breastfeeding?', type: 'yesno' },
+    { key: 'pregnant', label: 'Are you pregnant or breastfeeding?', type: 'yes_no' },
     { key: 'previous_reactions', label: 'Have you had any adverse reactions to beauty treatments before?', type: 'text' },
   ];
 
   const needsConsultation = selectedTreatment?.requires_consultation;
+
+  // The questions to render — dynamic form fields if available, else defaults
+  const consultationQuestions = consultationForm?.consultation_form_fields?.length
+    ? consultationForm.consultation_form_fields.map(f => ({
+        key: f.id,
+        label: f.label,
+        type: f.type,   // text, yes_no, multi_select, single_select, checkbox, text_block, signature
+        options: f.options || [],
+        required: f.required,
+      }))
+    : DEFAULT_CONSULTATION_QUESTIONS;
 
   // Compute deposit amount (percentage overrides flat)
   function getDepositCents(treatment) {
@@ -77,7 +107,13 @@ export default function BookingPage() {
   // Add-on totals
   const addOnTotal = selectedAddOns.reduce((sum, ao) => sum + (ao.price_cents || 0), 0);
   const addOnDuration = selectedAddOns.reduce((sum, ao) => sum + (ao.duration_minutes || 0), 0);
-  const grandTotalCents = (selectedTreatment?.price_cents || 0) + addOnTotal;
+  // Calculate discount
+  const discountCents = appliedDiscount
+    ? appliedDiscount.discount_type === 'percentage'
+      ? Math.round(((selectedTreatment?.price_cents || 0) + addOnTotal) * appliedDiscount.discount_value / 100)
+      : Math.min(appliedDiscount.discount_value, (selectedTreatment?.price_cents || 0) + addOnTotal)
+    : 0;
+  const grandTotalCents = Math.max(0, (selectedTreatment?.price_cents || 0) + addOnTotal - discountCents);
 
   // Smart add-on suggestions: filter to add-ons that suggest_with includes selected treatment
   const suggestedAddOns = selectedTreatment
@@ -93,6 +129,80 @@ export default function BookingPage() {
       if (exists) return prev.filter(a => a.id !== addOn.id);
       return [...prev, addOn];
     });
+  }
+
+  // Load consultation form when treatment with a form is selected
+  useEffect(() => {
+    if (!selectedTreatment?.consultation_form_id || isDevMode) {
+      setConsultationForm(null);
+      return;
+    }
+    async function loadForm() {
+      try {
+        const res = await fetch(`${API_BASE}/api/booking/${slug}/consultation-form/${selectedTreatment.consultation_form_id}`);
+        const data = await res.json();
+        if (res.ok && data.form) setConsultationForm(data.form);
+      } catch {
+        // Fall back to default questions — non-blocking
+      }
+    }
+    loadForm();
+  }, [selectedTreatment?.consultation_form_id, slug]);
+
+  // Check membership when phone number looks complete
+  useEffect(() => {
+    const cleaned = clientDetails.phone.replace(/[^\d]/g, '');
+    if (cleaned.length < 10 || isDevMode) { setMemberInfo(null); return; }
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/booking/${slug}/check-member`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: clientDetails.phone }),
+        });
+        const data = await res.json();
+        setMemberInfo(data.is_member ? data : null);
+      } catch {
+        // Silent fail — membership badge is a nice-to-have
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [clientDetails.phone, slug]);
+
+  // Validate and apply a discount code
+  async function validateDiscountCode() {
+    if (!discountInput.trim()) return;
+    setDiscountLoading(true);
+    setDiscountError(null);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/booking/${slug}/validate-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: discountInput.trim() }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.valid) {
+        setDiscountError(data.error || 'Invalid code');
+        return;
+      }
+
+      setAppliedDiscount(data);
+      setDiscountError(null);
+    } catch {
+      setDiscountError('Could not validate code');
+    } finally {
+      setDiscountLoading(false);
+    }
+  }
+
+  function removeDiscount() {
+    setAppliedDiscount(null);
+    setDiscountInput('');
+    setDiscountError(null);
+    setDiscountOpen(false);
   }
 
   // Fetch beautician + treatments by slug
@@ -124,7 +234,7 @@ export default function BookingPage() {
         // Fetch active treatments
         const { data: tx } = await supabase
           .from('treatments')
-          .select('id, name, description, duration_minutes, price_cents, deposit_cents, deposit_percent, category')
+          .select('id, name, description, duration_minutes, price_cents, deposit_cents, deposit_percent, category, requires_consultation, consultation_form_id')
           .eq('beautician_id', b.id)
           .eq('is_active', true)
           .order('sort_order', { ascending: true });
@@ -241,6 +351,9 @@ export default function BookingPage() {
           consultation: needsConsultation ? consultationAnswers : null,
           add_ons: selectedAddOns.map(ao => ({ id: ao.id, price_cents: ao.price_cents })),
           payment_type: paymentType,
+          discount_code: appliedDiscount?.code || null,
+          is_member: memberInfo?.is_member || false,
+          photo_consent: photoConsent,
         }),
       });
 
@@ -557,7 +670,61 @@ export default function BookingPage() {
             {selectedDate && (
               <div style={styles.slotGrid}>
                 {slots.length === 0 ? (
-                  <p style={styles.noSlots}>No available slots on this day</p>
+                  <div>
+                    <p style={styles.noSlots}>No available slots on this day</p>
+                    {!waitlistDone ? (
+                      <button
+                        onClick={async () => {
+                          // If we don't have client details yet, prompt name/phone inline
+                          if (!clientDetails.name || !clientDetails.phone) {
+                            setError('Enter your name and phone below to join the waitlist');
+                            return;
+                          }
+                          setWaitlistSubmitting(true);
+                          try {
+                            const res = await fetch(`${API_BASE}/api/booking/${slug}/waitlist`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                treatment_id: selectedTreatment.id,
+                                preferred_date: selectedDate,
+                                client_name: clientDetails.name,
+                                client_phone: clientDetails.phone,
+                              }),
+                            });
+                            if (res.ok) {
+                              setWaitlistDone(true);
+                              setError(null);
+                            }
+                          } catch { /* silent */ }
+                          finally { setWaitlistSubmitting(false); }
+                        }}
+                        disabled={waitlistSubmitting}
+                        style={{
+                          ...styles.primaryBtn, background: 'transparent', color: brand,
+                          border: `1.5px solid ${brand}`, width: '100%', marginTop: 4,
+                          opacity: waitlistSubmitting ? 0.6 : 1,
+                        }}
+                      >
+                        {waitlistSubmitting ? 'Joining...' : 'Join waitlist for this day'}
+                      </button>
+                    ) : (
+                      <p style={{ fontSize: 13, color: 'var(--success, #38A169)', fontWeight: 500, textAlign: 'center', marginTop: 4 }}>
+                        ✓ You're on the waitlist — we'll let you know when a slot opens
+                      </p>
+                    )}
+                    {/* Quick name/phone fields if not yet entered */}
+                    {!clientDetails.name && (
+                      <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <input type="text" placeholder="Your name" value={clientDetails.name}
+                          onChange={e => setClientDetails(p => ({ ...p, name: e.target.value }))}
+                          style={styles.input} />
+                        <input type="tel" placeholder="Phone number" value={clientDetails.phone}
+                          onChange={e => setClientDetails(p => ({ ...p, phone: e.target.value }))}
+                          style={styles.input} />
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   slots.map(s => (
                     <button
@@ -612,6 +779,16 @@ export default function BookingPage() {
                   }} required
                 />
                 {fieldErrors.phone && <span style={styles.fieldErrorText}>{fieldErrors.phone}</span>}
+                {memberInfo && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 6, marginTop: 6,
+                    padding: '6px 10px', borderRadius: 8, background: 'var(--gold-bg, #FFF8E1)',
+                    border: '1px solid var(--gold, #C9A96E)', fontSize: 12, fontWeight: 500,
+                    color: 'var(--gold, #C9A96E)',
+                  }}>
+                    ★ Member — {memberInfo.plan_name}
+                  </div>
+                )}
               </div>
               <div>
                 <input
@@ -657,15 +834,26 @@ export default function BookingPage() {
         {/* Step 2.5: Consultation Form (only for treatments that require it) */}
         {step === 2.5 && (
           <div>
-            <h2 style={styles.stepTitle}>Consultation form</h2>
+            <h2 style={styles.stepTitle}>
+              {consultationForm?.name || 'Consultation form'}
+            </h2>
             <p style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>
               Required for {selectedTreatment?.name}. This information helps your beautician prepare and is kept for insurance records.
             </p>
+            {consultationForm?.consent_text && (
+              <p style={{ fontSize: 12, color: '#666', marginBottom: 16, lineHeight: 1.5, padding: '10px 12px', background: 'var(--bg-subtle, #FDFCFB)', borderRadius: 8, border: '1px solid var(--border-light)' }}>
+                {consultationForm.consent_text}
+              </p>
+            )}
             <div style={styles.formFields}>
-              {CONSULTATION_QUESTIONS.map(q => (
+              {consultationQuestions.map(q => (
                 <div key={q.key} style={{ marginBottom: 14 }}>
-                  <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#444', marginBottom: 4 }}>{q.label}</label>
-                  {q.type === 'yesno' ? (
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#444', marginBottom: 4 }}>
+                    {q.label}{q.required && <span style={{ color: 'var(--danger, #DC2626)' }}> *</span>}
+                  </label>
+
+                  {/* Yes/No toggle */}
+                  {q.type === 'yes_no' && (
                     <div style={{ display: 'flex', gap: 8 }}>
                       {['Yes', 'No'].map(opt => (
                         <button key={opt} onClick={() => setConsultationAnswers(p => ({ ...p, [q.key]: opt }))}
@@ -678,7 +866,75 @@ export default function BookingPage() {
                         </button>
                       ))}
                     </div>
-                  ) : (
+                  )}
+
+                  {/* Single select (radio-like buttons) */}
+                  {q.type === 'single_select' && q.options?.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {q.options.map(opt => (
+                        <button key={opt} onClick={() => setConsultationAnswers(p => ({ ...p, [q.key]: opt }))}
+                          style={{
+                            padding: '8px 14px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 500,
+                            cursor: 'pointer', fontFamily: 'inherit',
+                            background: consultationAnswers[q.key] === opt ? brand : '#F0ECE8',
+                            color: consultationAnswers[q.key] === opt ? '#fff' : '#666'
+                          }}>
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Multi select (toggle chips) */}
+                  {q.type === 'multi_select' && q.options?.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {q.options.map(opt => {
+                        const selected = (consultationAnswers[q.key] || []).includes(opt);
+                        return (
+                          <button key={opt} onClick={() => {
+                            setConsultationAnswers(p => {
+                              const current = p[q.key] || [];
+                              return { ...p, [q.key]: selected ? current.filter(v => v !== opt) : [...current, opt] };
+                            });
+                          }}
+                            style={{
+                              padding: '8px 14px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 500,
+                              cursor: 'pointer', fontFamily: 'inherit',
+                              background: selected ? brand : '#F0ECE8',
+                              color: selected ? '#fff' : '#666'
+                            }}>
+                            {selected ? '✓ ' : ''}{opt}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Checkbox */}
+                  {q.type === 'checkbox' && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={consultationAnswers[q.key] === true}
+                        onChange={e => setConsultationAnswers(p => ({ ...p, [q.key]: e.target.checked }))}
+                        style={{ width: 18, height: 18, accentColor: brand }}
+                      />
+                      I confirm
+                    </label>
+                  )}
+
+                  {/* Text block (multi-line) */}
+                  {q.type === 'text_block' && (
+                    <textarea
+                      value={consultationAnswers[q.key] || ''}
+                      onChange={e => setConsultationAnswers(p => ({ ...p, [q.key]: e.target.value }))}
+                      placeholder="Type here..."
+                      style={{ ...styles.input, minHeight: 80, resize: 'vertical' }}
+                    />
+                  )}
+
+                  {/* Default: text input */}
+                  {(q.type === 'text' || (!['yes_no', 'single_select', 'multi_select', 'checkbox', 'text_block', 'signature'].includes(q.type))) && (
                     <input
                       type="text"
                       value={consultationAnswers[q.key] || ''}
@@ -737,6 +993,16 @@ export default function BookingPage() {
                   ))}
                 </>
               )}
+              {discountCents > 0 && (
+                <div style={styles.summaryRow}>
+                  <span style={{ ...styles.summaryLabel, color: 'var(--success, #38A169)' }}>
+                    Discount ({appliedDiscount.code})
+                  </span>
+                  <span style={{ ...styles.summaryValue, color: 'var(--success, #38A169)' }}>
+                    −£{(discountCents / 100).toFixed(2)}
+                  </span>
+                </div>
+              )}
               <div style={{ ...styles.summaryRow, borderBottom: 'none' }}>
                 <span style={styles.summaryLabel}>Total</span>
                 <span style={{ ...styles.summaryValue, color: brand, fontWeight: 700, fontSize: 18 }}>
@@ -778,11 +1044,100 @@ export default function BookingPage() {
               )}
             </div>
 
+            {/* Membership badge */}
+            {memberInfo && (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12,
+                padding: '8px 12px', borderRadius: 8, background: 'var(--gold-bg, #FFF8E1)',
+                border: '1px solid var(--gold, #C9A96E)', fontSize: 13, fontWeight: 500,
+                color: 'var(--gold, #C9A96E)',
+              }}>
+                ★ {memberInfo.plan_name} member — any benefits will be applied by your beautician
+              </div>
+            )}
+
+            {/* Discount code section */}
+            <div style={{ marginBottom: 16 }}>
+              {appliedDiscount ? (
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  padding: '10px 14px', borderRadius: 8, background: 'var(--success-bg, #F0FFF4)',
+                  border: '1px solid var(--success, #38A169)', fontSize: 13,
+                }}>
+                  <span style={{ color: 'var(--success, #38A169)', fontWeight: 600 }}>
+                    ✓ {appliedDiscount.code} — saving £{(discountCents / 100).toFixed(2)}
+                  </span>
+                  <button onClick={removeDiscount} style={{
+                    background: 'none', border: 'none', fontSize: 16, color: 'var(--text-muted)',
+                    cursor: 'pointer', padding: '0 4px', fontFamily: 'inherit',
+                  }}>×</button>
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setDiscountOpen(!discountOpen)}
+                    style={{
+                      background: 'none', border: 'none', fontSize: 13, color: brand,
+                      cursor: 'pointer', padding: 0, fontFamily: 'inherit', fontWeight: 500,
+                    }}
+                  >
+                    {discountOpen ? '— Hide' : '+ Got a code?'}
+                  </button>
+                  {discountOpen && (
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      <input
+                        type="text"
+                        placeholder="Promo or gift voucher code"
+                        value={discountInput}
+                        onChange={e => { setDiscountInput(e.target.value); setDiscountError(null); }}
+                        onKeyDown={e => e.key === 'Enter' && validateDiscountCode()}
+                        style={{
+                          ...styles.input, flex: 1, padding: '10px 12px', fontSize: 14,
+                          borderColor: discountError ? 'var(--danger, #DC2626)' : 'var(--border, #E8E4DF)',
+                        }}
+                      />
+                      <button
+                        onClick={validateDiscountCode}
+                        disabled={discountLoading || !discountInput.trim()}
+                        style={{
+                          ...styles.primaryBtn, background: brand, padding: '10px 16px',
+                          fontSize: 13, opacity: discountLoading || !discountInput.trim() ? 0.6 : 1,
+                        }}
+                      >
+                        {discountLoading ? '...' : 'Apply'}
+                      </button>
+                    </div>
+                  )}
+                  {discountError && (
+                    <p style={{ fontSize: 12, color: 'var(--danger, #DC2626)', marginTop: 4 }}>{discountError}</p>
+                  )}
+                </>
+              )}
+            </div>
+
             <div style={styles.summaryClient}>
               <p><strong>{clientDetails.name}</strong></p>
               <p>{clientDetails.phone}</p>
               {clientDetails.email && <p>{clientDetails.email}</p>}
             </div>
+
+            {/* Photo consent */}
+            <label style={{
+              display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 20,
+              padding: '12px 14px', borderRadius: 10, background: 'var(--bg-subtle, #FDFCFB)',
+              border: '1px solid var(--border-light)', cursor: 'pointer', fontSize: 13,
+              color: 'var(--text-secondary)', lineHeight: 1.5,
+            }}>
+              <input
+                type="checkbox"
+                checked={photoConsent}
+                onChange={e => setPhotoConsent(e.target.checked)}
+                style={{ width: 18, height: 18, marginTop: 2, accentColor: brand, flexShrink: 0 }}
+              />
+              <span>
+                I'm happy for before & after photos to be taken and used on social media (optional)
+              </span>
+            </label>
 
             <div style={styles.buttonRow}>
               <button onClick={() => setStep(2)} style={styles.backBtn}>← Back</button>

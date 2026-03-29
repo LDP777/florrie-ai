@@ -31,6 +31,9 @@ const bookingSchema = z.object({
     price_cents: z.number().int().min(0),
   })).optional().default([]),
   payment_type: z.enum(['deposit', 'full']).optional().default('deposit'),
+  discount_code: z.preprocess(emptyToNull, z.string().max(50).nullable().optional().default(null)),
+  is_member: z.boolean().optional().default(false),
+  photo_consent: z.boolean().optional().default(false),
 });
 
 // Only init Stripe if key is present (avoids crash in dev without keys)
@@ -182,6 +185,241 @@ router.patch('/appointments/:id/status', requireAuth, validate(statusTransitionS
 });
 
 /**
+ * POST /api/booking/:slug/waitlist
+ * Public endpoint — adds a client to the waitlist for a treatment + preferred date.
+ * Creates/finds the client by phone, then inserts a waitlist entry.
+ */
+router.post('/:slug/waitlist', async (req, res) => {
+  const { treatment_id, preferred_date, client_name, client_phone } = req.body;
+
+  if (!treatment_id || !client_name || !client_phone) {
+    return res.status(400).json({ error: 'treatment_id, client_name, and client_phone are required' });
+  }
+
+  const { data: beautician } = await supabase
+    .from('beauticians')
+    .select('id')
+    .eq('booking_slug', req.params.slug)
+    .single();
+
+  if (!beautician) return res.status(404).json({ error: 'Booking page not found' });
+
+  // Find or create client
+  const nameParts = client_name.trim().split(' ');
+  const firstName = nameParts[0];
+  const lastName = nameParts.slice(1).join(' ') || null;
+
+  let client;
+  const { data: existing } = await supabase
+    .from('clients')
+    .select('id')
+    .eq('beautician_id', beautician.id)
+    .eq('phone', client_phone.trim())
+    .maybeSingle();
+
+  if (existing) {
+    client = existing;
+  } else {
+    const { data: newClient, error: cErr } = await supabase
+      .from('clients')
+      .insert({ beautician_id: beautician.id, first_name: firstName, last_name: lastName, phone: client_phone.trim(), status: 'new' })
+      .select('id')
+      .single();
+    if (cErr) return res.status(500).json({ error: 'Failed to create client record' });
+    client = newClient;
+  }
+
+  const { error: wErr } = await supabase
+    .from('waitlist')
+    .insert({
+      beautician_id: beautician.id,
+      client_id: client.id,
+      treatment_id,
+      preferred_dates: preferred_date ? [preferred_date] : [],
+      status: 'waiting',
+    });
+
+  if (wErr) {
+    logger.error({ err: wErr }, 'Waitlist insert failed');
+    return res.status(500).json({ error: 'Failed to join waitlist' });
+  }
+
+  // Log AI action
+  supabase.from('ai_actions').insert({
+    beautician_id: beautician.id,
+    action_type: 'waitlist_joined',
+    digital_employee: 'front_desk',
+    summary: `${firstName} joined the waitlist${preferred_date ? ` for ${preferred_date}` : ''}`,
+    details: { client_name, treatment_id, preferred_date },
+    client_id: client.id,
+    confidence: 1.0,
+    autonomous: false,
+    outcome: 'success',
+  }).then();
+
+  res.status(201).json({ success: true, message: "You're on the waitlist — we'll notify you when a slot opens up." });
+});
+
+/**
+ * GET /api/booking/:slug/consultation-form/:formId
+ * Public endpoint — returns the consultation form fields for inline display in the booking page.
+ * No auth required since this powers the public booking flow.
+ */
+router.get('/:slug/consultation-form/:formId', async (req, res) => {
+  try {
+    const { data: form } = await supabase
+      .from('consultation_forms')
+      .select('id, name, consent_text, consultation_form_fields(*)')
+      .eq('id', req.params.formId)
+      .eq('is_active', true)
+      .single();
+
+    if (!form) return res.status(404).json({ error: 'Form not found' });
+
+    // Sort fields by sort_order
+    if (form.consultation_form_fields) {
+      form.consultation_form_fields.sort((a, b) => a.sort_order - b.sort_order);
+    }
+
+    res.json({ form });
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch consultation form');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+/**
+ * POST /api/booking/:slug/check-member
+ * Public endpoint — checks if a phone number belongs to a client with an active membership.
+ * Returns membership info so the booking page can show a "Member" badge and notify the beautician.
+ */
+router.post('/:slug/check-member', async (req, res) => {
+  const { phone } = req.body;
+  if (!phone || typeof phone !== 'string' || phone.trim().length < 5) {
+    return res.json({ is_member: false });
+  }
+
+  const { data: beautician } = await supabase
+    .from('beauticians')
+    .select('id')
+    .eq('booking_slug', req.params.slug)
+    .single();
+
+  if (!beautician) return res.json({ is_member: false });
+
+  // Find client by phone
+  const { data: client } = await supabase
+    .from('clients')
+    .select('id, first_name')
+    .eq('beautician_id', beautician.id)
+    .eq('phone', phone.trim())
+    .maybeSingle();
+
+  if (!client) return res.json({ is_member: false });
+
+  // Check for active membership
+  const { data: membership } = await supabase
+    .from('client_memberships')
+    .select('id, membership_id, status')
+    .eq('beautician_id', beautician.id)
+    .eq('client_id', client.id)
+    .eq('status', 'active')
+    .maybeSingle();
+
+  if (!membership) return res.json({ is_member: false });
+
+  // Get plan name
+  const { data: plan } = await supabase
+    .from('membership_plans')
+    .select('name')
+    .eq('id', membership.membership_id)
+    .maybeSingle();
+
+  return res.json({
+    is_member: true,
+    plan_name: plan?.name || 'Active Member',
+    client_name: client.first_name,
+  });
+});
+
+/**
+ * POST /api/booking/:slug/validate-code
+ * Public endpoint — validates a discount code (promo code or gift voucher)
+ * and returns the discount info so the booking page can show the savings.
+ * Single input field handles both code types — tries promo_codes first, then gift_vouchers.
+ */
+router.post('/:slug/validate-code', async (req, res) => {
+  const { code } = req.body;
+  if (!code || typeof code !== 'string' || !code.trim()) {
+    return res.status(400).json({ valid: false, error: 'Code is required' });
+  }
+
+  const normalised = code.trim().toUpperCase();
+
+  // Look up beautician from slug
+  const { data: beautician } = await supabase
+    .from('beauticians')
+    .select('id')
+    .eq('booking_slug', req.params.slug)
+    .single();
+
+  if (!beautician) return res.status(404).json({ valid: false, error: 'Booking page not found' });
+
+  const now = new Date().toISOString();
+
+  // 1. Try promo_codes
+  const { data: promo } = await supabase
+    .from('promo_codes')
+    .select('id, code, discount_type, discount_value, max_uses, current_uses, valid_from, valid_until, is_active')
+    .eq('beautician_id', beautician.id)
+    .eq('code', normalised)
+    .maybeSingle();
+
+  if (promo) {
+    if (!promo.is_active) return res.status(400).json({ valid: false, error: 'This code is no longer active' });
+    if (now < promo.valid_from) return res.status(400).json({ valid: false, error: 'This code is not yet valid' });
+    if (now > promo.valid_until) return res.status(400).json({ valid: false, error: 'This code has expired' });
+    if (promo.max_uses && promo.current_uses >= promo.max_uses) {
+      return res.status(400).json({ valid: false, error: 'This code has reached its usage limit' });
+    }
+
+    return res.json({
+      valid: true,
+      type: 'promo',
+      code: promo.code,
+      discount_type: promo.discount_type,   // 'percentage' or 'fixed'
+      discount_value: promo.discount_value,  // percentage int or pence int
+      promo_id: promo.id,
+    });
+  }
+
+  // 2. Try gift_vouchers
+  const { data: voucher } = await supabase
+    .from('gift_vouchers')
+    .select('id, code, amount, status')
+    .eq('beautician_id', beautician.id)
+    .eq('code', normalised)
+    .maybeSingle();
+
+  if (voucher) {
+    if (voucher.status !== 'active') {
+      return res.status(400).json({ valid: false, error: 'This voucher has already been used or cancelled' });
+    }
+    return res.json({
+      valid: true,
+      type: 'voucher',
+      code: voucher.code,
+      discount_type: 'fixed',
+      discount_value: voucher.amount,   // amount in pence
+      voucher_id: voucher.id,
+    });
+  }
+
+  // Nothing matched
+  return res.status(404).json({ valid: false, error: 'Code not recognised' });
+});
+
+/**
  * POST /api/booking/:slug/book
  * Public endpoint — creates a booking from the booking page.
  * Creates or finds the client, creates the appointment.
@@ -190,7 +428,7 @@ router.patch('/appointments/:id/status', requireAuth, validate(statusTransitionS
  * Returning clients with a saved Stripe customer see their saved cards.
  */
 router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
-  const { treatment_id, starts_at, client_name, client_email, client_phone, notes, consultation, add_ons, payment_type } = req.body;
+  const { treatment_id, starts_at, client_name, client_email, client_phone, notes, consultation, add_ons, payment_type, discount_code, photo_consent } = req.body;
 
   // Get beautician from slug (include Stripe fields for deposit flow)
   const { data: beautician } = await supabase
@@ -273,17 +511,71 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
     clientNotes = JSON.stringify({ notes: notes || '', consultation });
   }
 
+  // ── DISCOUNT CODE VALIDATION ──────────────────────────────────────
+  let discountCents = 0;
+  let discountMeta = null;  // stored on appointment for audit trail
+
+  if (discount_code) {
+    const normalised = discount_code.trim().toUpperCase();
+    const now = new Date().toISOString();
+
+    // Try promo code first
+    const { data: promo } = await supabase
+      .from('promo_codes')
+      .select('id, code, discount_type, discount_value, max_uses, current_uses, valid_from, valid_until, is_active')
+      .eq('beautician_id', beautician.id)
+      .eq('code', normalised)
+      .maybeSingle();
+
+    if (promo && promo.is_active && now >= promo.valid_from && now <= promo.valid_until
+        && (!promo.max_uses || promo.current_uses < promo.max_uses)) {
+      const treatmentTotal = treatment.price_cents + (add_ons || []).reduce((s, ao) => s + ao.price_cents, 0);
+      if (promo.discount_type === 'percentage') {
+        discountCents = Math.round(treatmentTotal * promo.discount_value / 100);
+      } else {
+        discountCents = Math.min(promo.discount_value, treatmentTotal);
+      }
+      discountMeta = { type: 'promo', code: promo.code, promo_id: promo.id, discount_type: promo.discount_type, discount_value: promo.discount_value, discount_cents: discountCents };
+
+      // Increment usage count (non-blocking)
+      supabase.from('promo_codes').update({ current_uses: (promo.current_uses || 0) + 1 }).eq('id', promo.id).then();
+    }
+
+    // Try gift voucher if promo didn't match
+    if (!discountMeta) {
+      const { data: voucher } = await supabase
+        .from('gift_vouchers')
+        .select('id, code, amount, status')
+        .eq('beautician_id', beautician.id)
+        .eq('code', normalised)
+        .maybeSingle();
+
+      if (voucher && voucher.status === 'active') {
+        const treatmentTotal = treatment.price_cents + (add_ons || []).reduce((s, ao) => s + ao.price_cents, 0);
+        discountCents = Math.min(voucher.amount, treatmentTotal);
+        discountMeta = { type: 'voucher', code: voucher.code, voucher_id: voucher.id, discount_cents: discountCents };
+
+        // Mark voucher as redeemed (non-blocking — will be linked to appointment after insert)
+        supabase.from('gift_vouchers').update({ status: 'redeemed', redeemed_at: new Date().toISOString() }).eq('id', voucher.id).then();
+      }
+    }
+
+    // If code was provided but nothing matched, that's fine — we just don't apply a discount.
+    // The frontend already validated it, so this is a safety net.
+  }
+
   // Calculate deposit: percentage overrides flat amount
   let depositCents = treatment.deposit_cents || 0;
   if (treatment.deposit_percent > 0 && treatment.price_cents > 0) {
     depositCents = Math.round(treatment.price_cents * treatment.deposit_percent / 100);
   }
 
-  // If client chose to pay full amount, charge treatment price + add-ons
+  // If client chose to pay full amount, charge treatment price + add-ons minus discount
+  const addOnSum = (add_ons || []).reduce((s, ao) => s + ao.price_cents, 0);
   const isFullPayment = payment_type === 'full' && treatment.price_cents > 0;
   const paymentCents = isFullPayment
-    ? treatment.price_cents + (add_ons || []).reduce((s, ao) => s + ao.price_cents, 0)
-    : depositCents;
+    ? Math.max(0, treatment.price_cents + addOnSum - discountCents)
+    : Math.max(0, depositCents - (isFullPayment ? 0 : 0)); // deposit stays full — discount applies to total only
 
   // Create appointment
   const depositRequired = depositCents > 0 || isFullPayment;
@@ -302,7 +594,9 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
       payment_type: isFullPayment ? 'full' : 'deposit',
       client_notes: clientNotes,
       booked_via: 'booking_page',
-      status: depositRequired ? 'pending' : 'confirmed'
+      status: depositRequired ? 'pending' : 'confirmed',
+      ...(discountMeta && { discount_meta: discountMeta, discount_cents: discountCents }),
+      ...(photo_consent && { photo_consent: true }),
     })
     .select()
     .single();
@@ -390,13 +684,21 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
 
       // Build line items: treatment payment (deposit or full) + add-on costs
       const treatmentLabel = isFullPayment ? treatment.name : `${treatment.name} — deposit`;
-      const treatmentAmountCents = isFullPayment ? treatment.price_cents : depositCents;
+      let treatmentAmountCents = isFullPayment ? treatment.price_cents : depositCents;
+
+      // Apply discount to the treatment line item when paying in full
+      // (discounts don't reduce deposits — they reduce the total bill)
+      if (isFullPayment && discountCents > 0) {
+        treatmentAmountCents = Math.max(0, treatmentAmountCents - discountCents);
+      }
 
       const lineItems = [{
         price_data: {
           currency: 'gbp',
           product_data: {
-            name: treatmentLabel,
+            name: discountCents > 0 && isFullPayment
+              ? `${treatmentLabel} (${discountMeta.code} applied)`
+              : treatmentLabel,
             description: `${dateLabel} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} with ${beautician.business_name || beautician.first_name}`,
           },
           unit_amount: treatmentAmountCents,
@@ -495,6 +797,7 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
           payment_type: isFullPayment ? 'full' : 'deposit',
           amount_charged: `£${(checkoutTotalCents / 100).toFixed(2)}`,
           status: 'pending',
+          ...(discountMeta && { discount: { code: discountMeta.code, type: discountMeta.type, saved: `£${(discountCents / 100).toFixed(2)}` } }),
         },
         checkout_url: session.url,
       });
