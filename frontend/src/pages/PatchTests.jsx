@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, isDevMode, insertRow, updateRow, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
  * Patch Test Tracker — Regulatory compliance for brow & lash treatments.
@@ -63,6 +66,7 @@ export default function PatchTests() {
   const [tests, setTests] = useState(DEV_PATCH_TESTS);
   const [tab, setTab] = useState('alerts');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [reminded, setReminded] = useState({});
   const [expiryMonths, setExpiryMonths] = useState(6);
@@ -85,6 +89,7 @@ export default function PatchTests() {
 
   async function loadData() {
     setLoading(true);
+    setError(null);
     if (bLoading || !beautician) {
       setLoading(false);
       return;
@@ -99,6 +104,7 @@ export default function PatchTests() {
       setTests(rows);
     } catch (err) {
       logger.error('Failed to load patch tests:', err);
+      setError(err.message || 'Failed to load patch tests');
     }
     setLoading(false);
   }
@@ -142,6 +148,14 @@ export default function PatchTests() {
   const expiringCount = testsWithStatus.filter(t => t.status === 'expiring').length;
   const expiredCount = testsWithStatus.filter(t => t.status === 'expired').length;
   const alertCount = DEV_UPCOMING_NEEDING_TEST.length;
+
+  if (bLoading || loading) {
+    return <PageLoader />;
+  }
+
+  if (error) {
+    return <ErrorCard message={error} onDismiss={() => setError(null)} />;
+  }
 
   return (
     <div style={styles.page}>
@@ -328,13 +342,8 @@ export default function PatchTests() {
       {/* === ALL TESTS TAB === */}
       {tab === 'all' && (
         <div>
-          {loading ? (
-            <p style={styles.loadingText}>Loading tests...</p>
-          ) : testsWithStatus.length === 0 ? (
-            <div style={styles.emptyState}>
-              <p style={styles.emptyTitle}>No patch tests logged</p>
-              <p style={styles.emptyDesc}>Tap "+ Log Patch Test" to start tracking.</p>
-            </div>
+          {testsWithStatus.length === 0 ? (
+            <EmptyState title="No patch tests logged" description='Tap "+ Log Patch Test" to start tracking.' />
           ) : (
             <div style={styles.testList}>
               {testsWithStatus.map(t => {

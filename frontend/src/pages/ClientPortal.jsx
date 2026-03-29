@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, supabase, fetchRows, updateRow, isDevMode } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const mockPortalConfig = {
   enabled: true,
@@ -44,7 +47,7 @@ const mockRecentActivity = [
   { client: 'Rachel S.', action: 'Cancelled appointment', detail: 'Lash Lift — Mon 24 Mar (within policy)', time: '3 days ago' },
 ];
 
-export default function ClientPortal({ token }) {
+export default function ClientPortal() {
   const [activeTab, setActiveTab] = useState('overview');
   const [config, setConfig] = useState(mockPortalConfig);
   const { beautician, loading: bLoading, refresh } = useBeautician();
@@ -79,7 +82,7 @@ export default function ClientPortal({ token }) {
     }
   }
 
-  if (bLoading || loading) return <div style={{ padding: 40, textAlign: 'center', color: '#AAA5A0' }}>Loading...</div>;
+  if (bLoading || loading) return <PageLoader />;
 
   const c = config;
   const features = c.features;

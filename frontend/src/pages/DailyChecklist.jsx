@@ -8,6 +8,9 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, updateRow, insertRow, isDevMode } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -41,23 +44,31 @@ const DEV_CHECKLISTS = {
 
 const STREAK_DATA = { current: 5, best: 12, thisWeek: 3, thisMonth: 18 };
 
-export default function DailyChecklist({ token }) {
+export default function DailyChecklist() {
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('opening');
   const [checklists, setChecklists] = useState(DEV_CHECKLISTS);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
 
   // Fetch daily checklists on mount or when beautician changes
   useEffect(() => {
     if (bLoading || !beautician) return;
+    setLoading(true);
+    setError(null);
     if (isDevMode) {
       setChecklists(DEV_CHECKLISTS);
+      setLoading(false);
       return;
     }
     const todayStr = today();
     fetchRows('daily_checklists', beautician.id, { eq: { date: todayStr }, order: 'type', ascending: true })
       .then(rows => {
-        if (rows.length === 0) return;
+        if (rows.length === 0) {
+          setLoading(false);
+          return;
+        }
         const byType = {};
         rows.forEach(row => {
           const type = row.type || 'custom';
@@ -65,6 +76,12 @@ export default function DailyChecklist({ token }) {
           byType[type].push(row);
         });
         setChecklists(prev => ({ ...prev, ...byType }));
+        setLoading(false);
+      })
+      .catch(err => {
+        logger.error('Failed to fetch checklists:', err);
+        setError(err.message || 'Failed to load checklists');
+        setLoading(false);
       });
   }, [beautician, bLoading]);
 
@@ -105,8 +122,11 @@ export default function DailyChecklist({ token }) {
   const allOpeningDone = checklists.opening.every(i => i.done);
   const allClosingDone = checklists.closing.every(i => i.done);
 
+  if (loading) return <PageLoader />;
+
   return (
     <div style={S.page}>
+      {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
       <h1 style={S.title}>Daily Checklist</h1>
       <p style={S.dateLabel}>{new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
 

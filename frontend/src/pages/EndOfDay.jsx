@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, updateRow, insertRow, isDevMode, supabase } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const mockToday = {
   date: 'Wed 26 Mar 2026',
@@ -44,7 +47,7 @@ const mockNotes = [
   'New retail display arrived — logged 2 units sold from counter'
 ];
 
-export default function EndOfDay({ token }) {
+export default function EndOfDay() {
   const { beautician, loading: bLoading } = useBeautician();
   const [dayData, setDayData] = useState(mockToday);
   const [timeline, setTimeline] = useState(mockTimeline);

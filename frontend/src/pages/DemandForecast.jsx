@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { useBeautician, supabase, isDevMode } from '../lib/supabase.js';
 import { ds, type } from '../lib/designSystem.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const forecast = [
   { day: 'Mon', demand: 'Low', bookings: 4, capacity: 12, pct: 33, revenue: '£320', suggestion: 'Run a flash promo' },

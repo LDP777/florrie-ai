@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
 import { type as t } from '../lib/designSystem.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
  * ConsultationFormBuilder — create and edit consultation/consent forms.
@@ -40,16 +43,22 @@ function FormList() {
   const navigate = useNavigate();
   const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetch(`${API_BASE}/api/consultation-forms`, { headers: authHeaders() })
       .then(r => r.json())
       .then(d => setForms(d.forms || []))
+      .catch(err => {
+        console.error('Failed to load forms:', err);
+        setError(err.message || 'Failed to load consultation forms');
+      })
       .finally(() => setLoading(false));
   }, []);
 
   return (
     <div style={styles.page}>
+      {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
       <div style={styles.header}>
         <h1 style={t.displayMd}>Consultation Forms</h1>
         <p style={styles.subtitle}>Build custom forms clients fill in before their appointment</p>
@@ -60,19 +69,15 @@ function FormList() {
       </button>
 
       {loading ? (
-        <div style={styles.loadingState}>Loading forms...</div>
+        <PageLoader message="Loading forms..." />
       ) : forms.length === 0 ? (
-        <div style={styles.emptyState}>
-          <div style={styles.emptyIcon}>📋</div>
-          <h3 style={styles.emptyTitle}>No forms yet</h3>
-          <p style={styles.emptyDesc}>
-            Create a consultation form to collect client info, medical history, and consent before appointments.
-            New clients get a link via SMS automatically.
-          </p>
-          <button style={styles.createBtn} onClick={() => navigate('/consultation-forms/new')}>
-            Create Your First Form
-          </button>
-        </div>
+        <EmptyState
+          icon="📋"
+          title="No forms yet"
+          subtitle="Create a consultation form to collect client info, medical history, and consent before appointments."
+          actionLabel="Create Your First Form"
+          onAction={() => navigate('/consultation-forms/new')}
+        />
       ) : (
         <div style={styles.formList}>
           {forms.map(form => (

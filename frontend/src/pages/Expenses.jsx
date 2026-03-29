@@ -8,6 +8,9 @@
 import { useState, useEffect } from 'react';
 import { isDevMode, useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const CATEGORIES = [
   { value: 'products', label: 'Products', icon: '🧴', color: 'var(--accent, #C76B8A)' },
@@ -49,7 +52,7 @@ const DEV_BUDGETS = [
   { category: 'software', monthly_limit_cents: 3000 },
 ];
 
-export default function Expenses({ token }) {
+export default function Expenses() {
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('overview');
   const [month, setMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });

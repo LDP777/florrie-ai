@@ -8,6 +8,9 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, insertRow, updateRow, deleteRow, isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 
@@ -28,7 +31,7 @@ const CATEGORIES = [
 
 const EMPTY_FORM = { name: '', price: '', duration: '', category: 'treatment', suggestWith: [], autoSuggest: true };
 
-export default function AddOns({ token }) {
+export default function AddOns() {
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('addons');
   const [expanded, setExpanded] = useState(null);

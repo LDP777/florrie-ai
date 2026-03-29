@@ -24,7 +24,7 @@ const STATUS_CONFIG = {
   paused: { label: 'Paused', bg: 'var(--gold-light, #FDF8EE)', color: 'var(--gold-text, #8A7245)' },
 };
 
-export default function PromoCodes({ token }) {
+export default function PromoCodes() {
   const [tab, setTab] = useState('active');
   const [expanded, setExpanded] = useState(null);
   const [showCreate, setShowCreate] = useState(false);

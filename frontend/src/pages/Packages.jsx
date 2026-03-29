@@ -13,11 +13,13 @@ import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, insertRow, updateRow, deleteRow, isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const pence = v => `£${(v / 100).toFixed(2)}`;
 const pounds = v => `£${Math.round(v / 100)}`;
 
-export default function Packages({ token }) {
+export default function Packages() {
   const { beautician, loading: bLoading } = useBeautician();
   const { dark } = useTheme();
   const [tab, setTab] = useState('packages');
@@ -28,10 +30,12 @@ export default function Packages({ token }) {
   const [treatments, setTreatments] = useState([]);
   const [editingItem, setEditingItem] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const [loading, setLoading] = useState(true);
 
   // Load packages on mount
   useEffect(() => {
     if (bLoading || !beautician) return;
+    setLoading(true);
     Promise.all([
       fetchRows('packages', beautician.id),
       fetchRows('client_packages', beautician.id),
@@ -40,7 +44,12 @@ export default function Packages({ token }) {
       setPackages(pkgs);
       setClientPackages(cpkgs);
       setTreatments(trts);
-    }).catch(err => logger.error('Failed to load packages:', err));
+      setLoading(false);
+    }).catch(err => {
+      logger.error('Failed to load packages:', err);
+      setErrorMsg('Failed to load packages. Please try again.');
+      setLoading(false);
+    });
   }, [beautician, bLoading]);
 
   // Create form state
@@ -156,6 +165,10 @@ export default function Packages({ token }) {
     { key: 'active', label: 'Active' },
   ];
 
+  if (bLoading || loading) {
+    return <PageLoader />;
+  }
+
   return (
     <div style={s.page}>
       <div style={s.header}>
@@ -191,7 +204,7 @@ export default function Packages({ token }) {
             <span style={s.formTitle}>{editingItem ? 'Edit package' : 'New package'}</span>
             <button onClick={() => { setShowCreate(false); resetForm(); }} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))' }}>×</button>
           </div>
-          {errorMsg && <div style={{ background: 'var(--danger-bg, #FDF0EF)', color: '#C62828', padding: '10px 12px', borderRadius: 8, fontSize: 13, marginBottom: 12 }}>{errorMsg}</div>}
+          {errorMsg && <ErrorCard message={errorMsg} onDismiss={() => setErrorMsg('')} />}
 
           {/* Type */}
           <div style={s.chipRow}>

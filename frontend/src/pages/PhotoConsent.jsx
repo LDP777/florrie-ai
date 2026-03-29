@@ -7,6 +7,8 @@
  */
 import { useState, useEffect } from 'react';
 import { isDevMode, DEV_CLIENTS, supabase } from '../lib/supabase.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
 
 const DEV_CONSENTS = [
   {
@@ -62,7 +64,7 @@ const STATUS_CONFIG = {
   expired: { label: 'Expired', bg: '#F0ECE8', color: '#AAA5A0' },
 };
 
-export default function PhotoConsent({ token }) {
+export default function PhotoConsent() {
   const [tab, setTab] = useState('all');
   const [showRequest, setShowRequest] = useState(false);
   const [expanded, setExpanded] = useState(null);
@@ -208,7 +210,9 @@ export default function PhotoConsent({ token }) {
     }
   };
 
-  if (loading) return <p style={{ textAlign: 'center', padding: 40, color: '#AAA5A0' }}>Loading...</p>;
+  if (loading) {
+    return <PageLoader />;
+  }
 
   return (
     <div style={S.page}>
@@ -243,7 +247,7 @@ export default function PhotoConsent({ token }) {
 
       {/* Consent list */}
       <div style={S.list}>
-        {filtered.length === 0 && <p style={S.empty}>No consents in this category.</p>}
+        {filtered.length === 0 && <EmptyState title="No consents found" description="No consents in this category." />}
         {filtered.map(c => {
           const st = STATUS_CONFIG[c.status];
           const isExpanded = expanded === c.id;

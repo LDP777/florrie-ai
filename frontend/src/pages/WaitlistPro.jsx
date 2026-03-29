@@ -10,6 +10,9 @@
 import { useState, useEffect } from 'react';
 import { isDevMode, DEV_TREATMENTS, useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const DEV_WAITLIST = [
   {
@@ -76,7 +79,7 @@ const DAYS = [
   { value: 'thu', label: 'Thu' }, { value: 'fri', label: 'Fri' }, { value: 'sat', label: 'Sat' },
 ];
 
-export default function WaitlistPro({ token }) {
+export default function WaitlistPro() {
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('active');
   const [expanded, setExpanded] = useState(null);

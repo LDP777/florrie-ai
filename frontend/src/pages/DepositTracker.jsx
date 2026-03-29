@@ -8,6 +8,9 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, isDevMode, supabase, updateRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const fmt = (cents) => `£${(Math.abs(cents) / 100).toFixed(2)}`;
 
@@ -30,7 +33,7 @@ const STATUS_CONFIG = {
   forfeited: { label: 'Forfeited', bg: 'var(--danger-bg, #FDF0EF)', color: '#F44336', icon: '✗' },
 };
 
-export default function DepositTracker({ token }) {
+export default function DepositTracker() {
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('held');
   const [expanded, setExpanded] = useState(null);

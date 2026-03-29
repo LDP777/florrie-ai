@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, insertRow, updateRow, deleteRow, isDevMode } from '../lib/supabase.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const ROLES = [
   { key: 'stylist', label: 'Stylist', desc: 'Books & manages their own clients' },
@@ -81,12 +84,7 @@ export default function Team() {
   const monthlyCost = activeCount * 25; // £25 per seat
 
   if (loading) {
-    return (
-      <div style={styles.page}>
-        <div style={styles.header}><h1 style={styles.title}>Team</h1></div>
-        <SkeletonCard /><SkeletonCard />
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (

@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import { ds, type } from '../lib/designSystem.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const templates = [
   { id: 1, name: 'Booking Confirmation', trigger: 'On booking', message: 'Hi {name}, your {treatment} is confirmed for {date} at {time}. Reply CANCEL to cancel. — {business}', enabled: true, sent: 234, delivered: 228 },

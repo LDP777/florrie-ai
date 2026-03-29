@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, supabase, isDevMode, fetchRows, DEV_CLIENTS } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
  * Loyalty & Rewards — keep clients coming back.
@@ -51,6 +54,7 @@ export default function Loyalty() {
   const [tab, setTab] = useState('overview');
   const [showRewardDetail, setShowRewardDetail] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [loyaltyConfig, setLoyaltyConfig] = useState(null);
   const [pointsHistory, setPointsHistory] = useState([]);
 
@@ -60,6 +64,7 @@ export default function Loyalty() {
 
   async function loadLoyalty() {
     setLoading(true);
+    setError(null);
     try {
       if (isDevMode) {
         setLoyaltyConfig({ enabled: true, points_per_dollar: 1, reset_interval_days: 365 });
@@ -71,23 +76,26 @@ export default function Loyalty() {
         setPointsHistory(pts);
       } else {
         // Fetch config
-        const { data: config } = await supabase
+        const { data: config, error: configErr } = await supabase
           .from('loyalty_config')
           .select('*')
           .eq('beautician_id', beautician.id)
           .single();
+        if (configErr) throw configErr;
         setLoyaltyConfig(config || { enabled: true, points_per_dollar: 1 });
 
         // Fetch points history
-        const { data: history } = await supabase
+        const { data: history, error: histErr } = await supabase
           .from('loyalty_points')
           .select('*, clients(first_name)')
           .eq('beautician_id', beautician.id)
           .order('created_at', { ascending: false });
+        if (histErr) throw histErr;
         setPointsHistory(history || []);
       }
     } catch (err) {
       logger.error('Load loyalty error:', err);
+      setError(err.message || 'Failed to load loyalty data');
     } finally {
       setLoading(false);
     }
@@ -99,7 +107,11 @@ export default function Loyalty() {
   const activeMembers = clients.filter(c => (c.points || 0) > 0).length;
 
   if (bLoading || loading) {
-    return <div style={styles.page}><div style={{ textAlign: 'center', padding: 60, color: '#AAA5A0' }}>Loading...</div></div>;
+    return <PageLoader />;
+  }
+
+  if (error) {
+    return <ErrorCard message={error} onDismiss={() => setError(null)} />;
   }
 
   return (

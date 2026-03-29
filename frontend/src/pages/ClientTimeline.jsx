@@ -7,6 +7,9 @@
  */
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const DEV_CLIENTS_FULL = [
   { id: 'c1', name: 'Shauna', visits: 8, totalSpent: 32000, since: '2025-09-15', tags: ['VIP', 'Regular'] },
@@ -57,25 +60,32 @@ const TYPE_CONFIG = {
 
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 
-export default function ClientTimeline({ token }) {
+export default function ClientTimeline() {
   const { beautician, loading: bLoading } = useBeautician();
   const [selectedClient, setSelectedClient] = useState('c1');
   const [filterType, setFilterType] = useState('all');
   const [expanded, setExpanded] = useState(null);
   const [clients, setClients] = useState([]);
   const [allEvents, setAllEvents] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Fetch clients and their appointment history
   useEffect(() => {
     if (bLoading || !beautician) return;
-    if (isDevMode) {
-      setClients(DEV_CLIENTS_FULL);
-      setAllEvents(DEV_EVENTS);
-      return;
-    }
 
     (async () => {
       try {
+        setLoading(true);
+        setError(null);
+
+        if (isDevMode) {
+          setClients(DEV_CLIENTS_FULL);
+          setAllEvents(DEV_EVENTS);
+          setLoading(false);
+          return;
+        }
+
         const rows = await fetchRows('clients', beautician.id);
         if (rows && rows.length > 0) {
           setClients(rows.map(c => ({
@@ -87,14 +97,7 @@ export default function ClientTimeline({ token }) {
             tags: c.tags || [],
           })));
         }
-      } catch (err) {
-        console.error('Failed to fetch clients:', err);
-      }
-    })();
 
-    // Fetch appointments as events for all clients
-    (async () => {
-      try {
         const appts = await fetchRows('appointments', beautician.id);
         if (appts && appts.length > 0) {
           const byClient = {};
@@ -112,8 +115,12 @@ export default function ClientTimeline({ token }) {
           });
           setAllEvents(byClient);
         }
+
+        setLoading(false);
       } catch (err) {
-        console.error('Failed to fetch appointments:', err);
+        console.error('Failed to fetch client data:', err);
+        setError(err.message || 'Failed to load client timeline');
+        setLoading(false);
       }
     })();
   }, [beautician, bLoading]);
@@ -141,8 +148,11 @@ export default function ClientTimeline({ token }) {
     grouped[key].push(e);
   });
 
+  if (loading) return <PageLoader />;
+
   return (
     <div style={S.page}>
+      {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
       <h1 style={S.title}>Client Timeline</h1>
 
       {/* Client selector */}
@@ -198,57 +208,60 @@ export default function ClientTimeline({ token }) {
 
       {/* Timeline */}
       <div style={S.timeline}>
-        {Object.entries(grouped).sort(([a], [b]) => b.localeCompare(a)).map(([month, evts]) => {
-          const [y, m] = month.split('-').map(Number);
-          const monthLabel = new Date(y, m - 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
-          return (
-            <div key={month}>
-              <div style={S.monthHeader}>{monthLabel}</div>
-              {evts.map(evt => {
-                const cfg = TYPE_CONFIG[evt.type] || TYPE_CONFIG.note;
-                const isExp = expanded === evt.id;
-                const time = new Date(evt.date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-                const day = new Date(evt.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' });
-                return (
-                  <div key={evt.id} style={S.eventRow} onClick={() => setExpanded(isExp ? null : evt.id)}>
-                    <div style={S.eventLeft}>
-                      <div style={S.eventDate}>
-                        <span style={S.eventDay}>{day}</span>
-                        <span style={S.eventTime}>{time}</span>
+        {events.length === 0 ? (
+          <EmptyState icon="📭" title="No events yet" subtitle={filterType === 'all' ? 'Select a client to view their timeline' : `No ${filterType} events for this client`} />
+        ) : (
+          Object.entries(grouped).sort(([a], [b]) => b.localeCompare(a)).map(([month, evts]) => {
+            const [y, m] = month.split('-').map(Number);
+            const monthLabel = new Date(y, m - 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+            return (
+              <div key={month}>
+                <div style={S.monthHeader}>{monthLabel}</div>
+                {evts.map(evt => {
+                  const cfg = TYPE_CONFIG[evt.type] || TYPE_CONFIG.note;
+                  const isExp = expanded === evt.id;
+                  const time = new Date(evt.date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                  const day = new Date(evt.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric' });
+                  return (
+                    <div key={evt.id} style={S.eventRow} onClick={() => setExpanded(isExp ? null : evt.id)}>
+                      <div style={S.eventLeft}>
+                        <div style={S.eventDate}>
+                          <span style={S.eventDay}>{day}</span>
+                          <span style={S.eventTime}>{time}</span>
+                        </div>
+                        <div style={S.dotCol}>
+                          <div style={{ ...S.dot, background: cfg.colour }} />
+                          <div style={S.line} />
+                        </div>
                       </div>
-                      <div style={S.dotCol}>
-                        <div style={{ ...S.dot, background: cfg.colour }} />
-                        <div style={S.line} />
+                      <div style={{ ...S.eventCard, borderLeft: `3px solid ${cfg.colour}` }}>
+                        <div style={S.eventHeader}>
+                          <span style={S.eventIcon}>{cfg.icon}</span>
+                          <span style={S.eventTitle}>{evt.title}</span>
+                          {evt.amount && <span style={{ ...S.eventAmount, color: cfg.colour }}>{fmt(evt.amount)}</span>}
+                        </div>
+                        {(isExp || !evt.detail) ? null : (
+                          <p style={S.eventPreview}>{evt.detail.slice(0, 60)}{evt.detail.length > 60 ? '...' : ''}</p>
+                        )}
+                        {isExp && evt.detail && (
+                          <p style={S.eventDetail}>{evt.detail}</p>
+                        )}
+                        {evt.status && (
+                          <span style={{ ...S.eventStatus, background: evt.status === 'completed' ? 'var(--success-bg, #E8F5E9)' : 'var(--gold-light, #FDF8EE)', color: evt.status === 'completed' ? 'var(--success, #5BA97B)' : 'var(--gold, #C9A96E)' }}>
+                            {evt.status}
+                          </span>
+                        )}
+                        {evt.channel && (
+                          <span style={S.channelTag}>{evt.channel === 'whatsapp' ? '💬 WhatsApp' : evt.channel === 'sms' ? '📱 SMS' : '✉️ Email'}</span>
+                        )}
                       </div>
                     </div>
-                    <div style={{ ...S.eventCard, borderLeft: `3px solid ${cfg.colour}` }}>
-                      <div style={S.eventHeader}>
-                        <span style={S.eventIcon}>{cfg.icon}</span>
-                        <span style={S.eventTitle}>{evt.title}</span>
-                        {evt.amount && <span style={{ ...S.eventAmount, color: cfg.colour }}>{fmt(evt.amount)}</span>}
-                      </div>
-                      {(isExp || !evt.detail) ? null : (
-                        <p style={S.eventPreview}>{evt.detail.slice(0, 60)}{evt.detail.length > 60 ? '...' : ''}</p>
-                      )}
-                      {isExp && evt.detail && (
-                        <p style={S.eventDetail}>{evt.detail}</p>
-                      )}
-                      {evt.status && (
-                        <span style={{ ...S.eventStatus, background: evt.status === 'completed' ? 'var(--success-bg, #E8F5E9)' : 'var(--gold-light, #FDF8EE)', color: evt.status === 'completed' ? 'var(--success, #5BA97B)' : 'var(--gold, #C9A96E)' }}>
-                          {evt.status}
-                        </span>
-                      )}
-                      {evt.channel && (
-                        <span style={S.channelTag}>{evt.channel === 'whatsapp' ? '💬 WhatsApp' : evt.channel === 'sms' ? '📱 SMS' : '✉️ Email'}</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })}
-        {events.length === 0 && <p style={S.empty}>No events for this filter.</p>}
+                  );
+                })}
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );

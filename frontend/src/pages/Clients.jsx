@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, insertRow, supabase, isDevMode, DEV_CLIENTS } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
  * Clients — view, search, add, and manage the client list.
@@ -12,6 +15,7 @@ export default function Clients() {
   const [clients, setClients] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [selected, setSelected] = useState(null);
   const [clientDetail, setClientDetail] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
@@ -33,6 +37,8 @@ export default function Clients() {
 
   async function loadClients() {
     try {
+      setError(null);
+
       if (isDevMode) {
         let filtered = DEV_CLIENTS;
         if (search) {
@@ -58,11 +64,16 @@ export default function Clients() {
         q = q.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`);
       }
 
-      const { data, error } = await q;
-      if (error) logger.error('Load clients:', error);
-      setClients(data || []);
+      const { data, error: qError } = await q;
+      if (qError) {
+        logger.error('Load clients:', qError);
+        setError(qError.message);
+      } else {
+        setClients(data || []);
+      }
     } catch (err) {
       logger.error('Load clients error:', err);
+      setError(err.message || 'Failed to load clients');
     } finally {
       setLoading(false);
     }
@@ -152,10 +163,11 @@ export default function Clients() {
     return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   };
 
-  if (bLoading) return <p style={styles.loadingText}>Loading clients...</p>;
+  if (bLoading) return <PageLoader />;
 
   return (
     <div style={styles.page}>
+      {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
       <div style={styles.header}>
         <h1 style={styles.title}>Clients</h1>
         <div style={styles.headerActions}>
@@ -214,14 +226,13 @@ export default function Clients() {
 
       {/* Client list */}
       {loading && clients.length === 0 ? (
-        <p style={styles.loadingText}>Loading clients...</p>
+        <PageLoader message="Loading clients..." />
       ) : clients.length === 0 ? (
-        <div style={styles.emptyState}>
-          <p style={styles.emptyTitle}>{search ? 'No matches' : 'No clients yet'}</p>
-          <p style={styles.emptyDesc}>
-            {search ? 'Try a different search.' : 'Add clients manually or import from your old scheduler.'}
-          </p>
-        </div>
+        <EmptyState
+          icon="👥"
+          title={search ? 'No matches' : 'No clients yet'}
+          subtitle={search ? 'Try a different search.' : 'Add clients manually or import from your old scheduler.'}
+        />
       ) : (
         <div style={styles.list}>
           {clients.map(c => (

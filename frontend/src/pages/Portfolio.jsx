@@ -26,7 +26,7 @@ const DEV_PHOTOS = [
 const FILTER_TAGS = ['All', 'Brows', 'Lashes', 'Semi-permanent'];
 const PLACEHOLDER_COLOURS = ['#E8D5C4', '#D4C4B0', '#C4B5A0', '#B8A898', '#CDB4A0', '#D8C8B8', '#E0D0C0', '#C8B8A8', '#D0C0B0', '#DDD0C4'];
 
-export default function Portfolio({ token }) {
+export default function Portfolio() {
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('gallery');
   const [filter, setFilter] = useState('All');

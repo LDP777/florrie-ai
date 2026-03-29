@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { useBeautician, supabase, isDevMode } from '../lib/supabase.js';
 import { ds, type } from '../lib/designSystem.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const clientSegments = [
   {
@@ -89,7 +92,7 @@ export default function ClientSegments() {
   }
 
   if (bLoading || loading) {
-    return <div style={ds.page}><div style={{ textAlign: 'center', padding: 60, color: '#AAA5A0' }}>Loading...</div></div>;
+    return <div style={ds.page}><PageLoader /></div>;
   }
 
   const totalClients = clientSegments.reduce((s, g) => s + g.count, 0);

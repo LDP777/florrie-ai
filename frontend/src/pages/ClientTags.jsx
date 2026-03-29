@@ -8,6 +8,9 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, insertRow, updateRow, deleteRow, isDevMode, DEV_CLIENTS } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const DEV_TAGS = [
   { id: 't1', name: 'VIP', colour: '#C76B8A', icon: '⭐', auto: false, clients: ['Shauna', 'Daisy S', 'Holly B'] },
@@ -27,7 +30,7 @@ const DEV_SEGMENTS = [
   { id: 's4', name: 'Brand Ambassadors', tags: ['VIP', 'Referred a Friend'], match: 'any', count: 4, description: 'VIPs and clients who refer others' },
 ];
 
-export default function ClientTags({ token }) {
+export default function ClientTags() {
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('tags');
   const [expanded, setExpanded] = useState(null);

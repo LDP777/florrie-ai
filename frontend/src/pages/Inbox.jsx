@@ -15,6 +15,9 @@ import { useState, useRef, useEffect } from 'react';
 import { useBeautician, supabase, isDevMode, fetchRows } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const QUICK_REPLIES = [
   { key: 'confirm', label: 'Confirm', text: "That's booked in for you lovely! See you then xx" },
@@ -41,7 +44,7 @@ const DEV_CONVERSATIONS = [
 
 // ── Component ──────────────────────────────────────────────
 
-export default function Inbox({ token }) {
+export default function Inbox() {
   const { dark } = useTheme();
   const { beautician, loading: bLoading } = useBeautician();
   const [conversations, setConversations] = useState(isDevMode ? DEV_CONVERSATIONS : []);
@@ -49,6 +52,7 @@ export default function Inbox({ token }) {
   const [compose, setCompose] = useState('');
   const [showAiDraft, setShowAiDraft] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -57,6 +61,7 @@ export default function Inbox({ token }) {
 
   async function loadConversations() {
     setLoading(true);
+    setError(null);
     try {
       if (isDevMode) {
         setConversations(DEV_CONVERSATIONS);
@@ -73,6 +78,7 @@ export default function Inbox({ token }) {
 
       if (error) {
         logger.error('Load conversations error:', error);
+        setError(error.message || 'Failed to load conversations');
         setConversations(DEV_CONVERSATIONS);
       } else {
         // Group messages by client_id to create conversation list
@@ -104,6 +110,7 @@ export default function Inbox({ token }) {
       }
     } catch (err) {
       logger.error('Failed to load conversations:', err);
+      setError(err.message || 'Failed to load conversations');
       setConversations(DEV_CONVERSATIONS);
     } finally {
       setLoading(false);
@@ -150,7 +157,11 @@ export default function Inbox({ token }) {
   }
 
   if (bLoading || loading) {
-    return <div style={s.page}><div style={{ textAlign: 'center', padding: 60, color: '#AAA5A0' }}>Loading...</div></div>;
+    return <PageLoader />;
+  }
+
+  if (error) {
+    return <ErrorCard message={error} onDismiss={() => setError(null)} />;
   }
 
   // ── Conversation list view ──
@@ -164,7 +175,10 @@ export default function Inbox({ token }) {
         <p style={s.sub}>Client messages across all channels</p>
 
         <div style={s.convList}>
-          {conversations.map(c => (
+          {conversations.length === 0 ? (
+            <EmptyState title="No conversations" description="Start messaging with your clients to see them here." />
+          ) : (
+            conversations.map(c => (
             <button
               key={c.id}
               onClick={() => openConversation(c.id)}
@@ -198,7 +212,8 @@ export default function Inbox({ token }) {
               </div>
               {c.aiDraft && <span style={s.aiIndicator}>AI</span>}
             </button>
-          ))}
+            ))
+          )}
         </div>
       </div>
     );

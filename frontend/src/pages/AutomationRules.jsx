@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, insertRow, updateRow, deleteRow, isDevMode } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const triggerOptions = [
   { id: 'appointment_booked', label: 'Appointment booked', icon: '📅' },
@@ -86,7 +89,7 @@ const templateRules = [
   { name: 'Cancellation follow-up', trigger: 'cancellation', actions: ['send_whatsapp', 'schedule_followup'], description: 'Sympathetic message + offer to rebook within 7 days' },
 ];
 
-export default function AutomationRules({ token }) {
+export default function AutomationRules() {
   const [activeTab, setActiveTab] = useState('rules');
   const [rules, setRules] = useState([]);
   const [creating, setCreating] = useState(false);

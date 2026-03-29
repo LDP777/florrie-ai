@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const DEV_PLANS = [
   { id: 1, name: 'Brow Babe', price: 39, interval: 'month', perks: ['1 brow treatment/month', '10% off retail', 'Priority booking'], color: '#E8A838', members: 12, active: true },
@@ -44,7 +47,7 @@ export default function ClientMemberships() {
     });
   }, [beautician, bLoading]);
 
-  if (bLoading) return <div style={{ padding: 40, textAlign: 'center', color: '#AAA5A0' }}>Loading...</div>;
+  if (bLoading) return <PageLoader />;
 
   const activeMembers = members.filter(m => m.status === 'active').length;
   const monthlyRecurring = members.filter(m => m.status === 'active').reduce((s, m) => {

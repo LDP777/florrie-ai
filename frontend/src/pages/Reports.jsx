@@ -12,6 +12,9 @@
 import { useState, useMemo } from 'react';
 import { isDevMode, DEV_TREATMENTS, DEV_CLIENTS } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 // ── Mock data ──────────────────────────────────────────────
 
@@ -99,7 +102,7 @@ function formatWeek(dateStr) {
 
 // ── Component ──────────────────────────────────────────────
 
-export default function Reports({ token }) {
+export default function Reports() {
   const { dark } = useTheme();
   const [tab, setTab] = useState('revenue');
   const [period, setPeriod] = useState('all'); // all | 30 | 7

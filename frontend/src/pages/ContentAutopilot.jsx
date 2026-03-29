@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useBeautician, supabase, isDevMode, fetchRows, insertRow, updateRow, deleteRow, DEV_TREATMENTS } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
  * Content Autopilot — Ellie's #1 pain point.
@@ -84,6 +87,7 @@ export default function ContentAutopilot() {
   const [drafts, setDrafts] = useState([]);
   const [posted, setPosted] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [tab, setTab] = useState('ideas');
   const [publishing, setPublishing] = useState(null);
   const [editingId, setEditingId] = useState(null);
@@ -124,6 +128,7 @@ export default function ContentAutopilot() {
 
   async function loadAll() {
     setLoading(true);
+    setError(null);
     try {
       if (isDevMode) {
         setDrafts(DEV_DRAFTS);
@@ -139,6 +144,7 @@ export default function ContentAutopilot() {
       setPosted(p);
     } catch (err) {
       logger.error('Load content error:', err);
+      setError(err.message || 'Failed to load content');
     } finally {
       setLoading(false);
     }
@@ -357,12 +363,13 @@ export default function ContentAutopilot() {
     });
   }
 
-  if (bLoading) {
-    return <p style={{ textAlign: 'center', color: '#AAA5A0', padding: 60, fontSize: 14, fontFamily: '"DM Sans", sans-serif' }}>Loading...</p>;
+  if (bLoading || loading) {
+    return <PageLoader />;
   }
 
   return (
     <div style={styles.page}>
+      {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
       <div style={styles.header}>
         <div>
           <h1 style={styles.title}>Content</h1>
@@ -501,13 +508,11 @@ export default function ContentAutopilot() {
       {tab === 'drafts' && !composing && (
         <div style={styles.postList}>
           {drafts.length === 0 && !loading && (
-            <div style={styles.emptyState}>
-              <span style={{ fontSize: 36, display: 'block', marginBottom: 12 }}>📸</span>
-              <p style={styles.emptyTitle}>No drafts waiting</p>
-              <p style={styles.emptyDesc}>
-                Head to Ideas to pick a template, or tap + New Post to start from scratch.
-              </p>
-            </div>
+            <EmptyState
+              icon="📸"
+              title="No drafts waiting"
+              subtitle="Head to Ideas to pick a template, or tap + New Post to start from scratch."
+            />
           )}
 
           {drafts.map(post => (
@@ -589,11 +594,11 @@ export default function ContentAutopilot() {
       {tab === 'posted' && (
         <div style={styles.postList}>
           {posted.length === 0 && (
-            <div style={styles.emptyState}>
-              <span style={{ fontSize: 36, display: 'block', marginBottom: 12 }}>🎉</span>
-              <p style={styles.emptyTitle}>Nothing posted yet</p>
-              <p style={styles.emptyDesc}>Approved posts will appear here with engagement stats once Instagram is connected.</p>
-            </div>
+            <EmptyState
+              icon="🎉"
+              title="Nothing posted yet"
+              subtitle="Approved posts will appear here with engagement stats once Instagram is connected."
+            />
           )}
 
           {posted.map(post => (
@@ -712,13 +717,11 @@ export default function ContentAutopilot() {
 
           {/* Gallery grid */}
           {gallery.length === 0 && !showGalleryAdd && (
-            <div style={styles.emptyState}>
-              <span style={{ fontSize: 36, display: 'block', marginBottom: 12 }}>📸</span>
-              <p style={styles.emptyTitle}>No before/after photos yet</p>
-              <p style={styles.emptyDesc}>
-                Add your best transformations. These build trust and help clients see what you can do.
-              </p>
-            </div>
+            <EmptyState
+              icon="📸"
+              title="No before/after photos yet"
+              subtitle="Add your best transformations. These build trust and help clients see what you can do."
+            />
           )}
 
           {gallery.map(item => (

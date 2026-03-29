@@ -13,6 +13,9 @@ import { useState, useMemo, useEffect } from 'react';
 import { useBeautician, supabase, isDevMode, fetchRows, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 // ── Mock rebook data ───────────────────────────────────────
 
@@ -74,7 +77,7 @@ function daysSinceLabel(dateStr) {
 
 // ── Component ──────────────────────────────────────────────
 
-export default function RebookReminders({ token }) {
+export default function RebookReminders() {
   const { dark } = useTheme();
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('due');
@@ -133,7 +136,7 @@ export default function RebookReminders({ token }) {
   const activeList = tab === 'due' ? due : tab === 'overdue' ? overdue : tab === 'dormant' ? dormant : [];
 
   if (bLoading || loading) {
-    return <div style={s.page}><div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted, #AAA5A0)' }}>Loading...</div></div>;
+    return <PageLoader />;
   }
 
   function handleSend(clientId) {

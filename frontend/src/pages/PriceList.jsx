@@ -39,7 +39,7 @@ const THEMES = [
   { key: 'mono', label: 'Mono', accent: '#333', bg: '#fff' },
 ];
 
-export default function PriceList({ token }) {
+export default function PriceList() {
   const [tab, setTab] = useState('preview');
   const [selectedCat, setSelectedCat] = useState('all');
   const [theme, setTheme] = useState('rose');

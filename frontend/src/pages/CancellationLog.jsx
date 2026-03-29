@@ -8,6 +8,9 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, updateRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 
@@ -17,7 +20,7 @@ const TYPE_CONFIG = {
   'cancelled': { label: 'Cancelled', bg: '#F0ECE8', color: '#8B6F5E', icon: '↩' },
 };
 
-export default function CancellationLog({ token }) {
+export default function CancellationLog() {
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('log');
   const [filterType, setFilterType] = useState('all');

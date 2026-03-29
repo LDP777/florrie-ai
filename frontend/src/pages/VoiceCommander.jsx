@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { useBeautician, supabase, isDevMode, fetchRows } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
  * Voice Commander — Talk to florrie.ai.

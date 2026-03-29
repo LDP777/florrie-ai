@@ -8,6 +8,9 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, supabase, isDevMode, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
@@ -35,7 +38,7 @@ const DEV_EXCEPTIONS = [
   { id: 'ex2', staffId: 's2', date: '2026-03-28', type: 'swap', reason: 'Covering Ellie — taking Friday for training', original: 'fri', swapTo: 'thu' },
 ];
 
-export default function StaffRota({ token }) {
+export default function StaffRota() {
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('week');
   const [loading, setLoading] = useState(true);
@@ -84,7 +87,11 @@ export default function StaffRota({ token }) {
   }
 
   if (bLoading || loading) {
-    return <div style={S.page}><div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted, #AAA5A0)' }}>Loading...</div></div>;
+    return <PageLoader />;
+  }
+
+  if (error) {
+    return <ErrorCard message={error} onDismiss={() => setError(null)} />;
   }
 
   // Current week dates

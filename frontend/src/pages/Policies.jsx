@@ -29,7 +29,7 @@ const NOSHOW_ACTIONS = [
   { key: 'block', label: 'Auto-block after X', icon: '🚫' },
 ];
 
-export default function Policies({ token }) {
+export default function Policies() {
   const { dark } = useTheme();
   const { beautician, loading: bLoading } = useBeautician();
   const [loading, setLoading] = useState(true);

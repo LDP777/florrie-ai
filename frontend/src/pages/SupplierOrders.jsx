@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const DEV_SUPPLIERS = [
   { id: 1, name: 'Beauty Pro Wholesale', contact: 'Sarah M.', email: 'orders@beautypro.co.uk', phone: '0118 496 2200', leadTime: '3-5 days' },
@@ -59,7 +62,7 @@ export default function SupplierOrders() {
     });
   }, [beautician, bLoading]);
 
-  if (bLoading) return <div style={{ padding: 40, textAlign: 'center', color: '#AAA5A0' }}>Loading...</div>;
+  if (bLoading) return <PageLoader />;
 
   const lowStock = products.filter(p => p.stock <= p.reorderAt);
   const totalStockValue = products.reduce((s, p) => s + (p.stock * p.unitCost), 0);

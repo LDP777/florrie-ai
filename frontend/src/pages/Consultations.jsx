@@ -9,6 +9,9 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, insertRow, updateRow, deleteRow, isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 
 const CONSULT_TREATMENTS = DEV_TREATMENTS.filter(t => t.category === 'brows' && (t.name.includes('Semi-Permanent') || t.name.includes('Combination') || t.name.includes('Ombre')));
@@ -35,7 +38,7 @@ const OUTCOME_CONFIG = {
   declined: { label: 'Not Suitable', bg: 'var(--danger-bg, #FDF0EF)', color: '#F44336', icon: '✗' },
 };
 
-export default function Consultations({ token }) {
+export default function Consultations() {
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('upcoming');
   const [expanded, setExpanded] = useState(null);
@@ -43,6 +46,8 @@ export default function Consultations({ token }) {
   const [showSettings, setShowSettings] = useState(false);
   const [consultations, setConsultations] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
   const [settings, setSettings] = useState({
     duration: 30,
@@ -59,6 +64,8 @@ export default function Consultations({ token }) {
   // Fetch consultations on mount
   useEffect(() => {
     if (bLoading || !beautician) return;
+    setLoading(true);
+    setError(null);
     fetchRows('consultations', beautician.id, { order: 'scheduled_date', ascending: false })
       .then(rows => {
         setConsultations(rows.map(c => ({
@@ -75,8 +82,13 @@ export default function Consultations({ token }) {
           outcome: c.outcome || null,
           followUp: c.followup_appointment_id ? { appointment_id: c.followup_appointment_id } : null,
         })));
+        setLoading(false);
       })
-      .catch(err => logger.error('Failed to load consultations:', err));
+      .catch(err => {
+        logger.error('Failed to load consultations:', err);
+        setError(err.message || 'Failed to load consultations');
+        setLoading(false);
+      });
   }, [beautician, bLoading]);
 
   const upcoming = consultations.filter(c => c.status === 'confirmed');
@@ -89,8 +101,11 @@ export default function Consultations({ token }) {
     noShows: consultations.filter(c => c.status === 'no-show').length,
   };
 
+  if (loading) return <PageLoader />;
+
   return (
     <div style={S.page}>
+      {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
       <div style={S.header}>
         <h1 style={S.title}>Consultations</h1>
         {upcoming.length > 0 && <button style={S.bookBtn} onClick={() => setShowBook(true)}>+ Book Consult</button>}
@@ -123,7 +138,7 @@ export default function Consultations({ token }) {
       {/* Upcoming */}
       {tab === 'upcoming' && (
         <div style={S.list}>
-          {upcoming.length === 0 && <p style={S.empty}>No upcoming consultations.</p>}
+          {upcoming.length === 0 && <EmptyState icon="📋" title="No upcoming consultations" subtitle="When you schedule a consultation, it will appear here." />}
           {upcoming.map(c => {
             const isExpanded = expanded === c.id;
             const st = STATUS_CONFIG[c.status];
@@ -193,7 +208,7 @@ export default function Consultations({ token }) {
       {/* Past */}
       {tab === 'past' && (
         <div style={S.list}>
-          {past.length === 0 && <p style={S.empty}>No past consultations.</p>}
+          {past.length === 0 && <EmptyState icon="📭" title="No past consultations" subtitle="Completed, cancelled, or no-show consultations will appear here." />}
           {past.map(c => {
             const isExpanded = expanded === c.id;
             const st = STATUS_CONFIG[c.status];

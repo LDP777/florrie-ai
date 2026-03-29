@@ -9,6 +9,9 @@
 import { useState, useEffect } from 'react';
 import { isDevMode, DEV_TREATMENTS, DEV_CLIENTS, fetchRows, insertRow, updateRow, deleteRow, useBeautician } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 // ── Dev mock data ─────────────────────────────────────────
 const DEV_NOTES = [
@@ -70,7 +73,7 @@ const DEV_NOTES = [
 
 const CLIENTS_LIST = ['All', 'Shauna', 'Daisy S', 'Jasmin'];
 
-export default function AppointmentNotes({ token }) {
+export default function AppointmentNotes() {
   const { beautician, loading: bLoading } = useBeautician();
   const [allNotes, setAllNotes] = useState([]);
   const [clients, setClients] = useState([]);

@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
  * Weekly Digest — an email-style summary of the week's activity.
@@ -106,11 +109,7 @@ export default function WeeklyDigest() {
       </div>
 
       {loading ? (
-        <div style={styles.loadingWrap}>
-          <SkeletonBlock height={120} />
-          <SkeletonBlock height={80} />
-          <SkeletonBlock height={160} />
-        </div>
+        <PageLoader />
       ) : digest ? (
         <div style={styles.digestBody}>
           {/* Greeting */}

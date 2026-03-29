@@ -12,6 +12,9 @@
 import { useState, useEffect } from 'react';
 import { isDevMode, useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const DEV_SEQUENCES = [
   {
@@ -79,7 +82,7 @@ const DELAY_OPTIONS = ['0h', '1h', '2h', '4h', '12h', '24h', '2d', '3d', '5d', '
 const CHANNELS = ['whatsapp', 'sms', 'email'];
 const VARIABLES = ['{name}', '{treatment}', '{date}', '{time}', '{booking_link}', '{aftercare_link}'];
 
-export default function FollowUpSequences({ token }) {
+export default function FollowUpSequences() {
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('sequences');
   const [expanded, setExpanded] = useState(null);

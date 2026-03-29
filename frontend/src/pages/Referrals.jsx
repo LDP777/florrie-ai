@@ -13,6 +13,9 @@ import { useState, useEffect } from 'react';
 import { useBeautician, supabase, isDevMode, fetchRows, updateRow } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const DEV_REFERRALS = [
   { id: 'ref-1', referrer: 'Shauna', friend: 'Amy', code: 'SHAUNA10', status: 'converted', reward: 'both_claimed', date: '2026-03-12' },
@@ -37,7 +40,7 @@ const STATUS_CONFIG = {
   converted: { label: 'Converted', color: 'var(--success, #5BA97B)', bg: 'var(--success-bg, #E8F5E9)' },
 };
 
-export default function Referrals({ token }) {
+export default function Referrals() {
   const { dark } = useTheme();
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('overview');
@@ -93,6 +96,10 @@ export default function Referrals({ token }) {
   const totalReferrals = referrals.length;
   const converted = referrals.filter(r => r.status === 'converted').length;
   const conversionRate = totalReferrals ? Math.round((converted / totalReferrals) * 100) : 0;
+
+  if (loading) {
+    return <PageLoader />;
+  }
 
   const referralLink = 'florrie.ai/ref/ellindigo';
   const shareMessage = `Hey! I love my brow girl Ellie at Ellindigo — you should book in! Use my code for £${friendReward} off your first appointment: https://${referralLink}`;

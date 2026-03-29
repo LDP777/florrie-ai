@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const mockConfig = {
   connected: true,
@@ -34,7 +37,7 @@ const autoReplyRules = [
   { id: 4, trigger: 'New message (no match)', response: null, enabled: false },
 ];
 
-export default function WhatsAppConfig({ token }) {
+export default function WhatsAppConfig() {
   const { beautician, loading: bLoading } = useBeautician();
   const [activeTab, setActiveTab] = useState('overview');
   const [expandedTemplate, setExpandedTemplate] = useState(null);
@@ -80,7 +83,7 @@ export default function WhatsAppConfig({ token }) {
     }
   }
 
-  if (bLoading || loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted, #AAA5A0)' }}>Loading...</div>;
+  if (bLoading || loading) return <PageLoader />;
 
   const c = config;
 

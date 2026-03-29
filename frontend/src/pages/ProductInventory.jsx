@@ -40,7 +40,7 @@ const STATUS_CFG = {
   out: { label: 'Out of Stock', bg: 'var(--danger-bg, #FDF0EF)', color: '#F44336' },
 };
 
-export default function ProductInventory({ token }) {
+export default function ProductInventory() {
   const [catFilter, setCatFilter] = useState('all');
   const [expanded, setExpanded] = useState(null);
   const [showAdd, setShowAdd] = useState(false);

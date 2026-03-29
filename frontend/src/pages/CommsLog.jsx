@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, isDevMode, supabase } from '../lib/supabase.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const CHANNELS = ['all', 'whatsapp', 'sms', 'email', 'in_app'];
 const CHANNEL_ICONS = { whatsapp: '💬', sms: '📱', email: '📧', in_app: '🔔' };

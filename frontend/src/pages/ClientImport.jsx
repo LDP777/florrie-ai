@@ -1,5 +1,8 @@
 import { useState, useRef } from 'react';
 import { useBeautician, insertRow, isDevMode } from '../lib/supabase.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
  * Client Import — migrate from Timely, Fresha, or a spreadsheet.

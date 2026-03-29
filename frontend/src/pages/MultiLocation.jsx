@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useBeautician, supabase, isDevMode } from '../lib/supabase.js';
 import { ds, type } from '../lib/designSystem.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const locations = [
   {
@@ -38,6 +40,7 @@ export default function MultiLocation() {
   const { beautician, loading: bLoading } = useBeautician();
   const [locs, setLocs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [tab, setTab] = useState(0);
   const [expanded, setExpanded] = useState(null);
 
@@ -45,26 +48,35 @@ export default function MultiLocation() {
 
   async function loadLocations() {
     setLoading(true);
+    setError(null);
     try {
       if (isDevMode) {
         setLocs(locations);
       } else {
-        const { data } = await supabase
+        const { data, error: err } = await supabase
           .from('locations')
           .select('*')
           .eq('beautician_id', beautician.id)
           .order('is_primary', { ascending: false });
+        if (err) throw err;
         setLocs(data || []);
       }
     } catch (err) {
       logger.error('Load locations error:', err);
+      setError(err.message || 'Failed to load locations');
       setLocs(isDevMode ? locations : []);
     } finally {
       setLoading(false);
     }
   }
 
-  if (bLoading || loading) return <div style={{ padding: 40, textAlign: 'center', color: '#AAA5A0' }}>Loading...</div>;
+  if (bLoading || loading) {
+    return <PageLoader />;
+  }
+
+  if (error) {
+    return <ErrorCard message={error} onDismiss={() => setError(null)} />;
+  }
 
   const activeLocations = locs.filter(l => l.status === 'active');
   const totalRevenue = activeLocations.reduce((s, l) => s + l.weeklyRevenue, 0);

@@ -14,6 +14,9 @@ import { useState, useEffect } from 'react';
 import { useBeautician, supabase, isDevMode, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const CATEGORIES = [
   { key: 'booking', label: 'Booking', icon: '📅', color: '#4A90D9' },
@@ -87,11 +90,12 @@ function previewMessage(body) {
   return result;
 }
 
-export default function MessageTemplates({ token }) {
+export default function MessageTemplates() {
   const { dark } = useTheme();
   const { beautician, loading: bLoading } = useBeautician();
   const [templates, setTemplates] = useState(isDevMode ? DEV_TEMPLATES : []);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all');
   const [expandedId, setExpandedId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -111,6 +115,7 @@ export default function MessageTemplates({ token }) {
 
   async function loadTemplates() {
     setLoading(true);
+    setError(null);
     try {
       if (isDevMode) {
         setTemplates(DEV_TEMPLATES);
@@ -120,6 +125,7 @@ export default function MessageTemplates({ token }) {
       }
     } catch (err) {
       logger.error('Load templates error:', err);
+      setError(err.message || 'Failed to load templates');
       setTemplates(DEV_TEMPLATES);
     } finally {
       setLoading(false);
@@ -167,7 +173,11 @@ export default function MessageTemplates({ token }) {
   }
 
   if (bLoading || loading) {
-    return <div style={s.page}><div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' }}>Loading...</div></div>;
+    return <PageLoader />;
+  }
+
+  if (error) {
+    return <ErrorCard message={error} onDismiss={() => setError(null)} />;
   }
 
   return (
@@ -286,7 +296,10 @@ export default function MessageTemplates({ token }) {
 
       {/* Template list */}
       <div style={s.list}>
-        {filtered.map(t => {
+        {filtered.length === 0 ? (
+          <EmptyState title="No templates found" description="Create a template to get started with reusable messages." />
+        ) : (
+          filtered.map(t => {
           const cat = CATEGORIES.find(c => c.key === t.category);
           const expanded = expandedId === t.id;
           const previewing = previewId === t.id;
@@ -334,7 +347,8 @@ export default function MessageTemplates({ token }) {
               )}
             </div>
           );
-        })}
+          })
+        )}
       </div>
     </div>
   );

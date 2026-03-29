@@ -7,6 +7,9 @@
  */
 import { useState } from 'react';
 import { isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const fmt = (cents) => `£${(cents / 100).toFixed(0)}`;
 
@@ -34,7 +37,7 @@ const SORT_OPTIONS = [
 const TREND_ICONS = { up: '📈', down: '📉', stable: '➡️' };
 const TREND_COLORS = { up: 'var(--success, #5BA97B)', down: '#F44336', stable: 'var(--text-muted, var(--text-muted, #B5AFA8))' };
 
-export default function TreatmentStats({ token }) {
+export default function TreatmentStats() {
   const [tab, setTab] = useState('ranking');
   const [sortBy, setSortBy] = useState('revenue');
   const [catFilter, setCatFilter] = useState('all');

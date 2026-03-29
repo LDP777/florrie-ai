@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, supabase, isDevMode, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
  * Business Hours Exceptions — Holidays, sick days & one-off closures.

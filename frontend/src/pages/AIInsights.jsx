@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { useBeautician, supabase, isDevMode } from '../lib/supabase.js';
 import { ds, type } from '../lib/designSystem.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const mockPredictions = [
   { label: 'Next week revenue', value: '£4,280', confidence: 92, trend: '+12%', icon: '📈' },
@@ -81,7 +84,7 @@ export default function AIInsights() {
   }
 
   if (bLoading || loading) {
-    return <div style={ds.page}><div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' }}>Loading...</div></div>;
+    return <div style={ds.page}><PageLoader /></div>;
   }
 
   const maxRev = Math.max(...weeklyRevenue.map(d => Math.max(d.actual || 0, d.predicted)));

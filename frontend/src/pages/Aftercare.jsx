@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, isDevMode, fetchRows, insertRow, updateRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
  * Aftercare — Post-treatment care cards.

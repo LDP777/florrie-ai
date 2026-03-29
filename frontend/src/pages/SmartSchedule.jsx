@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, isDevMode, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
  * Smart Schedule — Gap Finder & Fill Assistant.
@@ -244,13 +247,9 @@ export default function SmartSchedule() {
       {tab === 'gaps' && (
         <div>
           {loading ? (
-            <p style={styles.loadingText}>Scanning your schedule...</p>
+            <PageLoader />
           ) : gaps.length === 0 ? (
-            <div style={styles.emptyState}>
-              <span style={{ fontSize: 32, display: 'block', marginBottom: 8 }}>🎉</span>
-              <p style={styles.emptyTitle}>Fully booked!</p>
-              <p style={styles.emptyDesc}>No gaps this week. You're crushing it.</p>
-            </div>
+            <EmptyState icon="🎉" title="Fully booked!" subtitle="No gaps this week. You're crushing it." />
           ) : (
             <div style={styles.gapList}>
               {gaps.map(gap => {

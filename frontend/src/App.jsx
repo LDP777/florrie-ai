@@ -151,7 +151,6 @@ export default function App() {
     }
   }, [session, beautician]);
 
-  const token = session?.access_token;
   const isPublicRoute = location.pathname.startsWith('/book/') || location.pathname.startsWith('/form/');
   const isAuthRoute = location.pathname === '/login';
 
@@ -195,7 +194,6 @@ export default function App() {
     return (
       <Suspense fallback={<PageLoader />}>
         <Onboarding
-          token={token}
           onComplete={() => {
             setNeedsOnboarding(false);
             navigate('/');
@@ -220,79 +218,79 @@ export default function App() {
         <div style={styles.pageContainer}>
           <Suspense fallback={<PageLoader />}>
             <Routes>
-            <Route path="/" element={<Dashboard token={token} />} />
-            <Route path="/calendar" element={<CalendarView token={token} />} />
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/calendar" element={<CalendarView />} />
             <Route path="/escalations" element={<Escalations />} />
             <Route path="/content" element={<ContentAutopilot />} />
             <Route path="/money" element={<MoneyTracker />} />
-            <Route path="/clients" element={<Clients token={token} />} />
-            <Route path="/treatments" element={<Treatments token={token} />} />
-            <Route path="/settings" element={<Settings token={token} supabase={supabase} onLogout={async () => { if (supabase) await supabase.auth.signOut(); setSession(null); }} />} />
-            <Route path="/team" element={<Team token={token} />} />
-            <Route path="/analytics" element={<Analytics token={token} />} />
-            <Route path="/waitlist" element={<Waitlist token={token} />} />
-            <Route path="/digest" element={<WeeklyDigest token={token} />} />
-            <Route path="/campaigns" element={<Campaigns token={token} />} />
-            <Route path="/voice" element={<VoiceCommander token={token} />} />
-            <Route path="/reviews" element={<Reviews token={token} />} />
-            <Route path="/import" element={<ClientImport token={token} />} />
-            <Route path="/loyalty" element={<Loyalty token={token} />} />
-            <Route path="/aftercare" element={<Aftercare token={token} />} />
-            <Route path="/smart-schedule" element={<SmartSchedule token={token} />} />
-            <Route path="/vouchers" element={<GiftVouchers token={token} />} />
-            <Route path="/notifications" element={<Notifications token={token} />} />
-            <Route path="/hours" element={<HoursExceptions token={token} />} />
-            <Route path="/patch-tests" element={<PatchTests token={token} />} />
+            <Route path="/clients" element={<Clients />} />
+            <Route path="/treatments" element={<Treatments />} />
+            <Route path="/settings" element={<Settings supabase={supabase} onLogout={async () => { if (supabase) await supabase.auth.signOut(); setSession(null); }} />} />
+            <Route path="/team" element={<Team />} />
+            <Route path="/analytics" element={<Analytics />} />
+            <Route path="/waitlist" element={<Waitlist />} />
+            <Route path="/digest" element={<WeeklyDigest />} />
+            <Route path="/campaigns" element={<Campaigns />} />
+            <Route path="/voice" element={<VoiceCommander />} />
+            <Route path="/reviews" element={<Reviews />} />
+            <Route path="/import" element={<ClientImport />} />
+            <Route path="/loyalty" element={<Loyalty />} />
+            <Route path="/aftercare" element={<Aftercare />} />
+            <Route path="/smart-schedule" element={<SmartSchedule />} />
+            <Route path="/vouchers" element={<GiftVouchers />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/hours" element={<HoursExceptions />} />
+            <Route path="/patch-tests" element={<PatchTests />} />
             {/* /forms removed — use /consultation-forms instead */}
-            <Route path="/reports" element={<Reports token={token} />} />
-            <Route path="/policies" element={<Policies token={token} />} />
-            <Route path="/business" element={<BusinessProfile token={token} />} />
-            <Route path="/rebook" element={<RebookReminders token={token} />} />
-            <Route path="/inbox" element={<Inbox token={token} />} />
-            <Route path="/packages" element={<Packages token={token} />} />
-            <Route path="/templates" element={<MessageTemplates token={token} />} />
-            <Route path="/referrals" element={<Referrals token={token} />} />
-            <Route path="/portfolio" element={<Portfolio token={token} />} />
-            <Route path="/notes" element={<AppointmentNotes token={token} />} />
-            <Route path="/feedback" element={<Feedback token={token} />} />
-            <Route path="/expenses" element={<ExpensesPage token={token} />} />
-            <Route path="/consultations" element={<Consultations token={token} />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/policies" element={<Policies />} />
+            <Route path="/business" element={<BusinessProfile />} />
+            <Route path="/rebook" element={<RebookReminders />} />
+            <Route path="/inbox" element={<Inbox />} />
+            <Route path="/packages" element={<Packages />} />
+            <Route path="/templates" element={<MessageTemplates />} />
+            <Route path="/referrals" element={<Referrals />} />
+            <Route path="/portfolio" element={<Portfolio />} />
+            <Route path="/notes" element={<AppointmentNotes />} />
+            <Route path="/feedback" element={<Feedback />} />
+            <Route path="/expenses" element={<ExpensesPage />} />
+            <Route path="/consultations" element={<Consultations />} />
             <Route path="/consultation-forms" element={<ConsultationFormBuilder />} />
             <Route path="/consultation-forms/:id" element={<ConsultationFormBuilder />} />
-            <Route path="/sequences" element={<FollowUpSequences token={token} />} />
-            <Route path="/photo-consent" element={<PhotoConsent token={token} />} />
-            <Route path="/waitlist-pro" element={<WaitlistPro token={token} />} />
-            <Route path="/client-timeline" element={<ClientTimeline token={token} />} />
-            <Route path="/rota" element={<StaffRota token={token} />} />
-            <Route path="/deposits" element={<DepositTracker token={token} />} />
-            <Route path="/addons" element={<AddOns token={token} />} />
-            <Route path="/cancellations" element={<CancellationLog token={token} />} />
-            <Route path="/tags" element={<ClientTags token={token} />} />
-            <Route path="/promos" element={<PromoCodes token={token} />} />
-            <Route path="/checklist" element={<DailyChecklist token={token} />} />
-            <Route path="/inventory" element={<ProductInventory token={token} />} />
-            <Route path="/goals" element={<RevenueGoals token={token} />} />
-            <Route path="/price-list" element={<PriceList token={token} />} />
-            <Route path="/treatment-stats" element={<TreatmentStats token={token} />} />
-            <Route path="/staff-performance" element={<StaffPerformance token={token} />} />
-            <Route path="/supplier-orders" element={<SupplierOrders token={token} />} />
-            <Route path="/memberships" element={<ClientMemberships token={token} />} />
-            <Route path="/comms" element={<CommsLog token={token} />} />
-            <Route path="/end-of-day" element={<EndOfDay token={token} />} />
-            <Route path="/automations" element={<AutomationRules token={token} />} />
-            <Route path="/whatsapp" element={<WhatsAppConfig token={token} />} />
-            <Route path="/portal" element={<ClientPortal token={token} />} />
-            <Route path="/ai-insights" element={<AIInsights token={token} />} />
-            <Route path="/segments" element={<ClientSegments token={token} />} />
-            <Route path="/churn" element={<ChurnPrevention token={token} />} />
-            <Route path="/demand" element={<DemandForecast token={token} />} />
-            <Route path="/locations" element={<MultiLocation token={token} />} />
-            <Route path="/integrations" element={<Integrations token={token} />} />
-            <Route path="/sms" element={<SMSConfig token={token} />} />
-            <Route path="/api-settings" element={<APISettings token={token} />} />
-            <Route path="/hub" element={<Hub token={token} />} />
+            <Route path="/sequences" element={<FollowUpSequences />} />
+            <Route path="/photo-consent" element={<PhotoConsent />} />
+            <Route path="/waitlist-pro" element={<WaitlistPro />} />
+            <Route path="/client-timeline" element={<ClientTimeline />} />
+            <Route path="/rota" element={<StaffRota />} />
+            <Route path="/deposits" element={<DepositTracker />} />
+            <Route path="/addons" element={<AddOns />} />
+            <Route path="/cancellations" element={<CancellationLog />} />
+            <Route path="/tags" element={<ClientTags />} />
+            <Route path="/promos" element={<PromoCodes />} />
+            <Route path="/checklist" element={<DailyChecklist />} />
+            <Route path="/inventory" element={<ProductInventory />} />
+            <Route path="/goals" element={<RevenueGoals />} />
+            <Route path="/price-list" element={<PriceList />} />
+            <Route path="/treatment-stats" element={<TreatmentStats />} />
+            <Route path="/staff-performance" element={<StaffPerformance />} />
+            <Route path="/supplier-orders" element={<SupplierOrders />} />
+            <Route path="/memberships" element={<ClientMemberships />} />
+            <Route path="/comms" element={<CommsLog />} />
+            <Route path="/end-of-day" element={<EndOfDay />} />
+            <Route path="/automations" element={<AutomationRules />} />
+            <Route path="/whatsapp" element={<WhatsAppConfig />} />
+            <Route path="/portal" element={<ClientPortal />} />
+            <Route path="/ai-insights" element={<AIInsights />} />
+            <Route path="/segments" element={<ClientSegments />} />
+            <Route path="/churn" element={<ChurnPrevention />} />
+            <Route path="/demand" element={<DemandForecast />} />
+            <Route path="/locations" element={<MultiLocation />} />
+            <Route path="/integrations" element={<Integrations />} />
+            <Route path="/sms" element={<SMSConfig />} />
+            <Route path="/api-settings" element={<APISettings />} />
+            <Route path="/hub" element={<Hub />} />
             <Route path="/onboarding" element={
-              <Onboarding token={token} onComplete={() => navigate('/')} />
+              <Onboarding onComplete={() => navigate('/')} />
             } />
             <Route path="/login" element={<Navigate to="/" replace />} />
             <Route path="*" element={<NotFound />} />

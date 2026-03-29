@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ds, type } from '../lib/designSystem.js';
+import EmptyState from '../components/EmptyState.jsx';
 
 const integrations = [
   {
@@ -123,7 +124,10 @@ export default function Integrations() {
       </div>
 
       {/* Integration cards */}
-      {filtered.map((integ, i) => {
+      {filtered.length === 0 ? (
+        <EmptyState title="No integrations found" description="No integrations match the selected category." />
+      ) : (
+        filtered.map((integ, i) => {
         const statusConfig = {
           connected: { bg: 'var(--success-bg)', color: 'var(--success)', label: 'Connected' },
           available: { bg: 'var(--accent-light)', color: 'var(--accent)', label: 'Available' },
@@ -180,7 +184,8 @@ export default function Integrations() {
             )}
           </div>
         );
-      })}
+        })
+      )}
     </div>
   );
 }

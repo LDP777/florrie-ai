@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, isDevMode } from '../lib/supabase.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
 
 /**
  * Notifications Centre — Real-time feed of everything happening.
@@ -189,13 +191,9 @@ export default function Notifications() {
 
       {/* Notification feed */}
       {loading ? (
-        <p style={styles.loadingText}>Loading notifications...</p>
+        <PageLoader />
       ) : filtered.length === 0 ? (
-        <div style={styles.emptyState}>
-          <span style={{ fontSize: 32, display: 'block', marginBottom: 8 }}>🔔</span>
-          <p style={styles.emptyTitle}>No notifications</p>
-          <p style={styles.emptyDesc}>You're all caught up. New activity will show here.</p>
-        </div>
+        <EmptyState title="No notifications" description="You're all caught up. New activity will show here." />
       ) : (
         <div style={styles.feed}>
           {Object.entries(groups).map(([label, items]) => (

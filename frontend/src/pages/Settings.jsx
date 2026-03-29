@@ -3,6 +3,9 @@ import { useBeautician, updateRow, supabase } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
 import SMSUsageWidget from '../components/SMSUsageWidget.jsx';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
  * Settings — beautician profile and app configuration.
@@ -40,8 +43,8 @@ export default function Settings({ onLogout }) {
     if (onLogout) onLogout();
   }
 
-  if (loading) return <p style={styles.loadingText}>Loading settings...</p>;
-  if (!beautician) return <p style={styles.loadingText}>Could not load profile.</p>;
+  if (loading) return <PageLoader />;
+  if (!beautician) return <ErrorCard message="Could not load profile." onDismiss={() => {}} />;
 
   const hours = beautician.working_hours || {};
   const tone = beautician.tone_model || {};

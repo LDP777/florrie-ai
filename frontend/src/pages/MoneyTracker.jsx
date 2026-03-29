@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useBeautician, supabase, isDevMode, insertRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
  * Money Tracker — Ellie's #2 pain point.
@@ -51,6 +53,7 @@ export default function MoneyTracker() {
   const [transactions, setTransactions] = useState([]);
   const [tab, setTab] = useState('pulse');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [scanning, setScanning] = useState(false);
 
@@ -70,6 +73,7 @@ export default function MoneyTracker() {
 
   async function loadData() {
     setLoading(true);
+    setError(null);
     try {
       if (isDevMode) {
         setExpenses(DEV_EXPENSES);
@@ -91,10 +95,14 @@ export default function MoneyTracker() {
           .limit(200),
       ]);
 
+      if (expRes.error) throw expRes.error;
+      if (txRes.error) throw txRes.error;
+
       setExpenses(expRes.data || []);
       setTransactions(txRes.data || []);
     } catch (err) {
       logger.error('Money load error:', err);
+      setError(err.message || 'Failed to load money data');
     } finally {
       setLoading(false);
     }
@@ -302,6 +310,14 @@ export default function MoneyTracker() {
   const changeArrow = pulse?.incomeChange != null ? (pulse.incomeChange >= 0 ? '↑' : '↓') : '';
   const changeColor = pulse?.incomeChange >= 0 ? 'var(--success)' : 'var(--danger)';
 
+  if (bLoading || loading) {
+    return <PageLoader />;
+  }
+
+  if (error) {
+    return <ErrorCard message={error} onDismiss={() => setError(null)} />;
+  }
+
   return (
     <div style={styles.page}>
       <div style={styles.header}>
@@ -331,9 +347,7 @@ export default function MoneyTracker() {
       {/* === PULSE TAB === */}
       {tab === 'pulse' && (
         <div>
-          {loading ? (
-            <p style={styles.loadingText}>Loading your numbers...</p>
-          ) : pulse ? (
+          {pulse ? (
             <>
               <div style={styles.pulseGrid}>
                 <div style={styles.pulseCard}>
@@ -590,9 +604,7 @@ export default function MoneyTracker() {
       {/* === TAX TAB === */}
       {tab === 'tax' && (
         <div>
-          {loading ? (
-            <p style={styles.loadingText}>Generating your tax summary...</p>
-          ) : (() => {
+          {(() => {
             const taxSummary = computeTax();
             return (
               <>

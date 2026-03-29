@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useBeautician, supabase, isDevMode, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import SpotlightSearch from '../components/SpotlightSearch.jsx';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
  * Dashboard v2 — Operational command centre.
@@ -95,6 +98,7 @@ export default function Dashboard() {
   const [insights, setInsights] = useState(isDevMode ? DEV_INSIGHTS : []);
   const [activity, setActivity] = useState(isDevMode ? DEV_ACTIVITY : []);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (beautician) loadData();
@@ -102,6 +106,7 @@ export default function Dashboard() {
 
   async function loadData() {
     setLoading(true);
+    setError(null);
     if (isDevMode) {
       setToday(DEV_TODAY);
       setWeeklyPulse({ income: 38500, expenses: 4200, profit: 34300, incomeChange: 12 });
@@ -190,6 +195,7 @@ export default function Dashboard() {
       }
     } catch (err) {
       logger.error('Dashboard load error:', err);
+      setError(err.message || 'Failed to load dashboard');
     } finally {
       setLoading(false);
     }
@@ -216,8 +222,11 @@ export default function Dashboard() {
   const smartActions = getSmartQuickActions(today, beautician);
   const hasNoData = !loading && today.length === 0 && insights.length === 0 && activity.length === 0 && !isDevMode;
 
+  if (loading) return <PageLoader />;
+
   return (
     <div style={styles.page}>
+      {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
       {/* Greeting */}
       <div style={styles.greeting}>
         <div style={styles.greetingLeft}>

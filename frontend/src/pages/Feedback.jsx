@@ -7,6 +7,9 @@
  */
 import { useState } from 'react';
 import { isDevMode } from '../lib/supabase.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 // ── Dev mock data ─────────────────────────────────────────
 const DEV_RESPONSES = [
@@ -28,7 +31,7 @@ const QUESTIONS_PREVIEW = [
   'How likely are you to recommend us? (0-10)',
 ];
 
-export default function Feedback({ token }) {
+export default function Feedback() {
   const [tab, setTab] = useState('overview');
   const [settings, setSettings] = useState({
     autoSend: true,

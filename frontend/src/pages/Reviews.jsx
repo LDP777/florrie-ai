@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, supabase, isDevMode, fetchRows } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
  * Reviews & Reputation — track, respond to, and request client reviews.
@@ -76,7 +79,7 @@ export default function Reviews() {
     : 0;
 
   if (bLoading || loading) {
-    return <div style={styles.page}><div style={{ textAlign: 'center', padding: 60, color: '#AAA5A0' }}>Loading...</div></div>;
+    return <PageLoader />;
   }
 
   return (

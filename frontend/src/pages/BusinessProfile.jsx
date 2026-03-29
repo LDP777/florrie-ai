@@ -13,6 +13,9 @@ import { useState, useEffect } from 'react';
 import { useBeautician, updateRow, isDevMode } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const BRAND_COLOURS = [
   '#C76B8A', '#E8A0BF', '#C4A882', '#8B7355',
@@ -27,7 +30,7 @@ const SOCIAL_PLATFORMS = [
   { key: 'website', label: 'Website', icon: '🌐', placeholder: 'www.ellindigo.co.uk' },
 ];
 
-export default function BusinessProfile({ token }) {
+export default function BusinessProfile() {
   const { dark } = useTheme();
   const { beautician, loading: bLoading, refresh } = useBeautician();
   const [tab, setTab] = useState('info');

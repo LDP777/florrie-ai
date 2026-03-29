@@ -8,6 +8,9 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, updateRow, isDevMode } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
+import ErrorCard from '../components/ErrorCard.jsx';
 
 const fmt = (cents) => `£${(cents / 100).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
@@ -43,7 +46,7 @@ const DEV_GOALS = {
   ],
 };
 
-export default function RevenueGoals({ token }) {
+export default function RevenueGoals() {
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('progress');
   const [showSetGoal, setShowSetGoal] = useState(false);
