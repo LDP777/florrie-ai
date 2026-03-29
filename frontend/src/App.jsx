@@ -35,7 +35,7 @@ const GiftVouchers = lazy(() => import('./pages/GiftVouchers.jsx'));
 const Notifications = lazy(() => import('./pages/Notifications.jsx'));
 const HoursExceptions = lazy(() => import('./pages/HoursExceptions.jsx'));
 const PatchTests = lazy(() => import('./pages/PatchTests.jsx'));
-const IntakeForms = lazy(() => import('./pages/IntakeForms.jsx'));
+// IntakeForms removed — duplicate of ConsultationFormBuilder (/consultation-forms)
 const Reports = lazy(() => import('./pages/Reports.jsx'));
 const Policies = lazy(() => import('./pages/Policies.jsx'));
 const BusinessProfile = lazy(() => import('./pages/BusinessProfile.jsx'));
@@ -243,7 +243,7 @@ export default function App() {
             <Route path="/notifications" element={<Notifications token={token} />} />
             <Route path="/hours" element={<HoursExceptions token={token} />} />
             <Route path="/patch-tests" element={<PatchTests token={token} />} />
-            <Route path="/forms" element={<IntakeForms token={token} />} />
+            {/* /forms removed — use /consultation-forms instead */}
             <Route path="/reports" element={<Reports token={token} />} />
             <Route path="/policies" element={<Policies token={token} />} />
             <Route path="/business" element={<BusinessProfile token={token} />} />
@@ -314,7 +314,7 @@ function BottomNav({ current }) {
   const navigate = useNavigate();
 
   // Hub is active when on /hub or any sub-page that lives inside the hub
-  const hubPaths = ['/hub', '/money', '/analytics', '/clients', '/treatments', '/team', '/waitlist', '/digest', '/campaigns', '/reviews', '/loyalty', '/aftercare', '/import', '/smart-schedule', '/vouchers', '/notifications', '/hours', '/patch-tests', '/forms', '/reports', '/policies', '/business', '/rebook', '/inbox', '/packages', '/templates', '/referrals', '/portfolio', '/notes', '/feedback', '/expenses', '/consultations', '/sequences', '/photo-consent', '/waitlist-pro', '/client-timeline', '/rota', '/deposits', '/addons', '/cancellations', '/tags', '/promos', '/checklist', '/inventory', '/goals', '/price-list', '/treatment-stats', '/staff-performance', '/supplier-orders', '/memberships', '/comms', '/end-of-day', '/automations', '/whatsapp', '/portal', '/ai-insights', '/segments', '/churn', '/demand', '/locations', '/integrations', '/sms', '/api-settings', '/escalations', '/settings'];
+  const hubPaths = ['/hub', '/money', '/analytics', '/clients', '/treatments', '/team', '/waitlist', '/digest', '/campaigns', '/reviews', '/loyalty', '/aftercare', '/import', '/smart-schedule', '/vouchers', '/notifications', '/hours', '/patch-tests', '/reports', '/policies', '/business', '/rebook', '/inbox', '/packages', '/templates', '/referrals', '/portfolio', '/notes', '/feedback', '/expenses', '/consultations', '/sequences', '/photo-consent', '/waitlist-pro', '/client-timeline', '/rota', '/deposits', '/addons', '/cancellations', '/tags', '/promos', '/checklist', '/inventory', '/goals', '/price-list', '/treatment-stats', '/staff-performance', '/supplier-orders', '/memberships', '/comms', '/end-of-day', '/automations', '/whatsapp', '/portal', '/ai-insights', '/segments', '/churn', '/demand', '/locations', '/integrations', '/sms', '/api-settings', '/escalations', '/settings'];
   const isHubActive = hubPaths.includes(current);
 
   const tabs = [

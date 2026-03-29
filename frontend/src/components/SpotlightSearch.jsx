@@ -79,7 +79,6 @@ const FEATURES = [
   { path: '/integrations', name: 'Integrations', desc: 'Connected apps', icon: '🔌', cat: 'Settings' },
   { path: '/api-settings', name: 'API & Webhooks', desc: 'Developer tools', icon: '⚡', cat: 'Settings' },
   { path: '/policies', name: 'Policies', desc: 'Cancellation and terms', icon: '📜', cat: 'Settings' },
-  { path: '/forms', name: 'Consent Forms', desc: 'Client intake forms', icon: '📝', cat: 'Settings' },
   { path: '/portal', name: 'Client Portal', desc: 'Self-service settings', icon: '🌐', cat: 'Settings' },
   { path: '/locations', name: 'Multi-Location', desc: 'Branch management', icon: '🏢', cat: 'Settings' },
   { path: '/sms', name: 'SMS Config', desc: 'SMS settings', icon: '📲', cat: 'Settings' },

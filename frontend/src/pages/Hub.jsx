@@ -124,7 +124,6 @@ const CATEGORIES = [
       { path: '/integrations', label: 'Integrations', desc: 'Connected apps', icon: '🔌' },
       { path: '/api-settings', label: 'API & Webhooks', desc: 'Developer tools', icon: '⚡' },
       { path: '/policies', label: 'Policies', desc: 'Cancellation and terms', icon: '📜' },
-      { path: '/forms', label: 'Consent Forms', desc: 'Client intake forms', icon: '📝' },
       { path: '/portal', label: 'Client Portal', desc: 'Self-service settings', icon: '🌐' },
       { path: '/locations', label: 'Multi-Location', desc: 'Branch management', icon: '🏢' },
     ]
