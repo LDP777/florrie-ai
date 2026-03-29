@@ -8,17 +8,31 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
- * Dashboard v2 — Operational command centre.
+ * Dashboard v3 — AI-first command centre.
+ *
+ * Shows what your AI team has been doing, then gives you manual control.
  *
  * Sections:
  *   Greeting + next client hero
- *   Today's schedule strip
- *   Revenue pulse (this week)
- *   Quick actions grid
- *   AI insights from florrie.ai
- *   Recent activity feed
+ *   Your AI Team strip (6 agents, live status)
+ *   Today's schedule
+ *   Revenue pulse
+ *   Quick actions (time-aware)
+ *   AI insights (data-driven)
+ *   Activity feed (agent-attributed)
  */
 
+// ─── Agent config ──────────────────────────────────────────
+const AGENTS = [
+  { key: 'front_desk', name: 'Front Desk', icon: '💬', path: '/inbox', desc: 'Handles messages' },
+  { key: 'calendar', name: 'Calendar', icon: '📅', path: '/calendar', desc: 'Manages bookings' },
+  { key: 'comeback', name: 'Comeback', icon: '🔄', path: '/clients', desc: 'Wins back clients' },
+  { key: 'content', name: 'Content', icon: '📸', path: '/content', desc: 'Creates posts' },
+  { key: 'money', name: 'Money', icon: '💰', path: '/money', desc: 'Tracks finances' },
+  { key: 'scout', name: 'Scout', icon: '🔍', path: '/ai-insights', desc: 'Spots trends' },
+];
+
+// ─── Dev data ──────────────────────────────────────────────
 const DEV_TODAY = [
   { id: 'a1', time: '11:00', duration: 60, client: 'Shauna', treatment: 'Lamination & Hybrid Dye', status: 'confirmed', price_cents: 4500 },
   { id: 'a2', time: '12:15', duration: 45, client: 'Daisy S', treatment: 'Lamination Maintenance / Tint', status: 'confirmed', price_cents: 2500 },
@@ -26,50 +40,56 @@ const DEV_TODAY = [
   { id: 'a4', time: '15:30', duration: 45, client: 'Megan R', treatment: 'HD Brows', status: 'pending', price_cents: 2500 },
 ];
 
+const DEV_AGENT_SUMMARY = {
+  front_desk: { today: 3, latest: 'Confirmed Shauna\'s 11am booking' },
+  calendar: { today: 1, latest: 'Filled a gap at 2pm with Jasmin' },
+  comeback: { today: 2, latest: 'Nudged Daisy S — 12 days overdue' },
+  content: { today: 1, latest: 'Drafted "Tuesday transformation ✨"' },
+  money: { today: 1, latest: '£45 payment logged from Shauna' },
+  scout: { today: 0, latest: 'Lash lifts trending +18% this month' },
+};
+
 const DEV_INSIGHTS = [
-  { id: 'i1', icon: '📈', text: "You're on track for £385 this week — that's 12% up on last week.", type: 'positive' },
+  { id: 'i1', icon: '📈', text: "You're on track for £385 this week — 12% up on last week.", type: 'positive' },
   { id: 'i2', icon: '🔄', text: 'Daisy S is 12 days overdue for her usual rebook. Send a nudge?', type: 'action', actionLabel: 'Send nudge', actionPath: '/clients' },
-  { id: 'i3', icon: '⭐', text: 'Jasmin left a 5★ review yesterday. florrie.ai drafted a reply for you.', type: 'action', actionLabel: 'View reply', actionPath: '/reviews' },
+  { id: 'i3', icon: '⭐', text: 'Jasmin left a 5★ review yesterday. florrie.ai drafted a reply.', type: 'action', actionLabel: 'View reply', actionPath: '/reviews' },
   { id: 'i4', icon: '📋', text: "Emma's patch test is needed before Friday's appointment.", type: 'warning', actionLabel: 'Send reminder', actionPath: '/patch-tests' },
 ];
 
 const DEV_ACTIVITY = [
-  { id: 'act1', icon: '💬', text: 'florrie.ai confirmed Shauna\'s 11am booking', time: '10 min ago' },
-  { id: 'act2', icon: '📸', text: 'Content draft ready: "Tuesday transformation ✨"', time: '1h ago' },
-  { id: 'act3', icon: '💷', text: '£45.00 payment received from Shauna', time: '2h ago' },
-  { id: 'act4', icon: '📅', text: 'Megan R booked HD Brows for today 3:30pm', time: '3h ago' },
-  { id: 'act5', icon: '✨', text: 'florrie.ai sent aftercare card to Daisy after yesterday\'s appointment', time: '18h ago' },
+  { id: 'act1', agent: 'front_desk', icon: '💬', text: 'Confirmed Shauna\'s 11am booking', time: '10 min ago' },
+  { id: 'act2', agent: 'content', icon: '📸', text: 'Content draft ready: "Tuesday transformation ✨"', time: '1h ago' },
+  { id: 'act3', agent: 'money', icon: '💰', text: '£45.00 payment received from Shauna', time: '2h ago' },
+  { id: 'act4', agent: 'calendar', icon: '📅', text: 'Megan R booked HD Brows for today 3:30pm', time: '3h ago' },
+  { id: 'act5', agent: 'comeback', icon: '🔄', text: 'Sent aftercare card to Daisy after yesterday\'s appointment', time: '18h ago' },
 ];
 
+// ─── Quick actions (time-aware) ────────────────────────────
 const DEFAULT_QUICK_ACTIONS = [
   { icon: '📅', label: 'Calendar', path: '/calendar', color: '#E3F2FD' },
-  { icon: '💬', label: 'florrie.ai', path: '/voice', color: '#FBF0F3' },
+  { icon: '💬', label: 'Messages', path: '/inbox', color: '#FBF0F3' },
   { icon: '👤', label: 'Clients', path: '/clients', color: '#FFF3E0' },
   { icon: '💰', label: 'Money', path: '/money', color: '#E8F5E9' },
   { icon: '📸', label: 'Content', path: '/content', color: '#F3F0FA' },
-  { icon: '🧠', label: 'Fill Gaps', path: '/smart-schedule', color: '#FCE4EC' },
+  { icon: '🧠', label: 'Smart Fill', path: '/smart-schedule', color: '#FCE4EC' },
   { icon: '🎁', label: 'Vouchers', path: '/vouchers', color: '#FFF8E1' },
   { icon: '⭐', label: 'Reviews', path: '/reviews', color: '#E8F5E9' },
 ];
 
-// Contextual quick actions — surfaces different shortcuts based on time & state
-function getSmartQuickActions(today, beautician) {
+function getSmartQuickActions(today) {
   const hour = new Date().getHours();
   const actions = [...DEFAULT_QUICK_ACTIONS];
 
-  // Morning: swap Vouchers for Daily Checklist
   if (hour < 11) {
     const idx = actions.findIndex(a => a.path === '/vouchers');
     if (idx !== -1) actions[idx] = { icon: '☑️', label: 'Checklist', path: '/checklist', color: '#E8F5E9' };
   }
 
-  // End of day: swap Fill Gaps for End of Day
   if (hour >= 17) {
     const idx = actions.findIndex(a => a.path === '/smart-schedule');
     if (idx !== -1) actions[idx] = { icon: '🌙', label: 'Close Day', path: '/end-of-day', color: '#EDE7F6' };
   }
 
-  // No appointments today: swap Fill Gaps for Rebook Reminders
   if (today.length === 0 && hour >= 11 && hour < 17) {
     const idx = actions.findIndex(a => a.path === '/smart-schedule');
     if (idx !== -1) actions[idx] = { icon: '🔄', label: 'Rebook', path: '/rebook', color: '#FCE4EC' };
@@ -78,7 +98,7 @@ function getSmartQuickActions(today, beautician) {
   return actions;
 }
 
-// Shimmer skeleton block for loading states
+// ─── Skeleton loader ───────────────────────────────────────
 function Skeleton({ width, height, radius = 8, style: extra }) {
   return (
     <div style={{
@@ -90,6 +110,36 @@ function Skeleton({ width, height, radius = 8, style: extra }) {
   );
 }
 
+// ─── Agent card (for the AI Team strip) ────────────────────
+function AgentCard({ agent, summary, navigate }) {
+  const isActive = summary && summary.today > 0;
+  return (
+    <button
+      onClick={() => navigate(agent.path)}
+      style={S.agentCard}
+    >
+      <div style={S.agentIconWrap}>
+        <span style={S.agentIcon}>{agent.icon}</span>
+        <div style={{
+          ...S.agentDot,
+          background: isActive ? 'var(--success, #4CAF50)' : 'var(--text-muted, #CCC)',
+        }} />
+      </div>
+      <span style={S.agentName}>{agent.name}</span>
+      {summary ? (
+        <span style={S.agentStat}>
+          {summary.today > 0
+            ? `${summary.today} action${summary.today > 1 ? 's' : ''} today`
+            : 'Idle today'}
+        </span>
+      ) : (
+        <span style={S.agentStat}>Ready</span>
+      )}
+    </button>
+  );
+}
+
+// ─── Main Dashboard ────────────────────────────────────────
 export default function Dashboard() {
   const { beautician, loading: bLoading } = useBeautician();
   const navigate = useNavigate();
@@ -97,6 +147,7 @@ export default function Dashboard() {
   const [weeklyPulse, setWeeklyPulse] = useState({ income: 0, expenses: 0, profit: 0, incomeChange: null });
   const [insights, setInsights] = useState(isDevMode ? DEV_INSIGHTS : []);
   const [activity, setActivity] = useState(isDevMode ? DEV_ACTIVITY : []);
+  const [agentSummary, setAgentSummary] = useState(isDevMode ? DEV_AGENT_SUMMARY : {});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -134,10 +185,10 @@ export default function Dashboard() {
         price_cents: a.treatments?.price_cents || 0,
       })));
 
-      // Weekly revenue pulse — this week's income
+      // Weekly revenue
       const now = new Date();
       const weekStart = new Date(now);
-      weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1); // Monday
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1);
       weekStart.setHours(0, 0, 0, 0);
       const lastWeekStart = new Date(weekStart);
       lastWeekStart.setDate(lastWeekStart.getDate() - 7);
@@ -161,23 +212,52 @@ export default function Dashboard() {
       const change = lastInc > 0 ? Math.round(((thisInc - lastInc) / lastInc) * 100) : null;
       setWeeklyPulse({ income: thisInc, expenses: thisExp, profit: thisInc - thisExp, incomeChange: change });
 
-      // Generate real insights from data
+      // AI agent summary — what each agent did today
+      try {
+        const resp = await fetch(`/api/ai-actions/summary`, {
+          headers: { 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` },
+        });
+        if (resp.ok) {
+          const summaryData = await resp.json();
+          const mapped = {};
+          if (summaryData.countByEmployee) {
+            for (const row of summaryData.countByEmployee) {
+              mapped[row.digital_employee] = {
+                today: row.today_count || 0,
+                latest: null,
+              };
+            }
+          }
+          if (summaryData.latestByEmployee) {
+            for (const row of summaryData.latestByEmployee) {
+              if (!mapped[row.digital_employee]) mapped[row.digital_employee] = { today: 0 };
+              mapped[row.digital_employee].latest = row.summary || row.action_type;
+            }
+          }
+          setAgentSummary(mapped);
+        }
+      } catch (e) {
+        // Non-critical — agent strip just won't show counts
+        logger.error('Agent summary fetch failed:', e);
+      }
+
+      // Generate insights from data
       const realInsights = [];
       if (change !== null && change > 0) {
-        realInsights.push({ id: 'ri1', icon: '📈', text: `Revenue is up ${change}% this week compared to last. Keep it going.`, type: 'positive' });
+        realInsights.push({ id: 'ri1', icon: '📈', text: `Revenue is up ${change}% this week compared to last.`, type: 'positive' });
       } else if (change !== null && change < -10) {
-        realInsights.push({ id: 'ri1', icon: '📉', text: `Revenue is down ${Math.abs(change)}% vs last week. Consider sending rebook reminders.`, type: 'action', actionLabel: 'View clients', actionPath: '/clients' });
+        realInsights.push({ id: 'ri1', icon: '📉', text: `Revenue is down ${Math.abs(change)}% vs last week. Worth sending some rebook reminders.`, type: 'action', actionLabel: 'View clients', actionPath: '/clients' });
       }
       const todayCount = (apptData || []).length;
       if (todayCount === 0) {
-        realInsights.push({ id: 'ri2', icon: '📅', text: 'No appointments today. A good day to update your treatment menu or reach out to clients.', type: 'neutral' });
+        realInsights.push({ id: 'ri2', icon: '📅', text: 'No appointments today. Good time to update your menu or reach out to clients.', type: 'neutral' });
       } else {
         const todayRevenue = (apptData || []).reduce((s, a) => s + (a.price_cents || 0), 0);
-        realInsights.push({ id: 'ri2', icon: '💷', text: `${todayCount} appointment${todayCount > 1 ? 's' : ''} today, worth £${(todayRevenue / 100).toFixed(0)} in total.`, type: 'positive' });
+        realInsights.push({ id: 'ri2', icon: '💷', text: `${todayCount} appointment${todayCount > 1 ? 's' : ''} today, worth £${(todayRevenue / 100).toFixed(0)}.`, type: 'positive' });
       }
       if (realInsights.length > 0) setInsights(realInsights);
 
-      // AI activity feed
+      // Activity feed — with agent attribution
       const { data: actions } = await supabase
         .from('ai_actions')
         .select('*')
@@ -186,16 +266,20 @@ export default function Dashboard() {
         .limit(5);
 
       if (actions && actions.length > 0) {
-        setActivity(actions.map(a => ({
-          id: a.id,
-          icon: a.action_type === 'message_sent' ? '💬' : a.action_type === 'booking_confirmed' ? '📅' : a.action_type === 'payment' ? '💷' : '✨',
-          text: a.summary || a.action_type,
-          time: timeAgo(new Date(a.created_at)),
-        })));
+        setActivity(actions.map(a => {
+          const agentConfig = AGENTS.find(ag => ag.key === a.digital_employee);
+          return {
+            id: a.id,
+            agent: a.digital_employee,
+            icon: agentConfig?.icon || '✨',
+            text: a.summary || a.action_type,
+            time: timeAgo(new Date(a.created_at)),
+          };
+        }));
       }
     } catch (err) {
       logger.error('Dashboard load error:', err);
-      setError(err.message || 'Failed to load dashboard');
+      setError(err.message || 'Something went wrong');
     } finally {
       setLoading(false);
     }
@@ -218,117 +302,109 @@ export default function Dashboard() {
   }) || today[0];
 
   const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
-
-  const smartActions = getSmartQuickActions(today, beautician);
+  const pendingCount = today.filter(a => a.status === 'pending').length;
+  const smartActions = getSmartQuickActions(today);
+  const totalAgentActions = Object.values(agentSummary).reduce((s, a) => s + (a?.today || 0), 0);
   const hasNoData = !loading && today.length === 0 && insights.length === 0 && activity.length === 0 && !isDevMode;
 
   if (loading) return <PageLoader />;
 
   return (
-    <div style={styles.page}>
+    <div style={S.page}>
       {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
+
       {/* Greeting */}
-      <div style={styles.greeting}>
-        <div style={styles.greetingLeft}>
-          <h1 style={styles.greetingTitle}>
+      <div style={S.greeting}>
+        <div>
+          <h1 style={S.greetingTitle}>
             {getGreeting()}{beautician ? `, ${beautician.first_name || ''}` : ''}
           </h1>
-          <p style={styles.greetingSubtitle}>
-            {loading ? 'Loading your day...' : today.length > 0 ? `${today.length} appointment${today.length > 1 ? 's' : ''} today` : 'No appointments today'}
+          <p style={S.greetingSubtitle}>
+            {today.length > 0
+              ? `${today.length} appointment${today.length > 1 ? 's' : ''} today`
+              : 'No appointments today'}
+            {totalAgentActions > 0 && ` · florrie.ai handled ${totalAgentActions} thing${totalAgentActions > 1 ? 's' : ''}`}
           </p>
         </div>
-        <button onClick={() => navigate('/notifications')} style={styles.bellBtn}>
+        <button onClick={() => navigate('/notifications')} style={S.bellBtn}>
           🔔
-          <div style={styles.bellDot} />
+          <div style={S.bellDot} />
         </button>
       </div>
 
-      {/* Spotlight search — find any feature */}
+      {/* Spotlight search */}
       <div style={{ marginBottom: 14 }}>
         <SpotlightSearch />
       </div>
 
-      {/* ─── Loading skeletons ─────────────────────────── */}
-      {loading && (
-        <>
-          {/* Hero skeleton */}
-          <Skeleton width="100%" height={140} radius={20} style={{ marginBottom: 14 }} />
-          {/* Schedule skeleton */}
-          <div style={{ ...styles.scheduleCard, marginBottom: 14 }}>
-            <Skeleton width={120} height={14} style={{ marginBottom: 14 }} />
-            {[1, 2, 3].map(i => (
-              <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-                <Skeleton width={36} height={12} />
-                <div style={{ flex: 1 }}>
-                  <Skeleton width="60%" height={13} style={{ marginBottom: 4 }} />
-                  <Skeleton width="40%" height={11} />
-                </div>
-              </div>
-            ))}
-          </div>
-          {/* Pulse skeleton */}
-          <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-            {[1, 2, 3].map(i => (
-              <Skeleton key={i} width="33%" height={70} radius={14} />
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* ─── Empty state for brand-new users ───────────── */}
+      {/* Welcome card for new users */}
       {hasNoData && !loading && (
-        <div style={styles.welcomeCard}>
+        <div style={S.welcomeCard}>
           <span style={{ fontSize: 32, marginBottom: 8 }}>👋</span>
-          <h2 style={styles.welcomeTitle}>Welcome to florrie.ai</h2>
-          <p style={styles.welcomeDesc}>
-            Your dashboard will come alive as you add clients, book appointments, and let florrie.ai work for you. Here are some good first steps:
+          <h2 style={S.welcomeTitle}>Welcome to florrie.ai</h2>
+          <p style={S.welcomeDesc}>
+            Your dashboard will come alive as you add clients, book appointments, and let florrie.ai work for you.
           </p>
-          <div style={styles.welcomeActions}>
-            <button onClick={() => navigate('/treatments')} style={styles.welcomeBtn}>
-              💅 Add your treatments
-            </button>
-            <button onClick={() => navigate('/import')} style={styles.welcomeBtn}>
-              📥 Import clients
-            </button>
-            <button onClick={() => navigate('/business')} style={styles.welcomeBtn}>
-              🏪 Set up your profile
-            </button>
-            <button onClick={() => navigate('/hours')} style={styles.welcomeBtn}>
-              🕐 Set working hours
-            </button>
+          <div style={S.welcomeActions}>
+            <button onClick={() => navigate('/treatments')} style={S.welcomeBtn}>💅 Add your treatments</button>
+            <button onClick={() => navigate('/import')} style={S.welcomeBtn}>📥 Import clients</button>
+            <button onClick={() => navigate('/business')} style={S.welcomeBtn}>🏪 Set up your profile</button>
+            <button onClick={() => navigate('/hours')} style={S.welcomeBtn}>🕐 Set working hours</button>
           </div>
         </div>
       )}
 
       {/* Next Client Hero */}
       {!loading && nextAppt && (
-        <div style={styles.heroCard}>
-          <div style={styles.heroHeader}>
-            <span style={styles.heroLabel}>Next up</span>
-            <span style={styles.heroTime}>{nextAppt.time}</span>
+        <div style={S.heroCard}>
+          <div style={S.heroHeader}>
+            <span style={S.heroLabel}>Next up</span>
+            <span style={S.heroTime}>{nextAppt.time}</span>
           </div>
-          <div style={styles.heroBody}>
-            <div style={styles.heroAvatar}>{nextAppt.client[0]}</div>
-            <div style={styles.heroInfo}>
-              <span style={styles.heroName}>{nextAppt.client}</span>
-              <span style={styles.heroTreatment}>{nextAppt.treatment}</span>
-              <span style={styles.heroDuration}>{nextAppt.duration}min · {fmt(nextAppt.price_cents)}</span>
+          <div style={S.heroBody}>
+            <div style={S.heroAvatar}>{nextAppt.client[0]}</div>
+            <div style={S.heroInfo}>
+              <span style={S.heroName}>{nextAppt.client}</span>
+              <span style={S.heroTreatment}>{nextAppt.treatment}</span>
+              <span style={S.heroDuration}>{nextAppt.duration}min · {fmt(nextAppt.price_cents)}</span>
             </div>
           </div>
           {today.length > 1 && (
-            <div style={styles.heroFooter}>
+            <div style={S.heroFooter}>
               + {today.length - 1} more today · {fmt(todayRevenue)} projected
             </div>
           )}
         </div>
       )}
 
-      {/* Today's Schedule Strip */}
+      {/* ─── YOUR AI TEAM ─────────────────────────────── */}
+      {!loading && (
+        <div style={S.teamSection}>
+          <div style={S.teamHeader}>
+            <h3 style={S.sectionTitle}>Your AI team</h3>
+            {totalAgentActions > 0 && (
+              <span style={S.teamBadge}>{totalAgentActions} actions today</span>
+            )}
+          </div>
+          <div style={S.teamGrid}>
+            {AGENTS.map(agent => (
+              <AgentCard
+                key={agent.key}
+                agent={agent}
+                summary={agentSummary[agent.key]}
+                navigate={navigate}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Today's Schedule */}
       {!loading && today.length > 0 && (
-        <div style={styles.scheduleCard}>
-          <div style={styles.scheduleHeader}>
-            <span style={styles.scheduleTitle}>Today's schedule</span>
-            <button onClick={() => navigate('/calendar')} style={styles.seeAllBtn}>See all</button>
+        <div style={S.scheduleCard}>
+          <div style={S.scheduleHeader}>
+            <span style={S.scheduleTitle}>Today's schedule</span>
+            <button onClick={() => navigate('/calendar')} style={S.seeAllBtn}>See all</button>
           </div>
           {today.map((appt, i) => {
             const isPast = (() => {
@@ -337,73 +413,86 @@ export default function Dashboard() {
               return h < now.getHours() || (h === now.getHours() && m < now.getMinutes());
             })();
             return (
-              <div key={appt.id} style={{ ...styles.scheduleRow, opacity: isPast ? 0.5 : 1 }}>
-                <span style={styles.scheduleTime}>{appt.time}</span>
-                <div style={styles.scheduleLine}>
+              <div key={appt.id} style={{ ...S.scheduleRow, opacity: isPast ? 0.5 : 1 }}>
+                <span style={S.scheduleTime}>{appt.time}</span>
+                <div style={S.scheduleLine}>
                   <div style={{
-                    ...styles.scheduleDot,
+                    ...S.scheduleDot,
                     background: appt.status === 'confirmed' ? 'var(--success, #4CAF50)' : appt.status === 'pending' ? 'var(--warning, #FF9800)' : 'var(--text-muted, #AAA5A0)',
                   }} />
-                  {i < today.length - 1 && <div style={styles.scheduleConnector} />}
+                  {i < today.length - 1 && <div style={S.scheduleConnector} />}
                 </div>
-                <div style={styles.scheduleDetail}>
-                  <span style={styles.scheduleClient}>{appt.client}</span>
-                  <span style={styles.scheduleTreatment}>{appt.treatment} · {appt.duration}min</span>
+                <div style={S.scheduleDetail}>
+                  <span style={S.scheduleClient}>{appt.client}</span>
+                  <span style={S.scheduleTreatment}>
+                    {appt.treatment} · {appt.duration}min
+                    {appt.status === 'pending' && <span style={S.pendingTag}> · Unconfirmed</span>}
+                  </span>
                 </div>
-                <span style={styles.schedulePrice}>{fmt(appt.price_cents)}</span>
+                <span style={S.schedulePrice}>{fmt(appt.price_cents)}</span>
               </div>
             );
           })}
         </div>
       )}
 
-      {/* Revenue Pulse — tappable cards */}
+      {/* Revenue Pulse */}
       {!loading && (
-        <div style={styles.pulseRow}>
-          <button onClick={() => navigate('/money')} style={styles.pulseCard}>
-            <span style={styles.pulseLabel}>Today</span>
-            <span style={styles.pulseValue}>{fmt(todayRevenue)}</span>
+        <div style={S.pulseRow}>
+          <button onClick={() => navigate('/money')} style={S.pulseCard}>
+            <span style={S.pulseLabel}>Today</span>
+            <span style={S.pulseValue}>{fmt(todayRevenue)}</span>
           </button>
-          <button onClick={() => navigate('/money')} style={styles.pulseCard}>
-            <span style={styles.pulseLabel}>This week</span>
-            <span style={styles.pulseValue}>{fmt(weeklyPulse.income)}</span>
+          <button onClick={() => navigate('/money')} style={S.pulseCard}>
+            <span style={S.pulseLabel}>This week</span>
+            <span style={S.pulseValue}>{fmt(weeklyPulse.income)}</span>
             {weeklyPulse.incomeChange !== null && (
               <span style={{ fontSize: 10, color: weeklyPulse.incomeChange >= 0 ? 'var(--success, #4CAF50)' : 'var(--danger, #E57373)', fontWeight: 600 }}>
                 {weeklyPulse.incomeChange >= 0 ? '↑' : '↓'} {Math.abs(weeklyPulse.incomeChange)}%
               </span>
             )}
           </button>
-          <button onClick={() => navigate('/calendar')} style={styles.pulseCard}>
-            <span style={styles.pulseLabel}>Pending</span>
-            <span style={{ ...styles.pulseValue, color: 'var(--warning, #FF9800)' }}>{today.filter(a => a.status === 'pending').length}</span>
+          <button onClick={() => navigate('/calendar')} style={S.pulseCard}>
+            <span style={S.pulseLabel}>Unconfirmed</span>
+            <span style={{
+              ...S.pulseValue,
+              color: pendingCount > 0 ? 'var(--warning, #FF9800)' : 'var(--success, #4CAF50)',
+            }}>
+              {pendingCount}
+            </span>
+            {pendingCount > 0 && (
+              <span style={{ fontSize: 9, color: 'var(--warning, #FF9800)', fontWeight: 500 }}>
+                Chase?
+              </span>
+            )}
           </button>
         </div>
       )}
 
-      {/* Quick Actions — contextual based on time of day */}
-      <div style={styles.quickGrid}>
+      {/* Quick Actions */}
+      <div style={S.quickGrid}>
         {smartActions.map(action => (
-          <button key={action.path} onClick={() => navigate(action.path)} style={styles.quickBtn}>
-            <div style={{ ...styles.quickIcon, background: action.color }}>{action.icon}</div>
-            <span style={styles.quickLabel}>{action.label}</span>
+          <button key={action.path} onClick={() => navigate(action.path)} style={S.quickBtn}>
+            <div style={{ ...S.quickIcon, background: action.color }}>{action.icon}</div>
+            <span style={S.quickLabel}>{action.label}</span>
           </button>
         ))}
       </div>
 
       {/* AI Insights */}
       {!loading && insights.length > 0 && (
-        <div style={styles.insightsSection}>
-          <h3 style={styles.sectionTitle}>florrie.ai's insights</h3>
+        <div style={S.insightsSection}>
+          <h3 style={S.sectionTitle}>florrie.ai's insights</h3>
           {insights.map(insight => (
             <div key={insight.id} style={{
-              ...styles.insightCard,
+              ...S.insightCard,
               borderLeft: `3px solid ${insight.type === 'positive' ? 'var(--success, #4CAF50)' : insight.type === 'warning' ? 'var(--warning, #FF9800)' : 'var(--accent, #C76B8A)'}`,
             }}>
-              <span style={styles.insightIcon}>{insight.icon}</span>
-              <div style={styles.insightBody}>
-                <span style={styles.insightText}>{insight.text}</span>
+              <span style={S.insightIcon}>{insight.icon}</span>
+              <div style={S.insightBody}>
+                <span style={S.insightText}>{insight.text}</span>
                 {insight.actionLabel && (
-                  <button onClick={() => navigate(insight.actionPath)} style={styles.insightBtn}>
+                  <button onClick={() => navigate(insight.actionPath)} style={S.insightBtn}>
                     {insight.actionLabel}
                   </button>
                 )}
@@ -413,60 +502,43 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Loading skeleton for insights */}
-      {loading && (
-        <div style={{ marginBottom: 22 }}>
-          <Skeleton width={160} height={15} style={{ marginBottom: 12 }} />
-          {[1, 2].map(i => (
-            <Skeleton key={i} width="100%" height={64} radius={14} style={{ marginBottom: 8 }} />
-          ))}
-        </div>
-      )}
-
-      {/* Recent Activity — tappable rows */}
+      {/* Activity Feed — agent-attributed */}
       {!loading && activity.length > 0 && (
-        <div style={styles.activitySection}>
-          <h3 style={styles.sectionTitle}>Recent activity</h3>
+        <div style={S.activitySection}>
+          <div style={S.activityHeader}>
+            <h3 style={S.sectionTitle}>Recent activity</h3>
+            <button onClick={() => navigate('/ai-insights')} style={S.seeAllBtn}>View all</button>
+          </div>
           {activity.map(act => {
-            // Determine a relevant route from the activity icon/type
+            const agentConfig = AGENTS.find(ag => ag.key === act.agent);
             const actPath = act.icon === '💬' ? '/inbox'
               : act.icon === '📅' ? '/calendar'
-              : act.icon === '💷' ? '/money'
+              : act.icon === '💰' ? '/money'
               : act.icon === '📸' ? '/content'
+              : act.icon === '🔄' ? '/clients'
               : null;
 
+            const inner = (
+              <>
+                <div style={S.activityLeft}>
+                  <span style={S.activityIcon}>{act.icon}</span>
+                  {agentConfig && <span style={S.activityAgent}>{agentConfig.name}</span>}
+                </div>
+                <span style={S.activityText}>{act.text}</span>
+                <span style={S.activityTime}>{act.time}</span>
+              </>
+            );
+
             return actPath ? (
-              <button
-                key={act.id}
-                onClick={() => navigate(actPath)}
-                style={styles.activityRowBtn}
-              >
-                <span style={styles.activityIcon}>{act.icon}</span>
-                <span style={styles.activityText}>{act.text}</span>
-                <span style={styles.activityTime}>{act.time}</span>
+              <button key={act.id} onClick={() => navigate(actPath)} style={S.activityRowBtn}>
+                {inner}
               </button>
             ) : (
-              <div key={act.id} style={styles.activityRow}>
-                <span style={styles.activityIcon}>{act.icon}</span>
-                <span style={styles.activityText}>{act.text}</span>
-                <span style={styles.activityTime}>{act.time}</span>
+              <div key={act.id} style={S.activityRow}>
+                {inner}
               </div>
             );
           })}
-        </div>
-      )}
-
-      {/* Loading skeleton for activity */}
-      {loading && (
-        <div style={{ marginBottom: 22 }}>
-          <Skeleton width={120} height={15} style={{ marginBottom: 12 }} />
-          {[1, 2, 3].map(i => (
-            <div key={i} style={{ display: 'flex', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border-light, #F5F2EF)' }}>
-              <Skeleton width={20} height={14} radius={4} />
-              <Skeleton width="70%" height={13} />
-              <Skeleton width={50} height={10} />
-            </div>
-          ))}
         </div>
       )}
 
@@ -479,7 +551,7 @@ export default function Dashboard() {
           } else {
             navigator.clipboard.writeText(url);
           }
-        }} style={styles.shareBtn}>
+        }} style={S.shareBtn}>
           🔗 Share your booking link
         </button>
       )}
@@ -494,7 +566,8 @@ function getGreeting() {
   return 'Good evening';
 }
 
-const styles = {
+// ─── Styles ────────────────────────────────────────────────
+const S = {
   page: {
     minHeight: '100vh',
     background: 'var(--bg, #FAF8F5)',
@@ -508,11 +581,8 @@ const styles = {
 
   // Greeting
   greeting: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 28, paddingBottom: 8 },
-  greetingLeft: {},
   greetingTitle: {
-    fontSize: 24,
-    fontWeight: 600,
-    margin: '0 0 3px',
+    fontSize: 24, fontWeight: 600, margin: '0 0 3px',
     letterSpacing: '-0.02em',
     fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
     color: 'var(--text-primary)',
@@ -528,7 +598,7 @@ const styles = {
   },
   bellDot: { width: 7, height: 7, borderRadius: 4, background: 'var(--accent, #C76B8A)', position: 'absolute', top: 7, right: 7, border: '2px solid var(--bg-card, #fff)' },
 
-  // Hero — gradient with gold touch
+  // Hero
   heroCard: {
     background: 'linear-gradient(135deg, #C76B8A 0%, #B85D7B 45%, #C9A96E 100%)',
     borderRadius: 20, padding: 20, marginBottom: 14, color: '#fff',
@@ -540,8 +610,7 @@ const styles = {
   heroBody: { display: 'flex', gap: 14, alignItems: 'center' },
   heroAvatar: {
     width: 48, height: 48, borderRadius: 16,
-    background: 'rgba(255,255,255,0.2)',
-    backdropFilter: 'blur(8px)',
+    background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(8px)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 18, fontWeight: 700, flexShrink: 0,
     border: '1.5px solid rgba(255,255,255,0.25)',
@@ -551,6 +620,37 @@ const styles = {
   heroTreatment: { fontSize: 13, opacity: 0.9 },
   heroDuration: { fontSize: 11, opacity: 0.7, fontFamily: "var(--font-mono, 'DM Mono', monospace)" },
   heroFooter: { fontSize: 12, opacity: 0.7, marginTop: 12, textAlign: 'center', borderTop: '1px solid rgba(255,255,255,0.15)', paddingTop: 10 },
+
+  // AI Team strip
+  teamSection: { marginBottom: 16 },
+  teamHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  teamBadge: {
+    fontSize: 10, fontWeight: 600, color: 'var(--success, #4CAF50)',
+    background: 'rgba(76, 175, 80, 0.08)',
+    padding: '3px 10px', borderRadius: 20,
+  },
+  teamGrid: {
+    display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8,
+  },
+  agentCard: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+    padding: '12px 6px 10px', borderRadius: 14,
+    border: '1px solid var(--border, #EDE9E4)',
+    background: 'var(--bg-card, #fff)',
+    cursor: 'pointer', fontFamily: 'inherit',
+    boxShadow: 'var(--shadow-xs)',
+    WebkitTapHighlightColor: 'transparent',
+    transition: 'transform 0.1s',
+  },
+  agentIconWrap: { position: 'relative', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  agentIcon: { fontSize: 20 },
+  agentDot: {
+    position: 'absolute', top: -2, right: -4,
+    width: 8, height: 8, borderRadius: 4,
+    border: '2px solid var(--bg-card, #fff)',
+  },
+  agentName: { fontSize: 11, fontWeight: 600, color: 'var(--text-primary)' },
+  agentStat: { fontSize: 9, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.3 },
 
   // Schedule
   scheduleCard: {
@@ -572,8 +672,9 @@ const styles = {
   scheduleClient: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
   scheduleTreatment: { fontSize: 11, color: 'var(--text-muted)' },
   schedulePrice: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0, paddingTop: 2, fontFamily: "var(--font-mono, 'DM Mono', monospace)" },
+  pendingTag: { color: 'var(--warning, #FF9800)', fontWeight: 600 },
 
-  // Revenue pulse — now tappable buttons
+  // Revenue pulse
   pulseRow: { display: 'flex', gap: 10, marginBottom: 16 },
   pulseCard: {
     flex: 1, background: 'var(--bg-card, #fff)', borderRadius: 14,
@@ -624,6 +725,7 @@ const styles = {
 
   // Activity
   activitySection: { marginBottom: 22 },
+  activityHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   activityRow: { display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border-light, #F5F2EF)' },
   activityRowBtn: {
     display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0',
@@ -632,7 +734,9 @@ const styles = {
     fontFamily: 'inherit', textAlign: 'left',
     WebkitTapHighlightColor: 'transparent',
   },
-  activityIcon: { fontSize: 14, flexShrink: 0, paddingTop: 1 },
+  activityLeft: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flexShrink: 0, width: 42 },
+  activityIcon: { fontSize: 14 },
+  activityAgent: { fontSize: 8, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' },
   activityText: { flex: 1, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.45 },
   activityTime: { fontSize: 10, color: 'var(--text-muted)', flexShrink: 0, whiteSpace: 'nowrap' },
 
@@ -645,11 +749,7 @@ const styles = {
     fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
   },
 
-  emptyState: { textAlign: 'center', padding: '48px 24px' },
-  emptyTitle: { fontSize: 17, fontWeight: 600, margin: '0 0 6px', fontFamily: "var(--font-display, 'Playfair Display', serif)" },
-  emptyDesc: { fontSize: 13, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 },
-
-  // Welcome card — shown to brand-new users with no data
+  // Welcome
   welcomeCard: {
     background: 'var(--bg-card, #fff)',
     borderRadius: 20, padding: '28px 20px',
@@ -666,9 +766,7 @@ const styles = {
     fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6,
     margin: '0 0 20px', maxWidth: 320, marginLeft: 'auto', marginRight: 'auto',
   },
-  welcomeActions: {
-    display: 'flex', flexDirection: 'column', gap: 8,
-  },
+  welcomeActions: { display: 'flex', flexDirection: 'column', gap: 8 },
   welcomeBtn: {
     width: '100%', padding: '12px 16px', borderRadius: 12,
     border: '1px solid var(--border, #EDE9E4)',
