@@ -73,8 +73,8 @@ export default function VoiceCommander() {
         const mapped = (data || []).map(action => ({
           id: action.id,
           role: 'assistant',
-          text: action.result || action.action_name,
-          agent: action.agent_type || 'general',
+          text: action.summary || action.notification_text || action.action_type || 'Action completed',
+          agent: action.digital_employee || 'general',
           timestamp: action.created_at,
         }));
         setMessages([{ id: '0', role: 'assistant', text: "Hey lovely! I'm here whenever you need me.", agent: 'general', timestamp: new Date().toISOString() }, ...mapped]);
