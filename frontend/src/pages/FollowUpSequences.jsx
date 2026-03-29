@@ -9,8 +9,9 @@
  *
  * This page lets her build, preview, and manage these flows.
  */
-import { useState } from 'react';
-import { isDevMode } from '../lib/supabase.js';
+import { useState, useEffect } from 'react';
+import { isDevMode, useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 const DEV_SEQUENCES = [
   {
@@ -79,14 +80,71 @@ const CHANNELS = ['whatsapp', 'sms', 'email'];
 const VARIABLES = ['{name}', '{treatment}', '{date}', '{time}', '{booking_link}', '{aftercare_link}'];
 
 export default function FollowUpSequences({ token }) {
+  const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('sequences');
   const [expanded, setExpanded] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
   const [createForm, setCreateForm] = useState({
-    name: '', trigger: 'after-appointment', steps: [{ delay: '0h', channel: 'whatsapp', message: '' }],
+    name: '', trigger: 'after-appointment', treatments: [], steps: [{ delay: '0h', channel: 'whatsapp', message: '' }],
   });
 
-  const sequences = DEV_SEQUENCES;
+  const [sequences, setSequences] = useState([]);
+
+  useEffect(() => {
+    if (bLoading || !beautician) return;
+    if (isDevMode) { setSequences(DEV_SEQUENCES); return; }
+    fetchRows('followup_sequences', beautician.id, { order: 'created_at' })
+      .then(rows => setSequences(rows || []))
+      .catch(err => { logger.error('Load sequences error:', err); setSequences(DEV_SEQUENCES); });
+  }, [beautician, bLoading]);
+
+  async function handleCreate() {
+    if (!createForm.name.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      if (!isDevMode && beautician) {
+        const row = await insertRow('followup_sequences', {
+          beautician_id: beautician.id,
+          name: createForm.name.trim(),
+          trigger: createForm.trigger,
+          treatments: createForm.treatments,
+          steps: createForm.steps,
+          active: true,
+          stats: { sent: 0, opened: 0, replied: 0 },
+        });
+        if (row) setSequences(prev => [...prev, row]);
+      } else {
+        setSequences(prev => [...prev, { id: 'new-' + Date.now(), ...createForm, active: true, stats: { sent: 0, opened: 0, replied: 0 } }]);
+      }
+      setShowCreate(false);
+      setCreateForm({ name: '', trigger: 'after-appointment', treatments: [], steps: [{ delay: '0h', channel: 'whatsapp', message: '' }] });
+    } catch (err) {
+      logger.error('Create sequence error:', err);
+      setError('Failed to create sequence');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleToggleActive(seq) {
+    const updated = !seq.active;
+    setSequences(prev => prev.map(s => s.id === seq.id ? { ...s, active: updated } : s));
+    if (!isDevMode && beautician) {
+      try { await updateRow('followup_sequences', seq.id, { active: updated }); }
+      catch (err) { logger.error('Toggle sequence error:', err); setSequences(prev => prev.map(s => s.id === seq.id ? { ...s, active: seq.active } : s)); }
+    }
+  }
+
+  async function handleDelete(seqId) {
+    setSequences(prev => prev.filter(s => s.id !== seqId));
+    if (!isDevMode && beautician) {
+      try { await deleteRow('followup_sequences', seqId); }
+      catch (err) { logger.error('Delete sequence error:', err); }
+    }
+  }
   const totalSent = sequences.reduce((s, seq) => s + seq.stats.sent, 0);
   const totalReplied = sequences.reduce((s, seq) => s + seq.stats.replied, 0);
   const replyRate = totalSent > 0 ? Math.round((totalReplied / totalSent) * 100) : 0;
@@ -203,9 +261,8 @@ export default function FollowUpSequences({ token }) {
                     </div>
 
                     <div style={S.seqActions}>
-                      <button style={S.seqActionBtn}>Edit</button>
-                      <button style={S.seqActionBtn}>Duplicate</button>
-                      <button style={S.seqActionBtn}>{seq.active ? 'Pause' : 'Activate'}</button>
+                      <button style={S.seqActionBtn} onClick={e => { e.stopPropagation(); handleToggleActive(seq); }}>{seq.active ? 'Pause' : 'Activate'}</button>
+                      <button style={S.seqActionBtn} onClick={e => { e.stopPropagation(); handleDelete(seq.id); }}>Delete</button>
                     </div>
                   </div>
                 )}
@@ -295,7 +352,8 @@ export default function FollowUpSequences({ token }) {
             ))}
 
             <button style={S.addStepBtn} onClick={addStep}>+ Add Step</button>
-            <button style={S.saveBtn} onClick={() => setShowCreate(false)}>Create Sequence</button>
+            {error && <div style={{ color: '#F44336', fontSize: 13, marginBottom: 8 }}>{error}</div>}
+            <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} onClick={handleCreate} disabled={saving}>{saving ? 'Creating...' : 'Create Sequence'}</button>
           </div>
         </div>
       )}

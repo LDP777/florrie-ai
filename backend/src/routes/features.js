@@ -497,9 +497,10 @@ router.get('/add-ons', requireAuth, async (req, res) => {
  * POST /api/features/add-ons
  */
 router.post('/add-ons', requireAuth, async (req, res) => {
-  const { name, description, price } = req.body;
+  const { name, description, price, price_cents, category, duration_minutes, suggest_with, auto_suggest, is_active } = req.body;
 
-  if (!name || !price) {
+  const cents = price_cents ?? price;
+  if (!name || !cents) {
     return res.status(400).json({ error: 'name and price are required' });
   }
 
@@ -509,7 +510,13 @@ router.post('/add-ons', requireAuth, async (req, res) => {
       beautician_id: req.beautician.id,
       name,
       description: description || null,
-      price
+      price: cents,
+      price_cents: cents,
+      category: category || 'treatment',
+      duration_minutes: duration_minutes || 0,
+      suggest_with: suggest_with || [],
+      auto_suggest: auto_suggest !== false,
+      is_active: is_active !== false,
     })
     .select()
     .single();
@@ -522,12 +529,18 @@ router.post('/add-ons', requireAuth, async (req, res) => {
  * PATCH /api/features/add-ons/:id
  */
 router.patch('/add-ons/:id', requireAuth, async (req, res) => {
-  const { name, description, price } = req.body;
+  const { name, description, price, price_cents, category, duration_minutes, suggest_with, auto_suggest, is_active } = req.body;
   const updates = {};
 
   if (name !== undefined) updates.name = name;
   if (description !== undefined) updates.description = description;
-  if (price !== undefined) updates.price = price;
+  if (price_cents !== undefined) { updates.price_cents = price_cents; updates.price = price_cents; }
+  else if (price !== undefined) { updates.price = price; updates.price_cents = price; }
+  if (category !== undefined) updates.category = category;
+  if (duration_minutes !== undefined) updates.duration_minutes = duration_minutes;
+  if (suggest_with !== undefined) updates.suggest_with = suggest_with;
+  if (auto_suggest !== undefined) updates.auto_suggest = auto_suggest;
+  if (is_active !== undefined) updates.is_active = is_active;
 
   const { data, error } = await supabase
     .from('add_ons')

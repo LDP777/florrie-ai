@@ -7,8 +7,9 @@
  *   - Auto-notify when a cancellation frees up a slot
  *   - Smart matching (availability + treatment + priority)
  */
-import { useState } from 'react';
-import { isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useState, useEffect } from 'react';
+import { isDevMode, DEV_TREATMENTS, useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 const DEV_WAITLIST = [
   {
@@ -76,9 +77,14 @@ const DAYS = [
 ];
 
 export default function WaitlistPro({ token }) {
+  const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('active');
   const [expanded, setExpanded] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [waitlist, setWaitlist] = useState([]);
+  const [treatments, setTreatments] = useState([]);
   const [addForm, setAddForm] = useState({
     client: '', treatment: '', priority: 'regular',
     preferredDays: [], preferredTime: 'any',
@@ -94,13 +100,71 @@ export default function WaitlistPro({ token }) {
     defaultDeposit: 2500,
   });
 
-  const activeList = DEV_WAITLIST.filter(w => ['waiting', 'notified', 'offered'].includes(w.status));
-  const archivedList = DEV_WAITLIST.filter(w => ['booked', 'expired'].includes(w.status));
+  useEffect(() => {
+    if (bLoading || !beautician) return;
+    if (isDevMode) { setWaitlist(DEV_WAITLIST); setTreatments(DEV_TREATMENTS); return; }
+    Promise.all([
+      fetchRows('waitlist', beautician.id, { order: 'created_at' }),
+      fetchRows('treatments', beautician.id, { eq: { is_active: true }, order: 'sort_order' }),
+    ]).then(([wl, tx]) => {
+      setWaitlist(wl || []);
+      setTreatments(tx || []);
+    }).catch(err => { logger.error('Load waitlist error:', err); setWaitlist(DEV_WAITLIST); });
+  }, [beautician, bLoading]);
+
+  const activeTreatments = treatments.length > 0 ? treatments : DEV_TREATMENTS;
+
+  async function handleAddToWaitlist() {
+    if (!addForm.client.trim() || !addForm.treatment) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const row = {
+        beautician_id: beautician?.id,
+        client: addForm.client.trim(),
+        treatment: addForm.treatment,
+        priority: addForm.priority,
+        preferredDays: addForm.preferredDays,
+        preferredTime: addForm.preferredTime,
+        depositHeld: addForm.depositHeld,
+        depositAmount: addForm.depositAmount ? parseInt(addForm.depositAmount) * 100 : 0,
+        notes: addForm.notes,
+        flexible: addForm.flexible,
+        maxWait: addForm.maxWait,
+        status: 'waiting',
+        addedDate: new Date().toISOString().slice(0, 10),
+        notifyCount: 0,
+      };
+      if (!isDevMode && beautician) {
+        const inserted = await insertRow('waitlist', row);
+        if (inserted) setWaitlist(prev => [...prev, inserted]);
+      } else {
+        setWaitlist(prev => [...prev, { id: 'new-' + Date.now(), ...row }]);
+      }
+      setShowAdd(false);
+      setAddForm({ client: '', treatment: '', priority: 'regular', preferredDays: [], preferredTime: 'any', depositHeld: false, depositAmount: '', notes: '', flexible: false, maxWait: 14 });
+    } catch (err) {
+      logger.error('Add to waitlist error:', err);
+      setError('Failed to add to waitlist');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleRemove(id) {
+    setWaitlist(prev => prev.filter(w => w.id !== id));
+    if (!isDevMode && beautician) {
+      try { await deleteRow('waitlist', id); } catch (err) { logger.error('Remove waitlist error:', err); }
+    }
+  }
+
+  const activeList = waitlist.filter(w => ['waiting', 'notified', 'offered'].includes(w.status));
+  const archivedList = waitlist.filter(w => ['booked', 'expired'].includes(w.status));
 
   const stats = {
     active: activeList.length,
-    vip: DEV_WAITLIST.filter(w => w.priority === 'vip' && w.status !== 'expired').length,
-    deposits: DEV_WAITLIST.filter(w => w.depositHeld).reduce((s, w) => s + w.depositAmount, 0),
+    vip: waitlist.filter(w => w.priority === 'vip' && w.status !== 'expired').length,
+    deposits: waitlist.filter(w => w.depositHeld).reduce((s, w) => s + (w.depositAmount || 0), 0),
     avgWait: Math.round(activeList.reduce((s, w) => {
       const days = Math.ceil((new Date() - new Date(w.addedDate)) / 86400000);
       return s + days;
@@ -218,7 +282,7 @@ export default function WaitlistPro({ token }) {
                     <div style={S.actionRow}>
                       <button style={S.actionBtn}>Notify</button>
                       <button style={{ ...S.actionBtn, background: '#C76B8A', color: '#fff' }}>Offer Slot</button>
-                      <button style={S.actionBtn}>Remove</button>
+                      <button style={S.actionBtn} onClick={e => { e.stopPropagation(); handleRemove(w.id); }}>Remove</button>
                     </div>
                   </div>
                 )}
@@ -337,7 +401,7 @@ export default function WaitlistPro({ token }) {
             <div style={S.fieldLabel}>Treatment</div>
             <select style={S.select} value={addForm.treatment} onChange={e => setAddForm(f => ({ ...f, treatment: e.target.value }))}>
               <option value="">Select treatment</option>
-              {DEV_TREATMENTS.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+              {activeTreatments.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
             </select>
 
             <div style={S.fieldLabel}>Priority</div>
@@ -379,7 +443,8 @@ export default function WaitlistPro({ token }) {
             <div style={S.fieldLabel}>Notes</div>
             <textarea style={S.textarea} rows={2} placeholder="Any notes..." value={addForm.notes} onChange={e => setAddForm(f => ({ ...f, notes: e.target.value }))} />
 
-            <button style={S.saveBtn} onClick={() => setShowAdd(false)}>Add to Waitlist</button>
+            {error && <div style={{ color: '#F44336', fontSize: 13, marginBottom: 8 }}>{error}</div>}
+            <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} onClick={handleAddToWaitlist} disabled={saving}>{saving ? 'Adding...' : 'Add to Waitlist'}</button>
           </div>
         </div>
       )}

@@ -35,7 +35,7 @@ export default function CancellationLog({ token }) {
   const [tab, setTab] = useState('log');
   const [filterType, setFilterType] = useState('all');
   const [period, setPeriod] = useState('30d');
-  const [cancellations, setCancellations] = useState(DEV_CANCELLATIONS);
+  const [cancellations, setCancellations] = useState([]);
 
   // Fetch cancelled/no-show appointments
   useEffect(() => {

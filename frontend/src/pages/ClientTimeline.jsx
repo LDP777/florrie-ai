@@ -62,7 +62,7 @@ export default function ClientTimeline({ token }) {
   const [selectedClient, setSelectedClient] = useState('c1');
   const [filterType, setFilterType] = useState('all');
   const [expanded, setExpanded] = useState(null);
-  const [clients, setClients] = useState(DEV_CLIENTS_FULL);
+  const [clients, setClients] = useState([]);
   const [allEvents, setAllEvents] = useState({});
 
   // Fetch clients and their appointment history

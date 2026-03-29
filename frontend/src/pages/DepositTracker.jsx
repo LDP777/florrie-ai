@@ -34,7 +34,7 @@ export default function DepositTracker({ token }) {
   const [tab, setTab] = useState('held');
   const [expanded, setExpanded] = useState(null);
   const [showAction, setShowAction] = useState(null);
-  const [deposits, setDeposits] = useState(DEV_DEPOSITS);
+  const [deposits, setDeposits] = useState([]);
 
   // Fetch deposits (query appointments where deposit_cents > 0)
   useEffect(() => {

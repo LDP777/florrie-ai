@@ -6,7 +6,8 @@
  * tags across campaigns, waitlist priority, and smart scheduling.
  */
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, isDevMode, DEV_CLIENTS } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow, deleteRow, isDevMode, DEV_CLIENTS } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 const DEV_TAGS = [
   { id: 't1', name: 'VIP', colour: '#C76B8A', icon: '⭐', auto: false, clients: ['Shauna', 'Daisy S', 'Holly B'] },
@@ -32,8 +33,11 @@ export default function ClientTags({ token }) {
   const [expanded, setExpanded] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [createType, setCreateType] = useState('tag'); // tag | segment
-  const [tags, setTags] = useState(DEV_TAGS);
-  const [segments, setSegments] = useState(DEV_SEGMENTS);
+  const [tags, setTags] = useState([]);
+  const [segments, setSegments] = useState([]);
+  const [tagForm, setTagForm] = useState({ name: '', colour: '#C76B8A', icon: '🏷️' });
+  const [segForm, setSegForm] = useState({ name: '', description: '', selectedTags: [], match: 'all' });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (bLoading || !beautician) return;
@@ -127,7 +131,14 @@ export default function ClientTags({ token }) {
                     <div style={S.actionRow}>
                       <button style={S.actionBtn}>Use in Campaign</button>
                       <button style={S.actionBtn}>Edit Tag</button>
-                      {!tag.auto && <button style={{ ...S.actionBtn, color: '#F44336' }}>Delete</button>}
+                      {!tag.auto && <button style={{ ...S.actionBtn, color: '#F44336' }} onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!window.confirm(`Delete "${tag.name}" tag?`)) return;
+                        try {
+                          await deleteRow('client_tags', tag.id);
+                          setTags(prev => prev.filter(t => t.id !== tag.id));
+                        } catch (err) { logger.error('Failed to delete tag:', err); }
+                      }}>Delete</button>}
                     </div>
                   </div>
                 )}
@@ -207,12 +218,12 @@ export default function ClientTags({ token }) {
             {createType === 'tag' ? (
               <div style={S.formBody}>
                 <label style={S.label}>Tag Name</label>
-                <input style={S.input} placeholder="e.g. Sensitive Skin" />
+                <input style={S.input} placeholder="e.g. Sensitive Skin" value={tagForm.name} onChange={e => setTagForm(f => ({ ...f, name: e.target.value }))} />
 
                 <label style={S.label}>Colour</label>
                 <div style={S.colourRow}>
                   {['#C76B8A', '#FF9800', '#4CAF50', '#9C27B0', '#03A9F4', '#F44336', '#FFC107', '#9E9E9E'].map(c => (
-                    <div key={c} style={{ ...S.colourDot, background: c }} />
+                    <div key={c} style={{ ...S.colourDot, background: c, border: tagForm.colour === c ? '3px solid #2D2A26' : '2px solid transparent', cursor: 'pointer' }} onClick={() => setTagForm(f => ({ ...f, colour: c }))} />
                   ))}
                 </div>
 
@@ -221,26 +232,22 @@ export default function ClientTags({ token }) {
                   <button style={{ ...S.typeBtn, ...S.typeBtnActive }}>Manual</button>
                   <button style={S.typeBtn}>Auto-rule</button>
                 </div>
-
-                <label style={S.label}>Assign to Clients</label>
-                <div style={S.clientChips}>
-                  {(DEV_CLIENTS || []).slice(0, 6).map(c => (
-                    <span key={c.name} style={S.clientChipSelect}>{c.name}</span>
-                  ))}
-                </div>
               </div>
             ) : (
               <div style={S.formBody}>
                 <label style={S.label}>Segment Name</label>
-                <input style={S.input} placeholder="e.g. Lapsed VIPs" />
+                <input style={S.input} placeholder="e.g. Lapsed VIPs" value={segForm.name} onChange={e => setSegForm(f => ({ ...f, name: e.target.value }))} />
 
                 <label style={S.label}>Description</label>
-                <input style={S.input} placeholder="Who this targets and why" />
+                <input style={S.input} placeholder="Who this targets and why" value={segForm.description} onChange={e => setSegForm(f => ({ ...f, description: e.target.value }))} />
 
                 <label style={S.label}>Include Tags</label>
                 <div style={S.clientChips}>
                   {tags.map(t => (
-                    <span key={t.id} style={{ ...S.segTagChip, background: t.colour + '20', color: t.colour, cursor: 'pointer' }}>
+                    <span key={t.id} onClick={() => setSegForm(f => ({
+                      ...f,
+                      selectedTags: f.selectedTags.includes(t.name) ? f.selectedTags.filter(x => x !== t.name) : [...f.selectedTags, t.name],
+                    }))} style={{ ...S.segTagChip, background: segForm.selectedTags.includes(t.name) ? t.colour : t.colour + '20', color: segForm.selectedTags.includes(t.name) ? '#fff' : t.colour, cursor: 'pointer' }}>
                       {t.icon} {t.name}
                     </span>
                   ))}
@@ -248,13 +255,47 @@ export default function ClientTags({ token }) {
 
                 <label style={S.label}>Match Rule</label>
                 <div style={S.typeToggle}>
-                  <button style={{ ...S.typeBtn, ...S.typeBtnActive }}>All tags</button>
-                  <button style={S.typeBtn}>Any tag</button>
+                  <button onClick={() => setSegForm(f => ({ ...f, match: 'all' }))} style={{ ...S.typeBtn, ...(segForm.match === 'all' ? S.typeBtnActive : {}) }}>All tags</button>
+                  <button onClick={() => setSegForm(f => ({ ...f, match: 'any' }))} style={{ ...S.typeBtn, ...(segForm.match === 'any' ? S.typeBtnActive : {}) }}>Any tag</button>
                 </div>
               </div>
             )}
 
-            <button style={S.saveBtn}>Create {createType === 'tag' ? 'Tag' : 'Segment'}</button>
+            <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={async () => {
+              setSaving(true);
+              try {
+                if (createType === 'tag') {
+                  if (!tagForm.name.trim()) { setSaving(false); return; }
+                  const created = await insertRow('client_tags', {
+                    beautician_id: beautician.id,
+                    name: tagForm.name.trim(),
+                    colour: tagForm.colour,
+                    icon: tagForm.icon,
+                  });
+                  setTags(prev => [...prev, { ...created, auto: false, clients: [] }]);
+                  setTagForm({ name: '', colour: '#C76B8A', icon: '🏷️' });
+                } else {
+                  if (!segForm.name.trim()) { setSaving(false); return; }
+                  const newSeg = {
+                    id: crypto.randomUUID(),
+                    name: segForm.name.trim(),
+                    description: segForm.description,
+                    tags: segForm.selectedTags,
+                    match: segForm.match,
+                    count: 0,
+                  };
+                  setSegments(prev => [...prev, newSeg]);
+                  setSegForm({ name: '', description: '', selectedTags: [], match: 'all' });
+                }
+                setShowCreate(false);
+              } catch (err) {
+                logger.error('Failed to create:', err);
+              } finally {
+                setSaving(false);
+              }
+            }}>
+              {saving ? 'Creating…' : `Create ${createType === 'tag' ? 'Tag' : 'Segment'}`}
+            </button>
           </div>
         </div>
       )}

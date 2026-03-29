@@ -6,8 +6,9 @@
  * Next time that client books, she can glance back and know exactly
  * where she left off.
  */
-import { useState } from 'react';
-import { isDevMode, DEV_TREATMENTS, DEV_CLIENTS } from '../lib/supabase.js';
+import { useState, useEffect } from 'react';
+import { isDevMode, DEV_TREATMENTS, DEV_CLIENTS, fetchRows, insertRow, updateRow, deleteRow, useBeautician } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 // ── Dev mock data ─────────────────────────────────────────
 const DEV_NOTES = [
@@ -70,18 +71,121 @@ const DEV_NOTES = [
 const CLIENTS_LIST = ['All', 'Shauna', 'Daisy S', 'Jasmin'];
 
 export default function AppointmentNotes({ token }) {
+  const { beautician, loading: bLoading } = useBeautician();
+  const [allNotes, setAllNotes] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [treatments, setTreatments] = useState([]);
   const [selectedClient, setSelectedClient] = useState('All');
   const [expandedNote, setExpandedNote] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [addForm, setAddForm] = useState({ client: '', treatment: '', notes: '', products: '', flags: '', rating: 5 });
+  const [editingNote, setEditingNote] = useState(null);
+
+  async function handleDeleteNote(id) {
+    if (!confirm('Delete this note?')) return;
+    try {
+      await deleteRow('appointment_notes', id);
+      setAllNotes(prev => prev.filter(n => n.id !== id));
+    } catch (err) {
+      logger.error('Failed to delete note:', err);
+    }
+  }
+
+  function startEditNote(note) {
+    setEditingNote(note.id);
+    setAddForm({
+      client: note.client,
+      treatment: note.treatment,
+      notes: note.notes,
+      products: Array.isArray(note.products) ? note.products.join(', ') : '',
+      flags: Array.isArray(note.flags) ? note.flags.join(', ') : '',
+      rating: note.rating || 5,
+    });
+    setShowAdd(true);
+  }
+
+  async function handleSaveNote() {
+    if (!addForm.client || !addForm.treatment || !addForm.notes) return;
+    setSaving(true);
+    try {
+      const products = addForm.products ? addForm.products.split(',').map(s => s.trim()).filter(Boolean) : [];
+      const flags = addForm.flags ? addForm.flags.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+      if (editingNote) {
+        // Update existing
+        await updateRow('appointment_notes', editingNote, {
+          client_name: addForm.client,
+          treatment_name: addForm.treatment,
+          notes: addForm.notes,
+          products,
+          flags,
+          rating: addForm.rating,
+        });
+        setAllNotes(prev => prev.map(n => n.id === editingNote ? {
+          ...n, client: addForm.client, treatment: addForm.treatment,
+          notes: addForm.notes, products, flags, rating: addForm.rating,
+        } : n));
+      } else {
+        // Insert new
+        const today = new Date().toISOString().split('T')[0];
+        const now = new Date().toTimeString().slice(0, 5);
+        const created = await insertRow('appointment_notes', {
+          beautician_id: beautician.id,
+          client_name: addForm.client,
+          treatment_name: addForm.treatment,
+          notes: addForm.notes,
+          products,
+          flags,
+          rating: addForm.rating,
+          date: today,
+          time: now,
+        });
+        setAllNotes(prev => [{
+          id: created.id, client: addForm.client, treatment: addForm.treatment,
+          date: today, time: now, notes: addForm.notes,
+          products, flags, photos: 0, rating: addForm.rating,
+        }, ...prev]);
+      }
+      setShowAdd(false);
+      setEditingNote(null);
+      setAddForm({ client: '', treatment: '', notes: '', products: '', flags: '', rating: 5 });
+    } catch (err) {
+      logger.error('Failed to save note:', err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  useEffect(() => {
+    if (bLoading || !beautician) return;
+    if (isDevMode) {
+      setAllNotes(DEV_NOTES);
+      setClients(DEV_CLIENTS);
+      setTreatments(DEV_TREATMENTS);
+      return;
+    }
+    fetchRows('appointment_notes', beautician.id, { order: 'date', ascending: false })
+      .then(rows => setAllNotes(rows.map(r => ({
+        id: r.id, client: r.client_name || 'Client', treatment: r.treatment_name || '',
+        date: r.date || '', time: r.time || '',
+        notes: r.notes || '', products: r.products || [], flags: r.flags || [],
+        photos: r.photos || 0, rating: r.rating || 5,
+      }))))
+      .catch(err => logger.error('Failed to load notes:', err));
+    fetchRows('clients', beautician.id).then(r => setClients(r)).catch(() => {});
+    fetchRows('treatments', beautician.id, { eq: { is_active: true } }).then(r => setTreatments(r)).catch(() => {});
+  }, [beautician, bLoading]);
 
   const notes = selectedClient === 'All'
-    ? DEV_NOTES
-    : DEV_NOTES.filter(n => n.client === selectedClient);
+    ? allNotes
+    : allNotes.filter(n => n.client === selectedClient);
+
+  const clientNames = ['All', ...new Set(allNotes.map(n => n.client))];
 
   // Group by client for the overview
   const clientSummary = {};
-  DEV_NOTES.forEach(n => {
+  allNotes.forEach(n => {
     if (!clientSummary[n.client]) clientSummary[n.client] = { count: 0, last: n.date, flags: [] };
     clientSummary[n.client].count++;
     if (n.date > clientSummary[n.client].last) clientSummary[n.client].last = n.date;
@@ -121,7 +225,7 @@ export default function AppointmentNotes({ token }) {
 
       {/* Client filter */}
       <div style={S.filterRow}>
-        {CLIENTS_LIST.map(c => (
+        {clientNames.map(c => (
           <button key={c} onClick={() => setSelectedClient(c)} style={{ ...S.filterChip, ...(selectedClient === c ? S.filterActive : {}) }}>
             {c}
           </button>
@@ -189,8 +293,8 @@ export default function AppointmentNotes({ token }) {
                   </div>
 
                   <div style={S.actionRow}>
-                    <button style={S.actionBtn}>Edit</button>
-                    <button style={S.actionBtn}>Add Photo</button>
+                    <button style={S.actionBtn} onClick={(e) => { e.stopPropagation(); startEditNote(note); }}>Edit</button>
+                    <button style={{ ...S.actionBtn, color: '#C76B8A' }} onClick={(e) => { e.stopPropagation(); handleDeleteNote(note.id); }}>Delete</button>
                   </div>
                 </div>
               )}
@@ -201,20 +305,20 @@ export default function AppointmentNotes({ token }) {
 
       {/* Add note modal */}
       {showAdd && (
-        <div style={S.overlay} onClick={() => setShowAdd(false)}>
+        <div style={S.overlay} onClick={() => { setShowAdd(false); setEditingNote(null); setAddForm({ client: '', treatment: '', notes: '', products: '', flags: '', rating: 5 }); }}>
           <div style={S.modal} onClick={e => e.stopPropagation()}>
-            <h2 style={S.modalTitle}>New Appointment Note</h2>
+            <h2 style={S.modalTitle}>{editingNote ? 'Edit Note' : 'New Appointment Note'}</h2>
 
             <div style={S.fieldLabel}>Client</div>
             <select style={S.select} value={addForm.client} onChange={e => setAddForm(f => ({ ...f, client: e.target.value }))}>
               <option value="">Select client</option>
-              {DEV_CLIENTS.map(c => <option key={c.id} value={c.first_name}>{c.first_name} {c.last_name}</option>)}
+              {(clients.length > 0 ? clients : DEV_CLIENTS).map(c => <option key={c.id} value={c.first_name}>{c.first_name} {c.last_name}</option>)}
             </select>
 
             <div style={S.fieldLabel}>Treatment</div>
             <select style={S.select} value={addForm.treatment} onChange={e => setAddForm(f => ({ ...f, treatment: e.target.value }))}>
               <option value="">Select treatment</option>
-              {DEV_TREATMENTS.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+              {(treatments.length > 0 ? treatments : DEV_TREATMENTS).map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
             </select>
 
             <div style={S.fieldLabel}>Notes</div>
@@ -233,7 +337,9 @@ export default function AppointmentNotes({ token }) {
               ))}
             </div>
 
-            <button style={S.saveBtn} onClick={() => setShowAdd(false)}>Save Note</button>
+            <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={handleSaveNote}>
+              {saving ? 'Saving…' : editingNote ? 'Update Note' : 'Save Note'}
+            </button>
           </div>
         </div>
       )}

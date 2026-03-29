@@ -5,8 +5,9 @@
  * goes deeper: recurring expenses, budget limits per category, CSV export
  * for the accountant, and a month-by-month breakdown.
  */
-import { useState } from 'react';
-import { isDevMode } from '../lib/supabase.js';
+import { useState, useEffect } from 'react';
+import { isDevMode, useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 const CATEGORIES = [
   { value: 'products', label: 'Products', icon: '🧴', color: '#C76B8A' },
@@ -49,14 +50,62 @@ const DEV_BUDGETS = [
 ];
 
 export default function Expenses({ token }) {
+  const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('overview');
   const [month, setMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });
   const [showAdd, setShowAdd] = useState(false);
-  const [budgets, setBudgets] = useState(DEV_BUDGETS);
+  const [expenses, setExpenses] = useState([]);
+  const [budgets, setBudgets] = useState([]);
   const [editBudget, setEditBudget] = useState(null);
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ vendor: '', description: '', amount: '', category: 'products', date: new Date().toISOString().split('T')[0], tax_deductible: true, recurring: false, recurring_interval: 'monthly' });
 
-  const expenses = DEV_EXPENSES;
+  async function handleDeleteExpense(id) {
+    if (!confirm('Delete this expense?')) return;
+    try {
+      await deleteRow('expenses', id);
+      setExpenses(prev => prev.filter(e => e.id !== id));
+    } catch (err) {
+      logger.error('Failed to delete expense:', err);
+    }
+  }
+
+  async function handleSaveBudget() {
+    if (!editBudget?.category || !editBudget?.amount) return;
+    const limitCents = Math.round(parseFloat(editBudget.amount) * 100);
+    try {
+      const existing = budgets.find(b => b.category === editBudget.category);
+      if (existing?.id) {
+        await updateRow('expense_budgets', existing.id, { monthly_limit_cents: limitCents });
+        setBudgets(prev => prev.map(b => b.category === editBudget.category ? { ...b, monthly_limit_cents: limitCents } : b));
+      } else {
+        const created = await insertRow('expense_budgets', {
+          beautician_id: beautician.id,
+          category: editBudget.category,
+          monthly_limit_cents: limitCents,
+        });
+        setBudgets(prev => [...prev, created]);
+      }
+      setEditBudget(null);
+    } catch (err) {
+      logger.error('Failed to save budget:', err);
+    }
+  }
+
+  useEffect(() => {
+    if (bLoading || !beautician) return;
+    if (isDevMode) {
+      setExpenses(DEV_EXPENSES);
+      setBudgets(DEV_BUDGETS);
+      return;
+    }
+    fetchRows('expenses', beautician.id, { order: 'date', ascending: false })
+      .then(rows => setExpenses(rows))
+      .catch(err => logger.error('Failed to load expenses:', err));
+    fetchRows('expense_budgets', beautician.id)
+      .then(rows => setBudgets(rows))
+      .catch(() => setBudgets([]));
+  }, [beautician, bLoading]);
 
   // Filter by month
   const monthExpenses = expenses.filter(e => e.date.startsWith(month));
@@ -221,7 +270,10 @@ export default function Expenses({ token }) {
                     </div>
                   </div>
                 </div>
-                <span style={S.expenseAmount}>{fmt(e.amount_cents)}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                  <span style={S.expenseAmount}>{fmt(e.amount_cents)}</span>
+                  <button onClick={() => handleDeleteExpense(e.id)} style={{ background: 'none', border: 'none', fontSize: 11, color: '#AAA5A0', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Delete</button>
+                </div>
               </div>
             );
           })}
@@ -264,16 +316,7 @@ export default function Expenses({ token }) {
               {editBudget && (
                 <>
                   <input style={S.input} type="number" placeholder="Monthly limit (£)" value={editBudget.amount} onChange={e => setEditBudget(b => ({ ...b, amount: e.target.value }))} />
-                  <button style={S.saveBudgetBtn} onClick={() => {
-                    if (!editBudget.category || !editBudget.amount) return;
-                    setBudgets(prev => {
-                      const exists = prev.findIndex(b => b.category === editBudget.category);
-                      const entry = { category: editBudget.category, monthly_limit_cents: Math.round(parseFloat(editBudget.amount) * 100) };
-                      if (exists >= 0) { const copy = [...prev]; copy[exists] = entry; return copy; }
-                      return [...prev, entry];
-                    });
-                    setEditBudget(null);
-                  }}>Save</button>
+                  <button style={S.saveBudgetBtn} onClick={handleSaveBudget}>Save</button>
                 </>
               )}
             </div>
@@ -332,7 +375,32 @@ export default function Expenses({ token }) {
               </div>
             )}
 
-            <button style={S.saveBtn} onClick={() => setShowAdd(false)}>Save Expense</button>
+            <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={async () => {
+              if (!form.vendor || !form.amount) return;
+              setSaving(true);
+              try {
+                const created = await insertRow('expenses', {
+                  beautician_id: beautician.id,
+                  vendor: form.vendor.trim(),
+                  description: form.description.trim(),
+                  amount_cents: Math.round(parseFloat(form.amount) * 100),
+                  category: form.category,
+                  date: form.date,
+                  tax_deductible: form.tax_deductible,
+                  recurring: form.recurring,
+                  recurring_interval: form.recurring ? form.recurring_interval : null,
+                });
+                setExpenses(prev => [created, ...prev]);
+                setShowAdd(false);
+                setForm({ vendor: '', description: '', amount: '', category: 'products', date: new Date().toISOString().split('T')[0], tax_deductible: true, recurring: false, recurring_interval: 'monthly' });
+              } catch (err) {
+                logger.error('Failed to save expense:', err);
+              } finally {
+                setSaving(false);
+              }
+            }}>
+              {saving ? 'Saving…' : 'Save Expense'}
+            </button>
           </div>
         </div>
       )}

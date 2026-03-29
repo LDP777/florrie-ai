@@ -45,6 +45,13 @@ export default function BookingPage() {
   });
   const [consultationAnswers, setConsultationAnswers] = useState({});
 
+  // Add-ons
+  const [addOns, setAddOns] = useState([]);
+  const [selectedAddOns, setSelectedAddOns] = useState([]);
+
+  // Payment type: 'deposit' or 'full'
+  const [paymentType, setPaymentType] = useState('deposit');
+
   // Default consultation questions for treatments that require them
   const CONSULTATION_QUESTIONS = [
     { key: 'allergies', label: 'Do you have any known allergies? (e.g. latex, adhesive, tint)', type: 'text' },
@@ -66,6 +73,27 @@ export default function BookingPage() {
   }
   const depositCents = getDepositCents(selectedTreatment);
   const hasDeposit = depositCents > 0;
+
+  // Add-on totals
+  const addOnTotal = selectedAddOns.reduce((sum, ao) => sum + (ao.price_cents || 0), 0);
+  const addOnDuration = selectedAddOns.reduce((sum, ao) => sum + (ao.duration_minutes || 0), 0);
+  const grandTotalCents = (selectedTreatment?.price_cents || 0) + addOnTotal;
+
+  // Smart add-on suggestions: filter to add-ons that suggest_with includes selected treatment
+  const suggestedAddOns = selectedTreatment
+    ? addOns.filter(ao => {
+        if (!ao.suggest_with || !Array.isArray(ao.suggest_with)) return ao.auto_suggest;
+        return ao.suggest_with.includes(selectedTreatment.id) || ao.auto_suggest;
+      })
+    : addOns;
+
+  function toggleAddOn(addOn) {
+    setSelectedAddOns(prev => {
+      const exists = prev.find(a => a.id === addOn.id);
+      if (exists) return prev.filter(a => a.id !== addOn.id);
+      return [...prev, addOn];
+    });
+  }
 
   // Fetch beautician + treatments by slug
   useEffect(() => {
@@ -102,6 +130,16 @@ export default function BookingPage() {
           .order('sort_order', { ascending: true });
 
         setTreatments(tx || []);
+
+        // Fetch active add-ons for this beautician
+        const { data: ao } = await supabase
+          .from('add_ons')
+          .select('id, name, description, price_cents, duration_minutes, suggest_with, auto_suggest, is_active')
+          .eq('beautician_id', b.id)
+          .eq('is_active', true)
+          .order('name');
+
+        setAddOns(ao || []);
       } catch (err) {
         setError("Something went wrong loading this page.");
       } finally {
@@ -161,8 +199,9 @@ export default function BookingPage() {
         const h = Math.floor(m / 60);
         const min = m % 60;
         const display = `${h.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
-        // Z suffix required — backend Zod expects ISO 8601 with timezone
-        const startsAt = `${selectedDate}T${display}:00Z`;
+        // No Z suffix — times are in the beautician's local timezone, not UTC.
+        // Backend stores as-is and the beautician's timezone field handles conversion.
+        const startsAt = `${selectedDate}T${display}:00`;
         generated.push({ starts_at: startsAt, display });
       }
 
@@ -200,6 +239,8 @@ export default function BookingPage() {
           client_phone: clientDetails.phone,
           notes: clientDetails.notes || null,
           consultation: needsConsultation ? consultationAnswers : null,
+          add_ons: selectedAddOns.map(ao => ({ id: ao.id, price_cents: ao.price_cents })),
+          payment_type: paymentType,
         }),
       });
 
@@ -221,6 +262,8 @@ export default function BookingPage() {
         time: selectedSlot.display,
         price: `£${(selectedTreatment.price_cents / 100).toFixed(2)}`,
         deposit: data.booking?.deposit || null,
+        depositPending: data.booking?.deposit_pending || false,
+        depositNote: data.deposit_note || null,
       });
     } catch (err) {
       setError(err.message || 'Booking failed');
@@ -323,11 +366,25 @@ export default function BookingPage() {
         <div style={styles.card}>
           <div style={{ ...styles.successIcon, background: brandLight, color: brand }}>✓</div>
           <h2 style={styles.successTitle}>
-            {success.depositPaid ? "You're booked — deposit paid" : "You're booked"}
+            {success.depositPaid ? "You're booked — deposit paid" : success.depositPending ? "Almost there — deposit needed" : "You're booked"}
           </h2>
           <div style={styles.successDetails}>
             {success.depositPaid ? (
               <p>Your deposit has been received and your appointment is confirmed. You'll get a confirmation message shortly.</p>
+            ) : success.depositPending ? (
+              <>
+                <p><strong>{success.treatment}</strong></p>
+                <p>{success.date} at {success.time}</p>
+                <p style={{ color: brand, fontWeight: 600, marginTop: 12 }}>{success.price}</p>
+                {success.deposit && (
+                  <div style={{ ...styles.depositBanner, background: brandLight, borderColor: brandMedium, marginTop: 12 }}>
+                    Deposit of {success.deposit} required to confirm
+                  </div>
+                )}
+                <p style={{ fontSize: 13, color: '#666', marginTop: 12 }}>
+                  {success.depositNote || 'Your beautician will send you a payment link to confirm your booking.'}
+                </p>
+              </>
             ) : (
               <>
                 <p><strong>{success.treatment}</strong></p>
@@ -339,6 +396,8 @@ export default function BookingPage() {
           <p style={styles.confirmText}>
             {success.depositPaid
               ? 'Your card has been saved for faster checkout next time.'
+              : success.depositPending
+              ? "Your slot is held — we'll confirm once the deposit is received."
               : "You'll receive a confirmation message shortly."}
           </p>
         </div>
@@ -395,7 +454,7 @@ export default function BookingPage() {
               {treatments.map(t => (
                 <button
                   key={t.id}
-                  onClick={() => { setSelectedTreatment(t); setFieldErrors({}); setStep(1); }}
+                  onClick={() => { setSelectedTreatment(t); setSelectedAddOns([]); setFieldErrors({}); }}
                   style={{
                     ...styles.treatmentCard,
                     borderColor: selectedTreatment?.id === t.id ? brand : '#E8E4DF',
@@ -415,6 +474,58 @@ export default function BookingPage() {
             </div>
             {treatments.length === 0 && (
               <p style={styles.noSlots}>No treatments available</p>
+            )}
+
+            {/* Add-ons shown after treatment is selected */}
+            {selectedTreatment && suggestedAddOns.length > 0 && (
+              <div style={{ marginTop: 20 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 10, color: 'var(--text-primary)', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" }}>
+                  Enhance your treatment
+                </h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {suggestedAddOns.map(ao => {
+                    const isSelected = selectedAddOns.some(a => a.id === ao.id);
+                    return (
+                      <button
+                        key={ao.id}
+                        onClick={() => toggleAddOn(ao)}
+                        style={{
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                          padding: '12px 14px', borderRadius: 10,
+                          border: `1.5px solid ${isSelected ? brand : '#E8E4DF'}`,
+                          background: isSelected ? brandLight : '#fff',
+                          cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%',
+                        }}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                          <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>
+                            {isSelected ? '✓ ' : '+ '}{ao.name}
+                          </span>
+                          {ao.description && <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{ao.description}</span>}
+                          {ao.duration_minutes > 0 && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>+{ao.duration_minutes} min</span>}
+                        </div>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: brand }}>
+                          +£{(ao.price_cents / 100).toFixed(2)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedAddOns.length > 0 && (
+                  <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 8, background: brandLight, fontSize: 13, fontWeight: 500, color: brand, textAlign: 'center' }}>
+                    Total: £{(grandTotalCents / 100).toFixed(2)} · {(selectedTreatment.duration_minutes || 0) + addOnDuration} min
+                  </div>
+                )}
+              </div>
+            )}
+
+            {selectedTreatment && (
+              <button
+                onClick={() => setStep(1)}
+                style={{ ...styles.primaryBtn, background: brand, width: '100%', marginTop: 16 }}
+              >
+                Continue to date & time
+              </button>
             )}
           </div>
         )}
@@ -612,15 +723,57 @@ export default function BookingPage() {
                 <span style={styles.summaryLabel}>Duration</span>
                 <span style={styles.summaryValue}>{selectedTreatment.duration_minutes} minutes</span>
               </div>
+              {selectedAddOns.length > 0 && (
+                <>
+                  <div style={styles.summaryRow}>
+                    <span style={styles.summaryLabel}>Treatment price</span>
+                    <span style={styles.summaryValue}>£{(selectedTreatment.price_cents / 100).toFixed(2)}</span>
+                  </div>
+                  {selectedAddOns.map(ao => (
+                    <div key={ao.id} style={styles.summaryRow}>
+                      <span style={styles.summaryLabel}>+ {ao.name}</span>
+                      <span style={styles.summaryValue}>£{(ao.price_cents / 100).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </>
+              )}
               <div style={{ ...styles.summaryRow, borderBottom: 'none' }}>
-                <span style={styles.summaryLabel}>Price</span>
+                <span style={styles.summaryLabel}>Total</span>
                 <span style={{ ...styles.summaryValue, color: brand, fontWeight: 700, fontSize: 18 }}>
-                  £{(selectedTreatment.price_cents / 100).toFixed(2)}
+                  £{(grandTotalCents / 100).toFixed(2)}
                 </span>
               </div>
               {hasDeposit && (
-                <div style={{ ...styles.depositBanner, background: brandLight, borderColor: brandMedium }}>
-                  Deposit of £{(depositCents / 100).toFixed(2)} required to confirm
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ ...styles.depositBanner, background: brandLight, borderColor: brandMedium, marginBottom: 10 }}>
+                    {paymentType === 'full'
+                      ? `Paying £${(grandTotalCents / 100).toFixed(2)} in full`
+                      : `Deposit of £${(depositCents / 100).toFixed(2)} required to confirm`}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={() => setPaymentType('deposit')}
+                      style={{
+                        flex: 1, padding: '10px 0', borderRadius: 8, fontSize: 13, fontWeight: 500,
+                        cursor: 'pointer', fontFamily: 'inherit', border: 'none',
+                        background: paymentType === 'deposit' ? brand : '#F0ECE8',
+                        color: paymentType === 'deposit' ? '#fff' : '#666',
+                      }}
+                    >
+                      Pay deposit (£{(depositCents / 100).toFixed(2)})
+                    </button>
+                    <button
+                      onClick={() => setPaymentType('full')}
+                      style={{
+                        flex: 1, padding: '10px 0', borderRadius: 8, fontSize: 13, fontWeight: 500,
+                        cursor: 'pointer', fontFamily: 'inherit', border: 'none',
+                        background: paymentType === 'full' ? brand : '#F0ECE8',
+                        color: paymentType === 'full' ? '#fff' : '#666',
+                      }}
+                    >
+                      Pay in full (£{(grandTotalCents / 100).toFixed(2)})
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -642,7 +795,13 @@ export default function BookingPage() {
                   minWidth: 160
                 }}
               >
-                {submitting ? 'Booking...' : hasDeposit ? `Pay £${(depositCents / 100).toFixed(2)} deposit` : 'Confirm booking'}
+                {submitting
+                  ? 'Booking...'
+                  : hasDeposit
+                    ? paymentType === 'full'
+                      ? `Pay £${(grandTotalCents / 100).toFixed(2)}`
+                      : `Pay £${((depositCents + addOnTotal) / 100).toFixed(2)} deposit`
+                    : 'Confirm booking'}
               </button>
             </div>
           </div>

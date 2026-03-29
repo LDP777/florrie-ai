@@ -5,8 +5,9 @@
  * upload treatment photos, tag them, and create before/after pairs that
  * she can share to Instagram or embed on her booking page.
  */
-import { useState } from 'react';
-import { isDevMode } from '../lib/supabase.js';
+import { useState, useEffect } from 'react';
+import { isDevMode, useBeautician, fetchRows, insertRow, deleteRow } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 
 // ── Dev mock data ─────────────────────────────────────────
 const DEV_PHOTOS = [
@@ -26,13 +27,32 @@ const FILTER_TAGS = ['All', 'Brows', 'Lashes', 'Semi-permanent'];
 const PLACEHOLDER_COLOURS = ['#E8D5C4', '#D4C4B0', '#C4B5A0', '#B8A898', '#CDB4A0', '#D8C8B8', '#E0D0C0', '#C8B8A8', '#D0C0B0', '#DDD0C4'];
 
 export default function Portfolio({ token }) {
+  const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('gallery');
   const [filter, setFilter] = useState('All');
   const [showUpload, setShowUpload] = useState(false);
   const [selectedPair, setSelectedPair] = useState(null);
   const [uploadForm, setUploadForm] = useState({ treatment: '', client: '', type: 'after', tags: [] });
+  const [photos, setPhotos] = useState([]);
+  const [saving, setSaving] = useState(false);
 
-  const photos = DEV_PHOTOS;
+  async function handleDeletePhoto(id) {
+    if (!confirm('Delete this photo?')) return;
+    try {
+      await deleteRow('portfolio_photos', id);
+      setPhotos(prev => prev.filter(p => p.id !== id));
+    } catch (err) {
+      logger.error('Failed to delete photo:', err);
+    }
+  }
+
+  useEffect(() => {
+    if (bLoading || !beautician) return;
+    if (isDevMode) { setPhotos(DEV_PHOTOS); return; }
+    fetchRows('portfolio_photos', beautician.id, { order: 'date', ascending: false })
+      .then(rows => setPhotos(rows))
+      .catch(err => logger.error('Failed to load portfolio:', err));
+  }, [beautician, bLoading]);
 
   // Group into pairs and singles
   const pairs = {};
@@ -122,7 +142,10 @@ export default function Portfolio({ token }) {
               </div>
               <div style={S.photoMeta}>
                 <span style={S.photoTreatment}>{p.treatment}</span>
-                <span style={S.photoClient}>{p.client}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={S.photoClient}>{p.client}</span>
+                  <button onClick={(e) => { e.stopPropagation(); handleDeletePhoto(p.id); }} style={S.deleteBtn}>×</button>
+                </div>
               </div>
               {p.type !== 'single' && (
                 <span style={{ ...S.typeBadge, background: p.type === 'before' ? '#F0ECE8' : '#F0E6ED', color: p.type === 'before' ? '#8B6F5E' : '#C76B8A' }}>
@@ -216,7 +239,29 @@ export default function Portfolio({ token }) {
             <div style={S.fieldLabel}>Client (optional)</div>
             <input style={S.input} placeholder="Client name" value={uploadForm.client} onChange={e => setUploadForm(f => ({ ...f, client: e.target.value }))} />
 
-            <button style={S.saveBtn} onClick={() => setShowUpload(false)}>Save Photo</button>
+            <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={async () => {
+              if (!uploadForm.treatment) return;
+              setSaving(true);
+              try {
+                const created = await insertRow('portfolio_photos', {
+                  beautician_id: beautician.id,
+                  treatment: uploadForm.treatment,
+                  client: uploadForm.client || null,
+                  type: uploadForm.type,
+                  tags: uploadForm.tags,
+                  date: new Date().toISOString().split('T')[0],
+                });
+                setPhotos(prev => [created, ...prev]);
+                setShowUpload(false);
+                setUploadForm({ treatment: '', client: '', type: 'after', tags: [] });
+              } catch (err) {
+                logger.error('Failed to save photo:', err);
+              } finally {
+                setSaving(false);
+              }
+            }}>
+              {saving ? 'Saving…' : 'Save Photo'}
+            </button>
           </div>
         </div>
       )}
@@ -285,4 +330,5 @@ const S = {
   select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: '#2D2A26', background: '#fff', outline: 'none' },
   input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: '#2D2A26', outline: 'none', boxSizing: 'border-box' },
   saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
+  deleteBtn: { background: 'none', border: 'none', fontSize: 16, color: '#AAA5A0', cursor: 'pointer', padding: '0 4px', lineHeight: 1 },
 };

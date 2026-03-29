@@ -7,7 +7,7 @@
  * different follow-up flow.
  */
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, updateRow, isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow, isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 
 const DEV_CONSULTS = [
@@ -82,7 +82,8 @@ export default function Consultations({ token }) {
   const [expanded, setExpanded] = useState(null);
   const [showBook, setShowBook] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [consultations, setConsultations] = useState(DEV_CONSULTS);
+  const [consultations, setConsultations] = useState([]);
+  const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState({
     duration: 30,
     fee: 0,
@@ -207,9 +208,17 @@ export default function Consultations({ token }) {
                     )}
 
                     <div style={S.actionRow}>
-                      <button style={S.actionBtn}>Reschedule</button>
-                      <button style={S.actionBtn}>Send Reminder</button>
-                      <button style={{ ...S.actionBtn, background: '#C76B8A', color: '#fff' }}>Mark Complete</button>
+                      <button style={S.actionBtn} onClick={e => { e.stopPropagation(); /* TODO: reschedule modal */ }}>Reschedule</button>
+                      <button style={S.actionBtn} onClick={e => { e.stopPropagation(); /* TODO: send reminder */ }}>Send Reminder</button>
+                      <button style={{ ...S.actionBtn, background: '#C76B8A', color: '#fff' }} onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          if (!isDevMode) {
+                            await updateRow('consultations', c.id, { status: 'completed', outcome: 'approved' });
+                          }
+                          setConsultations(prev => prev.map(x => x.id === c.id ? { ...x, status: 'completed', outcome: 'approved' } : x));
+                        } catch (err) { logger.error('Failed to update consultation:', err); }
+                      }}>Mark Complete</button>
                     </div>
                   </div>
                 )}
@@ -409,7 +418,46 @@ export default function Consultations({ token }) {
             <div style={S.fieldLabel}>Notes</div>
             <textarea style={S.textarea} rows={3} placeholder="Anything to note about this client..." value={bookForm.notes} onChange={e => setBookForm(f => ({ ...f, notes: e.target.value }))} />
 
-            <button style={S.saveBtn} onClick={() => setShowBook(false)}>Book Consultation</button>
+            <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={async () => {
+              if (!bookForm.client || !bookForm.treatment || !bookForm.date || !bookForm.time) return;
+              setSaving(true);
+              try {
+                const scheduledDate = `${bookForm.date}T${bookForm.time}:00Z`;
+                const created = await insertRow('consultations', {
+                  beautician_id: beautician.id,
+                  client_name: bookForm.client,
+                  treatment_name: bookForm.treatment,
+                  scheduled_date: scheduledDate,
+                  type: bookForm.type,
+                  notes: bookForm.notes || null,
+                  status: 'confirmed',
+                  screening_questions: settings.questions,
+                  screening_answers: {},
+                });
+                setConsultations(prev => [{
+                  id: created.id,
+                  client: bookForm.client,
+                  treatment: bookForm.treatment,
+                  date: bookForm.date,
+                  time: bookForm.time,
+                  status: 'confirmed',
+                  type: bookForm.type,
+                  notes: bookForm.notes,
+                  questions: settings.questions,
+                  answers: {},
+                  outcome: null,
+                  followUp: null,
+                }, ...prev]);
+                setShowBook(false);
+                setBookForm({ client: '', treatment: '', date: '', time: '', type: 'in-person', notes: '' });
+              } catch (err) {
+                logger.error('Failed to book consultation:', err);
+              } finally {
+                setSaving(false);
+              }
+            }}>
+              {saving ? 'Booking…' : 'Book Consultation'}
+            </button>
           </div>
         </div>
       )}

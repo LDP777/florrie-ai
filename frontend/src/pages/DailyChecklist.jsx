@@ -198,10 +198,36 @@ export default function DailyChecklist({ token }) {
 
       {showAdd && (
         <div style={S.addForm}>
-          <input style={S.input} placeholder="What needs doing?" autoFocus />
+          <input style={S.input} placeholder="What needs doing?" autoFocus id="checklist-new-label" />
           <div style={S.addFormRow}>
-            <input style={{ ...S.input, flex: 1 }} type="date" defaultValue={today()} />
-            <button style={S.addFormSave} onClick={() => setShowAdd(false)}>Add</button>
+            <input style={{ ...S.input, flex: 1 }} type="date" defaultValue={today()} id="checklist-new-date" />
+            <button style={S.addFormSave} onClick={async () => {
+              const label = document.getElementById('checklist-new-label')?.value?.trim();
+              const dueDate = document.getElementById('checklist-new-date')?.value;
+              if (!label) return;
+              const newItem = { id: 'new-' + Date.now(), label, done: false, dueDate };
+              setChecklists(prev => ({ ...prev, custom: [...(prev.custom || []), newItem] }));
+              if (!isDevMode && beautician) {
+                try {
+                  const row = await insertRow('daily_checklists', {
+                    beautician_id: beautician.id,
+                    label,
+                    done: false,
+                    type: 'custom',
+                    date: dueDate || today(),
+                  });
+                  if (row) {
+                    setChecklists(prev => ({
+                      ...prev,
+                      custom: prev.custom.map(i => i.id === newItem.id ? { ...row, label: row.label, done: row.done, dueDate: row.date } : i),
+                    }));
+                  }
+                } catch (err) {
+                  logger.error('Add checklist item error:', err);
+                }
+              }
+              setShowAdd(false);
+            }}>Add</button>
             <button style={S.addFormCancel} onClick={() => setShowAdd(false)}>✕</button>
           </div>
         </div>

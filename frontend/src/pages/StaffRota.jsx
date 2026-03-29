@@ -6,7 +6,7 @@
  * Works for solo too: shows her own availability at a glance.
  */
 import { useState, useEffect } from 'react';
-import { useBeautician, supabase, isDevMode, fetchRows } from '../lib/supabase.js';
+import { useBeautician, supabase, isDevMode, fetchRows, insertRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -128,7 +128,7 @@ export default function StaffRota({ token }) {
           <span style={S.statLabel}>Weekly Hours</span>
         </div>
         <div style={S.statCard}>
-          <span style={{ ...S.statValue, color: '#8B6F5E' }}>{DEV_EXCEPTIONS.length}</span>
+          <span style={{ ...S.statValue, color: '#8B6F5E' }}>{exceptions.length}</span>
           <span style={S.statLabel}>Exceptions</span>
         </div>
       </div>
@@ -262,8 +262,8 @@ export default function StaffRota({ token }) {
       {/* Exceptions */}
       {tab === 'exceptions' && (
         <div style={S.exceptionList}>
-          {DEV_EXCEPTIONS.length === 0 && <p style={S.empty}>No exceptions this period.</p>}
-          {DEV_EXCEPTIONS.map(ex => {
+          {exceptions.length === 0 && <p style={S.empty}>No exceptions this period.</p>}
+          {exceptions.map(ex => {
             const s = staff.find(st => st.id === ex.staffId);
             return (
               <div key={ex.id} style={S.exCard}>
@@ -324,7 +324,29 @@ export default function StaffRota({ token }) {
               </div>
             )}
 
-            <button style={S.saveBtn} onClick={() => setShowAddTimeOff(false)}>Save</button>
+            <button style={S.saveBtn} onClick={async () => {
+              if (!timeOffForm.date) return;
+              try {
+                const row = {
+                  beautician_id: beautician?.id,
+                  staff_id: timeOffForm.staffId,
+                  date: timeOffForm.date,
+                  reason: timeOffForm.reason,
+                  type: 'time-off',
+                  note: timeOffForm.reason,
+                  start_time: timeOffForm.allDay ? null : timeOffForm.start,
+                  end_time: timeOffForm.allDay ? null : timeOffForm.end,
+                };
+                if (!isDevMode && beautician) {
+                  await insertRow('hours_exceptions', row);
+                }
+                setExceptions(prev => [...prev, { id: 'new-' + Date.now(), staffId: timeOffForm.staffId, date: timeOffForm.date, type: 'time-off', reason: timeOffForm.reason, allDay: timeOffForm.allDay, start: timeOffForm.start, end: timeOffForm.end }]);
+                setShowAddTimeOff(false);
+                setTimeOffForm({ staffId: 's1', date: '', reason: '', allDay: true, start: '', end: '' });
+              } catch (err) {
+                logger.error('Save time off error:', err);
+              }
+            }}>Save</button>
           </div>
         </div>
       )}

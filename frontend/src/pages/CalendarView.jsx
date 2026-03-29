@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, supabase, isDevMode, updateRow, insertRow } from '../lib/supabase.js';
+import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 
 /**
@@ -205,6 +206,83 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
   const [beforeAfterUrl, setBeforeAfterUrl] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [noShowCharging, setNoShowCharging] = useState(false);
+  const [paymentLinkUrl, setPaymentLinkUrl] = useState(null);
+  const [linkLoading, setLinkLoading] = useState(false);
+
+  async function handleMarkNoShow() {
+    if (!confirm('Mark this appointment as a no-show?')) return;
+    setSaving(true);
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/booking/appointments/${appointment.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: 'no_show' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      // If backend says we can charge, show the option
+      if (data.no_show_fee?.can_charge) {
+        setNoShowCharging(true);
+      }
+      onUpdate();
+    } catch (err) {
+      logger.error('No-show error:', err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleChargeNoShow() {
+    setSaving(true);
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/stripe/charge-no-show`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ appointment_id: appointment.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      alert(`No-show fee of £${(data.amount_cents / 100).toFixed(2)} charged successfully.`);
+      setNoShowCharging(false);
+      onUpdate();
+    } catch (err) {
+      logger.error('No-show charge error:', err);
+      alert(err.message || 'Failed to charge no-show fee');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSendPaymentLink() {
+    setLinkLoading(true);
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const remaining = appointment.price_cents - (appointment.deposit_cents || 0);
+      const amount = remaining > 0 ? remaining : appointment.price_cents;
+      const res = await fetch(`${API_BASE}/api/stripe/payment-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          amount_cents: amount,
+          description: `${appointment.treatments?.name} — ${appointment.clients?.first_name}`,
+          client_id: appointment.client_id,
+          appointment_id: appointment.id,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setPaymentLinkUrl(data.url);
+    } catch (err) {
+      logger.error('Payment link error:', err);
+      alert(err.message || 'Failed to create payment link');
+    } finally {
+      setLinkLoading(false);
+    }
+  }
 
   async function handleComplete() {
     setSaving(true);
@@ -289,9 +367,61 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
             {appointment.ai_booked && <div style={styles.detailRow}><span style={styles.detailLabel}>Booked by</span><span style={styles.aiTag}>AI Front Desk</span></div>}
           </div>
           {canComplete && (
-            <button onClick={() => setMode('completing')} style={styles.completeBtn}>
-              Mark as complete
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+              <button onClick={() => setMode('completing')} style={styles.completeBtn}>
+                Mark as complete
+              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={handleMarkNoShow} disabled={saving}
+                  style={{ ...styles.completeBtn, flex: 1, background: '#EF4444', fontSize: 12, padding: '8px 0' }}>
+                  No-show
+                </button>
+                <button onClick={handleSendPaymentLink} disabled={linkLoading}
+                  style={{ ...styles.completeBtn, flex: 1, background: 'var(--accent)', fontSize: 12, padding: '8px 0' }}>
+                  {linkLoading ? 'Creating...' : 'Send payment link'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* No-show fee charge prompt */}
+          {noShowCharging && (
+            <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: '#FEF2F2', border: '1px solid #FECACA' }}>
+              <p style={{ fontSize: 13, color: '#991B1B', margin: '0 0 8px' }}>Client has a saved card. Charge no-show fee?</p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={handleChargeNoShow} disabled={saving}
+                  style={{ flex: 1, padding: '8px', borderRadius: 8, border: 'none', background: '#EF4444', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {saving ? 'Charging...' : `Charge £${((appointment.deposit_cents || appointment.price_cents) / 100).toFixed(2)}`}
+                </button>
+                <button onClick={() => setNoShowCharging(false)}
+                  style={{ flex: 1, padding: '8px', borderRadius: 8, border: '1px solid #E5E5E5', background: '#fff', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Skip
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Payment link result */}
+          {paymentLinkUrl && (
+            <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: '#F0FFF4', border: '1px solid #C6F6D5' }}>
+              <p style={{ fontSize: 13, color: '#276749', margin: '0 0 8px', fontWeight: 600 }}>Payment link ready</p>
+              <input readOnly value={paymentLinkUrl} style={{ width: '100%', padding: '8px', borderRadius: 6, border: '1px solid #C6F6D5', fontSize: 12, boxSizing: 'border-box' }}
+                onClick={e => { e.target.select(); navigator.clipboard?.writeText(paymentLinkUrl); }} />
+              <p style={{ fontSize: 11, color: '#276749', margin: '6px 0 0' }}>Tap to copy. Send to client via WhatsApp or SMS.</p>
+            </div>
+          )}
+
+          {/* Show status for already no-show or completed */}
+          {appointment.status === 'no_show' && (
+            <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: '#FEF2F2', textAlign: 'center' }}>
+              <span style={{ fontSize: 13, color: '#991B1B', fontWeight: 600 }}>Marked as no-show</span>
+              {!appointment.no_show_fee_charged && (
+                <button onClick={handleSendPaymentLink} disabled={linkLoading}
+                  style={{ ...styles.completeBtn, marginTop: 8, background: '#EF4444', fontSize: 12, padding: '8px 0' }}>
+                  {linkLoading ? 'Creating...' : 'Send no-show fee link'}
+                </button>
+              )}
+            </div>
           )}
         </>
       )}

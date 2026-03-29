@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { createClient } from '@supabase/supabase-js';
 import logger from './lib/logger.js';
 import { apiLimiter, authLimiter, bookingLimiter } from './middleware/rate-limit.js';
+import { securityHeaders, paymentLimiter, sanitiseBody, idempotencyGuard } from './middleware/security.js';
 
 // Services
 import { processReminders } from './services/notifications.js';
@@ -84,6 +85,7 @@ export const supabaseAnon = createClient(
 );
 
 // Middleware
+app.use(securityHeaders);
 app.use(cors({ origin: process.env.FRONTEND_URL }));
 
 // Webhook limiter (stricter than general API)
@@ -102,6 +104,7 @@ app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }), (req, 
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use(sanitiseBody);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -119,7 +122,7 @@ app.use('/api/webhooks', webhookLimiter, webhookRoutes); // WhatsApp + Stripe we
 app.use('/api/escalations', apiLimiter, escalationRoutes);
 app.use('/api/content', apiLimiter, contentRoutes);
 app.use('/api/money', apiLimiter, moneyRoutes);
-app.use('/api/stripe', apiLimiter, stripeRoutes);
+app.use('/api/stripe', paymentLimiter, idempotencyGuard, stripeRoutes);
 app.use('/api/notifications', apiLimiter, notificationRoutes);
 app.use('/api/gcal', apiLimiter, gcalRoutes);
 app.use('/api/features', apiLimiter, featureRoutes);

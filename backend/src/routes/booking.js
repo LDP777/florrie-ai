@@ -6,6 +6,7 @@ import { notifyBookingConfirmed } from '../services/notifications.js';
 import { sendConsultationFormSMS } from './consultation-forms.js';
 import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
+import { calculatePlatformFee } from '../lib/platform-fees.js';
 import logger from '../lib/logger.js';
 
 const router = Router();
@@ -25,6 +26,11 @@ const bookingSchema = z.object({
   client_phone: z.string().min(5, 'Phone number too short').max(30).trim(),
   notes: z.preprocess(emptyToNull, z.string().max(2000).nullable().optional().default(null)),
   consultation: z.record(z.any()).optional().nullable().default(null),
+  add_ons: z.array(z.object({
+    id: z.string().uuid(),
+    price_cents: z.number().int().min(0),
+  })).optional().default([]),
+  payment_type: z.enum(['deposit', 'full']).optional().default('deposit'),
 });
 
 // Only init Stripe if key is present (avoids crash in dev without keys)
@@ -149,16 +155,26 @@ router.patch('/appointments/:id/status', requireAuth, validate(statusTransitionS
       .update(updates)
       .eq('id', id)
       .eq('beautician_id', req.beautician.id)
-      .select('*, clients(first_name, last_name, phone), treatments(name, duration_minutes, price_cents)')
+      .select('*, clients(first_name, last_name, phone, stripe_customer_id), treatments(name, duration_minutes, price_cents)')
       .single();
 
     if (updateError) {
       return res.status(500).json({ error: 'Failed to update appointment status' });
     }
 
+    // If marked no-show and client has saved card, tell frontend it can charge a fee
+    const canChargeNoShow = newStatus === 'no_show' && updated.clients?.stripe_customer_id;
+
     res.json({
       message: `Appointment status updated to '${newStatus}'`,
-      appointment: updated
+      appointment: updated,
+      ...(canChargeNoShow && {
+        no_show_fee: {
+          can_charge: true,
+          suggested_amount_cents: updated.deposit_cents || updated.price_cents,
+          hint: 'Client has a saved card. You can charge a no-show fee from the appointment details.',
+        },
+      }),
     });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -174,7 +190,7 @@ router.patch('/appointments/:id/status', requireAuth, validate(statusTransitionS
  * Returning clients with a saved Stripe customer see their saved cards.
  */
 router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
-  const { treatment_id, starts_at, client_name, client_email, client_phone, notes, consultation } = req.body;
+  const { treatment_id, starts_at, client_name, client_email, client_phone, notes, consultation, add_ons, payment_type } = req.body;
 
   // Get beautician from slug (include Stripe fields for deposit flow)
   const { data: beautician } = await supabase
@@ -263,8 +279,14 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
     depositCents = Math.round(treatment.price_cents * treatment.deposit_percent / 100);
   }
 
+  // If client chose to pay full amount, charge treatment price + add-ons
+  const isFullPayment = payment_type === 'full' && treatment.price_cents > 0;
+  const paymentCents = isFullPayment
+    ? treatment.price_cents + (add_ons || []).reduce((s, ao) => s + ao.price_cents, 0)
+    : depositCents;
+
   // Create appointment
-  const depositRequired = depositCents > 0;
+  const depositRequired = depositCents > 0 || isFullPayment;
   const { data: appointment, error: aError } = await supabase
     .from('appointments')
     .insert({
@@ -277,6 +299,7 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
       buffer_minutes: treatment.buffer_minutes || 0,
       price_cents: treatment.price_cents,
       deposit_cents: depositCents,
+      payment_type: isFullPayment ? 'full' : 'deposit',
       client_notes: clientNotes,
       booked_via: 'booking_page',
       status: depositRequired ? 'pending' : 'confirmed'
@@ -288,6 +311,20 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
     logger.error({ err: aError }, 'Appointment insert error');
     return res.status(500).json({ error: 'Failed to create booking' });
   }
+
+  // Insert add-ons (if any selected)
+  if (add_ons && add_ons.length > 0) {
+    const addOnRows = add_ons.map(ao => ({
+      appointment_id: appointment.id,
+      add_on_id: ao.id,
+      price_cents: ao.price_cents,
+    }));
+    const { error: aoErr } = await supabase.from('appointment_add_ons').insert(addOnRows);
+    if (aoErr) logger.warn({ err: aoErr }, 'Add-on insert failed (non-fatal)');
+  }
+
+  // Calculate total including add-ons for Stripe line items
+  const addOnTotalCents = (add_ons || []).reduce((sum, ao) => sum + ao.price_cents, 0);
 
   // Log AI action (supabase returns thenable, not a Promise — use .then() not .catch())
   const { error: logErr } = await supabase.from('ai_actions').insert({
@@ -307,6 +344,30 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
   if (logErr) logger.warn({ err: logErr }, 'AI action log failed (non-fatal)');
 
   // ── DEPOSIT FLOW ──────────────────────────────────────────
+  // If deposit required but Stripe isn't configured, return booking with deposit_pending flag
+  // so the frontend can show an appropriate message instead of silently skipping payment.
+  if (depositRequired && (!stripe || !beautician.stripe_account_id || !beautician.stripe_onboarding_complete)) {
+    // Booking created as 'pending' — beautician needs to complete Stripe setup or collect deposit manually
+    notifyBookingConfirmed(appointment.id).catch(err =>
+      logger.warn({ err }, 'Booking confirmation notification failed (non-fatal)')
+    );
+
+    return res.status(201).json({
+      booking: {
+        id: appointment.id,
+        treatment: treatment.name,
+        date: startsDate.toLocaleDateString('en-GB'),
+        time: startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+        price: `£${(treatment.price_cents / 100).toFixed(2)}`,
+        deposit: `£${(depositCents / 100).toFixed(2)}`,
+        status: 'pending',
+        deposit_pending: true,
+      },
+      // No checkout_url — Stripe not ready
+      deposit_note: 'Deposit required — your beautician will send a payment link to confirm your booking.',
+    });
+  }
+
   // If deposit required and beautician has Stripe Connect, create Checkout session.
   // Returning clients with a saved stripe_customer_id see saved payment methods.
   if (depositRequired && stripe && beautician.stripe_account_id && beautician.stripe_onboarding_complete) {
@@ -327,22 +388,53 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
         await supabase.from('clients').update({ stripe_customer_id: stripeCustomerId }).eq('id', client.id);
       }
 
+      // Build line items: treatment payment (deposit or full) + add-on costs
+      const treatmentLabel = isFullPayment ? treatment.name : `${treatment.name} — deposit`;
+      const treatmentAmountCents = isFullPayment ? treatment.price_cents : depositCents;
+
+      const lineItems = [{
+        price_data: {
+          currency: 'gbp',
+          product_data: {
+            name: treatmentLabel,
+            description: `${dateLabel} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} with ${beautician.business_name || beautician.first_name}`,
+          },
+          unit_amount: treatmentAmountCents,
+        },
+        quantity: 1,
+      }];
+
+      // Add each add-on as a separate line item (full price, not deposit)
+      if (add_ons && add_ons.length > 0) {
+        // Fetch add-on names from DB
+        const { data: addOnDetails } = await supabase
+          .from('add_ons')
+          .select('id, name')
+          .in('id', add_ons.map(ao => ao.id));
+        const nameMap = Object.fromEntries((addOnDetails || []).map(a => [a.id, a.name]));
+
+        for (const ao of add_ons) {
+          lineItems.push({
+            price_data: {
+              currency: 'gbp',
+              product_data: { name: nameMap[ao.id] || 'Add-on' },
+              unit_amount: ao.price_cents,
+            },
+            quantity: 1,
+          });
+        }
+      }
+
+      // Calculate total for platform fee (treatment payment + add-ons)
+      const checkoutTotalCents = treatmentAmountCents + addOnTotalCents;
+      const platformFee = calculatePlatformFee(checkoutTotalCents);
+
       const session = await stripe.checkout.sessions.create({
         mode: 'payment',
         customer: stripeCustomerId,
-        line_items: [{
-          price_data: {
-            currency: 'gbp',
-            product_data: {
-              name: `${treatment.name} — deposit`,
-              description: `${dateLabel} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} with ${beautician.business_name || beautician.first_name}`,
-            },
-            unit_amount: depositCents,
-          },
-          quantity: 1,
-        }],
+        line_items: lineItems,
         payment_intent_data: {
-          // No platform fee on deposits — Florrie revenue comes from subscriptions
+          application_fee_amount: platformFee,
           transfer_data: {
             destination: beautician.stripe_account_id,
           },
@@ -351,6 +443,8 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
             appointment_id: appointment.id,
             beautician_id: beautician.id,
             client_id: client.id,
+            platform_fee_cents: platformFee,
+            payment_type: isFullPayment ? 'full' : 'deposit',
           },
         },
         success_url: `${FRONTEND_URL}/book/${bookingSlug}/confirmed?session_id={CHECKOUT_SESSION_ID}`,
@@ -359,6 +453,7 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
           appointment_id: appointment.id,
           beautician_id: beautician.id,
           client_id: client.id,
+          payment_type: isFullPayment ? 'full' : 'deposit',
         },
       });
 
@@ -396,7 +491,9 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
           date: startsDate.toLocaleDateString('en-GB'),
           time: startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
           price: `£${(treatment.price_cents / 100).toFixed(2)}`,
-          deposit: `£${(depositCents / 100).toFixed(2)}`,
+          deposit: isFullPayment ? null : `£${(depositCents / 100).toFixed(2)}`,
+          payment_type: isFullPayment ? 'full' : 'deposit',
+          amount_charged: `£${(checkoutTotalCents / 100).toFixed(2)}`,
           status: 'pending',
         },
         checkout_url: session.url,

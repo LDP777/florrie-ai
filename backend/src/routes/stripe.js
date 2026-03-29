@@ -4,6 +4,7 @@ import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
 import { cleanupStripeEvents } from '../services/stripe-cleanup.js';
+import { calculatePlatformFee, getFeeDescription } from '../lib/platform-fees.js';
 import logger from '../lib/logger.js';
 
 const router = Router();
@@ -140,6 +141,8 @@ router.post('/checkout', requireStripe, async (req, res) => {
   }
 
   try {
+    const platformFee = calculatePlatformFee(amount_cents);
+
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       line_items: [{
@@ -153,13 +156,14 @@ router.post('/checkout', requireStripe, async (req, res) => {
         quantity: 1,
       }],
       payment_intent_data: {
-        // No platform fee on deposits — Florrie revenue comes from subscriptions
+        application_fee_amount: platformFee,
         transfer_data: {
           destination: beautician.stripe_account_id,
         },
         metadata: {
           appointment_id,
           beautician_id,
+          platform_fee_cents: platformFee,
         },
       },
       success_url: `${FRONTEND_URL}/book/confirmed?session_id={CHECKOUT_SESSION_ID}`,
@@ -266,6 +270,345 @@ router.post('/portal', requireAuth, requireStripe, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════
+// PLATFORM FEE INFO
+// ═══════════════════════════════════════════════
+
+/**
+ * GET /api/stripe/fees
+ * Returns Florrie's platform fee structure for display in settings/onboarding.
+ */
+router.get('/fees', requireAuth, (req, res) => {
+  res.json(getFeeDescription());
+});
+
+// ═══════════════════════════════════════════════
+// NO-SHOW FEE — Charge saved card
+// ═══════════════════════════════════════════════
+
+/**
+ * POST /api/stripe/charge-no-show
+ * Charges the client's saved card for a no-show fee.
+ * Requires: appointment_id, amount_cents (optional — defaults to deposit amount)
+ * The client must have a saved stripe_customer_id with a payment method on file.
+ */
+router.post('/charge-no-show', requireAuth, requireStripe, async (req, res) => {
+  const { appointment_id, amount_cents } = req.body;
+
+  if (!appointment_id) {
+    return res.status(400).json({ error: 'appointment_id is required' });
+  }
+
+  // Verify beautician has Stripe Connect set up before attempting off-session charge
+  if (!req.beautician.stripe_account_id || !req.beautician.stripe_onboarding_complete) {
+    return res.status(400).json({ error: 'Complete Stripe setup before charging no-show fees' });
+  }
+
+  try {
+    // Get appointment with client details
+    const { data: appointment } = await supabase
+      .from('appointments')
+      .select('*, clients(id, first_name, last_name, stripe_customer_id, phone)')
+      .eq('id', appointment_id)
+      .eq('beautician_id', req.beautician.id)
+      .single();
+
+    if (!appointment) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+
+    if (appointment.status !== 'no_show') {
+      return res.status(400).json({ error: 'Appointment must be marked as no-show first' });
+    }
+
+    const client = appointment.clients;
+    if (!client?.stripe_customer_id) {
+      return res.status(400).json({
+        error: 'Client has no saved payment method. No-show fee cannot be charged automatically.',
+        suggest: 'Send a payment link instead.',
+      });
+    }
+
+    // Fee amount: use provided amount, or fall back to deposit amount, or treatment price
+    const feeCents = amount_cents || appointment.deposit_cents || appointment.price_cents;
+    if (!feeCents || feeCents <= 0) {
+      return res.status(400).json({ error: 'No valid amount to charge' });
+    }
+
+    const platformFee = calculatePlatformFee(feeCents);
+
+    // Get saved payment methods for the customer
+    const paymentMethods = await stripe.paymentMethods.list({
+      customer: client.stripe_customer_id,
+      type: 'card',
+    });
+
+    if (!paymentMethods.data.length) {
+      return res.status(400).json({
+        error: 'Client has no saved card on file. Send a payment link instead.',
+      });
+    }
+
+    // Charge the most recent card
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: feeCents,
+      currency: 'gbp',
+      customer: client.stripe_customer_id,
+      payment_method: paymentMethods.data[0].id,
+      confirm: true,
+      off_session: true,
+      application_fee_amount: platformFee,
+      transfer_data: {
+        destination: req.beautician.stripe_account_id,
+      },
+      description: `No-show fee — ${client.first_name} ${client.last_name || ''}`.trim(),
+      metadata: {
+        appointment_id,
+        beautician_id: req.beautician.id,
+        client_id: client.id,
+        type: 'no_show_fee',
+        platform_fee_cents: platformFee,
+      },
+    });
+
+    // Record the transaction
+    await supabase.from('transactions').insert({
+      beautician_id: req.beautician.id,
+      appointment_id,
+      client_id: client.id,
+      amount_cents: feeCents,
+      type: 'no_show_fee',
+      status: paymentIntent.status === 'succeeded' ? 'completed' : 'pending',
+      stripe_payment_intent_id: paymentIntent.id,
+      payment_method: 'card',
+    });
+
+    // Update appointment with no-show fee info
+    await supabase.from('appointments').update({
+      no_show_fee_cents: feeCents,
+      no_show_fee_charged: paymentIntent.status === 'succeeded',
+      no_show_fee_payment_intent: paymentIntent.id,
+    }).eq('id', appointment_id);
+
+    res.json({
+      success: paymentIntent.status === 'succeeded',
+      payment_intent_id: paymentIntent.id,
+      amount_cents: feeCents,
+      status: paymentIntent.status,
+    });
+  } catch (err) {
+    // Handle card declined or authentication required
+    if (err.code === 'authentication_required') {
+      return res.status(402).json({
+        error: 'Client card requires authentication. Send a payment link instead.',
+        code: 'authentication_required',
+      });
+    }
+    if (err.type === 'StripeCardError') {
+      return res.status(402).json({
+        error: `Card declined: ${err.message}`,
+        code: err.code,
+      });
+    }
+    logger.error({ err }, 'No-show charge error');
+    res.status(500).json({ error: 'Failed to charge no-show fee' });
+  }
+});
+
+// ═══════════════════════════════════════════════
+// REFUNDS
+// ═══════════════════════════════════════════════
+
+/**
+ * POST /api/stripe/refund
+ * Refunds a payment (full or partial).
+ * The beautician can refund from their dashboard.
+ * Florrie's platform fee is also refunded proportionally (reverse_transfer).
+ */
+router.post('/refund', requireAuth, requireStripe, async (req, res) => {
+  const { appointment_id, amount_cents, reason } = req.body;
+
+  if (!appointment_id) {
+    return res.status(400).json({ error: 'appointment_id is required' });
+  }
+
+  try {
+    // Get appointment
+    const { data: appointment } = await supabase
+      .from('appointments')
+      .select('id, stripe_payment_intent_id, deposit_cents, price_cents, beautician_id')
+      .eq('id', appointment_id)
+      .eq('beautician_id', req.beautician.id)
+      .single();
+
+    if (!appointment) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+
+    if (!appointment.stripe_payment_intent_id) {
+      return res.status(400).json({ error: 'No payment found for this appointment' });
+    }
+
+    // Build refund params
+    const refundParams = {
+      payment_intent: appointment.stripe_payment_intent_id,
+      reverse_transfer: true,       // refund the beautician's portion
+      refund_application_fee: true,  // refund Florrie's platform fee too
+    };
+
+    // Partial refund if amount specified
+    if (amount_cents && amount_cents > 0) {
+      refundParams.amount = amount_cents;
+    }
+
+    if (reason) {
+      refundParams.reason = reason === 'duplicate' ? 'duplicate'
+        : reason === 'fraudulent' ? 'fraudulent'
+        : 'requested_by_customer';
+      refundParams.metadata = { reason_text: reason };
+    }
+
+    const refund = await stripe.refunds.create(refundParams);
+
+    // Record refund transaction (negative amount)
+    const refundedAmount = refund.amount;
+    await supabase.from('transactions').insert({
+      beautician_id: req.beautician.id,
+      appointment_id,
+      amount_cents: -refundedAmount,
+      type: 'refund',
+      status: 'completed',
+      stripe_payment_intent_id: appointment.stripe_payment_intent_id,
+      payment_method: 'card',
+    });
+
+    // Update appointment deposit status if fully refunded
+    if (!amount_cents || amount_cents >= (appointment.deposit_cents || appointment.price_cents)) {
+      await supabase.from('appointments').update({
+        deposit_status: 'refunded',
+        deposit_paid: false,
+      }).eq('id', appointment_id);
+    }
+
+    res.json({
+      success: true,
+      refund_id: refund.id,
+      amount_cents: refundedAmount,
+      status: refund.status,
+    });
+  } catch (err) {
+    logger.error({ err }, 'Refund error');
+    res.status(500).json({ error: err.message || 'Refund failed' });
+  }
+});
+
+// ═══════════════════════════════════════════════
+// PAYMENT LINKS — Ad-hoc payment requests
+// ═══════════════════════════════════════════════
+
+/**
+ * POST /api/stripe/payment-link
+ * Creates a one-time payment link the beautician can send to a client.
+ * Use cases: manual deposit collection, outstanding balance, no-show fee when no card on file.
+ */
+router.post('/payment-link', requireAuth, requireStripe, async (req, res) => {
+  const { amount_cents, description, client_id, appointment_id } = req.body;
+
+  if (!amount_cents || amount_cents < 50) {
+    return res.status(400).json({ error: 'Amount must be at least 50p' });
+  }
+
+  if (!req.beautician.stripe_account_id || !req.beautician.stripe_onboarding_complete) {
+    return res.status(400).json({ error: 'Complete Stripe setup first' });
+  }
+
+  try {
+    const platformFee = calculatePlatformFee(amount_cents);
+    const beauticianName = req.beautician.business_name || req.beautician.first_name;
+
+    // Build customer reference if client_id provided
+    let stripeCustomerId;
+    if (client_id) {
+      const { data: client } = await supabase
+        .from('clients')
+        .select('stripe_customer_id, first_name, email, phone')
+        .eq('id', client_id)
+        .eq('beautician_id', req.beautician.id)
+        .single();
+
+      if (client?.stripe_customer_id) {
+        stripeCustomerId = client.stripe_customer_id;
+      }
+    }
+
+    const sessionParams = {
+      mode: 'payment',
+      line_items: [{
+        price_data: {
+          currency: 'gbp',
+          product_data: {
+            name: description || `Payment to ${beauticianName}`,
+          },
+          unit_amount: amount_cents,
+        },
+        quantity: 1,
+      }],
+      payment_intent_data: {
+        application_fee_amount: platformFee,
+        transfer_data: {
+          destination: req.beautician.stripe_account_id,
+        },
+        setup_future_usage: 'off_session',
+        metadata: {
+          beautician_id: req.beautician.id,
+          client_id: client_id || null,
+          appointment_id: appointment_id || null,
+          type: 'payment_link',
+          platform_fee_cents: platformFee,
+        },
+      },
+      success_url: `${FRONTEND_URL}/pay/success`,
+      cancel_url: `${FRONTEND_URL}/pay/cancelled`,
+      metadata: {
+        beautician_id: req.beautician.id,
+        client_id: client_id || null,
+        appointment_id: appointment_id || null,
+        type: 'payment_link',
+      },
+    };
+
+    if (stripeCustomerId) {
+      sessionParams.customer = stripeCustomerId;
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
+
+    // Store payment link record for tracking
+    await supabase.from('payment_links').insert({
+      beautician_id: req.beautician.id,
+      client_id: client_id || null,
+      appointment_id: appointment_id || null,
+      amount_cents,
+      description: description || null,
+      stripe_session_id: session.id,
+      checkout_url: session.url,
+      status: 'pending',
+      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24h expiry
+    });
+
+    res.json({
+      url: session.url,
+      session_id: session.id,
+      amount_cents,
+      platform_fee_cents: platformFee,
+      expires_in: '24 hours',
+    });
+  } catch (err) {
+    logger.error({ err }, 'Payment link error');
+    res.status(500).json({ error: err.message || 'Failed to create payment link' });
+  }
+});
+
+// ═══════════════════════════════════════════════
 // MAINTENANCE — Stripe event cleanup
 // ═══════════════════════════════════════════════
 
@@ -328,38 +671,113 @@ router.post('/webhook', async (req, res) => {
 
   try {
     switch (event.type) {
-      // ── Payment completed (booking deposit) ──
+      // ── Payment completed (deposit, full payment, or payment link) ──
       case 'checkout.session.completed': {
         const session = event.data.object;
-        if (session.mode === 'payment' && session.metadata?.appointment_id) {
+        if (session.mode !== 'payment') break;
+
+        const isPaymentLink = session.metadata?.type === 'payment_link';
+        const appointmentId = session.metadata?.appointment_id;
+        const beauticianId = session.metadata?.beautician_id;
+        const clientId = session.metadata?.client_id;
+
+        // Payment link completion (may or may not have appointment)
+        if (isPaymentLink) {
+          // Update payment_links table
+          await supabase.from('payment_links')
+            .update({ status: 'paid', paid_at: new Date().toISOString() })
+            .eq('stripe_session_id', session.id);
+
+          // Record transaction
+          await supabase.from('transactions').insert({
+            beautician_id: beauticianId,
+            appointment_id: appointmentId || null,
+            client_id: clientId || null,
+            amount_cents: session.amount_total,
+            type: 'payment_link',
+            status: 'completed',
+            stripe_payment_intent_id: session.payment_intent,
+            payment_method: 'card',
+          });
+
+          // If linked to an appointment, update its status
+          if (appointmentId) {
+            await supabase.from('appointments')
+              .update({ deposit_status: 'paid', deposit_paid: true, status: 'confirmed' })
+              .eq('id', appointmentId);
+          }
+
+          // Save customer for future use
+          if (session.customer && clientId) {
+            await supabase.from('clients')
+              .update({ stripe_customer_id: session.customer })
+              .eq('id', clientId);
+          }
+          break;
+        }
+
+        // Standard booking payment (deposit or full)
+        if (appointmentId) {
+          // Determine if this was a full payment or deposit from metadata
+          const paymentType = session.metadata?.payment_type || 'deposit';
+
           // Mark deposit as paid AND confirm the appointment (was 'pending' waiting for payment)
           await supabase
             .from('appointments')
             .update({ deposit_status: 'paid', deposit_paid: true, status: 'confirmed' })
-            .eq('id', session.metadata.appointment_id);
+            .eq('id', appointmentId);
 
-          // Log the transaction
+          // Log the transaction with correct type
           await supabase.from('transactions').insert({
-            beautician_id: session.metadata.beautician_id,
-            appointment_id: session.metadata.appointment_id,
+            beautician_id: beauticianId,
+            appointment_id: appointmentId,
+            client_id: clientId || null,
             amount_cents: session.amount_total,
-            type: 'deposit',
+            type: paymentType === 'full' ? 'full_payment' : 'deposit',
             status: 'completed',
             stripe_payment_intent_id: session.payment_intent,
+            payment_method: 'card',
           });
 
           // If client paid, store their Stripe customer for faster future payments
-          if (session.customer && session.metadata?.client_id) {
+          if (session.customer && clientId) {
             await supabase
               .from('clients')
               .update({ stripe_customer_id: session.customer })
-              .eq('id', session.metadata.client_id);
+              .eq('id', clientId);
           }
 
           // Send booking confirmation now that payment is confirmed
-          notifyBookingConfirmed(session.metadata.appointment_id).catch(err =>
+          notifyBookingConfirmed(appointmentId).catch(err =>
             logger.warn({ err }, 'Post-payment confirmation notification failed (non-fatal)')
           );
+        }
+        break;
+      }
+
+      // ── Refund processed ──
+      case 'charge.refunded': {
+        const charge = event.data.object;
+        if (charge.metadata?.appointment_id) {
+          logger.info({ appointment_id: charge.metadata.appointment_id, amount: charge.amount_refunded }, 'Charge refunded via webhook');
+        }
+        break;
+      }
+
+      // ── Payment failed (off-session no-show charge) ──
+      case 'payment_intent.payment_failed': {
+        const pi = event.data.object;
+        if (pi.metadata?.type === 'no_show_fee') {
+          // Update transaction status
+          await supabase.from('transactions')
+            .update({ status: 'failed' })
+            .eq('stripe_payment_intent_id', pi.id);
+
+          await supabase.from('appointments')
+            .update({ no_show_fee_charged: false })
+            .eq('id', pi.metadata.appointment_id);
+
+          logger.warn({ appointment_id: pi.metadata.appointment_id }, 'No-show fee charge failed');
         }
         break;
       }

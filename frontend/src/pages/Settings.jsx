@@ -257,13 +257,21 @@ export default function Settings({ onLogout }) {
               <span style={styles.payoutValue}>Daily (arrives next business day)</span>
             </div>
             <div style={styles.payoutRow}>
-              <span style={styles.payoutLabel}>Fees</span>
+              <span style={styles.payoutLabel}>Stripe processing</span>
               <span style={styles.payoutValue}>1.4% + 20p per transaction</span>
+            </div>
+            <div style={styles.payoutRow}>
+              <span style={styles.payoutLabel}>Florrie platform fee</span>
+              <span style={styles.payoutValue}>1.5% per transaction</span>
             </div>
             <div style={styles.payoutRow}>
               <span style={styles.payoutLabel}>Account</span>
               <span style={styles.payoutValue}>{beautician.stripe_onboarding_complete ? '••••6742' : 'Not linked'}</span>
             </div>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, marginBottom: 0 }}>
+              On a £10 deposit: ~34p to Stripe + ~15p to Florrie = you keep £9.51.
+              Florrie's fee covers payment processing, booking management, and client communications.
+            </p>
           </div>
         </div>
       )}

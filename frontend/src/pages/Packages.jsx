@@ -10,7 +10,7 @@
  * Dev-mode mock data. Supabase wiring later.
  */
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow, deleteRow, isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
 import logger from '../lib/logger.js';
 
@@ -78,8 +78,10 @@ export default function Packages({ token }) {
   const { dark } = useTheme();
   const [tab, setTab] = useState('packages');
   const [showCreate, setShowCreate] = useState(false);
-  const [packages, setPackages] = useState(DEV_PACKAGES);
-  const [clientPackages, setClientPackages] = useState(DEV_CLIENT_PACKAGES);
+  const [packages, setPackages] = useState([]);
+  const [clientPackages, setClientPackages] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [treatments, setTreatments] = useState([]);
 
   // Load packages on mount
   useEffect(() => {
@@ -92,9 +94,11 @@ export default function Packages({ token }) {
     Promise.all([
       fetchRows('packages', beautician.id),
       fetchRows('client_packages', beautician.id),
-    ]).then(([pkgs, cpkgs]) => {
+      fetchRows('treatments', beautician.id, { eq: { is_active: true } }),
+    ]).then(([pkgs, cpkgs, trts]) => {
       setPackages(pkgs);
       setClientPackages(cpkgs);
+      setTreatments(trts);
     }).catch(err => logger.error('Failed to load packages:', err));
   }, [beautician, bLoading]);
 
@@ -106,7 +110,7 @@ export default function Packages({ token }) {
   const [newSessions, setNewSessions] = useState(4);
   const [discountPercent, setDiscountPercent] = useState(15);
 
-  const activeTreatments = DEV_TREATMENTS.filter(t => t.is_active);
+  const activeTreatments = (treatments.length > 0 ? treatments : DEV_TREATMENTS).filter(t => t.is_active);
 
   function toggleTreatment(id) {
     setSelectedTreatments(prev =>
@@ -115,20 +119,51 @@ export default function Packages({ token }) {
   }
 
   const selectedTotal = selectedTreatments.reduce((sum, id) => {
-    const t = DEV_TREATMENTS.find(x => x.id === id);
+    const t = activeTreatments.find(x => x.id === id);
     return sum + (t?.price_cents || 0);
   }, 0);
 
   const courseBase = selectedTreatments.length === 1
-    ? (DEV_TREATMENTS.find(x => x.id === selectedTreatments[0])?.price_cents || 0) * newSessions
+    ? (activeTreatments.find(x => x.id === selectedTreatments[0])?.price_cents || 0) * newSessions
     : 0;
 
   const totalBeforeDiscount = newType === 'bundle' ? selectedTotal : courseBase;
   const discountedPrice = Math.round(totalBeforeDiscount * (1 - discountPercent / 100));
   const savings = totalBeforeDiscount - discountedPrice;
 
-  const totalRevenue = DEV_PACKAGES.reduce((s, p) => s + p.price * p.sold, 0);
-  const totalSold = DEV_PACKAGES.reduce((s, p) => s + p.sold, 0);
+  const totalRevenue = packages.reduce((s, p) => s + (p.price_cents || p.price || 0) * (p.sold || 0), 0);
+  const totalSold = packages.reduce((s, p) => s + (p.sold || 0), 0);
+
+  const handleCreatePackage = async () => {
+    if (!newName || selectedTreatments.length === 0) return;
+    setSaving(true);
+    try {
+      const treatment_names = selectedTreatments.map(id => {
+        const t = activeTreatments.find(x => x.id === id);
+        return t?.name || id;
+      });
+      const created = await insertRow('packages', {
+        beautician_id: beautician.id,
+        name: newName,
+        description: newDesc,
+        type: newType,
+        treatment_ids: selectedTreatments,
+        treatment_names,
+        sessions: newType === 'course' ? newSessions : selectedTreatments.length,
+        full_price_cents: totalBeforeDiscount,
+        price_cents: discountedPrice,
+        discount_percent: discountPercent,
+        is_active: true,
+      });
+      setPackages(prev => [created, ...prev]);
+      setShowCreate(false);
+      setNewName(''); setNewDesc(''); setSelectedTreatments([]);
+    } catch (err) {
+      logger.error('Failed to create package:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const tabs = [
     { key: 'packages', label: 'Packages' },
@@ -150,7 +185,7 @@ export default function Packages({ token }) {
       {/* Stats */}
       <div style={s.statsRow}>
         <div style={s.statCard}>
-          <span style={s.statValue}>{DEV_PACKAGES.length}</span>
+          <span style={s.statValue}>{packages.length}</span>
           <span style={s.statLabel}>Packages</span>
         </div>
         <div style={s.statCard}>
@@ -275,10 +310,11 @@ export default function Packages({ token }) {
           )}
 
           <button
-            style={{ ...s.saveBtn, opacity: newName && selectedTreatments.length > 0 ? 1 : 0.4 }}
-            disabled={!newName || selectedTreatments.length === 0}
+            style={{ ...s.saveBtn, opacity: newName && selectedTreatments.length > 0 && !saving ? 1 : 0.4 }}
+            disabled={!newName || selectedTreatments.length === 0 || saving}
+            onClick={handleCreatePackage}
           >
-            Create package
+            {saving ? 'Creating…' : 'Create package'}
           </button>
         </div>
       )}
@@ -304,40 +340,44 @@ export default function Packages({ token }) {
       {/* Packages list */}
       {tab === 'packages' && (
         <div style={s.list}>
-          {DEV_PACKAGES.map(pkg => (
-            <div key={pkg.id} style={s.pkgCard}>
-              <div style={s.pkgTop}>
-                <div>
-                  <span style={s.pkgName}>{pkg.name}</span>
-                  <span style={s.pkgDesc}>{pkg.description}</span>
+          {packages.length === 0 && <p style={{ textAlign: 'center', color: '#AAA5A0', fontSize: 14, padding: 32 }}>No packages yet. Create your first one above.</p>}
+          {packages.map(pkg => {
+            const fullP = pkg.full_price_cents || pkg.fullPrice || 0;
+            const pkgP = pkg.price_cents || pkg.price || 0;
+            return (
+              <div key={pkg.id} style={s.pkgCard}>
+                <div style={s.pkgTop}>
+                  <div>
+                    <span style={s.pkgName}>{pkg.name}</span>
+                    <span style={s.pkgDesc}>{pkg.description}</span>
+                  </div>
+                  <span style={{
+                    ...s.typeBadge,
+                    background: pkg.type === 'bundle' ? '#E8F5E9' : '#E3F2FD',
+                    color: pkg.type === 'bundle' ? '#2E7D32' : '#1565C0',
+                  }}>{pkg.type}</span>
                 </div>
-                <span style={{
-                  ...s.typeBadge,
-                  background: pkg.type === 'bundle' ? '#E8F5E9' : '#E3F2FD',
-                  color: pkg.type === 'bundle' ? '#2E7D32' : '#1565C0',
-                }}>{pkg.type}</span>
+                <div style={s.pkgPriceRow}>
+                  {fullP > pkgP && <span style={s.pkgFullPrice}>{pence(fullP)}</span>}
+                  <span style={s.pkgPrice}>{pence(pkgP)}</span>
+                  {fullP > pkgP && <span style={s.pkgSave}>Save {pence(fullP - pkgP)}</span>}
+                </div>
+                <div style={s.pkgStats}>
+                  <span style={s.pkgStat}>{pkg.sold || 0} sold</span>
+                  <span style={s.pkgStatDot}>·</span>
+                  <span style={s.pkgStat}>{pkg.sessions || 1} session{(pkg.sessions || 1) > 1 ? 's' : ''}</span>
+                </div>
               </div>
-              <div style={s.pkgPriceRow}>
-                <span style={s.pkgFullPrice}>{pence(pkg.fullPrice)}</span>
-                <span style={s.pkgPrice}>{pence(pkg.price)}</span>
-                <span style={s.pkgSave}>Save {pence(pkg.fullPrice - pkg.price)}</span>
-              </div>
-              <div style={s.pkgStats}>
-                <span style={s.pkgStat}>{pkg.sold} sold</span>
-                <span style={s.pkgStatDot}>·</span>
-                <span style={s.pkgStat}>{pkg.active} active</span>
-                <span style={s.pkgStatDot}>·</span>
-                <span style={s.pkgStat}>{pounds(pkg.price * pkg.sold)} revenue</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
       {/* Active client packages */}
       {tab === 'active' && (
         <div style={s.list}>
-          {DEV_CLIENT_PACKAGES.map(cp => {
+          {clientPackages.length === 0 && <p style={{ textAlign: 'center', color: '#AAA5A0', fontSize: 14, padding: 32 }}>No active client packages.</p>}
+          {clientPackages.map(cp => {
             const pct = (cp.sessionsUsed / cp.sessionsTotal) * 100;
             return (
               <div key={cp.id} style={s.activeCard}>
