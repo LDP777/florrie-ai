@@ -142,7 +142,7 @@ export default function WeeklyDigest() {
               <div style={styles.revDivider} />
               <div style={styles.revCol}>
                 <span style={styles.revLabel}>Profit</span>
-                <span style={{ ...styles.revAmount, color: digest.profit >= 0 ? '#4CAF50' : '#E57373' }}>
+                <span style={{ ...styles.revAmount, color: digest.profit >= 0 ? 'var(--success, #5BA97B)' : '#E57373' }}>
                   £{(digest.profit / 100).toFixed(0)}
                 </span>
               </div>
@@ -155,7 +155,7 @@ export default function WeeklyDigest() {
             <MiniStat icon="✅" value={digest.completed} label="Completed" />
             <MiniStat icon="❌" value={digest.noShows} label="No-shows" color={digest.noShows > 0 ? '#E57373' : undefined} />
             <MiniStat icon="🚫" value={digest.cancelled} label="Cancelled" />
-            <MiniStat icon="👋" value={digest.newClients} label="New clients" color="#C76B8A" />
+            <MiniStat icon="👋" value={digest.newClients} label="New clients" color="var(--accent, #C76B8A)" />
             <MiniStat icon="📆" value={digest.nextWeekBookings} label="Next week" color="#4A90D9" />
           </div>
 
@@ -191,7 +191,7 @@ function MiniStat({ icon, value, label, color }) {
   return (
     <div style={styles.miniStat}>
       <span style={{ fontSize: 16 }}>{icon}</span>
-      <span style={{ ...styles.miniStatValue, color: color || '#2D2A26' }}>{value}</span>
+      <span style={{ ...styles.miniStatValue, color: color || 'var(--text-primary, #2D2A26)' }}>{value}</span>
       <span style={styles.miniStatLabel}>{label}</span>
     </div>
   );
@@ -200,8 +200,8 @@ function MiniStat({ icon, value, label, color }) {
 function SkeletonBlock({ height = 80 }) {
   return (
     <div style={{ background: '#fff', borderRadius: 14, height, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8, padding: 16, justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
-      <div style={{ height: 14, width: '40%', borderRadius: 7, background: '#F0ECE8' }} />
-      <div style={{ height: 12, width: '65%', borderRadius: 6, background: '#F5F2EF' }} />
+      <div style={{ height: 14, width: '40%', borderRadius: 7, background: 'var(--border, var(--border, #EDE9E4))' }} />
+      <div style={{ height: 12, width: '65%', borderRadius: 6, background: 'var(--bg-hover, #F5F2EF)' }} />
     </div>
   );
 }
@@ -264,13 +264,13 @@ function getDevDigest() {
 }
 
 const styles = {
-  page: { minHeight: '100vh', background: '#FAF8F5', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: '#2D2A26' },
+  page: { minHeight: '100vh', background: 'var(--bg, #FAF8F5)', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)' },
   header: { paddingTop: 28, paddingBottom: 8 },
   title: { fontSize: 22, fontWeight: 700, margin: 0 },
 
   weekNav: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  weekBtn: { background: 'none', border: 'none', color: '#C76B8A', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '8px 0' },
-  weekLabel: { fontSize: 14, fontWeight: 600, color: '#2D2A26' },
+  weekBtn: { background: 'none', border: 'none', color: 'var(--accent, #C76B8A)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '8px 0' },
+  weekLabel: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
 
   loadingWrap: { display: 'flex', flexDirection: 'column' },
 
@@ -278,10 +278,10 @@ const styles = {
 
   greetingCard: { display: 'flex', gap: 12, padding: 16, borderRadius: 14, background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', alignItems: 'flex-start' },
   greetingEmoji: { fontSize: 28, flexShrink: 0 },
-  greetingTitle: { fontSize: 15, fontWeight: 600, margin: '0 0 4px', color: '#2D2A26' },
+  greetingTitle: { fontSize: 15, fontWeight: 600, margin: '0 0 4px', color: 'var(--text-primary, #2D2A26)' },
   greetingText: { fontSize: 13, color: '#8A8580', margin: 0, lineHeight: 1.5 },
 
-  revenueCard: { background: 'linear-gradient(135deg, #C76B8A 0%, #D4899F 100%)', borderRadius: 14, padding: 18, color: '#fff' },
+  revenueCard: { background: 'linear-gradient(135deg, var(--accent, #C76B8A) 0%, #D4899F 100%)', borderRadius: 14, padding: 18, color: '#fff' },
   revenueRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   revCol: { display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 },
   revLabel: { fontSize: 10, opacity: 0.7, textTransform: 'uppercase', letterSpacing: '0.04em' },
@@ -291,12 +291,12 @@ const styles = {
   statsGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 },
   miniStat: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, padding: '12px 8px', borderRadius: 12, background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
   miniStatValue: { fontSize: 20, fontWeight: 700 },
-  miniStatLabel: { fontSize: 10, color: '#AAA5A0' },
+  miniStatLabel: { fontSize: 10, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
 
   card: { background: '#fff', borderRadius: 14, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
-  cardTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: '#2D2A26' },
+  cardTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: 'var(--text-primary, #2D2A26)' },
 
-  highlightRow: { display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 0', borderBottom: '1px solid #FAF8F5' },
+  highlightRow: { display: 'flex', gap: 10, alignItems: 'flex-start', padding: '8px 0', borderBottom: '1px solid var(--bg, #FAF8F5)' },
   highlightIcon: { fontSize: 16, flexShrink: 0, marginTop: 1 },
   highlightText: { fontSize: 13, color: '#5A5550', lineHeight: 1.5 },
 

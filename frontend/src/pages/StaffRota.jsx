@@ -6,7 +6,7 @@
  * Works for solo too: shows her own availability at a glance.
  */
 import { useState, useEffect } from 'react';
-import { useBeautician, supabase, isDevMode, fetchRows, insertRow } from '../lib/supabase.js';
+import { useBeautician, supabase, isDevMode, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -42,9 +42,12 @@ export default function StaffRota({ token }) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [showAddTimeOff, setShowAddTimeOff] = useState(false);
-  const [timeOffForm, setTimeOffForm] = useState({ staffId: 's1', date: '', reason: '', allDay: true, start: '', end: '' });
-  const [staff, setStaff] = useState(isDevMode ? DEV_STAFF : []);
-  const [exceptions, setExceptions] = useState(isDevMode ? DEV_EXCEPTIONS : []);
+  const [editingShift, setEditingShift] = useState(null);
+  const [shiftForm, setShiftForm] = useState({ name: '', role: '', colour: '#C76B8A', hours: { mon: null, tue: null, wed: null, thu: null, fri: null, sat: null } });
+  const [timeOffForm, setTimeOffForm] = useState({ staffId: '', date: '', reason: '', allDay: true, start: '', end: '' });
+  const [staff, setStaff] = useState([]);
+  const [exceptions, setExceptions] = useState([]);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (beautician && !bLoading) loadRota();
@@ -52,6 +55,7 @@ export default function StaffRota({ token }) {
 
   async function loadRota() {
     setLoading(true);
+    setError(null);
     try {
       if (isDevMode) {
         setStaff(DEV_STAFF);
@@ -60,23 +64,27 @@ export default function StaffRota({ token }) {
         const teamData = await fetchRows('team_members', beautician.id, { order: 'created_at' });
         setStaff(teamData || []);
 
-        const { data: excepData } = await supabase
+        const { data: excepData, error: excepErr } = await supabase
           .from('hours_exceptions')
           .select('*')
           .eq('beautician_id', beautician.id);
+        if (excepErr) throw excepErr;
         setExceptions(excepData || []);
       }
     } catch (err) {
       logger.error('Load rota error:', err);
-      setStaff(DEV_STAFF);
-      setExceptions(DEV_EXCEPTIONS);
+      setError(err.message);
+      if (isDevMode) {
+        setStaff(DEV_STAFF);
+        setExceptions(DEV_EXCEPTIONS);
+      }
     } finally {
       setLoading(false);
     }
   }
 
   if (bLoading || loading) {
-    return <div style={S.page}><div style={{ textAlign: 'center', padding: 60, color: '#AAA5A0' }}>Loading...</div></div>;
+    return <div style={S.page}><div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted, #AAA5A0)' }}>Loading...</div></div>;
   }
 
   // Current week dates
@@ -99,7 +107,7 @@ export default function StaffRota({ token }) {
   const calcHours = (s) => {
     let total = 0;
     DAY_KEYS.forEach(d => {
-      if (s.hours[d]) {
+      if (s.hours && s.hours[d]) {
         const [sh, sm] = s.hours[d].start.split(':').map(Number);
         const [eh, em] = s.hours[d].end.split(':').map(Number);
         total += (eh + em / 60) - (sh + sm / 60);
@@ -110,12 +118,106 @@ export default function StaffRota({ token }) {
 
   const totalWeekHours = staff.reduce((s, p) => s + calcHours(p), 0);
 
+  const handleSaveTimeOff = async () => {
+    if (!timeOffForm.date || !timeOffForm.staffId) {
+      setError('Please fill in all required fields');
+      return;
+    }
+    try {
+      const row = {
+        beautician_id: beautician?.id,
+        staff_id: timeOffForm.staffId,
+        date: timeOffForm.date,
+        reason: timeOffForm.reason,
+        type: 'time-off',
+        note: timeOffForm.reason,
+        start_time: timeOffForm.allDay ? null : timeOffForm.start,
+        end_time: timeOffForm.allDay ? null : timeOffForm.end,
+      };
+      if (!isDevMode && beautician) {
+        await insertRow('hours_exceptions', row);
+      }
+      setExceptions(prev => [...prev, { id: 'new-' + Date.now(), staffId: timeOffForm.staffId, date: timeOffForm.date, type: 'time-off', reason: timeOffForm.reason, allDay: timeOffForm.allDay, start: timeOffForm.start, end: timeOffForm.end }]);
+      setShowAddTimeOff(false);
+      setTimeOffForm({ staffId: '', date: '', reason: '', allDay: true, start: '', end: '' });
+      setError(null);
+    } catch (err) {
+      logger.error('Save time off error:', err);
+      setError(err.message);
+    }
+  };
+
+  const handleDeleteException = async (exId) => {
+    if (!window.confirm('Delete this exception?')) return;
+    try {
+      if (!isDevMode && beautician) {
+        await deleteRow('hours_exceptions', exId);
+      }
+      setExceptions(prev => prev.filter(ex => ex.id !== exId));
+      setError(null);
+    } catch (err) {
+      logger.error('Delete exception error:', err);
+      setError(err.message);
+    }
+  };
+
+  const handleEditShift = (staffMember) => {
+    setEditingShift(staffMember.id);
+    setShiftForm({
+      name: staffMember.name,
+      role: staffMember.role,
+      colour: staffMember.colour,
+      hours: staffMember.hours || { mon: null, tue: null, wed: null, thu: null, fri: null, sat: null },
+    });
+  };
+
+  const handleSaveShift = async () => {
+    if (!shiftForm.name || !editingShift) {
+      setError('Please fill in name');
+      return;
+    }
+    try {
+      const updates = {
+        name: shiftForm.name,
+        role: shiftForm.role,
+        colour: shiftForm.colour,
+        hours: shiftForm.hours,
+      };
+      if (!isDevMode && beautician) {
+        await updateRow('team_members', editingShift, updates);
+      }
+      setStaff(prev => prev.map(s => s.id === editingShift ? { ...s, ...updates } : s));
+      setEditingShift(null);
+      setError(null);
+    } catch (err) {
+      logger.error('Save shift error:', err);
+      setError(err.message);
+    }
+  };
+
+  const handleDeleteStaff = async (staffId) => {
+    if (!window.confirm('Delete this staff member?')) return;
+    try {
+      if (!isDevMode && beautician) {
+        await deleteRow('team_members', staffId);
+      }
+      setStaff(prev => prev.filter(s => s.id !== staffId));
+      setSelectedStaff(null);
+      setError(null);
+    } catch (err) {
+      logger.error('Delete staff error:', err);
+      setError(err.message);
+    }
+  };
+
   return (
     <div style={S.page}>
       <div style={S.header}>
         <h1 style={S.title}>Staff Rota</h1>
         <button style={S.addBtn} onClick={() => setShowAddTimeOff(true)}>+ Time Off</button>
       </div>
+
+      {error && <div style={{ ...S.errorBox, marginBottom: 16 }}>{error}</div>}
 
       {/* Stats */}
       <div style={S.statsRow}>
@@ -178,7 +280,7 @@ export default function StaffRota({ token }) {
                   </div>
                 </div>
                 {DAY_KEYS.map((d, i) => {
-                  const hrs = s.hours[d];
+                  const hrs = s.hours && s.hours[d];
                   const isToday = weekDates[i].toDateString() === new Date().toDateString();
                   return (
                     <div key={d} style={{ ...S.gridCell, ...(isToday ? S.todayCell : {}) }}>
@@ -206,53 +308,43 @@ export default function StaffRota({ token }) {
             const hrs = calcHours(s);
             const isSelected = selectedStaff === s.id;
             return (
-              <div key={s.id} style={S.staffCard} onClick={() => setSelectedStaff(isSelected ? null : s.id)}>
-                <div style={S.staffCardHeader}>
-                  <div style={S.staffCardLeft}>
-                    <div style={{ ...S.staffAvatar, background: s.colour + '22', color: s.colour }}>{s.name[0]}</div>
-                    <div>
-                      <span style={S.staffCardName}>{s.name}</span>
-                      <span style={S.staffCardRole}>{s.role}</span>
+              <div key={s.id}>
+                <div style={S.staffCard} onClick={() => setSelectedStaff(isSelected ? null : s.id)}>
+                  <div style={S.staffCardHeader}>
+                    <div style={S.staffCardLeft}>
+                      <div style={{ ...S.staffAvatar, background: s.colour + '22', color: s.colour }}>{s.name[0]}</div>
+                      <div>
+                        <span style={S.staffCardName}>{s.name}</span>
+                        <span style={S.staffCardRole}>{s.role}</span>
+                      </div>
                     </div>
+                    <span style={S.hoursTag}>{hrs.toFixed(0)}h/week</span>
                   </div>
-                  <span style={S.hoursTag}>{hrs.toFixed(0)}h/week</span>
+
+                  {isSelected && (
+                    <div style={S.staffDetail}>
+                      <span style={S.sectionLabel}>Weekly Schedule</span>
+                      <div style={S.scheduleGrid}>
+                        {DAY_KEYS.map((d, i) => {
+                          const hrs = s.hours && s.hours[d];
+                          return (
+                            <div key={d} style={S.scheduleItem}>
+                              <span style={S.schedDay}>{DAYS[i]}</span>
+                              <span style={{ ...S.schedTime, color: hrs ? 'var(--text, #2D2A26)' : '#AAA5A0' }}>
+                                {hrs ? `${hrs.start}–${hrs.end}` : 'Off'}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div style={S.staffActions}>
+                        <button style={S.staffActionBtn} onClick={() => handleEditShift(s)}>Edit Hours</button>
+                        <button style={S.staffActionBtn} onClick={() => handleDeleteStaff(s.id)}>Delete</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-
-                {isSelected && (
-                  <div style={S.staffDetail}>
-                    <span style={S.sectionLabel}>Weekly Schedule</span>
-                    <div style={S.scheduleGrid}>
-                      {DAY_KEYS.map((d, i) => {
-                        const hrs = s.hours[d];
-                        return (
-                          <div key={d} style={S.scheduleItem}>
-                            <span style={S.schedDay}>{DAYS[i]}</span>
-                            <span style={{ ...S.schedTime, color: hrs ? 'var(--text, #2D2A26)' : '#AAA5A0' }}>
-                              {hrs ? `${hrs.start}–${hrs.end}` : 'Off'}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {s.timeOff.length > 0 && (
-                      <>
-                        <span style={S.sectionLabel}>Upcoming Time Off</span>
-                        {s.timeOff.map((to, i) => (
-                          <div key={i} style={S.timeOffItem}>
-                            <span style={S.timeOffDate}>{new Date(to.date + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</span>
-                            <span style={S.timeOffReason}>{to.reason}</span>
-                          </div>
-                        ))}
-                      </>
-                    )}
-
-                    <div style={S.staffActions}>
-                      <button style={S.staffActionBtn}>Edit Hours</button>
-                      <button style={S.staffActionBtn}>Add Time Off</button>
-                    </div>
-                  </div>
-                )}
               </div>
             );
           })}
@@ -264,7 +356,7 @@ export default function StaffRota({ token }) {
         <div style={S.exceptionList}>
           {exceptions.length === 0 && <p style={S.empty}>No exceptions this period.</p>}
           {exceptions.map(ex => {
-            const s = staff.find(st => st.id === ex.staffId);
+            const s = staff.find(st => st.id === ex.staffId || st.id === ex.staff_id);
             return (
               <div key={ex.id} style={S.exCard}>
                 <div style={S.exHeader}>
@@ -272,9 +364,12 @@ export default function StaffRota({ token }) {
                     <div style={{ ...S.staffDot, background: s?.colour || '#AAA5A0' }} />
                     <span style={S.exName}>{s?.name || 'Unknown'}</span>
                   </div>
-                  <span style={{ ...S.exTypeBadge, background: ex.type === 'time-off' ? '#FFF5E6' : '#E3F2FD', color: ex.type === 'time-off' ? '#B8860B' : '#2196F3' }}>
-                    {ex.type === 'time-off' ? 'Time Off' : 'Swap'}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ ...S.exTypeBadge, background: ex.type === 'time-off' ? '#FFF5E6' : '#E3F2FD', color: ex.type === 'time-off' ? '#B8860B' : '#2196F3' }}>
+                      {ex.type === 'time-off' ? 'Time Off' : 'Swap'}
+                    </span>
+                    <button style={S.deleteBtn} onClick={() => handleDeleteException(ex.id)}>×</button>
+                  </div>
                 </div>
                 <p style={S.exReason}>{ex.reason}</p>
                 <span style={S.exDate}>
@@ -295,6 +390,7 @@ export default function StaffRota({ token }) {
 
             <div style={S.fieldLabel}>Staff Member</div>
             <select style={S.select} value={timeOffForm.staffId} onChange={e => setTimeOffForm(f => ({ ...f, staffId: e.target.value }))}>
+              <option value="">Select staff member</option>
               {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
 
@@ -324,29 +420,57 @@ export default function StaffRota({ token }) {
               </div>
             )}
 
-            <button style={S.saveBtn} onClick={async () => {
-              if (!timeOffForm.date) return;
-              try {
-                const row = {
-                  beautician_id: beautician?.id,
-                  staff_id: timeOffForm.staffId,
-                  date: timeOffForm.date,
-                  reason: timeOffForm.reason,
-                  type: 'time-off',
-                  note: timeOffForm.reason,
-                  start_time: timeOffForm.allDay ? null : timeOffForm.start,
-                  end_time: timeOffForm.allDay ? null : timeOffForm.end,
-                };
-                if (!isDevMode && beautician) {
-                  await insertRow('hours_exceptions', row);
-                }
-                setExceptions(prev => [...prev, { id: 'new-' + Date.now(), staffId: timeOffForm.staffId, date: timeOffForm.date, type: 'time-off', reason: timeOffForm.reason, allDay: timeOffForm.allDay, start: timeOffForm.start, end: timeOffForm.end }]);
-                setShowAddTimeOff(false);
-                setTimeOffForm({ staffId: 's1', date: '', reason: '', allDay: true, start: '', end: '' });
-              } catch (err) {
-                logger.error('Save time off error:', err);
-              }
-            }}>Save</button>
+            {error && <div style={{ ...S.errorBox, marginTop: 12 }}>{error}</div>}
+
+            <button style={S.saveBtn} onClick={handleSaveTimeOff}>Save</button>
+          </div>
+        </div>
+      )}
+
+      {/* Edit shift modal */}
+      {editingShift && (
+        <div style={S.overlay} onClick={() => setEditingShift(null)}>
+          <div style={S.modal} onClick={e => e.stopPropagation()}>
+            <h2 style={S.modalTitle}>Edit {shiftForm.name}</h2>
+
+            <div style={S.fieldLabel}>Name</div>
+            <input style={S.input} value={shiftForm.name} onChange={e => setShiftForm(f => ({ ...f, name: e.target.value }))} />
+
+            <div style={S.fieldLabel}>Role</div>
+            <input style={S.input} value={shiftForm.role} onChange={e => setShiftForm(f => ({ ...f, role: e.target.value }))} />
+
+            <div style={S.fieldLabel}>Colour</div>
+            <input style={S.input} type="color" value={shiftForm.colour} onChange={e => setShiftForm(f => ({ ...f, colour: e.target.value }))} />
+
+            <div style={S.fieldLabel}>Hours by Day</div>
+            {DAY_KEYS.map((d, i) => (
+              <div key={d} style={S.dayEditRow}>
+                <span style={{ width: 50, fontWeight: 600, color: 'var(--text, #2D2A26)' }}>{DAYS[i]}</span>
+                <input style={{ ...S.input, flex: 1, fontSize: 12 }} type="time" placeholder="Start" value={shiftForm.hours[d]?.start || ''} onChange={e => {
+                  const newHours = { ...shiftForm.hours };
+                  if (e.target.value) {
+                    newHours[d] = { ...newHours[d], start: e.target.value };
+                  }
+                  setShiftForm(f => ({ ...f, hours: newHours }));
+                }} />
+                <input style={{ ...S.input, flex: 1, fontSize: 12 }} type="time" placeholder="End" value={shiftForm.hours[d]?.end || ''} onChange={e => {
+                  const newHours = { ...shiftForm.hours };
+                  if (e.target.value) {
+                    newHours[d] = { ...newHours[d], end: e.target.value };
+                  }
+                  setShiftForm(f => ({ ...f, hours: newHours }));
+                }} />
+                <button style={{ ...S.input, flex: 0.3, fontSize: 12, color: 'var(--accent, #C76B8A)', cursor: 'pointer' }} onClick={() => {
+                  const newHours = { ...shiftForm.hours };
+                  newHours[d] = null;
+                  setShiftForm(f => ({ ...f, hours: newHours }));
+                }}>Clear</button>
+              </div>
+            ))}
+
+            {error && <div style={{ ...S.errorBox, marginTop: 12 }}>{error}</div>}
+
+            <button style={S.saveBtn} onClick={handleSaveShift}>Save</button>
           </div>
         </div>
       )}
@@ -358,42 +482,43 @@ const S = {
   page: { padding: '20px 16px 32px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },
-  addBtn: { background: '#C76B8A', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  addBtn: { background: 'var(--accent, #C76B8A)', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  errorBox: { background: 'var(--danger-bg, #FDF0EF)', borderRadius: 10, padding: '10px 12px', color: 'var(--danger, #D4605C)', fontSize: 13, fontWeight: 500 },
 
   statsRow: { display: 'flex', gap: 10, marginBottom: 16 },
   statCard: { flex: 1, background: 'var(--card, #fff)', borderRadius: 12, padding: '12px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   statValue: { fontSize: 18, fontWeight: 700 },
-  statLabel: { fontSize: 11, color: '#AAA5A0' },
+  statLabel: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
 
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
-  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: '#AAA5A0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: '#C76B8A', color: '#fff' },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: 'var(--text-muted, #AAA5A0)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
 
   // Week view
   weekNav: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, marginBottom: 12 },
-  weekArrow: { background: 'none', border: 'none', fontSize: 22, color: '#AAA5A0', cursor: 'pointer', padding: '4px 8px' },
+  weekArrow: { background: 'none', border: 'none', fontSize: 22, color: 'var(--text-muted, #AAA5A0)', cursor: 'pointer', padding: '4px 8px' },
   weekLabel: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
 
   grid: { background: 'var(--card, #fff)', borderRadius: 14, overflow: 'hidden' },
-  gridHeader: { display: 'grid', gridTemplateColumns: '80px repeat(6, 1fr)', borderBottom: '1px solid #F0ECE8' },
+  gridHeader: { display: 'grid', gridTemplateColumns: '80px repeat(6, 1fr)', borderBottom: '1px solid var(--border, #F0ECE8)' },
   gridCorner: { padding: 8 },
   gridDayHeader: { padding: '8px 4px', textAlign: 'center' },
-  todayHeader: { background: '#F0E6ED' },
-  dayName: { fontSize: 11, fontWeight: 600, color: '#AAA5A0', display: 'block' },
+  todayHeader: { background: 'var(--accent-light, #FFF0F3)' },
+  dayName: { fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)', display: 'block' },
   dayNum: { fontSize: 14, fontWeight: 700, color: 'var(--text, #2D2A26)' },
 
-  gridRow: { display: 'grid', gridTemplateColumns: '80px repeat(6, 1fr)', borderBottom: '1px solid #F9F7F4', minHeight: 56 },
+  gridRow: { display: 'grid', gridTemplateColumns: '80px repeat(6, 1fr)', borderBottom: '1px solid var(--border, #F0ECE8)', minHeight: 56 },
   gridStaff: { display: 'flex', alignItems: 'center', gap: 6, padding: '8px 8px 8px 10px' },
   staffDot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
   staffInfo: { display: 'flex', flexDirection: 'column' },
   staffName: { fontSize: 12, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  staffRole: { fontSize: 10, color: '#AAA5A0' },
+  staffRole: { fontSize: 10, color: 'var(--text-muted, #AAA5A0)' },
 
   gridCell: { padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  todayCell: { background: '#FDF9F7' },
+  todayCell: { background: 'var(--bg, #FAF8F5)' },
   shiftBlock: { width: '100%', borderRadius: 6, padding: '4px 3px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 },
   shiftTime: { fontSize: 10, fontWeight: 500, color: 'var(--text, #2D2A26)' },
-  offLabel: { fontSize: 10, color: '#DDD' },
+  offLabel: { fontSize: 10, color: 'var(--text-muted, #AAA5A0)' },
 
   // Staff tab
   staffList: { display: 'flex', flexDirection: 'column', gap: 10 },
@@ -402,20 +527,20 @@ const S = {
   staffCardLeft: { display: 'flex', gap: 10, alignItems: 'center' },
   staffAvatar: { width: 36, height: 36, borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600 },
   staffCardName: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)', display: 'block' },
-  staffCardRole: { fontSize: 12, color: '#AAA5A0' },
-  hoursTag: { padding: '4px 10px', borderRadius: 8, background: '#F0ECE8', fontSize: 12, fontWeight: 600, color: '#8B6F5E' },
+  staffCardRole: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)' },
+  hoursTag: { padding: '4px 10px', borderRadius: 8, background: 'var(--border, #F0ECE8)', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #8B6F5E)' },
 
-  staffDetail: { marginTop: 12, paddingTop: 12, borderTop: '1px solid #F0ECE8' },
-  sectionLabel: { fontSize: 11, fontWeight: 700, color: '#AAA5A0', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 8, marginTop: 12 },
+  staffDetail: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, #F0ECE8)' },
+  sectionLabel: { fontSize: 11, fontWeight: 700, color: 'var(--text-muted, #AAA5A0)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 8, marginTop: 12 },
   scheduleGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 },
-  scheduleItem: { display: 'flex', flexDirection: 'column', background: '#F9F7F4', borderRadius: 8, padding: '6px 8px' },
-  schedDay: { fontSize: 11, fontWeight: 600, color: '#AAA5A0' },
+  scheduleItem: { display: 'flex', flexDirection: 'column', background: 'var(--bg-hover, #F5F2EF)', borderRadius: 8, padding: '6px 8px' },
+  schedDay: { fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)' },
   schedTime: { fontSize: 13, fontWeight: 600 },
   timeOffItem: { display: 'flex', justifyContent: 'space-between', padding: '6px 0' },
   timeOffDate: { fontSize: 12, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  timeOffReason: { fontSize: 12, color: '#B8860B' },
+  timeOffReason: { fontSize: 12, color: 'var(--gold-text, #8A7245)' },
   staffActions: { display: 'flex', gap: 8, marginTop: 12 },
-  staffActionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: '#2D2A26' },
+  staffActionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, #F0ECE8)', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text, #2D2A26)' },
 
   // Exceptions
   exceptionList: { display: 'flex', flexDirection: 'column', gap: 10 },
@@ -424,21 +549,23 @@ const S = {
   exLeft: { display: 'flex', alignItems: 'center', gap: 8 },
   exName: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
   exTypeBadge: { padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600 },
-  exReason: { fontSize: 13, color: '#8B6F5E', margin: '0 0 4px' },
-  exDate: { fontSize: 12, color: '#AAA5A0' },
-  empty: { textAlign: 'center', color: '#AAA5A0', fontSize: 14, padding: 32 },
+  exReason: { fontSize: 13, color: 'var(--text-secondary, #8B6F5E)', margin: '0 0 4px' },
+  exDate: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)' },
+  deleteBtn: { background: 'none', border: 'none', fontSize: 22, color: 'var(--text-muted, #AAA5A0)', cursor: 'pointer', padding: '0 4px', lineHeight: 1 },
+  empty: { textAlign: 'center', color: 'var(--text-muted, #AAA5A0)', fontSize: 14, padding: 32 },
 
   // Modal
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
-  modal: { background: '#fff', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480 },
-  modalTitle: { fontSize: 18, fontWeight: 700, color: '#2D2A26', margin: '0 0 16px' },
-  fieldLabel: { fontSize: 12, fontWeight: 600, color: '#8B6F5E', marginBottom: 6, marginTop: 12 },
-  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: '#2D2A26', outline: 'none', boxSizing: 'border-box' },
-  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: '#2D2A26', background: '#fff', outline: 'none', boxSizing: 'border-box' },
+  modal: { background: 'var(--bg-card, #fff)', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480 },
+  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 16px' },
+  fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #8B6F5E)', marginBottom: 6, marginTop: 12 },
+  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #F0ECE8)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', outline: 'none', boxSizing: 'border-box' },
+  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #F0ECE8)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', background: 'var(--bg-card, #fff)', outline: 'none', boxSizing: 'border-box' },
   toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
   toggleLabel: { fontSize: 14, fontWeight: 500, color: 'var(--text, #2D2A26)' },
   toggle: { width: 44, height: 26, borderRadius: 13, border: 'none', padding: 0, cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 },
   toggleDot: { width: 22, height: 22, borderRadius: 11, background: '#fff', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
   timeRow: { display: 'flex', gap: 12 },
-  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
+  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
+  dayEditRow: { display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 },
 };

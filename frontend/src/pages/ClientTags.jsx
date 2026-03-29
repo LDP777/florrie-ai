@@ -38,6 +38,9 @@ export default function ClientTags({ token }) {
   const [tagForm, setTagForm] = useState({ name: '', colour: '#C76B8A', icon: '🏷️' });
   const [segForm, setSegForm] = useState({ name: '', description: '', selectedTags: [], match: 'all' });
   const [saving, setSaving] = useState(false);
+  const [editingTag, setEditingTag] = useState(null);
+  const [editingSegment, setEditingSegment] = useState(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (bLoading || !beautician) return;
@@ -59,10 +62,28 @@ export default function ClientTags({ token }) {
           rule: t.auto_rule || '',
           clients: [], // Assignments fetched separately
         })));
+      })
+      .catch(err => {
+        logger.error('Failed to fetch tags:', err);
+        setError('Failed to load tags');
       });
 
-    // Note: Segments are computed from tags in real DB or fetched from a segments table
-    // For now, keep DEV_SEGMENTS as fallback
+    // Fetch segments table
+    fetchRows('segments', beautician.id)
+      .then(rows => {
+        setSegments(rows.map(s => ({
+          id: s.id,
+          name: s.name,
+          description: s.description || '',
+          tags: s.tags || [],
+          match: s.match || 'all',
+          count: s.count || 0,
+        })));
+      })
+      .catch(err => {
+        logger.error('Failed to fetch segments:', err);
+        setSegments([]);
+      });
   }, [beautician, bLoading]);
 
   return (
@@ -130,14 +151,23 @@ export default function ClientTags({ token }) {
                     </div>
                     <div style={S.actionRow}>
                       <button style={S.actionBtn}>Use in Campaign</button>
-                      <button style={S.actionBtn}>Edit Tag</button>
+                      <button style={S.actionBtn} onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingTag(tag);
+                        setTagForm({ name: tag.name, colour: tag.colour, icon: tag.icon });
+                        setShowCreate(true);
+                        setCreateType('tag');
+                      }}>Edit Tag</button>
                       {!tag.auto && <button style={{ ...S.actionBtn, color: '#F44336' }} onClick={async (e) => {
                         e.stopPropagation();
                         if (!window.confirm(`Delete "${tag.name}" tag?`)) return;
                         try {
                           await deleteRow('client_tags', tag.id);
                           setTags(prev => prev.filter(t => t.id !== tag.id));
-                        } catch (err) { logger.error('Failed to delete tag:', err); }
+                        } catch (err) {
+                          logger.error('Failed to delete tag:', err);
+                          setError('Failed to delete tag');
+                        }
                       }}>Delete</button>}
                     </div>
                   </div>
@@ -182,7 +212,13 @@ export default function ClientTags({ token }) {
                     </div>
                     <div style={S.actionRow}>
                       <button style={{ ...S.actionBtn, background: '#C76B8A', color: '#fff' }}>Send Campaign</button>
-                      <button style={S.actionBtn}>Edit Segment</button>
+                      <button style={S.actionBtn} onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingSegment(seg);
+                        setSegForm({ name: seg.name, description: seg.description, selectedTags: seg.tags, match: seg.match });
+                        setShowCreate(true);
+                        setCreateType('segment');
+                      }}>Edit Segment</button>
                     </div>
                   </div>
                 )}
@@ -199,11 +235,25 @@ export default function ClientTags({ token }) {
 
       {/* Create Modal */}
       {showCreate && (
-        <div style={S.overlay} onClick={() => setShowCreate(false)}>
+        <div style={S.overlay} onClick={() => {
+          setShowCreate(false);
+          setEditingTag(null);
+          setEditingSegment(null);
+          setTagForm({ name: '', colour: '#C76B8A', icon: '🏷️' });
+          setSegForm({ name: '', description: '', selectedTags: [], match: 'all' });
+          setError('');
+        }}>
           <div style={S.modal} onClick={e => e.stopPropagation()}>
             <div style={S.modalHeader}>
-              <h2 style={S.modalTitle}>Create {createType === 'tag' ? 'Tag' : 'Segment'}</h2>
-              <button style={S.closeBtn} onClick={() => setShowCreate(false)}>✕</button>
+              <h2 style={S.modalTitle}>{editingTag || editingSegment ? 'Edit' : 'Create'} {createType === 'tag' ? 'Tag' : 'Segment'}</h2>
+              <button style={S.closeBtn} onClick={() => {
+                setShowCreate(false);
+                setEditingTag(null);
+                setEditingSegment(null);
+                setTagForm({ name: '', colour: '#C76B8A', icon: '🏷️' });
+                setSegForm({ name: '', description: '', selectedTags: [], match: 'all' });
+                setError('');
+              }}>✕</button>
             </div>
 
             {/* Type toggle */}
@@ -263,39 +313,81 @@ export default function ClientTags({ token }) {
 
             <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={async () => {
               setSaving(true);
+              setError('');
               try {
                 if (createType === 'tag') {
-                  if (!tagForm.name.trim()) { setSaving(false); return; }
-                  const created = await insertRow('client_tags', {
-                    beautician_id: beautician.id,
-                    name: tagForm.name.trim(),
-                    colour: tagForm.colour,
-                    icon: tagForm.icon,
-                  });
-                  setTags(prev => [...prev, { ...created, auto: false, clients: [] }]);
+                  if (!tagForm.name.trim()) {
+                    setError('Tag name is required');
+                    setSaving(false);
+                    return;
+                  }
+
+                  if (editingTag) {
+                    // Update existing tag
+                    const updated = await updateRow('client_tags', editingTag.id, {
+                      name: tagForm.name.trim(),
+                      colour: tagForm.colour,
+                      icon: tagForm.icon,
+                    });
+                    setTags(prev => prev.map(t => t.id === editingTag.id ? { ...updated, auto: t.auto, rule: t.rule, clients: t.clients } : t));
+                    setEditingTag(null);
+                  } else {
+                    // Create new tag
+                    const created = await insertRow('client_tags', {
+                      beautician_id: beautician.id,
+                      name: tagForm.name.trim(),
+                      colour: tagForm.colour,
+                      icon: tagForm.icon,
+                    });
+                    setTags(prev => [...prev, { ...created, auto: false, rule: '', clients: [] }]);
+                  }
+
                   setTagForm({ name: '', colour: '#C76B8A', icon: '🏷️' });
                 } else {
-                  if (!segForm.name.trim()) { setSaving(false); return; }
-                  const newSeg = {
-                    id: crypto.randomUUID(),
-                    name: segForm.name.trim(),
-                    description: segForm.description,
-                    tags: segForm.selectedTags,
-                    match: segForm.match,
-                    count: 0,
-                  };
-                  setSegments(prev => [...prev, newSeg]);
+                  if (!segForm.name.trim()) {
+                    setError('Segment name is required');
+                    setSaving(false);
+                    return;
+                  }
+
+                  if (editingSegment) {
+                    // Update existing segment
+                    const updated = await updateRow('segments', editingSegment.id, {
+                      name: segForm.name.trim(),
+                      description: segForm.description,
+                      tags: segForm.selectedTags,
+                      match: segForm.match,
+                    });
+                    setSegments(prev => prev.map(s => s.id === editingSegment.id ? { ...updated, count: s.count } : s));
+                    setEditingSegment(null);
+                  } else {
+                    // Create new segment
+                    const created = await insertRow('segments', {
+                      beautician_id: beautician.id,
+                      name: segForm.name.trim(),
+                      description: segForm.description,
+                      tags: segForm.selectedTags,
+                      match: segForm.match,
+                      count: 0,
+                    });
+                    setSegments(prev => [...prev, { ...created, count: 0 }]);
+                  }
+
                   setSegForm({ name: '', description: '', selectedTags: [], match: 'all' });
                 }
+
                 setShowCreate(false);
               } catch (err) {
-                logger.error('Failed to create:', err);
+                logger.error('Failed to save:', err);
+                setError(`Failed to ${editingTag || editingSegment ? 'update' : 'create'}`);
               } finally {
                 setSaving(false);
               }
             }}>
-              {saving ? 'Creating…' : `Create ${createType === 'tag' ? 'Tag' : 'Segment'}`}
+              {saving ? `${editingTag || editingSegment ? 'Saving' : 'Creating'}…` : `${editingTag || editingSegment ? 'Update' : 'Create'} ${createType === 'tag' ? 'Tag' : 'Segment'}`}
             </button>
+
+            {error && <div style={{ marginTop: 10, padding: 10, borderRadius: 8, background: '#F44336', color: '#fff', fontSize: 12, textAlign: 'center' }}>{error}</div>}
           </div>
         </div>
       )}
@@ -309,12 +401,12 @@ const S = {
 
   overviewRow: { display: 'flex', gap: 8, marginBottom: 16 },
   overviewCard: { flex: 1, background: 'var(--card, #fff)', borderRadius: 12, padding: '14px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
-  overviewNum: { fontSize: 22, fontWeight: 700, color: '#C76B8A' },
-  overviewLabel: { fontSize: 11, color: '#AAA5A0', fontWeight: 500 },
+  overviewNum: { fontSize: 22, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
+  overviewLabel: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)', fontWeight: 500 },
 
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
   tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: '#AAA5A0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: '#C76B8A', color: '#fff' },
+  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
 
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
   card: { background: 'var(--card, #fff)', borderRadius: 14, padding: 14, cursor: 'pointer' },
@@ -324,43 +416,43 @@ const S = {
   segIcon: { fontSize: 20 },
   cardInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
   cardName: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  cardMeta: { fontSize: 12, color: '#AAA5A0' },
+  cardMeta: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },
   cardRight: { display: 'flex', alignItems: 'center', gap: 8 },
-  autoBadge: { padding: '3px 8px', borderRadius: 6, background: '#FFF8E1', color: '#F9A825', fontSize: 10, fontWeight: 600 },
-  chevron: { fontSize: 10, color: '#AAA5A0' },
+  autoBadge: { padding: '3px 8px', borderRadius: 6, background: '#FFF8E1', color: 'var(--warning, #D4943A)', fontSize: 10, fontWeight: 600 },
+  chevron: { fontSize: 10, color: 'var(--text-muted, #B5AFA8)' },
 
-  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid #F0ECE8' },
-  ruleBox: { background: '#F9F7F4', borderRadius: 8, padding: 10, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 4 },
-  ruleLabel: { fontSize: 10, fontWeight: 600, color: '#AAA5A0', textTransform: 'uppercase' },
+  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, #F0ECE8)' },
+  ruleBox: { background: 'var(--bg-hover, #F5F2EF)', borderRadius: 8, padding: 10, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 4 },
+  ruleLabel: { fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #B5AFA8)', textTransform: 'uppercase' },
   ruleValue: { fontSize: 13, color: 'var(--text, #2D2A26)', fontWeight: 500 },
   clientChips: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
-  clientChip: { padding: '5px 12px', borderRadius: 20, background: '#F0E6ED', color: '#C76B8A', fontSize: 12, fontWeight: 500 },
-  clientChipSelect: { padding: '5px 12px', borderRadius: 20, background: '#F0ECE8', color: '#8B6F5E', fontSize: 12, fontWeight: 500, cursor: 'pointer' },
+  clientChip: { padding: '5px 12px', borderRadius: 20, background: 'var(--accent-light, #FFF0F3)', color: 'var(--accent, #C76B8A)', fontSize: 12, fontWeight: 500 },
+  clientChipSelect: { padding: '5px 12px', borderRadius: 20, background: 'var(--border, #F0ECE8)', color: 'var(--text-secondary, #8B6F5E)', fontSize: 12, fontWeight: 500, cursor: 'pointer' },
   actionRow: { display: 'flex', gap: 8, marginTop: 8 },
-  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: '#2D2A26' },
+  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, #F0ECE8)', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
 
-  segDesc: { fontSize: 13, color: '#8B6F5E', margin: '0 0 10px', lineHeight: 1.4 },
+  segDesc: { fontSize: 13, color: 'var(--text-secondary, #8B6F5E)', margin: '0 0 10px', lineHeight: 1.4 },
   segTags: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10, alignItems: 'center' },
   segTagChip: { padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600 },
-  matchLabel: { fontSize: 11, color: '#AAA5A0', fontStyle: 'italic' },
+  matchLabel: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)', fontStyle: 'italic' },
 
-  fab: { position: 'fixed', bottom: 80, right: 20, width: 52, height: 52, borderRadius: 26, background: '#C76B8A', color: '#fff', fontSize: 26, border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(199,107,138,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit', zIndex: 50 },
+  fab: { position: 'fixed', bottom: 80, right: 20, width: 52, height: 52, borderRadius: 26, background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 26, border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(199,107,138,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit', zIndex: 50 },
 
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
-  modal: { background: 'var(--bg, #FAF8F5)', borderRadius: '18px 18px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', overflow: 'auto', padding: '20px 16px 32px' },
+  modal: { background: 'var(--bg-card, #fff)', borderRadius: '18px 18px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', overflow: 'auto', padding: '20px 16px 32px' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },
-  closeBtn: { background: 'none', border: 'none', fontSize: 18, color: '#AAA5A0', cursor: 'pointer' },
+  closeBtn: { background: 'none', border: 'none', fontSize: 18, color: 'var(--text-muted, #B5AFA8)', cursor: 'pointer' },
 
   typeToggle: { display: 'flex', gap: 8, marginBottom: 14 },
-  typeBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: '#AAA5A0' },
-  typeBtnActive: { background: '#C76B8A', color: '#fff', border: '1px solid #C76B8A' },
+  typeBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid var(--border, #F0ECE8)', background: 'var(--card, #fff)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted, #B5AFA8)' },
+  typeBtnActive: { background: 'var(--accent, #C76B8A)', color: '#fff', border: '1px solid var(--accent, #C76B8A)' },
 
   formBody: { display: 'flex', flexDirection: 'column', gap: 10 },
-  label: { fontSize: 12, fontWeight: 600, color: '#AAA5A0', marginTop: 4 },
-  input: { padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', background: 'var(--card, #fff)' },
+  label: { fontSize: 12, fontWeight: 600, color: 'var(--text-muted, #B5AFA8)', marginTop: 4 },
+  input: { padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #F0ECE8)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', background: 'var(--card, #fff)' },
   colourRow: { display: 'flex', gap: 10 },
   colourDot: { width: 28, height: 28, borderRadius: 14, cursor: 'pointer', border: '2px solid transparent' },
 
-  saveBtn: { marginTop: 16, width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  saveBtn: { marginTop: 16, width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 };

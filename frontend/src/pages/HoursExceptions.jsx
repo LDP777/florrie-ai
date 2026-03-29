@@ -19,7 +19,7 @@ import logger from '../lib/logger.js';
 const EXCEPTION_TYPES = {
   closed: { label: 'Day off', icon: '🏖️', color: '#E57373', bg: '#FEF2F2' },
   amended: { label: 'Changed hours', icon: '🕐', color: '#FF9800', bg: '#FFF3E0' },
-  extended: { label: 'Extended hours', icon: '🌙', color: '#4CAF50', bg: '#E8F5E9' },
+  extended: { label: 'Extended hours', icon: '🌙', color: 'var(--success, #5BA97B)', bg: 'var(--success-bg, #E8F5E9)' },
 };
 
 const REASONS = [
@@ -219,7 +219,7 @@ export default function HoursExceptions() {
                   style={{
                     ...styles.typeBtn,
                     background: form.type === key ? cfg.bg : '#fff',
-                    borderColor: form.type === key ? cfg.color : '#F0ECE8',
+                    borderColor: form.type === key ? cfg.color : 'var(--border, var(--border, #EDE9E4))',
                   }}
                 >
                   <span style={{ fontSize: 18 }}>{cfg.icon}</span>
@@ -282,7 +282,7 @@ export default function HoursExceptions() {
                   onClick={() => setForm(p => ({ ...p, reason: r.value }))}
                   style={{
                     ...styles.reasonChip,
-                    background: form.reason === r.value ? '#2D2A26' : '#fff',
+                    background: form.reason === r.value ? 'var(--text-primary, #2D2A26)' : '#fff',
                     color: form.reason === r.value ? '#fff' : '#5A5550',
                   }}
                 >
@@ -311,7 +311,7 @@ export default function HoursExceptions() {
               onClick={() => setForm(p => ({ ...p, notify_clients: !p.notify_clients }))}
               style={{
                 ...styles.toggle,
-                background: form.notify_clients ? '#C76B8A' : '#E8E4E0',
+                background: form.notify_clients ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, #EDE9E4))',
               }}
             >
               <div style={{
@@ -373,7 +373,7 @@ export default function HoursExceptions() {
       {/* Past */}
       {past.length > 0 && (
         <>
-          <h3 style={{ ...styles.sectionTitle, color: '#AAA5A0' }}>Past ({past.length})</h3>
+          <h3 style={{ ...styles.sectionTitle, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' }}>Past ({past.length})</h3>
           <div style={styles.excList}>
             {past.slice(0, 5).map(exc => {
               const cfg = EXCEPTION_TYPES[exc.type];
@@ -398,17 +398,17 @@ export default function HoursExceptions() {
 
 const styles = {
   page: {
-    minHeight: '100vh', background: '#FAF8F5',
+    minHeight: '100vh', background: 'var(--bg, #FAF8F5)',
     fontFamily: '"DM Sans", -apple-system, sans-serif',
-    padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: '#2D2A26',
+    padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)',
   },
   header: { paddingTop: 28, paddingBottom: 8 },
   title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
-  subtitle: { fontSize: 13, color: '#C76B8A', margin: 0, fontWeight: 500 },
+  subtitle: { fontSize: 13, color: 'var(--accent, #C76B8A)', margin: 0, fontWeight: 500 },
 
   // Next closure
   nextCard: {
-    background: 'linear-gradient(135deg, #C76B8A 0%, #E8A0B5 100%)',
+    background: 'linear-gradient(135deg, var(--accent, #C76B8A) 0%, #E8A0B5 100%)',
     borderRadius: 14, padding: 18, marginBottom: 12, color: '#fff',
   },
   nextLabel: { display: 'block', fontSize: 11, opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 },
@@ -418,7 +418,7 @@ const styles = {
 
   addBtn: {
     width: '100%', padding: '12px 0', borderRadius: 10, border: 'none',
-    background: '#C76B8A', color: '#fff', fontSize: 14, fontWeight: 600,
+    background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 14, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit', marginBottom: 16,
   },
 
@@ -427,32 +427,32 @@ const styles = {
     background: '#fff', borderRadius: 14, padding: 16,
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 16,
   },
-  formTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 14px', color: '#2D2A26' },
+  formTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 14px', color: 'var(--text-primary, #2D2A26)' },
   formGroup: { marginBottom: 14 },
-  formLabel: { display: 'block', fontSize: 12, color: '#AAA5A0', marginBottom: 6, fontWeight: 500 },
+  formLabel: { display: 'block', fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', marginBottom: 6, fontWeight: 500 },
   formInput: {
     width: '100%', padding: '10px 12px', borderRadius: 8,
-    border: '1.5px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit',
+    border: '1.5px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box',
   },
   formRow: { display: 'flex', gap: 10, marginBottom: 14 },
   typeRow: { display: 'flex', gap: 8 },
   typeBtn: {
-    flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #F0ECE8',
+    flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid var(--border, var(--border, #EDE9E4))',
     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   reasonGrid: { display: 'flex', flexWrap: 'wrap', gap: 6 },
   reasonChip: {
-    padding: '6px 12px', borderRadius: 8, border: '1.5px solid #F0ECE8',
+    padding: '6px 12px', borderRadius: 8, border: '1.5px solid var(--border, var(--border, #EDE9E4))',
     fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
   },
   notifyRow: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     padding: '10px 0', marginBottom: 14,
   },
-  notifyLabel: { display: 'block', fontSize: 13, fontWeight: 500, color: '#2D2A26' },
-  notifyHint: { display: 'block', fontSize: 11, color: '#AAA5A0', marginTop: 2 },
+  notifyLabel: { display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-primary, #2D2A26)' },
+  notifyHint: { display: 'block', fontSize: 11, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', marginTop: 2 },
   toggle: {
     width: 44, height: 26, borderRadius: 13, border: 'none',
     cursor: 'pointer', position: 'relative', flexShrink: 0,
@@ -466,17 +466,17 @@ const styles = {
   formActions: { display: 'flex', gap: 8 },
   saveBtn: {
     flex: 1, padding: '10px 0', borderRadius: 10, border: 'none',
-    background: '#C76B8A', color: '#fff', fontSize: 13, fontWeight: 600,
+    background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   cancelBtn: {
     padding: '10px 16px', borderRadius: 10, border: 'none',
-    background: '#F5F2EF', color: '#8A8580', fontSize: 13,
+    background: 'var(--bg-hover, #F5F2EF)', color: '#8A8580', fontSize: 13,
     cursor: 'pointer', fontFamily: 'inherit',
   },
 
   // Section
-  sectionTitle: { fontSize: 14, fontWeight: 600, margin: '16px 0 10px', color: '#2D2A26' },
+  sectionTitle: { fontSize: 14, fontWeight: 600, margin: '16px 0 10px', color: 'var(--text-primary, #2D2A26)' },
 
   // Exception list
   excList: { display: 'flex', flexDirection: 'column', gap: 8 },
@@ -492,14 +492,14 @@ const styles = {
   },
   excBody: { flex: 1, minWidth: 0 },
   excTopRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
-  excDate: { fontSize: 13, fontWeight: 600, color: '#2D2A26' },
+  excDate: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
   excTypeBadge: { padding: '3px 8px', borderRadius: 5, fontSize: 10, fontWeight: 600, flexShrink: 0 },
   excTimes: { display: 'block', fontSize: 12, color: '#5A5550', marginBottom: 2 },
   excNote: { display: 'block', fontSize: 12, color: '#8A8580', marginBottom: 4 },
   excFooter: { display: 'flex', gap: 8, flexWrap: 'wrap' },
-  excReason: { fontSize: 10, color: '#AAA5A0', textTransform: 'uppercase', letterSpacing: '0.03em' },
-  excDays: { fontSize: 10, color: '#C76B8A', fontWeight: 600 },
-  excNotify: { fontSize: 10, color: '#4CAF50' },
+  excReason: { fontSize: 10, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', textTransform: 'uppercase', letterSpacing: '0.03em' },
+  excDays: { fontSize: 10, color: 'var(--accent, #C76B8A)', fontWeight: 600 },
+  excNotify: { fontSize: 10, color: 'var(--success, #5BA97B)' },
   deleteBtn: {
     width: 24, height: 24, borderRadius: 12, border: 'none',
     background: '#FEF2F2', color: '#E57373', fontSize: 14,
@@ -508,10 +508,10 @@ const styles = {
   },
 
   // Empty
-  loadingText: { textAlign: 'center', color: '#AAA5A0', padding: 40, fontSize: 14 },
+  loadingText: { textAlign: 'center', color: 'var(--text-muted, var(--text-muted, #B5AFA8))', padding: 40, fontSize: 14 },
   emptyCard: {
     background: '#fff', borderRadius: 12, padding: 20, textAlign: 'center',
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
   },
-  emptyText: { fontSize: 13, color: '#AAA5A0', margin: 0 },
+  emptyText: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', margin: 0 },
 };

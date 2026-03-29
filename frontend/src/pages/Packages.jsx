@@ -7,7 +7,7 @@
  *   - Active packages with sessions remaining
  *   - Package stats (sold, revenue, redemption rate)
  *
- * Dev-mode mock data. Supabase wiring later.
+ * Full CRUD via Supabase.
  */
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, insertRow, updateRow, deleteRow, isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
@@ -16,62 +16,6 @@ import logger from '../lib/logger.js';
 
 const pence = v => `£${(v / 100).toFixed(2)}`;
 const pounds = v => `£${Math.round(v / 100)}`;
-
-const DEV_PACKAGES = [
-  {
-    id: 'pkg-1',
-    name: 'Brow Bundle',
-    type: 'bundle',
-    description: 'Lamination & Hybrid Dye + Brow Jelly Mask',
-    treatments: ['dev-t1', 'dev-t15'],
-    fullPrice: 5200,
-    price: 4500,
-    sold: 12,
-    active: 3,
-  },
-  {
-    id: 'pkg-2',
-    name: 'Lash & Brow Combo',
-    type: 'bundle',
-    description: 'Lash Lift & Tint + Lamination & Tint',
-    treatments: ['dev-t13', 'dev-t2'],
-    fullPrice: 8000,
-    price: 7000,
-    sold: 8,
-    active: 2,
-  },
-  {
-    id: 'pkg-3',
-    name: '6x HD Brows Course',
-    type: 'course',
-    description: '6 sessions of HD Brows — save 15%',
-    treatments: ['dev-t5'],
-    sessions: 6,
-    fullPrice: 15000,
-    price: 12750,
-    sold: 5,
-    active: 4,
-  },
-  {
-    id: 'pkg-4',
-    name: '4x Lamination Maintenance',
-    type: 'course',
-    description: '4 sessions of Lamination Maintenance / Tint',
-    treatments: ['dev-t3'],
-    sessions: 4,
-    fullPrice: 10000,
-    price: 8500,
-    sold: 6,
-    active: 3,
-  },
-];
-
-const DEV_CLIENT_PACKAGES = [
-  { id: 'cp-1', client: 'Shauna', package: '6x HD Brows Course', sessionsUsed: 3, sessionsTotal: 6, purchasedAt: '2026-02-10' },
-  { id: 'cp-2', client: 'Daisy S', package: '4x Lamination Maintenance', sessionsUsed: 1, sessionsTotal: 4, purchasedAt: '2026-03-05' },
-  { id: 'cp-3', client: 'Jasmin', package: 'Brow Bundle', sessionsUsed: 0, sessionsTotal: 1, purchasedAt: '2026-03-20' },
-  { id: 'cp-4', client: 'Beth', package: '6x HD Brows Course', sessionsUsed: 5, sessionsTotal: 6, purchasedAt: '2025-12-15' },
-];
 
 export default function Packages({ token }) {
   const { beautician, loading: bLoading } = useBeautician();
@@ -82,15 +26,12 @@ export default function Packages({ token }) {
   const [clientPackages, setClientPackages] = useState([]);
   const [saving, setSaving] = useState(false);
   const [treatments, setTreatments] = useState([]);
+  const [editingItem, setEditingItem] = useState(null);
+  const [errorMsg, setErrorMsg] = useState('');
 
   // Load packages on mount
   useEffect(() => {
     if (bLoading || !beautician) return;
-    if (isDevMode) {
-      setPackages(DEV_PACKAGES);
-      setClientPackages(DEV_CLIENT_PACKAGES);
-      return;
-    }
     Promise.all([
       fetchRows('packages', beautician.id),
       fetchRows('client_packages', beautician.id),
@@ -134,16 +75,26 @@ export default function Packages({ token }) {
   const totalRevenue = packages.reduce((s, p) => s + (p.price_cents || p.price || 0) * (p.sold || 0), 0);
   const totalSold = packages.reduce((s, p) => s + (p.sold || 0), 0);
 
-  const handleCreatePackage = async () => {
+  const resetForm = () => {
+    setNewName('');
+    setNewDesc('');
+    setSelectedTreatments([]);
+    setNewSessions(4);
+    setDiscountPercent(15);
+    setEditingItem(null);
+    setErrorMsg('');
+  };
+
+  const handleSavePackage = async () => {
     if (!newName || selectedTreatments.length === 0) return;
     setSaving(true);
+    setErrorMsg('');
     try {
       const treatment_names = selectedTreatments.map(id => {
         const t = activeTreatments.find(x => x.id === id);
         return t?.name || id;
       });
-      const created = await insertRow('packages', {
-        beautician_id: beautician.id,
+      const payload = {
         name: newName,
         description: newDesc,
         type: newType,
@@ -154,15 +105,50 @@ export default function Packages({ token }) {
         price_cents: discountedPrice,
         discount_percent: discountPercent,
         is_active: true,
-      });
-      setPackages(prev => [created, ...prev]);
+      };
+
+      if (editingItem) {
+        // Update existing
+        const updated = await updateRow('packages', editingItem.id, payload);
+        setPackages(prev => prev.map(p => p.id === editingItem.id ? updated : p));
+      } else {
+        // Create new
+        const created = await insertRow('packages', {
+          ...payload,
+          beautician_id: beautician.id,
+        });
+        setPackages(prev => [created, ...prev]);
+      }
       setShowCreate(false);
-      setNewName(''); setNewDesc(''); setSelectedTreatments([]);
+      resetForm();
     } catch (err) {
-      logger.error('Failed to create package:', err);
+      logger.error('Failed to save package:', err);
+      setErrorMsg('Failed to save package. Please try again.');
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleDeletePackage = async (id) => {
+    if (!confirm('Delete this package?')) return;
+    try {
+      await deleteRow('packages', id);
+      setPackages(prev => prev.filter(p => p.id !== id));
+    } catch (err) {
+      logger.error('Failed to delete package:', err);
+      setErrorMsg('Failed to delete package. Please try again.');
+    }
+  };
+
+  const handleEditPackage = (pkg) => {
+    setEditingItem(pkg);
+    setNewType(pkg.type);
+    setNewName(pkg.name);
+    setNewDesc(pkg.description);
+    setSelectedTreatments(pkg.treatment_ids || []);
+    setNewSessions(pkg.sessions || 4);
+    setDiscountPercent(pkg.discount_percent || 15);
+    setShowCreate(true);
   };
 
   const tabs = [
@@ -198,22 +184,26 @@ export default function Packages({ token }) {
         </div>
       </div>
 
-      {/* Create form */}
+      {/* Create/Edit form */}
       {showCreate && (
         <div style={s.createForm}>
-          <span style={s.formTitle}>New package</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <span style={s.formTitle}>{editingItem ? 'Edit package' : 'New package'}</span>
+            <button onClick={() => { setShowCreate(false); resetForm(); }} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))' }}>×</button>
+          </div>
+          {errorMsg && <div style={{ background: 'var(--danger-bg, #FDF0EF)', color: '#C62828', padding: '10px 12px', borderRadius: 8, fontSize: 13, marginBottom: 12 }}>{errorMsg}</div>}
 
           {/* Type */}
           <div style={s.chipRow}>
             <button
               onClick={() => setNewType('bundle')}
-              style={{ ...s.typeChip, background: newType === 'bundle' ? '#C76B8A' : 'var(--card-bg, #fff)', color: newType === 'bundle' ? '#fff' : 'var(--text, #2D2A26)', border: newType === 'bundle' ? '1px solid #C76B8A' : '1px solid var(--border, #E8E4E0)' }}
+              style={{ ...s.typeChip, background: newType === 'bundle' ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)', color: newType === 'bundle' ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))', border: newType === 'bundle' ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))' }}
             >
               Bundle
             </button>
             <button
               onClick={() => setNewType('course')}
-              style={{ ...s.typeChip, background: newType === 'course' ? '#C76B8A' : 'var(--card-bg, #fff)', color: newType === 'course' ? '#fff' : 'var(--text, #2D2A26)', border: newType === 'course' ? '1px solid #C76B8A' : '1px solid var(--border, #E8E4E0)' }}
+              style={{ ...s.typeChip, background: newType === 'course' ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)', color: newType === 'course' ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))', border: newType === 'course' ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))' }}
             >
               Course
             </button>
@@ -236,9 +226,9 @@ export default function Packages({ token }) {
                 }}
                 style={{
                   ...s.treatmentChip,
-                  background: selectedTreatments.includes(t.id) ? '#FBF0F3' : 'transparent',
-                  border: selectedTreatments.includes(t.id) ? '1px solid #C76B8A' : '1px solid var(--border, #F0ECE8)',
-                  color: selectedTreatments.includes(t.id) ? '#C76B8A' : 'var(--text, #2D2A26)',
+                  background: selectedTreatments.includes(t.id) ? 'var(--accent-light, #FFF0F3)' : 'transparent',
+                  border: selectedTreatments.includes(t.id) ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+                  color: selectedTreatments.includes(t.id) ? 'var(--accent, #C76B8A)' : 'var(--text, var(--text-primary, #2D2A26))',
                 }}
               >
                 <span style={s.treatmentChipName}>{t.name}</span>
@@ -258,9 +248,9 @@ export default function Packages({ token }) {
                     onClick={() => setNewSessions(v)}
                     style={{
                       ...s.numChip,
-                      background: newSessions === v ? '#C76B8A' : 'var(--card-bg, #fff)',
-                      color: newSessions === v ? '#fff' : 'var(--text, #2D2A26)',
-                      border: newSessions === v ? '1px solid #C76B8A' : '1px solid var(--border, #E8E4E0)',
+                      background: newSessions === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
+                      color: newSessions === v ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
+                      border: newSessions === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
                     }}
                   >
                     {v}x
@@ -280,9 +270,9 @@ export default function Packages({ token }) {
                   onClick={() => setDiscountPercent(v)}
                   style={{
                     ...s.numChip,
-                    background: discountPercent === v ? '#C76B8A' : 'var(--card-bg, #fff)',
-                    color: discountPercent === v ? '#fff' : 'var(--text, #2D2A26)',
-                    border: discountPercent === v ? '1px solid #C76B8A' : '1px solid var(--border, #E8E4E0)',
+                    background: discountPercent === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
+                    color: discountPercent === v ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
+                    border: discountPercent === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
                   }}
                 >
                   {v}%
@@ -309,13 +299,21 @@ export default function Packages({ token }) {
             </div>
           )}
 
-          <button
-            style={{ ...s.saveBtn, opacity: newName && selectedTreatments.length > 0 && !saving ? 1 : 0.4 }}
-            disabled={!newName || selectedTreatments.length === 0 || saving}
-            onClick={handleCreatePackage}
-          >
-            {saving ? 'Creating…' : 'Create package'}
-          </button>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              style={{ ...s.saveBtn, opacity: newName && selectedTreatments.length > 0 && !saving ? 1 : 0.4 }}
+              disabled={!newName || selectedTreatments.length === 0 || saving}
+              onClick={handleSavePackage}
+            >
+              {saving ? (editingItem ? 'Saving…' : 'Creating…') : (editingItem ? 'Save changes' : 'Create package')}
+            </button>
+            <button
+              style={{ ...s.saveBtn, background: 'var(--border, var(--border, var(--border, #EDE9E4)))', color: 'var(--text, var(--text-primary, #2D2A26))', flex: 0.5 }}
+              onClick={() => { setShowCreate(false); resetForm(); }}
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 
@@ -327,8 +325,8 @@ export default function Packages({ token }) {
             onClick={() => setTab(t.key)}
             style={{
               ...s.tab,
-              color: tab === t.key ? '#C76B8A' : 'var(--text-muted, #AAA5A0)',
-              borderBottom: tab === t.key ? '2px solid #C76B8A' : '2px solid transparent',
+              color: tab === t.key ? 'var(--accent, #C76B8A)' : 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))',
+              borderBottom: tab === t.key ? '2px solid var(--accent, #C76B8A)' : '2px solid transparent',
               fontWeight: tab === t.key ? 600 : 400,
             }}
           >
@@ -340,7 +338,7 @@ export default function Packages({ token }) {
       {/* Packages list */}
       {tab === 'packages' && (
         <div style={s.list}>
-          {packages.length === 0 && <p style={{ textAlign: 'center', color: '#AAA5A0', fontSize: 14, padding: 32 }}>No packages yet. Create your first one above.</p>}
+          {packages.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontSize: 14, padding: 32 }}>No packages yet. Create your first one above.</p>}
           {packages.map(pkg => {
             const fullP = pkg.full_price_cents || pkg.fullPrice || 0;
             const pkgP = pkg.price_cents || pkg.price || 0;
@@ -353,7 +351,7 @@ export default function Packages({ token }) {
                   </div>
                   <span style={{
                     ...s.typeBadge,
-                    background: pkg.type === 'bundle' ? '#E8F5E9' : '#E3F2FD',
+                    background: pkg.type === 'bundle' ? 'var(--success-bg, #E8F5E9)' : '#E3F2FD',
                     color: pkg.type === 'bundle' ? '#2E7D32' : '#1565C0',
                   }}>{pkg.type}</span>
                 </div>
@@ -367,6 +365,10 @@ export default function Packages({ token }) {
                   <span style={s.pkgStatDot}>·</span>
                   <span style={s.pkgStat}>{pkg.sessions || 1} session{(pkg.sessions || 1) > 1 ? 's' : ''}</span>
                 </div>
+                <div style={s.pkgActions}>
+                  <button onClick={() => handleEditPackage(pkg)} style={s.actionBtn}>Edit</button>
+                  <button onClick={() => handleDeletePackage(pkg.id)} style={{ ...s.actionBtn, color: '#C62828' }}>Delete</button>
+                </div>
               </div>
             );
           })}
@@ -376,7 +378,7 @@ export default function Packages({ token }) {
       {/* Active client packages */}
       {tab === 'active' && (
         <div style={s.list}>
-          {clientPackages.length === 0 && <p style={{ textAlign: 'center', color: '#AAA5A0', fontSize: 14, padding: 32 }}>No active client packages.</p>}
+          {clientPackages.length === 0 && <p style={{ textAlign: 'center', color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontSize: 14, padding: 32 }}>No active client packages.</p>}
           {clientPackages.map(cp => {
             const pct = (cp.sessionsUsed / cp.sessionsTotal) * 100;
             return (
@@ -405,55 +407,57 @@ export default function Packages({ token }) {
 const s = {
   page: { padding: '16px 16px 32px', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
-  title: { fontSize: 24, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },
-  sub: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', margin: '4px 0 0' },
-  addBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  title: { fontSize: 24, fontWeight: 700, color: 'var(--text, var(--text-primary, #2D2A26))', margin: 0 },
+  sub: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))', margin: '4px 0 0' },
+  addBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   statsRow: { display: 'flex', gap: 8, marginBottom: 16 },
-  statCard: { flex: 1, background: 'var(--card-bg, #fff)', borderRadius: 12, padding: '12px 10px', textAlign: 'center', border: '1px solid var(--border, #F0ECE8)' },
-  statValue: { display: 'block', fontSize: 20, fontWeight: 700, color: 'var(--text, #2D2A26)' },
-  statLabel: { display: 'block', fontSize: 10, color: 'var(--text-muted, #AAA5A0)', textTransform: 'uppercase', letterSpacing: '0.03em' },
-  createForm: { background: 'var(--card-bg, #fff)', borderRadius: 14, padding: 16, marginBottom: 16, border: '1px solid var(--border, #F0ECE8)' },
-  formTitle: { display: 'block', fontSize: 16, fontWeight: 700, color: 'var(--text, #2D2A26)', marginBottom: 12 },
+  statCard: { flex: 1, background: 'var(--card-bg, #fff)', borderRadius: 12, padding: '12px 10px', textAlign: 'center', border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))' },
+  statValue: { display: 'block', fontSize: 20, fontWeight: 700, color: 'var(--text, var(--text-primary, #2D2A26))' },
+  statLabel: { display: 'block', fontSize: 10, color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))', textTransform: 'uppercase', letterSpacing: '0.03em' },
+  createForm: { background: 'var(--card-bg, #fff)', borderRadius: 14, padding: 16, marginBottom: 16, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))' },
+  formTitle: { display: 'block', fontSize: 16, fontWeight: 700, color: 'var(--text, var(--text-primary, #2D2A26))', marginBottom: 12 },
   chipRow: { display: 'flex', gap: 8, marginBottom: 12 },
   typeChip: { padding: '8px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border, #F0ECE8)', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', marginBottom: 10, background: 'var(--bg, #FAF8F5)', color: 'var(--text, #2D2A26)' },
-  fieldLabel: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)', marginBottom: 6 },
+  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border, var(--border, var(--border, #EDE9E4)))', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', marginBottom: 10, background: 'var(--bg, var(--bg, #FAF8F5))', color: 'var(--text, var(--text-primary, #2D2A26))' },
+  fieldLabel: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))', marginBottom: 6 },
   fieldGroup: { marginBottom: 12 },
   treatmentPicker: { display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 200, overflowY: 'auto', marginBottom: 12 },
   treatmentChip: { display: 'flex', justifyContent: 'space-between', padding: '10px 12px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%' },
   treatmentChipName: { fontSize: 13, fontWeight: 500 },
   treatmentChipPrice: { fontSize: 13, fontWeight: 600, flexShrink: 0 },
   numChip: { padding: '8px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  pricePreview: { background: 'var(--bg, #FAF8F5)', borderRadius: 10, padding: 12, marginBottom: 12 },
+  pricePreview: { background: 'var(--bg, var(--bg, #FAF8F5))', borderRadius: 10, padding: 12, marginBottom: 12 },
   priceRow: { display: 'flex', justifyContent: 'space-between', padding: '4px 0' },
-  priceLabel: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)' },
-  priceStrike: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', textDecoration: 'line-through' },
-  priceValue: { fontSize: 15, fontWeight: 700, color: 'var(--text, #2D2A26)' },
-  priceSave: { fontSize: 13, fontWeight: 600, color: '#4CAF50' },
-  saveBtn: { width: '100%', padding: '12px 0', borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabBar: { display: 'flex', borderBottom: '1px solid var(--border, #F0ECE8)', marginBottom: 14 },
+  priceLabel: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))' },
+  priceStrike: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))', textDecoration: 'line-through' },
+  priceValue: { fontSize: 15, fontWeight: 700, color: 'var(--text, var(--text-primary, #2D2A26))' },
+  priceSave: { fontSize: 13, fontWeight: 600, color: 'var(--success, #5BA97B)' },
+  saveBtn: { width: '100%', padding: '12px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabBar: { display: 'flex', borderBottom: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', marginBottom: 14 },
   tab: { flex: 1, padding: '10px 0', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', textAlign: 'center' },
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
-  pkgCard: { background: 'var(--card-bg, #fff)', borderRadius: 14, padding: 14, border: '1px solid var(--border, #F0ECE8)' },
+  pkgCard: { background: 'var(--card-bg, #fff)', borderRadius: 14, padding: 14, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))' },
   pkgTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
-  pkgName: { display: 'block', fontSize: 15, fontWeight: 700, color: 'var(--text, #2D2A26)' },
-  pkgDesc: { display: 'block', fontSize: 12, color: 'var(--text-muted, #AAA5A0)', marginTop: 2 },
+  pkgName: { display: 'block', fontSize: 15, fontWeight: 700, color: 'var(--text, var(--text-primary, #2D2A26))' },
+  pkgDesc: { display: 'block', fontSize: 12, color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))', marginTop: 2 },
   typeBadge: { fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 6, textTransform: 'uppercase', letterSpacing: '0.03em' },
   pkgPriceRow: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },
-  pkgFullPrice: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', textDecoration: 'line-through' },
-  pkgPrice: { fontSize: 16, fontWeight: 700, color: '#C76B8A' },
-  pkgSave: { fontSize: 11, fontWeight: 600, color: '#4CAF50', background: '#E8F5E9', padding: '2px 6px', borderRadius: 4 },
+  pkgFullPrice: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))', textDecoration: 'line-through' },
+  pkgPrice: { fontSize: 16, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
+  pkgSave: { fontSize: 11, fontWeight: 600, color: 'var(--success, #5BA97B)', background: 'var(--success-bg, #E8F5E9)', padding: '2px 6px', borderRadius: 4 },
   pkgStats: { display: 'flex', alignItems: 'center', gap: 4 },
-  pkgStat: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
-  pkgStatDot: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
-  activeCard: { background: 'var(--card-bg, #fff)', borderRadius: 14, padding: 14, border: '1px solid var(--border, #F0ECE8)' },
+  pkgStat: { fontSize: 11, color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))' },
+  pkgStatDot: { fontSize: 11, color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))' },
+  pkgActions: { display: 'flex', gap: 8, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))' },
+  actionBtn: { flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', background: 'transparent', color: 'var(--accent, #C76B8A)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  activeCard: { background: 'var(--card-bg, #fff)', borderRadius: 14, padding: 14, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))' },
   activeTop: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 },
-  activeAvatar: { width: 36, height: 36, borderRadius: 18, background: 'linear-gradient(135deg, #C76B8A22, #C76B8A44)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: '#C76B8A', flexShrink: 0 },
+  activeAvatar: { width: 36, height: 36, borderRadius: 18, background: 'linear-gradient(135deg, var(--accent, #C76B8A)22, var(--accent, #C76B8A)44)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: 'var(--accent, #C76B8A)', flexShrink: 0 },
   activeInfo: { flex: 1 },
-  activeName: { display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  activePkg: { display: 'block', fontSize: 12, color: 'var(--text-muted, #AAA5A0)' },
-  activeCount: { fontSize: 16, fontWeight: 700, color: '#C76B8A' },
-  progressBar: { height: 6, borderRadius: 3, background: 'var(--border, #F0ECE8)', overflow: 'hidden', marginBottom: 6 },
-  progressFill: { height: '100%', borderRadius: 3, background: '#C76B8A', transition: 'width 0.3s' },
-  activeDate: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
+  activeName: { display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
+  activePkg: { display: 'block', fontSize: 12, color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))' },
+  activeCount: { fontSize: 16, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
+  progressBar: { height: 6, borderRadius: 3, background: 'var(--border, var(--border, var(--border, #EDE9E4)))', overflow: 'hidden', marginBottom: 6 },
+  progressFill: { height: '100%', borderRadius: 3, background: 'var(--accent, #C76B8A)', transition: 'width 0.3s' },
+  activeDate: { fontSize: 11, color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))' },
 };

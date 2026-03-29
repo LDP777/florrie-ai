@@ -71,9 +71,9 @@ export default function StaffPerformance() {
 
       {/* Team summary */}
       <div style={s.summaryGrid}>
-        <StatCard label="Team Revenue" value={`£${teamTotals.revenue.toLocaleString()}`} sub={period} color="#C76B8A" />
+        <StatCard label="Team Revenue" value={`£${teamTotals.revenue.toLocaleString()}`} sub={period} color="var(--accent, #C76B8A)" />
         <StatCard label="Bookings" value={teamTotals.bookings} sub="completed" />
-        <StatCard label="Avg Rating" value={teamTotals.avgRating} suffix="/5" color="#E8A838" />
+        <StatCard label="Avg Rating" value={teamTotals.avgRating} suffix="/5" color="var(--warning, #D4943A)" />
         <StatCard label="Utilisation" value={`${teamTotals.avgUtil}%`} sub="avg across team" />
       </div>
 
@@ -98,16 +98,16 @@ export default function StaffPerformance() {
                   <div style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)' }}>{m.role}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontWeight: 700, fontSize: 17, color: '#C76B8A' }}>£{m.revenue.toLocaleString()}</div>
+                  <div style={{ fontWeight: 700, fontSize: 17, color: 'var(--accent, #C76B8A)' }}>£{m.revenue.toLocaleString()}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted, #AAA5A0)' }}>{m.bookings} bookings</div>
                 </div>
               </div>
               <div style={s.staffMetrics}>
                 <div style={s.metricRow}>
                   <span style={s.metricLabel}>Utilisation</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: m.utilisation >= 75 ? '#4CAF50' : m.utilisation >= 50 ? '#E8A838' : '#E57373' }}>{m.utilisation}%</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: m.utilisation >= 75 ? 'var(--success, #5BA97B)' : m.utilisation >= 50 ? 'var(--warning, #D4943A)' : 'var(--danger, #D4605C)' }}>{m.utilisation}%</span>
                 </div>
-                <Bar value={m.utilisation} max={100} color={m.utilisation >= 75 ? '#4CAF50' : m.utilisation >= 50 ? '#E8A838' : '#E57373'} />
+                <Bar value={m.utilisation} max={100} color={m.utilisation >= 75 ? 'var(--success, #5BA97B)' : m.utilisation >= 50 ? 'var(--warning, #D4943A)' : 'var(--danger, #D4605C)'} />
                 <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
                   <span style={s.miniStat}>⭐ {m.avgRating}</span>
                   <span style={s.miniStat}>🔄 {m.rebookRate}% rebook</span>
@@ -131,21 +131,21 @@ export default function StaffPerformance() {
             </div>
           </div>
           <div style={s.summaryGrid}>
-            <StatCard label="Revenue" value={`£${detail.revenue.toLocaleString()}`} color="#C76B8A" />
+            <StatCard label="Revenue" value={`£${detail.revenue.toLocaleString()}`} color="var(--accent, #C76B8A)" />
             <StatCard label="Bookings" value={detail.bookings} />
-            <StatCard label="Rating" value={detail.avgRating} suffix="/5" color="#E8A838" />
+            <StatCard label="Rating" value={detail.avgRating} suffix="/5" color="var(--warning, #D4943A)" />
             <StatCard label="Utilisation" value={`${detail.utilisation}%`} />
           </div>
           <div style={s.summaryGrid}>
-            <StatCard label="Client Retention" value={`${detail.retention}%`} color="#4CAF50" />
+            <StatCard label="Client Retention" value={`${detail.retention}%`} color="var(--success, #5BA97B)" />
             <StatCard label="Rebook Rate" value={`${detail.rebookRate}%`} />
             <StatCard label="Active Clients" value={detail.clients} />
-            <StatCard label="No-shows" value={detail.noShows} color={detail.noShows > 2 ? '#E57373' : '#4CAF50'} />
+            <StatCard label="No-shows" value={detail.noShows} color={detail.noShows > 2 ? 'var(--danger, #D4605C)' : 'var(--success, #5BA97B)'} />
           </div>
 
           {/* AI insight */}
           <div style={s.aiCard}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#C76B8A', marginBottom: 6 }}>🤖 florrie.ai's Take</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent, #C76B8A)', marginBottom: 6 }}>🤖 florrie.ai's Take</div>
             <p style={{ margin: 0, fontSize: 13, color: 'var(--text, #2D2A26)', lineHeight: 1.5 }}>
               {detail.utilisation >= 80
                 ? `${detail.name} is running near capacity — consider adding buffer time between appointments or adjusting pricing upward for peak slots.`
@@ -163,26 +163,26 @@ export default function StaffPerformance() {
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)', marginBottom: 12 }}>Revenue Ranking — {period}</div>
           {[...staff].sort((a, b) => b.revenue - a.revenue).map((m, i) => (
             <div key={m.id} style={s.leaderRow}>
-              <span style={{ ...s.rank, background: i === 0 ? '#C76B8A' : i === 1 ? '#E8A838' : i === 2 ? '#AAA5A0' : 'var(--card-border, #F0ECE8)', color: i < 3 ? '#fff' : 'var(--text, #2D2A26)' }}>{i + 1}</span>
+              <span style={{ ...s.rank, background: i === 0 ? 'var(--accent, #C76B8A)' : i === 1 ? 'var(--warning, #D4943A)' : i === 2 ? 'var(--text-muted, #B5AFA8)' : 'var(--card-border, #F0ECE8)', color: i < 3 ? '#fff' : 'var(--text, #2D2A26)' }}>{i + 1}</span>
               <span style={{ fontSize: 22 }}>{m.avatar}</span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>{m.name}</div>
                 <Bar value={m.revenue} max={maxRevenue} />
               </div>
-              <span style={{ fontWeight: 700, fontSize: 15, color: '#C76B8A' }}>£{m.revenue.toLocaleString()}</span>
+              <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--accent, #C76B8A)' }}>£{m.revenue.toLocaleString()}</span>
             </div>
           ))}
 
           <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)', marginTop: 20, marginBottom: 12 }}>Rebook Rate Ranking</div>
           {[...staff].sort((a, b) => b.rebookRate - a.rebookRate).map((m, i) => (
             <div key={m.id} style={s.leaderRow}>
-              <span style={{ ...s.rank, background: i === 0 ? '#4CAF50' : 'var(--card-border, #F0ECE8)', color: i === 0 ? '#fff' : 'var(--text, #2D2A26)' }}>{i + 1}</span>
+              <span style={{ ...s.rank, background: i === 0 ? 'var(--success, #5BA97B)' : 'var(--card-border, #F0ECE8)', color: i === 0 ? '#fff' : 'var(--text, #2D2A26)' }}>{i + 1}</span>
               <span style={{ fontSize: 22 }}>{m.avatar}</span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>{m.name}</div>
-                <Bar value={m.rebookRate} max={100} color="#4CAF50" />
+                <Bar value={m.rebookRate} max={100} color="var(--success, #5BA97B)" />
               </div>
-              <span style={{ fontWeight: 700, fontSize: 15, color: '#4CAF50' }}>{m.rebookRate}%</span>
+              <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--success, #5BA97B)' }}>{m.rebookRate}%</span>
             </div>
           ))}
         </div>
@@ -215,7 +215,7 @@ export default function StaffPerformance() {
               <div key={metric.key} style={s.compareRow}>
                 <div style={{ width: 100, fontSize: 12, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)' }}>{metric.label}</div>
                 {staff.map(m => (
-                  <div key={m.id} style={{ flex: 1, textAlign: 'center', fontSize: 14, fontWeight: m[metric.key] === best ? 700 : 400, color: m[metric.key] === best ? '#C76B8A' : 'var(--text, #2D2A26)' }}>
+                  <div key={m.id} style={{ flex: 1, textAlign: 'center', fontSize: 14, fontWeight: m[metric.key] === best ? 700 : 400, color: m[metric.key] === best ? 'var(--accent, #C76B8A)' : 'var(--text, #2D2A26)' }}>
                     {metric.fmt(m[metric.key])}
                   </div>
                 ))}
@@ -235,12 +235,12 @@ const s = {
   subtitle: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', margin: '4px 0 0' },
   periodRow: { display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto' },
   periodChip: { padding: '6px 14px', borderRadius: 20, border: '1px solid var(--card-border, #F0ECE8)', background: 'none', fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', color: 'var(--text, #2D2A26)', fontFamily: 'inherit' },
-  periodActive: { background: '#C76B8A', color: '#fff', borderColor: '#C76B8A' },
+  periodActive: { background: 'var(--accent, #C76B8A)', color: '#fff', borderColor: 'var(--accent, #C76B8A)' },
   summaryGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 },
   statCard: { display: 'flex', flexDirection: 'column', gap: 2, padding: '14px 12px', borderRadius: 12, background: 'var(--card-bg, #fff)', border: '1px solid var(--card-border, #F0ECE8)' },
   tabRow: { display: 'flex', gap: 0, marginBottom: 16, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--card-border, #F0ECE8)' },
   tab: { flex: 1, padding: '10px 0', border: 'none', background: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', color: 'var(--text-muted, #AAA5A0)', fontFamily: 'inherit' },
-  tabActive: { background: '#C76B8A', color: '#fff' },
+  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
   staffList: { display: 'flex', flexDirection: 'column', gap: 12 },
   staffCard: { padding: 16, borderRadius: 14, background: 'var(--card-bg, #fff)', border: '1px solid var(--card-border, #F0ECE8)', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' },
   staffTop: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 },
@@ -249,7 +249,7 @@ const s = {
   metricLabel: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)' },
   miniStat: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
   detailPanel: { animation: 'fadeIn 0.2s ease' },
-  backBtn: { background: 'none', border: 'none', color: '#C76B8A', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '4px 0', marginBottom: 12, fontFamily: 'inherit' },
+  backBtn: { background: 'none', border: 'none', color: 'var(--accent, #C76B8A)', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '4px 0', marginBottom: 12, fontFamily: 'inherit' },
   detailHeader: { display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 },
   aiCard: { padding: 14, borderRadius: 12, background: 'linear-gradient(135deg, rgba(199,107,138,0.06), rgba(232,168,56,0.06))', border: '1px solid rgba(199,107,138,0.15)', marginTop: 4 },
   leaderboard: { display: 'flex', flexDirection: 'column', gap: 0 },

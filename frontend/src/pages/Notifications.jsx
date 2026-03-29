@@ -18,10 +18,10 @@ import { useBeautician, isDevMode } from '../lib/supabase.js';
 
 const CATEGORIES = {
   booking: { label: 'Bookings', icon: '📅', color: '#E3F2FD', textColor: '#1565C0' },
-  payment: { label: 'Payments', icon: '💷', color: '#E8F5E9', textColor: '#2E7D32' },
-  ai: { label: 'florrie.ai', icon: '✨', color: '#FBF0F3', textColor: '#C76B8A' },
+  payment: { label: 'Payments', icon: '💷', color: 'var(--success-bg, #E8F5E9)', textColor: '#2E7D32' },
+  ai: { label: 'florrie.ai', icon: '✨', color: 'var(--accent-light, #FFF0F3)', textColor: 'var(--accent, #C76B8A)' },
   client: { label: 'Clients', icon: '👤', color: '#FFF3E0', textColor: '#E65100' },
-  system: { label: 'System', icon: '⚙️', color: '#F5F2EF', textColor: '#5A5550' },
+  system: { label: 'System', icon: '⚙️', color: 'var(--bg-hover, #F5F2EF)', textColor: '#5A5550' },
 };
 
 const DEV_NOTIFICATIONS = [
@@ -165,7 +165,7 @@ export default function Notifications() {
           onClick={() => setFilter('all')}
           style={{
             ...styles.filterChip,
-            background: filter === 'all' ? '#2D2A26' : '#fff',
+            background: filter === 'all' ? 'var(--text-primary, #2D2A26)' : '#fff',
             color: filter === 'all' ? '#fff' : '#5A5550',
           }}
         >
@@ -179,7 +179,7 @@ export default function Notifications() {
               ...styles.filterChip,
               background: filter === key ? cat.color : '#fff',
               color: filter === key ? cat.textColor : '#5A5550',
-              borderColor: filter === key ? cat.textColor : '#F0ECE8',
+              borderColor: filter === key ? cat.textColor : 'var(--border, var(--border, #EDE9E4))',
             }}
           >
             {cat.icon} {cat.label}
@@ -242,19 +242,19 @@ export default function Notifications() {
 
 const styles = {
   page: {
-    minHeight: '100vh', background: '#FAF8F5',
+    minHeight: '100vh', background: 'var(--bg, #FAF8F5)',
     fontFamily: '"DM Sans", -apple-system, sans-serif',
-    padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: '#2D2A26',
+    padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)',
   },
   header: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     paddingTop: 28, paddingBottom: 8,
   },
   title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
-  subtitle: { fontSize: 13, color: '#C76B8A', margin: 0, fontWeight: 500 },
+  subtitle: { fontSize: 13, color: 'var(--accent, #C76B8A)', margin: 0, fontWeight: 500 },
   markAllBtn: {
     padding: '6px 14px', borderRadius: 8, border: 'none',
-    background: '#FBF0F3', color: '#C76B8A', fontSize: 11, fontWeight: 600,
+    background: 'var(--accent-light, #FFF0F3)', color: 'var(--accent, #C76B8A)', fontSize: 11, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
 
@@ -264,7 +264,7 @@ const styles = {
     scrollbarWidth: 'none',
   },
   filterChip: {
-    padding: '7px 12px', borderRadius: 8, border: '1.5px solid #F0ECE8',
+    padding: '7px 12px', borderRadius: 8, border: '1.5px solid var(--border, var(--border, #EDE9E4))',
     fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     whiteSpace: 'nowrap', flexShrink: 0,
   },
@@ -272,7 +272,7 @@ const styles = {
   // Feed
   feed: { display: 'flex', flexDirection: 'column', gap: 0 },
   dateLabel: {
-    fontSize: 11, fontWeight: 600, color: '#AAA5A0', textTransform: 'uppercase',
+    fontSize: 11, fontWeight: 600, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', textTransform: 'uppercase',
     letterSpacing: '0.04em', padding: '12px 0 6px',
   },
   notifCard: {
@@ -288,17 +288,17 @@ const styles = {
   },
   notifBody: { flex: 1, minWidth: 0 },
   notifHeaderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
-  notifTitle: { fontSize: 13, color: '#2D2A26' },
-  notifTime: { fontSize: 10, color: '#C4BDB6', flexShrink: 0, marginLeft: 8 },
+  notifTitle: { fontSize: 13, color: 'var(--text-primary, #2D2A26)' },
+  notifTime: { fontSize: 10, color: 'var(--text-muted, #B5AFA8)', flexShrink: 0, marginLeft: 8 },
   notifText: { fontSize: 12, color: '#8A8580', margin: 0, lineHeight: 1.4 },
   unreadDot: {
-    width: 8, height: 8, borderRadius: 4, background: '#C76B8A',
+    width: 8, height: 8, borderRadius: 4, background: 'var(--accent, #C76B8A)',
     position: 'absolute', top: 14, right: 10, flexShrink: 0,
   },
 
   // Empty
-  loadingText: { textAlign: 'center', color: '#AAA5A0', padding: 40, fontSize: 14 },
+  loadingText: { textAlign: 'center', color: 'var(--text-muted, var(--text-muted, #B5AFA8))', padding: 40, fontSize: 14 },
   emptyState: { textAlign: 'center', padding: '40px 20px' },
-  emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 4px', color: '#2D2A26' },
-  emptyDesc: { fontSize: 13, color: '#AAA5A0', margin: 0, lineHeight: 1.5 },
+  emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 4px', color: 'var(--text-primary, #2D2A26)' },
+  emptyDesc: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', margin: 0, lineHeight: 1.5 },
 };

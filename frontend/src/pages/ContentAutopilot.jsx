@@ -793,12 +793,12 @@ const DEV_DRAFTS = [
 const styles = {
   page: {
     minHeight: '100vh',
-    background: '#FAF8F5',
+    background: 'var(--bg, #FAF8F5)',
     fontFamily: '"DM Sans", -apple-system, sans-serif',
     padding: '0 16px 40px',
     maxWidth: 480,
     margin: '0 auto',
-    color: '#2D2A26'
+    color: 'var(--text-primary, #2D2A26)'
   },
   header: {
     display: 'flex',
@@ -808,12 +808,12 @@ const styles = {
     paddingBottom: 8
   },
   title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
-  subtitle: { fontSize: 13, color: '#C76B8A', margin: 0, fontWeight: 500 },
+  subtitle: { fontSize: 13, color: 'var(--accent, #C76B8A)', margin: 0, fontWeight: 500 },
   uploadBtn: {
     padding: '10px 18px',
     borderRadius: 10,
     border: 'none',
-    background: '#C76B8A',
+    background: 'var(--accent, #C76B8A)',
     color: '#fff',
     fontSize: 14,
     fontWeight: 600,
@@ -823,7 +823,7 @@ const styles = {
   tabs: {
     display: 'flex',
     gap: 24,
-    borderBottom: '1px solid #F0ECE8',
+    borderBottom: '1px solid var(--border, #EDE9E4)',
     marginBottom: 16
   },
   tab: {
@@ -839,12 +839,12 @@ const styles = {
   },
 
   // Ideas
-  ideaIntro: { fontSize: 13, color: '#8A8580', marginBottom: 16, lineHeight: 1.5 },
+  ideaIntro: { fontSize: 13, color: 'var(--text-secondary, #7A756F)', marginBottom: 16, lineHeight: 1.5 },
   ideaGroup: { marginBottom: 16 },
   ideaGroupHeader: { marginBottom: 6 },
-  ideaGroupLabel: { fontSize: 11, fontWeight: 600, color: '#C76B8A', textTransform: 'uppercase', letterSpacing: '0.04em' },
+  ideaGroupLabel: { fontSize: 11, fontWeight: 600, color: 'var(--accent, #C76B8A)', textTransform: 'uppercase', letterSpacing: '0.04em' },
   ideaCard: {
-    background: '#fff',
+    background: 'var(--bg-card, #FFFFFF)',
     borderRadius: 12,
     padding: 16,
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
@@ -852,8 +852,8 @@ const styles = {
     transition: 'transform 0.1s',
     position: 'relative',
   },
-  ideaCaption: { fontSize: 14, lineHeight: 1.6, margin: '0 0 8px', color: '#2D2A26' },
-  ideaTap: { fontSize: 11, color: '#C76B8A', fontWeight: 600 },
+  ideaCaption: { fontSize: 14, lineHeight: 1.6, margin: '0 0 8px', color: 'var(--text-primary, #2D2A26)' },
+  ideaTap: { fontSize: 11, color: 'var(--accent, #C76B8A)', fontWeight: 600 },
 
   // Compose
   composeArea: { display: 'flex', flexDirection: 'column', gap: 12 },
@@ -868,7 +868,7 @@ const styles = {
   },
   photoArea: {
     borderRadius: 12,
-    border: '1.5px dashed #E0DBD5',
+    border: '1.5px dashed var(--border, #EDE9E4)',
     overflow: 'hidden',
     cursor: 'pointer',
     minHeight: 120,
@@ -882,7 +882,7 @@ const styles = {
     width: '100%',
     padding: '14px',
     borderRadius: 12,
-    border: '1.5px solid #F0ECE8',
+    border: '1.5px solid var(--border, #EDE9E4)',
     fontSize: 14,
     fontFamily: 'inherit',
     resize: 'vertical',
@@ -894,9 +894,9 @@ const styles = {
     alignSelf: 'flex-start',
     padding: '6px 14px',
     borderRadius: 8,
-    border: '1.5px solid #E0DBD5',
+    border: '1.5px solid var(--border, #EDE9E4)',
     background: 'transparent',
-    color: '#8A8580',
+    color: 'var(--text-secondary, #7A756F)',
     fontSize: 12,
     fontWeight: 500,
     cursor: 'pointer',
@@ -906,7 +906,7 @@ const styles = {
     width: '100%',
     padding: '10px 14px',
     borderRadius: 10,
-    border: '1.5px solid #F0ECE8',
+    border: '1.5px solid var(--border, #EDE9E4)',
     fontSize: 13,
     fontFamily: 'inherit',
     outline: 'none',
@@ -919,7 +919,7 @@ const styles = {
     padding: '14px 0',
     borderRadius: 12,
     border: 'none',
-    background: '#C76B8A',
+    background: 'var(--accent, #C76B8A)',
     color: '#fff',
     fontSize: 15,
     fontWeight: 600,
@@ -930,8 +930,8 @@ const styles = {
     padding: '14px 20px',
     borderRadius: 12,
     border: 'none',
-    background: '#F5F2EF',
-    color: '#8A8580',
+    background: 'var(--bg-hover, #F5F2EF)',
+    color: 'var(--text-secondary, #7A756F)',
     fontSize: 15,
     cursor: 'pointer',
     fontFamily: 'inherit',
@@ -940,7 +940,7 @@ const styles = {
   // Posts
   postList: { display: 'flex', flexDirection: 'column', gap: 14 },
   postCard: {
-    background: '#fff',
+    background: 'var(--bg-card, #FFFFFF)',
     borderRadius: 14,
     padding: 16,
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
@@ -964,7 +964,7 @@ const styles = {
     padding: '10px 0',
     borderRadius: 10,
     border: 'none',
-    background: '#C76B8A',
+    background: 'var(--accent, #C76B8A)',
     color: '#fff',
     fontSize: 13,
     fontWeight: 600,
@@ -975,8 +975,8 @@ const styles = {
     padding: '10px 16px',
     borderRadius: 10,
     border: 'none',
-    background: '#FBF0F3',
-    color: '#C76B8A',
+    background: 'var(--accent-light, #FFF0F3)',
+    color: 'var(--accent, #C76B8A)',
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
@@ -986,8 +986,8 @@ const styles = {
     padding: '10px 14px',
     borderRadius: 10,
     border: 'none',
-    background: '#F5F2EF',
-    color: '#AAA5A0',
+    background: 'var(--bg-hover, #F5F2EF)',
+    color: 'var(--text-muted, #B5AFA8)',
     fontSize: 13,
     cursor: 'pointer',
     fontFamily: 'inherit'
@@ -997,7 +997,7 @@ const styles = {
     width: '100%',
     padding: '12px 14px',
     borderRadius: 10,
-    border: '1.5px solid #C76B8A',
+    border: '1.5px solid var(--accent, #C76B8A)',
     fontSize: 14,
     fontFamily: 'inherit',
     resize: 'vertical',
@@ -1008,64 +1008,64 @@ const styles = {
   editActions: { display: 'flex', gap: 8, marginTop: 8 },
   saveEditBtn: {
     padding: '8px 16px', borderRadius: 8, border: 'none',
-    background: '#C76B8A', color: '#fff', fontSize: 13, fontWeight: 600,
+    background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit'
   },
   cancelEditBtn: {
     padding: '8px 16px', borderRadius: 8, border: 'none',
-    background: '#F5F2EF', color: '#8A8580', fontSize: 13,
+    background: 'var(--bg-hover, #F5F2EF)', color: 'var(--text-secondary, #7A756F)', fontSize: 13,
     cursor: 'pointer', fontFamily: 'inherit'
   },
   statsRow: {
     display: 'flex',
     gap: 16,
     padding: '10px 0',
-    borderTop: '1px solid #F5F2EF',
+    borderTop: '1px solid var(--bg-hover, #F5F2EF)',
     marginTop: 8
   },
   stat: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
-  statNum: { fontSize: 16, fontWeight: 700, color: '#C76B8A' },
-  statLabel: { fontSize: 10, color: '#AAA5A0', textTransform: 'uppercase', letterSpacing: '0.04em' },
-  postedDate: { fontSize: 11, color: '#C4BDB6' },
+  statNum: { fontSize: 16, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
+  statLabel: { fontSize: 10, color: 'var(--text-muted, #B5AFA8)', textTransform: 'uppercase', letterSpacing: '0.04em' },
+  postedDate: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
   emptyState: { textAlign: 'center', padding: '40px 20px' },
   emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 6px' },
-  emptyDesc: { fontSize: 13, color: '#AAA5A0', margin: 0, lineHeight: 1.5 },
+  emptyDesc: { fontSize: 13, color: 'var(--text-muted, #B5AFA8)', margin: 0, lineHeight: 1.5 },
 
   // Gallery
   galleryHeaderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
   galleryAddBtn: {
     padding: '8px 14px', borderRadius: 8, border: 'none',
-    background: '#C76B8A', color: '#fff', fontSize: 12, fontWeight: 600,
+    background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 12, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
   },
   galleryAddCard: {
-    background: '#fff', borderRadius: 14, padding: 16,
+    background: 'var(--bg-card, #FFFFFF)', borderRadius: 14, padding: 16,
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 8,
     display: 'flex', flexDirection: 'column', gap: 10,
   },
   galleryPhotoPair: { display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' },
   galleryPhotoSlot: {
     flex: 1, maxWidth: 160, aspectRatio: '1', borderRadius: 12,
-    border: '1.5px dashed #E0DBD5', overflow: 'hidden', cursor: 'pointer',
+    border: '1.5px dashed var(--border, #EDE9E4)', overflow: 'hidden', cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   galleryPlaceholder: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 },
-  galleryPlaceholderText: { fontSize: 11, color: '#AAA5A0' },
+  galleryPlaceholderText: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
   galleryThumb: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
-  galleryArrow: { fontSize: 18, color: '#C4BDB6', flexShrink: 0 },
+  galleryArrow: { fontSize: 18, color: 'var(--text-muted, #B5AFA8)', flexShrink: 0 },
   gallerySelect: {
     width: '100%', padding: '10px 12px', borderRadius: 10,
-    border: '1.5px solid #F0ECE8', fontSize: 13, fontFamily: 'inherit',
-    outline: 'none', boxSizing: 'border-box', color: '#2D2A26', background: '#fff',
+    border: '1.5px solid var(--border, #EDE9E4)', fontSize: 13, fontFamily: 'inherit',
+    outline: 'none', boxSizing: 'border-box', color: 'var(--text-primary, #2D2A26)', background: 'var(--bg-card, #FFFFFF)',
   },
   galleryNotesInput: {
     width: '100%', padding: '10px 12px', borderRadius: 10,
-    border: '1.5px solid #F0ECE8', fontSize: 13, fontFamily: 'inherit',
+    border: '1.5px solid var(--border, #EDE9E4)', fontSize: 13, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box',
   },
   galleryFormActions: { display: 'flex', gap: 8 },
   galleryCard: {
-    background: '#fff', borderRadius: 14, overflow: 'hidden',
+    background: 'var(--bg-card, #FFFFFF)', borderRadius: 14, overflow: 'hidden',
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 4,
   },
   galleryPhotoPairView: { display: 'flex', gap: 2 },
@@ -1078,7 +1078,7 @@ const styles = {
     fontSize: 10, fontWeight: 600,
   },
   galleryCardFooter: { padding: '10px 14px' },
-  galleryTreatmentName: { display: 'block', fontSize: 13, fontWeight: 600, color: '#2D2A26' },
-  galleryCaption: { display: 'block', fontSize: 12, color: '#8A8580', marginTop: 2 },
-  galleryDate: { display: 'block', fontSize: 10, color: '#C4BDB6', marginTop: 4 },
+  galleryTreatmentName: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
+  galleryCaption: { display: 'block', fontSize: 12, color: 'var(--text-secondary, #7A756F)', marginTop: 2 },
+  galleryDate: { display: 'block', fontSize: 10, color: 'var(--text-muted, #B5AFA8)', marginTop: 4 },
 };

@@ -7,50 +7,9 @@
  * different follow-up flow.
  */
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, insertRow, updateRow, isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow, deleteRow, isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 
-const DEV_CONSULTS = [
-  {
-    id: 'con1', client: 'Amy R', treatment: 'Ombre Brows (Semi-Permanent)',
-    date: '2026-03-28', time: '11:00', status: 'confirmed', type: 'in-person',
-    notes: 'First-time semi-permanent client. Wants natural look.',
-    questions: ['Any previous brow tattooing?', 'On any medication?', 'Pregnant or breastfeeding?'],
-    answers: { 0: 'No', 1: 'No', 2: 'No' },
-    outcome: null,
-  },
-  {
-    id: 'con2', client: 'Beth K', treatment: 'Combination Brows (Semi-Permanent)',
-    date: '2026-03-27', time: '14:30', status: 'confirmed', type: 'video',
-    notes: 'Referred by Daisy. Has had microblading before — wants to switch to combo.',
-    questions: ['Any previous brow tattooing?', 'On any medication?', 'Pregnant or breastfeeding?'],
-    answers: { 0: 'Yes — microblading 2 years ago', 1: 'No', 2: 'No' },
-    outcome: null,
-  },
-  {
-    id: 'con3', client: 'Chloe M', treatment: 'Ombre Brows (Semi-Permanent)',
-    date: '2026-03-22', time: '10:00', status: 'completed', type: 'in-person',
-    notes: 'Very fair skin. Discussed pigment options — going with soft taupe.',
-    questions: ['Any previous brow tattooing?', 'On any medication?', 'Pregnant or breastfeeding?'],
-    answers: { 0: 'No', 1: 'Antihistamines', 2: 'No' },
-    outcome: 'approved',
-    followUp: { treatment: 'Ombre Brows (Semi-Permanent)', date: '2026-04-05', booked: true },
-  },
-  {
-    id: 'con4', client: 'Dani P', treatment: 'Combination Brows (Semi-Permanent)',
-    date: '2026-03-20', time: '15:00', status: 'completed', type: 'video',
-    notes: 'Client on blood thinners — advised to get GP clearance before proceeding.',
-    questions: ['Any previous brow tattooing?', 'On any medication?', 'Pregnant or breastfeeding?'],
-    answers: { 0: 'No', 1: 'Warfarin (blood thinner)', 2: 'No' },
-    outcome: 'pending-clearance',
-    followUp: null,
-  },
-  {
-    id: 'con5', client: 'Emma W', treatment: 'Ombre Brows (Semi-Permanent)',
-    date: '2026-03-15', time: '11:00', status: 'no-show', type: 'in-person',
-    notes: '', questions: [], answers: {}, outcome: null, followUp: null,
-  },
-];
 
 const CONSULT_TREATMENTS = DEV_TREATMENTS.filter(t => t.category === 'brows' && (t.name.includes('Semi-Permanent') || t.name.includes('Combination') || t.name.includes('Ombre')));
 
@@ -64,16 +23,16 @@ const DEFAULT_QUESTIONS = [
 ];
 
 const STATUS_CONFIG = {
-  confirmed: { label: 'Confirmed', bg: '#E8F5E9', color: '#4CAF50' },
+  confirmed: { label: 'Confirmed', bg: 'var(--success-bg, #E8F5E9)', color: 'var(--success, #5BA97B)' },
   completed: { label: 'Completed', bg: '#E3F2FD', color: '#2196F3' },
-  cancelled: { label: 'Cancelled', bg: '#FFEBEE', color: '#F44336' },
+  cancelled: { label: 'Cancelled', bg: 'var(--danger-bg, #FDF0EF)', color: '#F44336' },
   'no-show': { label: 'No Show', bg: '#FFF3E0', color: '#FF9800' },
 };
 
 const OUTCOME_CONFIG = {
-  approved: { label: 'Approved — Ready to book', bg: '#E8F5E9', color: '#4CAF50', icon: '✓' },
-  'pending-clearance': { label: 'Pending GP Clearance', bg: '#FFF5E6', color: '#B8860B', icon: '⏳' },
-  declined: { label: 'Not Suitable', bg: '#FFEBEE', color: '#F44336', icon: '✗' },
+  approved: { label: 'Approved — Ready to book', bg: 'var(--success-bg, #E8F5E9)', color: 'var(--success, #5BA97B)', icon: '✓' },
+  'pending-clearance': { label: 'Pending GP Clearance', bg: '#FFF5E6', color: 'var(--gold, #C9A96E)', icon: '⏳' },
+  declined: { label: 'Not Suitable', bg: 'var(--danger-bg, #FDF0EF)', color: '#F44336', icon: '✗' },
 };
 
 export default function Consultations({ token }) {
@@ -84,6 +43,7 @@ export default function Consultations({ token }) {
   const [showSettings, setShowSettings] = useState(false);
   const [consultations, setConsultations] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
   const [settings, setSettings] = useState({
     duration: 30,
     fee: 0,
@@ -99,10 +59,6 @@ export default function Consultations({ token }) {
   // Fetch consultations on mount
   useEffect(() => {
     if (bLoading || !beautician) return;
-    if (isDevMode) {
-      setConsultations(DEV_CONSULTS);
-      return;
-    }
     fetchRows('consultations', beautician.id, { order: 'scheduled_date', ascending: false })
       .then(rows => {
         setConsultations(rows.map(c => ({
@@ -143,10 +99,10 @@ export default function Consultations({ token }) {
       {/* Stats */}
       <div style={S.statsRow}>
         {[
-          { label: 'Upcoming', value: stats.upcoming, colour: '#C76B8A' },
+          { label: 'Upcoming', value: stats.upcoming, colour: 'var(--accent, #C76B8A)' },
           { label: 'Completed', value: stats.completed, colour: '#6B8F7B' },
-          { label: 'Conversion', value: `${stats.conversionRate}%`, colour: '#8B6F5E' },
-          { label: 'No Shows', value: stats.noShows, colour: '#B8860B' },
+          { label: 'Conversion', value: `${stats.conversionRate}%`, colour: 'var(--text-secondary, #8B6F5E)' },
+          { label: 'No Shows', value: stats.noShows, colour: 'var(--gold, #C9A96E)' },
         ].map(s => (
           <div key={s.label} style={S.statCard}>
             <span style={{ ...S.statValue, color: s.colour }}>{s.value}</span>
@@ -184,7 +140,7 @@ export default function Consultations({ token }) {
                   <div style={S.cardRight}>
                     <span style={S.cardDate}>{formatDate(c.date)}</span>
                     <span style={S.cardTime}>{c.time}</span>
-                    <span style={{ ...S.typeBadge, background: c.type === 'video' ? '#E3F2FD' : '#F0ECE8', color: c.type === 'video' ? '#2196F3' : '#8B6F5E' }}>
+                    <span style={{ ...S.typeBadge, background: c.type === 'video' ? '#E3F2FD' : 'var(--border, var(--border, #EDE9E4))', color: c.type === 'video' ? '#2196F3' : 'var(--text-secondary, #8B6F5E)' }}>
                       {c.type === 'video' ? '📹 Video' : '👤 In-person'}
                     </span>
                   </div>
@@ -210,15 +166,21 @@ export default function Consultations({ token }) {
                     <div style={S.actionRow}>
                       <button style={S.actionBtn} onClick={e => { e.stopPropagation(); /* TODO: reschedule modal */ }}>Reschedule</button>
                       <button style={S.actionBtn} onClick={e => { e.stopPropagation(); /* TODO: send reminder */ }}>Send Reminder</button>
-                      <button style={{ ...S.actionBtn, background: '#C76B8A', color: '#fff' }} onClick={async (e) => {
+                      <button style={{ ...S.actionBtn, background: 'var(--accent, #C76B8A)', color: '#fff' }} onClick={async (e) => {
                         e.stopPropagation();
                         try {
-                          if (!isDevMode) {
-                            await updateRow('consultations', c.id, { status: 'completed', outcome: 'approved' });
-                          }
+                          await updateRow('consultations', c.id, { status: 'completed', outcome: 'approved' });
                           setConsultations(prev => prev.map(x => x.id === c.id ? { ...x, status: 'completed', outcome: 'approved' } : x));
                         } catch (err) { logger.error('Failed to update consultation:', err); }
                       }}>Mark Complete</button>
+                      <button style={{ ...S.actionBtn, background: 'var(--danger-bg, #FDF0EF)', color: '#F44336' }} onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!window.confirm('Delete this consultation?')) return;
+                        try {
+                          await deleteRow('consultations', c.id);
+                          setConsultations(prev => prev.filter(x => x.id !== c.id));
+                        } catch (err) { logger.error('Failed to delete consultation:', err); }
+                      }}>Delete</button>
                     </div>
                   </div>
                 )}
@@ -276,6 +238,16 @@ export default function Consultations({ token }) {
                     {!c.followUp?.booked && c.outcome === 'approved' && (
                       <button style={S.bookTreatmentBtn}>Book Treatment →</button>
                     )}
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, var(--border, #EDE9E4))' }}>
+                      <button style={{ ...S.actionBtn, background: 'var(--danger-bg, #FDF0EF)', color: '#F44336', width: '100%' }} onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!window.confirm('Delete this consultation?')) return;
+                        try {
+                          await deleteRow('consultations', c.id);
+                          setConsultations(prev => prev.filter(x => x.id !== c.id));
+                        } catch (err) { logger.error('Failed to delete consultation:', err); }
+                      }}>Delete Consultation</button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -311,7 +283,7 @@ export default function Consultations({ token }) {
             {settings.fee > 0 && (
               <div style={S.toggleRow}>
                 <span style={S.toggleLabel}>Deduct from treatment price</span>
-                <button style={{ ...S.toggle, background: settings.deductFromTreatment ? '#C76B8A' : '#E0DCD8' }} onClick={() => setSettings(s => ({ ...s, deductFromTreatment: !s.deductFromTreatment }))}>
+                <button style={{ ...S.toggle, background: settings.deductFromTreatment ? 'var(--accent, #C76B8A)' : 'var(--border, #EDE9E4)' }} onClick={() => setSettings(s => ({ ...s, deductFromTreatment: !s.deductFromTreatment }))}>
                   <div style={{ ...S.toggleDot, transform: settings.deductFromTreatment ? 'translateX(18px)' : 'translateX(2px)' }} />
                 </button>
               </div>
@@ -322,7 +294,7 @@ export default function Consultations({ token }) {
             <h3 style={S.settingsTitle}>Reminders</h3>
             <div style={S.toggleRow}>
               <span style={S.toggleLabel}>Auto-send reminder</span>
-              <button style={{ ...S.toggle, background: settings.autoReminder ? '#C76B8A' : '#E0DCD8' }} onClick={() => setSettings(s => ({ ...s, autoReminder: !s.autoReminder }))}>
+              <button style={{ ...S.toggle, background: settings.autoReminder ? 'var(--accent, #C76B8A)' : 'var(--border, #EDE9E4)' }} onClick={() => setSettings(s => ({ ...s, autoReminder: !s.autoReminder }))}>
                 <div style={{ ...S.toggleDot, transform: settings.autoReminder ? 'translateX(18px)' : 'translateX(2px)' }} />
               </button>
             </div>
@@ -352,7 +324,7 @@ export default function Consultations({ token }) {
                     questions: active ? s.questions.filter(x => x !== q) : [...s.questions, q],
                   }));
                 }}>
-                  <div style={{ ...S.checkbox, background: active ? '#C76B8A' : '#fff', borderColor: active ? '#C76B8A' : '#E0DCD8' }}>
+                  <div style={{ ...S.checkbox, background: active ? 'var(--accent, #C76B8A)' : '#fff', borderColor: active ? 'var(--accent, #C76B8A)' : 'var(--border, #EDE9E4)' }}>
                     {active && <span style={S.checkmark}>✓</span>}
                   </div>
                   <span style={S.questionText}>{q}</span>
@@ -365,7 +337,7 @@ export default function Consultations({ token }) {
             <h3 style={S.settingsTitle}>Patch Test Requirement</h3>
             <div style={S.toggleRow}>
               <span style={S.toggleLabel}>Require patch test before treatment</span>
-              <button style={{ ...S.toggle, background: settings.requirePatchTest ? '#C76B8A' : '#E0DCD8' }} onClick={() => setSettings(s => ({ ...s, requirePatchTest: !s.requirePatchTest }))}>
+              <button style={{ ...S.toggle, background: settings.requirePatchTest ? 'var(--accent, #C76B8A)' : 'var(--border, #EDE9E4)' }} onClick={() => setSettings(s => ({ ...s, requirePatchTest: !s.requirePatchTest }))}>
                 <div style={{ ...S.toggleDot, transform: settings.requirePatchTest ? 'translateX(18px)' : 'translateX(2px)' }} />
               </button>
             </div>
@@ -419,7 +391,10 @@ export default function Consultations({ token }) {
             <textarea style={S.textarea} rows={3} placeholder="Anything to note about this client..." value={bookForm.notes} onChange={e => setBookForm(f => ({ ...f, notes: e.target.value }))} />
 
             <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={async () => {
-              if (!bookForm.client || !bookForm.treatment || !bookForm.date || !bookForm.time) return;
+              if (!bookForm.client || !bookForm.treatment || !bookForm.date || !bookForm.time) {
+                alert('Please fill in all required fields');
+                return;
+              }
               setSaving(true);
               try {
                 const scheduledDate = `${bookForm.date}T${bookForm.time}:00Z`;
@@ -452,6 +427,7 @@ export default function Consultations({ token }) {
                 setBookForm({ client: '', treatment: '', date: '', time: '', type: 'in-person', notes: '' });
               } catch (err) {
                 logger.error('Failed to book consultation:', err);
+                alert('Failed to book consultation. Try again.');
               } finally {
                 setSaving(false);
               }
@@ -472,72 +448,72 @@ function formatDate(dateStr) {
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },
-  bookBtn: { background: '#C76B8A', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, var(--text-primary, #2D2A26))', margin: 0 },
+  bookBtn: { background: 'var(--accent, #C76B8A)', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   statsRow: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 },
   statCard: { background: 'var(--card, #fff)', borderRadius: 12, padding: '10px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   statValue: { fontSize: 18, fontWeight: 700 },
-  statLabel: { fontSize: 10, color: '#AAA5A0' },
+  statLabel: { fontSize: 10, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
 
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
-  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: '#AAA5A0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: '#C76B8A', color: '#fff' },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
 
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
-  empty: { textAlign: 'center', color: '#AAA5A0', fontSize: 14, padding: 32 },
+  empty: { textAlign: 'center', color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontSize: 14, padding: 32 },
 
   card: { background: 'var(--card, #fff)', borderRadius: 14, padding: 14, cursor: 'pointer' },
   cardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
   cardLeft: { display: 'flex', gap: 10, alignItems: 'center' },
-  avatar: { width: 36, height: 36, borderRadius: 18, background: '#F0E6ED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: '#C76B8A', flexShrink: 0 },
+  avatar: { width: 36, height: 36, borderRadius: 18, background: '#F0E6ED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: 'var(--accent, #C76B8A)', flexShrink: 0 },
   cardInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
-  cardClient: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  cardTreatment: { fontSize: 12, color: '#AAA5A0' },
+  cardClient: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
+  cardTreatment: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
   cardRight: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 },
-  cardDate: { fontSize: 13, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  cardTime: { fontSize: 12, color: '#AAA5A0' },
+  cardDate: { fontSize: 13, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
+  cardTime: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
   typeBadge: { padding: '3px 8px', borderRadius: 8, fontSize: 11, fontWeight: 500 },
   statusBadge: { padding: '3px 8px', borderRadius: 8, fontSize: 11, fontWeight: 600 },
 
   outcomeBanner: { margin: '10px 0 0', padding: '8px 12px', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, fontWeight: 600 },
   followUpTag: { fontSize: 11, fontWeight: 500, opacity: 0.8 },
 
-  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid #F0ECE8' },
-  notes: { fontSize: 13, color: '#8B6F5E', lineHeight: 1.5, margin: '0 0 12px' },
+  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, var(--border, #EDE9E4))' },
+  notes: { fontSize: 13, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.5, margin: '0 0 12px' },
   qSection: { marginBottom: 12 },
-  sectionLabel: { fontSize: 11, fontWeight: 700, color: '#AAA5A0', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 8 },
+  sectionLabel: { fontSize: 11, fontWeight: 700, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 8 },
   qaRow: { display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #F9F7F4' },
-  question: { fontSize: 12, color: '#8B6F5E' },
-  answer: { fontSize: 12, fontWeight: 600, color: 'var(--text, #2D2A26)', maxWidth: '50%', textAlign: 'right' },
+  question: { fontSize: 12, color: 'var(--text-secondary, #8B6F5E)' },
+  answer: { fontSize: 12, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))', maxWidth: '50%', textAlign: 'right' },
   actionRow: { display: 'flex', gap: 8 },
-  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: '#2D2A26' },
-  bookTreatmentBtn: { width: '100%', padding: '12px 0', borderRadius: 10, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
+  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
+  bookTreatmentBtn: { width: '100%', padding: '12px 0', borderRadius: 10, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
 
   // Settings
   settingsContainer: { display: 'flex', flexDirection: 'column', gap: 12 },
   settingsCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 16 },
-  settingsTitle: { fontSize: 15, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 12px' },
-  settingsDesc: { fontSize: 12, color: '#AAA5A0', margin: '0 0 12px' },
-  fieldLabel: { fontSize: 12, fontWeight: 600, color: '#8B6F5E', marginBottom: 6, marginTop: 12 },
+  settingsTitle: { fontSize: 15, fontWeight: 700, color: 'var(--text, var(--text-primary, #2D2A26))', margin: '0 0 12px' },
+  settingsDesc: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', margin: '0 0 12px' },
+  fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #8B6F5E)', marginBottom: 6, marginTop: 12 },
   chipRow: { display: 'flex', gap: 8, flexWrap: 'wrap' },
-  chip: { padding: '8px 14px', borderRadius: 10, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', color: '#8B6F5E', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
-  chipActive: { background: '#C76B8A', color: '#fff', border: '1px solid #C76B8A' },
+  chip: { padding: '8px 14px', borderRadius: 10, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--card, #fff)', color: 'var(--text-secondary, #8B6F5E)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
+  chipActive: { background: 'var(--accent, #C76B8A)', color: '#fff', border: '1px solid var(--accent, #C76B8A)' },
   toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, padding: '8px 0' },
-  toggleLabel: { fontSize: 14, fontWeight: 500, color: 'var(--text, #2D2A26)' },
+  toggleLabel: { fontSize: 14, fontWeight: 500, color: 'var(--text, var(--text-primary, #2D2A26))' },
   toggle: { width: 44, height: 26, borderRadius: 13, border: 'none', padding: 0, cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 },
   toggleDot: { width: 22, height: 22, borderRadius: 11, background: '#fff', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
   questionRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', cursor: 'pointer' },
   checkbox: { width: 22, height: 22, borderRadius: 6, border: '2px solid', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   checkmark: { color: '#fff', fontSize: 13, fontWeight: 700 },
-  questionText: { fontSize: 13, color: 'var(--text, #2D2A26)' },
+  questionText: { fontSize: 13, color: 'var(--text, var(--text-primary, #2D2A26))' },
 
   // Modal
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
   modal: { background: '#fff', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
-  modalTitle: { fontSize: 18, fontWeight: 700, color: '#2D2A26', margin: '0 0 16px' },
-  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: '#2D2A26', outline: 'none', boxSizing: 'border-box' },
-  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: '#2D2A26', background: '#fff', outline: 'none', boxSizing: 'border-box' },
-  textarea: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: '#2D2A26', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
-  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
+  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: '0 0 16px' },
+  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', outline: 'none', boxSizing: 'border-box' },
+  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', background: '#fff', outline: 'none', boxSizing: 'border-box' },
+  textarea: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
+  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
 };

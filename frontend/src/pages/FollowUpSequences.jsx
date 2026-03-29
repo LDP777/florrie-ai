@@ -95,7 +95,7 @@ export default function FollowUpSequences({ token }) {
   useEffect(() => {
     if (bLoading || !beautician) return;
     if (isDevMode) { setSequences(DEV_SEQUENCES); return; }
-    fetchRows('followup_sequences', beautician.id, { order: 'created_at' })
+    fetchRows('follow_up_sequences', beautician.id, { order: 'created_at' })
       .then(rows => setSequences(rows || []))
       .catch(err => { logger.error('Load sequences error:', err); setSequences(DEV_SEQUENCES); });
   }, [beautician, bLoading]);
@@ -106,7 +106,7 @@ export default function FollowUpSequences({ token }) {
     setError(null);
     try {
       if (!isDevMode && beautician) {
-        const row = await insertRow('followup_sequences', {
+        const row = await insertRow('follow_up_sequences', {
           beautician_id: beautician.id,
           name: createForm.name.trim(),
           trigger: createForm.trigger,
@@ -133,7 +133,7 @@ export default function FollowUpSequences({ token }) {
     const updated = !seq.active;
     setSequences(prev => prev.map(s => s.id === seq.id ? { ...s, active: updated } : s));
     if (!isDevMode && beautician) {
-      try { await updateRow('followup_sequences', seq.id, { active: updated }); }
+      try { await updateRow('follow_up_sequences', seq.id, { active: updated }); }
       catch (err) { logger.error('Toggle sequence error:', err); setSequences(prev => prev.map(s => s.id === seq.id ? { ...s, active: seq.active } : s)); }
     }
   }
@@ -141,7 +141,7 @@ export default function FollowUpSequences({ token }) {
   async function handleDelete(seqId) {
     setSequences(prev => prev.filter(s => s.id !== seqId));
     if (!isDevMode && beautician) {
-      try { await deleteRow('followup_sequences', seqId); }
+      try { await deleteRow('follow_up_sequences', seqId); }
       catch (err) { logger.error('Delete sequence error:', err); }
     }
   }
@@ -177,9 +177,9 @@ export default function FollowUpSequences({ token }) {
       {/* Stats */}
       <div style={S.statsRow}>
         {[
-          { label: 'Active', value: sequences.filter(s => s.active).length, colour: '#6B8F7B' },
-          { label: 'Messages Sent', value: totalSent, colour: '#C76B8A' },
-          { label: 'Reply Rate', value: `${replyRate}%`, colour: '#8B6F5E' },
+          { label: 'Active', value: sequences.filter(s => s.active).length, colour: 'var(--success, #5BA97B)' },
+          { label: 'Messages Sent', value: totalSent, colour: 'var(--accent, #C76B8A)' },
+          { label: 'Reply Rate', value: `${replyRate}%`, colour: 'var(--text-secondary, #8B6F5E)' },
         ].map(s => (
           <div key={s.label} style={S.statCard}>
             <span style={{ ...S.statValue, color: s.colour }}>{s.value}</span>
@@ -207,7 +207,7 @@ export default function FollowUpSequences({ token }) {
               <div key={seq.id} style={S.seqCard}>
                 <div style={S.seqHeader} onClick={() => setExpanded(isExpanded ? null : seq.id)}>
                   <div style={S.seqLeft}>
-                    <div style={{ ...S.seqIcon, background: seq.active ? '#E8F5E9' : '#F0ECE8' }}>
+                    <div style={{ ...S.seqIcon, background: seq.active ? 'var(--success-bg, #EDF7F0)' : 'var(--border, #F0ECE8)' }}>
                       {trigger?.icon || '📨'}
                     </div>
                     <div style={S.seqInfo}>
@@ -216,7 +216,7 @@ export default function FollowUpSequences({ token }) {
                     </div>
                   </div>
                   <div style={S.seqRight}>
-                    <span style={{ ...S.activeBadge, background: seq.active ? '#E8F5E9' : '#F0ECE8', color: seq.active ? '#4CAF50' : '#AAA5A0' }}>
+                    <span style={{ ...S.activeBadge, background: seq.active ? 'var(--success-bg, #EDF7F0)' : 'var(--border, #F0ECE8)', color: seq.active ? 'var(--success, #5BA97B)' : 'var(--text-muted, #AAA5A0)' }}>
                       {seq.active ? 'Active' : 'Paused'}
                     </span>
                   </div>
@@ -285,12 +285,12 @@ export default function FollowUpSequences({ token }) {
                   <div style={S.analyticsMetric}>
                     <span style={S.analyticsVal}>{openRate}%</span>
                     <span style={S.analyticsLabel}>Open Rate</span>
-                    <div style={S.miniBar}><div style={{ ...S.miniBarFill, width: `${openRate}%`, background: '#6B8F7B' }} /></div>
+                    <div style={S.miniBar}><div style={{ ...S.miniBarFill, width: `${openRate}%`, background: 'var(--success, #5BA97B)' }} /></div>
                   </div>
                   <div style={S.analyticsMetric}>
                     <span style={S.analyticsVal}>{repRate}%</span>
                     <span style={S.analyticsLabel}>Reply Rate</span>
-                    <div style={S.miniBar}><div style={{ ...S.miniBarFill, width: `${repRate}%`, background: '#C76B8A' }} /></div>
+                    <div style={S.miniBar}><div style={{ ...S.miniBarFill, width: `${repRate}%`, background: 'var(--accent, #C76B8A)' }} /></div>
                   </div>
                   <div style={S.analyticsMetric}>
                     <span style={S.analyticsVal}>{seq.stats.sent}</span>
@@ -373,16 +373,16 @@ const S = {
   page: { padding: '20px 16px 32px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },
-  createBtn: { background: '#C76B8A', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  createBtn: { background: 'var(--accent, #C76B8A)', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   statsRow: { display: 'flex', gap: 10, marginBottom: 16 },
   statCard: { flex: 1, background: 'var(--card, #fff)', borderRadius: 12, padding: '12px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   statValue: { fontSize: 18, fontWeight: 700 },
-  statLabel: { fontSize: 11, color: '#AAA5A0' },
+  statLabel: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
 
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
-  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: '#AAA5A0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: '#C76B8A', color: '#fff' },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: 'var(--text-muted, #AAA5A0)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
 
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
 
@@ -392,7 +392,7 @@ const S = {
   seqIcon: { width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 },
   seqInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
   seqName: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  seqMeta: { fontSize: 12, color: '#AAA5A0' },
+  seqMeta: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)' },
   seqRight: {},
   activeBadge: { padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600 },
 
@@ -402,23 +402,23 @@ const S = {
   timeline: { marginBottom: 12 },
   timelineStep: { display: 'flex', gap: 12 },
   timelineLeft: { display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12 },
-  timelineDot: { width: 10, height: 10, borderRadius: 5, background: '#C76B8A', flexShrink: 0, marginTop: 4 },
-  timelineLine: { width: 2, flex: 1, background: '#F0ECE8', margin: '4px 0' },
+  timelineDot: { width: 10, height: 10, borderRadius: 5, background: 'var(--accent, #C76B8A)', flexShrink: 0, marginTop: 4 },
+  timelineLine: { width: 2, flex: 1, background: 'var(--border, #F0ECE8)', margin: '4px 0' },
   timelineContent: { flex: 1, paddingBottom: 12 },
   stepHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: 4 },
-  stepDelay: { fontSize: 12, fontWeight: 600, color: '#C76B8A' },
-  stepChannel: { fontSize: 11, color: '#AAA5A0' },
-  stepMessage: { fontSize: 13, color: '#8B6F5E', lineHeight: 1.4, margin: 0, background: '#F9F7F4', borderRadius: 8, padding: '8px 10px' },
+  stepDelay: { fontSize: 12, fontWeight: 600, color: 'var(--accent, #C76B8A)' },
+  stepChannel: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
+  stepMessage: { fontSize: 13, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.4, margin: 0, background: 'var(--bg-hover, #F5F2EF)', borderRadius: 8, padding: '8px 10px' },
 
   treatmentRow: { display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginBottom: 12 },
-  treatmentLabel: { fontSize: 11, fontWeight: 600, color: '#AAA5A0' },
-  treatmentTag: { padding: '3px 8px', borderRadius: 6, background: '#F0E6ED', color: '#C76B8A', fontSize: 11 },
+  treatmentLabel: { fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)' },
+  treatmentTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--accent-light, #FFF0F3)', color: 'var(--accent, #C76B8A)', fontSize: 11 },
 
   seqStats: { display: 'flex', gap: 16, marginBottom: 12 },
-  seqStatItem: { fontSize: 12, color: '#8B6F5E' },
+  seqStatItem: { fontSize: 12, color: 'var(--text-secondary, #8B6F5E)' },
 
   seqActions: { display: 'flex', gap: 8 },
-  seqActionBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: '#2D2A26' },
+  seqActionBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid var(--border, #F0ECE8)', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text, #2D2A26)' },
 
   // Analytics
   analyticsContainer: { display: 'flex', flexDirection: 'column', gap: 10 },
@@ -427,30 +427,30 @@ const S = {
   analyticsRow: { display: 'flex', gap: 12 },
   analyticsMetric: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2 },
   analyticsVal: { fontSize: 18, fontWeight: 700, color: 'var(--text, #2D2A26)' },
-  analyticsLabel: { fontSize: 10, color: '#AAA5A0' },
-  miniBar: { height: 4, borderRadius: 2, background: '#F0ECE8', marginTop: 4 },
+  analyticsLabel: { fontSize: 10, color: 'var(--text-muted, #AAA5A0)' },
+  miniBar: { height: 4, borderRadius: 2, background: 'var(--border, #F0ECE8)', marginTop: 4 },
   miniBarFill: { height: 4, borderRadius: 2 },
 
   // Modal
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
-  modal: { background: '#fff', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
-  modalTitle: { fontSize: 18, fontWeight: 700, color: '#2D2A26', margin: '0 0 16px' },
-  fieldLabel: { fontSize: 12, fontWeight: 600, color: '#8B6F5E', marginBottom: 6, marginTop: 12 },
-  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: '#2D2A26', outline: 'none', boxSizing: 'border-box' },
+  modal: { background: 'var(--bg-card, #fff)', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
+  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 16px' },
+  fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #8B6F5E)', marginBottom: 6, marginTop: 12 },
+  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #F0ECE8)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', outline: 'none', boxSizing: 'border-box' },
   chipRow: { display: 'flex', gap: 6, flexWrap: 'wrap' },
-  chip: { padding: '6px 10px', borderRadius: 8, border: '1px solid #F0ECE8', background: '#fff', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#2D2A26' },
-  chipActive: { background: '#C76B8A', color: '#fff', border: '1px solid #C76B8A' },
+  chip: { padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border, #F0ECE8)', background: 'var(--bg-card, #fff)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text, #2D2A26)' },
+  chipActive: { background: 'var(--accent, #C76B8A)', color: '#fff', border: '1px solid var(--accent, #C76B8A)' },
 
-  stepForm: { background: '#F9F7F4', borderRadius: 10, padding: 12, marginBottom: 8 },
+  stepForm: { background: 'var(--bg-hover, #F5F2EF)', borderRadius: 10, padding: 12, marginBottom: 8 },
   stepFormHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: 8 },
-  stepNum: { fontSize: 12, fontWeight: 600, color: '#C76B8A' },
-  removeBtn: { background: 'none', border: 'none', color: '#AAA5A0', fontSize: 14, cursor: 'pointer' },
+  stepNum: { fontSize: 12, fontWeight: 600, color: 'var(--accent, #C76B8A)' },
+  removeBtn: { background: 'none', border: 'none', color: 'var(--text-muted, #AAA5A0)', fontSize: 14, cursor: 'pointer' },
   stepFormRow: { display: 'flex', gap: 8, marginBottom: 8 },
-  miniSelect: { padding: '8px 10px', borderRadius: 8, border: '1px solid #F0ECE8', fontSize: 13, fontFamily: 'inherit', color: '#2D2A26', background: '#fff', outline: 'none' },
-  textarea: { width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #F0ECE8', fontSize: 13, fontFamily: 'inherit', color: '#2D2A26', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
+  miniSelect: { padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border, #F0ECE8)', fontSize: 13, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', background: 'var(--bg-card, #fff)', outline: 'none' },
+  textarea: { width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border, #F0ECE8)', fontSize: 13, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
   varRow: { display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 },
-  varChip: { padding: '3px 8px', borderRadius: 6, border: '1px solid #E0DCD8', background: '#fff', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', color: '#8B6F5E' },
+  varChip: { padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border, #E0DCD8)', background: 'var(--bg-card, #fff)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-secondary, #8B6F5E)' },
 
-  addStepBtn: { width: '100%', padding: '10px 0', borderRadius: 10, border: '1px dashed #E0DCD8', background: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: '#8B6F5E', marginTop: 4 },
-  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 16 },
+  addStepBtn: { width: '100%', padding: '10px 0', borderRadius: 10, border: '1px dashed var(--border, #E0DCD8)', background: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-secondary, #8B6F5E)', marginTop: 4 },
+  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 16 },
 };

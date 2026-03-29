@@ -81,7 +81,7 @@ export default function AIInsights() {
   }
 
   if (bLoading || loading) {
-    return <div style={ds.page}><div style={{ textAlign: 'center', padding: 60, color: '#AAA5A0' }}>Loading...</div></div>;
+    return <div style={ds.page}><div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' }}>Loading...</div></div>;
   }
 
   const maxRev = Math.max(...weeklyRevenue.map(d => Math.max(d.actual || 0, d.predicted)));

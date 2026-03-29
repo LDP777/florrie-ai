@@ -6,7 +6,7 @@
  * she can share to Instagram or embed on her booking page.
  */
 import { useState, useEffect } from 'react';
-import { isDevMode, useBeautician, fetchRows, insertRow, deleteRow } from '../lib/supabase.js';
+import { isDevMode, useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 
 // ── Dev mock data ─────────────────────────────────────────
@@ -103,8 +103,8 @@ export default function Portfolio({ token }) {
       {/* Stats */}
       <div style={S.statsRow}>
         {[
-          { label: 'Photos', value: stats.total, colour: '#C76B8A' },
-          { label: 'Before/After', value: stats.pairs, colour: '#8B6F5E' },
+          { label: 'Photos', value: stats.total, colour: 'var(--accent, #C76B8A)' },
+          { label: 'Before/After', value: stats.pairs, colour: 'var(--text-secondary, #8B6F5E)' },
           { label: 'Treatments', value: stats.treatments, colour: '#6B8F7B' },
         ].map(s => (
           <div key={s.label} style={S.statCard}>
@@ -148,7 +148,7 @@ export default function Portfolio({ token }) {
                 </div>
               </div>
               {p.type !== 'single' && (
-                <span style={{ ...S.typeBadge, background: p.type === 'before' ? '#F0ECE8' : '#F0E6ED', color: p.type === 'before' ? '#8B6F5E' : '#C76B8A' }}>
+                <span style={{ ...S.typeBadge, background: p.type === 'before' ? 'var(--border, var(--border, #EDE9E4))' : '#F0E6ED', color: p.type === 'before' ? 'var(--text-secondary, #8B6F5E)' : 'var(--accent, #C76B8A)' }}>
                   {p.type}
                 </span>
               )}
@@ -272,21 +272,21 @@ export default function Portfolio({ token }) {
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },
-  uploadBtn: { background: '#C76B8A', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, var(--text-primary, #2D2A26))', margin: 0 },
+  uploadBtn: { background: 'var(--accent, #C76B8A)', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   statsRow: { display: 'flex', gap: 10, marginBottom: 16 },
   statCard: { flex: 1, background: 'var(--card, #fff)', borderRadius: 12, padding: '12px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   statValue: { fontSize: 20, fontWeight: 700 },
-  statLabel: { fontSize: 11, color: '#AAA5A0' },
+  statLabel: { fontSize: 11, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
 
   tabs: { display: 'flex', gap: 8, marginBottom: 12 },
-  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: '#AAA5A0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: '#C76B8A', color: '#fff' },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
 
   filters: { display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto' },
-  filterChip: { padding: '6px 14px', borderRadius: 16, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', color: '#8B6F5E', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
-  filterActive: { background: '#2D2A26', color: '#fff', border: '1px solid #2D2A26' },
+  filterChip: { padding: '6px 14px', borderRadius: 16, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--card, #fff)', color: 'var(--text-secondary, #8B6F5E)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  filterActive: { background: 'var(--text-primary, #2D2A26)', color: '#fff', border: '1px solid var(--text-primary, #2D2A26)' },
 
   // Gallery grid
   grid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 },
@@ -294,41 +294,41 @@ const S = {
   photoPlaceholder: { aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px 12px 0 0' },
   placeholderIcon: { fontSize: 28, opacity: 0.5 },
   photoMeta: { padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 2 },
-  photoTreatment: { fontSize: 12, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  photoClient: { fontSize: 11, color: '#AAA5A0' },
+  photoTreatment: { fontSize: 12, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
+  photoClient: { fontSize: 11, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
   typeBadge: { position: 'absolute', top: 8, right: 8, padding: '3px 8px', borderRadius: 8, fontSize: 10, fontWeight: 600, textTransform: 'uppercase' },
 
   // Before/After pairs
   pairsContainer: { display: 'flex', flexDirection: 'column', gap: 12 },
   pairCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 14, cursor: 'pointer' },
   pairHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: 10 },
-  pairTreatment: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  pairDate: { fontSize: 12, color: '#AAA5A0' },
+  pairTreatment: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
+  pairDate: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
   pairPhotos: { display: 'flex', alignItems: 'center', gap: 8 },
   pairSide: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 },
   pairPhoto: { width: '100%', aspectRatio: '1', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  pairLabel: { fontSize: 11, fontWeight: 600, color: '#AAA5A0', textTransform: 'uppercase', letterSpacing: '0.05em' },
+  pairLabel: { fontSize: 11, fontWeight: 600, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', textTransform: 'uppercase', letterSpacing: '0.05em' },
   arrowContainer: { padding: '0 4px' },
-  arrow: { fontSize: 20, color: '#C76B8A' },
-  pairClient: { fontSize: 12, color: '#AAA5A0', marginTop: 8 },
-  shareRow: { display: 'flex', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px solid #F0ECE8' },
-  shareBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: '#2D2A26' },
+  arrow: { fontSize: 20, color: 'var(--accent, #C76B8A)' },
+  pairClient: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', marginTop: 8 },
+  shareRow: { display: 'flex', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, var(--border, #EDE9E4))' },
+  shareBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
 
-  empty: { textAlign: 'center', color: '#AAA5A0', fontSize: 14, padding: 32 },
+  empty: { textAlign: 'center', color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontSize: 14, padding: 32 },
 
   // Upload modal
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
   modal: { background: '#fff', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480 },
-  modalTitle: { fontSize: 18, fontWeight: 700, color: '#2D2A26', margin: '0 0 16px' },
-  uploadZone: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: 32, border: '2px dashed #E0DCD8', borderRadius: 12, marginBottom: 16, cursor: 'pointer' },
-  uploadText: { fontSize: 14, fontWeight: 600, color: '#2D2A26' },
-  uploadHint: { fontSize: 12, color: '#AAA5A0' },
-  fieldLabel: { fontSize: 12, fontWeight: 600, color: '#8B6F5E', marginBottom: 6, marginTop: 12 },
+  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: '0 0 16px' },
+  uploadZone: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: 32, border: '2px dashed var(--border, #EDE9E4)', borderRadius: 12, marginBottom: 16, cursor: 'pointer' },
+  uploadText: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
+  uploadHint: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
+  fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #8B6F5E)', marginBottom: 6, marginTop: 12 },
   typeRow: { display: 'flex', gap: 8 },
-  typeBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid #F0ECE8', background: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: '#2D2A26' },
-  typeBtnActive: { background: '#C76B8A', color: '#fff', border: '1px solid #C76B8A' },
-  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: '#2D2A26', background: '#fff', outline: 'none' },
-  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: '#2D2A26', outline: 'none', boxSizing: 'border-box' },
-  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
-  deleteBtn: { background: 'none', border: 'none', fontSize: 16, color: '#AAA5A0', cursor: 'pointer', padding: '0 4px', lineHeight: 1 },
+  typeBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid var(--border, var(--border, #EDE9E4))', background: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
+  typeBtnActive: { background: 'var(--accent, #C76B8A)', color: '#fff', border: '1px solid var(--accent, #C76B8A)' },
+  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', background: '#fff', outline: 'none' },
+  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', outline: 'none', boxSizing: 'border-box' },
+  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
+  deleteBtn: { background: 'none', border: 'none', fontSize: 16, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', cursor: 'pointer', padding: '0 4px', lineHeight: 1 },
 };

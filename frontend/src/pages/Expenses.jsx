@@ -10,16 +10,16 @@ import { isDevMode, useBeautician, fetchRows, insertRow, updateRow, deleteRow } 
 import logger from '../lib/logger.js';
 
 const CATEGORIES = [
-  { value: 'products', label: 'Products', icon: '🧴', color: '#C76B8A' },
-  { value: 'rent', label: 'Rent', icon: '🏠', color: '#8B6F5E' },
+  { value: 'products', label: 'Products', icon: '🧴', color: 'var(--accent, #C76B8A)' },
+  { value: 'rent', label: 'Rent', icon: '🏠', color: 'var(--text-secondary, #8B6F5E)' },
   { value: 'training', label: 'Training', icon: '📚', color: '#6B8F7B' },
-  { value: 'travel', label: 'Travel', icon: '🚗', color: '#B8860B' },
+  { value: 'travel', label: 'Travel', icon: '🚗', color: 'var(--gold, #C9A96E)' },
   { value: 'equipment', label: 'Equipment', icon: '🔧', color: '#7B6B8F' },
   { value: 'insurance', label: 'Insurance', icon: '🛡️', color: '#5E8B8B' },
   { value: 'marketing', label: 'Marketing', icon: '📣', color: '#8F6B7B' },
   { value: 'software', label: 'Software', icon: '💻', color: '#6B7B8F' },
   { value: 'utilities', label: 'Utilities', icon: '⚡', color: '#8F8B6B' },
-  { value: 'other', label: 'Other', icon: '📌', color: '#AAA5A0' },
+  { value: 'other', label: 'Other', icon: '📌', color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
 ];
 
 const getCat = (v) => CATEGORIES.find(c => c.value === v) || CATEGORIES[9];
@@ -57,6 +57,7 @@ export default function Expenses({ token }) {
   const [expenses, setExpenses] = useState([]);
   const [budgets, setBudgets] = useState([]);
   const [editBudget, setEditBudget] = useState(null);
+  const [editingExpense, setEditingExpense] = useState(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ vendor: '', description: '', amount: '', category: 'products', date: new Date().toISOString().split('T')[0], tax_deductible: true, recurring: false, recurring_interval: 'monthly' });
 
@@ -67,6 +68,47 @@ export default function Expenses({ token }) {
       setExpenses(prev => prev.filter(e => e.id !== id));
     } catch (err) {
       logger.error('Failed to delete expense:', err);
+      alert('Failed to delete expense');
+    }
+  }
+
+  function handleEditExpense(expense) {
+    setEditingExpense(expense);
+    setForm({
+      vendor: expense.vendor,
+      description: expense.description,
+      amount: (expense.amount_cents / 100).toString(),
+      category: expense.category,
+      date: expense.date,
+      tax_deductible: expense.tax_deductible,
+      recurring: expense.recurring,
+      recurring_interval: expense.recurring_interval || 'monthly',
+    });
+  }
+
+  async function handleSaveEditedExpense() {
+    if (!form.vendor || !form.amount) return;
+    setSaving(true);
+    try {
+      const updates = {
+        vendor: form.vendor.trim(),
+        description: form.description.trim(),
+        amount_cents: Math.round(parseFloat(form.amount) * 100),
+        category: form.category,
+        date: form.date,
+        tax_deductible: form.tax_deductible,
+        recurring: form.recurring,
+        recurring_interval: form.recurring ? form.recurring_interval : null,
+      };
+      await updateRow('expenses', editingExpense.id, updates);
+      setExpenses(prev => prev.map(e => e.id === editingExpense.id ? { ...e, ...updates } : e));
+      setEditingExpense(null);
+      setForm({ vendor: '', description: '', amount: '', category: 'products', date: new Date().toISOString().split('T')[0], tax_deductible: true, recurring: false, recurring_interval: 'monthly' });
+    } catch (err) {
+      logger.error('Failed to save expense:', err);
+      alert('Failed to save expense');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -94,17 +136,19 @@ export default function Expenses({ token }) {
 
   useEffect(() => {
     if (bLoading || !beautician) return;
-    if (isDevMode) {
-      setExpenses(DEV_EXPENSES);
-      setBudgets(DEV_BUDGETS);
-      return;
-    }
+    // Always fetch from Supabase (dev mode shows empty state if fetchRows returns [])
     fetchRows('expenses', beautician.id, { order: 'date', ascending: false })
-      .then(rows => setExpenses(rows))
-      .catch(err => logger.error('Failed to load expenses:', err));
+      .then(rows => setExpenses(rows || []))
+      .catch(err => {
+        logger.error('Failed to load expenses:', err);
+        setExpenses([]);
+      });
     fetchRows('expense_budgets', beautician.id)
-      .then(rows => setBudgets(rows))
-      .catch(() => setBudgets([]));
+      .then(rows => setBudgets(rows || []))
+      .catch(err => {
+        logger.error('Failed to load budgets:', err);
+        setBudgets([]);
+      });
   }, [beautician, bLoading]);
 
   // Filter by month
@@ -175,11 +219,11 @@ export default function Expenses({ token }) {
       {/* Summary cards */}
       <div style={S.summaryGrid}>
         <div style={S.summaryCard}>
-          <span style={{ ...S.summaryValue, color: '#C76B8A' }}>{fmt(totalMonth)}</span>
+          <span style={{ ...S.summaryValue, color: 'var(--accent, #C76B8A)' }}>{fmt(totalMonth)}</span>
           <span style={S.summaryLabel}>Total</span>
         </div>
         <div style={S.summaryCard}>
-          <span style={{ ...S.summaryValue, color: '#8B6F5E' }}>{fmt(recurringTotal)}</span>
+          <span style={{ ...S.summaryValue, color: 'var(--text-secondary, #8B6F5E)' }}>{fmt(recurringTotal)}</span>
           <span style={S.summaryLabel}>Recurring</span>
         </div>
         <div style={S.summaryCard}>
@@ -272,7 +316,10 @@ export default function Expenses({ token }) {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                   <span style={S.expenseAmount}>{fmt(e.amount_cents)}</span>
-                  <button onClick={() => handleDeleteExpense(e.id)} style={{ background: 'none', border: 'none', fontSize: 11, color: '#AAA5A0', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Delete</button>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => handleEditExpense(e)} style={{ background: 'none', border: 'none', fontSize: 11, color: '#6B8F7B', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Edit</button>
+                    <button onClick={() => handleDeleteExpense(e.id)} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Delete</button>
+                  </div>
                 </div>
               </div>
             );
@@ -291,10 +338,10 @@ export default function Expenses({ token }) {
                 <div key={b.category} style={S.budgetCard}>
                   <div style={S.budgetHeader}>
                     <span style={S.budgetCat}>{meta.icon} {meta.label}</span>
-                    <span style={{ ...S.budgetPct, color: overBudget ? '#C76B8A' : '#6B8F7B' }}>{b.pct}%</span>
+                    <span style={{ ...S.budgetPct, color: overBudget ? 'var(--accent, #C76B8A)' : '#6B8F7B' }}>{b.pct}%</span>
                   </div>
                   <div style={S.budgetBarBg}>
-                    <div style={{ ...S.budgetBarFill, width: `${b.pct}%`, background: overBudget ? '#C76B8A' : meta.color }} />
+                    <div style={{ ...S.budgetBarFill, width: `${b.pct}%`, background: overBudget ? 'var(--accent, #C76B8A)' : meta.color }} />
                   </div>
                   <div style={S.budgetFooter}>
                     <span style={S.budgetSpent}>{fmt(b.spent)} spent</span>
@@ -324,11 +371,11 @@ export default function Expenses({ token }) {
         </>
       )}
 
-      {/* Add expense modal */}
-      {showAdd && (
-        <div style={S.overlay} onClick={() => setShowAdd(false)}>
+      {/* Add/Edit expense modal */}
+      {(showAdd || editingExpense) && (
+        <div style={S.overlay} onClick={() => { setShowAdd(false); setEditingExpense(null); }}>
           <div style={S.modal} onClick={e => e.stopPropagation()}>
-            <h2 style={S.modalTitle}>Add Expense</h2>
+            <h2 style={S.modalTitle}>{editingExpense ? 'Edit Expense' : 'Add Expense'}</h2>
 
             <div style={S.fieldLabel}>Vendor</div>
             <input style={S.input} placeholder="e.g. Sally Beauty" value={form.vendor} onChange={e => setForm(f => ({ ...f, vendor: e.target.value }))} />
@@ -353,14 +400,14 @@ export default function Expenses({ token }) {
 
             <div style={S.toggleRow}>
               <span style={S.toggleLabel}>Tax deductible</span>
-              <button style={{ ...S.toggle, background: form.tax_deductible ? '#C76B8A' : '#E0DCD8' }} onClick={() => setForm(f => ({ ...f, tax_deductible: !f.tax_deductible }))}>
+              <button style={{ ...S.toggle, background: form.tax_deductible ? 'var(--accent, #C76B8A)' : 'var(--border, #EDE9E4)' }} onClick={() => setForm(f => ({ ...f, tax_deductible: !f.tax_deductible }))}>
                 <div style={{ ...S.toggleDot, transform: form.tax_deductible ? 'translateX(18px)' : 'translateX(2px)' }} />
               </button>
             </div>
 
             <div style={S.toggleRow}>
               <span style={S.toggleLabel}>Recurring</span>
-              <button style={{ ...S.toggle, background: form.recurring ? '#C76B8A' : '#E0DCD8' }} onClick={() => setForm(f => ({ ...f, recurring: !f.recurring }))}>
+              <button style={{ ...S.toggle, background: form.recurring ? 'var(--accent, #C76B8A)' : 'var(--border, #EDE9E4)' }} onClick={() => setForm(f => ({ ...f, recurring: !f.recurring }))}>
                 <div style={{ ...S.toggleDot, transform: form.recurring ? 'translateX(18px)' : 'translateX(2px)' }} />
               </button>
             </div>
@@ -375,31 +422,38 @@ export default function Expenses({ token }) {
               </div>
             )}
 
-            <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={async () => {
-              if (!form.vendor || !form.amount) return;
-              setSaving(true);
-              try {
-                const created = await insertRow('expenses', {
-                  beautician_id: beautician.id,
-                  vendor: form.vendor.trim(),
-                  description: form.description.trim(),
-                  amount_cents: Math.round(parseFloat(form.amount) * 100),
-                  category: form.category,
-                  date: form.date,
-                  tax_deductible: form.tax_deductible,
-                  recurring: form.recurring,
-                  recurring_interval: form.recurring ? form.recurring_interval : null,
-                });
-                setExpenses(prev => [created, ...prev]);
-                setShowAdd(false);
-                setForm({ vendor: '', description: '', amount: '', category: 'products', date: new Date().toISOString().split('T')[0], tax_deductible: true, recurring: false, recurring_interval: 'monthly' });
-              } catch (err) {
-                logger.error('Failed to save expense:', err);
-              } finally {
-                setSaving(false);
+            <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} disabled={saving} onClick={() => {
+              if (editingExpense) {
+                handleSaveEditedExpense();
+              } else {
+                if (!form.vendor || !form.amount) return;
+                setSaving(true);
+                (async () => {
+                  try {
+                    const created = await insertRow('expenses', {
+                      beautician_id: beautician.id,
+                      vendor: form.vendor.trim(),
+                      description: form.description.trim(),
+                      amount_cents: Math.round(parseFloat(form.amount) * 100),
+                      category: form.category,
+                      date: form.date,
+                      tax_deductible: form.tax_deductible,
+                      recurring: form.recurring,
+                      recurring_interval: form.recurring ? form.recurring_interval : null,
+                    });
+                    setExpenses(prev => [created, ...prev]);
+                    setShowAdd(false);
+                    setForm({ vendor: '', description: '', amount: '', category: 'products', date: new Date().toISOString().split('T')[0], tax_deductible: true, recurring: false, recurring_interval: 'monthly' });
+                  } catch (err) {
+                    logger.error('Failed to save expense:', err);
+                    alert('Failed to save expense');
+                  } finally {
+                    setSaving(false);
+                  }
+                })();
               }
             }}>
-              {saving ? 'Saving…' : 'Save Expense'}
+              {saving ? 'Saving…' : editingExpense ? 'Update Expense' : 'Save Expense'}
             </button>
           </div>
         </div>
@@ -415,92 +469,92 @@ function formatDate(dateStr) {
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },
-  addBtn: { background: '#C76B8A', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, var(--text-primary, #2D2A26))', margin: 0 },
+  addBtn: { background: 'var(--accent, #C76B8A)', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   monthNav: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 20, marginBottom: 16 },
-  monthArrow: { background: 'none', border: 'none', fontSize: 22, color: '#AAA5A0', cursor: 'pointer', padding: '4px 8px' },
-  monthLabel: { fontSize: 16, fontWeight: 600, color: 'var(--text, #2D2A26)' },
+  monthArrow: { background: 'none', border: 'none', fontSize: 22, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', cursor: 'pointer', padding: '4px 8px' },
+  monthLabel: { fontSize: 16, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
 
   summaryGrid: { display: 'flex', gap: 10, marginBottom: 16 },
   summaryCard: { flex: 1, background: 'var(--card, #fff)', borderRadius: 12, padding: '12px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   summaryValue: { fontSize: 17, fontWeight: 700 },
-  summaryLabel: { fontSize: 11, color: '#AAA5A0' },
+  summaryLabel: { fontSize: 11, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
 
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
-  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: '#AAA5A0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: '#C76B8A', color: '#fff' },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
 
   card: { background: 'var(--card, #fff)', borderRadius: 14, padding: 16, marginBottom: 12 },
-  cardTitle: { fontSize: 15, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 12px' },
-  empty: { textAlign: 'center', color: '#AAA5A0', fontSize: 14, padding: 20 },
+  cardTitle: { fontSize: 15, fontWeight: 700, color: 'var(--text, var(--text-primary, #2D2A26))', margin: '0 0 12px' },
+  empty: { textAlign: 'center', color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontSize: 14, padding: 20 },
 
   // Category breakdown
-  catRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #F0ECE8' },
+  catRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border, var(--border, #EDE9E4))' },
   catLeft: { display: 'flex', gap: 10, alignItems: 'center' },
   catIcon: { width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 },
   catInfo: { display: 'flex', flexDirection: 'column', gap: 1 },
-  catName: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  catPct: { fontSize: 11, color: '#AAA5A0' },
+  catName: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
+  catPct: { fontSize: 11, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
   catRight: { display: 'flex', alignItems: 'center', gap: 10 },
-  catBarBg: { width: 60, height: 6, borderRadius: 3, background: '#F0ECE8' },
+  catBarBg: { width: 60, height: 6, borderRadius: 3, background: 'var(--border, var(--border, #EDE9E4))' },
   catBarFill: { height: 6, borderRadius: 3 },
-  catAmount: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)', minWidth: 60, textAlign: 'right' },
+  catAmount: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))', minWidth: 60, textAlign: 'right' },
 
   // Recurring
-  recurringRow: { display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #F0ECE8' },
+  recurringRow: { display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border, var(--border, #EDE9E4))' },
   recurringInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
-  recurringVendor: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  recurringDesc: { fontSize: 12, color: '#AAA5A0' },
+  recurringVendor: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
+  recurringDesc: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
   recurringRight: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 },
-  recurringAmount: { fontSize: 14, fontWeight: 600, color: '#C76B8A' },
-  recurringInterval: { fontSize: 11, color: '#AAA5A0', textTransform: 'capitalize' },
+  recurringAmount: { fontSize: 14, fontWeight: 600, color: 'var(--accent, #C76B8A)' },
+  recurringInterval: { fontSize: 11, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', textTransform: 'capitalize' },
 
-  exportBtn: { width: '100%', padding: '12px 0', borderRadius: 12, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: '#2D2A26', marginTop: 4 },
+  exportBtn: { width: '100%', padding: '12px 0', borderRadius: 12, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--card, #fff)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', marginTop: 4 },
 
   // List
   list: { display: 'flex', flexDirection: 'column', gap: 8 },
   expenseCard: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card, #fff)', borderRadius: 12, padding: 12 },
   expenseLeft: { display: 'flex', gap: 10, alignItems: 'flex-start', flex: 1 },
   expenseInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
-  expenseVendor: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  expenseDesc: { fontSize: 12, color: '#AAA5A0' },
+  expenseVendor: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
+  expenseDesc: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
   expenseTags: { display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' },
-  tagDate: { fontSize: 10, color: '#8B6F5E', padding: '2px 6px', borderRadius: 4, background: '#F0ECE8' },
+  tagDate: { fontSize: 10, color: 'var(--text-secondary, #8B6F5E)', padding: '2px 6px', borderRadius: 4, background: 'var(--border, var(--border, #EDE9E4))' },
   tagRecurring: { fontSize: 10, color: '#7B6B8F', padding: '2px 6px', borderRadius: 4, background: '#F0E6F4' },
-  tagTax: { fontSize: 10, color: '#6B8F7B', padding: '2px 6px', borderRadius: 4, background: '#E8F5E9' },
-  expenseAmount: { fontSize: 15, fontWeight: 700, color: '#C76B8A', whiteSpace: 'nowrap' },
+  tagTax: { fontSize: 10, color: '#6B8F7B', padding: '2px 6px', borderRadius: 4, background: 'var(--success-bg, #E8F5E9)' },
+  expenseAmount: { fontSize: 15, fontWeight: 700, color: 'var(--accent, #C76B8A)', whiteSpace: 'nowrap' },
 
   // Budgets
   budgetList: { display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 },
   budgetCard: { background: 'var(--card, #fff)', borderRadius: 12, padding: 14 },
   budgetHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: 8 },
-  budgetCat: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
+  budgetCat: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
   budgetPct: { fontSize: 14, fontWeight: 700 },
-  budgetBarBg: { height: 8, borderRadius: 4, background: '#F0ECE8', marginBottom: 6 },
+  budgetBarBg: { height: 8, borderRadius: 4, background: 'var(--border, var(--border, #EDE9E4))', marginBottom: 6 },
   budgetBarFill: { height: 8, borderRadius: 4, transition: 'width 0.3s' },
   budgetFooter: { display: 'flex', justifyContent: 'space-between' },
-  budgetSpent: { fontSize: 12, color: '#8B6F5E' },
-  budgetLimit: { fontSize: 12, color: '#AAA5A0' },
+  budgetSpent: { fontSize: 12, color: 'var(--text-secondary, #8B6F5E)' },
+  budgetLimit: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
 
   budgetForm: { display: 'flex', flexDirection: 'column', gap: 8 },
 
   // Modal
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
   modal: { background: '#fff', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
-  modalTitle: { fontSize: 18, fontWeight: 700, color: '#2D2A26', margin: '0 0 16px' },
-  fieldLabel: { fontSize: 12, fontWeight: 600, color: '#8B6F5E', marginBottom: 6, marginTop: 12 },
-  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: '#2D2A26', outline: 'none', boxSizing: 'border-box' },
-  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: '#2D2A26', background: '#fff', outline: 'none', boxSizing: 'border-box' },
+  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: '0 0 16px' },
+  fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #8B6F5E)', marginBottom: 6, marginTop: 12 },
+  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', outline: 'none', boxSizing: 'border-box' },
+  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', background: '#fff', outline: 'none', boxSizing: 'border-box' },
   catGrid: { display: 'flex', flexWrap: 'wrap', gap: 6 },
-  catChip: { padding: '6px 10px', borderRadius: 8, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#2D2A26' },
+  catChip: { padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--card, #fff)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
   toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
-  toggleLabel: { fontSize: 14, fontWeight: 500, color: 'var(--text, #2D2A26)' },
+  toggleLabel: { fontSize: 14, fontWeight: 500, color: 'var(--text, var(--text-primary, #2D2A26))' },
   toggle: { width: 44, height: 26, borderRadius: 13, border: 'none', padding: 0, cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 },
   toggleDot: { width: 22, height: 22, borderRadius: 11, background: '#fff', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
   intervalRow: { display: 'flex', gap: 8, marginTop: 8 },
-  intervalChip: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid #F0ECE8', background: '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: '#2D2A26', textTransform: 'capitalize' },
-  intervalActive: { background: '#C76B8A', color: '#fff', border: '1px solid #C76B8A' },
-  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
-  saveBudgetBtn: { padding: '10px 0', borderRadius: 10, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  intervalChip: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid var(--border, var(--border, #EDE9E4))', background: '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', textTransform: 'capitalize' },
+  intervalActive: { background: 'var(--accent, #C76B8A)', color: '#fff', border: '1px solid var(--accent, #C76B8A)' },
+  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
+  saveBudgetBtn: { padding: '10px 0', borderRadius: 10, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 };

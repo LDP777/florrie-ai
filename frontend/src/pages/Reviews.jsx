@@ -92,7 +92,7 @@ export default function Reviews() {
           <span style={styles.heroRating}>{avgRating}</span>
           <div style={styles.heroStars}>
             {[1, 2, 3, 4, 5].map(i => (
-              <span key={i} style={{ fontSize: 16, color: i <= Math.round(parseFloat(avgRating)) ? '#F5A623' : '#E0DBD5' }}>★</span>
+              <span key={i} style={{ fontSize: 16, color: i <= Math.round(parseFloat(avgRating)) ? 'var(--warning, #D4943A)' : 'var(--text-muted, #B5AFA8)' }}>★</span>
             ))}
           </div>
           <span style={styles.heroCount}>{reviews.length} review{reviews.length !== 1 ? 's' : ''}</span>
@@ -113,7 +113,7 @@ export default function Reviews() {
               <div key={star} style={styles.ratingBar}>
                 <span style={styles.ratingBarLabel}>{star}★</span>
                 <div style={styles.ratingBarTrack}>
-                  <div style={{ ...styles.ratingBarFill, width: `${pct}%`, background: star <= 2 ? '#E57373' : star === 3 ? '#F5A623' : '#4CAF50' }} />
+                  <div style={{ ...styles.ratingBarFill, width: `${pct}%`, background: star <= 2 ? 'var(--danger, #D4605C)' : star === 3 ? 'var(--warning, #D4943A)' : 'var(--success, #5BA97B)' }} />
                 </div>
                 <span style={styles.ratingBarPct}>{pct}%</span>
               </div>
@@ -171,7 +171,7 @@ export default function Reviews() {
                   </div>
                   <div style={styles.reviewStars}>
                     {[1, 2, 3, 4, 5].map(i => (
-                      <span key={i} style={{ fontSize: 13, color: i <= review.rating ? '#F5A623' : '#E0DBD5' }}>★</span>
+                      <span key={i} style={{ fontSize: 13, color: i <= review.rating ? 'var(--warning, #D4943A)' : 'var(--text-muted, #B5AFA8)' }}>★</span>
                     ))}
                   </div>
                 </div>
@@ -259,7 +259,7 @@ export default function Reviews() {
                 </div>
                 <span style={{
                   ...styles.requestStatusDot,
-                  background: req.status === 'Left review' ? '#4CAF50' : req.status === 'Opened link' ? '#F5A623' : '#E0DBD5',
+                  background: req.status === 'Left review' ? 'var(--success, #5BA97B)' : req.status === 'Opened link' ? 'var(--warning, #D4943A)' : 'var(--text-muted, #B5AFA8)',
                 }} />
               </div>
             ))}
@@ -338,86 +338,86 @@ const DEV_REQUESTS = [
 ];
 
 const styles = {
-  page: { minHeight: '100vh', background: '#FAF8F5', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: '#2D2A26' },
+  page: { minHeight: '100vh', background: 'var(--bg, #FAF8F5)', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text, #2D2A26)' },
   header: { paddingTop: 28, paddingBottom: 8 },
   title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
-  subtitle: { fontSize: 13, color: '#C76B8A', margin: 0, fontWeight: 500 },
+  subtitle: { fontSize: 13, color: 'var(--accent, #C76B8A)', margin: 0, fontWeight: 500 },
 
   // Hero card
   heroCard: {
-    display: 'flex', gap: 16, background: '#fff', borderRadius: 14,
+    display: 'flex', gap: 16, background: 'var(--bg-card, #fff)', borderRadius: 14,
     padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 12,
   },
   heroLeft: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minWidth: 80 },
-  heroRating: { fontSize: 36, fontWeight: 700, color: '#2D2A26', lineHeight: 1 },
+  heroRating: { fontSize: 36, fontWeight: 700, color: 'var(--text, #2D2A26)', lineHeight: 1 },
   heroStars: { display: 'flex', gap: 1, marginTop: 4 },
-  heroCount: { fontSize: 11, color: '#AAA5A0', marginTop: 4 },
+  heroCount: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)', marginTop: 4 },
   heroRight: { flex: 1, display: 'flex', flexDirection: 'column', gap: 4, justifyContent: 'center' },
   ratingBar: { display: 'flex', alignItems: 'center', gap: 6 },
-  ratingBarLabel: { fontSize: 11, color: '#AAA5A0', width: 22, textAlign: 'right' },
-  ratingBarTrack: { flex: 1, height: 6, borderRadius: 3, background: '#F5F2EF', overflow: 'hidden' },
-  ratingBarFill: { height: '100%', borderRadius: 3, background: '#4CAF50', transition: 'width 0.3s ease' },
-  ratingBarPct: { fontSize: 10, color: '#C4BDB6', width: 28, textAlign: 'right' },
+  ratingBarLabel: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)', width: 22, textAlign: 'right' },
+  ratingBarTrack: { flex: 1, height: 6, borderRadius: 3, background: 'var(--bg-hover, #F5F2EF)', overflow: 'hidden' },
+  ratingBarFill: { height: '100%', borderRadius: 3, background: 'var(--success, #5BA97B)', transition: 'width 0.3s ease' },
+  ratingBarPct: { fontSize: 10, color: 'var(--text-muted, #B5AFA8)', width: 28, textAlign: 'right' },
 
   // Tabs
-  tabs: { display: 'flex', gap: 24, borderBottom: '1px solid #F0ECE8', marginBottom: 16 },
+  tabs: { display: 'flex', gap: 24, borderBottom: '1px solid var(--border, #EDE9E4)', marginBottom: 16 },
   tab: { padding: '10px 0', background: 'none', border: 'none', borderBottom: '2px solid transparent', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   body: { display: 'flex', flexDirection: 'column', gap: 10 },
 
   // Review cards
-  reviewCard: { background: '#fff', borderRadius: 14, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  reviewCard: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
   reviewHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
   reviewAuthorRow: { display: 'flex', gap: 10, alignItems: 'center' },
-  reviewAvatar: { width: 32, height: 32, borderRadius: 16, background: '#FBF0F3', color: '#C76B8A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 },
-  reviewAuthor: { display: 'block', fontSize: 13, fontWeight: 600, color: '#2D2A26' },
-  reviewDate: { display: 'block', fontSize: 10, color: '#C4BDB6', marginTop: 1 },
+  reviewAvatar: { width: 32, height: 32, borderRadius: 16, background: 'var(--accent-light, #FFF0F3)', color: 'var(--accent, #C76B8A)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 },
+  reviewAuthor: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text, #2D2A26)' },
+  reviewDate: { display: 'block', fontSize: 10, color: 'var(--text-muted, #B5AFA8)', marginTop: 1 },
   reviewStars: { display: 'flex', gap: 1 },
-  reviewText: { fontSize: 13, color: '#5A5550', margin: '0 0 8px', lineHeight: 1.5 },
-  reviewTreatment: { display: 'inline-block', fontSize: 11, color: '#8A8580', padding: '3px 8px', borderRadius: 6, background: '#F5F2EF', marginBottom: 8 },
-  replyCard: { background: '#FAF8F5', borderRadius: 10, padding: 12, marginTop: 4 },
-  replyLabel: { display: 'block', fontSize: 10, fontWeight: 600, color: '#AAA5A0', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 },
-  replyText: { fontSize: 12, color: '#5A5550', margin: 0, lineHeight: 1.5 },
-  replyBtn: { padding: '6px 14px', borderRadius: 8, border: '1.5px solid #F0ECE8', background: 'transparent', color: '#C76B8A', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 4 },
+  reviewText: { fontSize: 13, color: 'var(--text-secondary, #7A756F)', margin: '0 0 8px', lineHeight: 1.5 },
+  reviewTreatment: { display: 'inline-block', fontSize: 11, color: 'var(--text-secondary, #7A756F)', padding: '3px 8px', borderRadius: 6, background: 'var(--bg-hover, #F5F2EF)', marginBottom: 8 },
+  replyCard: { background: 'var(--bg, #FAF8F5)', borderRadius: 10, padding: 12, marginTop: 4 },
+  replyLabel: { display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #B5AFA8)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 },
+  replyText: { fontSize: 12, color: 'var(--text-secondary, #7A756F)', margin: 0, lineHeight: 1.5 },
+  replyBtn: { padding: '6px 14px', borderRadius: 8, border: '1.5px solid var(--border, #EDE9E4)', background: 'transparent', color: 'var(--accent, #C76B8A)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 4 },
 
   // Reply form
-  replyForm: { background: '#FAF8F5', borderRadius: 10, padding: 12, marginTop: 8 },
-  replyDraftLabel: { display: 'block', fontSize: 11, color: '#C76B8A', fontWeight: 500, marginBottom: 6 },
-  replyTextarea: { width: '100%', padding: 10, borderRadius: 8, border: '1.5px solid #F0ECE8', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', outline: 'none', lineHeight: 1.5, boxSizing: 'border-box' },
+  replyForm: { background: 'var(--bg, #FAF8F5)', borderRadius: 10, padding: 12, marginTop: 8 },
+  replyDraftLabel: { display: 'block', fontSize: 11, color: 'var(--accent, #C76B8A)', fontWeight: 500, marginBottom: 6 },
+  replyTextarea: { width: '100%', padding: 10, borderRadius: 8, border: '1.5px solid var(--border, #EDE9E4)', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', outline: 'none', lineHeight: 1.5, boxSizing: 'border-box' },
   replyActions: { display: 'flex', gap: 8, marginTop: 8 },
-  replySubmitBtn: { flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  replyCancelBtn: { padding: '10px 16px', borderRadius: 10, border: 'none', background: '#F5F2EF', color: '#8A8580', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' },
+  replySubmitBtn: { flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  replyCancelBtn: { padding: '10px 16px', borderRadius: 10, border: 'none', background: 'var(--bg-hover, #F5F2EF)', color: 'var(--text-secondary, #7A756F)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' },
 
   // Request tab
-  requestCard: { background: '#fff', borderRadius: 14, padding: 20, textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  requestCard: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 20, textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
   requestTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 6px' },
-  requestDesc: { fontSize: 13, color: '#8A8580', margin: '0 0 16px', lineHeight: 1.5 },
-  requestPreview: { background: '#FAF8F5', borderRadius: 10, padding: 12, marginBottom: 16, textAlign: 'left' },
-  requestPreviewLabel: { display: 'block', fontSize: 10, fontWeight: 600, color: '#AAA5A0', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 },
-  requestPreviewText: { fontSize: 12, color: '#5A5550', margin: 0, lineHeight: 1.5, fontStyle: 'italic' },
-  requestSendBtn: { padding: '12px 24px', borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  requestHistoryCard: { background: '#fff', borderRadius: 14, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
-  sectionLabel: { fontSize: 12, fontWeight: 600, color: '#AAA5A0', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 10px' },
-  requestRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #F5F2EF' },
-  requestAvatar: { width: 28, height: 28, borderRadius: 14, background: '#FBF0F3', color: '#C76B8A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 },
-  requestName: { display: 'block', fontSize: 13, fontWeight: 600, color: '#2D2A26' },
-  requestMeta: { display: 'block', fontSize: 11, color: '#AAA5A0' },
+  requestDesc: { fontSize: 13, color: 'var(--text-secondary, #7A756F)', margin: '0 0 16px', lineHeight: 1.5 },
+  requestPreview: { background: 'var(--bg, #FAF8F5)', borderRadius: 10, padding: 12, marginBottom: 16, textAlign: 'left' },
+  requestPreviewLabel: { display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #B5AFA8)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 },
+  requestPreviewText: { fontSize: 12, color: 'var(--text-secondary, #7A756F)', margin: 0, lineHeight: 1.5, fontStyle: 'italic' },
+  requestSendBtn: { padding: '12px 24px', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  requestHistoryCard: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  sectionLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-muted, #B5AFA8)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 10px' },
+  requestRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--bg-hover, #F5F2EF)' },
+  requestAvatar: { width: 28, height: 28, borderRadius: 14, background: 'var(--accent-light, #FFF0F3)', color: 'var(--accent, #C76B8A)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 },
+  requestName: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text, #2D2A26)' },
+  requestMeta: { display: 'block', fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
   requestStatusDot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
 
   // Settings tab
-  settingsCard: { background: '#fff', borderRadius: 14, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
-  settingRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid #F5F2EF' },
-  settingLabel: { display: 'block', fontSize: 13, fontWeight: 600, color: '#2D2A26' },
-  settingHint: { display: 'block', fontSize: 11, color: '#AAA5A0', marginTop: 2 },
-  settingValue: { fontSize: 12, fontWeight: 600, color: '#C76B8A', flexShrink: 0 },
+  settingsCard: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  settingRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--bg-hover, #F5F2EF)' },
+  settingLabel: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text, #2D2A26)' },
+  settingHint: { display: 'block', fontSize: 11, color: 'var(--text-muted, #B5AFA8)', marginTop: 2 },
+  settingValue: { fontSize: 12, fontWeight: 600, color: 'var(--accent, #C76B8A)', flexShrink: 0 },
   toggle: { width: 40, height: 24, borderRadius: 12, padding: 2, cursor: 'pointer', flexShrink: 0 },
-  toggleDot: { width: 20, height: 20, borderRadius: 10, background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.15)', transition: 'transform 0.2s ease' },
-  platformRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid #F5F2EF' },
-  platformName: { flex: 1, fontSize: 13, fontWeight: 500, color: '#2D2A26' },
-  platformBtn: { padding: '6px 14px', borderRadius: 8, border: 'none', background: '#F5F2EF', color: '#8A8580', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  toggleDot: { width: 20, height: 20, borderRadius: 10, background: 'var(--bg-card, #fff)', boxShadow: '0 1px 3px rgba(0,0,0,0.15)', transition: 'transform 0.2s ease' },
+  platformRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--bg-hover, #F5F2EF)' },
+  platformName: { flex: 1, fontSize: 13, fontWeight: 500, color: 'var(--text, #2D2A26)' },
+  platformBtn: { padding: '6px 14px', borderRadius: 8, border: 'none', background: 'var(--bg-hover, #F5F2EF)', color: 'var(--text-secondary, #7A756F)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   // Empty
   emptyState: { textAlign: 'center', padding: '40px 20px' },
   emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 6px' },
-  emptyDesc: { fontSize: 13, color: '#AAA5A0', margin: 0, lineHeight: 1.5 },
+  emptyDesc: { fontSize: 13, color: 'var(--text-muted, #B5AFA8)', margin: 0, lineHeight: 1.5 },
 };

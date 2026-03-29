@@ -6,11 +6,12 @@
  * when it was taken, and what happened to it.
  */
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
+import { useBeautician, fetchRows, isDevMode, supabase, updateRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 
 const fmt = (cents) => `£${(Math.abs(cents) / 100).toFixed(2)}`;
 
+// Dev mode data (only shown if isDevMode is true)
 const DEV_DEPOSITS = [
   { id: 'd1', client: 'Holly B', treatment: 'Ombre Brows (Semi-Permanent)', amount: 5000, takenDate: '2026-03-10', status: 'held', method: 'card', appointmentDate: '2026-04-05', notes: 'Waitlist deposit — slot confirmed' },
   { id: 'd2', client: 'Megan S', treatment: 'HD Brows', amount: 2500, takenDate: '2026-03-15', status: 'held', method: 'card', appointmentDate: '2026-03-29', notes: 'Standard booking deposit' },
@@ -23,18 +24,19 @@ const DEV_DEPOSITS = [
 ];
 
 const STATUS_CONFIG = {
-  held: { label: 'Held', bg: '#FFF5E6', color: '#B8860B', icon: '⏳' },
-  applied: { label: 'Applied', bg: '#E8F5E9', color: '#4CAF50', icon: '✓' },
+  held: { label: 'Held', bg: '#FFF5E6', color: 'var(--gold, #C9A96E)', icon: '⏳' },
+  applied: { label: 'Applied', bg: 'var(--success-bg, #E8F5E9)', color: 'var(--success, #5BA97B)', icon: '✓' },
   refunded: { label: 'Refunded', bg: '#E3F2FD', color: '#2196F3', icon: '↩' },
-  forfeited: { label: 'Forfeited', bg: '#FFEBEE', color: '#F44336', icon: '✗' },
+  forfeited: { label: 'Forfeited', bg: 'var(--danger-bg, #FDF0EF)', color: '#F44336', icon: '✗' },
 };
 
 export default function DepositTracker({ token }) {
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('held');
   const [expanded, setExpanded] = useState(null);
-  const [showAction, setShowAction] = useState(null);
   const [deposits, setDeposits] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   // Fetch deposits (query appointments where deposit_cents > 0)
   useEffect(() => {
@@ -43,10 +45,23 @@ export default function DepositTracker({ token }) {
       setDeposits(DEV_DEPOSITS);
       return;
     }
-    fetchRows('appointments', beautician.id, { order: 'start_time', ascending: false })
-      .then(appts => {
-        const withDeposits = appts.filter(a => a.deposit_cents && a.deposit_cents > 0);
-        setDeposits(withDeposits.map(a => ({
+
+    const loadDeposits = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        // Query appointments table directly with gt filter
+        const { data, error: fetchErr } = await supabase
+          .from('appointments')
+          .select('*')
+          .eq('beautician_id', beautician.id)
+          .gt('deposit_cents', 0)
+          .order('created_at', { ascending: false });
+
+        if (fetchErr) throw fetchErr;
+
+        setDeposits((data || []).map(a => ({
+          appointmentId: a.id,
           id: a.id,
           client: a.client_name || 'Client',
           treatment: a.treatment_name || '',
@@ -57,8 +72,15 @@ export default function DepositTracker({ token }) {
           appointmentDate: a.start_time?.slice(0, 10) || null,
           notes: a.notes || '',
         })));
-      })
-      .catch(err => logger.error('Failed to load deposits:', err));
+      } catch (err) {
+        logger.error('Failed to load deposits:', err);
+        setError('Failed to load deposits. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDeposits();
   }, [beautician, bLoading]);
 
   const held = deposits.filter(d => d.status === 'held');
@@ -71,9 +93,61 @@ export default function DepositTracker({ token }) {
 
   const filtered = tab === 'held' ? held : tab === 'history' ? history : deposits;
 
+  // Handle deposit status changes
+  const handleDepositAction = async (depositId, newStatus) => {
+    if (isDevMode) {
+      // In dev mode, just update local state
+      setDeposits(prev =>
+        prev.map(d =>
+          d.id === depositId ? { ...d, status: newStatus } : d
+        )
+      );
+      setExpanded(null);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const updates = { deposit_status: newStatus };
+
+      // Add timestamp for status transitions
+      if (newStatus === 'applied') updates.applied_at = new Date().toISOString();
+      if (newStatus === 'refunded') updates.refunded_at = new Date().toISOString();
+      if (newStatus === 'forfeited') updates.forfeited_at = new Date().toISOString();
+
+      const success = await updateRow('appointments', depositId, updates);
+
+      if (success) {
+        // Update local state
+        setDeposits(prev =>
+          prev.map(d =>
+            d.id === depositId ? { ...d, status: newStatus } : d
+          )
+        );
+        setExpanded(null);
+        setError(null);
+      } else {
+        setError('Failed to update deposit. Please try again.');
+      }
+    } catch (err) {
+      logger.error('Failed to update deposit:', err);
+      setError('Failed to update deposit. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div style={S.page}>
       <h1 style={S.title}>Deposit Tracker</h1>
+
+      {/* Error message */}
+      {error && (
+        <div style={S.errorBanner}>
+          <span>{error}</span>
+          <button style={S.errorClose} onClick={() => setError(null)}>✕</button>
+        </div>
+      )}
 
       {/* Summary */}
       <div style={S.summaryCard}>
@@ -84,7 +158,7 @@ export default function DepositTracker({ token }) {
         </div>
         <div style={S.summaryBreakdown}>
           {[
-            { label: 'Applied', value: totalApplied, colour: '#4CAF50' },
+            { label: 'Applied', value: totalApplied, colour: 'var(--success, #5BA97B)' },
             { label: 'Refunded', value: totalRefunded, colour: '#2196F3' },
             { label: 'Forfeited', value: totalForfeited, colour: '#F44336' },
           ].map(s => (
@@ -107,8 +181,9 @@ export default function DepositTracker({ token }) {
 
       {/* Deposit list */}
       <div style={S.list}>
-        {filtered.length === 0 && <p style={S.empty}>No deposits in this view.</p>}
-        {filtered.map(d => {
+        {loading && <p style={S.empty}>Loading deposits...</p>}
+        {!loading && filtered.length === 0 && <p style={S.empty}>No deposits in this view.</p>}
+        {!loading && filtered.map(d => {
           const st = STATUS_CONFIG[d.status];
           const isExp = expanded === d.id;
           return (
@@ -162,9 +237,36 @@ export default function DepositTracker({ token }) {
 
                   {d.status === 'held' && (
                     <div style={S.actionRow}>
-                      <button style={{ ...S.actionBtn, background: '#4CAF50', color: '#fff' }}>Apply to Bill</button>
-                      <button style={S.actionBtn}>Refund</button>
-                      <button style={{ ...S.actionBtn, color: '#F44336' }}>Forfeit</button>
+                      <button
+                        style={{ ...S.actionBtn, background: 'var(--success, #5BA97B)', color: '#fff' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDepositAction(d.id, 'applied');
+                        }}
+                        disabled={loading}
+                      >
+                        Apply to Bill
+                      </button>
+                      <button
+                        style={S.actionBtn}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDepositAction(d.id, 'refunded');
+                        }}
+                        disabled={loading}
+                      >
+                        Refund
+                      </button>
+                      <button
+                        style={{ ...S.actionBtn, color: '#F44336' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDepositAction(d.id, 'forfeited');
+                        }}
+                        disabled={loading}
+                      >
+                        Forfeit
+                      </button>
                     </div>
                   )}
                 </div>
@@ -192,47 +294,50 @@ function formatDate(dateStr) {
 
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 16px' },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, var(--text-primary, #2D2A26))', margin: '0 0 16px' },
+
+  errorBanner: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--danger-bg, #FDF0EF)', borderRadius: 10, padding: '10px 12px', marginBottom: 16, color: '#C62828', fontSize: 13 },
+  errorClose: { background: 'none', border: 'none', color: '#C62828', cursor: 'pointer', fontSize: 16, fontWeight: 600, padding: 0 },
 
   summaryCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 16, marginBottom: 16 },
-  summaryMain: { display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid #F0ECE8' },
-  summaryLabel: { fontSize: 12, color: '#AAA5A0', fontWeight: 500 },
-  summaryValue: { fontSize: 28, fontWeight: 700, color: '#C76B8A' },
-  summaryCount: { fontSize: 12, color: '#AAA5A0' },
+  summaryMain: { display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border, var(--border, #EDE9E4))' },
+  summaryLabel: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontWeight: 500 },
+  summaryValue: { fontSize: 28, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
+  summaryCount: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
   summaryBreakdown: { display: 'flex', gap: 8 },
   summaryItem: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   summaryItemVal: { fontSize: 15, fontWeight: 700 },
-  summaryItemLabel: { fontSize: 10, color: '#AAA5A0' },
+  summaryItemLabel: { fontSize: 10, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
 
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
-  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: '#AAA5A0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: '#C76B8A', color: '#fff' },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
 
   list: { display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 },
-  empty: { textAlign: 'center', color: '#AAA5A0', fontSize: 14, padding: 32 },
+  empty: { textAlign: 'center', color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontSize: 14, padding: 32 },
 
   depositCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 14, cursor: 'pointer' },
   depositHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
   depositLeft: { display: 'flex', gap: 10, alignItems: 'center' },
-  avatar: { width: 36, height: 36, borderRadius: 18, background: '#F0E6ED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: '#C76B8A', flexShrink: 0 },
+  avatar: { width: 36, height: 36, borderRadius: 18, background: '#F0E6ED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: 'var(--accent, #C76B8A)', flexShrink: 0 },
   depositInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
-  depositClient: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  depositTreatment: { fontSize: 12, color: '#AAA5A0' },
+  depositClient: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
+  depositTreatment: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
   depositRight: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 },
-  depositAmount: { fontSize: 16, fontWeight: 700, color: '#C76B8A' },
+  depositAmount: { fontSize: 16, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
   statusBadge: { padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600 },
 
-  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid #F0ECE8' },
+  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, var(--border, #EDE9E4))' },
   detailGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 10 },
   detailItem: { display: 'flex', flexDirection: 'column', gap: 2 },
-  detailLabel: { fontSize: 11, color: '#AAA5A0', fontWeight: 600 },
-  detailValue: { fontSize: 13, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  depositNotes: { fontSize: 12, color: '#8B6F5E', fontStyle: 'italic', margin: '8px 0' },
+  detailLabel: { fontSize: 11, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontWeight: 600 },
+  detailValue: { fontSize: 13, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
+  depositNotes: { fontSize: 12, color: 'var(--text-secondary, #8B6F5E)', fontStyle: 'italic', margin: '8px 0' },
   actionRow: { display: 'flex', gap: 8, marginTop: 8 },
-  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: '#2D2A26' },
+  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
 
   policyCard: { background: '#F9F7F4', borderRadius: 12, padding: 14 },
-  policyTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  policyText: { fontSize: 12, color: '#8B6F5E', lineHeight: 1.4, margin: '6px 0' },
-  policyLink: { background: 'none', border: 'none', color: '#C76B8A', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0, fontFamily: 'inherit' },
+  policyTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
+  policyText: { fontSize: 12, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.4, margin: '6px 0' },
+  policyLink: { background: 'none', border: 'none', color: 'var(--accent, #C76B8A)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0, fontFamily: 'inherit' },
 };

@@ -77,19 +77,19 @@ export default function Feedback({ token }) {
           {/* Stats */}
           <div style={S.statsGrid}>
             <div style={S.statCard}>
-              <span style={{ ...S.statValue, color: '#C76B8A' }}>⭐ {avgRating}</span>
+              <span style={{ ...S.statValue, color: 'var(--accent, #C76B8A)' }}>⭐ {avgRating}</span>
               <span style={S.statLabel}>Avg Rating</span>
             </div>
             <div style={S.statCard}>
-              <span style={{ ...S.statValue, color: npsScore >= 50 ? '#6B8F7B' : '#B8860B' }}>{npsScore}</span>
+              <span style={{ ...S.statValue, color: npsScore >= 50 ? 'var(--success, #5BA97B)' : 'var(--gold-text, #8A7245)' }}>{npsScore}</span>
               <span style={S.statLabel}>NPS Score</span>
             </div>
             <div style={S.statCard}>
-              <span style={{ ...S.statValue, color: '#8B6F5E' }}>{responseRate}%</span>
+              <span style={{ ...S.statValue, color: 'var(--text-secondary, #7A756F)' }}>{responseRate}%</span>
               <span style={S.statLabel}>Response Rate</span>
             </div>
             <div style={S.statCard}>
-              <span style={{ ...S.statValue, color: '#6B8F7B' }}>{reviewCount}</span>
+              <span style={{ ...S.statValue, color: 'var(--success, #5BA97B)' }}>{reviewCount}</span>
               <span style={S.statLabel}>Google Reviews</span>
             </div>
           </div>
@@ -101,7 +101,7 @@ export default function Feedback({ token }) {
               <div key={r.stars} style={S.distRow}>
                 <span style={S.distStars}>{r.stars}★</span>
                 <div style={S.distBarBg}>
-                  <div style={{ ...S.distBarFill, width: `${r.pct}%`, background: r.stars >= 4 ? '#C76B8A' : r.stars === 3 ? '#B8860B' : '#C76B8A' }} />
+                  <div style={{ ...S.distBarFill, width: `${r.pct}%`, background: r.stars >= 4 ? 'var(--accent, #C76B8A)' : r.stars === 3 ? 'var(--gold, #C9A96E)' : 'var(--accent, #C76B8A)' }} />
                 </div>
                 <span style={S.distCount}>{r.count}</span>
               </div>
@@ -113,9 +113,9 @@ export default function Feedback({ token }) {
             <h3 style={S.cardTitle}>NPS Breakdown</h3>
             <div style={S.npsRow}>
               {[
-                { label: 'Promoters (9-10)', count: promoters, colour: '#6B8F7B' },
-                { label: 'Passives (7-8)', count: passives, colour: '#B8860B' },
-                { label: 'Detractors (0-6)', count: detractors, colour: '#C76B8A' },
+                { label: 'Promoters (9-10)', count: promoters, colour: 'var(--success, #5BA97B)' },
+                { label: 'Passives (7-8)', count: passives, colour: 'var(--gold, #C9A96E)' },
+                { label: 'Detractors (0-6)', count: detractors, colour: 'var(--accent, #C76B8A)' },
               ].map(g => (
                 <div key={g.label} style={S.npsSegment}>
                   <div style={{ ...S.npsDot, background: g.colour }} />
@@ -265,14 +265,14 @@ const S = {
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 16px' },
 
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
-  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: '#AAA5A0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: '#C76B8A', color: '#fff' },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: 'var(--text-muted, #B5AFA8)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
 
   // Stats
   statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 },
   statCard: { background: 'var(--card, #fff)', borderRadius: 12, padding: '14px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 },
   statValue: { fontSize: 22, fontWeight: 700 },
-  statLabel: { fontSize: 11, color: '#AAA5A0' },
+  statLabel: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
 
   // Cards
   card: { background: 'var(--card, #fff)', borderRadius: 14, padding: 16, marginBottom: 12 },
@@ -280,10 +280,10 @@ const S = {
 
   // Rating distribution
   distRow: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 },
-  distStars: { fontSize: 13, fontWeight: 600, color: '#C76B8A', width: 28 },
-  distBarBg: { flex: 1, height: 8, borderRadius: 4, background: '#F0ECE8' },
+  distStars: { fontSize: 13, fontWeight: 600, color: 'var(--accent, #C76B8A)', width: 28 },
+  distBarBg: { flex: 1, height: 8, borderRadius: 4, background: 'var(--border, #EDE9E4)' },
   distBarFill: { height: 8, borderRadius: 4, transition: 'width 0.3s' },
-  distCount: { fontSize: 12, color: '#AAA5A0', width: 20, textAlign: 'right' },
+  distCount: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)', width: 20, textAlign: 'right' },
 
   // NPS
   npsRow: { display: 'flex', gap: 12 },
@@ -291,54 +291,54 @@ const S = {
   npsDot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
   npsInfo: { display: 'flex', flexDirection: 'column', gap: 1 },
   npsCount: { fontSize: 16, fontWeight: 700, color: 'var(--text, #2D2A26)' },
-  npsLabel: { fontSize: 10, color: '#AAA5A0' },
+  npsLabel: { fontSize: 10, color: 'var(--text-muted, #B5AFA8)' },
 
   // Comments
-  commentCard: { padding: '10px 0', borderBottom: '1px solid #F0ECE8' },
+  commentCard: { padding: '10px 0', borderBottom: '1px solid var(--border, #EDE9E4)' },
   commentHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: 4 },
   commentClient: { fontSize: 13, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  commentRating: { fontSize: 12, color: '#C76B8A' },
-  commentText: { fontSize: 13, color: '#8B6F5E', lineHeight: 1.4, margin: '4px 0', fontStyle: 'italic' },
-  commentMeta: { fontSize: 11, color: '#AAA5A0' },
+  commentRating: { fontSize: 12, color: 'var(--accent, #C76B8A)' },
+  commentText: { fontSize: 13, color: 'var(--text-secondary, #7A756F)', lineHeight: 1.4, margin: '4px 0', fontStyle: 'italic' },
+  commentMeta: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
 
   // Responses
   responsesList: { display: 'flex', flexDirection: 'column', gap: 10 },
   responseCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 14 },
   responseHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
   responseLeft: { display: 'flex', gap: 10, alignItems: 'center' },
-  avatar: { width: 32, height: 32, borderRadius: 16, background: '#F0E6ED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, color: '#C76B8A', flexShrink: 0 },
+  avatar: { width: 32, height: 32, borderRadius: 16, background: 'var(--accent-light, #FFF0F3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, color: 'var(--accent, #C76B8A)', flexShrink: 0 },
   responseInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
   responseClient: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  responseTreatment: { fontSize: 12, color: '#AAA5A0' },
+  responseTreatment: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },
   responseRight: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 },
-  responseStars: { fontSize: 13, color: '#C76B8A' },
-  responseDate: { fontSize: 11, color: '#AAA5A0' },
-  responseComment: { fontSize: 13, color: '#8B6F5E', lineHeight: 1.4, margin: '8px 0', fontStyle: 'italic' },
+  responseStars: { fontSize: 13, color: 'var(--accent, #C76B8A)' },
+  responseDate: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
+  responseComment: { fontSize: 13, color: 'var(--text-secondary, #7A756F)', lineHeight: 1.4, margin: '8px 0', fontStyle: 'italic' },
   responseMeta: { display: 'flex', gap: 8, marginTop: 4 },
-  npsTag: { padding: '3px 8px', borderRadius: 6, background: '#F0ECE8', color: '#8B6F5E', fontSize: 11, fontWeight: 500 },
-  reviewedTag: { padding: '3px 8px', borderRadius: 6, background: '#E8F5E9', color: '#4CAF50', fontSize: 11, fontWeight: 500 },
+  npsTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--border, #EDE9E4)', color: 'var(--text-secondary, #7A756F)', fontSize: 11, fontWeight: 500 },
+  reviewedTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--success-bg, #EDF7F0)', color: 'var(--success, #5BA97B)', fontSize: 11, fontWeight: 500 },
 
   // Settings
   settingsContainer: { display: 'flex', flexDirection: 'column', gap: 0 },
-  settingRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #F0ECE8' },
+  settingRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border, #EDE9E4)' },
   settingInfo: { display: 'flex', flexDirection: 'column', gap: 2, flex: 1, marginRight: 12 },
   settingLabel: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  settingDesc: { fontSize: 12, color: '#AAA5A0' },
+  settingDesc: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },
   toggle: { width: 44, height: 26, borderRadius: 13, border: 'none', padding: 0, cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 },
-  toggleDot: { width: 22, height: 22, borderRadius: 11, background: '#fff', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
+  toggleDot: { width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #fff)', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
 
-  fieldLabel: { fontSize: 12, fontWeight: 600, color: '#8B6F5E', marginBottom: 6, marginTop: 14 },
+  fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #7A756F)', marginBottom: 6, marginTop: 14 },
   chipRow: { display: 'flex', gap: 8, flexWrap: 'wrap' },
-  chip: { padding: '8px 14px', borderRadius: 10, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', color: '#8B6F5E', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
-  chipActive: { background: '#C76B8A', color: '#fff', border: '1px solid #C76B8A' },
-  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: '#2D2A26', outline: 'none', boxSizing: 'border-box', marginTop: 4 },
+  chip: { padding: '8px 14px', borderRadius: 10, border: '1px solid var(--border, #EDE9E4)', background: 'var(--card, #fff)', color: 'var(--text-secondary, #7A756F)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
+  chipActive: { background: 'var(--accent, #C76B8A)', color: '#fff', border: '1px solid var(--accent, #C76B8A)' },
+  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #EDE9E4)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', outline: 'none', boxSizing: 'border-box', marginTop: 4 },
 
   // Survey preview
-  previewCard: { background: '#F9F7F4', borderRadius: 12, padding: 16 },
-  previewGreeting: { fontSize: 15, fontWeight: 600, color: '#C76B8A', margin: '0 0 6px' },
+  previewCard: { background: 'var(--bg-hover, #F5F2EF)', borderRadius: 12, padding: 16 },
+  previewGreeting: { fontSize: 15, fontWeight: 600, color: 'var(--accent, #C76B8A)', margin: '0 0 6px' },
   previewText: { fontSize: 13, color: 'var(--text, #2D2A26)', lineHeight: 1.4, margin: '0 0 12px' },
   previewQ: { display: 'flex', gap: 8, marginBottom: 8 },
-  previewQNum: { fontSize: 13, fontWeight: 600, color: '#C76B8A' },
-  previewQText: { fontSize: 13, color: '#8B6F5E' },
-  previewSignoff: { fontSize: 13, color: '#AAA5A0', fontStyle: 'italic' },
+  previewQNum: { fontSize: 13, fontWeight: 600, color: 'var(--accent, #C76B8A)' },
+  previewQText: { fontSize: 13, color: 'var(--text-secondary, #7A756F)' },
+  previewSignoff: { fontSize: 13, color: 'var(--text-muted, #B5AFA8)', fontStyle: 'italic' },
 };

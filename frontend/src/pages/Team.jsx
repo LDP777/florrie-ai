@@ -115,8 +115,8 @@ export default function Team() {
             <span style={styles.pricingValue}>£{monthlyCost}/mo</span>
           </div>
           <div style={{ ...styles.pricingRow, borderBottom: 'none', paddingTop: 10 }}>
-            <span style={{ ...styles.pricingLabel, fontWeight: 700, color: '#2D2A26' }}>Total</span>
-            <span style={{ ...styles.pricingValue, fontWeight: 700, color: '#C76B8A', fontSize: 18 }}>
+            <span style={{ ...styles.pricingLabel, fontWeight: 700, color: 'var(--text-primary, #2D2A26)' }}>Total</span>
+            <span style={{ ...styles.pricingValue, fontWeight: 700, color: 'var(--accent, #C76B8A)', fontSize: 18 }}>
               £{50 + monthlyCost}/mo
             </span>
           </div>
@@ -155,7 +155,7 @@ export default function Team() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{
                   ...styles.statusDot,
-                  background: member.is_active ? '#4CAF50' : '#E0DBD5'
+                  background: member.is_active ? 'var(--success, #5BA97B)' : '#E0DBD5'
                 }} />
                 <span style={styles.chevron}>›</span>
               </div>
@@ -225,14 +225,14 @@ export default function Team() {
                     onClick={() => setForm({ ...form, role: r.key })}
                     style={{
                       ...styles.roleCard,
-                      borderColor: form.role === r.key ? '#C76B8A' : '#F0ECE8',
-                      background: form.role === r.key ? '#FFF0F3' : '#fff'
+                      borderColor: form.role === r.key ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, #EDE9E4))',
+                      background: form.role === r.key ? 'var(--accent-light, #FFF0F3)' : '#fff'
                     }}
                   >
-                    <span style={{ fontSize: 13, fontWeight: 600, color: form.role === r.key ? '#C76B8A' : '#2D2A26' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: form.role === r.key ? 'var(--accent, #C76B8A)' : 'var(--text-primary, #2D2A26)' }}>
                       {r.label}
                     </span>
-                    <span style={{ fontSize: 11, color: '#AAA5A0' }}>{r.desc}</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' }}>{r.desc}</span>
                   </button>
                 ))}
               </div>
@@ -292,7 +292,7 @@ export default function Team() {
               <span style={styles.detailLabel}>Status</span>
               <span style={{
                 ...styles.detailValue,
-                color: selectedMember.is_active ? '#4CAF50' : '#E57373'
+                color: selectedMember.is_active ? 'var(--success, #5BA97B)' : '#E57373'
               }}>
                 {selectedMember.is_active ? 'Active' : 'Inactive'}
               </span>
@@ -307,7 +307,7 @@ export default function Team() {
                     const h = selectedMember.working_hours[dk];
                     return (
                       <div key={dk} style={styles.hourRow}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: h ? '#2D2A26' : '#D5D0CB', width: 32 }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: h ? 'var(--text-primary, #2D2A26)' : '#D5D0CB', width: 32 }}>
                           {DAYS[i]}
                         </span>
                         <span style={{ fontSize: 12, color: h ? '#8A8580' : '#D5D0CB' }}>
@@ -336,8 +336,8 @@ export default function Team() {
                 onClick={() => handleToggleActive(selectedMember)}
                 style={{
                   ...styles.actionBtn,
-                  background: selectedMember.is_active ? '#FFF3E0' : '#E8F5E9',
-                  color: selectedMember.is_active ? '#F57C00' : '#4CAF50',
+                  background: selectedMember.is_active ? '#FFF3E0' : 'var(--success-bg, #E8F5E9)',
+                  color: selectedMember.is_active ? '#F57C00' : 'var(--success, #5BA97B)',
                   borderColor: selectedMember.is_active ? '#FFCC80' : '#A5D6A7'
                 }}
               >
@@ -345,7 +345,7 @@ export default function Team() {
               </button>
               <button
                 onClick={() => handleRemove(selectedMember)}
-                style={{ ...styles.actionBtn, background: '#FFEBEE', color: '#E57373', borderColor: '#FFCDD2' }}
+                style={{ ...styles.actionBtn, background: 'var(--danger-bg, #FDF0EF)', color: '#E57373', borderColor: '#FFCDD2' }}
               >
                 Remove from team
               </button>
@@ -361,8 +361,8 @@ function PermBadge({ label, on }) {
   return (
     <span style={{
       ...styles.permBadge,
-      background: on ? '#E8F5E9' : '#F5F2EF',
-      color: on ? '#4CAF50' : '#C4BDB6'
+      background: on ? 'var(--success-bg, #E8F5E9)' : 'var(--bg-hover, #F5F2EF)',
+      color: on ? 'var(--success, #5BA97B)' : 'var(--text-muted, #B5AFA8)'
     }}>
       {on ? '✓' : '✕'} {label}
     </span>
@@ -379,32 +379,32 @@ function SkeletonCard() {
 }
 
 const styles = {
-  page: { minHeight: '100vh', background: '#FAF8F5', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: '#2D2A26' },
+  page: { minHeight: '100vh', background: 'var(--bg, #FAF8F5)', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 28, paddingBottom: 12 },
   title: { fontSize: 22, fontWeight: 700, margin: 0 },
-  subtitle: { fontSize: 13, color: '#AAA5A0', margin: '4px 0 0' },
-  addBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  subtitle: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', margin: '4px 0 0' },
+  addBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
 
   // Pricing summary
   pricingCard: { background: '#fff', borderRadius: 14, padding: 16, marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
-  pricingRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #FAF8F5' },
+  pricingRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--bg, #FAF8F5)' },
   pricingLabel: { fontSize: 13, color: '#8A8580' },
-  pricingValue: { fontSize: 14, fontWeight: 600, color: '#2D2A26' },
+  pricingValue: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
 
   // Empty state
   emptyState: { textAlign: 'center', padding: '40px 20px' },
   emptyIcon: { fontSize: 48, marginBottom: 12 },
-  emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 8px', color: '#2D2A26' },
-  emptyDesc: { fontSize: 13, color: '#AAA5A0', lineHeight: 1.5, margin: '0 0 20px' },
-  emptyBtn: { padding: '12px 24px', borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 8px', color: 'var(--text-primary, #2D2A26)' },
+  emptyDesc: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', lineHeight: 1.5, margin: '0 0 20px' },
+  emptyBtn: { padding: '12px 24px', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   // Member list
   memberList: { display: 'flex', flexDirection: 'column', gap: 8 },
   memberCard: { display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, background: '#fff', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', width: '100%' },
-  memberAvatar: { width: 42, height: 42, borderRadius: 21, background: 'linear-gradient(135deg, #C76B8A 0%, #D4899F 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 16, flexShrink: 0 },
+  memberAvatar: { width: 42, height: 42, borderRadius: 21, background: 'linear-gradient(135deg, var(--accent, #C76B8A) 0%, #D4899F 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 16, flexShrink: 0 },
   memberInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2 },
-  memberName: { fontSize: 14, fontWeight: 600, color: '#2D2A26' },
-  memberRole: { fontSize: 12, color: '#AAA5A0' },
+  memberName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
+  memberRole: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   chevron: { fontSize: 18, color: '#D5D0CB', fontWeight: 300 },
 
@@ -413,21 +413,21 @@ const styles = {
   modal: { background: '#fff', borderRadius: '20px 20px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 18, fontWeight: 700, margin: 0 },
-  closeBtn: { width: 32, height: 32, borderRadius: 16, border: 'none', background: '#F5F2EF', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8A8580' },
+  closeBtn: { width: 32, height: 32, borderRadius: 16, border: 'none', background: 'var(--bg-hover, #F5F2EF)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8A8580' },
 
   // Form
   formGroup: { marginBottom: 16 },
   label: { display: 'block', fontSize: 12, fontWeight: 600, color: '#8A8580', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.03em' },
-  input: { width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: '#FAFAFA', transition: 'border-color 0.2s' },
+  input: { width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: '#FAFAFA', transition: 'border-color 0.2s' },
   roleGrid: { display: 'flex', flexDirection: 'column', gap: 8 },
-  roleCard: { display: 'flex', flexDirection: 'column', gap: 2, padding: '12px 14px', borderRadius: 10, border: '1.5px solid #F0ECE8', cursor: 'pointer', textAlign: 'left', background: '#fff', fontFamily: 'inherit' },
-  pricingNote: { fontSize: 12, color: '#AAA5A0', textAlign: 'center', margin: '12px 0 16px', lineHeight: 1.5 },
-  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  roleCard: { display: 'flex', flexDirection: 'column', gap: 2, padding: '12px 14px', borderRadius: 10, border: '1.5px solid var(--border, var(--border, #EDE9E4))', cursor: 'pointer', textAlign: 'left', background: '#fff', fontFamily: 'inherit' },
+  pricingNote: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', textAlign: 'center', margin: '12px 0 16px', lineHeight: 1.5 },
+  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   // Detail modal
-  detailSection: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #FAF8F5' },
-  detailLabel: { fontSize: 12, color: '#AAA5A0', fontWeight: 500 },
-  detailValue: { fontSize: 14, fontWeight: 500, color: '#2D2A26' },
+  detailSection: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--bg, #FAF8F5)' },
+  detailLabel: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontWeight: 500 },
+  detailValue: { fontSize: 14, fontWeight: 500, color: 'var(--text-primary, #2D2A26)' },
   hoursGrid: { display: 'flex', flexDirection: 'column', gap: 4 },
   hourRow: { display: 'flex', gap: 12, alignItems: 'center' },
   permList: { display: 'flex', flexWrap: 'wrap', gap: 6 },
@@ -437,5 +437,5 @@ const styles = {
 
   // Skeleton
   skeleton: { background: '#fff', borderRadius: 14, padding: 20, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 10 },
-  skeletonLine: { height: 14, borderRadius: 7, background: 'linear-gradient(90deg, #F5F2EF 25%, #FAF8F5 50%, #F5F2EF 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite' },
+  skeletonLine: { height: 14, borderRadius: 7, background: 'linear-gradient(90deg, var(--bg-hover, #F5F2EF) 25%, var(--bg, #FAF8F5) 50%, var(--bg-hover, #F5F2EF) 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite' },
 };

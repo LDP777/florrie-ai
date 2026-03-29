@@ -50,7 +50,7 @@ const Feedback = lazy(() => import('./pages/Feedback.jsx'));
 const ExpensesPage = lazy(() => import('./pages/Expenses.jsx'));
 const Consultations = lazy(() => import('./pages/Consultations.jsx'));
 const FollowUpSequences = lazy(() => import('./pages/FollowUpSequences.jsx'));
-const PhotoConsent = lazy(() => import('./pages/PhotoConsent.jsx'));
+// PhotoConsent removed — replaced by ConsultationForms
 const WaitlistPro = lazy(() => import('./pages/WaitlistPro.jsx'));
 const ClientTimeline = lazy(() => import('./pages/ClientTimeline.jsx'));
 const StaffRota = lazy(() => import('./pages/StaffRota.jsx'));
@@ -158,7 +158,8 @@ export default function App() {
   if (loading) {
     return (
       <div style={styles.loadingScreen}>
-        <span style={styles.loadingLogo}>florrie.ai</span>
+        <img src="/florrie-petal.svg" alt="" style={{ width: 48, height: 48, animation: 'spin 2.5s ease-in-out infinite' }} />
+        <span style={styles.loadingLogo}>florrie<span style={{ color: 'var(--gold, #C9A96E)', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>.ai</span></span>
         <span style={{ fontSize: 11, color: 'var(--text-muted, #B5AFA8)', fontFamily: "'DM Sans', sans-serif", letterSpacing: '0.08em', textTransform: 'uppercase' }}>your AI team</span>
       </div>
     );
@@ -259,7 +260,7 @@ export default function App() {
             <Route path="/consultation-forms" element={<ConsultationFormBuilder />} />
             <Route path="/consultation-forms/:id" element={<ConsultationFormBuilder />} />
             <Route path="/sequences" element={<FollowUpSequences token={token} />} />
-            <Route path="/photo-consent" element={<PhotoConsent token={token} />} />
+            {/* PhotoConsent removed — use /consultation-forms instead */}
             <Route path="/waitlist-pro" element={<WaitlistPro token={token} />} />
             <Route path="/client-timeline" element={<ClientTimeline token={token} />} />
             <Route path="/rota" element={<StaffRota token={token} />} />
@@ -313,13 +314,13 @@ function BottomNav({ current }) {
   const navigate = useNavigate();
 
   // Hub is active when on /hub or any sub-page that lives inside the hub
-  const hubPaths = ['/hub', '/money', '/analytics', '/clients', '/treatments', '/team', '/waitlist', '/digest', '/campaigns', '/reviews', '/loyalty', '/aftercare', '/import', '/smart-schedule', '/vouchers', '/notifications', '/hours', '/patch-tests', '/forms', '/reports', '/policies', '/business', '/rebook', '/inbox', '/packages', '/templates', '/referrals', '/portfolio', '/notes', '/feedback', '/expenses', '/consultations', '/sequences', '/photo-consent', '/waitlist-pro', '/client-timeline', '/rota', '/deposits', '/addons', '/cancellations', '/tags', '/promos', '/checklist', '/inventory', '/goals', '/price-list', '/treatment-stats', '/staff-performance', '/supplier-orders', '/memberships', '/comms', '/end-of-day', '/automations', '/whatsapp', '/portal', '/ai-insights', '/segments', '/churn', '/demand', '/locations', '/integrations', '/sms', '/api-settings', '/escalations', '/settings'];
+  const hubPaths = ['/hub', '/money', '/analytics', '/clients', '/treatments', '/team', '/waitlist', '/digest', '/campaigns', '/reviews', '/loyalty', '/aftercare', '/import', '/smart-schedule', '/vouchers', '/notifications', '/hours', '/patch-tests', '/forms', '/reports', '/policies', '/business', '/rebook', '/inbox', '/packages', '/templates', '/referrals', '/portfolio', '/notes', '/feedback', '/expenses', '/consultations', '/sequences', '/waitlist-pro', '/client-timeline', '/rota', '/deposits', '/addons', '/cancellations', '/tags', '/promos', '/checklist', '/inventory', '/goals', '/price-list', '/treatment-stats', '/staff-performance', '/supplier-orders', '/memberships', '/comms', '/end-of-day', '/automations', '/whatsapp', '/portal', '/ai-insights', '/segments', '/churn', '/demand', '/locations', '/integrations', '/sms', '/api-settings', '/escalations', '/settings'];
   const isHubActive = hubPaths.includes(current);
 
   const tabs = [
     { path: '/', label: 'Home', icon: '🏠' },
     { path: '/calendar', label: 'Calendar', icon: '📅' },
-    { path: '/voice', label: 'florrie.ai', icon: '✨' },
+    { path: '/voice', label: 'florrie.ai', icon: null, isPetal: true },
     { path: '/money', label: 'Money', icon: '💰' },
     { path: '/hub', label: 'Hub', icon: '🧭' }
   ];
@@ -337,7 +338,11 @@ function BottomNav({ current }) {
               color: active ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #B5AFA8)'
             }}
           >
-            <span style={styles.navIcon}>{tab.icon}</span>
+            {tab.isPetal ? (
+              <img src="/florrie-petal.svg" alt="florrie" style={{ width: 22, height: 22 }} />
+            ) : (
+              <span style={styles.navIcon}>{tab.icon}</span>
+            )}
             <span style={{
               ...styles.navLabel,
               fontWeight: active ? 600 : 400

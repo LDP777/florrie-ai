@@ -196,8 +196,8 @@ export default function GiftVouchers() {
             onClick={() => setTab(t)}
             style={{
               ...styles.tab,
-              borderBottomColor: tab === t ? '#C76B8A' : 'transparent',
-              color: tab === t ? '#C76B8A' : '#AAA5A0',
+              borderBottomColor: tab === t ? 'var(--accent, #C76B8A)' : 'transparent',
+              color: tab === t ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #AAA5A0)',
             }}
           >
             {t === 'active' ? `Active (${active.length})` : t === 'create' ? 'Create' : 'History'}
@@ -236,8 +236,8 @@ export default function GiftVouchers() {
                 onClick={() => setForm(p => ({ ...p, type: 'amount' }))}
                 style={{
                   ...styles.typeBtn,
-                  background: form.type === 'amount' ? '#FBF0F3' : '#fff',
-                  borderColor: form.type === 'amount' ? '#C76B8A' : '#F0ECE8',
+                  background: form.type === 'amount' ? 'var(--accent-light, #FFF0F3)' : 'var(--bg-card, #FFFFFF)',
+                  borderColor: form.type === 'amount' ? 'var(--accent, #C76B8A)' : 'var(--border, #EDE9E4)',
                 }}
               >
                 <span style={{ fontSize: 20 }}>💷</span>
@@ -247,8 +247,8 @@ export default function GiftVouchers() {
                 onClick={() => setForm(p => ({ ...p, type: 'treatment' }))}
                 style={{
                   ...styles.typeBtn,
-                  background: form.type === 'treatment' ? '#FBF0F3' : '#fff',
-                  borderColor: form.type === 'treatment' ? '#C76B8A' : '#F0ECE8',
+                  background: form.type === 'treatment' ? 'var(--accent-light, #FFF0F3)' : 'var(--bg-card, #FFFFFF)',
+                  borderColor: form.type === 'treatment' ? 'var(--accent, #C76B8A)' : 'var(--border, #EDE9E4)',
                 }}
               >
                 <span style={{ fontSize: 20 }}>💅</span>
@@ -267,9 +267,9 @@ export default function GiftVouchers() {
                     onClick={() => setForm(p => ({ ...p, amount_cents: amt }))}
                     style={{
                       ...styles.amountChip,
-                      background: form.amount_cents === amt ? '#C76B8A' : '#fff',
-                      color: form.amount_cents === amt ? '#fff' : '#2D2A26',
-                      borderColor: form.amount_cents === amt ? '#C76B8A' : '#F0ECE8',
+                      background: form.amount_cents === amt ? 'var(--accent, #C76B8A)' : 'var(--bg-card, #FFFFFF)',
+                      color: form.amount_cents === amt ? '#fff' : 'var(--text-primary, #2D2A26)',
+                      borderColor: form.amount_cents === amt ? 'var(--accent, #C76B8A)' : 'var(--border, #EDE9E4)',
                     }}
                   >
                     {fmt(amt)}
@@ -346,9 +346,9 @@ export default function GiftVouchers() {
                   onClick={() => setForm(p => ({ ...p, expires_months: m }))}
                   style={{
                     ...styles.expiryChip,
-                    background: form.expires_months === m ? '#C76B8A' : '#fff',
-                    color: form.expires_months === m ? '#fff' : '#5A5550',
-                    borderColor: form.expires_months === m ? '#C76B8A' : '#F0ECE8',
+                    background: form.expires_months === m ? 'var(--accent, #C76B8A)' : 'var(--bg-card, #FFFFFF)',
+                    color: form.expires_months === m ? '#fff' : 'var(--text-secondary, #7A756F)',
+                    borderColor: form.expires_months === m ? 'var(--accent, #C76B8A)' : 'var(--border, #EDE9E4)',
                   }}
                 >
                   {m} months
@@ -467,8 +467,8 @@ function VoucherCard({ voucher, onRedeem }) {
         </div>
         <div style={{
           ...styles.statusBadge,
-          background: isActive ? '#E8F5E9' : '#F5F2EF',
-          color: isActive ? '#388E3C' : '#AAA5A0',
+          background: isActive ? 'var(--success-bg, #EDF7F0)' : 'var(--bg-hover, #F5F2EF)',
+          color: isActive ? 'var(--success, #5BA97B)' : 'var(--text-muted, #B5AFA8)',
         }}>
           {isActive ? 'Active' : voucher.status === 'redeemed' ? 'Used' : 'Expired'}
         </div>
@@ -499,39 +499,39 @@ function VoucherCard({ voucher, onRedeem }) {
 
 const styles = {
   page: {
-    minHeight: '100vh', background: '#FAF8F5',
+    minHeight: '100vh', background: 'var(--bg, #FAF8F5)',
     fontFamily: '"DM Sans", -apple-system, sans-serif',
-    padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: '#2D2A26',
+    padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)',
   },
   header: { paddingTop: 28, paddingBottom: 8 },
   title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
-  subtitle: { fontSize: 13, color: '#C76B8A', margin: 0, fontWeight: 500 },
+  subtitle: { fontSize: 13, color: 'var(--accent, #C76B8A)', margin: 0, fontWeight: 500 },
 
   // Stats
   statsBar: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-around',
-    background: '#fff', borderRadius: 14, padding: '14px 0',
+    background: 'var(--bg-card, #FFFFFF)', borderRadius: 14, padding: '14px 0',
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 12,
   },
   statItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
-  statNum: { fontSize: 18, fontWeight: 700, color: '#C76B8A' },
-  statLabel: { fontSize: 10, color: '#AAA5A0', textTransform: 'uppercase', letterSpacing: '0.04em' },
-  statDivider: { width: 1, height: 28, background: '#F0ECE8' },
+  statNum: { fontSize: 18, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
+  statLabel: { fontSize: 10, color: 'var(--text-muted, #B5AFA8)', textTransform: 'uppercase', letterSpacing: '0.04em' },
+  statDivider: { width: 1, height: 28, background: 'var(--border, #EDE9E4)' },
 
   // Quick actions
   quickActions: { display: 'flex', gap: 8, marginBottom: 16 },
   createBtn: {
     flex: 1, padding: '11px 0', borderRadius: 10, border: 'none',
-    background: '#C76B8A', color: '#fff', fontSize: 13, fontWeight: 600,
+    background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   redeemBtn: {
-    flex: 1, padding: '11px 0', borderRadius: 10, border: '1.5px solid #E8E4E0',
-    background: '#fff', color: '#5A5550', fontSize: 13, fontWeight: 600,
+    flex: 1, padding: '11px 0', borderRadius: 10, border: '1.5px solid var(--border, #EDE9E4)',
+    background: 'var(--bg-card, #FFFFFF)', color: 'var(--text-secondary, #7A756F)', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
 
-  tabs: { display: 'flex', gap: 16, borderBottom: '1px solid #F0ECE8', marginBottom: 16 },
+  tabs: { display: 'flex', gap: 16, borderBottom: '1px solid var(--border, #EDE9E4)', marginBottom: 16 },
   tab: {
     padding: '10px 0', background: 'none', border: 'none',
     borderBottom: '2px solid transparent', fontSize: 14, fontWeight: 600,
@@ -541,76 +541,76 @@ const styles = {
   // Voucher cards
   voucherList: { display: 'flex', flexDirection: 'column', gap: 10 },
   voucherCard: {
-    background: '#fff', borderRadius: 14, padding: 14,
+    background: 'var(--bg-card, #FFFFFF)', borderRadius: 14, padding: 14,
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
   },
   voucherTop: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 },
   voucherIcon: {
-    width: 38, height: 38, borderRadius: 10, background: '#FBF0F3',
+    width: 38, height: 38, borderRadius: 10, background: 'var(--accent-light, #FFF0F3)',
     display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0,
   },
   voucherInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2 },
-  voucherAmount: { fontSize: 15, fontWeight: 700, color: '#2D2A26' },
-  voucherFor: { fontSize: 11, color: '#AAA5A0' },
+  voucherAmount: { fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #2D2A26)' },
+  voucherFor: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
   statusBadge: { padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, flexShrink: 0 },
   voucherCode: {
-    padding: '8px 12px', borderRadius: 8, background: '#FAF8F5',
-    fontSize: 14, fontWeight: 700, letterSpacing: '0.12em', color: '#C76B8A',
+    padding: '8px 12px', borderRadius: 8, background: 'var(--bg, #FAF8F5)',
+    fontSize: 14, fontWeight: 700, letterSpacing: '0.12em', color: 'var(--accent, #C76B8A)',
     textAlign: 'center', marginBottom: 6,
   },
-  voucherMsg: { fontSize: 12, color: '#8A8580', fontStyle: 'italic', margin: '4px 0 8px', lineHeight: 1.4 },
+  voucherMsg: { fontSize: 12, color: 'var(--text-secondary, #7A756F)', fontStyle: 'italic', margin: '4px 0 8px', lineHeight: 1.4 },
   voucherFooter: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  voucherDate: { fontSize: 11, color: '#AAA5A0' },
+  voucherDate: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
   redeemSmallBtn: {
     padding: '6px 14px', borderRadius: 6, border: 'none',
-    background: '#FBF0F3', color: '#C76B8A', fontSize: 11, fontWeight: 600,
+    background: 'var(--accent-light, #FFF0F3)', color: 'var(--accent, #C76B8A)', fontSize: 11, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
 
   // Create form
   formCard: {
-    background: '#fff', borderRadius: 14, padding: 16,
+    background: 'var(--bg-card, #FFFFFF)', borderRadius: 14, padding: 16,
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
   },
   formGroup: { marginBottom: 14 },
-  formLabel: { display: 'block', fontSize: 12, color: '#AAA5A0', marginBottom: 6, fontWeight: 500 },
+  formLabel: { display: 'block', fontSize: 12, color: 'var(--text-muted, #B5AFA8)', marginBottom: 6, fontWeight: 500 },
   formInput: {
     width: '100%', padding: '10px 12px', borderRadius: 8,
-    border: '1.5px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit',
+    border: '1.5px solid var(--border, #EDE9E4)', fontSize: 14, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box',
   },
   formTextarea: {
     width: '100%', padding: '10px 12px', borderRadius: 8,
-    border: '1.5px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit',
+    border: '1.5px solid var(--border, #EDE9E4)', fontSize: 14, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box', resize: 'vertical',
   },
   formSelect: {
     width: '100%', padding: '10px 12px', borderRadius: 8,
-    border: '1.5px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit',
-    outline: 'none', background: '#fff', boxSizing: 'border-box',
+    border: '1.5px solid var(--border, #EDE9E4)', fontSize: 14, fontFamily: 'inherit',
+    outline: 'none', background: 'var(--bg-card, #FFFFFF)', boxSizing: 'border-box',
   },
   formRow: { display: 'flex', gap: 10, marginBottom: 14 },
   typeRow: { display: 'flex', gap: 10 },
   typeBtn: {
-    flex: 1, padding: '12px 0', borderRadius: 10, border: '1.5px solid #F0ECE8',
+    flex: 1, padding: '12px 0', borderRadius: 10, border: '1.5px solid var(--border, #EDE9E4)',
     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
     cursor: 'pointer', fontFamily: 'inherit',
   },
-  typeBtnLabel: { fontSize: 12, fontWeight: 600, color: '#2D2A26' },
+  typeBtnLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
   amountGrid: { display: 'flex', flexWrap: 'wrap', gap: 8 },
   amountChip: {
-    padding: '8px 14px', borderRadius: 8, border: '1.5px solid #F0ECE8',
+    padding: '8px 14px', borderRadius: 8, border: '1.5px solid var(--border, #EDE9E4)',
     fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
   },
   expiryRow: { display: 'flex', gap: 8 },
   expiryChip: {
-    flex: 1, padding: '8px 0', borderRadius: 8, border: '1.5px solid #F0ECE8',
+    flex: 1, padding: '8px 0', borderRadius: 8, border: '1.5px solid var(--border, #EDE9E4)',
     fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
   },
 
   // Preview
   previewCard: {
-    background: 'linear-gradient(135deg, #C76B8A 0%, #E8A0B5 100%)',
+    background: 'linear-gradient(135deg, var(--accent, #C76B8A) 0%, #E8A0B5 100%)',
     borderRadius: 14, padding: 20, marginBottom: 14, textAlign: 'center', color: '#fff',
   },
   previewBrand: { fontSize: 12, opacity: 0.9, marginBottom: 12 },
@@ -625,7 +625,7 @@ const styles = {
 
   createVoucherBtn: {
     width: '100%', padding: '12px 0', borderRadius: 10, border: 'none',
-    background: '#C76B8A', color: '#fff', fontSize: 14, fontWeight: 600,
+    background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 14, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
 
@@ -635,40 +635,40 @@ const styles = {
     zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
   },
   modalContent: {
-    background: '#fff', borderRadius: 16, padding: 20, width: '100%', maxWidth: 360,
+    background: 'var(--bg-card, #FFFFFF)', borderRadius: 16, padding: 20, width: '100%', maxWidth: 360,
   },
-  modalTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 14px', color: '#2D2A26' },
+  modalTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 14px', color: 'var(--text-primary, #2D2A26)' },
   redeemInputRow: { display: 'flex', gap: 8, marginBottom: 14 },
   searchBtn: {
     padding: '10px 16px', borderRadius: 8, border: 'none',
-    background: '#C76B8A', color: '#fff', fontSize: 13, fontWeight: 600,
+    background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   redeemNotFound: {
     display: 'flex', alignItems: 'center', gap: 8, padding: 14,
-    background: '#FEF2F2', borderRadius: 10, fontSize: 13, color: '#E57373', marginBottom: 14,
+    background: 'var(--danger-bg, #FDF0EF)', borderRadius: 10, fontSize: 13, color: 'var(--danger, #D4605C)', marginBottom: 14,
   },
   redeemFound: {
-    background: '#FAF8F5', borderRadius: 10, padding: 14, marginBottom: 14,
+    background: 'var(--bg, #FAF8F5)', borderRadius: 10, padding: 14, marginBottom: 14,
   },
   redeemFoundHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  redeemFoundCode: { fontSize: 14, fontWeight: 700, letterSpacing: '0.1em', color: '#C76B8A' },
-  redeemFoundAmount: { fontSize: 16, fontWeight: 700, color: '#2D2A26' },
-  redeemFoundDetail: { fontSize: 12, color: '#8A8580', margin: '2px 0' },
+  redeemFoundCode: { fontSize: 14, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--accent, #C76B8A)' },
+  redeemFoundAmount: { fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #2D2A26)' },
+  redeemFoundDetail: { fontSize: 12, color: 'var(--text-secondary, #7A756F)', margin: '2px 0' },
   redeemConfirmBtn: {
     width: '100%', padding: '10px 0', borderRadius: 8, border: 'none',
-    background: '#4CAF50', color: '#fff', fontSize: 13, fontWeight: 600,
+    background: 'var(--success, #5BA97B)', color: '#fff', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit', marginTop: 10,
   },
   cancelBtn: {
     width: '100%', padding: '10px 0', borderRadius: 8, border: 'none',
-    background: '#F5F2EF', color: '#8A8580', fontSize: 13,
+    background: 'var(--bg-hover, #F5F2EF)', color: 'var(--text-secondary, #7A756F)', fontSize: 13,
     cursor: 'pointer', fontFamily: 'inherit',
   },
 
   // Empty
-  loadingText: { textAlign: 'center', color: '#AAA5A0', padding: 40, fontSize: 14 },
+  loadingText: { textAlign: 'center', color: 'var(--text-muted, #B5AFA8)', padding: 40, fontSize: 14 },
   emptyState: { textAlign: 'center', padding: '40px 20px' },
-  emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 4px', color: '#2D2A26' },
-  emptyDesc: { fontSize: 13, color: '#AAA5A0', margin: 0, lineHeight: 1.5 },
+  emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 4px', color: 'var(--text-primary, #2D2A26)' },
+  emptyDesc: { fontSize: 13, color: 'var(--text-muted, #B5AFA8)', margin: 0, lineHeight: 1.5 },
 };

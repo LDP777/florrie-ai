@@ -206,11 +206,11 @@ export default function ClientImport() {
               <div key={s} style={styles.stepItem}>
                 <div style={{
                   ...styles.stepDot,
-                  background: i <= stepIndex ? '#C76B8A' : '#E0DBD5',
+                  background: i <= stepIndex ? 'var(--accent, #C76B8A)' : '#E0DBD5',
                 }} />
                 <span style={{
                   ...styles.stepLabel,
-                  color: i <= stepIndex ? '#C76B8A' : '#AAA5A0',
+                  color: i <= stepIndex ? 'var(--accent, #C76B8A)' : 'var(--text-muted, var(--text-muted, #B5AFA8))',
                 }}>{s}</span>
               </div>
             );
@@ -393,10 +393,10 @@ export default function ClientImport() {
 }
 
 const styles = {
-  page: { minHeight: '100vh', background: '#FAF8F5', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: '#2D2A26' },
+  page: { minHeight: '100vh', background: 'var(--bg, #FAF8F5)', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)' },
   header: { paddingTop: 28, paddingBottom: 12 },
   title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
-  subtitle: { fontSize: 13, color: '#C76B8A', margin: 0, fontWeight: 500 },
+  subtitle: { fontSize: 13, color: 'var(--accent, #C76B8A)', margin: 0, fontWeight: 500 },
 
   modeGrid: { display: 'flex', flexDirection: 'column', gap: 10 },
   modeCard: {
@@ -404,10 +404,10 @@ const styles = {
     padding: 24, borderRadius: 14, background: '#fff', border: 'none',
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)', cursor: 'pointer', fontFamily: 'inherit',
   },
-  modeLabel: { fontSize: 16, fontWeight: 600, color: '#2D2A26' },
+  modeLabel: { fontSize: 16, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
   modeDesc: { fontSize: 12, color: '#8A8580', textAlign: 'center', lineHeight: 1.4 },
 
-  steps: { display: 'flex', justifyContent: 'center', gap: 24, marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid #F0ECE8' },
+  steps: { display: 'flex', justifyContent: 'center', gap: 24, marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border, var(--border, #EDE9E4))' },
   stepItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 },
   stepDot: { width: 8, height: 8, borderRadius: 4 },
   stepLabel: { fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' },
@@ -418,8 +418,8 @@ const styles = {
     padding: 40, borderRadius: 14, border: '2px dashed #E0DBD5',
     cursor: 'pointer', background: '#fff',
   },
-  dropText: { fontSize: 14, fontWeight: 600, color: '#2D2A26' },
-  dropHint: { fontSize: 11, color: '#AAA5A0', textAlign: 'center' },
+  dropText: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
+  dropHint: { fontSize: 11, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', textAlign: 'center' },
 
   errorCard: { background: '#FEF2F2', borderRadius: 10, padding: 12 },
   errorText: { fontSize: 12, color: '#E57373', margin: '0 0 4px' },
@@ -427,37 +427,37 @@ const styles = {
   mapCard: { display: 'flex', flexDirection: 'column', gap: 10 },
   mapIntro: { fontSize: 13, color: '#5A5550', margin: 0, lineHeight: 1.5 },
   mapRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#fff', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
-  mapHeader: { fontSize: 13, fontWeight: 600, color: '#2D2A26' },
-  mapSelect: { padding: '6px 10px', borderRadius: 8, border: '1.5px solid #F0ECE8', fontSize: 12, fontFamily: 'inherit', background: '#fff', color: '#2D2A26' },
+  mapHeader: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
+  mapSelect: { padding: '6px 10px', borderRadius: 8, border: '1.5px solid var(--border, var(--border, #EDE9E4))', fontSize: 12, fontFamily: 'inherit', background: '#fff', color: 'var(--text-primary, #2D2A26)' },
   mapActions: { display: 'flex', gap: 8, marginTop: 4 },
 
   manualCard: { display: 'flex', flexDirection: 'column', gap: 12 },
   manualIntro: { fontSize: 13, color: '#5A5550', margin: 0, lineHeight: 1.5 },
   manualExamples: { background: '#fff', borderRadius: 10, padding: 12, display: 'flex', flexDirection: 'column', gap: 4, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
-  exampleLabel: { fontSize: 10, fontWeight: 600, color: '#AAA5A0', textTransform: 'uppercase', letterSpacing: '0.04em' },
+  exampleLabel: { fontSize: 10, fontWeight: 600, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', textTransform: 'uppercase', letterSpacing: '0.04em' },
   exampleText: { fontSize: 12, color: '#8A8580', fontFamily: 'monospace' },
-  manualTextarea: { width: '100%', padding: 14, borderRadius: 12, border: '1.5px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', resize: 'vertical', outline: 'none', lineHeight: 1.6, boxSizing: 'border-box' },
+  manualTextarea: { width: '100%', padding: 14, borderRadius: 12, border: '1.5px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit', resize: 'vertical', outline: 'none', lineHeight: 1.6, boxSizing: 'border-box' },
 
   previewCard: { display: 'flex', flexDirection: 'column', gap: 10 },
   previewIntro: { fontSize: 13, color: '#5A5550', margin: 0 },
   previewList: { background: '#fff', borderRadius: 14, padding: '8px 14px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', maxHeight: 340, overflowY: 'auto' },
-  previewRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #F5F2EF' },
-  previewAvatar: { width: 30, height: 30, borderRadius: 15, background: '#FBF0F3', color: '#C76B8A', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 },
-  previewName: { display: 'block', fontSize: 13, fontWeight: 600, color: '#2D2A26' },
-  previewMeta: { display: 'block', fontSize: 11, color: '#AAA5A0' },
-  previewMore: { textAlign: 'center', fontSize: 12, color: '#C76B8A', padding: 8, margin: 0 },
+  previewRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--bg-hover, #F5F2EF)' },
+  previewAvatar: { width: 30, height: 30, borderRadius: 15, background: 'var(--accent-light, #FFF0F3)', color: 'var(--accent, #C76B8A)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 },
+  previewName: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
+  previewMeta: { display: 'block', fontSize: 11, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
+  previewMore: { textAlign: 'center', fontSize: 12, color: 'var(--accent, #C76B8A)', padding: 8, margin: 0 },
 
   progressCard: { textAlign: 'center', padding: 40, background: '#fff', borderRadius: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
   progressText: { fontSize: 14, color: '#5A5550', margin: '0 0 16px' },
-  progressBarTrack: { height: 6, borderRadius: 3, background: '#F5F2EF', overflow: 'hidden' },
-  progressBarFill: { height: '100%', borderRadius: 3, background: '#C76B8A', transition: 'width 0.3s ease' },
-  progressPct: { display: 'block', fontSize: 12, color: '#AAA5A0', marginTop: 8 },
+  progressBarTrack: { height: 6, borderRadius: 3, background: 'var(--bg-hover, #F5F2EF)', overflow: 'hidden' },
+  progressBarFill: { height: '100%', borderRadius: 3, background: 'var(--accent, #C76B8A)', transition: 'width 0.3s ease' },
+  progressPct: { display: 'block', fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', marginTop: 8 },
 
   doneCard: { textAlign: 'center', padding: 40, background: '#fff', borderRadius: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
   doneTitle: { fontSize: 20, fontWeight: 700, margin: '0 0 4px' },
   doneErrors: { fontSize: 12, color: '#E57373', margin: '0 0 8px' },
   doneDesc: { fontSize: 13, color: '#8A8580', margin: '0 0 20px', lineHeight: 1.5 },
 
-  primaryBtn: { flex: 1, padding: '14px 0', borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  backBtn: { padding: '14px 20px', borderRadius: 12, border: 'none', background: '#F5F2EF', color: '#8A8580', fontSize: 15, cursor: 'pointer', fontFamily: 'inherit' },
+  primaryBtn: { flex: 1, padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  backBtn: { padding: '14px 20px', borderRadius: 12, border: 'none', background: 'var(--bg-hover, #F5F2EF)', color: '#8A8580', fontSize: 15, cursor: 'pointer', fontFamily: 'inherit' },
 };

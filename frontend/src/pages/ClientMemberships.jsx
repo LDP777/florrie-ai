@@ -19,9 +19,9 @@ const DEV_MEMBERS = [
 ];
 
 const STATUS_COLORS = {
-  active: { bg: '#E8F5E9', color: '#2E7D32' },
+  active: { bg: 'var(--success-bg, #E8F5E9)', color: 'var(--success, #5BA97B)' },
   paused: { bg: '#FFF3E0', color: '#E65100' },
-  cancelled: { bg: '#FFEBEE', color: '#C62828' },
+  cancelled: { bg: 'var(--danger-bg, #FDF0EF)', color: 'var(--danger, #D4605C)' },
 };
 
 export default function ClientMemberships() {
@@ -161,11 +161,11 @@ export default function ClientMemberships() {
                     <div style={s.detailRow}><span style={s.detailLabel}>Next bill</span><span>{member.nextBill || '—'}</span></div>
                     <div style={s.detailRow}><span style={s.detailLabel}>Used this month</span><span>{member.usedThisMonth} treatment{member.usedThisMonth !== 1 ? 's' : ''}</span></div>
                     <div style={s.detailRow}><span style={s.detailLabel}>Payments made</span><span>{member.payments}</span></div>
-                    <div style={s.detailRow}><span style={s.detailLabel}>Total paid</span><span style={{ fontWeight: 700, color: '#C76B8A' }}>£{member.totalPaid}</span></div>
+                    <div style={s.detailRow}><span style={s.detailLabel}>Total paid</span><span style={{ fontWeight: 700, color: 'var(--accent, #C76B8A)' }}>£{member.totalPaid}</span></div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                       {member.status === 'active' && <button style={s.smallBtn}>Pause</button>}
-                      {member.status === 'paused' && <button style={{ ...s.smallBtn, color: '#4CAF50' }}>Resume</button>}
-                      {member.status !== 'cancelled' && <button style={{ ...s.smallBtn, color: '#E57373' }}>Cancel</button>}
+                      {member.status === 'paused' && <button style={{ ...s.smallBtn, color: 'var(--success, #5BA97B)' }}>Resume</button>}
+                      {member.status !== 'cancelled' && <button style={{ ...s.smallBtn, color: 'var(--danger, #D4605C)' }}>Cancel</button>}
                       <button style={s.smallBtn}>Message</button>
                     </div>
                   </div>
@@ -232,7 +232,7 @@ export default function ClientMemberships() {
 
           {/* AI insight */}
           <div style={s.aiCard}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#C76B8A', marginBottom: 6 }}>💡 Membership Tip</div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent, #C76B8A)', marginBottom: 6 }}>💡 Membership Tip</div>
             <p style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: 'var(--text, #2D2A26)' }}>
               Your VIP All Access plan has the highest retention — 100% of members are still active. Consider promoting it as a "founding member" offer with a small discount to grow that tier.
             </p>
@@ -248,31 +248,31 @@ const s = {
   header: { marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, margin: 0, color: 'var(--text, #2D2A26)' },
   subtitle: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', margin: '4px 0 0' },
-  heroCard: { padding: 20, borderRadius: 16, background: 'linear-gradient(135deg, #C76B8A, #a0527a)', marginBottom: 16 },
+  heroCard: { padding: 20, borderRadius: 16, background: 'linear-gradient(135deg, var(--accent, #C76B8A), var(--accent-hover, #B85D7B))', marginBottom: 16 },
   tabRow: { display: 'flex', gap: 0, marginBottom: 16, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--card-border, #F0ECE8)' },
   tab: { flex: 1, padding: '10px 0', border: 'none', background: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', color: 'var(--text-muted, #AAA5A0)', fontFamily: 'inherit' },
-  tabActive: { background: '#C76B8A', color: '#fff' },
+  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
   planList: { display: 'flex', flexDirection: 'column', gap: 12 },
   planCard: { padding: 16, borderRadius: 14, background: 'var(--card-bg, #fff)', border: '1px solid var(--card-border, #F0ECE8)' },
   planHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   perkList: { display: 'flex', flexDirection: 'column', gap: 6 },
   perkItem: { display: 'flex', alignItems: 'center', gap: 8 },
   editBtn: { background: 'none', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', color: 'var(--text-muted, #AAA5A0)', fontFamily: 'inherit', padding: '4px 0' },
-  addBtn: { padding: '14px', borderRadius: 10, border: '2px dashed var(--card-border, #F0ECE8)', background: 'none', fontSize: 14, fontWeight: 600, color: '#C76B8A', cursor: 'pointer', fontFamily: 'inherit' },
+  addBtn: { padding: '14px', borderRadius: 10, border: '2px dashed var(--card-border, #F0ECE8)', background: 'none', fontSize: 14, fontWeight: 600, color: 'var(--accent, #C76B8A)', cursor: 'pointer', fontFamily: 'inherit' },
   formCard: { padding: 16, borderRadius: 12, background: 'var(--card-bg, #fff)', border: '1px solid var(--card-border, #F0ECE8)' },
   input: { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--card-border, #F0ECE8)', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box', background: 'var(--card-bg, #fff)', color: 'var(--text, #2D2A26)' },
-  primaryBtn: { padding: '10px 20px', borderRadius: 8, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  primaryBtn: { padding: '10px 20px', borderRadius: 8, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   ghostBtn: { padding: '10px 20px', borderRadius: 8, border: '1px solid var(--card-border, #F0ECE8)', background: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted, #AAA5A0)' },
   memberList: { display: 'flex', flexDirection: 'column', gap: 10 },
   memberCard: { padding: '14px 12px', borderRadius: 12, background: 'var(--card-bg, #fff)', border: '1px solid var(--card-border, #F0ECE8)', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' },
   memberTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   detailRow: { display: 'flex', justifyContent: 'space-between', padding: '4px 0', color: 'var(--text, #2D2A26)' },
   detailLabel: { color: 'var(--text-muted, #AAA5A0)' },
-  smallBtn: { background: 'none', border: '1px solid var(--card-border, #F0ECE8)', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 500, cursor: 'pointer', color: '#C76B8A', fontFamily: 'inherit' },
+  smallBtn: { background: 'none', border: '1px solid var(--card-border, #F0ECE8)', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 500, cursor: 'pointer', color: 'var(--accent, #C76B8A)', fontFamily: 'inherit' },
   settingsList: { display: 'flex', flexDirection: 'column', gap: 10 },
   settingCard: { padding: '14px 12px', borderRadius: 12, background: 'var(--card-bg, #fff)', border: '1px solid var(--card-border, #F0ECE8)' },
   settingRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  toggle: { width: 44, height: 24, borderRadius: 12, background: '#C76B8A', padding: 2, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexShrink: 0 },
+  toggle: { width: 44, height: 24, borderRadius: 12, background: 'var(--accent, #C76B8A)', padding: 2, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexShrink: 0 },
   toggleDot: { width: 20, height: 20, borderRadius: 10, background: '#fff' },
   aiCard: { padding: 14, borderRadius: 12, background: 'linear-gradient(135deg, rgba(199,107,138,0.06), rgba(232,168,56,0.06))', border: '1px solid rgba(199,107,138,0.15)', marginTop: 4 },
 };

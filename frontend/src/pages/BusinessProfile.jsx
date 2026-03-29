@@ -133,8 +133,8 @@ export default function BusinessProfile({ token }) {
             onClick={() => setTab(t.key)}
             style={{
               ...s.tab,
-              color: tab === t.key ? '#C76B8A' : 'var(--text-muted, #AAA5A0)',
-              borderBottom: tab === t.key ? '2px solid #C76B8A' : '2px solid transparent',
+              color: tab === t.key ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #AAA5A0)',
+              borderBottom: tab === t.key ? '2px solid var(--accent, #C76B8A)' : '2px solid transparent',
               fontWeight: tab === t.key ? 600 : 400,
             }}
           >
@@ -168,7 +168,7 @@ export default function BusinessProfile({ token }) {
                   style={{
                     ...s.colourDot,
                     background: c,
-                    border: brandColor === c ? '3px solid var(--text, #2D2A26)' : '3px solid transparent',
+                    border: brandColor === c ? '3px solid var(--text-primary, #2D2A26)' : '3px solid transparent',
                     boxShadow: brandColor === c ? '0 0 0 2px #fff' : 'none',
                   }}
                   aria-label={c}
@@ -482,9 +482,9 @@ const s = {
   uploadBtn: {
     padding: '8px 20px',
     borderRadius: 10,
-    border: '1px solid #C76B8A',
+    border: '1px solid var(--accent, #C76B8A)',
     background: 'transparent',
-    color: '#C76B8A',
+    color: 'var(--accent, #C76B8A)',
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
@@ -566,14 +566,14 @@ const s = {
     flex: 1,
     fontSize: 14,
     fontWeight: 500,
-    color: '#C76B8A',
+    color: 'var(--accent, #C76B8A)',
   },
   copyBtn: {
     padding: '6px 14px',
     borderRadius: 8,
-    border: '1px solid #C76B8A',
+    border: '1px solid var(--accent, #C76B8A)',
     background: 'transparent',
-    color: '#C76B8A',
+    color: 'var(--accent, #C76B8A)',
     fontSize: 12,
     fontWeight: 600,
     cursor: 'pointer',
@@ -653,7 +653,7 @@ const s = {
     marginTop: 20,
     borderRadius: 12,
     border: 'none',
-    background: 'linear-gradient(135deg, #C76B8A, #B55A79)',
+    background: 'linear-gradient(135deg, var(--accent, #C76B8A), var(--accent-hover, #B85D7B))',
     color: '#fff',
     fontSize: 15,
     fontWeight: 700,

@@ -133,7 +133,7 @@ export default function RebookReminders({ token }) {
   const activeList = tab === 'due' ? due : tab === 'overdue' ? overdue : tab === 'dormant' ? dormant : [];
 
   if (bLoading || loading) {
-    return <div style={s.page}><div style={{ textAlign: 'center', padding: 60, color: '#AAA5A0' }}>Loading...</div></div>;
+    return <div style={s.page}><div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted, #AAA5A0)' }}>Loading...</div></div>;
   }
 
   function handleSend(clientId) {
@@ -161,15 +161,15 @@ export default function RebookReminders({ token }) {
 
       {/* Summary stats */}
       <div style={s.statsRow}>
-        <div style={{ ...s.statCard, borderLeft: '3px solid #F5A623' }}>
+        <div style={{ ...s.statCard, borderLeft: '3px solid var(--warning, #D4943A)' }}>
           <span style={s.statValue}>{due.length}</span>
           <span style={s.statLabel}>Due soon</span>
         </div>
-        <div style={{ ...s.statCard, borderLeft: '3px solid #E57373' }}>
+        <div style={{ ...s.statCard, borderLeft: '3px solid var(--danger, #D4605C)' }}>
           <span style={s.statValue}>{overdue.length}</span>
           <span style={s.statLabel}>Overdue</span>
         </div>
-        <div style={{ ...s.statCard, borderLeft: '3px solid #9E9E9E' }}>
+        <div style={{ ...s.statCard, borderLeft: '3px solid var(--text-muted, #9E9E9E)' }}>
           <span style={s.statValue}>{dormant.length}</span>
           <span style={s.statLabel}>Dormant</span>
         </div>
@@ -207,9 +207,9 @@ export default function RebookReminders({ token }) {
                   onClick={() => setSelectedTemplate(t.id)}
                   style={{
                     ...s.templateChip,
-                    background: selectedTemplate === t.id ? '#C76B8A' : 'var(--card-bg, #fff)',
+                    background: selectedTemplate === t.id ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
                     color: selectedTemplate === t.id ? '#fff' : 'var(--text, #2D2A26)',
-                    border: selectedTemplate === t.id ? '1px solid #C76B8A' : '1px solid var(--border, #E8E4E0)',
+                    border: selectedTemplate === t.id ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, #E8E4E0)',
                   }}
                 >
                   {t.name}
@@ -306,7 +306,7 @@ export default function RebookReminders({ token }) {
             </div>
             <button
               onClick={() => setAutoSend(!autoSend)}
-              style={{ ...s.toggle, background: autoSend ? '#C76B8A' : '#E8E4E0' }}
+              style={{ ...s.toggle, background: autoSend ? 'var(--accent, #C76B8A)' : 'var(--border, #E8E4E0)' }}
             >
               <div style={{ ...s.toggleThumb, transform: autoSend ? 'translateX(18px)' : 'translateX(2px)' }} />
             </button>
@@ -321,9 +321,9 @@ export default function RebookReminders({ token }) {
                   onClick={() => setDefaultInterval(v)}
                   style={{
                     ...s.intervalChip,
-                    background: defaultInterval === v ? '#C76B8A' : 'var(--card-bg, #fff)',
+                    background: defaultInterval === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
                     color: defaultInterval === v ? '#fff' : 'var(--text, #2D2A26)',
-                    border: defaultInterval === v ? '1px solid #C76B8A' : '1px solid var(--border, #E8E4E0)',
+                    border: defaultInterval === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, #E8E4E0)',
                   }}
                 >
                   {v} days
@@ -341,9 +341,9 @@ export default function RebookReminders({ token }) {
                   onClick={() => setRemindDaysBefore(v)}
                   style={{
                     ...s.intervalChip,
-                    background: remindDaysBefore === v ? '#C76B8A' : 'var(--card-bg, #fff)',
+                    background: remindDaysBefore === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
                     color: remindDaysBefore === v ? '#fff' : 'var(--text, #2D2A26)',
-                    border: remindDaysBefore === v ? '1px solid #C76B8A' : '1px solid var(--border, #E8E4E0)',
+                    border: remindDaysBefore === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, #E8E4E0)',
                   }}
                 >
                   {v} day{v !== 1 ? 's' : ''}
@@ -365,9 +365,9 @@ export default function RebookReminders({ token }) {
                   onClick={() => setSendChannel(ch.key)}
                   style={{
                     ...s.intervalChip,
-                    background: sendChannel === ch.key ? '#C76B8A' : 'var(--card-bg, #fff)',
+                    background: sendChannel === ch.key ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
                     color: sendChannel === ch.key ? '#fff' : 'var(--text, #2D2A26)',
-                    border: sendChannel === ch.key ? '1px solid #C76B8A' : '1px solid var(--border, #E8E4E0)',
+                    border: sendChannel === ch.key ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, #E8E4E0)',
                   }}
                 >
                   {ch.label}
@@ -465,7 +465,7 @@ const s = {
   cardActions: { display: 'flex', gap: 8 },
   sendBtn: {
     flex: 1, padding: '9px 0', borderRadius: 10, border: 'none',
-    background: '#C76B8A', color: '#fff', fontSize: 13, fontWeight: 600,
+    background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   editBtn: {
@@ -474,12 +474,12 @@ const s = {
     fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
   },
   sentBadge: {
-    fontSize: 13, fontWeight: 600, color: '#4CAF50',
+    fontSize: 13, fontWeight: 600, color: 'var(--success, #5BA97B)',
     display: 'flex', alignItems: 'center', gap: 4,
   },
   bulkBtn: {
     width: '100%', padding: '13px 0', marginTop: 16, borderRadius: 12,
-    border: 'none', background: 'linear-gradient(135deg, #C76B8A, #B55A79)',
+    border: 'none', background: 'linear-gradient(135deg, var(--accent, #C76B8A), var(--accent-hover, #B85D7B))',
     color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer',
     fontFamily: 'inherit', boxShadow: '0 4px 14px rgba(199,107,138,0.3)',
   },
@@ -496,7 +496,7 @@ const s = {
   toggleDesc: { display: 'block', fontSize: 12, color: 'var(--text-muted, #AAA5A0)', marginTop: 2 },
   toggle: {
     width: 44, height: 26, borderRadius: 13, border: 'none',
-    cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s',
+    cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s', background: 'var(--accent, #C76B8A)',
   },
   toggleThumb: {
     width: 22, height: 22, borderRadius: 11, background: '#fff',
@@ -517,6 +517,6 @@ const s = {
   templatePreview: {
     padding: '10px 0', borderBottom: '1px solid var(--border, #F0ECE8)',
   },
-  templatePreviewName: { display: 'block', fontSize: 13, fontWeight: 600, color: '#C76B8A', marginBottom: 4 },
+  templatePreviewName: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--accent, #C76B8A)', marginBottom: 4 },
   templatePreviewBody: { fontSize: 12, color: 'var(--text, #5A5550)', lineHeight: 1.5, margin: 0 },
 };

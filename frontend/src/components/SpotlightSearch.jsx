@@ -20,7 +20,7 @@ const FEATURES = [
   { path: '/segments', name: 'Client Segments', desc: 'Smart grouping', icon: '🎯', cat: 'Clients' },
   { path: '/churn', name: 'Churn Prevention', desc: 'At-risk clients', icon: '🛡️', cat: 'Clients' },
   { path: '/waitlist-pro', name: 'Waitlist Pro', desc: 'Advanced waitlist', icon: '📋', cat: 'Clients' },
-  { path: '/photo-consent', name: 'Photo Consent', desc: 'Before/after consent', icon: '📷', cat: 'Clients' },
+  // PhotoConsent removed — use Consultation Forms for consent
 
   // Treatments
   { path: '/treatments', name: 'Treatments', desc: 'Manage your services', icon: '💅', cat: 'Treatments' },

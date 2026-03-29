@@ -19,9 +19,9 @@ const DEV_CODES = [
 ];
 
 const STATUS_CONFIG = {
-  active: { label: 'Active', bg: '#E8F5E9', color: '#4CAF50' },
-  expired: { label: 'Expired', bg: '#FFEBEE', color: '#F44336' },
-  paused: { label: 'Paused', bg: '#FFF5E6', color: '#B8860B' },
+  active: { label: 'Active', bg: 'var(--success-bg, #EDF7F0)', color: 'var(--success, #5BA97B)' },
+  expired: { label: 'Expired', bg: 'var(--danger-bg, #FDF0EF)', color: 'var(--danger, #D4605C)' },
+  paused: { label: 'Paused', bg: 'var(--gold-light, #FDF8EE)', color: 'var(--gold-text, #8A7245)' },
 };
 
 export default function PromoCodes({ token }) {
@@ -299,7 +299,7 @@ export default function PromoCodes({ token }) {
                   {usagePercent !== null && (
                     <div style={S.usageBar}>
                       <div style={S.usageTrack}>
-                        <div style={{ ...S.usageFill, width: `${usagePercent}%`, background: usagePercent >= 100 ? '#F44336' : '#C76B8A' }} />
+                        <div style={{ ...S.usageFill, width: `${usagePercent}%`, background: usagePercent >= 100 ? 'var(--danger, #D4605C)' : 'var(--accent, #C76B8A)' }} />
                       </div>
                       <span style={S.usageText}>{usagePercent}% used</span>
                     </div>
@@ -310,7 +310,7 @@ export default function PromoCodes({ token }) {
                       <button style={S.actionBtn} onClick={() => navigator.clipboard.writeText(code.code)}>Copy Code</button>
                       <button style={S.actionBtn} onClick={() => alert('Share functionality coming soon')}>Share</button>
                       <button
-                        style={{ ...S.actionBtn, color: '#F44336' }}
+                        style={{ ...S.actionBtn, color: 'var(--danger, #D4605C)' }}
                         onClick={() => handleToggleActive(code.id, true)}
                       >Pause</button>
                     </div>
@@ -412,60 +412,60 @@ const S = {
 
   summaryRow: { display: 'flex', gap: 8, marginBottom: 16 },
   summaryCard: { flex: 1, background: 'var(--card, #fff)', borderRadius: 12, padding: '14px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
-  summaryNum: { fontSize: 20, fontWeight: 700, color: '#C76B8A' },
-  summaryLabel: { fontSize: 11, color: '#AAA5A0', fontWeight: 500 },
+  summaryNum: { fontSize: 20, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
+  summaryLabel: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)', fontWeight: 500 },
 
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
-  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: '#AAA5A0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: '#C76B8A', color: '#fff' },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: 'var(--text-muted, #B5AFA8)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
 
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
-  empty: { textAlign: 'center', color: '#AAA5A0', fontSize: 14, padding: 32 },
+  empty: { textAlign: 'center', color: 'var(--text-muted, #B5AFA8)', fontSize: 14, padding: 32 },
 
   card: { background: 'var(--card, #fff)', borderRadius: 14, padding: 14, cursor: 'pointer' },
   cardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   cardLeft: { display: 'flex', gap: 10, alignItems: 'center' },
-  codeBox: { background: '#F9F7F4', borderRadius: 8, padding: '6px 10px', border: '1px dashed #D0CBC5' },
-  codeText: { fontSize: 13, fontWeight: 700, color: '#C76B8A', letterSpacing: 1, fontFamily: 'monospace' },
+  codeBox: { background: 'var(--bg-hover, #F5F2EF)', borderRadius: 8, padding: '6px 10px', border: '1px dashed var(--text-muted, #B5AFA8)' },
+  codeText: { fontSize: 13, fontWeight: 700, color: 'var(--accent, #C76B8A)', letterSpacing: 1, fontFamily: 'monospace' },
   cardInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
   cardDiscount: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  cardMeta: { fontSize: 12, color: '#AAA5A0' },
+  cardMeta: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },
   statusBadge: { padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600 },
 
-  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid #F0ECE8' },
-  codeDesc: { fontSize: 13, color: '#8B6F5E', margin: '0 0 10px', fontStyle: 'italic' },
+  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, #EDE9E4)' },
+  codeDesc: { fontSize: 13, color: 'var(--text-secondary, #7A756F)', margin: '0 0 10px', fontStyle: 'italic' },
   detailGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 10 },
   detailItem: { display: 'flex', flexDirection: 'column', gap: 2 },
-  detailLabel: { fontSize: 11, color: '#AAA5A0', fontWeight: 600 },
+  detailLabel: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)', fontWeight: 600 },
   detailValue: { fontSize: 13, fontWeight: 600, color: 'var(--text, #2D2A26)' },
 
   treatmentRow: { marginBottom: 10 },
   treatmentChips: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 },
-  treatmentChip: { padding: '4px 10px', borderRadius: 8, background: '#F0E6ED', color: '#C76B8A', fontSize: 11, fontWeight: 500 },
-  treatmentChipSelect: { padding: '5px 12px', borderRadius: 20, background: '#F0ECE8', color: '#8B6F5E', fontSize: 12, fontWeight: 500, cursor: 'pointer' },
+  treatmentChip: { padding: '4px 10px', borderRadius: 8, background: 'var(--accent-light, #FFF0F3)', color: 'var(--accent, #C76B8A)', fontSize: 11, fontWeight: 500 },
+  treatmentChipSelect: { padding: '5px 12px', borderRadius: 20, background: 'var(--border, #EDE9E4)', color: 'var(--text-secondary, #7A756F)', fontSize: 12, fontWeight: 500, cursor: 'pointer' },
 
   usageBar: { marginBottom: 10 },
-  usageTrack: { height: 6, borderRadius: 3, background: '#F0ECE8', overflow: 'hidden', marginBottom: 4 },
+  usageTrack: { height: 6, borderRadius: 3, background: 'var(--border, #EDE9E4)', overflow: 'hidden', marginBottom: 4 },
   usageFill: { height: '100%', borderRadius: 3, transition: 'width .3s' },
-  usageText: { fontSize: 11, color: '#AAA5A0' },
+  usageText: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
 
   actionRow: { display: 'flex', gap: 8, marginTop: 8 },
-  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: '#2D2A26' },
+  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, #EDE9E4)', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text, #2D2A26)' },
 
-  fab: { position: 'fixed', bottom: 80, right: 20, width: 52, height: 52, borderRadius: 26, background: '#C76B8A', color: '#fff', fontSize: 26, border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(199,107,138,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit', zIndex: 50 },
+  fab: { position: 'fixed', bottom: 80, right: 20, width: 52, height: 52, borderRadius: 26, background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 26, border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(199,107,138,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit', zIndex: 50 },
 
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
   modal: { background: 'var(--bg, #FAF8F5)', borderRadius: '18px 18px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', overflow: 'auto', padding: '20px 16px 32px' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },
-  closeBtn: { background: 'none', border: 'none', fontSize: 18, color: '#AAA5A0', cursor: 'pointer' },
+  closeBtn: { background: 'none', border: 'none', fontSize: 18, color: 'var(--text-muted, #B5AFA8)', cursor: 'pointer' },
 
   formBody: { display: 'flex', flexDirection: 'column', gap: 10 },
-  label: { fontSize: 12, fontWeight: 600, color: '#AAA5A0', marginTop: 4 },
-  input: { padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', background: 'var(--card, #fff)' },
+  label: { fontSize: 12, fontWeight: 600, color: 'var(--text-muted, #B5AFA8)', marginTop: 4 },
+  input: { padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #EDE9E4)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', background: 'var(--card, #fff)' },
   typeToggle: { display: 'flex', gap: 8 },
-  typeBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: '#AAA5A0' },
-  typeBtnActive: { background: '#C76B8A', color: '#fff', border: '1px solid #C76B8A' },
+  typeBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid var(--border, #EDE9E4)', background: 'var(--card, #fff)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted, #B5AFA8)' },
+  typeBtnActive: { background: 'var(--accent, #C76B8A)', color: '#fff', border: '1px solid var(--accent, #C76B8A)' },
 
-  saveBtn: { marginTop: 16, width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  saveBtn: { marginTop: 16, width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 };

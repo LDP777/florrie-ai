@@ -201,7 +201,7 @@ export default function AddOns({ token }) {
               <div key={addon.id} style={{ ...S.addonCard, opacity: addon.is_active ? 1 : 0.55 }} onClick={() => setExpanded(isExp ? null : addon.id)}>
                 <div style={S.addonHeader}>
                   <div style={S.addonLeft}>
-                    <div style={{ ...S.catDot, background: cat?.colour || '#AAA5A0' }} />
+                    <div style={{ ...S.catDot, background: cat?.colour || 'var(--text-muted, #AAA5A0)' }} />
                     <div style={S.addonInfo}>
                       <span style={S.addonName}>{addon.name}</span>
                       <span style={S.addonMeta}>
@@ -234,7 +234,7 @@ export default function AddOns({ token }) {
                       <button style={S.actionBtn} onClick={(e) => handleToggleActive(addon, e)}>
                         {addon.is_active ? 'Disable' : 'Enable'}
                       </button>
-                      <button style={{ ...S.actionBtn, color: '#C76B8A', borderColor: '#F0E6ED' }} onClick={(e) => handleDelete(addon, e)}>
+                      <button style={{ ...S.actionBtn, color: 'var(--accent, #C76B8A)', borderColor: 'var(--accent-light, #FFF0F3)' }} onClick={(e) => handleDelete(addon, e)}>
                         Delete
                       </button>
                     </div>
@@ -363,12 +363,12 @@ const S = {
   addonMeta: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)' },
   addonRight: { display: 'flex', alignItems: 'center', gap: 8 },
   addonPrice: { fontSize: 15, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
-  autoTag: { padding: '2px 6px', borderRadius: 4, background: '#E8F5E9', color: '#4CAF50', fontSize: 10, fontWeight: 600 },
+  autoTag: { padding: '2px 6px', borderRadius: 4, background: 'var(--success-bg, #E8F5E9)', color: 'var(--success, #4CAF50)', fontSize: 10, fontWeight: 600 },
 
   expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, #F0ECE8)' },
   sectionLabel: { fontSize: 11, fontWeight: 700, color: 'var(--text-muted, #AAA5A0)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 },
   treatmentTags: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
-  treatmentTag: { padding: '3px 8px', borderRadius: 6, background: '#F0E6ED', color: 'var(--accent, #C76B8A)', fontSize: 11 },
+  treatmentTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--accent-light, #FFF0F3)', color: 'var(--accent, #C76B8A)', fontSize: 11 },
   actionRow: { display: 'flex', gap: 8 },
   actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, #F0ECE8)', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text, #2D2A26)' },
 
@@ -383,25 +383,25 @@ const S = {
   rankBarBg: { height: 6, borderRadius: 3, background: 'var(--border, #F0ECE8)' },
   rankBarFill: { height: 6, borderRadius: 3 },
   rankValue: { fontSize: 13, fontWeight: 700, color: 'var(--text, #2D2A26)', width: 55, textAlign: 'right' },
-  tipCard: { background: '#FFF9F0', borderRadius: 12, padding: 14 },
-  tipTitle: { fontSize: 13, fontWeight: 600, color: '#B8860B' },
-  tipText: { fontSize: 12, color: '#8B6F5E', lineHeight: 1.4, margin: '6px 0 0' },
+  tipCard: { background: 'var(--gold-light, #FFF9F0)', borderRadius: 12, padding: 14 },
+  tipTitle: { fontSize: 13, fontWeight: 600, color: 'var(--gold-text, #B8860B)' },
+  tipText: { fontSize: 12, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.4, margin: '6px 0 0' },
 
   // Modal
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
-  modal: { background: '#fff', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
-  modalTitle: { fontSize: 18, fontWeight: 700, color: '#2D2A26', margin: '0 0 16px' },
-  errorBanner: { background: '#FFF0F0', color: '#C76B8A', padding: '8px 12px', borderRadius: 8, fontSize: 13, marginBottom: 12 },
-  fieldLabel: { fontSize: 12, fontWeight: 600, color: '#8B6F5E', marginBottom: 6, marginTop: 12 },
-  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: '#2D2A26', outline: 'none', boxSizing: 'border-box' },
+  modal: { background: 'var(--bg-card, #fff)', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
+  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 16px' },
+  errorBanner: { background: 'var(--danger-bg, #FDF0EF)', color: 'var(--accent, #C76B8A)', padding: '8px 12px', borderRadius: 8, fontSize: 13, marginBottom: 12 },
+  fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #8B6F5E)', marginBottom: 6, marginTop: 12 },
+  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #F0ECE8)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', outline: 'none', boxSizing: 'border-box' },
   chipRow: { display: 'flex', gap: 8 },
-  chip: { flex: 1, padding: '8px 0', borderRadius: 10, border: '1px solid #F0ECE8', background: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: '#2D2A26', textAlign: 'center' },
+  chip: { flex: 1, padding: '8px 0', borderRadius: 10, border: '1px solid var(--border, #F0ECE8)', background: 'var(--bg-card, #fff)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text, #2D2A26)', textAlign: 'center' },
   treatmentPicker: { display: 'flex', flexWrap: 'wrap', gap: 6 },
-  treatmentPickChip: { padding: '5px 10px', borderRadius: 8, border: '1px solid #F0ECE8', background: '#fff', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', color: '#8B6F5E' },
+  treatmentPickChip: { padding: '5px 10px', borderRadius: 8, border: '1px solid var(--border, #F0ECE8)', background: 'var(--bg-card, #fff)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-secondary, #8B6F5E)' },
   treatmentPickActive: { background: 'var(--accent, #C76B8A)', color: '#fff', border: '1px solid var(--accent, #C76B8A)' },
   toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
   toggleLabel: { fontSize: 14, fontWeight: 500, color: 'var(--text, #2D2A26)' },
   toggle: { width: 44, height: 26, borderRadius: 13, border: 'none', padding: 0, cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 },
-  toggleDot: { width: 22, height: 22, borderRadius: 11, background: '#fff', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
+  toggleDot: { width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #fff)', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
   saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20, transition: 'opacity 0.2s' },
 };

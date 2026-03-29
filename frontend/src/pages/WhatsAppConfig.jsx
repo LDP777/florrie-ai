@@ -80,7 +80,7 @@ export default function WhatsAppConfig({ token }) {
     }
   }
 
-  if (bLoading || loading) return <div style={{ padding: 40, textAlign: 'center', color: '#AAA5A0' }}>Loading...</div>;
+  if (bLoading || loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted, #AAA5A0)' }}>Loading...</div>;
 
   const c = config;
 
@@ -101,8 +101,8 @@ export default function WhatsAppConfig({ token }) {
         <h1 style={styles.title}>WhatsApp Business</h1>
         <div style={{
           ...styles.statusBadge,
-          background: c.connected ? '#E8F5E9' : '#FFF3E0',
-          color: c.connected ? '#2E7D32' : '#E65100'
+          background: c.connected ? 'var(--success-bg, #EDF7F0)' : '#FFF3E0',
+          color: c.connected ? 'var(--success, #5BA97B)' : '#E65100'
         }}>
           {c.connected ? '🟢 Connected' : '🔴 Disconnected'}
         </div>
@@ -117,8 +117,8 @@ export default function WhatsAppConfig({ token }) {
           </svg>
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: '#2D2A26' }}>{c.businessName}</div>
-          <div style={{ fontSize: 13, color: '#AAA5A0' }}>{c.phoneNumber}</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text, #2D2A26)' }}>{c.businessName}</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted, #AAA5A0)' }}>{c.phoneNumber}</div>
         </div>
         <div style={styles.metaBadge}>Meta Cloud API</div>
       </div>
@@ -172,7 +172,7 @@ export default function WhatsAppConfig({ token }) {
 
           <div style={styles.insightCard}>
             <span style={{ fontSize: 16 }}>💡</span>
-            <div style={{ fontSize: 13, color: '#6B6560', lineHeight: 1.5 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.5 }}>
               Your read rate is {readRate}% — well above the industry average of 70%.
               Reply rate of {replyRate}% suggests clients are engaging. The aftercare
               template drives the most replies.
@@ -241,12 +241,12 @@ export default function WhatsAppConfig({ token }) {
           {autoReplies.map(rule => (
             <div key={rule.id} style={styles.autoReplyCard}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#2D2A26' }}>{rule.trigger}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' }}>{rule.trigger}</div>
                 <button
                   onClick={() => setAutoReplies(autoReplies.map(r => r.id === rule.id ? { ...r, enabled: !r.enabled } : r))}
                   style={{
                     ...styles.toggle,
-                    background: rule.enabled ? '#C76B8A' : '#E8E4E0'
+                    background: rule.enabled ? 'var(--accent, #C76B8A)' : 'var(--border, #E8E4E0)'
                   }}
                 >
                   <div style={{
@@ -273,7 +273,7 @@ export default function WhatsAppConfig({ token }) {
                 Drafts appear in your Inbox for approval before sending.
               </div>
             </div>
-            <button style={{ ...styles.toggle, background: '#C76B8A' }}>
+            <button style={{ ...styles.toggle, background: 'var(--accent, #C76B8A)' }}>
               <div style={{ ...styles.toggleDot, transform: 'translateX(18px)' }} />
             </button>
           </div>
@@ -298,7 +298,7 @@ export default function WhatsAppConfig({ token }) {
               </div>
               <button style={{
                 ...styles.toggle,
-                background: setting.enabled ? '#C76B8A' : '#E8E4E0'
+                background: setting.enabled ? 'var(--accent, #C76B8A)' : 'var(--border, #E8E4E0)'
               }}>
                 <div style={{
                   ...styles.toggleDot,
@@ -321,55 +321,55 @@ export default function WhatsAppConfig({ token }) {
 const styles = {
   page: { padding: '16px 16px 100px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 700, color: '#2D2A26', margin: 0 },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },
   statusBadge: { padding: '4px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600 },
 
-  connectionCard: { display: 'flex', alignItems: 'center', gap: 12, background: '#fff', borderRadius: 14, padding: 14, border: '1px solid #F0ECE8', marginBottom: 16 },
-  waLogo: { width: 44, height: 44, borderRadius: 12, background: '#E8F5E9', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  metaBadge: { fontSize: 10, color: '#AAA5A0', background: '#F0ECE8', padding: '3px 8px', borderRadius: 6 },
+  connectionCard: { display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 14, border: '1px solid var(--border, #F0ECE8)', marginBottom: 16 },
+  waLogo: { width: 44, height: 44, borderRadius: 12, background: 'var(--success-bg, #EDF7F0)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  metaBadge: { fontSize: 10, color: 'var(--text-muted, #AAA5A0)', background: 'var(--border, #F0ECE8)', padding: '3px 8px', borderRadius: 6 },
 
-  tabs: { display: 'flex', gap: 4, marginBottom: 16, background: '#F0ECE8', borderRadius: 12, padding: 4 },
-  tab: { flex: 1, padding: '8px 0', fontSize: 11, fontWeight: 500, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', background: 'none', color: '#6B6560' },
-  tabActive: { background: '#fff', color: '#2D2A26', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' },
+  tabs: { display: 'flex', gap: 4, marginBottom: 16, background: 'var(--border, #F0ECE8)', borderRadius: 12, padding: 4 },
+  tab: { flex: 1, padding: '8px 0', fontSize: 11, fontWeight: 500, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', background: 'none', color: 'var(--text-secondary, #8B6F5E)' },
+  tabActive: { background: 'var(--bg-card, #fff)', color: 'var(--text, #2D2A26)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' },
 
   statsRow: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 16 },
-  statCard: { background: '#fff', borderRadius: 12, padding: 14, border: '1px solid #F0ECE8', textAlign: 'center' },
-  statValue: { fontSize: 22, fontWeight: 700, color: '#2D2A26' },
-  statLabel: { fontSize: 11, color: '#AAA5A0', marginTop: 2 },
+  statCard: { background: 'var(--bg-card, #fff)', borderRadius: 12, padding: 14, border: '1px solid var(--border, #F0ECE8)', textAlign: 'center' },
+  statValue: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)' },
+  statLabel: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)', marginTop: 2 },
 
-  funnelCard: { background: '#fff', borderRadius: 14, padding: 16, border: '1px solid #F0ECE8', marginBottom: 16 },
-  funnelTitle: { fontSize: 13, fontWeight: 600, color: '#2D2A26', marginBottom: 12 },
+  funnelCard: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16, border: '1px solid var(--border, #F0ECE8)', marginBottom: 16 },
+  funnelTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text, #2D2A26)', marginBottom: 12 },
   funnelRow: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },
-  funnelLabel: { fontSize: 12, color: '#6B6560', width: 60 },
-  funnelBarBg: { flex: 1, height: 8, background: '#F0ECE8', borderRadius: 4 },
+  funnelLabel: { fontSize: 12, color: 'var(--text-secondary, #8B6F5E)', width: 60 },
+  funnelBarBg: { flex: 1, height: 8, background: 'var(--border, #F0ECE8)', borderRadius: 4 },
   funnelBarFill: { height: '100%', background: 'linear-gradient(90deg, #25D366, #128C7E)', borderRadius: 4, transition: 'width 0.5s' },
-  funnelValue: { fontSize: 12, fontWeight: 600, color: '#2D2A26', width: 36, textAlign: 'right' },
+  funnelValue: { fontSize: 12, fontWeight: 600, color: 'var(--text, #2D2A26)', width: 36, textAlign: 'right' },
 
   insightCard: { display: 'flex', gap: 10, background: '#FFF8F0', border: '1px solid #FFE8CC', borderRadius: 12, padding: 14, marginBottom: 16 },
 
   templateSummary: { display: 'flex', gap: 24, justifyContent: 'center', marginBottom: 16 },
   templateSumItem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
 
-  newTemplateBtn: { width: '100%', padding: '12px 0', borderRadius: 12, border: '2px dashed #E8E4E0', background: 'none', fontSize: 14, fontWeight: 600, color: '#AAA5A0', cursor: 'pointer', fontFamily: 'inherit', marginBottom: 12 },
-  templateCard: { background: '#fff', borderRadius: 14, border: '1px solid #F0ECE8', marginBottom: 8, overflow: 'hidden' },
+  newTemplateBtn: { width: '100%', padding: '12px 0', borderRadius: 12, border: '2px dashed var(--border, #E8E4E0)', background: 'none', fontSize: 14, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)', cursor: 'pointer', fontFamily: 'inherit', marginBottom: 12 },
+  templateCard: { background: 'var(--bg-card, #fff)', borderRadius: 14, border: '1px solid var(--border, #F0ECE8)', marginBottom: 8, overflow: 'hidden' },
   templateHeader: { display: 'flex', alignItems: 'center', gap: 8, padding: 14, cursor: 'pointer' },
-  templateName: { fontSize: 14, fontWeight: 600, color: '#2D2A26' },
+  templateName: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
   tmplStatus: { fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 6 },
-  tmplCategory: { fontSize: 10, color: '#AAA5A0', background: '#F0ECE8', padding: '2px 6px', borderRadius: 6 },
-  templatePreview: { padding: '0 14px 14px', borderTop: '1px solid #F0ECE8' },
-  previewBubble: { background: '#E8F5E9', borderRadius: '12px 12px 12px 0', padding: 12, fontSize: 13, color: '#2D2A26', lineHeight: 1.5, marginTop: 12, marginBottom: 10 },
+  tmplCategory: { fontSize: 10, color: 'var(--text-muted, #AAA5A0)', background: 'var(--border, #F0ECE8)', padding: '2px 6px', borderRadius: 6 },
+  templatePreview: { padding: '0 14px 14px', borderTop: '1px solid var(--border, #F0ECE8)' },
+  previewBubble: { background: 'var(--success-bg, #EDF7F0)', borderRadius: '12px 12px 12px 0', padding: 12, fontSize: 13, color: 'var(--text, #2D2A26)', lineHeight: 1.5, marginTop: 12, marginBottom: 10 },
   previewActions: { display: 'flex', gap: 8 },
-  previewBtn: { padding: '6px 12px', borderRadius: 8, border: '1px solid #F0ECE8', background: '#FAF8F5', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#6B6560' },
+  previewBtn: { padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border, #F0ECE8)', background: 'var(--bg, #FAF8F5)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-secondary, #8B6F5E)' },
 
-  autoReplyHint: { fontSize: 13, color: '#6B6560', lineHeight: 1.5, marginBottom: 16, background: '#FAF8F5', padding: 12, borderRadius: 12 },
-  autoReplyCard: { background: '#fff', borderRadius: 14, padding: 14, border: '1px solid #F0ECE8', marginBottom: 10 },
-  autoReplyPreview: { fontSize: 13, color: '#4A4540', lineHeight: 1.5, background: '#FAF8F5', borderRadius: 10, padding: 10 },
+  autoReplyHint: { fontSize: 13, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.5, marginBottom: 16, background: 'var(--bg, #FAF8F5)', padding: 12, borderRadius: 12 },
+  autoReplyCard: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 14, border: '1px solid var(--border, #F0ECE8)', marginBottom: 10 },
+  autoReplyPreview: { fontSize: 13, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.5, background: 'var(--bg, #FAF8F5)', borderRadius: 10, padding: 10 },
   aiToggleCard: { display: 'flex', alignItems: 'center', gap: 12, background: '#FFF8F0', border: '1px solid #FFE8CC', borderRadius: 14, padding: 14, marginTop: 16 },
 
   toggle: { width: 42, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s' },
   toggleDot: { width: 20, height: 20, borderRadius: 10, background: '#fff', position: 'absolute', top: 2, left: 2, transition: 'transform 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.15)' },
 
-  settingRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '14px 0', borderBottom: '1px solid #F0ECE8' },
-  dangerZone: { marginTop: 24, padding: 16, background: '#FFF5F5', borderRadius: 14, border: '1px solid #FECDD3' },
-  disconnectBtn: { padding: '10px 16px', borderRadius: 10, border: '1px solid #E85D75', background: 'none', color: '#E85D75', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  settingRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '14px 0', borderBottom: '1px solid var(--border, #F0ECE8)' },
+  dangerZone: { marginTop: 24, padding: 16, background: 'var(--danger-bg, #FDF0EF)', borderRadius: 14, border: '1px solid var(--danger, #D4605C)' },
+  disconnectBtn: { padding: '10px 16px', borderRadius: 10, border: '1px solid var(--danger, #D4605C)', background: 'none', color: 'var(--danger, #D4605C)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 };

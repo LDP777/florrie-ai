@@ -642,15 +642,15 @@ export default function Aftercare() {
 
 const styles = {
   page: {
-    minHeight: '100vh', background: '#FAF8F5',
+    minHeight: '100vh', background: 'var(--bg, #FAF8F5)',
     fontFamily: '"DM Sans", -apple-system, sans-serif',
-    padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: '#2D2A26',
+    padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text, #2D2A26)',
   },
   header: { paddingTop: 28, paddingBottom: 8 },
   title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
-  subtitle: { fontSize: 13, color: '#C76B8A', margin: 0, fontWeight: 500 },
+  subtitle: { fontSize: 13, color: 'var(--accent, #C76B8A)', margin: 0, fontWeight: 500 },
 
-  tabs: { display: 'flex', gap: 16, borderBottom: '1px solid #F0ECE8', marginBottom: 16 },
+  tabs: { display: 'flex', gap: 16, borderBottom: '1px solid var(--border, #EDE9E4)', marginBottom: 16 },
   tab: {
     padding: '10px 0', background: 'none', border: 'none',
     borderBottom: '2px solid transparent', fontSize: 14, fontWeight: 600,
@@ -660,135 +660,135 @@ const styles = {
   // Status bar
   statusBar: {
     display: 'flex', alignItems: 'center', gap: 8,
-    padding: '10px 14px', borderRadius: 10, background: '#fff',
+    padding: '10px 14px', borderRadius: 10, background: 'var(--bg-card, #fff)',
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 12,
   },
   statusDot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
-  statusText: { fontSize: 12, color: '#5A5550', flex: 1 },
-  statusCount: { fontSize: 11, color: '#C76B8A', fontWeight: 600 },
+  statusText: { fontSize: 12, color: 'var(--text-secondary, #7A756F)', flex: 1 },
+  statusCount: { fontSize: 11, color: 'var(--accent, #C76B8A)', fontWeight: 600 },
 
   createBtn: {
     width: '100%', padding: '12px 0', borderRadius: 10, border: 'none',
-    background: '#C76B8A', color: '#fff', fontSize: 14, fontWeight: 600,
+    background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 14, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit', marginBottom: 16,
   },
 
   // Card list
   cardList: { display: 'flex', flexDirection: 'column', gap: 12 },
   aftercareCard: {
-    background: '#fff', borderRadius: 14, padding: 16,
+    background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16,
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
   },
   cardHeader: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 },
   cardIcon: {
-    width: 38, height: 38, borderRadius: 10, background: '#FBF0F3',
+    width: 38, height: 38, borderRadius: 10, background: 'var(--accent-light, #FFF0F3)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 18, flexShrink: 0,
   },
   cardHeaderText: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2 },
-  cardName: { fontSize: 14, fontWeight: 600, color: '#2D2A26' },
-  cardMeta: { fontSize: 11, color: '#AAA5A0' },
+  cardName: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
+  cardMeta: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
   autoSendBadge: {
     padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
     flexShrink: 0,
   },
 
   instructionPreview: {
-    padding: '10px 12px', background: '#FAF8F5', borderRadius: 10, marginBottom: 10,
+    padding: '10px 12px', background: 'var(--bg, #FAF8F5)', borderRadius: 10, marginBottom: 10,
     display: 'flex', flexDirection: 'column', gap: 8,
   },
   previewStep: { display: 'flex', flexDirection: 'column', gap: 2 },
-  stepTitle: { fontSize: 11, fontWeight: 600, color: '#C76B8A', textTransform: 'uppercase', letterSpacing: '0.03em' },
-  stepText: { fontSize: 12, color: '#5A5550', lineHeight: 1.4 },
-  moreSteps: { fontSize: 11, color: '#AAA5A0', fontStyle: 'italic' },
+  stepTitle: { fontSize: 11, fontWeight: 600, color: 'var(--accent, #C76B8A)', textTransform: 'uppercase', letterSpacing: '0.03em' },
+  stepText: { fontSize: 12, color: 'var(--text-secondary, #7A756F)', lineHeight: 1.4 },
+  moreSteps: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)', fontStyle: 'italic' },
 
   productTags: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
   productTag: {
-    padding: '4px 10px', borderRadius: 6, background: '#F5F2EF',
-    fontSize: 11, color: '#8A8580',
+    padding: '4px 10px', borderRadius: 6, background: 'var(--bg-hover, #F5F2EF)',
+    fontSize: 11, color: 'var(--text-secondary, #7A756F)',
   },
 
   cardActions: { display: 'flex', gap: 8 },
   previewBtn: {
-    flex: 1, padding: '8px 0', borderRadius: 8, border: '1.5px solid #F0ECE8',
-    background: '#fff', color: '#5A5550', fontSize: 12, fontWeight: 600,
+    flex: 1, padding: '8px 0', borderRadius: 8, border: '1.5px solid var(--border, #EDE9E4)',
+    background: 'var(--bg-card, #fff)', color: 'var(--text-secondary, #7A756F)', fontSize: 12, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   toggleAutoBtn: {
     padding: '8px 16px', borderRadius: 8, border: 'none',
-    background: '#FBF0F3', color: '#C76B8A', fontSize: 12, fontWeight: 600,
+    background: 'var(--accent-light, #FFF0F3)', color: 'var(--accent, #C76B8A)', fontSize: 12, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
 
   // Form
   formCard: {
-    background: '#fff', borderRadius: 14, padding: 16,
+    background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16,
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 16,
   },
-  formTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 14px', color: '#2D2A26' },
+  formTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 14px', color: 'var(--text, #2D2A26)' },
   formGroup: { marginBottom: 14 },
-  formLabel: { display: 'block', fontSize: 12, color: '#AAA5A0', marginBottom: 6, fontWeight: 500 },
+  formLabel: { display: 'block', fontSize: 12, color: 'var(--text-muted, #B5AFA8)', marginBottom: 6, fontWeight: 500 },
   formInput: {
     width: '100%', padding: '10px 12px', borderRadius: 8,
-    border: '1.5px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit',
+    border: '1.5px solid var(--border, #EDE9E4)', fontSize: 14, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box',
   },
   formTextarea: {
     width: '100%', padding: '10px 12px', borderRadius: 8,
-    border: '1.5px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit',
+    border: '1.5px solid var(--border, #EDE9E4)', fontSize: 14, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box', resize: 'vertical',
   },
   formSelect: {
     width: '100%', padding: '10px 12px', borderRadius: 8,
-    border: '1.5px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit',
-    outline: 'none', background: '#fff', boxSizing: 'border-box',
+    border: '1.5px solid var(--border, #EDE9E4)', fontSize: 14, fontFamily: 'inherit',
+    outline: 'none', background: 'var(--bg-card, #fff)', boxSizing: 'border-box',
   },
   formRow: { display: 'flex', gap: 10, marginBottom: 14 },
   formActions: { display: 'flex', gap: 8, marginTop: 4 },
   saveBtn: {
     flex: 1, padding: '10px 0', borderRadius: 10, border: 'none',
-    background: '#C76B8A', color: '#fff', fontSize: 13, fontWeight: 600,
+    background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   cancelBtn: {
     padding: '10px 16px', borderRadius: 10, border: 'none',
-    background: '#F5F2EF', color: '#8A8580', fontSize: 13,
+    background: 'var(--bg-hover, #F5F2EF)', color: 'var(--text-secondary, #7A756F)', fontSize: 13,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   iconGrid: { display: 'flex', flexWrap: 'wrap', gap: 8 },
   iconBtn: {
-    width: 40, height: 40, borderRadius: 10, border: '1.5px solid #F0ECE8',
+    width: 40, height: 40, borderRadius: 10, border: '1.5px solid var(--border, #EDE9E4)',
     fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center',
     justifyContent: 'center',
   },
   instructionRow: { display: 'flex', gap: 8, marginBottom: 10 },
   removeBtn: {
     width: 28, height: 28, borderRadius: 14, border: 'none',
-    background: '#FEF2F2', color: '#E57373', fontSize: 16,
+    background: 'var(--danger-bg, #FDF0EF)', color: 'var(--danger, #D4605C)', fontSize: 16,
     cursor: 'pointer', display: 'flex', alignItems: 'center',
     justifyContent: 'center', flexShrink: 0, marginTop: 4,
   },
   addStepBtn: {
-    padding: '6px 12px', borderRadius: 6, border: '1.5px dashed #E8E4E0',
-    background: 'transparent', color: '#AAA5A0', fontSize: 12,
+    padding: '6px 12px', borderRadius: 6, border: '1.5px dashed var(--border, #EDE9E4)',
+    background: 'transparent', color: 'var(--text-muted, #B5AFA8)', fontSize: 12,
     cursor: 'pointer', fontFamily: 'inherit',
   },
 
   // Settings
   settingsCard: {
-    background: '#fff', borderRadius: 14, padding: 16,
+    background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16,
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 12,
   },
-  settingsSectionTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 14px', color: '#2D2A26' },
+  settingsSectionTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 14px', color: 'var(--text, #2D2A26)' },
   settingsRow: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '10px 0', borderBottom: '1px solid #FAF8F5',
+    padding: '10px 0', borderBottom: '1px solid var(--bg, #FAF8F5)',
   },
-  settingsLabel: { display: 'block', fontSize: 13, fontWeight: 500, color: '#2D2A26' },
-  settingsHint: { display: 'block', fontSize: 11, color: '#AAA5A0', marginTop: 2 },
+  settingsLabel: { display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text, #2D2A26)' },
+  settingsHint: { display: 'block', fontSize: 11, color: 'var(--text-muted, #B5AFA8)', marginTop: 2 },
   settingsSelect: {
-    padding: '6px 10px', borderRadius: 8, border: '1.5px solid #F0ECE8',
-    fontSize: 12, fontFamily: 'inherit', background: '#fff', color: '#5A5550',
+    padding: '6px 10px', borderRadius: 8, border: '1.5px solid var(--border, #EDE9E4)',
+    fontSize: 12, fontFamily: 'inherit', background: 'var(--bg-card, #fff)', color: 'var(--text-secondary, #7A756F)',
   },
   toggle: {
     width: 44, height: 26, borderRadius: 13, border: 'none',
@@ -796,7 +796,7 @@ const styles = {
     transition: 'background 0.2s',
   },
   toggleDot: {
-    width: 22, height: 22, borderRadius: 11, background: '#fff',
+    width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #fff)',
     position: 'absolute', top: 2, transition: 'transform 0.2s',
     boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
   },
@@ -808,66 +808,66 @@ const styles = {
     padding: 20,
   },
   previewModal: {
-    background: '#fff', borderRadius: 16, width: '100%', maxWidth: 380,
+    background: 'var(--bg-card, #fff)', borderRadius: 16, width: '100%', maxWidth: 380,
     maxHeight: '85vh', overflowY: 'auto',
   },
   previewHeader: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '14px 16px', borderBottom: '1px solid #F0ECE8',
+    padding: '14px 16px', borderBottom: '1px solid var(--border, #EDE9E4)',
   },
   closeBtn: {
     width: 28, height: 28, borderRadius: 14, border: 'none',
-    background: '#F5F2EF', fontSize: 16, cursor: 'pointer',
+    background: 'var(--bg-hover, #F5F2EF)', fontSize: 16, cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
 
   // Phone mockup
   phoneMockup: {
-    background: '#F0ECE8', padding: '12px 10px', borderRadius: '0 0 16px 16px',
+    background: 'var(--border, #EDE9E4)', padding: '12px 10px', borderRadius: '0 0 16px 16px',
   },
   phoneNotch: {
-    width: 60, height: 4, borderRadius: 2, background: '#D8D3CE',
+    width: 60, height: 4, borderRadius: 2, background: 'var(--text-muted, #B5AFA8)',
     margin: '0 auto 12px',
   },
-  phoneContent: { background: '#fff', borderRadius: 12, padding: 12 },
+  phoneContent: { background: 'var(--bg-card, #fff)', borderRadius: 12, padding: 12 },
   phoneMessage: {},
   phoneSender: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     marginBottom: 8,
   },
-  phoneText: { fontSize: 13, color: '#2D2A26', lineHeight: 1.5, margin: '0 0 10px' },
+  phoneText: { fontSize: 13, color: 'var(--text, #2D2A26)', lineHeight: 1.5, margin: '0 0 10px' },
   phoneCard: {
-    background: '#FAF8F5', borderRadius: 10, padding: 12, marginBottom: 10,
-    border: '1px solid #F0ECE8',
+    background: 'var(--bg, #FAF8F5)', borderRadius: 10, padding: 12, marginBottom: 10,
+    border: '1px solid var(--border, #EDE9E4)',
   },
   phoneCardTitle: {
-    fontSize: 13, fontWeight: 600, color: '#2D2A26', marginBottom: 10,
-    paddingBottom: 8, borderBottom: '1px solid #F0ECE8',
+    fontSize: 13, fontWeight: 600, color: 'var(--text, #2D2A26)', marginBottom: 10,
+    paddingBottom: 8, borderBottom: '1px solid var(--border, #EDE9E4)',
   },
   phoneStep: {
     display: 'flex', flexDirection: 'column', gap: 2,
-    padding: '8px 0', borderBottom: '1px solid #F5F2EF',
+    padding: '8px 0', borderBottom: '1px solid var(--bg-hover, #F5F2EF)',
   },
-  phoneStepTitle: { fontSize: 11, fontWeight: 600, color: '#C76B8A' },
-  phoneStepText: { fontSize: 12, color: '#5A5550', lineHeight: 1.4 },
+  phoneStepTitle: { fontSize: 11, fontWeight: 600, color: 'var(--accent, #C76B8A)' },
+  phoneStepText: { fontSize: 12, color: 'var(--text-secondary, #7A756F)', lineHeight: 1.4 },
   phoneProducts: {
-    marginTop: 10, paddingTop: 8, borderTop: '1px solid #F0ECE8',
+    marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border, #EDE9E4)',
     display: 'flex', flexDirection: 'column', gap: 2,
   },
-  phoneProductsTitle: { fontSize: 11, fontWeight: 600, color: '#8A8580', marginBottom: 2 },
-  phoneProductItem: { fontSize: 12, color: '#5A5550' },
+  phoneProductsTitle: { fontSize: 11, fontWeight: 600, color: 'var(--text-secondary, #7A756F)', marginBottom: 2 },
+  phoneProductItem: { fontSize: 12, color: 'var(--text-secondary, #7A756F)' },
   phoneNote: {
-    fontSize: 13, color: '#2D2A26', lineHeight: 1.5, margin: '0 0 8px',
+    fontSize: 13, color: 'var(--text, #2D2A26)', lineHeight: 1.5, margin: '0 0 8px',
     fontStyle: 'italic',
   },
   phoneRebook: {
-    padding: '10px 12px', borderRadius: 8, background: '#FBF0F3',
-    fontSize: 12, color: '#C76B8A', fontWeight: 500, textAlign: 'center',
+    padding: '10px 12px', borderRadius: 8, background: 'var(--accent-light, #FFF0F3)',
+    fontSize: 12, color: 'var(--accent, #C76B8A)', fontWeight: 500, textAlign: 'center',
   },
 
   // Empty / loading
-  loadingText: { textAlign: 'center', color: '#AAA5A0', padding: 40, fontSize: 14 },
+  loadingText: { textAlign: 'center', color: 'var(--text-muted, #B5AFA8)', padding: 40, fontSize: 14 },
   emptyState: { textAlign: 'center', padding: '40px 20px' },
-  emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 4px', color: '#2D2A26' },
-  emptyDesc: { fontSize: 13, color: '#AAA5A0', margin: 0, lineHeight: 1.5 },
+  emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 4px', color: 'var(--text, #2D2A26)' },
+  emptyDesc: { fontSize: 13, color: 'var(--text-muted, #B5AFA8)', margin: 0, lineHeight: 1.5 },
 };

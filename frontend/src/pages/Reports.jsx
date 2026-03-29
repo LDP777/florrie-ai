@@ -191,9 +191,9 @@ export default function Reports({ token }) {
             onClick={() => setPeriod(p.key)}
             style={{
               ...s.filterChip,
-              background: period === p.key ? '#C76B8A' : 'var(--card-bg, #fff)',
+              background: period === p.key ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
               color: period === p.key ? '#fff' : 'var(--text, #2D2A26)',
-              border: period === p.key ? '1px solid #C76B8A' : '1px solid var(--border, #E8E4E0)',
+              border: period === p.key ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, #E8E4E0)',
             }}
           >
             {p.label}
@@ -209,8 +209,8 @@ export default function Reports({ token }) {
             onClick={() => setTab(t.key)}
             style={{
               ...s.tab,
-              color: tab === t.key ? '#C76B8A' : 'var(--text-muted, #AAA5A0)',
-              borderBottom: tab === t.key ? '2px solid #C76B8A' : '2px solid transparent',
+              color: tab === t.key ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #AAA5A0)',
+              borderBottom: tab === t.key ? '2px solid var(--accent, #C76B8A)' : '2px solid transparent',
               fontWeight: tab === t.key ? 600 : 400,
             }}
           >
@@ -291,8 +291,8 @@ export default function Reports({ token }) {
                   <span style={s.rowAmount}>{pence(a.revenue_cents)}</span>
                   <span style={{
                     ...s.statusBadge,
-                    background: a.status === 'completed' ? '#E8F5E9' : '#FFEBEE',
-                    color: a.status === 'completed' ? '#2E7D32' : '#C62828',
+                    background: a.status === 'completed' ? 'var(--success-bg, #EDF7F0)' : 'var(--danger-bg, #FDF0EF)',
+                    color: a.status === 'completed' ? 'var(--success, #5BA97B)' : 'var(--danger, #D4605C)',
                   }}>{a.status}</span>
                 </div>
               </div>
@@ -419,7 +419,7 @@ const s = {
     borderRadius: 10,
     fontSize: 13,
     fontWeight: 600,
-    color: '#C76B8A',
+    color: 'var(--accent, #C76B8A)',
     cursor: 'pointer',
     fontFamily: 'inherit',
   },
@@ -455,13 +455,13 @@ const s = {
     width: 36,
     height: 36,
     borderRadius: 18,
-    background: 'linear-gradient(135deg, #C76B8A22, #C76B8A44)',
+    background: 'linear-gradient(135deg, var(--accent, #C76B8A)22, var(--accent, #C76B8A)44)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     fontSize: 14,
     fontWeight: 700,
-    color: '#C76B8A',
+    color: 'var(--accent, #C76B8A)',
   },
   statusBadge: {
     display: 'inline-block',
@@ -512,7 +512,7 @@ const s = {
   bar: {
     width: '100%',
     borderRadius: '4px 4px 0 0',
-    background: 'linear-gradient(180deg, #C76B8A, #C76B8A88)',
+    background: 'linear-gradient(180deg, var(--accent, #C76B8A), var(--accent, #C76B8A)88)',
     minHeight: 4,
     transition: 'height 0.3s ease',
   },
@@ -539,7 +539,7 @@ const s = {
   treatmentRank: {
     fontSize: 12,
     fontWeight: 700,
-    color: '#C76B8A',
+    color: 'var(--accent, #C76B8A)',
     minWidth: 24,
   },
   treatmentBar: {
@@ -553,7 +553,7 @@ const s = {
   treatmentFill: {
     height: '100%',
     borderRadius: 3,
-    background: '#C76B8A',
+    background: 'var(--accent, #C76B8A)',
     transition: 'width 0.3s ease',
   },
 };

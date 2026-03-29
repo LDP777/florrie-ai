@@ -133,13 +133,13 @@ export default function DailyChecklist({ token }) {
 
       {/* Quick status */}
       <div style={S.statusRow}>
-        <div style={{ ...S.statusChip, background: allOpeningDone ? '#E8F5E9' : '#FFF5E6' }}>
+        <div style={{ ...S.statusChip, background: allOpeningDone ? 'var(--success-bg, #EDF7F0)' : '#FFF5E6' }}>
           <span>{allOpeningDone ? '✅' : '⏳'}</span>
-          <span style={{ color: allOpeningDone ? '#4CAF50' : '#B8860B', fontSize: 12, fontWeight: 600 }}>Opening</span>
+          <span style={{ color: allOpeningDone ? 'var(--success, #5BA97B)' : 'var(--warning, #D4943A)', fontSize: 12, fontWeight: 600 }}>Opening</span>
         </div>
-        <div style={{ ...S.statusChip, background: allClosingDone ? '#E8F5E9' : '#F9F7F4' }}>
+        <div style={{ ...S.statusChip, background: allClosingDone ? 'var(--success-bg, #EDF7F0)' : 'var(--bg-hover, #F5F2EF)' }}>
           <span>{allClosingDone ? '✅' : '🔲'}</span>
-          <span style={{ color: allClosingDone ? '#4CAF50' : '#AAA5A0', fontSize: 12, fontWeight: 600 }}>Closing</span>
+          <span style={{ color: allClosingDone ? 'var(--success, #5BA97B)' : 'var(--text-muted, #B5AFA8)', fontSize: 12, fontWeight: 600 }}>Closing</span>
         </div>
       </div>
 
@@ -250,53 +250,53 @@ function formatDate(dateStr) {
 
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 2px' },
-  dateLabel: { fontSize: 13, color: '#AAA5A0', margin: '0 0 16px' },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: '0 0 2px' },
+  dateLabel: { fontSize: 13, color: 'var(--text-muted, #B5AFA8)', margin: '0 0 16px' },
 
-  streakCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 16, marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  streakCard: { background: 'var(--bg-card, #FFFFFF)', borderRadius: 14, padding: 16, marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   streakMain: { display: 'flex', gap: 10, alignItems: 'center' },
   streakFire: { fontSize: 28 },
   streakInfo: { display: 'flex', flexDirection: 'column' },
-  streakNum: { fontSize: 16, fontWeight: 700, color: 'var(--text, #2D2A26)' },
-  streakSub: { fontSize: 12, color: '#AAA5A0' },
+  streakNum: { fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #2D2A26)' },
+  streakSub: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },
   streakStats: { display: 'flex', gap: 14 },
   streakStat: { display: 'flex', flexDirection: 'column', alignItems: 'center' },
-  streakStatNum: { fontSize: 16, fontWeight: 700, color: '#C76B8A' },
-  streakStatLabel: { fontSize: 10, color: '#AAA5A0' },
+  streakStatNum: { fontSize: 16, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
+  streakStatLabel: { fontSize: 10, color: 'var(--text-muted, #B5AFA8)' },
 
   statusRow: { display: 'flex', gap: 8, marginBottom: 14 },
   statusChip: { flex: 1, display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', padding: '8px 0', borderRadius: 10 },
 
   tabs: { display: 'flex', gap: 8, marginBottom: 12 },
-  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: '#AAA5A0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: '#C76B8A', color: '#fff' },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--bg-card, #FFFFFF)', color: 'var(--text-muted, #B5AFA8)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
 
   progressSection: { marginBottom: 14 },
-  progressTrack: { height: 6, borderRadius: 3, background: '#F0ECE8', overflow: 'hidden', marginBottom: 4 },
-  progressFill: { height: '100%', borderRadius: 3, background: '#C76B8A', transition: 'width .3s' },
-  progressText: { fontSize: 12, color: '#AAA5A0' },
+  progressTrack: { height: 6, borderRadius: 3, background: 'var(--border, #EDE9E4)', overflow: 'hidden', marginBottom: 4 },
+  progressFill: { height: '100%', borderRadius: 3, background: 'var(--accent, #C76B8A)', transition: 'width .3s' },
+  progressText: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },
 
   list: { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 },
-  checkItem: { display: 'flex', gap: 12, alignItems: 'center', background: 'var(--card, #fff)', borderRadius: 12, padding: '12px 14px', cursor: 'pointer' },
-  checkbox: { width: 24, height: 24, borderRadius: 7, border: '2px solid #D0CBC5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .2s' },
-  checkboxDone: { background: '#C76B8A', borderColor: '#C76B8A' },
+  checkItem: { display: 'flex', gap: 12, alignItems: 'center', background: 'var(--bg-card, #FFFFFF)', borderRadius: 12, padding: '12px 14px', cursor: 'pointer' },
+  checkbox: { width: 24, height: 24, borderRadius: 7, border: '2px solid var(--border, #EDE9E4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all .2s' },
+  checkboxDone: { background: 'var(--accent, #C76B8A)', borderColor: 'var(--accent, #C76B8A)' },
   checkmark: { color: '#fff', fontSize: 14, fontWeight: 700 },
   checkContent: { display: 'flex', flexDirection: 'column', gap: 2 },
-  checkLabel: { fontSize: 14, color: 'var(--text, #2D2A26)', lineHeight: 1.3 },
-  dueDate: { fontSize: 11, color: '#AAA5A0' },
+  checkLabel: { fontSize: 14, color: 'var(--text-primary, #2D2A26)', lineHeight: 1.3 },
+  dueDate: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
 
-  celebrationCard: { background: '#E8F5E9', borderRadius: 12, padding: 16, display: 'flex', gap: 10, alignItems: 'center', marginBottom: 14 },
+  celebrationCard: { background: 'var(--success-bg, #EDF7F0)', borderRadius: 12, padding: 16, display: 'flex', gap: 10, alignItems: 'center', marginBottom: 14 },
   celebrationEmoji: { fontSize: 24 },
-  celebrationText: { fontSize: 14, fontWeight: 600, color: '#4CAF50' },
+  celebrationText: { fontSize: 14, fontWeight: 600, color: 'var(--success, #5BA97B)' },
 
-  addBtn: { width: '100%', padding: '12px 0', borderRadius: 10, border: '1px dashed #D0CBC5', background: 'transparent', fontSize: 14, fontWeight: 600, color: '#C76B8A', cursor: 'pointer', fontFamily: 'inherit', marginBottom: 14 },
-  addForm: { background: 'var(--card, #fff)', borderRadius: 12, padding: 14, marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 8 },
+  addBtn: { width: '100%', padding: '12px 0', borderRadius: 10, border: '1px dashed var(--border, #EDE9E4)', background: 'transparent', fontSize: 14, fontWeight: 600, color: 'var(--accent, #C76B8A)', cursor: 'pointer', fontFamily: 'inherit', marginBottom: 14 },
+  addForm: { background: 'var(--bg-card, #FFFFFF)', borderRadius: 12, padding: 14, marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 8 },
   addFormRow: { display: 'flex', gap: 8 },
-  addFormSave: { padding: '10px 20px', borderRadius: 10, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  addFormCancel: { padding: '10px 14px', borderRadius: 10, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', color: '#AAA5A0' },
-  input: { padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', background: 'var(--card, #fff)' },
+  addFormSave: { padding: '10px 20px', borderRadius: 10, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  addFormCancel: { padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border, #EDE9E4)', background: 'var(--bg-card, #FFFFFF)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted, #B5AFA8)' },
+  input: { padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #EDE9E4)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', background: 'var(--bg-card, #FFFFFF)' },
 
-  tipCard: { background: '#F9F7F4', borderRadius: 12, padding: 14, display: 'flex', gap: 10, alignItems: 'flex-start' },
+  tipCard: { background: 'var(--bg-hover, #F5F2EF)', borderRadius: 12, padding: 14, display: 'flex', gap: 10, alignItems: 'flex-start' },
   tipIcon: { fontSize: 18, flexShrink: 0 },
-  tipText: { fontSize: 12, color: '#8B6F5E', lineHeight: 1.4, margin: 0 },
+  tipText: { fontSize: 12, color: 'var(--text-secondary, #7A756F)', lineHeight: 1.4, margin: 0 },
 };

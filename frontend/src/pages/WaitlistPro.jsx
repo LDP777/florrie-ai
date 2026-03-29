@@ -152,9 +152,70 @@ export default function WaitlistPro({ token }) {
   }
 
   async function handleRemove(id) {
-    setWaitlist(prev => prev.filter(w => w.id !== id));
     if (!isDevMode && beautician) {
-      try { await deleteRow('waitlist', id); } catch (err) { logger.error('Remove waitlist error:', err); }
+      try {
+        await deleteRow('waitlist', id);
+        setWaitlist(prev => prev.filter(w => w.id !== id));
+      } catch (err) {
+        logger.error('Remove waitlist error:', err);
+        setError('Failed to remove from waitlist');
+      }
+    } else {
+      setWaitlist(prev => prev.filter(w => w.id !== id));
+    }
+  }
+
+  async function handleNotify(id) {
+    if (!isDevMode && beautician) {
+      try {
+        await updateRow('waitlist', id, { status: 'notified', notifyCount: (waitlist.find(w => w.id === id)?.notifyCount || 0) + 1, lastNotified: new Date().toISOString() });
+        setWaitlist(prev => prev.map(w => w.id === id ? { ...w, status: 'notified', notifyCount: (w.notifyCount || 0) + 1, lastNotified: new Date().toISOString() } : w));
+      } catch (err) {
+        logger.error('Notify error:', err);
+        setError('Failed to notify client');
+      }
+    } else {
+      setWaitlist(prev => prev.map(w => w.id === id ? { ...w, status: 'notified', notifyCount: (w.notifyCount || 0) + 1, lastNotified: new Date().toISOString() } : w));
+    }
+  }
+
+  async function handleOfferSlot(id) {
+    if (!isDevMode && beautician) {
+      try {
+        const expiryTime = new Date();
+        expiryTime.setHours(expiryTime.getHours() + (settings.offerExpiry || 24));
+        await updateRow('waitlist', id, { status: 'offered', offerExpires: expiryTime.toISOString() });
+        setWaitlist(prev => prev.map(w => w.id === id ? { ...w, status: 'offered', offerExpires: expiryTime.toISOString() } : w));
+      } catch (err) {
+        logger.error('Offer slot error:', err);
+        setError('Failed to offer slot');
+      }
+    } else {
+      const expiryTime = new Date();
+      expiryTime.setHours(expiryTime.getHours() + (settings.offerExpiry || 24));
+      setWaitlist(prev => prev.map(w => w.id === id ? { ...w, status: 'offered', offerExpires: expiryTime.toISOString() } : w));
+    }
+  }
+
+  async function handleSaveSettings() {
+    setSaving(true);
+    setError(null);
+    try {
+      if (!isDevMode && beautician) {
+        await updateRow('beautician_settings', beautician.id, {
+          waitlist_auto_notify: settings.autoNotify,
+          waitlist_offer_expiry_hours: settings.offerExpiry,
+          waitlist_max_notifications: settings.maxNotifications,
+          waitlist_vip_first: settings.vipFirst,
+          waitlist_deposit_required: settings.depositRequired,
+          waitlist_default_deposit: settings.defaultDeposit,
+        });
+      }
+    } catch (err) {
+      logger.error('Save settings error:', err);
+      setError('Failed to save settings');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -280,8 +341,8 @@ export default function WaitlistPro({ token }) {
                     {w.notes && <p style={S.wlNotes}>{w.notes}</p>}
 
                     <div style={S.actionRow}>
-                      <button style={S.actionBtn}>Notify</button>
-                      <button style={{ ...S.actionBtn, background: '#C76B8A', color: '#fff' }}>Offer Slot</button>
+                      <button style={S.actionBtn} onClick={e => { e.stopPropagation(); handleNotify(w.id); }}>Notify</button>
+                      <button style={{ ...S.actionBtn, background: '#C76B8A', color: '#fff' }} onClick={e => { e.stopPropagation(); handleOfferSlot(w.id); }}>Offer Slot</button>
                       <button style={S.actionBtn} onClick={e => { e.stopPropagation(); handleRemove(w.id); }}>Remove</button>
                     </div>
                   </div>
@@ -327,7 +388,7 @@ export default function WaitlistPro({ token }) {
                 <span style={S.toggleLabel}>Auto-notify on cancellation</span>
                 <span style={S.toggleDesc}>When a slot opens, automatically message matching waitlist clients</span>
               </div>
-              <button style={{ ...S.toggle, background: settings.autoNotify ? '#C76B8A' : '#E0DCD8' }} onClick={() => setSettings(s => ({ ...s, autoNotify: !s.autoNotify }))}>
+              <button style={{ ...S.toggle, background: settings.autoNotify ? '#C76B8A' : '#E0DCD8' }} onClick={() => { setSettings(s => ({ ...s, autoNotify: !s.autoNotify })); }}>
                 <div style={{ ...S.toggleDot, transform: settings.autoNotify ? 'translateX(18px)' : 'translateX(2px)' }} />
               </button>
             </div>
@@ -386,6 +447,9 @@ export default function WaitlistPro({ token }) {
               </>
             )}
           </div>
+
+          {error && <div style={{ color: '#F44336', fontSize: 13, marginBottom: 8 }}>{error}</div>}
+          <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} onClick={handleSaveSettings} disabled={saving}>{saving ? 'Saving...' : 'Save Settings'}</button>
         </div>
       )}
 
@@ -459,72 +523,72 @@ function formatDate(dateStr) {
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },
-  addBtn: { background: '#C76B8A', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: 0 },
+  addBtn: { background: 'var(--accent, #C76B8A)', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   statsRow: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 },
   statCard: { background: 'var(--card, #fff)', borderRadius: 12, padding: '10px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   statValue: { fontSize: 18, fontWeight: 700 },
-  statLabel: { fontSize: 10, color: '#AAA5A0' },
+  statLabel: { fontSize: 10, color: 'var(--text-muted, #B5AFA8)' },
 
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
-  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: '#AAA5A0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: '#C76B8A', color: '#fff' },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--bg-card, #FFFFFF)', color: 'var(--text-muted, #B5AFA8)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
 
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
-  empty: { textAlign: 'center', color: '#AAA5A0', fontSize: 14, padding: 32 },
+  empty: { textAlign: 'center', color: 'var(--text-muted, #B5AFA8)', fontSize: 14, padding: 32 },
 
-  wlCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 14, cursor: 'pointer', borderLeft: '3px solid #F0ECE8' },
+  wlCard: { background: 'var(--bg-card, #FFFFFF)', borderRadius: 14, padding: 14, cursor: 'pointer', borderLeft: '3px solid var(--border, #EDE9E4)' },
   wlHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
   wlLeft: { display: 'flex', gap: 10, alignItems: 'center' },
-  avatar: { width: 36, height: 36, borderRadius: 18, background: '#F0E6ED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: '#C76B8A', flexShrink: 0 },
+  avatar: { width: 36, height: 36, borderRadius: 18, background: '#F0E6ED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: 'var(--accent, #C76B8A)', flexShrink: 0 },
   wlInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
   wlNameRow: { display: 'flex', alignItems: 'center', gap: 6 },
-  wlClient: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
+  wlClient: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
   priBadge: { padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600 },
-  wlTreatment: { fontSize: 12, color: '#AAA5A0' },
+  wlTreatment: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },
   wlRight: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 },
   statusBadge: { padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600 },
-  wlDays: { fontSize: 11, color: '#AAA5A0' },
+  wlDays: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
 
-  offerBanner: { margin: '10px 0 0', padding: '8px 12px', borderRadius: 8, background: '#E8F5E9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  offerText: { fontSize: 12, fontWeight: 600, color: '#4CAF50' },
-  offerExpiry: { fontSize: 11, color: '#6B8F7B' },
+  offerBanner: { margin: '10px 0 0', padding: '8px 12px', borderRadius: 8, background: 'var(--success-bg, #EDF7F0)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  offerText: { fontSize: 12, fontWeight: 600, color: 'var(--success, #5BA97B)' },
+  offerExpiry: { fontSize: 11, color: 'var(--success, #5BA97B)' },
 
-  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid #F0ECE8' },
+  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, #EDE9E4)' },
   detailGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 10 },
   detailItem: { display: 'flex', flexDirection: 'column', gap: 2 },
-  detailLabel: { fontSize: 11, color: '#AAA5A0', fontWeight: 600 },
-  detailValue: { fontSize: 13, fontWeight: 600, color: 'var(--text, #2D2A26)' },
+  detailLabel: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)', fontWeight: 600 },
+  detailValue: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
   dayTags: { display: 'flex', gap: 4, flexWrap: 'wrap' },
-  dayTag: { padding: '2px 6px', borderRadius: 4, background: '#F0ECE8', color: '#8B6F5E', fontSize: 11 },
-  wlNotes: { fontSize: 12, color: '#8B6F5E', fontStyle: 'italic', margin: '8px 0' },
+  dayTag: { padding: '2px 6px', borderRadius: 4, background: 'var(--border, #EDE9E4)', color: 'var(--text-secondary, #7A756F)', fontSize: 11 },
+  wlNotes: { fontSize: 12, color: 'var(--text-secondary, #7A756F)', fontStyle: 'italic', margin: '8px 0' },
   actionRow: { display: 'flex', gap: 8, marginTop: 8 },
-  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: '#2D2A26' },
+  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, #EDE9E4)', background: 'var(--bg-card, #FFFFFF)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
 
   // Settings
   settingsContainer: { display: 'flex', flexDirection: 'column', gap: 12 },
-  settingsCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 16 },
-  settingsTitle: { fontSize: 15, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 12px' },
-  toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #F0ECE8' },
+  settingsCard: { background: 'var(--bg-card, #FFFFFF)', borderRadius: 14, padding: 16 },
+  settingsTitle: { fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: '0 0 12px' },
+  toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border, #EDE9E4)' },
   toggleInfo: { flex: 1, marginRight: 12 },
-  toggleLabel: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)', display: 'block' },
-  toggleDesc: { fontSize: 12, color: '#AAA5A0' },
+  toggleLabel: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)', display: 'block' },
+  toggleDesc: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },
   toggle: { width: 44, height: 26, borderRadius: 13, border: 'none', padding: 0, cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 },
   toggleDot: { width: 22, height: 22, borderRadius: 11, background: '#fff', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
-  fieldLabel: { fontSize: 12, fontWeight: 600, color: '#8B6F5E', marginBottom: 6, marginTop: 12 },
+  fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #7A756F)', marginBottom: 6, marginTop: 12 },
   chipRow: { display: 'flex', gap: 8, flexWrap: 'wrap' },
-  chip: { padding: '8px 14px', borderRadius: 10, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', color: '#8B6F5E', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
-  chipActive: { background: '#C76B8A', color: '#fff', border: '1px solid #C76B8A' },
+  chip: { padding: '8px 14px', borderRadius: 10, border: '1px solid var(--border, #EDE9E4)', background: 'var(--bg-card, #FFFFFF)', color: 'var(--text-secondary, #7A756F)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
+  chipActive: { background: 'var(--accent, #C76B8A)', color: '#fff', border: '1px solid var(--accent, #C76B8A)' },
 
   // Modal
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
-  modal: { background: '#fff', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
-  modalTitle: { fontSize: 18, fontWeight: 700, color: '#2D2A26', margin: '0 0 16px' },
-  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: '#2D2A26', outline: 'none', boxSizing: 'border-box' },
-  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: '#2D2A26', background: '#fff', outline: 'none', boxSizing: 'border-box' },
-  textarea: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 13, fontFamily: 'inherit', color: '#2D2A26', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
-  dayChip: { width: 40, height: 36, borderRadius: 8, border: '1px solid #F0ECE8', background: '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: '#8B6F5E', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  dayChipActive: { background: '#C76B8A', color: '#fff', border: '1px solid #C76B8A' },
-  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
+  modal: { background: 'var(--bg-card, #FFFFFF)', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
+  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: '0 0 16px' },
+  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #EDE9E4)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', outline: 'none', boxSizing: 'border-box' },
+  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #EDE9E4)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', background: 'var(--bg-card, #FFFFFF)', outline: 'none', boxSizing: 'border-box' },
+  textarea: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #EDE9E4)', fontSize: 13, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
+  dayChip: { width: 40, height: 36, borderRadius: 8, border: '1px solid var(--border, #EDE9E4)', background: 'var(--bg-card, #FFFFFF)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-secondary, #7A756F)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  dayChipActive: { background: 'var(--accent, #C76B8A)', color: '#fff', border: '1px solid var(--accent, #C76B8A)' },
+  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
 };

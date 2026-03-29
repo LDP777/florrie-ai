@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 80" fill="none">
+  <!-- florrie.ai Reversed Logo — for dark backgrounds -->
+  <g transform="translate(8, 8) scale(0.8)">
+    <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#D88FA6" opacity="0.7" transform="rotate(0 40 40)"/>
+    <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#D88FA6" opacity="0.6" transform="rotate(72 40 40)"/>
+    <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#D88FA6" opacity="0.5" transform="rotate(144 40 40)"/>
+    <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#D88FA6" opacity="0.5" transform="rotate(216 40 40)"/>
+    <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#D88FA6" opacity="0.6" transform="rotate(288 40 40)"/>
+    <circle cx="40" cy="40" r="6.4" fill="#D4B87E"/>
+  </g>
+  <text x="80" y="52" font-family="'Playfair Display', Georgia, serif" font-size="36" font-weight="500" fill="#F2EFEB" letter-spacing="-0.5">florrie</text>
+  <text x="224" y="52" font-family="'DM Sans', sans-serif" font-size="24" font-weight="300" fill="#D88FA6" letter-spacing="0.5">.ai</text>
+</svg>

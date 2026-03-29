@@ -6,23 +6,10 @@
  * Revenue lost, reasons, and trends — all in one place.
  */
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
+import { useBeautician, fetchRows, updateRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
-
-const DEV_CANCELLATIONS = [
-  { id: 'cx1', client: 'Lucy P', treatment: 'Lash Lift & Tint', date: '2026-03-22', time: '10:00', type: 'no-show', reason: '', revenue_lost: 4000, deposit: 0, notice: '0h', rebooked: false },
-  { id: 'cx2', client: 'Natalie W', treatment: 'Colour Boost 3-6 Months', date: '2026-03-18', time: '14:00', type: 'late-cancel', reason: 'Feeling unwell', revenue_lost: 5000, deposit: 2500, notice: '4h', rebooked: false },
-  { id: 'cx3', client: 'Amy R', treatment: 'HD Brows', date: '2026-03-15', time: '11:00', type: 'cancelled', reason: 'Work meeting moved', revenue_lost: 2500, deposit: 0, notice: '48h', rebooked: true },
-  { id: 'cx4', client: 'Beth K', treatment: 'Lamination & Hybrid Dye', date: '2026-03-12', time: '15:00', type: 'no-show', reason: '', revenue_lost: 4500, deposit: 0, notice: '0h', rebooked: false },
-  { id: 'cx5', client: 'Holly B', treatment: 'HD Brows', date: '2026-03-08', time: '13:00', type: 'cancelled', reason: 'Childcare issue', revenue_lost: 2500, deposit: 0, notice: '24h', rebooked: true },
-  { id: 'cx6', client: 'Lucy P', treatment: 'Lamination & Tint', date: '2026-02-28', time: '10:00', type: 'late-cancel', reason: 'Car trouble', revenue_lost: 4000, deposit: 0, notice: '2h', rebooked: false },
-  { id: 'cx7', client: 'Natalie W', treatment: 'HD Brows', date: '2026-02-22', time: '14:00', type: 'no-show', reason: '', revenue_lost: 2500, deposit: 0, notice: '0h', rebooked: false },
-  { id: 'cx8', client: 'Isabelle T', treatment: 'Lash Lift & Tint', date: '2026-02-15', time: '11:00', type: 'cancelled', reason: 'Moving to a different date', revenue_lost: 0, deposit: 0, notice: '72h', rebooked: true },
-  { id: 'cx9', client: 'Kate M', treatment: 'Lamination & Hybrid Dye', date: '2026-02-10', time: '16:00', type: 'cancelled', reason: 'Holiday clash', revenue_lost: 0, deposit: 0, notice: '5d', rebooked: true },
-  { id: 'cx10', client: 'Lucy P', treatment: 'HD Brows', date: '2026-02-01', time: '10:00', type: 'no-show', reason: '', revenue_lost: 2500, deposit: 0, notice: '0h', rebooked: false },
-];
 
 const TYPE_CONFIG = {
   'no-show': { label: 'No Show', bg: '#FFEBEE', color: '#F44336', icon: '✗' },
@@ -36,14 +23,16 @@ export default function CancellationLog({ token }) {
   const [filterType, setFilterType] = useState('all');
   const [period, setPeriod] = useState('30d');
   const [cancellations, setCancellations] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  // Fetch cancelled/no-show appointments
+  // Fetch cancelled/no-show appointments from real data
   useEffect(() => {
     if (bLoading || !beautician) return;
-    if (isDevMode) {
-      setCancellations(DEV_CANCELLATIONS);
-      return;
-    }
+
+    setLoading(true);
+    setError('');
+
     fetchRows('appointments', beautician.id, { order: 'start_time', ascending: false })
       .then(appts => {
         const cancelled = appts.filter(a => a.status && (a.status.startsWith('cancelled') || a.status === 'no_show'));
@@ -58,11 +47,35 @@ export default function CancellationLog({ token }) {
           revenue_lost: a.price_cents || 0,
           deposit: a.deposit_cents || 0,
           notice: '0h',
-          rebooked: false,
+          rebooked: a.rebooked_at ? true : false,
         })));
+        setLoading(false);
       })
-      .catch(err => logger.error('Failed to load cancellations:', err));
+      .catch(err => {
+        logger.error('Failed to load cancellations:', err);
+        setError('Failed to load cancellations');
+        setLoading(false);
+      });
   }, [beautician, bLoading]);
+
+  // Handler to rebook appointment
+  const handleRebook = async (appointmentId, clientName) => {
+    try {
+      const updates = { rebooked_at: new Date().toISOString() };
+      await updateRow('appointments', appointmentId, updates);
+
+      // Update local state
+      setCancellations(prev =>
+        prev.map(c =>
+          c.id === appointmentId ? { ...c, rebooked: true } : c
+        )
+      );
+      logger.log(`Rebooked appointment for ${clientName}`);
+    } catch (err) {
+      logger.error('Failed to mark as rebooked:', err);
+      setError('Failed to mark as rebooked');
+    }
+  };
 
   // Period filter
   const now = new Date();
@@ -97,6 +110,8 @@ export default function CancellationLog({ token }) {
   return (
     <div style={S.page}>
       <h1 style={S.title}>Cancellation Log</h1>
+      {error && <div style={{ ...S.errorBanner, marginBottom: 16 }}>{error}</div>}
+      {loading && <p style={{ textAlign: 'center', color: '#AAA5A0' }}>Loading cancellations...</p>}
 
       {/* Period filter */}
       <div style={S.periodRow}>
@@ -167,7 +182,16 @@ export default function CancellationLog({ token }) {
                     {c.revenue_lost > 0 && <span style={S.lostTag}>-{fmt(c.revenue_lost)}</span>}
                     {c.deposit > 0 && <span style={S.depositTag}>Deposit kept: {fmt(c.deposit)}</span>}
                     {c.notice !== '0h' && <span style={S.noticeTag}>{c.notice} notice</span>}
-                    {c.rebooked && <span style={S.rebookedTag}>✓ Rebooked</span>}
+                    {c.rebooked ? (
+                      <span style={S.rebookedTag}>✓ Rebooked</span>
+                    ) : (
+                      <button
+                        onClick={() => handleRebook(c.id, c.client)}
+                        style={S.rebookBtn}
+                      >
+                        Rebook
+                      </button>
+                    )}
                   </div>
                 </div>
               );
@@ -257,56 +281,58 @@ function formatDate(dateStr) {
 
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 12px' },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: '0 0 12px' },
+  errorBanner: { background: 'var(--danger-bg, #FDF0EF)', color: 'var(--danger, #D4605C)', padding: '10px 12px', borderRadius: 8, fontSize: 13 },
   periodRow: { display: 'flex', gap: 8, marginBottom: 16 },
-  periodChip: { padding: '6px 14px', borderRadius: 16, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', color: '#8B6F5E', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
-  periodActive: { background: '#2D2A26', color: '#fff', border: '1px solid #2D2A26' },
+  periodChip: { padding: '6px 14px', borderRadius: 16, border: '1px solid var(--border, #EDE9E4)', background: 'var(--bg-card, #FFFFFF)', color: 'var(--text-secondary, #7A756F)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
+  periodActive: { background: 'var(--text-primary, #2D2A26)', color: '#fff', border: '1px solid var(--text-primary, #2D2A26)' },
   statsGrid: { display: 'flex', gap: 8, marginBottom: 16 },
-  statCard: { flex: 1, background: 'var(--card, #fff)', borderRadius: 12, padding: '12px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
+  statCard: { flex: 1, background: 'var(--bg-card, #FFFFFF)', borderRadius: 12, padding: '12px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   statValue: { fontSize: 17, fontWeight: 700 },
-  statLabel: { fontSize: 10, color: '#AAA5A0' },
+  statLabel: { fontSize: 10, color: 'var(--text-muted, #B5AFA8)' },
   tabs: { display: 'flex', gap: 8, marginBottom: 12 },
-  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: '#AAA5A0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: '#C76B8A', color: '#fff' },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--bg-card, #FFFFFF)', color: 'var(--text-muted, #B5AFA8)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
   filterRow: { display: 'flex', gap: 6, marginBottom: 12, overflowX: 'auto' },
-  filterChip: { padding: '6px 12px', borderRadius: 16, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', color: '#8B6F5E', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
-  filterActive: { background: '#C76B8A', color: '#fff', border: '1px solid #C76B8A' },
+  filterChip: { padding: '6px 12px', borderRadius: 16, border: '1px solid var(--border, #EDE9E4)', background: 'var(--bg-card, #FFFFFF)', color: 'var(--text-secondary, #7A756F)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  filterActive: { background: 'var(--accent, #C76B8A)', color: '#fff', border: '1px solid var(--accent, #C76B8A)' },
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
-  empty: { textAlign: 'center', color: '#AAA5A0', fontSize: 14, padding: 32 },
-  logCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 14 },
+  empty: { textAlign: 'center', color: 'var(--text-muted, #B5AFA8)', fontSize: 14, padding: 32 },
+  logCard: { background: 'var(--bg-card, #FFFFFF)', borderRadius: 14, padding: 14 },
   logHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
   logLeft: { display: 'flex', gap: 10, alignItems: 'center' },
-  avatar: { width: 32, height: 32, borderRadius: 16, background: '#F0E6ED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: '#C76B8A', flexShrink: 0 },
+  avatar: { width: 32, height: 32, borderRadius: 16, background: '#F0E6ED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: 'var(--accent, #C76B8A)', flexShrink: 0 },
   logInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
-  logClient: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  logTreatment: { fontSize: 12, color: '#AAA5A0' },
+  logClient: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
+  logTreatment: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },
   logRight: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 },
   typeBadge: { padding: '3px 8px', borderRadius: 8, fontSize: 11, fontWeight: 600 },
-  logDate: { fontSize: 11, color: '#AAA5A0' },
+  logDate: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
   logMeta: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 },
-  reasonTag: { padding: '3px 8px', borderRadius: 6, background: '#F9F7F4', color: '#8B6F5E', fontSize: 11, fontStyle: 'italic' },
-  lostTag: { padding: '3px 8px', borderRadius: 6, background: '#FFEBEE', color: '#F44336', fontSize: 11, fontWeight: 600 },
-  depositTag: { padding: '3px 8px', borderRadius: 6, background: '#E8F5E9', color: '#4CAF50', fontSize: 11, fontWeight: 500 },
-  noticeTag: { padding: '3px 8px', borderRadius: 6, background: '#F0ECE8', color: '#8B6F5E', fontSize: 11 },
-  rebookedTag: { padding: '3px 8px', borderRadius: 6, background: '#E8F5E9', color: '#4CAF50', fontSize: 11, fontWeight: 600 },
+  reasonTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--bg-hover, #F5F2EF)', color: 'var(--text-secondary, #7A756F)', fontSize: 11, fontStyle: 'italic' },
+  lostTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--danger-bg, #FDF0EF)', color: 'var(--danger, #D4605C)', fontSize: 11, fontWeight: 600 },
+  depositTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--success-bg, #EDF7F0)', color: 'var(--success, #5BA97B)', fontSize: 11, fontWeight: 500 },
+  noticeTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--border, #EDE9E4)', color: 'var(--text-secondary, #7A756F)', fontSize: 11 },
+  rebookedTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--success-bg, #EDF7F0)', color: 'var(--success, #5BA97B)', fontSize: 11, fontWeight: 600 },
+  rebookBtn: { padding: '3px 10px', borderRadius: 6, background: 'var(--accent, #C76B8A)', color: '#fff', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   insightsContainer: { display: 'flex', flexDirection: 'column', gap: 12 },
-  card: { background: 'var(--card, #fff)', borderRadius: 14, padding: 16 },
-  cardTitle: { fontSize: 15, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 12px' },
-  offenderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #F0ECE8' },
+  card: { background: 'var(--bg-card, #FFFFFF)', borderRadius: 14, padding: 16 },
+  cardTitle: { fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: '0 0 12px' },
+  offenderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border, #EDE9E4)' },
   offenderLeft: { display: 'flex', gap: 10, alignItems: 'center' },
-  offenderName: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)', display: 'block' },
-  offenderDetail: { fontSize: 11, color: '#AAA5A0' },
+  offenderName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)', display: 'block' },
+  offenderDetail: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
   offenderBadge: { padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600 },
   dayRow: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 },
-  dayLabel: { fontSize: 12, fontWeight: 600, color: '#8B6F5E', width: 32 },
-  dayBarBg: { flex: 1, height: 8, borderRadius: 4, background: '#F0ECE8' },
-  dayBarFill: { height: 8, borderRadius: 4, background: '#C76B8A' },
-  dayCount: { fontSize: 12, color: '#AAA5A0', width: 20, textAlign: 'right' },
+  dayLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #7A756F)', width: 32 },
+  dayBarBg: { flex: 1, height: 8, borderRadius: 4, background: 'var(--border, #EDE9E4)' },
+  dayBarFill: { height: 8, borderRadius: 4, background: 'var(--accent, #C76B8A)' },
+  dayCount: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)', width: 20, textAlign: 'right' },
   impactGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 },
   impactItem: { display: 'flex', flexDirection: 'column', gap: 2 },
-  impactLabel: { fontSize: 11, color: '#AAA5A0' },
+  impactLabel: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
   impactValue: { fontSize: 16, fontWeight: 700 },
-  tipCard: { background: '#FFF9F0', borderRadius: 12, padding: 14 },
-  tipTitle: { fontSize: 13, fontWeight: 600, color: '#B8860B' },
-  tipText: { fontSize: 12, color: '#8B6F5E', lineHeight: 1.4, margin: '6px 0 0' },
+  tipCard: { background: 'var(--gold-light, #FDF8EE)', borderRadius: 12, padding: 14 },
+  tipTitle: { fontSize: 13, fontWeight: 600, color: 'var(--gold-text, #8A7245)' },
+  tipText: { fontSize: 12, color: 'var(--text-secondary, #7A756F)', lineHeight: 1.4, margin: '6px 0 0' },
 };

@@ -158,8 +158,8 @@ export default function Policies({ token }) {
             onClick={() => setTab(t.key)}
             style={{
               ...s.tab,
-              color: tab === t.key ? '#C76B8A' : 'var(--text-muted, #AAA5A0)',
-              borderBottom: tab === t.key ? '2px solid #C76B8A' : '2px solid transparent',
+              color: tab === t.key ? 'var(--accent, #C76B8A)' : 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))',
+              borderBottom: tab === t.key ? '2px solid var(--accent, #C76B8A)' : '2px solid transparent',
               fontWeight: tab === t.key ? 600 : 400,
             }}
           >
@@ -178,7 +178,7 @@ export default function Policies({ token }) {
             </div>
             <button
               onClick={() => setDepositEnabled(!depositEnabled)}
-              style={{ ...s.toggle, background: depositEnabled ? '#C76B8A' : '#E8E4E0' }}
+              style={{ ...s.toggle, background: depositEnabled ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, #EDE9E4))' }}
             >
               <div style={{ ...s.toggleThumb, transform: depositEnabled ? 'translateX(18px)' : 'translateX(2px)' }} />
             </button>
@@ -195,9 +195,9 @@ export default function Policies({ token }) {
                       onClick={() => setDepositType(t.key)}
                       style={{
                         ...s.chip,
-                        background: depositType === t.key ? '#C76B8A' : 'var(--card-bg, #fff)',
-                        color: depositType === t.key ? '#fff' : 'var(--text, #2D2A26)',
-                        border: depositType === t.key ? '1px solid #C76B8A' : '1px solid var(--border, #E8E4E0)',
+                        background: depositType === t.key ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
+                        color: depositType === t.key ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
+                        border: depositType === t.key ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
                       }}
                     >
                       {t.label}
@@ -216,9 +216,9 @@ export default function Policies({ token }) {
                         onClick={() => setDepositAmount(v)}
                         style={{
                           ...s.amountChip,
-                          background: depositAmount === v ? '#C76B8A' : 'var(--card-bg, #fff)',
-                          color: depositAmount === v ? '#fff' : 'var(--text, #2D2A26)',
-                          border: depositAmount === v ? '1px solid #C76B8A' : '1px solid var(--border, #E8E4E0)',
+                          background: depositAmount === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
+                          color: depositAmount === v ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
+                          border: depositAmount === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
                         }}
                       >
                         £{v}
@@ -238,9 +238,9 @@ export default function Policies({ token }) {
                         onClick={() => setDepositPercent(v)}
                         style={{
                           ...s.amountChip,
-                          background: depositPercent === v ? '#C76B8A' : 'var(--card-bg, #fff)',
-                          color: depositPercent === v ? '#fff' : 'var(--text, #2D2A26)',
-                          border: depositPercent === v ? '1px solid #C76B8A' : '1px solid var(--border, #E8E4E0)',
+                          background: depositPercent === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
+                          color: depositPercent === v ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
+                          border: depositPercent === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
                         }}
                       >
                         {v}%
@@ -259,9 +259,9 @@ export default function Policies({ token }) {
                       onClick={() => setDepositMinPrice(v)}
                       style={{
                         ...s.amountChip,
-                        background: depositMinPrice === v ? '#C76B8A' : 'var(--card-bg, #fff)',
-                        color: depositMinPrice === v ? '#fff' : 'var(--text, #2D2A26)',
-                        border: depositMinPrice === v ? '1px solid #C76B8A' : '1px solid var(--border, #E8E4E0)',
+                        background: depositMinPrice === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
+                        color: depositMinPrice === v ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
+                        border: depositMinPrice === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
                       }}
                     >
                       {v === 0 ? 'All' : `£${v}+`}
@@ -277,7 +277,7 @@ export default function Policies({ token }) {
                 </div>
                 <button
                   onClick={() => setDepositRefundable(!depositRefundable)}
-                  style={{ ...s.toggle, background: depositRefundable ? '#C76B8A' : '#E8E4E0' }}
+                  style={{ ...s.toggle, background: depositRefundable ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, #EDE9E4))' }}
                 >
                   <div style={{ ...s.toggleThumb, transform: depositRefundable ? 'translateX(18px)' : 'translateX(2px)' }} />
                 </button>
@@ -300,9 +300,9 @@ export default function Policies({ token }) {
                   onClick={() => setCancelWindow(w.key)}
                   style={{
                     ...s.chip,
-                    background: cancelWindow === w.key ? '#C76B8A' : 'var(--card-bg, #fff)',
-                    color: cancelWindow === w.key ? '#fff' : 'var(--text, #2D2A26)',
-                    border: cancelWindow === w.key ? '1px solid #C76B8A' : '1px solid var(--border, #E8E4E0)',
+                    background: cancelWindow === w.key ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
+                    color: cancelWindow === w.key ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
+                    border: cancelWindow === w.key ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
                   }}
                 >
                   {w.label}
@@ -318,7 +318,7 @@ export default function Policies({ token }) {
             </div>
             <button
               onClick={() => setCancelFeeEnabled(!cancelFeeEnabled)}
-              style={{ ...s.toggle, background: cancelFeeEnabled ? '#C76B8A' : '#E8E4E0' }}
+              style={{ ...s.toggle, background: cancelFeeEnabled ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, #EDE9E4))' }}
             >
               <div style={{ ...s.toggleThumb, transform: cancelFeeEnabled ? 'translateX(18px)' : 'translateX(2px)' }} />
             </button>
@@ -332,9 +332,9 @@ export default function Policies({ token }) {
                   onClick={() => setCancelFeeType('deposit')}
                   style={{
                     ...s.chip,
-                    background: cancelFeeType === 'deposit' ? '#C76B8A' : 'var(--card-bg, #fff)',
-                    color: cancelFeeType === 'deposit' ? '#fff' : 'var(--text, #2D2A26)',
-                    border: cancelFeeType === 'deposit' ? '1px solid #C76B8A' : '1px solid var(--border, #E8E4E0)',
+                    background: cancelFeeType === 'deposit' ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
+                    color: cancelFeeType === 'deposit' ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
+                    border: cancelFeeType === 'deposit' ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
                   }}
                 >
                   Keep deposit
@@ -343,9 +343,9 @@ export default function Policies({ token }) {
                   onClick={() => setCancelFeeType('fixed')}
                   style={{
                     ...s.chip,
-                    background: cancelFeeType === 'fixed' ? '#C76B8A' : 'var(--card-bg, #fff)',
-                    color: cancelFeeType === 'fixed' ? '#fff' : 'var(--text, #2D2A26)',
-                    border: cancelFeeType === 'fixed' ? '1px solid #C76B8A' : '1px solid var(--border, #E8E4E0)',
+                    background: cancelFeeType === 'fixed' ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
+                    color: cancelFeeType === 'fixed' ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
+                    border: cancelFeeType === 'fixed' ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
                   }}
                 >
                   Fixed fee
@@ -354,9 +354,9 @@ export default function Policies({ token }) {
                   onClick={() => setCancelFeeType('percent')}
                   style={{
                     ...s.chip,
-                    background: cancelFeeType === 'percent' ? '#C76B8A' : 'var(--card-bg, #fff)',
-                    color: cancelFeeType === 'percent' ? '#fff' : 'var(--text, #2D2A26)',
-                    border: cancelFeeType === 'percent' ? '1px solid #C76B8A' : '1px solid var(--border, #E8E4E0)',
+                    background: cancelFeeType === 'percent' ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
+                    color: cancelFeeType === 'percent' ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
+                    border: cancelFeeType === 'percent' ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
                   }}
                 >
                   % of price
@@ -370,9 +370,9 @@ export default function Policies({ token }) {
                       onClick={() => setCancelFeeFixed(v)}
                       style={{
                         ...s.amountChip,
-                        background: cancelFeeFixed === v ? '#C76B8A' : 'var(--card-bg, #fff)',
-                        color: cancelFeeFixed === v ? '#fff' : 'var(--text, #2D2A26)',
-                        border: cancelFeeFixed === v ? '1px solid #C76B8A' : '1px solid var(--border, #E8E4E0)',
+                        background: cancelFeeFixed === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
+                        color: cancelFeeFixed === v ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
+                        border: cancelFeeFixed === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
                       }}
                     >
                       £{v}
@@ -388,9 +388,9 @@ export default function Policies({ token }) {
                       onClick={() => setCancelFeePercent(v)}
                       style={{
                         ...s.amountChip,
-                        background: cancelFeePercent === v ? '#C76B8A' : 'var(--card-bg, #fff)',
-                        color: cancelFeePercent === v ? '#fff' : 'var(--text, #2D2A26)',
-                        border: cancelFeePercent === v ? '1px solid #C76B8A' : '1px solid var(--border, #E8E4E0)',
+                        background: cancelFeePercent === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
+                        color: cancelFeePercent === v ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
+                        border: cancelFeePercent === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
                       }}
                     >
                       {v}%
@@ -426,15 +426,15 @@ export default function Policies({ token }) {
                   onClick={() => setNoshowAction(a.key)}
                   style={{
                     ...s.actionCard,
-                    border: noshowAction === a.key ? '2px solid #C76B8A' : '2px solid var(--border, #F0ECE8)',
-                    background: noshowAction === a.key ? '#FBF0F3' : 'var(--card-bg, #fff)',
+                    border: noshowAction === a.key ? '2px solid var(--accent, #C76B8A)' : '2px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+                    background: noshowAction === a.key ? 'var(--accent-light, #FFF0F3)' : 'var(--card-bg, #fff)',
                   }}
                 >
                   <span style={{ fontSize: 22 }}>{a.icon}</span>
                   <span style={{
                     fontSize: 12,
                     fontWeight: 600,
-                    color: noshowAction === a.key ? '#C76B8A' : 'var(--text, #2D2A26)',
+                    color: noshowAction === a.key ? 'var(--accent, #C76B8A)' : 'var(--text, var(--text-primary, #2D2A26))',
                   }}>{a.label}</span>
                 </button>
               ))}
@@ -451,9 +451,9 @@ export default function Policies({ token }) {
                     onClick={() => setNoshowFee(v)}
                     style={{
                       ...s.amountChip,
-                      background: noshowFee === v ? '#C76B8A' : 'var(--card-bg, #fff)',
-                      color: noshowFee === v ? '#fff' : 'var(--text, #2D2A26)',
-                      border: noshowFee === v ? '1px solid #C76B8A' : '1px solid var(--border, #E8E4E0)',
+                      background: noshowFee === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
+                      color: noshowFee === v ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
+                      border: noshowFee === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
                     }}
                   >
                     £{v}
@@ -473,9 +473,9 @@ export default function Policies({ token }) {
                     onClick={() => setNoshowStrikesMax(v)}
                     style={{
                       ...s.amountChip,
-                      background: noshowStrikesMax === v ? '#C76B8A' : 'var(--card-bg, #fff)',
-                      color: noshowStrikesMax === v ? '#fff' : 'var(--text, #2D2A26)',
-                      border: noshowStrikesMax === v ? '1px solid #C76B8A' : '1px solid var(--border, #E8E4E0)',
+                      background: noshowStrikesMax === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
+                      color: noshowStrikesMax === v ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
+                      border: noshowStrikesMax === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
                     }}
                   >
                     {v} strike{v !== 1 ? 's' : ''}
@@ -492,7 +492,7 @@ export default function Policies({ token }) {
             </div>
             <button
               onClick={() => setNoshowBlockEnabled(!noshowBlockEnabled)}
-              style={{ ...s.toggle, background: noshowBlockEnabled ? '#C76B8A' : '#E8E4E0' }}
+              style={{ ...s.toggle, background: noshowBlockEnabled ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, #EDE9E4))' }}
             >
               <div style={{ ...s.toggleThumb, transform: noshowBlockEnabled ? 'translateX(18px)' : 'translateX(2px)' }} />
             </button>
@@ -508,9 +508,9 @@ export default function Policies({ token }) {
                     onClick={() => setNoshowBlockAfter(v)}
                     style={{
                       ...s.amountChip,
-                      background: noshowBlockAfter === v ? '#C76B8A' : 'var(--card-bg, #fff)',
-                      color: noshowBlockAfter === v ? '#fff' : 'var(--text, #2D2A26)',
-                      border: noshowBlockAfter === v ? '1px solid #C76B8A' : '1px solid var(--border, #E8E4E0)',
+                      background: noshowBlockAfter === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
+                      color: noshowBlockAfter === v ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
+                      border: noshowBlockAfter === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
                     }}
                   >
                     {v} no-shows
@@ -577,17 +577,17 @@ const s = {
   title: {
     fontSize: 24,
     fontWeight: 700,
-    color: 'var(--text, #2D2A26)',
+    color: 'var(--text, var(--text-primary, #2D2A26))',
     margin: 0,
   },
   sub: {
     fontSize: 13,
-    color: 'var(--text-muted, #AAA5A0)',
+    color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))',
     margin: '4px 0 0',
   },
   tabBar: {
     display: 'flex',
-    borderBottom: '1px solid var(--border, #F0ECE8)',
+    borderBottom: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
     marginBottom: 16,
   },
   tab: {
@@ -609,19 +609,19 @@ const s = {
     background: 'var(--card-bg, #fff)',
     borderRadius: 14,
     padding: 16,
-    border: '1px solid var(--border, #F0ECE8)',
+    border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
   },
   cardLabel: {
     display: 'block',
     fontSize: 14,
     fontWeight: 600,
-    color: 'var(--text, #2D2A26)',
+    color: 'var(--text, var(--text-primary, #2D2A26))',
     marginBottom: 4,
   },
   cardDesc: {
     display: 'block',
     fontSize: 12,
-    color: 'var(--text-muted, #AAA5A0)',
+    color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))',
     marginBottom: 10,
   },
   chipRow: {
@@ -658,18 +658,18 @@ const s = {
     padding: '14px 16px',
     background: 'var(--card-bg, #fff)',
     borderRadius: 14,
-    border: '1px solid var(--border, #F0ECE8)',
+    border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
   },
   toggleLabel: {
     display: 'block',
     fontSize: 14,
     fontWeight: 600,
-    color: 'var(--text, #2D2A26)',
+    color: 'var(--text, var(--text-primary, #2D2A26))',
   },
   toggleDesc: {
     display: 'block',
     fontSize: 12,
-    color: 'var(--text-muted, #AAA5A0)',
+    color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))',
     marginTop: 2,
   },
   toggle: {
@@ -696,15 +696,15 @@ const s = {
     width: '100%',
     padding: '10px 12px',
     borderRadius: 10,
-    border: '1.5px solid var(--border, #F0ECE8)',
+    border: '1.5px solid var(--border, var(--border, var(--border, #EDE9E4)))',
     fontSize: 13,
     fontFamily: 'inherit',
     outline: 'none',
     boxSizing: 'border-box',
     resize: 'vertical',
     marginTop: 6,
-    background: 'var(--bg, #FAF8F5)',
-    color: 'var(--text, #2D2A26)',
+    background: 'var(--bg, var(--bg, #FAF8F5))',
+    color: 'var(--text, var(--text-primary, #2D2A26))',
     lineHeight: 1.5,
   },
   actionGrid: {
@@ -729,11 +729,11 @@ const s = {
     padding: '12px 0',
     marginTop: 20,
     borderRadius: 10,
-    border: '1px solid var(--border, #E8E4E0)',
+    border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
     background: 'var(--card-bg, #fff)',
     fontSize: 13,
     fontWeight: 600,
-    color: '#C76B8A',
+    color: 'var(--accent, #C76B8A)',
     cursor: 'pointer',
     fontFamily: 'inherit',
   },
@@ -741,10 +741,10 @@ const s = {
     marginTop: 12,
     borderRadius: 14,
     overflow: 'hidden',
-    border: '1px solid var(--border, #F0ECE8)',
+    border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
   },
   previewHeader: {
-    background: 'linear-gradient(135deg, #C76B8A, #B55A79)',
+    background: 'linear-gradient(135deg, var(--accent, #C76B8A), #B55A79)',
     padding: '16px 16px 12px',
   },
   previewBrand: {
@@ -777,7 +777,7 @@ const s = {
     marginTop: 16,
     borderRadius: 12,
     border: 'none',
-    background: 'linear-gradient(135deg, #C76B8A, #B55A79)',
+    background: 'linear-gradient(135deg, var(--accent, #C76B8A), #B55A79)',
     color: '#fff',
     fontSize: 15,
     fontWeight: 700,
