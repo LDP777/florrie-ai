@@ -13,6 +13,8 @@ const Escalations = lazy(() => import('./pages/Escalations.jsx'));
 const ContentAutopilot = lazy(() => import('./pages/ContentAutopilot.jsx'));
 const MoneyTracker = lazy(() => import('./pages/MoneyTracker.jsx'));
 const BookingPage = lazy(() => import('./pages/BookingPage.jsx'));
+const ConsultationFormPublic = lazy(() => import('./pages/ConsultationFormPublic.jsx'));
+const ConsultationFormBuilder = lazy(() => import('./pages/ConsultationFormBuilder.jsx'));
 const Onboarding = lazy(() => import('./pages/Onboarding.jsx'));
 const Login = lazy(() => import('./pages/Login.jsx'));
 const Clients = lazy(() => import('./pages/Clients.jsx'));
@@ -150,7 +152,7 @@ export default function App() {
   }, [session, beautician]);
 
   const token = session?.access_token;
-  const isPublicRoute = location.pathname.startsWith('/book/');
+  const isPublicRoute = location.pathname.startsWith('/book/') || location.pathname.startsWith('/form/');
   const isAuthRoute = location.pathname === '/login';
 
   if (loading) {
@@ -169,6 +171,7 @@ export default function App() {
         <Routes>
           <Route path="/book/:slug" element={<BookingPage />} />
           <Route path="/book/:slug/confirmed" element={<BookingPage />} />
+          <Route path="/form/:token" element={<ConsultationFormPublic />} />
         </Routes>
       </Suspense>
     );
@@ -253,6 +256,8 @@ export default function App() {
             <Route path="/feedback" element={<Feedback token={token} />} />
             <Route path="/expenses" element={<ExpensesPage token={token} />} />
             <Route path="/consultations" element={<Consultations token={token} />} />
+            <Route path="/consultation-forms" element={<ConsultationFormBuilder />} />
+            <Route path="/consultation-forms/:id" element={<ConsultationFormBuilder />} />
             <Route path="/sequences" element={<FollowUpSequences token={token} />} />
             <Route path="/photo-consent" element={<PhotoConsent token={token} />} />
             <Route path="/waitlist-pro" element={<WaitlistPro token={token} />} />

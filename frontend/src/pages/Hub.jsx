@@ -40,6 +40,7 @@ const CATEGORIES = [
     items: [
       { path: '/treatments', label: 'Treatments', desc: 'Manage your services', icon: '💅' },
       { path: '/consultations', label: 'Consultations', desc: 'Pre-treatment bookings', icon: '🩺' },
+      { path: '/consultation-forms', label: 'Form Builder', desc: 'Build consultation & consent forms', icon: '📋' },
       { path: '/patch-tests', label: 'Patch Tests', desc: 'Allergy test tracking', icon: '🩹' },
       { path: '/aftercare', label: 'Aftercare', desc: 'Post-treatment messages', icon: '💆' },
       { path: '/packages', label: 'Packages', desc: 'Bundle deals and courses', icon: '📦' },

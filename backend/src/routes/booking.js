@@ -3,6 +3,7 @@ import { z } from 'zod';
 import Stripe from 'stripe';
 import { supabase } from '../index.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
+import { sendConsultationFormSMS } from './consultation-forms.js';
 import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
@@ -181,22 +182,23 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
 
   if (!beautician) return res.status(404).json({ error: 'Booking page not found' });
 
-  // Get treatment
+  // Get treatment (including deposit_percent for percentage-based deposits)
   const { data: treatment } = await supabase
     .from('treatments')
-    .select('*')
+    .select('*, deposit_percent, consultation_form_id')
     .eq('id', treatment_id)
     .eq('beautician_id', beautician.id)
     .single();
 
   if (!treatment) return res.status(404).json({ error: 'Treatment not found' });
 
-  // Find or create client
+  // Find or create client (track whether new for consultation form trigger)
   const nameParts = client_name.trim().split(' ');
   const firstName = nameParts[0];
   const lastName = nameParts.slice(1).join(' ') || null;
 
   let client;
+  let isNewClient = false;
 
   // Try to find existing client by phone
   const { data: existingClient } = await supabase
@@ -225,6 +227,7 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
 
     if (cError) return res.status(500).json({ error: 'Failed to create client record' });
     client = newClient;
+    isNewClient = true;
   }
 
   // Calculate times
@@ -251,8 +254,14 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
     clientNotes = JSON.stringify({ notes: notes || '', consultation });
   }
 
+  // Calculate deposit: percentage overrides flat amount
+  let depositCents = treatment.deposit_cents || 0;
+  if (treatment.deposit_percent > 0 && treatment.price_cents > 0) {
+    depositCents = Math.round(treatment.price_cents * treatment.deposit_percent / 100);
+  }
+
   // Create appointment
-  const depositRequired = treatment.deposit_cents > 0;
+  const depositRequired = depositCents > 0;
   const { data: appointment, error: aError } = await supabase
     .from('appointments')
     .insert({
@@ -264,7 +273,7 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
       duration_minutes: treatment.duration_minutes,
       buffer_minutes: treatment.buffer_minutes || 0,
       price_cents: treatment.price_cents,
-      deposit_cents: treatment.deposit_cents || 0,
+      deposit_cents: depositCents,
       client_notes: clientNotes,
       booked_via: 'booking_page',
       status: depositRequired ? 'pending' : 'confirmed'
@@ -324,7 +333,7 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
               name: `${treatment.name} — deposit`,
               description: `${dateLabel} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} with ${beautician.business_name || beautician.first_name}`,
             },
-            unit_amount: treatment.deposit_cents,
+            unit_amount: depositCents,
           },
           quantity: 1,
         }],
@@ -352,7 +361,7 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
       // Store payment intent on the appointment
       await supabase.from('appointments').update({
         stripe_payment_intent_id: session.payment_intent,
-        deposit_amount_cents: treatment.deposit_cents,
+        deposit_amount_cents: depositCents,
         deposit_status: 'pending',
       }).eq('id', appointment.id);
 
@@ -361,6 +370,21 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
         logger.warn({ err }, 'Booking confirmation notification failed (non-fatal)')
       );
 
+      // Send consultation form to first-time clients (non-blocking)
+      if (isNewClient && client_phone) {
+        sendConsultationFormSMS({
+          beauticianId: beautician.id,
+          clientId: client.id,
+          appointmentId: appointment.id,
+          clientPhone: client_phone,
+          clientFirstName: firstName,
+          treatmentId: treatment_id,
+          beauticianName: beautician.business_name || beautician.first_name,
+        }).catch(err =>
+          logger.warn({ err }, 'Consultation form SMS failed (non-fatal)')
+        );
+      }
+
       return res.status(201).json({
         booking: {
           id: appointment.id,
@@ -368,7 +392,7 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
           date: startsDate.toLocaleDateString('en-GB'),
           time: startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
           price: `£${(treatment.price_cents / 100).toFixed(2)}`,
-          deposit: `£${(treatment.deposit_cents / 100).toFixed(2)}`,
+          deposit: `£${(depositCents / 100).toFixed(2)}`,
           status: 'pending',
         },
         checkout_url: session.url,
@@ -385,6 +409,21 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
   notifyBookingConfirmed(appointment.id).catch(err =>
     logger.warn({ err }, 'Booking confirmation notification failed (non-fatal)')
   );
+
+  // Send consultation form to first-time clients (non-blocking)
+  if (isNewClient && client_phone) {
+    sendConsultationFormSMS({
+      beauticianId: beautician.id,
+      clientId: client.id,
+      appointmentId: appointment.id,
+      clientPhone: client_phone,
+      clientFirstName: firstName,
+      treatmentId: treatment_id,
+      beauticianName: beautician.business_name || beautician.first_name,
+    }).catch(err =>
+      logger.warn({ err }, 'Consultation form SMS failed (non-fatal)')
+    );
+  }
 
   res.status(201).json({
     booking: {

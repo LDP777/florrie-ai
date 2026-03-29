@@ -56,6 +56,17 @@ export default function BookingPage() {
 
   const needsConsultation = selectedTreatment?.requires_consultation;
 
+  // Compute deposit amount (percentage overrides flat)
+  function getDepositCents(treatment) {
+    if (!treatment) return 0;
+    if (treatment.deposit_percent > 0 && treatment.price_cents > 0) {
+      return Math.round(treatment.price_cents * treatment.deposit_percent / 100);
+    }
+    return treatment.deposit_cents || 0;
+  }
+  const depositCents = getDepositCents(selectedTreatment);
+  const hasDeposit = depositCents > 0;
+
   // Fetch beautician + treatments by slug
   useEffect(() => {
     async function load() {
@@ -85,7 +96,7 @@ export default function BookingPage() {
         // Fetch active treatments
         const { data: tx } = await supabase
           .from('treatments')
-          .select('id, name, description, duration_minutes, price_cents, deposit_cents, category')
+          .select('id, name, description, duration_minutes, price_cents, deposit_cents, deposit_percent, category')
           .eq('beautician_id', b.id)
           .eq('is_active', true)
           .order('sort_order', { ascending: true });
@@ -603,9 +614,9 @@ export default function BookingPage() {
                   £{(selectedTreatment.price_cents / 100).toFixed(2)}
                 </span>
               </div>
-              {selectedTreatment.deposit_cents > 0 && (
+              {hasDeposit && (
                 <div style={{ ...styles.depositBanner, background: brandLight, borderColor: brandMedium }}>
-                  Deposit of £{(selectedTreatment.deposit_cents / 100).toFixed(2)} required to confirm
+                  Deposit of £{(depositCents / 100).toFixed(2)} required to confirm
                 </div>
               )}
             </div>
@@ -627,7 +638,7 @@ export default function BookingPage() {
                   minWidth: 160
                 }}
               >
-                {submitting ? 'Booking...' : selectedTreatment.deposit_cents > 0 ? `Pay £${(selectedTreatment.deposit_cents / 100).toFixed(2)} deposit` : 'Confirm booking'}
+                {submitting ? 'Booking...' : hasDeposit ? `Pay £${(depositCents / 100).toFixed(2)} deposit` : 'Confirm booking'}
               </button>
             </div>
           </div>

@@ -32,7 +32,7 @@ export default function Treatments() {
   const [saving, setSaving] = useState(false);
 
   const blank = {
-    name: '', duration_minutes: 60, price_cents: '', deposit_cents: '',
+    name: '', duration_minutes: 60, price_cents: '', deposit_cents: '', deposit_percent: '',
     category: 'brows', description: '', buffer_minutes: 0,
     requires_consultation: false, no_show_fee: '', booking_enabled: true
   };
@@ -66,6 +66,7 @@ export default function Treatments() {
       duration_minutes: parseInt(form.duration_minutes) || 60,
       price_cents: Math.round(parseFloat(form.price_cents) * 100) || 0,
       deposit_cents: form.deposit_cents ? Math.round(parseFloat(form.deposit_cents) * 100) : 0,
+      deposit_percent: form.deposit_percent ? parseInt(form.deposit_percent) : 0,
       category: form.category,
       description: form.description,
       buffer_minutes: parseInt(form.buffer_minutes) || 0,
@@ -105,6 +106,7 @@ export default function Treatments() {
       duration_minutes: t.duration_minutes,
       price_cents: (t.price_cents / 100).toFixed(2),
       deposit_cents: t.deposit_cents ? (t.deposit_cents / 100).toFixed(2) : '',
+      deposit_percent: t.deposit_percent || '',
       category: t.category || 'other',
       description: t.description || '',
       buffer_minutes: t.buffer_minutes || 0,
@@ -186,16 +188,30 @@ export default function Treatments() {
 
           <div style={styles.formRow}>
             <div style={styles.formGroup}>
-              <label style={styles.formLabel}>Deposit (£)</label>
+              <label style={styles.formLabel}>Deposit %</label>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={form.deposit_percent}
+                onChange={e => setForm(p => ({ ...p, deposit_percent: e.target.value, deposit_cents: '' }))}
+                placeholder="e.g. 50"
+                style={styles.formInput}
+              />
+            </div>
+            <div style={styles.formGroup}>
+              <label style={styles.formLabel}>or Flat (£)</label>
               <input
                 type="number"
                 step="0.01"
                 value={form.deposit_cents}
-                onChange={e => setForm(p => ({ ...p, deposit_cents: e.target.value }))}
-                placeholder="Optional"
+                onChange={e => setForm(p => ({ ...p, deposit_cents: e.target.value, deposit_percent: '' }))}
+                placeholder="e.g. 20"
                 style={styles.formInput}
               />
             </div>
+          </div>
+          <div style={styles.formRow}>
             <div style={styles.formGroup}>
               <label style={styles.formLabel}>Category</label>
               <select
@@ -310,7 +326,7 @@ export default function Treatments() {
                     <span style={styles.treatmentName}>{t.name}</span>
                     <span style={styles.treatmentMeta}>
                       {t.duration_minutes} min{t.buffer_minutes > 0 && ` + ${t.buffer_minutes} buffer`} · {fmt(t.price_cents)}
-                      {t.deposit_cents > 0 && ` · ${fmt(t.deposit_cents)} deposit`}
+                      {t.deposit_percent > 0 ? ` · ${t.deposit_percent}% deposit` : t.deposit_cents > 0 ? ` · ${fmt(t.deposit_cents)} deposit` : ''}
                     </span>
                     {t.requires_consultation && (
                       <span style={styles.consultBadge}>📋 Consultation required</span>

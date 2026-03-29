@@ -31,6 +31,7 @@ import promoCodesRoutes from './routes/promo-codes.js';
 import photoConsentRoutes from './routes/photo-consent.js';
 import locationsRoutes from './routes/locations.js';
 import voiceRoutes from './routes/voice.js';
+import consultationFormRoutes from './routes/consultation-forms.js';
 
 dotenv.config();
 
@@ -133,6 +134,7 @@ app.use('/api/promo-codes', (req, res, next) => {
 app.use('/api/photo-consent', apiLimiter, photoConsentRoutes);
 app.use('/api/locations', apiLimiter, locationsRoutes);
 app.use('/api/voice', apiLimiter, voiceRoutes);
+app.use('/api/consultation-forms', apiLimiter, consultationFormRoutes);
 
 // Error handler
 app.use((err, req, res, next) => {
