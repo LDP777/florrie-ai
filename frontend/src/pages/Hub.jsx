@@ -146,11 +146,11 @@ const CATEGORIES = [
   {
     id: 'business',
     label: 'Business Operations',
-    description: 'Inventory and suppliers',
+    description: 'Inventory and analytics',
     accent: '#7B9E6B',
     items: [
       { path: '/inventory', label: 'Product Inventory', desc: 'Stock management', icon: '📦' },
-      { path: '/supplier-orders', label: 'Supplier Orders', desc: 'Order management', icon: '🚚' },
+
       { path: '/treatment-stats', label: 'Treatment Stats', desc: 'Service analytics', icon: '📊' },
     ]
   },

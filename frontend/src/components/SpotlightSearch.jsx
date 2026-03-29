@@ -84,7 +84,7 @@ const FEATURES = [
   { path: '/locations', name: 'Multi-Location', desc: 'Branch management', icon: '🏢', cat: 'Settings' },
   { path: '/sms', name: 'SMS Config', desc: 'SMS settings', icon: '📲', cat: 'Settings' },
   { path: '/inventory', name: 'Product Inventory', desc: 'Stock management', icon: '📦', cat: 'Business' },
-  { path: '/supplier-orders', name: 'Supplier Orders', desc: 'Order management', icon: '🚚', cat: 'Business' },
+
   { path: '/treatment-stats', name: 'Treatment Stats', desc: 'Service analytics', icon: '📊', cat: 'Business' },
 ];
 
