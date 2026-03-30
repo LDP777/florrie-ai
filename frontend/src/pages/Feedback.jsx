@@ -5,24 +5,25 @@
  * This page shows results, trends, and lets Ellie manage her
  * feedback settings. Happy clients get nudged to leave a Google review.
  */
-import { useState } from 'react';
-import { isDevMode } from '../lib/supabase.js';
+import { useState, useEffect } from 'react';
+import { isDevMode, useBeautician, fetchRows, updateRow } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 // ── Dev mock data ─────────────────────────────────────────
 const DEV_RESPONSES = [
-  { id: 'f1', client: 'Shauna', treatment: 'Lamination & Hybrid Dye', date: '2026-03-18', rating: 5, comment: 'Absolutely love my brows! Ellie always gets them perfect.', nps: 10, reviewed: true },
-  { id: 'f2', client: 'Daisy S', treatment: 'Ombre Brows (Semi-Permanent)', date: '2026-03-12', rating: 5, comment: 'So happy with the shape. Can\'t wait for the top-up!', nps: 10, reviewed: false },
-  { id: 'f3', client: 'Jasmin', treatment: 'Lash Lift & Tint', date: '2026-03-08', rating: 4, comment: 'Great result, lasted really well this time.', nps: 8, reviewed: false },
-  { id: 'f4', client: 'Shauna', treatment: 'HD Brows', date: '2026-02-28', rating: 5, comment: '', nps: 9, reviewed: true },
-  { id: 'f5', client: 'Daisy S', treatment: 'Combination Brows', date: '2026-02-20', rating: 5, comment: 'Ellie is the best. Felt so comfortable the whole time.', nps: 10, reviewed: true },
-  { id: 'f6', client: 'Jasmin', treatment: 'Lamination Maintenance', date: '2026-02-14', rating: 4, comment: 'Quick and easy, looks fab.', nps: 8, reviewed: false },
-  { id: 'f7', client: 'Shauna', treatment: 'Lamination & Tint', date: '2026-02-01', rating: 5, comment: 'Always a 10. Love coming here.', nps: 10, reviewed: true },
-  { id: 'f8', client: 'Daisy S', treatment: 'HD Brows', date: '2026-01-25', rating: 4, comment: 'Really good as always.', nps: 9, reviewed: false },
-  { id: 'f9', client: 'Jasmin', treatment: 'Lash Lift & Tint', date: '2026-01-18', rating: 3, comment: 'Lift was a bit too strong for my liking this time. Mentioned it to Ellie and she noted for next time.', nps: 7, reviewed: false },
-  { id: 'f10', client: 'Shauna', treatment: 'HD Brows', date: '2026-01-10', rating: 5, comment: '', nps: 10, reviewed: true },
+  { id: 'f1', client_name: 'Shauna', treatment_name: 'Lamination & Hybrid Dye', date: '2026-03-18', rating: 5, comment: 'Absolutely love my brows! Ellie always gets them perfect.', nps: 10, reviewed: true },
+  { id: 'f2', client_name: 'Daisy S', treatment_name: 'Ombre Brows (Semi-Permanent)', date: '2026-03-12', rating: 5, comment: 'So happy with the shape. Can\'t wait for the top-up!', nps: 10, reviewed: false },
+  { id: 'f3', client_name: 'Jasmin', treatment_name: 'Lash Lift & Tint', date: '2026-03-08', rating: 4, comment: 'Great result, lasted really well this time.', nps: 8, reviewed: false },
+  { id: 'f4', client_name: 'Shauna', treatment_name: 'HD Brows', date: '2026-02-28', rating: 5, comment: '', nps: 9, reviewed: true },
+  { id: 'f5', client_name: 'Daisy S', treatment_name: 'Combination Brows', date: '2026-02-20', rating: 5, comment: 'Ellie is the best. Felt so comfortable the whole time.', nps: 10, reviewed: true },
+  { id: 'f6', client_name: 'Jasmin', treatment_name: 'Lamination Maintenance', date: '2026-02-14', rating: 4, comment: 'Quick and easy, looks fab.', nps: 8, reviewed: false },
+  { id: 'f7', client_name: 'Shauna', treatment_name: 'Lamination & Tint', date: '2026-02-01', rating: 5, comment: 'Always a 10. Love coming here.', nps: 10, reviewed: true },
+  { id: 'f8', client_name: 'Daisy S', treatment_name: 'HD Brows', date: '2026-01-25', rating: 4, comment: 'Really good as always.', nps: 9, reviewed: false },
+  { id: 'f9', client_name: 'Jasmin', treatment_name: 'Lash Lift & Tint', date: '2026-01-18', rating: 3, comment: 'Lift was a bit too strong for my liking this time. Mentioned it to Ellie and she noted for next time.', nps: 7, reviewed: false },
+  { id: 'f10', client_name: 'Shauna', treatment_name: 'HD Brows', date: '2026-01-10', rating: 5, comment: '', nps: 10, reviewed: true },
 ];
 
 const QUESTIONS_PREVIEW = [
@@ -32,7 +33,11 @@ const QUESTIONS_PREVIEW = [
 ];
 
 export default function Feedback() {
+  const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('overview');
+  const [responses, setResponses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [settings, setSettings] = useState({
     autoSend: true,
     sendAfter: '2h',
@@ -41,8 +46,56 @@ export default function Feedback() {
     reviewThreshold: 4,
     reviewLink: 'https://g.page/ellindigo/review',
   });
+  const [settingsDirty, setSettingsDirty] = useState(false);
 
-  const responses = DEV_RESPONSES;
+  // Fetch feedback responses
+  useEffect(() => {
+    if (bLoading || !beautician) return;
+    setLoading(true);
+    fetchRows('feedback_responses', beautician.id, { order: 'date', ascending: false })
+      .then(rows => {
+        if (rows && rows.length > 0) {
+          setResponses(rows);
+        } else if (isDevMode) {
+          setResponses(DEV_RESPONSES);
+        } else {
+          setResponses([]);
+        }
+      })
+      .catch(err => {
+        logger.error('Failed to load feedback:', err);
+        if (isDevMode) setResponses(DEV_RESPONSES);
+        else setError('Failed to load feedback data');
+      })
+      .finally(() => setLoading(false));
+  }, [beautician, bLoading]);
+
+  // Load feedback settings from beautician config
+  useEffect(() => {
+    if (!beautician) return;
+    if (beautician.feedback_settings) {
+      setSettings(prev => ({ ...prev, ...beautician.feedback_settings }));
+    }
+  }, [beautician]);
+
+  // Save settings when changed
+  async function saveSettings() {
+    if (!beautician || isDevMode) { setSettingsDirty(false); return; }
+    try {
+      await updateRow('beauticians', beautician.id, { feedback_settings: settings });
+      setSettingsDirty(false);
+    } catch (err) {
+      logger.error('Failed to save feedback settings:', err);
+    }
+  }
+
+  function updateSetting(key, value) {
+    setSettings(prev => ({ ...prev, [key]: value }));
+    setSettingsDirty(true);
+  }
+
+  if (bLoading || loading) return <PageLoader />;
+  if (error) return <ErrorCard message={error} />;
   const avgRating = (responses.reduce((s, r) => s + r.rating, 0) / responses.length).toFixed(1);
   const avgNps = (responses.reduce((s, r) => s + r.nps, 0) / responses.length).toFixed(1);
   const responseRate = 82; // mock
@@ -75,7 +128,10 @@ export default function Feedback() {
       </div>
 
       {/* Overview */}
-      {tab === 'overview' && (
+      {tab === 'overview' && responses.length === 0 && (
+        <EmptyState title="No feedback yet" description="Responses will appear here once clients complete their surveys." />
+      )}
+      {tab === 'overview' && responses.length > 0 && (
         <>
           {/* Stats */}
           <div style={S.statsGrid}>
@@ -137,11 +193,11 @@ export default function Feedback() {
             {responses.filter(r => r.comment).slice(0, 3).map(r => (
               <div key={r.id} style={S.commentCard}>
                 <div style={S.commentHeader}>
-                  <span style={S.commentClient}>{r.client}</span>
+                  <span style={S.commentClient}>{r.client_name}</span>
                   <span style={S.commentRating}>{'★'.repeat(r.rating)}</span>
                 </div>
                 <p style={S.commentText}>"{r.comment}"</p>
-                <span style={S.commentMeta}>{r.treatment} · {formatDate(r.date)}</span>
+                <span style={S.commentMeta}>{r.treatment_name} · {formatDate(r.date)}</span>
               </div>
             ))}
           </div>
@@ -155,10 +211,10 @@ export default function Feedback() {
             <div key={r.id} style={S.responseCard}>
               <div style={S.responseHeader}>
                 <div style={S.responseLeft}>
-                  <div style={S.avatar}>{r.client[0]}</div>
+                  <div style={S.avatar}>{r.client_name[0]}</div>
                   <div style={S.responseInfo}>
-                    <span style={S.responseClient}>{r.client}</span>
-                    <span style={S.responseTreatment}>{r.treatment}</span>
+                    <span style={S.responseClient}>{r.client_name}</span>
+                    <span style={S.responseTreatment}>{r.treatment_name}</span>
                   </div>
                 </div>
                 <div style={S.responseRight}>
@@ -187,7 +243,7 @@ export default function Feedback() {
                 <span style={S.settingLabel}>Auto-send surveys</span>
                 <span style={S.settingDesc}>Send feedback request after each appointment</span>
               </div>
-              <button style={{ ...S.toggle, background: settings.autoSend ? 'var(--accent, #C76B8A)' : '#E0DCD8' }} onClick={() => setSettings(s => ({ ...s, autoSend: !s.autoSend }))}>
+              <button style={{ ...S.toggle, background: settings.autoSend ? 'var(--accent, #C76B8A)' : '#E0DCD8' }} onClick={() => updateSetting('autoSend', !settings.autoSend)}>
                 <div style={{ ...S.toggleDot, transform: settings.autoSend ? 'translateX(18px)' : 'translateX(2px)' }} />
               </button>
             </div>
@@ -195,7 +251,7 @@ export default function Feedback() {
             <div style={S.fieldLabel}>Send After</div>
             <div style={S.chipRow}>
               {['1h', '2h', '24h', '48h'].map(t => (
-                <button key={t} onClick={() => setSettings(s => ({ ...s, sendAfter: t }))} style={{ ...S.chip, ...(settings.sendAfter === t ? S.chipActive : {}) }}>
+                <button key={t} onClick={() => updateSetting('sendAfter', t)} style={{ ...S.chip, ...(settings.sendAfter === t ? S.chipActive : {}) }}>
                   {t === '1h' ? '1 hour' : t === '2h' ? '2 hours' : t === '24h' ? '24 hours' : '48 hours'}
                 </button>
               ))}
@@ -204,7 +260,7 @@ export default function Feedback() {
             <div style={S.fieldLabel}>Channel</div>
             <div style={S.chipRow}>
               {['whatsapp', 'sms', 'email'].map(ch => (
-                <button key={ch} onClick={() => setSettings(s => ({ ...s, channel: ch }))} style={{ ...S.chip, ...(settings.channel === ch ? S.chipActive : {}) }}>
+                <button key={ch} onClick={() => updateSetting('channel', ch)} style={{ ...S.chip, ...(settings.channel === ch ? S.chipActive : {}) }}>
                   {ch === 'whatsapp' ? '💬 WhatsApp' : ch === 'sms' ? '📱 SMS' : '✉️ Email'}
                 </button>
               ))}
@@ -219,7 +275,7 @@ export default function Feedback() {
                 <span style={S.settingLabel}>Ask happy clients to review</span>
                 <span style={S.settingDesc}>Clients who rate {settings.reviewThreshold}+ stars get a Google Review link</span>
               </div>
-              <button style={{ ...S.toggle, background: settings.askReview ? 'var(--accent, #C76B8A)' : '#E0DCD8' }} onClick={() => setSettings(s => ({ ...s, askReview: !s.askReview }))}>
+              <button style={{ ...S.toggle, background: settings.askReview ? 'var(--accent, #C76B8A)' : '#E0DCD8' }} onClick={() => updateSetting('askReview', !settings.askReview)}>
                 <div style={{ ...S.toggleDot, transform: settings.askReview ? 'translateX(18px)' : 'translateX(2px)' }} />
               </button>
             </div>
@@ -227,15 +283,21 @@ export default function Feedback() {
             <div style={S.fieldLabel}>Minimum rating to nudge</div>
             <div style={S.chipRow}>
               {[3, 4, 5].map(r => (
-                <button key={r} onClick={() => setSettings(s => ({ ...s, reviewThreshold: r }))} style={{ ...S.chip, ...(settings.reviewThreshold === r ? S.chipActive : {}) }}>
+                <button key={r} onClick={() => updateSetting('reviewThreshold', r)} style={{ ...S.chip, ...(settings.reviewThreshold === r ? S.chipActive : {}) }}>
                   {r}+ stars
                 </button>
               ))}
             </div>
 
             <div style={S.fieldLabel}>Google Review Link</div>
-            <input style={S.input} value={settings.reviewLink} onChange={e => setSettings(s => ({ ...s, reviewLink: e.target.value }))} placeholder="https://g.page/your-business/review" />
+            <input style={S.input} value={settings.reviewLink} onChange={e => updateSetting('reviewLink', e.target.value)} placeholder="https://g.page/your-business/review" />
           </div>
+
+          {settingsDirty && (
+            <button onClick={saveSettings} style={{ width: '100%', padding: '12px 0', background: 'var(--accent, #C76B8A)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 12 }}>
+              Save Settings
+            </button>
+          )}
 
           {/* Survey preview */}
           <div style={S.card}>

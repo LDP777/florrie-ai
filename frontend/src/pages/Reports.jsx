@@ -9,8 +9,9 @@
  *
  * Dev-mode only — all data is mock. Supabase wiring comes later.
  */
-import { useState, useMemo } from 'react';
-import { isDevMode, DEV_TREATMENTS, DEV_CLIENTS } from '../lib/supabase.js';
+import { useState, useMemo, useEffect } from 'react';
+import { isDevMode, useBeautician, fetchRows, DEV_TREATMENTS, DEV_CLIENTS } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 import { useTheme } from '../lib/theme.jsx';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -104,14 +105,63 @@ function formatWeek(dateStr) {
 
 export default function Reports() {
   const { dark } = useTheme();
+  const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('revenue');
   const [period, setPeriod] = useState('all'); // all | 30 | 7
+  const [appointments, setAppointments] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch appointments + treatments and build the appointments list
+  useEffect(() => {
+    if (bLoading || !beautician) return;
+    setLoading(true);
+    Promise.all([
+      fetchRows('appointments', beautician.id, { order: 'date', ascending: false }),
+      fetchRows('treatments', beautician.id),
+      fetchRows('clients', beautician.id),
+    ])
+      .then(([appts, treatments, clients]) => {
+        if ((!appts || appts.length === 0) && isDevMode) {
+          setAppointments(DEV_APPOINTMENTS);
+          return;
+        }
+
+        const treatmentMap = {};
+        (treatments || []).forEach(t => { treatmentMap[t.id] = t; });
+        const clientMap = {};
+        (clients || []).forEach(c => { clientMap[c.id] = c; });
+
+        const mapped = (appts || []).map(a => {
+          const t = treatmentMap[a.treatment_id] || {};
+          const c = clientMap[a.client_id] || {};
+          return {
+            id: a.id,
+            date: a.date,
+            client_name: c.first_name ? `${c.first_name} ${c.last_name || ''}`.trim() : (a.client_name || 'Walk-in'),
+            treatment: t.name || a.treatment_name || 'Unknown',
+            duration: a.duration_minutes || t.duration_minutes || 0,
+            revenue_cents: a.total_cents || a.price_cents || t.price_cents || 0,
+            status: a.status || 'completed',
+          };
+        });
+
+        setAppointments(mapped.length > 0 ? mapped : (isDevMode ? DEV_APPOINTMENTS : []));
+      })
+      .catch(err => {
+        logger.error('Failed to load reports data:', err);
+        if (isDevMode) setAppointments(DEV_APPOINTMENTS);
+        else setAppointments([]);
+      })
+      .finally(() => setLoading(false));
+  }, [beautician, bLoading]);
+
+  if (bLoading || loading) return <PageLoader />;
 
   const filtered = useMemo(() => {
-    if (period === 'all') return DEV_APPOINTMENTS;
+    if (period === 'all') return appointments;
     const cutoff = fmt(dateOffset(-Number(period)));
-    return DEV_APPOINTMENTS.filter(a => a.date >= cutoff);
-  }, [period]);
+    return appointments.filter(a => a.date >= cutoff);
+  }, [period, appointments]);
 
   const weeklyRevenue = useMemo(() => buildWeeklyRevenue(filtered), [filtered]);
   const treatmentStats = useMemo(() => buildTreatmentStats(filtered), [filtered]);

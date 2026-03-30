@@ -33,6 +33,7 @@ import photoConsentRoutes from './routes/photo-consent.js';
 import locationsRoutes from './routes/locations.js';
 // voice.js removed — stub endpoint, no transcription infrastructure yet
 import consultationFormRoutes from './routes/consultation-forms.js';
+import billingRoutes from './routes/billing.js';
 
 dotenv.config();
 
@@ -42,10 +43,10 @@ const REQUIRED_ENV = [
   'SUPABASE_ANON_KEY',
   'SUPABASE_SERVICE_KEY',
   'FRONTEND_URL',
-  'STRIPE_WEBHOOK_SECRET',
 ];
 const OPTIONAL_ENV = [
   'STRIPE_SECRET_KEY',
+  'STRIPE_WEBHOOK_SECRET',
   'RESEND_API_KEY',
   'ANTHROPIC_API_KEY',
   'TWILIO_ACCOUNT_SID',
@@ -101,6 +102,7 @@ app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }), (req, 
   req.rawBody = req.body;
   next();
 });
+app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
@@ -141,6 +143,7 @@ app.use('/api/photo-consent', apiLimiter, photoConsentRoutes);
 app.use('/api/locations', apiLimiter, locationsRoutes);
 // /api/voice removed — was a stub, no transcription infrastructure yet
 app.use('/api/consultation-forms', apiLimiter, consultationFormRoutes);
+app.use('/api/billing', apiLimiter, billingRoutes);
 
 // Error handler
 app.use((err, req, res, next) => {

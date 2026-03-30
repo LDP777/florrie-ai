@@ -5,8 +5,11 @@
  * This page makes product management dead simple: quantities, alerts,
  * cost-per-use, and one-tap reorder reminders.
  */
-import { useState } from 'react';
-import { isDevMode } from '../lib/supabase.js';
+import { useState, useEffect } from 'react';
+import { isDevMode, useBeautician, fetchRows, insertRow, updateRow } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
+import PageLoader from '../components/PageLoader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
 
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 
@@ -41,12 +44,80 @@ const STATUS_CFG = {
 };
 
 export default function ProductInventory() {
+  const { beautician, loading: bLoading } = useBeautician();
   const [catFilter, setCatFilter] = useState('all');
   const [expanded, setExpanded] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [sortBy, setSortBy] = useState('status'); // status | name | qty
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const products = DEV_PRODUCTS;
+  // New product form state
+  const [newProduct, setNewProduct] = useState({ name: '', category: 'tint', qty: 0, unit: '', reorderAt: 5, costPer: 0, usesPerUnit: 1, supplier: '' });
+
+  useEffect(() => {
+    if (bLoading || !beautician) return;
+    setLoading(true);
+    fetchRows('product_inventory', beautician.id, { order: 'name', ascending: true })
+      .then(rows => {
+        if (rows && rows.length > 0) {
+          // Compute status from qty vs reorderAt
+          const withStatus = rows.map(p => ({
+            ...p,
+            status: p.qty <= 0 ? 'out' : p.qty <= (p.reorder_at || 0) ? 'low' : 'ok',
+            reorderAt: p.reorder_at,
+            costPer: p.cost_per_unit_cents,
+            usesPerUnit: p.uses_per_unit,
+            lastOrdered: p.last_ordered,
+            retailPrice: p.retail_price_cents,
+          }));
+          setProducts(withStatus);
+        } else if (isDevMode) {
+          setProducts(DEV_PRODUCTS);
+        } else {
+          setProducts([]);
+        }
+      })
+      .catch(err => {
+        logger.error('Failed to load inventory:', err);
+        if (isDevMode) setProducts(DEV_PRODUCTS);
+        else setProducts([]);
+      })
+      .finally(() => setLoading(false));
+  }, [beautician, bLoading]);
+
+  async function handleAddProduct() {
+    const product = {
+      beautician_id: beautician.id,
+      name: newProduct.name,
+      category: newProduct.category,
+      qty: Number(newProduct.qty) || 0,
+      unit: newProduct.unit,
+      reorder_at: Number(newProduct.reorderAt) || 5,
+      cost_per_unit_cents: Math.round(Number(newProduct.costPer) * 100) || 0,
+      uses_per_unit: Number(newProduct.usesPerUnit) || 1,
+      supplier: newProduct.supplier,
+    };
+    try {
+      const created = await insertRow('product_inventory', product);
+      const withStatus = {
+        ...created,
+        status: created.qty <= 0 ? 'out' : created.qty <= (created.reorder_at || 0) ? 'low' : 'ok',
+        reorderAt: created.reorder_at,
+        costPer: created.cost_per_unit_cents,
+        usesPerUnit: created.uses_per_unit,
+        lastOrdered: created.last_ordered,
+      };
+      setProducts(prev => [...prev, withStatus]);
+      setShowAdd(false);
+      setNewProduct({ name: '', category: 'tint', qty: 0, unit: '', reorderAt: 5, costPer: 0, usesPerUnit: 1, supplier: '' });
+    } catch (err) {
+      logger.error('Failed to add product:', err);
+    }
+  }
+
+  if (bLoading || loading) return <PageLoader />;
+  if (products.length === 0 && !isDevMode) return <EmptyState title="No products yet" description="Add your first product to start tracking inventory." />;
   const filtered = catFilter === 'all' ? products : products.filter(p => p.category === catFilter);
 
   const sorted = [...filtered].sort((a, b) => {
@@ -207,27 +278,27 @@ export default function ProductInventory() {
             </div>
             <div style={S.formBody}>
               <label style={S.fLabel}>Product Name</label>
-              <input style={S.input} placeholder="e.g. HD Brows Tint – Blonde" />
+              <input style={S.input} placeholder="e.g. HD Brows Tint – Blonde" value={newProduct.name} onChange={e => setNewProduct(p => ({ ...p, name: e.target.value }))} />
               <label style={S.fLabel}>Category</label>
               <div style={S.catGrid}>
                 {CATEGORIES.filter(c => c.key !== 'all').map(c => (
-                  <button key={c.key} style={S.catBtn}>{c.label}</button>
+                  <button key={c.key} style={{ ...S.catBtn, ...(newProduct.category === c.key ? { background: 'var(--accent, #C76B8A)', color: '#fff' } : {}) }} onClick={() => setNewProduct(p => ({ ...p, category: c.key }))}>{c.label}</button>
                 ))}
               </div>
               <label style={S.fLabel}>Current Quantity</label>
-              <input style={S.input} type="number" placeholder="0" />
+              <input style={S.input} type="number" placeholder="0" value={newProduct.qty || ''} onChange={e => setNewProduct(p => ({ ...p, qty: e.target.value }))} />
               <label style={S.fLabel}>Unit</label>
-              <input style={S.input} placeholder="e.g. tubes, bottles, pcs" />
+              <input style={S.input} placeholder="e.g. tubes, bottles, pcs" value={newProduct.unit} onChange={e => setNewProduct(p => ({ ...p, unit: e.target.value }))} />
               <label style={S.fLabel}>Reorder Point</label>
-              <input style={S.input} type="number" placeholder="5" />
+              <input style={S.input} type="number" placeholder="5" value={newProduct.reorderAt || ''} onChange={e => setNewProduct(p => ({ ...p, reorderAt: e.target.value }))} />
               <label style={S.fLabel}>Cost per Unit (£)</label>
-              <input style={S.input} type="number" step="0.01" placeholder="8.50" />
+              <input style={S.input} type="number" step="0.01" placeholder="8.50" value={newProduct.costPer || ''} onChange={e => setNewProduct(p => ({ ...p, costPer: e.target.value }))} />
               <label style={S.fLabel}>Uses per Unit</label>
-              <input style={S.input} type="number" placeholder="12" />
+              <input style={S.input} type="number" placeholder="12" value={newProduct.usesPerUnit || ''} onChange={e => setNewProduct(p => ({ ...p, usesPerUnit: e.target.value }))} />
               <label style={S.fLabel}>Supplier</label>
-              <input style={S.input} placeholder="e.g. HD Brows Direct" />
+              <input style={S.input} placeholder="e.g. HD Brows Direct" value={newProduct.supplier} onChange={e => setNewProduct(p => ({ ...p, supplier: e.target.value }))} />
             </div>
-            <button style={S.saveBtn}>Add Product</button>
+            <button style={S.saveBtn} onClick={handleAddProduct} disabled={!newProduct.name}>Add Product</button>
           </div>
         </div>
       )}

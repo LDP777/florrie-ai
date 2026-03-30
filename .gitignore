@@ -33,3 +33,18 @@ yarn-error.log*
 .vercel
 *.tgz
 coverage/
+
+# Accidentally nested project copies (Cowork artefact)
+frontend/src/pages/backend/
+frontend/src/pages/frontend/
+frontend/src/pages/docs/
+frontend/src/pages/shared/
+frontend/src/pages/supabase/
+frontend/src/pages/package.json
+frontend/src/pages/package-lock.json
+frontend/src/pages/DEPLOY.md
+frontend/src/pages/.gitignore
+
+# Audit/doc files (generated, not source)
+backend/AUDIT_*.md
+frontend/FLORRIE_HUB_AUDIT_*.md

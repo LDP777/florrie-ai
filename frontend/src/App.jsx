@@ -80,6 +80,7 @@ const MultiLocation = lazy(() => import('./pages/MultiLocation.jsx'));
 const Integrations = lazy(() => import('./pages/Integrations.jsx'));
 const SMSConfig = lazy(() => import('./pages/SMSConfig.jsx'));
 const APISettings = lazy(() => import('./pages/APISettings.jsx'));
+const Pricing = lazy(() => import('./pages/Pricing.jsx'));
 const Hub = lazy(() => import('./pages/Hub.jsx'));
 const NotFound = lazy(() => import('./pages/NotFound.jsx'));
 
@@ -288,6 +289,7 @@ export default function App() {
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/sms" element={<SMSConfig />} />
             <Route path="/api-settings" element={<APISettings />} />
+            <Route path="/pricing" element={<Pricing />} />
             <Route path="/hub" element={<Hub />} />
             <Route path="/onboarding" element={
               <Onboarding onComplete={() => navigate('/')} />

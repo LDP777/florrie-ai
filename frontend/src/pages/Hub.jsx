@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ds, type } from '../lib/designSystem.js';
 import { useBeautician } from '../lib/supabase.js';
-import { hasFeature } from '../lib/subscription.js';
+import { hasFeature, getRequiredPlan } from '../lib/subscription.js';
 
 // ─── Navigation categories ────────────────────────────────
 const CATEGORIES = [
@@ -121,26 +121,10 @@ const CATEGORIES = [
     description: 'Staff management',
     accent: '#6BB5A0',
     items: [
-      { path: '/team', label: 'Team Members', desc: 'Staff profiles', icon: '👥' },
-      { path: '/rota', label: 'Staff Rota', desc: 'Weekly schedule', icon: '🗓️' },
-      { path: '/hours', label: 'Hours & Closures', desc: 'Working hours and holidays', icon: '🏖️' },
-      { path: '/staff-performance', label: 'Staff Performance', desc: 'Team analytics', icon: '📈' },
-    ]
-  },
-  {
-    id: 'settings',
-    label: 'Settings',
-    description: 'Configure your account',
-    accent: '#AAA5A0',
-    items: [
-      { path: '/settings', label: 'Settings', desc: 'Account preferences', icon: '⚙️' },
-      { path: '/business', label: 'Business Profile', desc: 'Name, logo, details', icon: '🏪' },
-      { path: '/integrations', label: 'Integrations', desc: 'Connected apps', icon: '🔌' },
-      { path: '/api-settings', label: 'API & Webhooks', desc: 'Developer tools', icon: '⚡' },
-      { path: '/policies', label: 'Policies', desc: 'Cancellation and terms', icon: '📜' },
-      { path: '/portal', label: 'Client Portal', desc: 'Self-service settings', icon: '🌐' },
-      { path: '/locations', label: 'Multi-Location', desc: 'Branch management', icon: '🏢' },
-      { path: '/sms', label: 'SMS Config', desc: 'SMS settings', icon: '📲' },
+      { path: '/team', label: 'Team Members', desc: 'Staff profiles', icon: '👥', gate: 'team_management' },
+      { path: '/rota', label: 'Staff Rota', desc: 'Weekly schedule', icon: '🗓️', gate: 'staff_rota' },
+      { path: '/hours', label: 'Hours & Closures', desc: 'Working hours and holidays', icon: '🏖️', gate: 'team_management' },
+      { path: '/staff-performance', label: 'Staff Performance', desc: 'Team analytics', icon: '📈', gate: 'staff_performance' },
     ]
   },
   {
@@ -150,8 +134,24 @@ const CATEGORIES = [
     accent: '#7B9E6B',
     items: [
       { path: '/inventory', label: 'Product Inventory', desc: 'Stock management', icon: '📦' },
-
       { path: '/treatment-stats', label: 'Treatment Stats', desc: 'Service analytics', icon: '📊' },
+    ]
+  },
+  {
+    id: 'settings',
+    label: 'Settings',
+    description: 'Configure your account',
+    accent: '#AAA5A0',
+    items: [
+      { path: '/settings', label: 'Settings', desc: 'Account preferences', icon: '⚙️' },
+      { path: '/pricing', label: 'Plans & Billing', desc: 'Subscription and payments', icon: '💳' },
+      { path: '/business', label: 'Business Profile', desc: 'Name, logo, details', icon: '🏪' },
+      { path: '/integrations', label: 'Integrations', desc: 'Connected apps', icon: '🔌' },
+      { path: '/api-settings', label: 'API & Webhooks', desc: 'Developer tools', icon: '⚡' },
+      { path: '/policies', label: 'Policies', desc: 'Cancellation and terms', icon: '📜' },
+      { path: '/portal', label: 'Client Portal', desc: 'Self-service settings', icon: '🌐' },
+      { path: '/locations', label: 'Multi-Location', desc: 'Branch management', icon: '🏢', gate: 'multi_location' },
+      { path: '/sms', label: 'SMS Config', desc: 'SMS settings', icon: '📲' },
     ]
   },
 ];
@@ -263,7 +263,7 @@ export default function Hub() {
                     >
                       <div style={S.itemTop}>
                         <span style={S.itemIcon}>{item.icon}</span>
-                        {locked && <span style={S.lockBadge}>PRO</span>}
+                        {locked && <span style={S.lockBadge}>{(getRequiredPlan(item.gate) || 'PRO').toUpperCase()}</span>}
                       </div>
                       <div style={S.itemLabel}>{item.label}</div>
                       <div style={S.itemDesc}>{item.desc}</div>

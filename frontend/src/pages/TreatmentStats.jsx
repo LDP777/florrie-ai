@@ -5,8 +5,9 @@
  * what they earn? This page answers those questions so Ellie can
  * optimise her menu, pricing, and scheduling.
  */
-import { useState } from 'react';
-import { isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useState, useEffect, useMemo } from 'react';
+import { isDevMode, useBeautician, fetchRows, DEV_TREATMENTS } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
@@ -38,11 +39,121 @@ const TREND_ICONS = { up: '📈', down: '📉', stable: '➡️' };
 const TREND_COLORS = { up: 'var(--success, #5BA97B)', down: 'var(--danger, #F44336)', stable: 'var(--text-muted, var(--text-muted, #B5AFA8))' };
 
 export default function TreatmentStats() {
+  const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('ranking');
   const [sortBy, setSortBy] = useState('revenue');
   const [catFilter, setCatFilter] = useState('all');
+  const [stats, setStats] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const stats = DEV_STATS;
+  // Fetch appointments + treatments and aggregate into stats
+  useEffect(() => {
+    if (bLoading || !beautician) return;
+    setLoading(true);
+
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 90);
+    const cutoffStr = cutoff.toISOString().split('T')[0];
+
+    Promise.all([
+      fetchRows('appointments', beautician.id, { order: 'date', ascending: false }),
+      fetchRows('treatments', beautician.id),
+      fetchRows('feedback_responses', beautician.id),
+    ])
+      .then(([appointments, treatments, feedback]) => {
+        if ((!appointments || appointments.length === 0) && isDevMode) {
+          setStats(DEV_STATS);
+          return;
+        }
+
+        // Build treatment lookup
+        const treatmentMap = {};
+        (treatments || []).forEach(t => {
+          treatmentMap[t.id] = t;
+        });
+
+        // Build feedback lookup (avg rating per treatment)
+        const feedbackByTreatment = {};
+        (feedback || []).forEach(f => {
+          const key = f.treatment_id || f.treatment_name;
+          if (!key) return;
+          if (!feedbackByTreatment[key]) feedbackByTreatment[key] = [];
+          feedbackByTreatment[key].push(f.rating);
+        });
+
+        // Filter to completed appointments in last 90 days
+        const recent = (appointments || []).filter(a =>
+          a.status === 'completed' && a.date >= cutoffStr
+        );
+
+        // Aggregate by treatment
+        const byTreatment = {};
+        recent.forEach(a => {
+          const tId = a.treatment_id;
+          const t = treatmentMap[tId] || {};
+          const key = tId || a.treatment_name || 'Unknown';
+          if (!byTreatment[key]) {
+            byTreatment[key] = {
+              id: key,
+              name: t.name || a.treatment_name || 'Unknown',
+              bookings: 0,
+              revenue: 0,
+              totalDuration: 0,
+              price: t.price_cents || 0,
+              category: t.category || 'other',
+              clientSet: new Set(),
+              returnClients: new Set(),
+            };
+          }
+          byTreatment[key].bookings += 1;
+          byTreatment[key].revenue += a.total_cents || a.price_cents || t.price_cents || 0;
+          byTreatment[key].totalDuration += a.duration_minutes || t.duration_minutes || 0;
+          if (a.client_id) byTreatment[key].clientSet.add(a.client_id);
+        });
+
+        // Compute return rate (clients who booked same treatment 2+ times)
+        recent.forEach(a => {
+          const key = a.treatment_id || a.treatment_name || 'Unknown';
+          if (!byTreatment[key]) return;
+          const clientBookings = recent.filter(
+            r => (r.treatment_id || r.treatment_name) === key && r.client_id === a.client_id
+          );
+          if (clientBookings.length >= 2 && a.client_id) {
+            byTreatment[key].returnClients.add(a.client_id);
+          }
+        });
+
+        const computed = Object.values(byTreatment).map(s => {
+          const avgDuration = s.bookings > 0 ? Math.round(s.totalDuration / s.bookings) : 0;
+          const returnRate = s.clientSet.size > 0 ? Math.round((s.returnClients.size / s.clientSet.size) * 100) : 0;
+          const ratings = feedbackByTreatment[s.id] || feedbackByTreatment[s.name] || [];
+          const rating = ratings.length > 0 ? +(ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1) : 0;
+          return {
+            id: s.id,
+            name: s.name,
+            bookings: s.bookings,
+            revenue: s.revenue,
+            avgDuration,
+            price: s.price,
+            returnRate,
+            rating,
+            trend: 'stable',
+            category: s.category,
+          };
+        });
+
+        setStats(computed.length > 0 ? computed : (isDevMode ? DEV_STATS : []));
+      })
+      .catch(err => {
+        logger.error('Failed to load treatment stats:', err);
+        if (isDevMode) setStats(DEV_STATS);
+        else setStats([]);
+      })
+      .finally(() => setLoading(false));
+  }, [beautician, bLoading]);
+
+  if (bLoading || loading) return <PageLoader />;
+  if (stats.length === 0) return <EmptyState title="No treatment data yet" description="Stats will appear here once appointments are completed." />;
 
   const enriched = stats.map(s => ({
     ...s,
