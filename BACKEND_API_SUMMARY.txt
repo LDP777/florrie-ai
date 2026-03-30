@@ -1,0 +1,183 @@
+===============================================================================
+FLORRIE.AI BACKEND API SUMMARY
+===============================================================================
+
+TOTAL ENDPOINTS: 165 across 21 route files
+
+===============================================================================
+ROUTE FILES & BASE PATHS
+===============================================================================
+
+/api/ai-actions               (2 endpoints)
+/api/appointments             (5 endpoints)
+/api/auth                     (embedded in core)
+/api/booking                  (1 endpoint)        [public]
+/api/clients                  (3 endpoints)
+/api/consultation-forms       (7 endpoints)
+/api/content                  (6 endpoints)
+/api/escalations              (3 endpoints)
+/api/exports                  (2 endpoints)
+/api/features                 (104 endpoints) ← LARGEST GROUP
+/api/gcal                     (4 endpoints)       [Google Calendar]
+/api/hours-exceptions         (3 endpoints)
+/api/locations                (2 endpoints)
+/api/money                    (6 endpoints)
+/api/notifications            (5 endpoints)
+/api/photo-consent            (1 endpoint)
+/api/promo-codes              (3 endpoints)
+/api/stripe                   (2 endpoints)
+/api/treatments               (4 endpoints)
+/api/voice                    (voice handling)
+/api/webhooks                 (2 endpoints)       [public webhooks]
+
+===============================================================================
+FEATURES.JS ENDPOINT GROUPS (104 endpoints)
+===============================================================================
+
+CORE FEATURES:
+  - Daily Checklists    (4 endpoints: GET, POST, PATCH, DELETE)
+  - Consultations       (4 endpoints)
+  - Patch Tests         (4 endpoints)
+  - Aftercare Messages  (4 endpoints)
+  - Reviews             (3 endpoints: GET, POST, PATCH)
+
+PACKAGES & ADD-ONS:
+  - Packages            (4 endpoints)
+  - Client Packages     (3 endpoints)
+  - Add-Ons             (4 endpoints)
+  - Gift Vouchers       (4 endpoints)
+
+MEMBERSHIPS & LOYALTY:
+  - Client Memberships       (4 endpoints)
+  - Membership Subscriptions (3 endpoints)
+  - Loyalty Config           (2 endpoints)
+  - Loyalty Points           (2 endpoints)
+  - Referrals                (3 endpoints)
+
+MESSAGING & CAMPAIGNS:
+  - Messages            (2 endpoints)
+  - Campaigns           (3 endpoints)
+  - Message Templates   (4 endpoints)
+  - Content Posts       (4 endpoints)
+
+BUSINESS OPERATIONS:
+  - Revenue Goals       (4 endpoints)
+  - Automation Rules    (4 endpoints)
+  - Policies            (4 endpoints)
+  - Intake Forms        (4 endpoints)
+  - Form Submissions    (2 endpoints)
+  - Hours Exceptions    (3 endpoints)
+  - Client Tags         (3 endpoints)
+  - Client Tag Assignments (3 endpoints)
+  - End of Day Reports  (2 endpoints)
+  - Portal Settings     (2 endpoints)
+  - Rebook Reminders    (4 endpoints)
+  - Waitlist            (4 endpoints)
+  - Team Members        (4 endpoints)
+
+===============================================================================
+KEY ENDPOINTS BY FUNCTIONALITY
+===============================================================================
+
+APPOINTMENTS:
+  GET    /api/appointments           - List all appointments
+  POST   /api/appointments           - Create new appointment
+  PATCH  /api/appointments/:id       - Update (status, dates, reason)
+  POST   /api/appointments/:id/complete - Mark complete
+  GET    /api/appointments/slots     - Get available time slots
+
+CLIENTS:
+  GET    /api/clients                - List all clients
+  GET    /api/clients/:id            - Get single client (includes consent fields)
+  POST   /api/clients/refresh-intelligence - Sync client data
+
+MONEY TRACKING:
+  GET    /api/money/pulse            - Revenue snapshot
+  GET    /api/money/tax-summary      - Tax calculations
+  POST   /api/money/expenses         - Create expense entry
+  POST   /api/money/expenses/scan    - OCR receipt scan with Claude Vision
+  GET    /api/money/expenses         - List expenses
+  GET    /api/money/transactions     - Get all transactions
+
+NOTIFICATIONS:
+  POST   /api/notifications/send-sms    - Send SMS to client
+  POST   /api/notifications/send-email  - Send email to client
+  PATCH  /api/notifications/preferences - Set reminder prefs
+  POST   /api/notifications/process-reminders - Trigger reminders
+  GET    /api/notifications/sms/usage - SMS usage stats
+
+TREATMENTS & BOOKING:
+  GET    /api/treatments             - List services
+  POST   /api/treatments             - Create service
+  PATCH  /api/treatments/:id         - Update service
+  GET    /api/booking/:slug          - Get public booking page [PUBLIC]
+
+CALENDAR SYNC:
+  GET    /api/gcal/callback          - Google OAuth callback
+  POST   /api/gcal/sync              - Sync single calendar
+  POST   /api/gcal/sync-all          - Sync all beauties
+  POST   /api/gcal/disconnect        - Remove calendar connection
+
+WEBHOOKS & INTEGRATIONS:
+  POST   /api/webhooks/whatsapp      - Handle WhatsApp messages [PUBLIC]
+  POST   /api/webhooks/twilio-sms    - Handle SMS responses [PUBLIC]
+  POST   /api/stripe/webhook         - Handle Stripe events [PUBLIC]
+
+EXPORTS:
+  GET    /api/exports/clients        - Export all clients
+  GET    /api/exports/appointments   - Export all appointments
+
+===============================================================================
+AUTHENTICATION
+===============================================================================
+
+All endpoints (except marked [PUBLIC]) require:
+  - requireAuth middleware
+  - Valid JWT token in Authorization header
+  - Scoped to beautician_id (req.beautician.id)
+
+Public endpoints:
+  - GET /api/consultation-forms/public/:token
+  - GET /api/booking/:slug
+  - POST /api/webhooks/whatsapp
+  - POST /api/webhooks/twilio-sms
+  - POST /api/stripe/webhook
+
+===============================================================================
+COMMON PATTERNS
+===============================================================================
+
+CRUD Operations:
+  Most features follow standard REST:
+  - GET /resource           - List all
+  - POST /resource          - Create
+  - PATCH /resource/:id     - Update
+  - DELETE /resource/:id    - Delete
+
+Resource Filtering:
+  - Query params (e.g., ?date=YYYY-MM-DD)
+  - Scoped to beautician_id automatically
+
+Request Body:
+  Most POST/PATCH endpoints accept JSON with table-specific fields.
+  Common fields: date, status, completed, notes, amount, etc.
+  Many endpoints use Zod validation (see middleware/validate.js)
+
+Response Format:
+  Success: HTTP 2xx with JSON data
+  Errors: HTTP 4xx/5xx with { error: "message" }
+
+===============================================================================
+INPUT VALIDATION
+===============================================================================
+
+Routes with Zod validation:
+  - POST /api/auth/* - signupSchema, profileUpdateSchema
+  - POST /api/appointments - bookingSchema
+  - POST /api/clients - createClientSchema, importClientsSchema
+  - GET /api/clients/:id - health_data_consent, marketing_consent validation
+
+See: backend/src/middleware/validate.js for middleware implementation
+
+===============================================================================
+For complete endpoint details, see: API_ENDPOINTS.md
