@@ -72,15 +72,27 @@ export default function VoiceCommander() {
       if (isDevMode) {
         setMessages(DEV_CONVERSATION);
       } else {
-        const data = await fetchRows('ai_actions', beautician.id, { order: 'created_at', ascending: false, limit: 50 });
-        const mapped = (data || []).map(action => ({
+        // Only show today's AI-driven actions — booking confirmations belong in Notifications
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const data = await fetchRows('ai_actions', beautician.id, {
+          order: 'created_at', ascending: false, limit: 20,
+          filters: { created_at: `gte.${todayStr}T00:00:00` },
+        });
+        // Filter out booking notifications — only show insights, nudges, content, recommendations
+        const BOOKING_TYPES = ['booking_confirmed', 'booking_created', 'appointment_booked', 'booking_reminder'];
+        const aiOnly = (data || []).filter(action =>
+          !BOOKING_TYPES.includes(action.action_type) &&
+          !(action.summary || '').match(/booked .+ for \d/)
+        );
+        const mapped = aiOnly.map(action => ({
           id: action.id,
           role: 'assistant',
           text: action.summary || action.notification_text || action.action_type || 'Action completed',
           agent: action.digital_employee || 'general',
           timestamp: action.created_at,
         }));
-        setMessages([{ id: '0', role: 'assistant', text: "Hey lovely! I'm here whenever you need me.", agent: 'general', timestamp: new Date().toISOString() }, ...mapped]);
+        const greeting = { id: '0', role: 'assistant', text: "Hey lovely! I'm here whenever you need me.", agent: 'general', timestamp: new Date().toISOString() };
+        setMessages([greeting, ...mapped]);
       }
     } catch (err) {
       logger.error('Load action history error:', err);
