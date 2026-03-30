@@ -306,59 +306,61 @@ export default function App() {
 }
 
 /**
- * Mobile bottom navigation — 5 tabs. "Hub" navigates to categorised hub page.
+ * Mobile bottom navigation — Stitch BottomNavBar reference.
+ * 5 tabs: Home, Calendar, florrie.ai (raised centre), Money, Hub.
+ * Uses Material Symbols Outlined. Active state = filled icon + accent color + dot.
  */
 function BottomNav({ current }) {
   const navigate = useNavigate();
 
-  // Hub is active when on /hub or any sub-page that lives inside the hub
   const hubPaths = ['/hub', '/money', '/analytics', '/clients', '/treatments', '/team', '/waitlist', '/digest', '/campaigns', '/reviews', '/loyalty', '/aftercare', '/import', '/smart-schedule', '/vouchers', '/notifications', '/hours', '/patch-tests', '/reports', '/policies', '/business', '/rebook', '/inbox', '/packages', '/templates', '/referrals', '/portfolio', '/notes', '/feedback', '/expenses', '/consultations', '/sequences', '/photo-consent', '/waitlist-pro', '/client-timeline', '/rota', '/deposits', '/addons', '/cancellations', '/tags', '/promos', '/checklist', '/inventory', '/goals', '/price-list', '/treatment-stats', '/staff-performance', '/memberships', '/comms', '/end-of-day', '/automations', '/whatsapp', '/portal', '/ai-insights', '/segments', '/churn', '/demand', '/locations', '/integrations', '/sms', '/api-settings', '/escalations', '/settings'];
   const isHubActive = hubPaths.includes(current);
 
   const tabs = [
     { path: '/', label: 'Home', icon: 'home', isPetal: false },
-    { path: '/calendar', label: 'Calendar', icon: 'calendar', isPetal: false },
-    { path: '/voice', label: 'florrie.ai', icon: null, isPetal: true },
-    { path: '/money', label: 'Money', icon: 'money', isPetal: false },
-    { path: '/hub', label: 'Hub', icon: 'hub', isPetal: false }
+    { path: '/calendar', label: 'Calendar', icon: 'calendar_today', isPetal: false },
+    { path: '/voice', label: 'florrie.ai', icon: 'auto_awesome', isPetal: true },
+    { path: '/money', label: 'Money', icon: 'payments', isPetal: false },
+    { path: '/hub', label: 'Hub', icon: 'explore', isPetal: false }
   ];
-
-  const NavIcon = ({ name, color, size = 22 }) => {
-    const props = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' };
-    switch (name) {
-      case 'home': return <svg {...props}><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><polyline points="9,21 9,14 15,14 15,21"/></svg>;
-      case 'calendar': return <svg {...props}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><text x="12" y="17.5" textAnchor="middle" fill={color} stroke="none" fontSize="8" fontWeight="700" fontFamily="inherit">{new Date().getDate()}</text></svg>;
-      case 'money': return <svg {...props}><line x1="2" y1="7" x2="22" y2="7"/><rect x="2" y="4" width="20" height="16" rx="2"/><circle cx="12" cy="14" r="3"/></svg>;
-      case 'hub': return <svg {...props}><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 014 10 14.5 14.5 0 01-4 10 14.5 14.5 0 01-4-10A14.5 14.5 0 0112 2z"/><line x1="2" y1="12" x2="22" y2="12"/></svg>;
-      default: return null;
-    }
-  };
 
   return (
     <nav style={styles.nav}>
       {tabs.map(tab => {
         const active = tab.path === '/hub' ? isHubActive : current === tab.path;
-        const iconColor = active ? 'var(--accent, #92405e)' : 'var(--text-muted, #B5AFA8)';
+        const color = active ? '#92405e' : '#867277';
         return (
           <button
             key={tab.path}
             onClick={() => navigate(tab.path)}
-            style={{
-              ...styles.navItem,
-              color: active ? 'var(--accent, #92405e)' : 'var(--text-muted, #B5AFA8)'
-            }}
+            style={styles.navItem}
           >
             {tab.isPetal ? (
-              <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--accent, #92405e)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(146,64,94,0.3)', marginTop: -20, border: '3px solid var(--bg, #fef8f4)' }}>
-                <img src="/florrie-petal.svg" alt="florrie" style={{ width: 22, height: 22, filter: 'brightness(10)' }} />
+              /* Raised centre button — Stitch FAB style */
+              <div style={{
+                width: 52, height: 52, borderRadius: '50%',
+                background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 4px 16px rgba(146, 64, 94, 0.35)',
+                marginTop: -24,
+                border: '3px solid #fef8f4',
+              }}>
+                <span className="material-symbols-outlined" style={{
+                  fontSize: 24, color: '#fff',
+                  fontVariationSettings: "'FILL' 1, 'wght' 300",
+                }}>{tab.icon}</span>
               </div>
             ) : (
-              <NavIcon name={tab.icon} color={iconColor} />
+              <span className="material-symbols-outlined" style={{
+                fontSize: 22, color,
+                fontVariationSettings: active ? "'FILL' 1, 'wght' 300" : "'FILL' 0, 'wght' 300",
+                transition: 'color 0.15s ease',
+              }}>{tab.icon}</span>
             )}
             <span style={{
-              ...styles.navLabel,
+              fontSize: 10, lineHeight: 1, letterSpacing: '0.01em',
               fontWeight: active ? 600 : 400,
-              color: iconColor,
+              color,
               fontFamily: tab.isPetal ? "'Playfair Display', Georgia, serif" : 'inherit',
               fontStyle: tab.isPetal ? 'italic' : 'normal',
             }}>
@@ -379,14 +381,14 @@ const styles = {
     justifyContent: 'center',
     alignItems: 'center',
     minHeight: '100vh',
-    background: 'var(--bg, #FAF8F5)',
+    background: '#fef8f4',
     gap: 8,
     animation: 'fadeIn 0.6s ease',
   },
   loadingLogo: {
     fontSize: 30,
     fontWeight: 600,
-    color: 'var(--accent, #C76B8A)',
+    color: '#92405e',
     fontFamily: "'Playfair Display', Georgia, serif",
     letterSpacing: '-0.03em',
   },
@@ -394,14 +396,14 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     minHeight: '100vh',
-    background: 'var(--bg, #FAF8F5)',
+    background: 'var(--bg, #fef8f4)',
   },
   pageContainer: {
     flex: 1,
     paddingBottom: 76,
   },
 
-  // Bottom nav — frosted glass
+  // Bottom nav — Stitch glass morphism
   nav: {
     position: 'fixed',
     bottom: 0,
@@ -410,14 +412,14 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-around',
     alignItems: 'center',
-    background: 'var(--nav-bg, rgba(255,255,255,0.92))',
+    background: 'rgba(254, 248, 244, 0.9)',
     backdropFilter: 'blur(20px) saturate(180%)',
     WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-    borderTop: '1px solid var(--nav-border, #EDE9E4)',
+    borderTop: '1px solid rgba(146, 64, 94, 0.1)',
     padding: '5px 0 env(safe-area-inset-bottom, 8px)',
     zIndex: 100,
-    fontFamily: "'DM Sans', -apple-system, sans-serif",
-    boxShadow: '0 -1px 12px rgba(0,0,0,0.03)',
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
+    boxShadow: '0 -1px 12px rgba(146, 64, 94, 0.04)',
   },
   navItem: {
     display: 'flex',
@@ -433,26 +435,24 @@ const styles = {
     WebkitTapHighlightColor: 'transparent',
     transition: 'color 0.15s ease',
   },
-  navIcon: { fontSize: 20, lineHeight: 1 },
-  navLabel: { fontSize: 10, lineHeight: 1, letterSpacing: '0.01em' },
   navDot: {
     width: 4,
     height: 4,
     borderRadius: 2,
-    background: 'var(--accent, #C76B8A)',
+    background: '#92405e',
     position: 'absolute',
     bottom: -1,
   },
 
   devModeBanner: {
-    background: 'linear-gradient(135deg, #2D2A26, #3D3A36)',
+    background: 'linear-gradient(135deg, #1d1b19, #2d2a26)',
     color: '#fff',
     padding: '10px 16px',
     display: 'flex',
     alignItems: 'center',
     gap: 8,
     fontSize: 12,
-    fontFamily: "'DM Sans', -apple-system, sans-serif",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
     borderBottom: '1px solid rgba(255,255,255,0.1)',
   },
 

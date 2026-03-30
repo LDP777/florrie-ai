@@ -1,8 +1,18 @@
 import { useState, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ds, type } from '../lib/designSystem.js';
 import { useBeautician } from '../lib/supabase.js';
 import { hasFeature, getRequiredPlan } from '../lib/subscription.js';
+
+/**
+ * Hub — Stitch reference rebuild.
+ *
+ * Matches the Stitch screen:
+ *   - Search bar with Material icon
+ *   - Quick access 4-up row
+ *   - Category sections with 2-col grids of emoji + label + desc cards
+ *   - Expand/collapse per category
+ *   - Gated features show plan badge
+ */
 
 // ─── Navigation categories ────────────────────────────────
 const CATEGORIES = [
@@ -10,7 +20,6 @@ const CATEGORIES = [
     id: 'daily',
     label: 'Your Day',
     description: 'Daily ops and schedule',
-    accent: '#C76B8A',
     items: [
       { path: '/calendar', label: 'Calendar', desc: 'View and manage appointments', icon: '📅' },
       { path: '/smart-schedule', label: 'Smart Schedule', desc: 'AI-optimised time slots', icon: '🧠' },
@@ -23,7 +32,6 @@ const CATEGORIES = [
     id: 'clients',
     label: 'Clients',
     description: 'Relationships and records',
-    accent: '#7B9E6B',
     items: [
       { path: '/clients', label: 'All Clients', desc: 'Client list and profiles', icon: '👤' },
       { path: '/import', label: 'Import Clients', desc: 'CSV and bulk import', icon: '📥' },
@@ -42,7 +50,6 @@ const CATEGORIES = [
     id: 'treatments',
     label: 'Treatments & Services',
     description: 'What you offer',
-    accent: '#C9A96E',
     items: [
       { path: '/treatments', label: 'Treatments', desc: 'Manage your services', icon: '💅' },
       { path: '/consultations', label: 'Consultations', desc: 'Pre-treatment bookings', icon: '🩺' },
@@ -59,7 +66,6 @@ const CATEGORIES = [
     id: 'money',
     label: 'Money',
     description: 'Revenue and expenses',
-    accent: '#6B9BC7',
     items: [
       { path: '/money', label: 'Money Tracker', desc: 'Revenue dashboard', icon: '💰' },
       { path: '/expenses', label: 'Expenses', desc: 'Track outgoings', icon: '💳' },
@@ -75,7 +81,6 @@ const CATEGORIES = [
     id: 'marketing',
     label: 'Marketing & Growth',
     description: 'Attract and retain',
-    accent: '#B85D7B',
     items: [
       { path: '/content', label: 'Content Autopilot', desc: 'AI-written captions', icon: '📸' },
       { path: '/reviews', label: 'Reviews', desc: 'Collect and respond', icon: '⭐' },
@@ -92,7 +97,6 @@ const CATEGORIES = [
     id: 'comms',
     label: 'Communications',
     description: 'Messages and channels',
-    accent: '#8B7BC7',
     items: [
       { path: '/inbox', label: 'Inbox', desc: 'All messages in one place', icon: '💬' },
       { path: '/whatsapp', label: 'WhatsApp', desc: 'Business messaging', icon: '📱' },
@@ -104,7 +108,6 @@ const CATEGORIES = [
     id: 'ai',
     label: 'AI & Intelligence',
     description: 'florrie.ai\'s brain',
-    accent: '#C76B8A',
     items: [
       { path: '/voice', label: 'florrie.ai', desc: 'Your AI assistant', icon: '✨' },
       { path: '/ai-insights', label: 'AI Insights', desc: 'Predictions and trends', icon: '🧠' },
@@ -119,7 +122,6 @@ const CATEGORIES = [
     id: 'team',
     label: 'Team',
     description: 'Staff management',
-    accent: '#6BB5A0',
     items: [
       { path: '/team', label: 'Team Members', desc: 'Staff profiles', icon: '👥', gate: 'team_management' },
       { path: '/rota', label: 'Staff Rota', desc: 'Weekly schedule', icon: '🗓️', gate: 'staff_rota' },
@@ -131,7 +133,6 @@ const CATEGORIES = [
     id: 'business',
     label: 'Business Operations',
     description: 'Inventory and analytics',
-    accent: '#7B9E6B',
     items: [
       { path: '/inventory', label: 'Product Inventory', desc: 'Stock management', icon: '📦' },
       { path: '/treatment-stats', label: 'Treatment Stats', desc: 'Service analytics', icon: '📊' },
@@ -141,7 +142,6 @@ const CATEGORIES = [
     id: 'settings',
     label: 'Settings',
     description: 'Configure your account',
-    accent: '#AAA5A0',
     items: [
       { path: '/settings', label: 'Settings', desc: 'Account preferences', icon: '⚙️' },
       { path: '/pricing', label: 'Plans & Billing', desc: 'Subscription and payments', icon: '💳' },
@@ -156,6 +156,16 @@ const CATEGORIES = [
   },
 ];
 
+function MIcon({ name, fill, size, style }) {
+  return (
+    <span className="material-symbols-outlined" style={{
+      fontSize: size || 24,
+      fontVariationSettings: fill ? "'FILL' 1, 'wght' 300" : undefined,
+      ...style,
+    }}>{name}</span>
+  );
+}
+
 export default function Hub() {
   const [search, setSearch] = useState('');
   const [expandedCat, setExpandedCat] = useState(null);
@@ -164,7 +174,6 @@ export default function Hub() {
   const { beautician } = useBeautician();
   const plan = beautician?.subscription_plan || 'free';
 
-  // Filter items by search
   const filtered = useMemo(() => {
     if (!search.trim()) return CATEGORIES;
     const q = search.toLowerCase();
@@ -184,15 +193,13 @@ export default function Hub() {
 
   return (
     <div style={S.page}>
-      {/* Header */}
-      <div style={S.header}>
-        <h1 style={S.title}>Hub</h1>
-        <p style={S.subtitle}>Everything in one place</p>
-      </div>
+      {/* ─── Header ─── */}
+      <h1 style={S.title}>Hub</h1>
+      <p style={S.subtitle}>Everything in one place</p>
 
-      {/* Search */}
+      {/* ─── Search ─── */}
       <div style={S.searchWrap}>
-        <span style={S.searchIcon}>🔍</span>
+        <MIcon name="search" size={18} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#867277', pointerEvents: 'none' }} />
         <input
           type="text"
           placeholder="Search features..."
@@ -201,17 +208,19 @@ export default function Hub() {
           style={S.searchInput}
         />
         {search && (
-          <button onClick={() => setSearch('')} style={S.searchClear}>✕</button>
+          <button onClick={() => setSearch('')} style={S.searchClear}>
+            <MIcon name="close" size={14} />
+          </button>
         )}
       </div>
 
-      {/* Quick access row */}
+      {/* ─── Quick Access ─── */}
       {!search && (
         <div style={S.quickRow}>
           {[
             { path: '/money', icon: '💰', label: 'Money' },
             { path: '/clients', icon: '👤', label: 'Clients' },
-            { path: '/treatments', icon: '💅', label: 'Treatments' },
+            { path: '/treatments', icon: '💅', label: 'Treats' },
             { path: '/expenses', icon: '💳', label: 'Expenses' },
           ].map(q => (
             <button key={q.path} onClick={() => handleNav(q.path)} style={S.quickBtn}>
@@ -222,31 +231,39 @@ export default function Hub() {
         </div>
       )}
 
-      {/* Categories */}
-      <div style={S.categories}>
+      {/* ─── Categories ─── */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {filtered.map(cat => {
           const isExpanded = expandedCat === cat.id || search.trim().length > 0;
-          const visibleItems = isExpanded ? cat.items : cat.items.slice(0, 3);
-          const hasMore = cat.items.length > 3;
+          const visibleItems = isExpanded ? cat.items : cat.items.slice(0, 4);
+          const hasMore = cat.items.length > 4;
 
           return (
-            <div key={cat.id} style={S.category}>
+            <div key={cat.id} style={S.catCard}>
               {/* Category header */}
               <button
                 onClick={() => setExpandedCat(expandedCat === cat.id ? null : cat.id)}
                 style={S.catHeader}
               >
                 <div>
-                  <div style={{ ...S.catLabel, color: cat.accent }}>{cat.label}</div>
+                  <div style={S.catLabel}>{cat.label}</div>
                   <div style={S.catDesc}>{cat.description}</div>
                 </div>
-                <div style={S.catCount}>
-                  {cat.items.length}
-                  <span style={{ ...S.catArrow, transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)' }}>▾</span>
+                <div style={S.catRight}>
+                  <span style={S.catCount}>{cat.items.length}</span>
+                  <MIcon
+                    name="expand_more"
+                    size={18}
+                    style={{
+                      color: '#867277',
+                      transition: 'transform 0.2s ease',
+                      transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)',
+                    }}
+                  />
                 </div>
               </button>
 
-              {/* Items grid */}
+              {/* Items — 2-col grid */}
               <div style={S.itemGrid}>
                 {visibleItems.map(item => {
                   const locked = item.gate && !hasFeature(plan, item.gate);
@@ -258,15 +275,19 @@ export default function Hub() {
                       style={{
                         ...S.item,
                         ...(isActive ? S.itemActive : {}),
-                        ...(locked ? S.itemLocked : {}),
+                        ...(locked ? { opacity: 0.5, cursor: 'default' } : {}),
                       }}
                     >
-                      <div style={S.itemTop}>
-                        <span style={S.itemIcon}>{item.icon}</span>
-                        {locked && <span style={S.lockBadge}>{(getRequiredPlan(item.gate) || 'PRO').toUpperCase()}</span>}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', marginBottom: 4 }}>
+                        <span style={{ fontSize: 22, lineHeight: 1 }}>{item.icon}</span>
+                        {locked && (
+                          <span style={S.lockBadge}>
+                            {(getRequiredPlan(item.gate) || 'PRO').toUpperCase()}
+                          </span>
+                        )}
                       </div>
-                      <div style={S.itemLabel}>{item.label}</div>
-                      <div style={S.itemDesc}>{item.desc}</div>
+                      <span style={S.itemLabel}>{item.label}</span>
+                      <span style={S.itemDesc}>{item.desc}</span>
                     </button>
                   );
                 })}
@@ -288,242 +309,148 @@ export default function Hub() {
 
       {/* Empty search */}
       {search && filtered.length === 0 && (
-        <div style={S.emptySearch}>
-          <span style={{ fontSize: 32 }}>🔍</span>
-          <p style={{ margin: '8px 0 0', color: 'var(--text-muted)' }}>No features match "{search}"</p>
+        <div style={{ textAlign: 'center', padding: '48px 0' }}>
+          <MIcon name="search_off" size={40} style={{ color: '#d8c1c6' }} />
+          <p style={{ margin: '12px 0 0', color: '#867277', fontSize: 14 }}>No features match "{search}"</p>
         </div>
       )}
     </div>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────
+// ─── Styles — Stitch "Hub" reference ───
 const S = {
   page: {
-    ...ds.page,
-    paddingTop: 20,
+    minHeight: '100vh',
+    background: '#fef8f4',
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
+    padding: '16px 24px 120px',
+    maxWidth: 480,
+    margin: '0 auto',
+    color: '#1d1b19',
     animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
   },
-  header: {
-    marginBottom: 20,
-  },
   title: {
-    ...type.displayLg,
-    margin: 0,
-    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
+    fontFamily: "var(--font-display, 'Playfair Display', serif)",
+    fontSize: 28, fontStyle: 'italic', fontWeight: 700,
+    letterSpacing: '-0.02em', color: '#92405e', margin: 0,
   },
   subtitle: {
-    ...type.bodySmall,
-    marginTop: 4,
+    fontSize: 13, color: '#867277', marginTop: 4, marginBottom: 20,
   },
 
   // Search
   searchWrap: {
-    position: 'relative',
-    marginBottom: 20,
-  },
-  searchIcon: {
-    position: 'absolute',
-    left: 14,
-    top: '50%',
-    transform: 'translateY(-50%)',
-    fontSize: 14,
-    pointerEvents: 'none',
+    position: 'relative', marginBottom: 20,
   },
   searchInput: {
     width: '100%',
-    padding: '12px 40px 12px 40px',
+    padding: '12px 40px 12px 42px',
     borderRadius: 14,
-    border: '1px solid var(--border, #EDE9E4)',
-    background: 'var(--bg-card, #fff)',
+    border: '1px solid #d8c1c6',
+    background: '#fff',
     fontSize: 14,
-    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
-    color: 'var(--text-primary, #2D2A26)',
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
+    color: '#1d1b19',
     outline: 'none',
     boxSizing: 'border-box',
-    transition: 'border-color 0.15s',
+    transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
   },
   searchClear: {
-    position: 'absolute',
-    right: 12,
-    top: '50%',
+    position: 'absolute', right: 12, top: '50%',
     transform: 'translateY(-50%)',
-    background: 'var(--bg-subtle, #F5F2EF)',
-    border: 'none',
-    borderRadius: 10,
-    width: 22,
-    height: 22,
-    fontSize: 10,
-    color: 'var(--text-muted)',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
+    background: '#f3ede9', border: 'none', borderRadius: 10,
+    width: 24, height: 24,
+    color: '#867277', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
 
   // Quick access
   quickRow: {
-    display: 'flex',
-    gap: 10,
-    marginBottom: 24,
+    display: 'flex', gap: 10, marginBottom: 24,
   },
   quickBtn: {
     flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 6,
-    padding: '14px 8px',
-    borderRadius: 16,
-    border: '1px solid var(--border, #EDE9E4)',
-    background: 'var(--bg-card, #fff)',
-    cursor: 'pointer',
-    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+    padding: '14px 8px', borderRadius: 16,
+    border: '1px solid rgba(146, 64, 94, 0.05)',
+    background: '#fff', cursor: 'pointer',
+    fontFamily: 'inherit',
+    boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
     transition: 'transform 0.1s, box-shadow 0.15s',
-    boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))',
     WebkitTapHighlightColor: 'transparent',
   },
-  quickIcon: {
-    fontSize: 22,
-    lineHeight: 1,
-  },
+  quickIcon: { fontSize: 22, lineHeight: 1 },
   quickLabel: {
-    fontSize: 11,
-    fontWeight: 600,
-    color: 'var(--text-secondary, #7A756F)',
+    fontSize: 11, fontWeight: 600, color: '#534247',
     letterSpacing: '0.02em',
   },
 
-  // Categories
-  categories: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
-  },
-  category: {
-    background: 'var(--bg-card, #fff)',
-    borderRadius: 18,
-    border: '1px solid var(--border, #EDE9E4)',
-    padding: '14px 14px 10px',
-    boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))',
+  // Category card
+  catCard: {
+    background: '#fff', borderRadius: 20,
+    border: '1px solid rgba(146, 64, 94, 0.05)',
+    padding: '16px 14px 12px',
+    boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
   },
   catHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    padding: '0 0 10px',
-    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
-    textAlign: 'left',
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    width: '100%', background: 'none', border: 'none',
+    cursor: 'pointer', padding: '0 0 12px',
+    fontFamily: 'inherit', textAlign: 'left',
     WebkitTapHighlightColor: 'transparent',
   },
   catLabel: {
-    fontSize: 15,
-    fontWeight: 700,
+    fontSize: 15, fontWeight: 700, color: '#92405e',
     letterSpacing: '-0.01em',
   },
   catDesc: {
-    fontSize: 12,
-    color: 'var(--text-muted, #B5AFA8)',
-    marginTop: 1,
+    fontSize: 11, color: '#867277', marginTop: 1,
+  },
+  catRight: {
+    display: 'flex', alignItems: 'center', gap: 4,
   },
   catCount: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 4,
-    fontSize: 12,
-    fontWeight: 600,
-    color: 'var(--text-muted, #B5AFA8)',
-    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
-  },
-  catArrow: {
-    fontSize: 14,
-    transition: 'transform 0.2s ease',
-    display: 'inline-block',
+    fontSize: 11, fontWeight: 600, color: '#867277',
+    background: '#f3ede9', padding: '2px 7px', borderRadius: 8,
   },
 
-  // Item grid
+  // Item grid — 2 columns
   itemGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, 1fr)',
-    gap: 8,
+    display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8,
   },
   item: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'flex-start',
-    padding: '12px 10px 10px',
-    borderRadius: 14,
-    border: 'none',
-    background: 'var(--bg-subtle, #F9F7F4)',
-    cursor: 'pointer',
-    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
-    textAlign: 'left',
+    display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+    padding: '12px 12px 10px', borderRadius: 14,
+    border: 'none', background: '#f8f2ef',
+    cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
     transition: 'background 0.12s, transform 0.1s',
     WebkitTapHighlightColor: 'transparent',
-    minHeight: 80,
+    minHeight: 76,
   },
   itemActive: {
-    background: 'var(--accent-light, #FFF0F3)',
-    boxShadow: 'inset 0 0 0 1.5px var(--accent, #C76B8A)',
-  },
-  itemLocked: {
-    opacity: 0.55,
-    cursor: 'default',
-  },
-  itemTop: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    width: '100%',
-    marginBottom: 6,
-  },
-  itemIcon: {
-    fontSize: 20,
-    lineHeight: 1,
-  },
-  lockBadge: {
-    fontSize: 8,
-    fontWeight: 700,
-    background: 'linear-gradient(135deg, var(--gold), #B8953E)',
-    color: '#fff',
-    padding: '2px 5px',
-    borderRadius: 6,
-    letterSpacing: '0.05em',
+    background: '#ffd9e2',
+    boxShadow: 'inset 0 0 0 1.5px #92405e',
   },
   itemLabel: {
-    fontSize: 12,
-    fontWeight: 600,
-    color: 'var(--text-primary, #2D2A26)',
-    lineHeight: 1.2,
+    fontSize: 13, fontWeight: 600, color: '#1d1b19', lineHeight: 1.2,
   },
   itemDesc: {
-    fontSize: 10,
-    color: 'var(--text-muted, #B5AFA8)',
-    lineHeight: 1.3,
-    marginTop: 2,
+    fontSize: 10, color: '#867277', lineHeight: 1.3, marginTop: 2,
+  },
+  lockBadge: {
+    fontSize: 8, fontWeight: 700,
+    background: 'linear-gradient(135deg, #745a27, #fedb9b)',
+    color: '#fff', padding: '2px 6px', borderRadius: 6,
+    letterSpacing: '0.05em',
   },
 
   // Show more
   showMore: {
-    width: '100%',
-    padding: '8px 0 4px',
-    background: 'none',
-    border: 'none',
-    fontSize: 12,
-    fontWeight: 600,
-    color: 'var(--accent, #C76B8A)',
-    cursor: 'pointer',
-    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+    width: '100%', padding: '10px 0 4px',
+    background: 'none', border: 'none',
+    fontSize: 12, fontWeight: 600, color: '#92405e',
+    cursor: 'pointer', fontFamily: 'inherit',
     WebkitTapHighlightColor: 'transparent',
-  },
-
-  // Empty search
-  emptySearch: {
-    textAlign: 'center',
-    padding: '40px 0',
   },
 };

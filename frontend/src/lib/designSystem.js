@@ -17,18 +17,21 @@ export const radius = { sm: 8, md: 12, lg: 14, xl: 16, xxl: 20, full: 9999 };
 // ─── Typography ──────────────────────────────────────
 
 export const type = {
+  // Stitch: Playfair Display italic for hero/display text
   displayLg: {
     fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
     fontSize: 28,
-    fontWeight: 600,
+    fontWeight: 700,
+    fontStyle: 'italic',
     letterSpacing: '-0.02em',
     lineHeight: 1.15,
-    color: 'var(--text-primary)',
+    color: 'var(--accent, #92405e)',
   },
   displayMd: {
     fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
     fontSize: 22,
-    fontWeight: 600,
+    fontWeight: 700,
+    fontStyle: 'italic',
     letterSpacing: '-0.02em',
     lineHeight: 1.2,
     color: 'var(--text-primary)',
@@ -36,34 +39,53 @@ export const type = {
   displaySm: {
     fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
     fontSize: 18,
-    fontWeight: 600,
+    fontWeight: 700,
+    fontStyle: 'italic',
     letterSpacing: '-0.01em',
     lineHeight: 1.25,
     color: 'var(--text-primary)',
   },
+  // Stitch: Noto Serif for section headlines
+  headline: {
+    fontFamily: "var(--font-headline, 'Noto Serif', Georgia, serif)",
+    fontSize: 24,
+    fontWeight: 400,
+    fontStyle: 'italic',
+    lineHeight: 1.2,
+    color: 'var(--text-primary)',
+  },
   heading: {
-    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
     fontSize: 16,
     fontWeight: 600,
     letterSpacing: '-0.01em',
     color: 'var(--text-primary)',
   },
   body: {
-    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
     fontSize: 14,
     fontWeight: 400,
     lineHeight: 1.5,
     color: 'var(--text-primary)',
   },
   bodySmall: {
-    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
     fontSize: 13,
     fontWeight: 400,
     lineHeight: 1.5,
     color: 'var(--text-secondary)',
   },
+  // Stitch: uppercase tracking labels
+  label: {
+    fontFamily: "var(--font-label, 'Plus Jakarta Sans', sans-serif)",
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: '0.12em',
+    textTransform: 'uppercase',
+    color: 'var(--text-muted)',
+  },
   caption: {
-    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
     fontSize: 11,
     fontWeight: 500,
     letterSpacing: '0.02em',
@@ -83,7 +105,7 @@ export const ds = {
   // Page wrapper
   page: {
     padding: '16px 16px 100px',
-    fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)",
     maxWidth: 480,
     margin: '0 auto',
     animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -118,13 +140,15 @@ export const ds = {
     boxShadow: 'var(--shadow-md)',
   },
 
-  // Hero card (gradient)
+  // Hero card (gradient) — Stitch primary gradient
   heroCard: {
-    background: 'linear-gradient(135deg, #C76B8A 0%, #B85D7B 40%, #C9A96E 100%)',
-    borderRadius: 20,
-    padding: 20,
+    background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
+    borderRadius: 24,
+    padding: 24,
     color: '#fff',
-    boxShadow: '0 8px 24px rgba(199, 107, 138, 0.2)',
+    boxShadow: '0 8px 24px rgba(146, 64, 94, 0.2)',
+    position: 'relative',
+    overflow: 'hidden',
   },
 
   // Pill tabs
@@ -219,7 +243,7 @@ export const ds = {
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
-    boxShadow: '0 2px 8px rgba(199, 107, 138, 0.25)',
+    boxShadow: '0 2px 8px rgba(146, 64, 94, 0.25)',
     transition: 'all 0.15s ease',
   },
 
@@ -281,14 +305,16 @@ export const ds = {
     color: 'var(--danger-text, var(--danger))',
   },
 
-  // Insight / AI card
+  // Insight / AI card — Stitch tertiary-fixed tinted
   insightCard: {
     display: 'flex',
     gap: 12,
-    background: 'var(--gold-light, #FDF8EE)',
-    border: '1px solid rgba(201, 169, 110, 0.15)',
-    borderRadius: 14,
-    padding: 14,
+    background: 'rgba(243, 223, 211, 0.4)',
+    border: '1px solid rgba(116, 90, 39, 0.1)',
+    borderRadius: 24,
+    padding: 20,
+    position: 'relative',
+    overflow: 'hidden',
   },
 
   // Stat grid

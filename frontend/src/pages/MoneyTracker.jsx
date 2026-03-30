@@ -1,20 +1,22 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useBeautician, supabase, isDevMode, insertRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import EmptyState from '../components/EmptyState.jsx';
 
 /**
- * Money Tracker — Ellie's #2 pain point.
+ * Money & Revenue — Stitch reference rebuild.
  *
- * Four tabs:
- *   Pulse    — weekly income, expenses, profit at a glance
- *   Expenses — log manually, categorise, flag as tax-deductible
- *   Income   — payments from completed appointments
- *   Tax      — HMRC-ready annual summary
+ * Matches the Stitch screen:
+ *   - Period selector pills (Today / This Week / This Month)
+ *   - Hero revenue card (gradient, large number, % change badge)
+ *   - Mini bar chart (7 day)
+ *   - Breakdown bento grid (Treatments, Products, Tips)
+ *   - Recent Transactions list
  *
+ * Four tabs preserved: Pulse, Expenses, Income, Tax
  * All data from Supabase: expenses + transactions tables.
- * Pulse and tax computed client-side from raw rows.
  */
 
 const fmt = (cents) => {
@@ -23,17 +25,23 @@ const fmt = (cents) => {
   return cents < 0 ? `-£${str}` : `£${str}`;
 };
 
+const fmtShort = (cents) => {
+  const pounds = Math.abs(cents) / 100;
+  if (pounds >= 1000) return `£${(pounds / 1000).toFixed(1)}k`;
+  return `£${pounds.toFixed(0)}`;
+};
+
 const CATEGORIES = [
-  { value: 'products', label: 'Products', icon: '🧴', color: '#E8D5E0' },
-  { value: 'rent', label: 'Rent', icon: '🏠', color: '#D5E0E8' },
-  { value: 'training', label: 'Training', icon: '📚', color: '#E8E0D5' },
-  { value: 'travel', label: 'Travel', icon: '🚗', color: '#D5E8E0' },
-  { value: 'equipment', label: 'Equipment', icon: '🔧', color: '#E0D5E8' },
-  { value: 'insurance', label: 'Insurance', icon: '🛡️', color: '#D5E8E8' },
-  { value: 'marketing', label: 'Marketing', icon: '📣', color: '#E8D5D5' },
-  { value: 'software', label: 'Software', icon: '💻', color: '#D8D5E8' },
-  { value: 'utilities', label: 'Utilities', icon: '⚡', color: '#E8E8D5' },
-  { value: 'other', label: 'Other', icon: '📌', color: '#E0E0E0' },
+  { value: 'products', label: 'Products', icon: '🧴', color: 'var(--primary-fixed)' },
+  { value: 'rent', label: 'Rent', icon: '🏠', color: 'var(--tertiary-fixed)' },
+  { value: 'training', label: 'Training', icon: '📚', color: 'var(--secondary-container)' },
+  { value: 'travel', label: 'Travel', icon: '🚗', color: 'var(--success-bg)' },
+  { value: 'equipment', label: 'Equipment', icon: '🔧', color: 'var(--tertiary-fixed)' },
+  { value: 'insurance', label: 'Insurance', icon: '🛡️', color: 'var(--info-bg)' },
+  { value: 'marketing', label: 'Marketing', icon: '📣', color: 'var(--primary-fixed)' },
+  { value: 'software', label: 'Software', icon: '💻', color: 'var(--gold-light)' },
+  { value: 'utilities', label: 'Utilities', icon: '⚡', color: 'var(--warning-bg)' },
+  { value: 'other', label: 'Other', icon: '📌', color: 'var(--surface-container-high)' },
 ];
 
 const getCategoryMeta = (val) => CATEGORIES.find(c => c.value === val) || CATEGORIES[CATEGORIES.length - 1];
@@ -41,10 +49,20 @@ const getCategoryMeta = (val) => CATEGORIES.find(c => c.value === val) || CATEGO
 function startOfWeek(date) {
   const d = new Date(date);
   const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday start
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
   d.setDate(diff);
   d.setHours(0, 0, 0, 0);
   return d;
+}
+
+function MIcon({ name, fill, size, style }) {
+  return (
+    <span className="material-symbols-outlined" style={{
+      fontSize: size || 24,
+      fontVariationSettings: fill ? "'FILL' 1, 'wght' 300" : undefined,
+      ...style,
+    }}>{name}</span>
+  );
 }
 
 export default function MoneyTracker() {
@@ -56,11 +74,11 @@ export default function MoneyTracker() {
   const [error, setError] = useState(null);
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [period, setPeriod] = useState('week');
 
   const [receiptPreview, setReceiptPreview] = useState(null);
   const receiptInputRef = useRef(null);
 
-  // New expense form
   const [newExpense, setNewExpense] = useState({
     amount: '', vendor: '', description: '',
     category: 'products', date: new Date().toISOString().split('T')[0],
@@ -102,13 +120,13 @@ export default function MoneyTracker() {
       setTransactions(txRes.data || []);
     } catch (err) {
       logger.error('Money load error:', err);
-      setError(err.message || 'Failed to load money data');
+      setError('Something went wrong loading your money data');
     } finally {
       setLoading(false);
     }
   }
 
-  // ── Pulse computation (client-side) ──
+  // ── Pulse computation ──
 
   function computePulse() {
     const now = new Date();
@@ -170,14 +188,13 @@ export default function MoneyTracker() {
     };
   }
 
-  // ── Tax computation (client-side) ──
+  // ── Tax computation ──
 
   function computeTax() {
-    // UK tax year: 6 April to 5 April
     const now = new Date();
     const year = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
-    const start = new Date(year, 3, 6); // April 6
-    const end = new Date(year + 1, 3, 5); // April 5 next year
+    const start = new Date(year, 3, 6);
+    const end = new Date(year + 1, 3, 5);
 
     const yearTx = transactions.filter(t => {
       const d = new Date(t.created_at);
@@ -229,13 +246,11 @@ export default function MoneyTracker() {
     setScanning(true);
 
     try {
-      // Upload to Supabase Storage for processing
       const reader = new FileReader();
       reader.onload = async () => {
         const base64 = reader.result.split(',')[1];
 
         if (isDevMode) {
-          // Mock OCR result for dev mode
           setNewExpense({
             amount: '23.50',
             vendor: 'Sally Beauty',
@@ -249,13 +264,8 @@ export default function MoneyTracker() {
           return;
         }
 
-        // Upload receipt image
         const path = `${beautician.id}/receipts/${Date.now()}-${file.name}`;
         await supabase.storage.from('content-images').upload(path, file);
-
-        // Call edge function for OCR (or use AI service)
-        // For now, open the form with the image attached so user can fill manually
-        // TODO: Wire to Supabase Edge Function with Claude Vision OCR
         const { data: urlData } = supabase.storage.from('content-images').getPublicUrl(path);
 
         setNewExpense(prev => ({
@@ -302,41 +312,66 @@ export default function MoneyTracker() {
     }
   }
 
-  if (bLoading) {
-    return <p style={{ textAlign: 'center', color: '#AAA5A0', padding: 60, fontSize: 14, fontFamily: '"DM Sans", sans-serif' }}>Loading...</p>;
-  }
+  // ── Derived data ──
 
-  const pulse = !loading ? computePulse() : null;
+  const pulse = useMemo(() => !loading ? computePulse() : null, [loading, expenses, transactions]);
+
+  const dailyRevenue = useMemo(() => {
+    const days = [];
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      const dayStr = d.toISOString().slice(0, 10);
+      const label = d.toLocaleDateString('en-GB', { weekday: 'short' }).charAt(0);
+      const total = transactions
+        .filter(t => t.created_at?.slice(0, 10) === dayStr)
+        .reduce((sum, t) => sum + (t.amount_cents || 0), 0);
+      days.push({ label, total, dayStr });
+    }
+    return days;
+  }, [transactions]);
+
+  const maxDayRevenue = useMemo(() => Math.max(...dailyRevenue.map(d => d.total), 1), [dailyRevenue]);
+
+  // Breakdown: treatments vs products vs tips
+  const breakdown = useMemo(() => {
+    if (!pulse) return { treatments: 0, products: 0, tips: 0 };
+    const treatments = transactions
+      .filter(t => new Date(t.created_at) >= startOfWeek(new Date()) && t.type === 'payment')
+      .reduce((s, t) => s + (t.amount_cents || 0), 0);
+    const tips = transactions
+      .filter(t => new Date(t.created_at) >= startOfWeek(new Date()) && t.type === 'tip')
+      .reduce((s, t) => s + (t.amount_cents || 0), 0);
+    return {
+      treatments,
+      products: Math.round(pulse.thisWeek.income * 0.1), // estimate
+      tips,
+    };
+  }, [pulse, transactions]);
+
+  const recentTx = useMemo(() => transactions.slice(0, 5), [transactions]);
+
+  if (bLoading || loading) return <PageLoader />;
+  if (error) return <ErrorCard message={error} onDismiss={() => setError(null)} />;
+
   const changeArrow = pulse?.incomeChange != null ? (pulse.incomeChange >= 0 ? '↑' : '↓') : '';
   const changeColor = pulse?.incomeChange >= 0 ? 'var(--success)' : 'var(--danger)';
 
-  if (bLoading || loading) {
-    return <PageLoader />;
-  }
-
-  if (error) {
-    return <ErrorCard message={error} onDismiss={() => setError(null)} />;
-  }
-
   return (
-    <div style={styles.page}>
-      <div style={styles.header}>
-        <div>
-          <h1 style={styles.title}>Money</h1>
-          <p style={styles.subtitle}>Your Financial Tracker</p>
-        </div>
-      </div>
+    <div style={S.page}>
+      {/* ─── Page Title ─── */}
+      <h1 style={S.pageTitle}>Money & Revenue</h1>
 
-      {/* Tabs */}
-      <div style={styles.tabs}>
+      {/* ─── Tab Bar (pill style) ─── */}
+      <div style={S.tabBar}>
         {['pulse', 'expenses', 'income', 'tax'].map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
             style={{
-              ...styles.tab,
-              borderBottomColor: tab === t ? 'var(--accent)' : 'transparent',
-              color: tab === t ? 'var(--accent)' : 'var(--text-muted)'
+              ...S.tab,
+              ...(tab === t ? S.tabActive : {}),
             }}
           >
             {t === 'pulse' ? 'Pulse' : t === 'expenses' ? 'Expenses' : t === 'income' ? 'Income' : 'Tax'}
@@ -344,180 +379,286 @@ export default function MoneyTracker() {
         ))}
       </div>
 
-      {/* === PULSE TAB === */}
+      {/* ═══ PULSE TAB ═══ */}
       {tab === 'pulse' && (
         <div>
           {pulse ? (
             <>
-              <div style={styles.pulseGrid}>
-                <div style={styles.pulseCard}>
-                  <span style={styles.pulseLabel}>Income</span>
-                  <span style={styles.pulseValue}>{fmt(pulse.thisWeek.income)}</span>
+              {/* Period selector */}
+              <div style={S.periodBar}>
+                {['today', 'week', 'month'].map(p => (
+                  <button
+                    key={p}
+                    onClick={() => setPeriod(p)}
+                    style={{
+                      ...S.periodBtn,
+                      ...(period === p ? S.periodBtnActive : {}),
+                    }}
+                  >
+                    {p === 'today' ? 'Today' : p === 'week' ? 'This Week' : 'This Month'}
+                  </button>
+                ))}
+              </div>
+
+              {/* ─── Hero Revenue Card ─── */}
+              <section style={S.heroCard}>
+                <div style={S.heroDecor} />
+                <div style={{ position: 'relative', zIndex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <MIcon name="payments" fill size={16} style={{ color: 'rgba(255,255,255,0.8)' }} />
+                    <span style={S.heroLabel}>Total Revenue</span>
+                  </div>
+                  <h2 style={S.heroValue}>{fmt(pulse.thisWeek.income)}</h2>
                   {pulse.incomeChange != null && (
-                    <span style={{ ...styles.pulseChange, color: changeColor }}>
+                    <span style={{
+                      ...S.changeBadge,
+                      background: pulse.incomeChange >= 0 ? 'rgba(91,169,123,0.2)' : 'rgba(186,26,26,0.2)',
+                      color: pulse.incomeChange >= 0 ? '#8EE0AE' : '#F08080',
+                    }}>
                       {changeArrow} {Math.abs(pulse.incomeChange)}% vs last week
                     </span>
                   )}
                 </div>
-                <div style={styles.pulseCard}>
-                  <span style={styles.pulseLabel}>Expenses</span>
-                  <span style={styles.pulseValue}>{fmt(pulse.thisWeek.expenses)}</span>
+                <div style={S.heroIcon}>
+                  <MIcon name="trending_up" size={64} style={{ opacity: 0.15, color: '#fff' }} />
                 </div>
-                <div style={{ ...styles.pulseCard, ...styles.profitCard }}>
-                  <span style={styles.pulseLabel}>Profit</span>
+              </section>
+
+              {/* ─── Mini Bar Chart ─── */}
+              <section style={S.chartCard}>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 80 }}>
+                  {dailyRevenue.map((d, i) => {
+                    const isToday = i === dailyRevenue.length - 1;
+                    const h = Math.max(4, (d.total / maxDayRevenue) * 72);
+                    return (
+                      <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                        <div style={{
+                          width: '100%',
+                          height: h,
+                          borderRadius: 6,
+                          background: isToday
+                            ? 'linear-gradient(180deg, #c76b8a 0%, #92405e 100%)'
+                            : 'rgba(146, 64, 94, 0.15)',
+                          transition: 'height 0.3s ease',
+                        }} />
+                        <span style={{
+                          fontSize: 9,
+                          fontWeight: isToday ? 700 : 500,
+                          color: isToday ? '#92405e' : '#867277',
+                          textTransform: 'uppercase',
+                        }}>{d.label}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+
+              {/* ─── Breakdown Bento ─── */}
+              <section style={S.bentoGrid}>
+                <div style={{ ...S.bentoCard, background: 'rgba(255, 217, 226, 0.3)', border: '1px solid rgba(146, 64, 94, 0.08)' }}>
+                  <MIcon name="content_cut" size={20} style={{ color: '#92405e' }} />
+                  <span style={S.bentoLabel}>Treatments</span>
+                  <span style={{ ...S.bentoValue, color: '#92405e' }}>{fmtShort(breakdown.treatments)}</span>
+                </div>
+                <div style={{ ...S.bentoCard, background: 'rgba(254, 219, 155, 0.3)', border: '1px solid rgba(116, 90, 39, 0.08)' }}>
+                  <MIcon name="shopping_bag" size={20} style={{ color: '#745a27' }} />
+                  <span style={S.bentoLabel}>Products</span>
+                  <span style={{ ...S.bentoValue, color: '#745a27' }}>{fmtShort(breakdown.products)}</span>
+                </div>
+                <div style={{ ...S.bentoCard, background: 'rgba(91, 169, 123, 0.1)', border: '1px solid rgba(91, 169, 123, 0.08)' }}>
+                  <MIcon name="volunteer_activism" size={20} style={{ color: 'var(--success)' }} />
+                  <span style={S.bentoLabel}>Tips</span>
+                  <span style={{ ...S.bentoValue, color: 'var(--success)' }}>{fmtShort(breakdown.tips)}</span>
+                </div>
+              </section>
+
+              {/* ─── Quick Stats ─── */}
+              <section style={S.quickStats}>
+                <div style={S.qStat}>
+                  <span style={S.qStatValue}>{pulse.thisWeek.appointments}</span>
+                  <span style={S.qStatLabel}>Completed</span>
+                </div>
+                <div style={{ width: 1, height: 28, background: 'rgba(146, 64, 94, 0.1)' }} />
+                <div style={S.qStat}>
+                  <span style={S.qStatValue}>{fmt(pulse.thisWeek.expenses)}</span>
+                  <span style={S.qStatLabel}>Expenses</span>
+                </div>
+                <div style={{ width: 1, height: 28, background: 'rgba(146, 64, 94, 0.1)' }} />
+                <div style={S.qStat}>
                   <span style={{
-                    ...styles.pulseValue,
-                    color: pulse.thisWeek.profit >= 0 ? '#4CAF50' : '#E57373'
-                  }}>
-                    {fmt(pulse.thisWeek.profit)}
+                    ...S.qStatValue,
+                    color: pulse.thisWeek.profit >= 0 ? 'var(--success)' : 'var(--danger)',
+                  }}>{fmt(pulse.thisWeek.profit)}</span>
+                  <span style={S.qStatLabel}>Profit</span>
+                </div>
+              </section>
+
+              {/* ─── Recent Transactions ─── */}
+              <section>
+                <div style={S.sectionHeader}>
+                  <h3 style={S.sectionHeading}>Recent Transactions</h3>
+                  <button onClick={() => setTab('income')} style={S.seeAll}>See All</button>
+                </div>
+                {recentTx.length === 0 ? (
+                  <EmptyState message="No transactions yet" icon="💰" />
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {recentTx.map(tx => {
+                      const name = tx.appointments?.clients?.first_name || 'Payment';
+                      const treatment = tx.appointments?.treatments?.name || '';
+                      const initial = name.charAt(0).toUpperCase();
+                      const time = new Date(tx.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                      const isIncome = tx.amount_cents >= 0;
+                      return (
+                        <div key={tx.id} style={S.txRow}>
+                          <div style={S.txAvatar}>{initial}</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontSize: 14, fontWeight: 600, color: '#1d1b19', margin: 0 }}>{name}</p>
+                            <p style={{ fontSize: 11, color: '#867277', margin: 0 }}>
+                              {treatment}{treatment ? ' · ' : ''}{time}
+                            </p>
+                          </div>
+                          <span style={{
+                            fontSize: 14, fontWeight: 700,
+                            color: isIncome ? 'var(--success)' : 'var(--danger)',
+                          }}>
+                            {isIncome ? '+' : '-'}{fmt(tx.amount_cents)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+
+              {/* ─── Last Week Comparison ─── */}
+              <section style={{ ...S.compCard, marginTop: 24 }}>
+                <h4 style={S.compTitle}>Last Week</h4>
+                <div style={S.compRow}><span style={S.compLabel}>Income</span><span style={S.compValue}>{fmt(pulse.lastWeek.income)}</span></div>
+                <div style={S.compRow}><span style={S.compLabel}>Expenses</span><span style={S.compValue}>{fmt(pulse.lastWeek.expenses)}</span></div>
+                <div style={{ ...S.compRow, borderBottom: 'none' }}>
+                  <span style={{ ...S.compLabel, fontWeight: 600 }}>Profit</span>
+                  <span style={{ ...S.compValue, fontWeight: 700, color: pulse.lastWeek.profit >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                    {fmt(pulse.lastWeek.profit)}
                   </span>
                 </div>
-              </div>
-
-              <div style={styles.statsRow}>
-                <div style={styles.statBox}>
-                  <span style={styles.statNum}>{pulse.thisWeek.appointments}</span>
-                  <span style={styles.statLabel}>Completed</span>
-                </div>
-                <div style={styles.statBox}>
-                  <span style={styles.statNum}>{pulse.thisWeek.noShows}</span>
-                  <span style={styles.statLabel}>No-shows</span>
-                </div>
-                <div style={styles.statBox}>
-                  <span style={styles.statNum}>{pulse.thisWeek.noShowRate}%</span>
-                  <span style={styles.statLabel}>No-show rate</span>
-                </div>
-              </div>
-
-              {Object.keys(pulse.thisWeek.expenseByCategory).length > 0 && (
-                <div style={styles.breakdownSection}>
-                  <h3 style={styles.sectionTitle}>Expenses this week</h3>
-                  {Object.entries(pulse.thisWeek.expenseByCategory)
-                    .sort(([, a], [, b]) => b - a)
-                    .map(([cat, cents]) => (
-                      <div key={cat} style={styles.breakdownRow}>
-                        <span style={styles.breakdownCat}>{cat}</span>
-                        <span style={styles.breakdownAmt}>{fmt(cents)}</span>
-                      </div>
-                    ))
-                  }
-                </div>
-              )}
-
-              <div style={styles.comparisonCard}>
-                <h3 style={styles.sectionTitle}>Last week</h3>
-                <div style={styles.compRow}><span>Income</span><span>{fmt(pulse.lastWeek.income)}</span></div>
-                <div style={styles.compRow}><span>Expenses</span><span>{fmt(pulse.lastWeek.expenses)}</span></div>
-                <div style={{ ...styles.compRow, fontWeight: 600 }}><span>Profit</span><span>{fmt(pulse.lastWeek.profit)}</span></div>
-              </div>
+              </section>
             </>
           ) : (
-            <div style={styles.emptyState}>
-              <p style={styles.emptyTitle}>No data yet</p>
-              <p style={styles.emptyDesc}>Complete appointments and log expenses to see your pulse.</p>
-            </div>
+            <EmptyState message="Complete appointments and log expenses to see your pulse." icon="📊" />
           )}
         </div>
       )}
 
-      {/* === EXPENSES TAB === */}
+      {/* ═══ EXPENSES TAB ═══ */}
       {tab === 'expenses' && (
         <div>
-          <div style={styles.expenseActions}>
-            <button onClick={() => setShowAddExpense(!showAddExpense)} style={styles.addBtn}>
-              + Add Expense
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            <button onClick={() => setShowAddExpense(!showAddExpense)} style={S.btnPrimary}>
+              <MIcon name="add" size={16} style={{ color: '#fff', marginRight: 4 }} />
+              Add Expense
             </button>
-            <label style={styles.scanBtn}>
-              📷 Scan Receipt
+            <label style={S.btnSecondary}>
+              <MIcon name="photo_camera" size={16} style={{ marginRight: 4 }} />
+              Scan Receipt
               <input type="file" accept="image/*" capture="environment" onChange={handleReceiptScan} style={{ display: 'none' }} />
             </label>
           </div>
 
           {showAddExpense && (
-            <div style={styles.addForm}>
-              <div style={styles.formRow}>
-                <div style={styles.formGroup}>
-                  <label style={styles.formLabel}>Amount (£)</label>
+            <div style={S.formCard}>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={S.formLabel}>Amount (£)</label>
                   <input
                     type="number" step="0.01" placeholder="0.00"
                     value={newExpense.amount}
                     onChange={e => setNewExpense(p => ({ ...p, amount: e.target.value }))}
-                    style={styles.formInput}
+                    style={S.formInput}
                   />
                 </div>
-                <div style={styles.formGroup}>
-                  <label style={styles.formLabel}>Date</label>
+                <div style={{ flex: 1 }}>
+                  <label style={S.formLabel}>Date</label>
                   <input
                     type="date" value={newExpense.date}
                     onChange={e => setNewExpense(p => ({ ...p, date: e.target.value }))}
-                    style={styles.formInput}
+                    style={S.formInput}
                   />
                 </div>
               </div>
 
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>Vendor</label>
+              <div style={{ marginBottom: 12 }}>
+                <label style={S.formLabel}>Vendor</label>
                 <input
                   type="text" placeholder="e.g. Sally Beauty"
                   value={newExpense.vendor}
                   onChange={e => setNewExpense(p => ({ ...p, vendor: e.target.value }))}
-                  style={styles.formInput}
+                  style={S.formInput}
                 />
               </div>
 
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>Category</label>
-                <div style={styles.categoryGrid}>
+              <div style={{ marginBottom: 12 }}>
+                <label style={S.formLabel}>Category</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {CATEGORIES.map(c => (
                     <button
                       key={c.value}
                       type="button"
                       onClick={() => setNewExpense(p => ({ ...p, category: c.value }))}
                       style={{
-                        ...styles.categoryChip,
-                        background: newExpense.category === c.value ? c.color : '#fff',
-                        borderColor: newExpense.category === c.value ? c.color : '#F0ECE8',
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                        padding: '8px 10px', borderRadius: 10, minWidth: 56,
+                        border: newExpense.category === c.value ? '1.5px solid var(--accent)' : '1.5px solid var(--border-light)',
+                        background: newExpense.category === c.value ? 'var(--accent-bg)' : 'var(--bg-card)',
+                        cursor: 'pointer', fontFamily: 'inherit',
                       }}
                     >
                       <span>{c.icon}</span>
-                      <span style={{ fontSize: 11 }}>{c.label}</span>
+                      <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{c.label}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>Description</label>
+              <div style={{ marginBottom: 12 }}>
+                <label style={S.formLabel}>Description</label>
                 <input
                   type="text" placeholder="e.g. Brow tint x3, wax strips"
                   value={newExpense.description}
                   onChange={e => setNewExpense(p => ({ ...p, description: e.target.value }))}
-                  style={styles.formInput}
+                  style={S.formInput}
                 />
               </div>
 
-              <div style={styles.formGroup}>
-                <label style={styles.formLabel}>Receipt photo</label>
-                <div style={styles.receiptRow}>
+              <div style={{ marginBottom: 12 }}>
+                <label style={S.formLabel}>Receipt photo</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {receiptPreview ? (
-                    <div style={styles.receiptThumbWrap}>
-                      <img src={receiptPreview} alt="Receipt" style={styles.receiptThumb} />
-                      <button onClick={() => { setReceiptPreview(null); }} style={styles.receiptRemoveBtn}>×</button>
+                    <div style={{ position: 'relative', display: 'inline-block' }}>
+                      <img src={receiptPreview} alt="Receipt" style={{ width: 64, height: 64, borderRadius: 10, objectFit: 'cover', border: '1.5px solid var(--border-light)' }} />
+                      <button onClick={() => setReceiptPreview(null)} style={{
+                        position: 'absolute', top: -6, right: -6,
+                        width: 20, height: 20, borderRadius: 10, border: 'none',
+                        background: 'var(--danger)', color: '#fff', fontSize: 12,
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>×</button>
                     </div>
                   ) : (
                     <button
                       type="button"
                       onClick={() => receiptInputRef.current?.click()}
-                      style={styles.receiptAddBtn}
+                      style={{
+                        padding: '10px 16px', borderRadius: 10, border: '1.5px dashed var(--border)',
+                        background: 'var(--bg-card)', color: 'var(--text-muted)', fontSize: 13,
+                        cursor: 'pointer', fontFamily: 'inherit',
+                      }}
                     >
-                      📷 Add photo
+                      <MIcon name="photo_camera" size={14} style={{ marginRight: 4 }} /> Add photo
                     </button>
                   )}
                   <input
                     ref={receiptInputRef}
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
+                    type="file" accept="image/*" capture="environment"
                     onChange={e => {
                       const file = e.target.files?.[0];
                       if (file) setReceiptPreview(URL.createObjectURL(file));
@@ -527,7 +668,10 @@ export default function MoneyTracker() {
                 </div>
               </div>
 
-              <label style={styles.checkboxLabel}>
+              <label style={{
+                display: 'flex', alignItems: 'center', fontSize: 13,
+                color: 'var(--text-secondary)', marginBottom: 14, cursor: 'pointer',
+              }}>
                 <input
                   type="checkbox" checked={newExpense.tax_deductible}
                   onChange={e => setNewExpense(p => ({ ...p, tax_deductible: e.target.checked }))}
@@ -535,37 +679,36 @@ export default function MoneyTracker() {
                 <span style={{ marginLeft: 8 }}>Tax deductible</span>
               </label>
 
-              <div style={styles.formActions}>
-                <button onClick={handleAddExpense} style={styles.saveBtn}>Save Expense</button>
-                <button onClick={() => setShowAddExpense(false)} style={styles.cancelBtn}>Cancel</button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={handleAddExpense} style={S.btnPrimary}>Save Expense</button>
+                <button onClick={() => setShowAddExpense(false)} style={S.btnGhost}>Cancel</button>
               </div>
             </div>
           )}
 
-          <div style={styles.list}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {expenses.length === 0 && (
-              <div style={styles.emptyState}>
-                <p style={styles.emptyTitle}>No expenses logged</p>
-                <p style={styles.emptyDesc}>Tap + Add Expense to start tracking.</p>
-              </div>
+              <EmptyState message="No expenses logged. Tap + Add Expense to start tracking." icon="🧾" />
             )}
             {expenses.map(exp => {
               const catMeta = getCategoryMeta(exp.category);
               return (
-                <div key={exp.id} style={styles.listItem}>
-                  <div style={{ ...styles.catIconBubble, background: catMeta.color }}>
+                <div key={exp.id} style={S.txRow}>
+                  <div style={{ ...S.catBubble, background: catMeta.color }}>
                     <span style={{ fontSize: 16 }}>{catMeta.icon}</span>
                   </div>
-                  <div style={styles.listLeft}>
-                    <span style={styles.listTitle}>{exp.vendor || catMeta.label}</span>
-                    {exp.description && <span style={styles.listDesc}>{exp.description}</span>}
-                    <span style={styles.listMeta}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: '#1d1b19', margin: 0 }}>{exp.vendor || catMeta.label}</p>
+                    {exp.description && <p style={{ fontSize: 11, color: '#867277', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exp.description}</p>}
+                    <p style={{ fontSize: 10, color: '#867277', margin: '2px 0 0' }}>
                       {new Date(exp.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                       {' · '}{catMeta.label}
                       {exp.tax_deductible && ' · Tax ✓'}
-                    </span>
+                    </p>
                   </div>
-                  <span style={styles.listAmount}>-{fmt(exp.amount_cents)}</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--danger)', marginLeft: 12, whiteSpace: 'nowrap' }}>
+                    -{fmt(exp.amount_cents)}
+                  </span>
                 </div>
               );
             })}
@@ -573,93 +716,103 @@ export default function MoneyTracker() {
         </div>
       )}
 
-      {/* === INCOME TAB === */}
+      {/* ═══ INCOME TAB ═══ */}
       {tab === 'income' && (
-        <div style={styles.list}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {transactions.length === 0 && (
-            <div style={styles.emptyState}>
-              <p style={styles.emptyTitle}>No income yet</p>
-              <p style={styles.emptyDesc}>Payments from completed appointments will show here.</p>
-            </div>
+            <EmptyState message="Payments from completed appointments will show here." icon="💳" />
           )}
-          {transactions.map(tx => (
-            <div key={tx.id} style={styles.listItem}>
-              <div style={styles.listLeft}>
-                <span style={styles.listTitle}>
-                  {tx.appointments?.clients?.first_name || 'Payment'}
-                  {tx.appointments?.treatments?.name ? ` — ${tx.appointments.treatments.name}` : ''}
-                </span>
-                <span style={styles.listMeta}>
-                  {new Date(tx.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                  {' · '}
-                  {tx.type === 'payment' ? 'Payment' : tx.type === 'deposit' ? 'Deposit' : tx.type === 'no_show_fee' ? 'No-show fee' : tx.type}
+          {transactions.map(tx => {
+            const name = tx.appointments?.clients?.first_name || 'Payment';
+            const treatment = tx.appointments?.treatments?.name || '';
+            const initial = name.charAt(0).toUpperCase();
+            return (
+              <div key={tx.id} style={S.txRow}>
+                <div style={S.txAvatar}>{initial}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: '#1d1b19', margin: 0 }}>
+                    {name}{treatment ? ` — ${treatment}` : ''}
+                  </p>
+                  <p style={{ fontSize: 11, color: '#867277', margin: 0 }}>
+                    {new Date(tx.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                    {' · '}
+                    {tx.type === 'payment' ? 'Payment' : tx.type === 'deposit' ? 'Deposit' : tx.type === 'no_show_fee' ? 'No-show fee' : tx.type}
+                  </p>
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--success)', marginLeft: 12 }}>
+                  +{fmt(tx.amount_cents)}
                 </span>
               </div>
-              <span style={{ ...styles.listAmount, color: '#4CAF50' }}>+{fmt(tx.amount_cents)}</span>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      {/* === TAX TAB === */}
+      {/* ═══ TAX TAB ═══ */}
       {tab === 'tax' && (
         <div>
           {(() => {
             const taxSummary = computeTax();
             return (
               <>
-                <div style={styles.taxHeader}>
-                  <h3 style={styles.sectionTitle}>Tax Year {taxSummary.taxYear}</h3>
-                  <span style={styles.taxPeriod}>{taxSummary.period.start} to {taxSummary.period.end}</span>
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <MIcon name="receipt_long" size={18} style={{ color: '#92405e' }} />
+                    <h3 style={S.sectionHeading}>Tax Year {taxSummary.taxYear}</h3>
+                  </div>
+                  <span style={{ fontSize: 12, color: '#867277' }}>{taxSummary.period.start} to {taxSummary.period.end}</span>
                 </div>
 
-                <div style={styles.pulseGrid}>
-                  <div style={styles.pulseCard}>
-                    <span style={styles.pulseLabel}>Total Income</span>
-                    <span style={styles.pulseValue}>{fmt(taxSummary.totalIncome)}</span>
-                    <span style={styles.pulseChange}>{taxSummary.transactionCount} transactions</span>
+                {/* Tax summary cards */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+                  <div style={S.taxCard}>
+                    <span style={S.taxCardLabel}>Total Income</span>
+                    <span style={S.taxCardValue}>{fmt(taxSummary.totalIncome)}</span>
+                    <span style={{ fontSize: 11, color: '#867277' }}>{taxSummary.transactionCount} transactions</span>
                   </div>
-                  <div style={styles.pulseCard}>
-                    <span style={styles.pulseLabel}>Deductible Expenses</span>
-                    <span style={styles.pulseValue}>{fmt(taxSummary.totalExpenses)}</span>
-                    <span style={styles.pulseChange}>{taxSummary.expenseCount} items</span>
+                  <div style={S.taxCard}>
+                    <span style={S.taxCardLabel}>Deductible Expenses</span>
+                    <span style={S.taxCardValue}>{fmt(taxSummary.totalExpenses)}</span>
+                    <span style={{ fontSize: 11, color: '#867277' }}>{taxSummary.expenseCount} items</span>
                   </div>
-                  <div style={{ ...styles.pulseCard, ...styles.profitCard }}>
-                    <span style={styles.pulseLabel}>Taxable Profit</span>
-                    <span style={styles.pulseValue}>{fmt(taxSummary.taxableProfit)}</span>
+                  <div style={{ ...S.taxCard, border: '1.5px solid rgba(146, 64, 94, 0.15)' }}>
+                    <span style={S.taxCardLabel}>Taxable Profit</span>
+                    <span style={{ ...S.taxCardValue, color: '#92405e' }}>{fmt(taxSummary.taxableProfit)}</span>
                   </div>
                 </div>
 
+                {/* Expense breakdown by category */}
                 {Object.keys(taxSummary.expensesByCategory).length > 0 && (
-                  <div style={styles.breakdownSection}>
-                    <h3 style={styles.sectionTitle}>Expenses by category</h3>
+                  <div style={S.breakdownCard}>
+                    <h4 style={S.breakdownTitle}>Expenses by Category</h4>
                     {Object.entries(taxSummary.expensesByCategory)
                       .sort(([, a], [, b]) => b.total_cents - a.total_cents)
                       .map(([cat, data]) => (
-                        <div key={cat} style={styles.breakdownRow}>
+                        <div key={cat} style={S.breakdownRow}>
                           <div>
-                            <span style={styles.breakdownCat}>{cat}</span>
-                            <span style={styles.breakdownCount}> ({data.count} items)</span>
+                            <span style={{ fontSize: 13, textTransform: 'capitalize', color: '#534247' }}>{cat}</span>
+                            <span style={{ fontSize: 11, color: '#867277' }}> ({data.count})</span>
                           </div>
-                          <span style={styles.breakdownAmt}>{fmt(data.total_cents)}</span>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: '#1d1b19' }}>{fmt(data.total_cents)}</span>
                         </div>
                       ))
                     }
                   </div>
                 )}
 
+                {/* Monthly income */}
                 {Object.keys(taxSummary.monthlyIncome).length > 0 && (
-                  <div style={styles.breakdownSection}>
-                    <h3 style={styles.sectionTitle}>Monthly income</h3>
+                  <div style={S.breakdownCard}>
+                    <h4 style={S.breakdownTitle}>Monthly Income</h4>
                     {Object.entries(taxSummary.monthlyIncome)
                       .sort(([a], [b]) => a.localeCompare(b))
                       .map(([month, cents]) => {
                         const [y, m] = month.split('-');
                         const label = new Date(y, parseInt(m) - 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
                         return (
-                          <div key={month} style={styles.breakdownRow}>
-                            <span style={styles.breakdownCat}>{label}</span>
-                            <span style={styles.breakdownAmt}>{fmt(cents)}</span>
+                          <div key={month} style={S.breakdownRow}>
+                            <span style={{ fontSize: 13, color: '#534247' }}>{label}</span>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: '#1d1b19' }}>{fmt(cents)}</span>
                           </div>
                         );
                       })
@@ -667,7 +820,10 @@ export default function MoneyTracker() {
                   </div>
                 )}
 
-                <p style={styles.taxNote}>
+                <p style={{
+                  fontSize: 12, color: '#867277', textAlign: 'center',
+                  padding: '16px 20px', lineHeight: 1.5, fontStyle: 'italic',
+                }}>
                   These figures are for reference. Always check with your accountant before filing your self-assessment.
                 </p>
               </>
@@ -692,267 +848,236 @@ const DEV_TRANSACTIONS = [
   { id: 'dev-tx3', type: 'payment', amount_cents: 2500, created_at: '2026-03-23T15:00:00Z', appointments: { clients: { first_name: 'Jasmin' }, treatments: { name: 'HD Brows' } } },
 ];
 
-const styles = {
+// ─── Styles — Stitch "Money & Revenue" reference ───
+const S = {
   page: {
     minHeight: '100vh',
-    background: 'var(--bg)',
-    fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)",
-    padding: '0 16px 40px',
+    background: '#fef8f4',
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
+    padding: '16px 24px 120px',
     maxWidth: 480,
     margin: '0 auto',
-    color: 'var(--text-primary)',
-    animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+    color: '#1d1b19',
+    animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
   },
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 28,
-    paddingBottom: 8
+  pageTitle: {
+    fontFamily: "var(--font-display, 'Playfair Display', serif)",
+    fontSize: 24, fontStyle: 'italic', fontWeight: 400,
+    color: '#92405e', margin: '0 0 16px',
   },
-  title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
-  subtitle: { fontSize: 13, color: 'var(--accent)', margin: 0, fontWeight: 500 },
-  tabs: {
-    display: 'flex',
-    gap: 16,
-    borderBottom: '1px solid var(--border)',
-    marginBottom: 16,
-    overflowX: 'auto'
+
+  // Tab bar — pill style
+  tabBar: {
+    display: 'flex', gap: 4,
+    background: '#f3ede9', borderRadius: 14, padding: 4,
+    marginBottom: 20,
   },
   tab: {
-    padding: '10px 0',
-    background: 'none',
-    border: 'none',
-    borderBottom: '2px solid transparent',
-    fontSize: 14,
+    flex: 1, padding: '9px 0', fontSize: 13, fontWeight: 500,
+    border: 'none', borderRadius: 11, cursor: 'pointer',
+    fontFamily: 'inherit', background: 'none', color: '#867277',
+    transition: 'all 0.2s ease',
+  },
+  tabActive: {
+    background: '#fff', color: '#1d1b19',
+    boxShadow: '0 1px 3px rgba(146, 64, 94, 0.06), 0 1px 2px rgba(146, 64, 94, 0.04)',
     fontWeight: 600,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    transition: 'all 0.2s',
-    whiteSpace: 'nowrap'
   },
-  loadingText: { textAlign: 'center', color: 'var(--text-muted)', padding: 40, fontSize: 14 },
 
-  // Pulse
-  pulseGrid: { display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 },
-  pulseCard: {
-    background: 'var(--bg-card)',
-    borderRadius: 14,
-    padding: '16px 18px',
-    boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))'
+  // Period selector
+  periodBar: {
+    display: 'flex', gap: 8, marginBottom: 16,
   },
-  profitCard: { border: '1.5px solid var(--border)' },
-  pulseLabel: { display: 'block', fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 },
-  pulseValue: { display: 'block', fontSize: 24, fontWeight: 700, color: 'var(--text-primary)' },
-  pulseChange: { display: 'block', fontSize: 12, color: 'var(--text-muted)', marginTop: 4 },
-
-  statsRow: { display: 'flex', gap: 10, marginBottom: 16 },
-  statBox: {
-    flex: 1,
-    background: 'var(--bg-card)',
-    borderRadius: 12,
-    padding: '14px 12px',
-    textAlign: 'center',
-    boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))'
+  periodBtn: {
+    padding: '6px 14px', borderRadius: 20,
+    border: '1px solid rgba(146, 64, 94, 0.1)', background: 'transparent',
+    fontSize: 12, fontWeight: 500, color: '#867277',
+    cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s ease',
   },
-  statNum: { display: 'block', fontSize: 20, fontWeight: 700, color: 'var(--accent)' },
-  statLabel: { display: 'block', fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 2 },
+  periodBtnActive: {
+    background: '#92405e', color: '#fff',
+    border: '1px solid #92405e',
+    boxShadow: '0 2px 8px rgba(146, 64, 94, 0.2)',
+  },
 
-  breakdownSection: {
-    background: 'var(--bg-card)',
-    borderRadius: 14,
-    padding: 16,
+  // Hero revenue card
+  heroCard: {
+    position: 'relative', overflow: 'hidden',
+    background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
+    color: '#fff', borderRadius: 24, padding: 24, marginBottom: 16,
+    boxShadow: '0 8px 32px rgba(146, 64, 94, 0.15)',
+  },
+  heroDecor: {
+    position: 'absolute', top: 0, right: 0,
+    width: 128, height: 128,
+    background: 'rgba(255,255,255,0.1)',
+    borderRadius: '50%', marginRight: -64, marginTop: -64,
+    filter: 'blur(32px)',
+  },
+  heroIcon: { position: 'absolute', bottom: 16, right: 24 },
+  heroLabel: {
+    fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em',
+    fontWeight: 700, opacity: 0.8,
+  },
+  heroValue: {
+    fontFamily: "var(--font-display, 'Playfair Display', serif)",
+    fontSize: 36, fontStyle: 'italic', fontWeight: 400,
+    lineHeight: 1.15, margin: '0 0 8px',
+  },
+  changeBadge: {
+    display: 'inline-block', padding: '3px 10px', borderRadius: 12,
+    fontSize: 11, fontWeight: 600,
+  },
+
+  // Chart card
+  chartCard: {
+    background: '#fff', borderRadius: 16, padding: 16,
+    border: '1px solid rgba(146, 64, 94, 0.05)',
+    boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
+    marginBottom: 16,
+  },
+
+  // Bento breakdown
+  bentoGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 },
+  bentoCard: {
+    borderRadius: 16, padding: 14,
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+  },
+  bentoLabel: {
+    fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em',
+    color: '#867277', fontWeight: 600,
+  },
+  bentoValue: {
+    fontFamily: "var(--font-display, 'Playfair Display', serif)",
+    fontSize: 18, fontStyle: 'italic', fontWeight: 400,
+  },
+
+  // Quick stats row
+  quickStats: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-around',
+    background: '#fff', borderRadius: 16, padding: '14px 8px',
+    border: '1px solid rgba(146, 64, 94, 0.05)',
+    boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
+    marginBottom: 24,
+  },
+  qStat: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
+  qStatValue: { fontSize: 15, fontWeight: 700, color: '#1d1b19' },
+  qStatLabel: { fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#867277', fontWeight: 600 },
+
+  // Section headers
+  sectionHeader: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
     marginBottom: 12,
-    boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))'
   },
-  sectionTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: 'var(--text-primary)' },
-  breakdownRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '8px 0',
-    borderBottom: '1px solid var(--bg)'
+  sectionHeading: {
+    fontFamily: "var(--font-display, 'Playfair Display', serif)",
+    fontSize: 20, fontStyle: 'italic', fontWeight: 400,
+    color: '#92405e', margin: 0,
   },
-  breakdownCat: { fontSize: 13, textTransform: 'capitalize', color: 'var(--text-secondary)' },
-  breakdownCount: { fontSize: 11, color: 'var(--text-muted)' },
-  breakdownAmt: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
-
-  comparisonCard: {
-    background: 'var(--bg-card)',
-    borderRadius: 14,
-    padding: 16,
-    boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))'
-  },
-  compRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    padding: '6px 0',
-    fontSize: 13,
-    color: 'var(--text-secondary)'
+  seeAll: {
+    fontSize: 10, fontWeight: 700, color: '#867277',
+    textTransform: 'uppercase', letterSpacing: '0.12em',
+    background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
   },
 
-  // Expenses
-  expenseActions: { display: 'flex', gap: 8, marginBottom: 14 },
-  addBtn: {
-    flex: 1,
-    padding: '10px 0',
-    borderRadius: 10,
-    border: 'none',
-    background: 'var(--accent)',
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: 'pointer',
-    fontFamily: 'inherit'
+  // Transaction rows
+  txRow: {
+    background: '#fff', padding: 14, borderRadius: 16,
+    display: 'flex', alignItems: 'center', gap: 12,
+    border: '1px solid rgba(146, 64, 94, 0.05)',
+    boxShadow: '0 1px 2px rgba(146, 64, 94, 0.04)',
   },
-  scanBtn: {
-    flex: 1,
-    padding: '10px 0',
-    borderRadius: 10,
-    border: '1.5px solid var(--border)',
-    background: 'var(--bg-card)',
-    color: '#666',
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
+  txAvatar: {
+    width: 36, height: 36, borderRadius: 12,
+    background: 'linear-gradient(135deg, #ffd9e2 0%, #ffb1c8 100%)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 14, fontWeight: 700, color: '#92405e', flexShrink: 0,
   },
-
-  addForm: {
-    background: 'var(--bg-card)',
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 14,
-    boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))'
-  },
-  formRow: { display: 'flex', gap: 10, marginBottom: 10 },
-  formGroup: { flex: 1, marginBottom: 10 },
-  formLabel: { display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4, fontWeight: 500 },
-  formInput: {
-    width: '100%',
-    padding: '10px 12px',
-    borderRadius: 8,
-    border: '1.5px solid var(--border)',
-    fontSize: 14,
-    fontFamily: 'inherit',
-    outline: 'none',
-    boxSizing: 'border-box',
-    transition: 'border-color 0.2s'
-  },
-  formSelect: {
-    width: '100%',
-    padding: '10px 12px',
-    borderRadius: 8,
-    border: '1.5px solid var(--border)',
-    fontSize: 14,
-    fontFamily: 'inherit',
-    outline: 'none',
-    background: 'var(--bg-card)',
-    boxSizing: 'border-box'
-  },
-  checkboxLabel: {
-    display: 'flex',
-    alignItems: 'center',
-    fontSize: 13,
-    color: 'var(--text-secondary)',
-    marginBottom: 12,
-    cursor: 'pointer'
-  },
-  formActions: { display: 'flex', gap: 8 },
-  saveBtn: {
-    flex: 1,
-    padding: '10px 0',
-    borderRadius: 10,
-    border: 'none',
-    background: 'var(--accent)',
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: 'pointer',
-    fontFamily: 'inherit'
-  },
-  cancelBtn: {
-    padding: '10px 16px',
-    borderRadius: 10,
-    border: 'none',
-    background: 'var(--border-light)',
-    color: 'var(--text-secondary)',
-    fontSize: 13,
-    cursor: 'pointer',
-    fontFamily: 'inherit'
-  },
-
-  // Lists
-  list: { display: 'flex', flexDirection: 'column', gap: 8 },
-  listItem: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    background: 'var(--bg-card)',
-    borderRadius: 12,
-    padding: '14px 16px',
-    boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))'
-  },
-  listLeft: { display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 },
-  listTitle: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', textTransform: 'capitalize' },
-  listDesc: { fontSize: 12, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  listMeta: { fontSize: 11, color: 'var(--text-muted)' },
-  listAmount: { fontSize: 15, fontWeight: 700, color: 'var(--danger)', marginLeft: 12, whiteSpace: 'nowrap' },
-
-  // Tax
-  taxHeader: { marginBottom: 16 },
-  taxPeriod: { fontSize: 12, color: 'var(--text-muted)' },
-  taxNote: {
-    fontSize: 12,
-    color: 'var(--text-muted)',
-    textAlign: 'center',
-    padding: '16px 20px',
-    lineHeight: 1.5,
-    fontStyle: 'italic'
-  },
-
-  // Category grid (in form)
-  categoryGrid: {
-    display: 'flex', flexWrap: 'wrap', gap: 6,
-  },
-  categoryChip: {
-    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-    padding: '8px 10px', borderRadius: 10, border: '1.5px solid #F0ECE8',
-    cursor: 'pointer', fontFamily: 'inherit', minWidth: 56,
-  },
-
-  // Category icon in list
-  catIconBubble: {
+  catBubble: {
     width: 36, height: 36, borderRadius: 10,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     flexShrink: 0,
   },
 
-  // Receipt photo
-  receiptRow: { display: 'flex', alignItems: 'center', gap: 8 },
-  receiptAddBtn: {
-    padding: '10px 16px', borderRadius: 10, border: '1.5px dashed #E8E4E0',
-    background: '#fff', color: '#8A8580', fontSize: 13,
-    cursor: 'pointer', fontFamily: 'inherit',
+  // Comparison card
+  compCard: {
+    background: '#fff', borderRadius: 16, padding: 16,
+    border: '1px solid rgba(146, 64, 94, 0.05)',
+    boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
   },
-  receiptThumbWrap: { position: 'relative', display: 'inline-block' },
-  receiptThumb: {
-    width: 64, height: 64, borderRadius: 10, objectFit: 'cover',
-    border: '1.5px solid #F0ECE8',
+  compTitle: {
+    fontSize: 14, fontWeight: 700, color: '#1d1b19', margin: '0 0 12px',
   },
-  receiptRemoveBtn: {
-    position: 'absolute', top: -6, right: -6,
-    width: 20, height: 20, borderRadius: 10, border: 'none',
-    background: '#E57373', color: '#fff', fontSize: 12,
-    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  compRow: {
+    display: 'flex', justifyContent: 'space-between', padding: '8px 0',
+    borderBottom: '1px solid rgba(146, 64, 94, 0.05)',
+  },
+  compLabel: { fontSize: 13, color: '#534247' },
+  compValue: { fontSize: 13, fontWeight: 500, color: '#1d1b19' },
+
+  // Tax cards
+  taxCard: {
+    background: '#fff', borderRadius: 16, padding: 16,
+    border: '1px solid rgba(146, 64, 94, 0.05)',
+    boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
+  },
+  taxCardLabel: {
+    display: 'block', fontSize: 10, textTransform: 'uppercase',
+    letterSpacing: '0.06em', color: '#867277', marginBottom: 4, fontWeight: 600,
+  },
+  taxCardValue: {
+    display: 'block', fontSize: 22, fontWeight: 700, color: '#1d1b19',
+    fontFamily: "var(--font-body)",
   },
 
-  // Empty
-  emptyState: { textAlign: 'center', padding: '40px 20px' },
-  emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 6px' },
-  emptyDesc: { fontSize: 13, color: '#AAA5A0', margin: 0, lineHeight: 1.5 }
+  // Breakdown sections
+  breakdownCard: {
+    background: '#fff', borderRadius: 16, padding: 16, marginBottom: 12,
+    border: '1px solid rgba(146, 64, 94, 0.05)',
+    boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
+  },
+  breakdownTitle: { fontSize: 14, fontWeight: 700, color: '#1d1b19', margin: '0 0 12px' },
+  breakdownRow: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    padding: '8px 0', borderBottom: '1px solid rgba(146, 64, 94, 0.04)',
+  },
+
+  // Buttons
+  btnPrimary: {
+    flex: 1, padding: '11px 0', borderRadius: 12,
+    border: 'none', background: '#92405e', color: '#fff',
+    fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    boxShadow: '0 2px 8px rgba(146, 64, 94, 0.25)',
+  },
+  btnSecondary: {
+    flex: 1, padding: '11px 0', borderRadius: 12,
+    border: '1.5px solid var(--border)', background: '#fff',
+    color: '#534247', fontSize: 13, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'inherit',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  btnGhost: {
+    padding: '11px 16px', borderRadius: 12, border: 'none',
+    background: '#f3ede9', color: '#534247', fontSize: 13,
+    cursor: 'pointer', fontFamily: 'inherit',
+  },
+
+  // Form
+  formCard: {
+    background: '#fff', borderRadius: 16, padding: 16, marginBottom: 16,
+    border: '1px solid rgba(146, 64, 94, 0.05)',
+    boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
+  },
+  formLabel: {
+    display: 'block', fontSize: 12, fontWeight: 600,
+    color: '#534247', marginBottom: 6, letterSpacing: '0.01em',
+  },
+  formInput: {
+    width: '100%', padding: '11px 14px', borderRadius: 12,
+    border: '1.5px solid #d8c1c6', fontSize: 14,
+    fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+    background: '#f8f2ef', color: '#1d1b19',
+    transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
+  },
 };

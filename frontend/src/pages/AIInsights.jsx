@@ -1,34 +1,51 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
-import { ds, type, space } from '../lib/designSystem.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 
+/**
+ * AIInsights — Stitch "florrie.ai Assistant" reference rebuild.
+ *
+ * Matches the Stitch screen:
+ *   - Pulse snapshot card (gradient, "Your day is X% optimized")
+ *   - Stats pills (Completed / Pending / Revenue)
+ *   - AI Recommendation card
+ *   - Next Appointments compact list
+ *   - Live Feed (activity)
+ */
+
 /* ─── Dev-mode sample data ──────────────────────────── */
 const DEV_APPOINTMENTS = [
-  { id: 1, client_name: 'Jessica Moore', treatment_name: 'Brow Lamination', starts_at: new Date().toISOString().slice(0, 10) + 'T09:30:00', status: 'confirmed', price_cents: 4500 },
-  { id: 2, client_name: 'Sarah Chen', treatment_name: 'Lash Lift & Tint', starts_at: new Date().toISOString().slice(0, 10) + 'T11:00:00', status: 'confirmed', price_cents: 5500 },
-  { id: 3, client_name: 'Emma Taylor', treatment_name: 'Gel Manicure', starts_at: new Date().toISOString().slice(0, 10) + 'T13:15:00', status: 'confirmed', price_cents: 3500 },
-  { id: 4, client_name: 'Olivia Brown', treatment_name: 'Facial Peel', starts_at: new Date().toISOString().slice(0, 10) + 'T15:00:00', status: 'pending', price_cents: 6500 },
-  { id: 5, client_name: 'Amy Wilson', treatment_name: 'Lip Filler Top-Up', starts_at: new Date().toISOString().slice(0, 10) + 'T16:30:00', status: 'confirmed', price_cents: 12000 },
+  { id: 1, client_name: 'Emma Richardson', treatment_name: 'Signature Balayage + Treatment', starts_at: new Date().toISOString().slice(0, 10) + 'T14:00:00', status: 'confirmed', price_cents: 24500 },
+  { id: 2, client_name: 'Julianna Moore', treatment_name: 'Express Gloss & Blowout', starts_at: new Date().toISOString().slice(0, 10) + 'T15:30:00', status: 'confirmed', price_cents: 11000 },
+  { id: 3, client_name: 'Sarah Chen', treatment_name: 'Lash Lift & Tint', starts_at: new Date().toISOString().slice(0, 10) + 'T11:00:00', status: 'confirmed', price_cents: 5500 },
+  { id: 4, client_name: 'Olivia Brown', treatment_name: 'Facial Peel', starts_at: new Date().toISOString().slice(0, 10) + 'T13:15:00', status: 'confirmed', price_cents: 6500 },
+  { id: 5, client_name: 'Amy Wilson', treatment_name: 'Lip Filler Top-Up', starts_at: new Date().toISOString().slice(0, 10) + 'T16:30:00', status: 'pending', price_cents: 12000 },
 ];
 
 const DEV_ACTIVITY = [
-  { type: 'booking', message: 'New booking: Emma Taylor — Gel Manicure, today 1:15 PM', time: '2h ago', icon: '📅' },
-  { type: 'confirmation', message: 'Confirmed: Sarah Chen replied YES to her 11 AM appointment', time: '3h ago', icon: '✅' },
-  { type: 'reschedule', message: 'Rescheduled: Olivia Brown moved from Wed to today 3 PM', time: '4h ago', icon: '🔄' },
-  { type: 'review', message: 'New 5★ review from Lucy Hart: "Best brows in town!"', time: '5h ago', icon: '⭐' },
-  { type: 'reminder', message: 'Sent 3 appointment reminders for tomorrow', time: '6h ago', icon: '🔔' },
-  { type: 'gap', message: 'Gap detected: 2:00–3:00 PM today is open. Waitlist has 2 matches.', time: '7h ago', icon: '⚡' },
+  { type: 'optimization', message: 'Optimization complete. Restocked \'Mist\' inventory.', time: '2m ago', icon: '✨' },
+  { type: 'booking', message: 'New Booking: Sarah K. for Dec 12th.', time: '14m ago', icon: '📅' },
+  { type: 'payment', message: 'Payment Received: £240.00 from Maya L.', time: '1h ago', icon: '💰' },
 ];
 
 const TIPS = [
-  { text: 'Thursday–Saturday is your money window. You\'re under-booked Mondays — consider a "Monday Glow" promo.', icon: '💡' },
-  { text: 'Lip Filler bookings are up 34% this month. Might be time for a dedicated Instagram reel.', icon: '📈' },
-  { text: '3 clients haven\'t rebooked in 40+ days. Sending a "we miss you" message could recover £2,100/yr.', icon: '💌' },
-  { text: 'Your average booking gap is 22 minutes. Tightening to 15 could fit 1 extra client per day.', icon: '⏱️' },
+  { text: 'Emma tends to purchase \'Velvet Shine Serum\' every 3 appointments. She\'s due today—mention the loyalty discount for a likely upsell.' },
+  { text: 'Thursday–Saturday is your money window. You\'re under-booked Mondays — consider a "Monday Glow" promo.' },
+  { text: 'Lip Filler bookings are up 34% this month. Might be time for a dedicated Instagram reel.' },
+  { text: '3 clients haven\'t rebooked in 40+ days. Sending a "we miss you" message could recover £2,100/yr.' },
 ];
+
+function MIcon({ name, fill, size, style }) {
+  return (
+    <span className="material-symbols-outlined" style={{
+      fontSize: size || 24,
+      fontVariationSettings: fill ? "'FILL' 1, 'wght' 300" : undefined,
+      ...style,
+    }}>{name}</span>
+  );
+}
 
 export default function AIInsights() {
   const { beautician, loading: bLoading } = useBeautician();
@@ -56,7 +73,6 @@ export default function AIInsights() {
       } else {
         setAppointments([]);
       }
-      // Activity feed — would come from an activity_log table in production
       setActivity(isDevMode ? DEV_ACTIVITY : []);
     } catch (err) {
       logger.error('Load AI insights error:', err);
@@ -79,137 +95,227 @@ export default function AIInsights() {
     return { total: appointments.length, confirmed: confirmed.length, revenue, completed, pending };
   }, [appointments]);
 
-  if (bLoading || loading) return <div style={ds.page}><PageLoader /></div>;
+  if (bLoading || loading) return <PageLoader />;
+
+  const optimPct = stats.total > 0 ? Math.min(95, Math.round((stats.confirmed / stats.total) * 100 + (stats.total > 3 ? 10 : 0))) : 0;
 
   const now = new Date();
-  const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  const dateStr = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  const upcoming = [...appointments]
+    .filter(a => new Date(a.starts_at) > now || a.status !== 'completed')
+    .sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at))
+    .slice(0, 3);
+
+  const focusAppt = upcoming[0];
 
   return (
-    <div style={ds.page}>
-      {/* Header */}
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-          <span style={{ fontSize: 22 }}>✨</span>
-          <h1 style={{ ...type.displayMd, margin: 0 }}>florrie.ai</h1>
+    <div style={S.page}>
+      {/* ─── Pulse Snapshot Card ─── */}
+      <section style={S.pulseCard}>
+        <div style={S.pulseDecor} />
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <MIcon name="auto_awesome" fill size={16} style={{ color: 'rgba(255,255,255,0.8)' }} />
+            <span style={S.pulseLabel}>Today's Pulse</span>
+          </div>
+          <h2 style={S.pulseHeading}>
+            Your day is {optimPct}%<br />optimized.
+          </h2>
+          {focusAppt && (
+            <p style={S.pulseSub}>
+              Focus on the {focusAppt.treatment_name || 'next appointment'} at {new Date(focusAppt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}—client high-value window identified.
+            </p>
+          )}
         </div>
-        <p style={{ ...type.bodySmall, color: 'var(--text-muted)', margin: 0 }}>
-          {dateStr} · {timeStr}
-        </p>
-      </div>
+        <div style={S.pulseIcon}>
+          <MIcon name="temp_preferences_custom" size={64} style={{ opacity: 0.2, color: '#fff' }} />
+        </div>
+      </section>
 
-      {/* Today's snapshot */}
-      <div style={{ ...ds.heroCard, marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      {/* ─── Stats Pills ─── */}
+      <section style={S.statsGrid}>
+        <div style={S.statPill}>
+          <span style={S.statPillLabel}>Completed</span>
+          <span style={S.statPillValue}>{String(stats.completed).padStart(2, '0')}</span>
+        </div>
+        <div style={S.statPill}>
+          <span style={S.statPillLabel}>Pending</span>
+          <span style={S.statPillValue}>{String(stats.pending).padStart(2, '0')}</span>
+        </div>
+        <div style={{ ...S.statPill, borderColor: 'rgba(116, 90, 39, 0.1)' }}>
+          <span style={S.statPillLabel}>Revenue</span>
+          <span style={{ ...S.statPillValue, color: '#745a27' }}>£{(stats.revenue / 100 / 1000).toFixed(1)}k</span>
+        </div>
+      </section>
+
+      {/* ─── AI Recommendation ─── */}
+      <section style={S.tipCard}>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
+          <div style={S.tipIconWrap}>
+            <MIcon name="lightbulb" size={22} style={{ color: '#fff' }} />
+          </div>
           <div>
-            <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Today's Snapshot</div>
-            <div style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1 }}>{stats.total}</div>
-            <div style={{ fontSize: 13, opacity: 0.9, marginTop: 4 }}>
-              appointment{stats.total !== 1 ? 's' : ''} · £{(stats.revenue / 100).toFixed(0)} expected
-            </div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            {stats.pending > 0 && (
-              <div style={{ ...ds.badge, background: 'rgba(255,255,255,0.2)', color: '#fff', marginBottom: 4 }}>
-                {stats.pending} pending
-              </div>
-            )}
-            <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>
-              {stats.confirmed} confirmed
-            </div>
+            <h4 style={S.tipTitle}>AI Recommendation</h4>
+            <p style={S.tipText}>"{todaysTip.text}"</p>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Stats row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 20 }}>
-        {[
-          { label: 'Completed', value: stats.completed, icon: '✅' },
-          { label: 'Pending', value: stats.pending, icon: '⏳' },
-          { label: 'Revenue', value: `£${(stats.revenue / 100).toFixed(0)}`, icon: '💰' },
-        ].map(s => (
-          <div key={s.label} style={{ ...ds.card, textAlign: 'center', padding: '12px 8px' }}>
-            <div style={{ fontSize: 18, marginBottom: 4 }}>{s.icon}</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>{s.value}</div>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{s.label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* AI Tip */}
-      <div style={{ ...ds.insightCard, marginBottom: 20 }}>
-        <span style={{ fontSize: 20 }}>{todaysTip.icon}</span>
-        <div>
-          <div style={{ ...type.heading, fontSize: 13, marginBottom: 4, color: 'var(--accent)' }}>florrie.ai's take</div>
-          <div style={{ ...type.bodySmall, lineHeight: 1.5 }}>{todaysTip.text}</div>
+      {/* ─── Next Appointments ─── */}
+      <section style={{ marginBottom: 32 }}>
+        <div style={S.sectionHeader}>
+          <h3 style={S.sectionHeading}>Next Appointments</h3>
+          <span style={S.seeAll}>See All</span>
         </div>
-      </div>
-
-      {/* Today's schedule */}
-      <div style={{ marginBottom: 20 }}>
-        <div style={ds.sectionTitle}>TODAY'S SCHEDULE</div>
-        {appointments.length === 0 ? (
-          <EmptyState message="No appointments today" icon="📅" />
+        {upcoming.length === 0 ? (
+          <EmptyState message="No upcoming appointments" icon="📅" />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {appointments.map((apt, i) => {
+            {upcoming.map((apt, i) => {
               const time = new Date(apt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-              const isPast = new Date(apt.starts_at) < now;
-              const isNext = !isPast && (i === 0 || new Date(appointments[i - 1].starts_at) < now);
+              const isFirst = i === 0;
               return (
-                <div key={apt.id} style={{
-                  ...ds.card,
-                  display: 'flex', gap: 12, alignItems: 'center',
-                  opacity: isPast ? 0.5 : 1,
-                  borderLeft: isNext ? '3px solid var(--accent)' : '3px solid transparent',
-                }}>
-                  <div style={{
-                    width: 44, textAlign: 'center', flexShrink: 0,
-                  }}>
-                    <div style={{ ...type.heading, fontSize: 14 }}>{time}</div>
+                <div key={apt.id} style={S.apptRow}>
+                  <div style={{ textAlign: 'center', flexShrink: 0 }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#867277', margin: 0 }}>{time}</p>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#867277', margin: 0 }}>
+                      {parseInt(time) >= 12 ? 'PM' : 'AM'}
+                    </p>
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ ...type.heading, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {apt.client_name || 'Walk-in'}
-                    </div>
-                    <div style={{ ...type.bodySmall, color: 'var(--text-muted)', fontSize: 12 }}>
-                      {apt.treatment_name || 'Appointment'}
-                    </div>
+                  <div style={S.apptDivider} />
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: '#1d1b19', margin: 0 }}>{apt.client_name || 'Client'}</p>
+                    <p style={{ fontSize: 11, color: '#867277', margin: 0 }}>{apt.treatment_name || 'Appointment'}</p>
                   </div>
-                  <div style={{
-                    ...ds.badge,
-                    ...(apt.status === 'confirmed' ? ds.badgeSuccess : apt.status === 'completed' ? { background: 'var(--bg-subtle)', color: 'var(--text-muted)' } : ds.badgeWarning),
-                    fontSize: 10,
-                  }}>
-                    {apt.status === 'confirmed' ? '✓' : apt.status === 'completed' ? '✓ Done' : '⏳'}
-                  </div>
+                  {isFirst ? (
+                    <MIcon name="star" fill size={14} style={{ color: 'rgba(116, 90, 39, 0.4)' }} />
+                  ) : (
+                    <MIcon name="chevron_right" size={18} style={{ color: '#d8c1c6' }} />
+                  )}
                 </div>
               );
             })}
           </div>
         )}
-      </div>
+      </section>
 
-      {/* Activity feed */}
+      {/* ─── Live Feed ─── */}
       {activity.length > 0 && (
-        <div>
-          <div style={ds.sectionTitle}>RECENT ACTIVITY</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <section>
+          <h3 style={S.sectionHeading}>Live Feed</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingLeft: 8, marginTop: 16 }}>
             {activity.map((a, i) => (
-              <div key={i} style={{
-                ...ds.card, display: 'flex', gap: 10, alignItems: 'flex-start',
-                padding: '10px 12px',
-              }}>
-                <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{a.icon}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ ...type.body, fontSize: 13, lineHeight: 1.4 }}>{a.message}</div>
-                  <div style={{ ...type.mono, fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>{a.time}</div>
+              <div key={i} style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                <span style={{ fontSize: 20 }}>{a.icon}</span>
+                <div style={{
+                  flex: 1,
+                  borderBottom: i < activity.length - 1 ? '1px solid rgba(146, 64, 94, 0.05)' : 'none',
+                  paddingBottom: i < activity.length - 1 ? 12 : 0,
+                }}>
+                  <p style={{ fontSize: 12, color: '#1d1b19', margin: 0 }} dangerouslySetInnerHTML={{
+                    __html: a.message.replace(/^([^.]+\.)/, '<strong>$1</strong>'),
+                  }} />
+                  <p style={{ fontSize: 9, color: '#867277', textTransform: 'uppercase', margin: '4px 0 0', fontFamily: "var(--font-sans)" }}>{a.time}</p>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
     </div>
   );
 }
+
+// ─── Styles — Stitch "florrie.ai Assistant" reference ───
+const S = {
+  page: {
+    minHeight: '100vh',
+    background: '#fef8f4',
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
+    padding: '16px 24px 120px',
+    maxWidth: 480,
+    margin: '0 auto',
+    color: '#1d1b19',
+    animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+  },
+  pulseCard: {
+    position: 'relative', overflow: 'hidden',
+    background: '#92405e', color: '#fff',
+    borderRadius: 24, padding: 24, marginBottom: 20,
+    boxShadow: '0 8px 32px rgba(146, 64, 94, 0.1)',
+  },
+  pulseDecor: {
+    position: 'absolute', top: 0, right: 0,
+    width: 128, height: 128,
+    background: 'rgba(255,255,255,0.1)',
+    borderRadius: '50%', marginRight: -64, marginTop: -64,
+    filter: 'blur(32px)',
+  },
+  pulseIcon: { position: 'absolute', bottom: 16, right: 24 },
+  pulseLabel: {
+    fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em',
+    fontWeight: 700, opacity: 0.8,
+  },
+  pulseHeading: {
+    fontFamily: "var(--font-display, 'Playfair Display', serif)",
+    fontSize: 30, fontStyle: 'italic', fontWeight: 400,
+    lineHeight: 1.15, margin: 0,
+  },
+  pulseSub: {
+    fontSize: 14, opacity: 0.9, maxWidth: '80%',
+    lineHeight: 1.5, margin: '8px 0 0',
+  },
+  statsGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 24 },
+  statPill: {
+    background: '#fff', padding: 12, borderRadius: 16,
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    border: '1px solid rgba(146, 64, 94, 0.05)',
+    boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
+  },
+  statPillLabel: {
+    fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em',
+    color: '#867277', marginBottom: 4,
+  },
+  statPillValue: {
+    fontFamily: "var(--font-display, 'Playfair Display', serif)",
+    fontSize: 20, fontStyle: 'italic', color: '#92405e',
+  },
+  tipCard: {
+    background: 'rgba(254, 219, 155, 0.4)',
+    border: '1px solid rgba(116, 90, 39, 0.1)',
+    borderRadius: 16, padding: 20,
+    position: 'relative', overflow: 'hidden',
+    marginBottom: 32,
+  },
+  tipIconWrap: {
+    width: 40, height: 40, borderRadius: '50%',
+    background: '#745a27',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+  },
+  tipTitle: { fontSize: 14, fontWeight: 700, color: '#795f2b', margin: '0 0 4px' },
+  tipText: {
+    fontSize: 12, color: 'rgba(121, 95, 43, 0.8)',
+    lineHeight: 1.5, fontStyle: 'italic', margin: 0,
+  },
+  sectionHeader: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
+    marginBottom: 12,
+  },
+  sectionHeading: {
+    fontFamily: "var(--font-display, 'Playfair Display', serif)",
+    fontSize: 20, fontStyle: 'italic', fontWeight: 400,
+    color: '#92405e', margin: 0,
+  },
+  seeAll: {
+    fontSize: 10, fontWeight: 700, color: '#867277',
+    textTransform: 'uppercase', letterSpacing: '0.12em',
+  },
+  apptRow: {
+    background: '#f8f2ef', padding: 16, borderRadius: 16,
+    display: 'flex', alignItems: 'center', gap: 16,
+    transition: 'background 0.15s ease',
+  },
+  apptDivider: {
+    height: 32, width: 1, background: 'rgba(146, 64, 94, 0.2)',
+  },
+};
