@@ -96,7 +96,7 @@ export default function CalendarView() {
     const endMinutes = end.getHours() * 60 + end.getMinutes();
     const top = ((startMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT;
     const height = ((endMinutes - startMinutes) / 60) * HOUR_HEIGHT;
-    return { top: Math.max(0, top), height: Math.max(height, 24) };
+    return { top: Math.max(0, top), height: Math.max(height, 64) };
   }
 
   function getStatusColor(status) {
@@ -243,7 +243,7 @@ export default function CalendarView() {
                       <span style={styles.appointmentCardTime}>
                         {new Date(appt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                       </span>
-                      {appt.ai_booked && <span style={styles.aiTag}>AI booked</span>}
+                      {appt.ai_booked && <span style={styles.aiTag}>AI</span>}
                     </div>
                   </div>
                 </button>
@@ -714,14 +714,14 @@ const styles = {
   nowDot: { width: 8, height: 8, borderRadius: '50%', background: '#E53E3E', position: 'absolute', left: -2, top: -3 },
 
   // Appointment Cards
-  appointmentCard: { position: 'absolute', left: 4, right: 4, borderRadius: 16, padding: '8px 10px', cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'inherit', textAlign: 'left', border: 'none', borderLeft: '4px solid', boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)', overflow: 'hidden', width: 'calc(100% - 8px)' },
-  appointmentCardContent: { display: 'flex', flexDirection: 'column', gap: 6 },
-  appointmentCardHeader: { display: 'flex', gap: 8, alignItems: 'flex-start' },
-  appointmentAvatar: { width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 700, flexShrink: 0 },
-  appointmentCardTextBlock: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2 },
-  appointmentCardClientName: { fontSize: 13, fontWeight: 700, color: COLORS.onSurface },
-  appointmentCardTreatment: { fontSize: 11, fontWeight: 500, textTransform: 'uppercase', color: COLORS.stone400, letterSpacing: '0.02em' },
-  appointmentCardMeta: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 10 },
+  appointmentCard: { position: 'absolute', left: 4, right: 4, borderRadius: 12, padding: '6px 10px', cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'inherit', textAlign: 'left', border: 'none', borderLeft: '4px solid', boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)', overflow: 'visible', width: 'calc(100% - 8px)', zIndex: 2, minHeight: 56 },
+  appointmentCardContent: { display: 'flex', alignItems: 'center', gap: 8 },
+  appointmentCardHeader: { display: 'flex', gap: 8, alignItems: 'center', flex: 1, minWidth: 0 },
+  appointmentAvatar: { width: 32, height: 32, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 10, fontWeight: 700, flexShrink: 0 },
+  appointmentCardTextBlock: { flex: 1, display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 },
+  appointmentCardClientName: { fontSize: 13, fontWeight: 700, color: COLORS.onSurface, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  appointmentCardTreatment: { fontSize: 10, fontWeight: 500, textTransform: 'uppercase', color: COLORS.stone400, letterSpacing: '0.02em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  appointmentCardMeta: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, flexShrink: 0 },
   appointmentCardTime: { fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase' },
   aiTag: { display: 'inline-block', padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600, background: '#EEF4FC', color: '#4A90D9', letterSpacing: '0.03em' },
 
