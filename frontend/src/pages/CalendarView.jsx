@@ -6,11 +6,25 @@ import logger from '../lib/logger.js';
 /**
  * CalendarView — Day and Week view of appointments.
  * Wired to Supabase with client/treatment joins.
+ * Redesigned to match Stitch design reference.
  */
 
 const HOUR_HEIGHT = 60;
 const START_HOUR = 8;
 const END_HOUR = 20;
+
+// Color palette (Stitch design)
+const COLORS = {
+  primary: '#92405e',
+  secondary: '#745a27',
+  surface: '#fef8f4',
+  primaryContainer: '#b05877',
+  secondaryContainer: '#fedb9b',
+  surfaceContainerLow: '#f8f2ef',
+  onSurface: '#1d1b19',
+  outlineVariant: '#d8c1c6',
+  stone400: '#78716b',
+};
 
 export default function CalendarView() {
   const { beautician, loading: bLoading } = useBeautician();
@@ -90,10 +104,43 @@ export default function CalendarView() {
     return colors[status] || '#8A8580';
   }
 
+  function getAppointmentCardStyle(appointment) {
+    // Determine card style based on tier/special status
+    // For now, default style; can be extended with VIP/gold tier detection
+    return {
+      background: '#fff',
+      borderColor: COLORS.primary,
+    };
+  }
+
   function getWeekDays() {
     const start = getWeekStart(currentDate);
     return Array.from({ length: 7 }, (_, i) => { const d = new Date(start); d.setDate(d.getDate() + i); return d; });
   }
+
+  function countGapsToday() {
+    const dayAppts = getAppointmentsForDate(currentDate).sort((a, b) => new Date(a.ends_at) - new Date(b.ends_at));
+    let gaps = 0;
+    for (let i = 0; i < dayAppts.length - 1; i++) {
+      const endTime = new Date(dayAppts[i].ends_at);
+      const nextStart = new Date(dayAppts[i + 1].starts_at);
+      const diffMinutes = (nextStart - endTime) / (1000 * 60);
+      if (diffMinutes > 15) gaps++;
+    }
+    return gaps;
+  }
+
+  function countWaitlistMatches() {
+    // Placeholder: would come from waitlist data
+    return 0;
+  }
+
+  const weekDays = getWeekDays();
+  const weekMonthName = getWeekStart(currentDate).toLocaleDateString('en-GB', { month: 'long' });
+  const weekNumber = Math.ceil((currentDate.getDate() + 6 - currentDate.getDay()) / 7);
+  const gapsToday = countGapsToday();
+  const waitlistMatches = countWaitlistMatches();
+  const showInsightsPill = view === 'day' && (gapsToday > 0 || waitlistMatches > 0);
 
   return (
     <div style={styles.page}>
@@ -111,12 +158,36 @@ export default function CalendarView() {
           <button onClick={() => navigateDate(1)} style={styles.navBtn}>›</button>
         </div>
         <div style={styles.viewToggle}>
-          <button onClick={() => setView('day')} style={{ ...styles.toggleBtn, background: view === 'day' ? 'var(--gold)' : 'transparent', color: view === 'day' ? '#fff' : 'var(--text-secondary)' }}>Day</button>
-          <button onClick={() => setView('week')} style={{ ...styles.toggleBtn, background: view === 'week' ? 'var(--gold)' : 'transparent', color: view === 'week' ? '#fff' : 'var(--text-secondary)' }}>Week</button>
+          <button onClick={() => setView('day')} style={{ ...styles.toggleBtn, background: view === 'day' ? COLORS.secondary : 'transparent', color: view === 'day' ? '#fff' : COLORS.stone400 }}>Day</button>
+          <button onClick={() => setView('week')} style={{ ...styles.toggleBtn, background: view === 'week' ? COLORS.secondary : 'transparent', color: view === 'week' ? '#fff' : COLORS.stone400 }}>Week</button>
         </div>
       </div>
 
-      {/* Day View */}
+      {/* Weekly Date Strip (shared for both views) */}
+      <div style={styles.weeklyStripContainer}>
+        <div style={styles.weeklyStripHeader}>
+          <span style={styles.weeklyStripMonth}>{weekMonthName} WEEK {weekNumber}</span>
+        </div>
+        <div style={styles.weeklyStrip}>
+          {weekDays.map(day => (
+            <button
+              key={day.toISOString()}
+              onClick={() => { setCurrentDate(day); setView('day'); }}
+              style={{
+                ...styles.weeklyStripDay,
+                background: isToday(day) ? COLORS.primary : 'transparent',
+                color: isToday(day) ? '#fff' : COLORS.onSurface,
+                boxShadow: isToday(day) ? `0 4px 10px rgba(146, 64, 94, 0.15)` : 'none',
+              }}
+            >
+              <span style={styles.weeklyStripDayName}>{day.toLocaleDateString('en-GB', { weekday: 'short' })}</span>
+              <span style={styles.weeklyStripDayNumber}>{day.getDate()}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Day View with Timeline Grid */}
       {view === 'day' && (
         <div style={styles.dayGrid}>
           <div style={styles.timeColumn}>
@@ -127,32 +198,117 @@ export default function CalendarView() {
             ))}
           </div>
           <div style={{ ...styles.appointmentColumn, height: (END_HOUR - START_HOUR) * HOUR_HEIGHT }}>
+            {/* Hour lines and grid */}
             {Array.from({ length: END_HOUR - START_HOUR }, (_, i) => (
               <div key={i} style={{ ...styles.hourLine, top: i * HOUR_HEIGHT }} />
             ))}
+
+            {/* Now-line indicator */}
             {isToday(currentDate) && (
               <div style={{ ...styles.nowLine, top: getNowPosition() }}>
                 <div style={styles.nowDot} />
               </div>
             )}
+
+            {/* Appointment cards */}
             {getAppointmentsForDate(currentDate).map(appt => {
               const pos = getBlockStyle(appt);
+              const cardStyle = getAppointmentCardStyle(appt);
               const statusColor = getStatusColor(appt.status);
+              const clientInitials = `${appt.clients?.first_name?.[0] || ''}${appt.clients?.last_name?.[0] || ''}`.toUpperCase();
+
               return (
-                <button key={appt.id} onClick={() => setSelectedAppointment(selectedAppointment?.id === appt.id ? null : appt)}
-                  style={{ ...styles.appointmentBlock, top: pos.top, height: pos.height, borderLeftColor: statusColor, background: selectedAppointment?.id === appt.id ? 'var(--border-light)' : 'var(--bg-card)' }}>
-                  <div style={styles.apptContent}>
-                    <span style={styles.apptTime}>{new Date(appt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
-                    <span style={styles.apptClient}>{appt.clients?.first_name} {appt.clients?.last_name || ''}</span>
-                    <span style={styles.apptTreatment}>{appt.treatments?.name}</span>
-                    {appt.ai_booked && <span style={styles.aiTag}>AI booked</span>}
+                <button
+                  key={appt.id}
+                  onClick={() => setSelectedAppointment(selectedAppointment?.id === appt.id ? null : appt)}
+                  style={{
+                    ...styles.appointmentCard,
+                    top: pos.top,
+                    height: pos.height,
+                    background: cardStyle.background,
+                    borderLeftColor: statusColor,
+                  }}
+                >
+                  <div style={styles.appointmentCardContent}>
+                    <div style={styles.appointmentCardHeader}>
+                      <div style={{ ...styles.appointmentAvatar, background: statusColor }}>
+                        {clientInitials}
+                      </div>
+                      <div style={styles.appointmentCardTextBlock}>
+                        <div style={styles.appointmentCardClientName}>{appt.clients?.first_name} {appt.clients?.last_name || ''}</div>
+                        <div style={styles.appointmentCardTreatment}>{appt.treatments?.name}</div>
+                      </div>
+                    </div>
+                    <div style={styles.appointmentCardMeta}>
+                      <span style={styles.appointmentCardTime}>
+                        {new Date(appt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      {appt.ai_booked && <span style={styles.aiTag}>AI booked</span>}
+                    </div>
                   </div>
                 </button>
               );
             })}
+
+            {/* Open slot placeholders */}
+            {(() => {
+              const appts = getAppointmentsForDate(currentDate).sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
+              const slots = [];
+
+              // Check for gap at start of day
+              if (appts.length > 0) {
+                const firstStart = new Date(appts[0].starts_at);
+                const firstStartMinutes = firstStart.getHours() * 60 + firstStart.getMinutes();
+                if (firstStartMinutes > START_HOUR * 60 + 30) {
+                  const top = 0;
+                  const height = ((firstStartMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT;
+                  slots.push({ id: 'start', top, height });
+                }
+              }
+
+              // Check for gaps between appointments
+              for (let i = 0; i < appts.length - 1; i++) {
+                const end = new Date(appts[i].ends_at);
+                const nextStart = new Date(appts[i + 1].starts_at);
+                const endMinutes = end.getHours() * 60 + end.getMinutes();
+                const nextStartMinutes = nextStart.getHours() * 60 + nextStart.getMinutes();
+                const diffMinutes = (nextStartMinutes - endMinutes);
+
+                if (diffMinutes > 30) {
+                  const top = ((endMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT;
+                  const height = (diffMinutes / 60) * HOUR_HEIGHT;
+                  slots.push({ id: `gap-${i}`, top, height });
+                }
+              }
+
+              // Check for gap at end of day
+              if (appts.length > 0) {
+                const lastEnd = new Date(appts[appts.length - 1].ends_at);
+                const lastEndMinutes = lastEnd.getHours() * 60 + lastEnd.getMinutes();
+                if (lastEndMinutes < END_HOUR * 60 - 30) {
+                  const top = ((lastEndMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT;
+                  const height = ((END_HOUR * 60 - lastEndMinutes) / 60) * HOUR_HEIGHT;
+                  slots.push({ id: 'end', top, height });
+                }
+              }
+
+              return slots.map(slot => (
+                <div
+                  key={slot.id}
+                  style={{
+                    ...styles.openSlotCard,
+                    top: slot.top,
+                    height: slot.height,
+                  }}
+                >
+                  <span style={styles.openSlotText}>OPEN SLOT</span>
+                </div>
+              ));
+            })()}
+
             {!loading && getAppointmentsForDate(currentDate).length === 0 && (
               <div style={{ position: 'absolute', top: '40%', left: 0, right: 0, textAlign: 'center' }}>
-                <p style={{ fontSize: 13, color: '#C4BDB6' }}>No appointments</p>
+                <p style={{ fontSize: 13, color: COLORS.stone400 }}>No appointments</p>
               </div>
             )}
           </div>
@@ -161,45 +317,48 @@ export default function CalendarView() {
 
       {/* Week View */}
       {view === 'week' && (
-        <div>
-          <div style={styles.weekHeader}>
-            {getWeekDays().map(day => (
-              <button key={day.toISOString()} onClick={() => { setCurrentDate(day); setView('day'); }}
-                style={{ ...styles.weekDayHeader, background: isToday(day) ? 'var(--gold)' : 'transparent', color: isToday(day) ? '#fff' : 'var(--text-primary)' }}>
-                <span style={styles.weekDayName}>{day.toLocaleDateString('en-GB', { weekday: 'short' })}</span>
-                <span style={styles.weekDayNumber}>{day.getDate()}</span>
-              </button>
-            ))}
-          </div>
-          <div style={styles.weekBody}>
-            {getWeekDays().map(day => {
-              const dayAppts = getAppointmentsForDate(day);
-              return (
-                <div key={day.toISOString()} style={styles.weekDayColumn}>
-                  {dayAppts.map(appt => (
-                    <div key={appt.id} style={{ ...styles.weekApptChip, borderLeftColor: getStatusColor(appt.status) }}>
-                      <span style={styles.weekApptTime}>{new Date(appt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
-                      <span style={styles.weekApptName}>{appt.clients?.first_name?.charAt(0)}.</span>
-                    </div>
-                  ))}
-                  {dayAppts.length === 0 && <div style={styles.weekEmpty} />}
-                </div>
-              );
-            })}
-          </div>
+        <div style={styles.weekBody}>
+          {weekDays.map(day => {
+            const dayAppts = getAppointmentsForDate(day);
+            return (
+              <div key={day.toISOString()} style={styles.weekDayColumn}>
+                {dayAppts.map(appt => (
+                  <button
+                    key={appt.id}
+                    onClick={() => setSelectedAppointment(selectedAppointment?.id === appt.id ? null : appt)}
+                    style={{ ...styles.weekApptChip, borderLeftColor: getStatusColor(appt.status) }}
+                  >
+                    <span style={styles.weekApptTime}>{new Date(appt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span style={styles.weekApptName}>{appt.clients?.first_name?.charAt(0)}.</span>
+                  </button>
+                ))}
+                {dayAppts.length === 0 && <div style={styles.weekEmpty} />}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Floating Insights Pill (day view only) */}
+      {showInsightsPill && (
+        <div style={styles.insightsPill}>
+          <span style={styles.insightsPillIcon}>⚡</span>
+          <span style={styles.insightsPillText}>
+            {gapsToday} gap{gapsToday !== 1 ? 's' : ''} today {waitlistMatches > 0 ? `· ${waitlistMatches} waitlist match${waitlistMatches !== 1 ? 'es' : ''}` : ''}
+          </span>
         </div>
       )}
 
       {/* Selected appointment detail + completion flow */}
       {selectedAppointment && (
         <div ref={detailRef}>
-        <AppointmentDetail
-          appointment={selectedAppointment}
-          beautician={beautician}
-          onClose={() => setSelectedAppointment(null)}
-          onUpdate={() => { loadAppointments(); setSelectedAppointment(null); }}
-          getStatusColor={getStatusColor}
-        />
+          <AppointmentDetail
+            appointment={selectedAppointment}
+            beautician={beautician}
+            onClose={() => setSelectedAppointment(null)}
+            onUpdate={() => { loadAppointments(); setSelectedAppointment(null); }}
+            getStatusColor={getStatusColor}
+          />
         </div>
       )}
     </div>
@@ -418,7 +577,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
             <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: '#F0FFF4', border: '1px solid #C6F6D5' }}>
               <p style={{ fontSize: 13, color: '#276749', margin: '0 0 8px', fontWeight: 600 }}>Payment link ready</p>
               <input readOnly value={paymentLinkUrl} style={{ width: '100%', padding: '8px', borderRadius: 6, border: '1px solid #C6F6D5', fontSize: 12, boxSizing: 'border-box' }}
-                onClick={e => { e.target.select(); navigator.clipboard?.writeText(paymentLinkUrl); }} />
+                onClick={e => { e.target.select(); navigator.clipboard?.copyText(paymentLinkUrl); }} />
               <p style={{ fontSize: 11, color: '#276749', margin: '6px 0 0' }}>Tap to copy. Send to client via WhatsApp or SMS.</p>
             </div>
           )}
@@ -526,64 +685,90 @@ function getWeekEnd(d) { const e = getWeekStart(d); e.setDate(e.getDate() + 6); 
 function getNowPosition() { const now = new Date(); return ((now.getHours() * 60 + now.getMinutes() - START_HOUR * 60) / 60) * HOUR_HEIGHT; }
 
 const styles = {
-  page: { minHeight: '100vh', background: 'var(--bg)', fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)", padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)', animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' },
+  page: { minHeight: '100vh', background: 'var(--bg)', fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)", padding: '0 16px 120px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)', animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' },
   header: { paddingTop: 20, paddingBottom: 16 },
   headerTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   headerCenter: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 },
   dateTitle: { fontSize: 17, fontWeight: 600, margin: 0, textAlign: 'center', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
-  todayBtn: { background: 'none', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 12px', fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' },
-  navBtn: { background: 'none', border: 'none', fontSize: 28, color: 'var(--text-secondary)', cursor: 'pointer', padding: '0 8px' },
-  viewToggle: { display: 'flex', gap: 4, background: 'var(--border)', borderRadius: 10, padding: 3 },
+  todayBtn: { background: 'none', border: `1px solid ${COLORS.outlineVariant}`, borderRadius: 8, padding: '4px 12px', fontSize: 12, color: COLORS.stone400, cursor: 'pointer', fontFamily: 'inherit' },
+  navBtn: { background: 'none', border: 'none', fontSize: 28, color: COLORS.stone400, cursor: 'pointer', padding: '0 8px' },
+  viewToggle: { display: 'flex', gap: 4, background: `${COLORS.outlineVariant}33`, borderRadius: 12, padding: 3 },
   toggleBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'inherit' },
-  dayGrid: { display: 'flex', gap: 0, background: 'var(--bg-card)', borderRadius: 14, overflow: 'hidden', boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))' },
-  timeColumn: { width: 50, position: 'relative', borderRight: '1px solid var(--border)', flexShrink: 0 },
-  timeLabel: { position: 'absolute', right: 8, fontSize: 11, color: 'var(--text-muted)', transform: 'translateY(-6px)' },
+
+  // Weekly Date Strip
+  weeklyStripContainer: { marginBottom: 20, background: COLORS.surfaceContainerLow, borderRadius: 24, padding: '12px 16px', position: 'relative' },
+  weeklyStripHeader: { marginBottom: 12 },
+  weeklyStripMonth: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.stone400 },
+  weeklyStrip: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 8 },
+  weeklyStripDay: { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '8px 4px', borderRadius: 12, border: 'none', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s ease' },
+  weeklyStripDayName: { fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' },
+  weeklyStripDayNumber: { fontSize: 16, fontWeight: 700, marginTop: 2 },
+
+  // Day View Timeline
+  dayGrid: { display: 'flex', gap: 0, background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)' },
+  timeColumn: { width: 56, position: 'relative', borderRight: `1px solid ${COLORS.outlineVariant}33`, flexShrink: 0 },
+  timeLabel: { position: 'absolute', right: 8, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: COLORS.stone400, transform: 'translateY(-6px)' },
   appointmentColumn: { flex: 1, position: 'relative', minHeight: 720 },
-  hourLine: { position: 'absolute', left: 0, right: 0, height: 1, background: 'var(--border-light)' },
-  nowLine: { position: 'absolute', left: -4, right: 0, height: 2, background: 'var(--danger)', zIndex: 10 },
-  nowDot: { width: 8, height: 8, borderRadius: '50%', background: 'var(--danger)', position: 'absolute', left: -2, top: -3 },
-  appointmentBlock: { position: 'absolute', left: 4, right: 4, borderRadius: 8, padding: '6px 10px', cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'inherit', textAlign: 'left', border: 'none', borderLeft: '3px solid', boxShadow: 'var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.06))', overflow: 'hidden', width: 'calc(100% - 8px)' },
-  apptContent: { display: 'flex', flexDirection: 'column', gap: 1 },
-  apptTime: { fontSize: 11, fontWeight: 600, color: '#666' },
-  apptClient: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
-  apptTreatment: { fontSize: 11, color: 'var(--text-secondary)' },
-  aiTag: { display: 'inline-block', padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600, background: '#EEF4FC', color: '#4A90D9', letterSpacing: '0.03em', marginTop: 2, width: 'fit-content' },
-  weekHeader: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 8 },
-  weekDayHeader: { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '8px 0', borderRadius: 10, border: 'none', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s' },
-  weekDayName: { fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' },
-  weekDayNumber: { fontSize: 16, fontWeight: 700 },
-  weekBody: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, background: 'var(--bg-card)', borderRadius: 14, padding: 8, boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))' },
+  hourLine: { position: 'absolute', left: 0, right: 0, height: 1, background: `${COLORS.outlineVariant}33` },
+  nowLine: { position: 'absolute', left: -4, right: 0, height: 2, background: '#E53E3E', zIndex: 10 },
+  nowDot: { width: 8, height: 8, borderRadius: '50%', background: '#E53E3E', position: 'absolute', left: -2, top: -3 },
+
+  // Appointment Cards
+  appointmentCard: { position: 'absolute', left: 4, right: 4, borderRadius: 16, padding: '8px 10px', cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'inherit', textAlign: 'left', border: 'none', borderLeft: '4px solid', boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)', overflow: 'hidden', width: 'calc(100% - 8px)' },
+  appointmentCardContent: { display: 'flex', flexDirection: 'column', gap: 6 },
+  appointmentCardHeader: { display: 'flex', gap: 8, alignItems: 'flex-start' },
+  appointmentAvatar: { width: 40, height: 40, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 700, flexShrink: 0 },
+  appointmentCardTextBlock: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2 },
+  appointmentCardClientName: { fontSize: 13, fontWeight: 700, color: COLORS.onSurface },
+  appointmentCardTreatment: { fontSize: 11, fontWeight: 500, textTransform: 'uppercase', color: COLORS.stone400, letterSpacing: '0.02em' },
+  appointmentCardMeta: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 10 },
+  appointmentCardTime: { fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase' },
+  aiTag: { display: 'inline-block', padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600, background: '#EEF4FC', color: '#4A90D9', letterSpacing: '0.03em' },
+
+  // Open Slot Cards
+  openSlotCard: { position: 'absolute', left: 4, right: 4, borderRadius: 16, border: `2px dashed ${COLORS.outlineVariant}80`, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 'calc(100% - 8px)' },
+  openSlotText: { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.stone400 },
+
+  // Week Body
+  weekBody: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, background: '#fff', borderRadius: 16, padding: 8, boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)' },
   weekDayColumn: { display: 'flex', flexDirection: 'column', gap: 3, minHeight: 80 },
-  weekApptChip: { padding: '4px 4px', borderRadius: 4, borderLeft: '2px solid', background: '#FDFCFB', display: 'flex', flexDirection: 'column', gap: 0 },
-  weekApptTime: { fontSize: 9, fontWeight: 600, color: '#666' },
-  weekApptName: { fontSize: 10, color: 'var(--text-primary)', fontWeight: 500 },
-  weekEmpty: { height: 40, borderRadius: 4, background: '#FDFCFB' },
-  detailPanel: { background: 'var(--bg-card)', borderRadius: 14, padding: 20, marginTop: 16, boxShadow: 'var(--shadow-xs, 0 1px 3px rgba(0,0,0,0.04))' },
+  weekApptChip: { padding: '4px 4px', borderRadius: 8, borderLeft: '2px solid', background: COLORS.surfaceContainerLow, display: 'flex', flexDirection: 'column', gap: 0, cursor: 'pointer' },
+  weekApptTime: { fontSize: 9, fontWeight: 600, color: COLORS.stone400 },
+  weekApptName: { fontSize: 10, color: COLORS.onSurface, fontWeight: 600 },
+  weekEmpty: { height: 40, borderRadius: 8, background: COLORS.surfaceContainerLow },
+
+  // Floating Insights Pill
+  insightsPill: { position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)', background: `rgba(116, 90, 39, 0.9)`, backdropFilter: 'blur(10px)', borderRadius: 24, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)', zIndex: 20, color: '#fff' },
+  insightsPillIcon: { fontSize: 14 },
+  insightsPillText: { fontSize: 12, fontWeight: 600 },
+
+  // Detail Panel
+  detailPanel: { background: '#fff', borderRadius: 16, padding: 20, marginTop: 16, boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)' },
   detailHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
-  detailTitle: { fontSize: 17, fontWeight: 600, margin: 0 },
-  detailClose: { background: 'none', border: 'none', fontSize: 22, color: 'var(--text-muted)', cursor: 'pointer' },
+  detailTitle: { fontSize: 17, fontWeight: 700, margin: 0 },
+  detailClose: { background: 'none', border: 'none', fontSize: 22, color: COLORS.stone400, cursor: 'pointer' },
   detailGrid: { display: 'flex', flexDirection: 'column', gap: 0 },
-  detailRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border-light)' },
-  detailLabel: { fontSize: 13, color: 'var(--text-secondary)' },
-  detailValue: { fontSize: 13, fontWeight: 500, textAlign: 'right' },
+  detailRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: `1px solid ${COLORS.outlineVariant}33` },
+  detailLabel: { fontSize: 13, color: COLORS.stone400, fontWeight: 500 },
+  detailValue: { fontSize: 13, fontWeight: 600, textAlign: 'right' },
   statusBadge: { padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600, textTransform: 'capitalize' },
-  completeBtn: { width: '100%', padding: '12px 0', borderRadius: 10, border: 'none', background: 'var(--success)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 14 },
+  completeBtn: { width: '100%', padding: '12px 0', borderRadius: 12, border: 'none', background: '#5BA67F', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 14 },
   completionFlow: { display: 'flex', flexDirection: 'column', gap: 16 },
   completionSection: { display: 'flex', flexDirection: 'column', gap: 6 },
-  completionLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' },
+  completionLabel: { fontSize: 11, fontWeight: 700, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em' },
   paymentOptions: { display: 'flex', gap: 6, flexWrap: 'wrap' },
   paymentChip: { padding: '8px 14px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', textTransform: 'capitalize', transition: 'all 0.15s' },
-  notesInput: { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
-  photoHint: { fontSize: 12, color: 'var(--text-muted)', margin: 0 },
-  photoUploadBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 10, border: '2px dashed var(--border)', fontSize: 14, fontWeight: 500, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' },
-  photoPreview: { position: 'relative', borderRadius: 10, overflow: 'hidden' },
-  photoImg: { width: '100%', borderRadius: 10, maxHeight: 200, objectFit: 'cover' },
+  notesInput: { width: '100%', padding: '10px 12px', borderRadius: 8, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
+  photoHint: { fontSize: 12, color: COLORS.stone400, margin: 0 },
+  photoUploadBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 0', borderRadius: 12, border: `2px dashed ${COLORS.outlineVariant}`, fontSize: 14, fontWeight: 500, color: COLORS.stone400, cursor: 'pointer', fontFamily: 'inherit' },
+  photoPreview: { position: 'relative', borderRadius: 12, overflow: 'hidden' },
+  photoImg: { width: '100%', borderRadius: 12, maxHeight: 200, objectFit: 'cover' },
   photoRemove: { position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: '50%', background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  confirmCompleteBtn: { width: '100%', padding: '14px 0', borderRadius: 10, border: 'none', background: 'var(--success)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  confirmCompleteBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: '#5BA67F', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   doneScreen: { textAlign: 'center', padding: '20px 0' },
-  rebookSection: { background: 'var(--bg)', borderRadius: 12, padding: 16, textAlign: 'left', marginBottom: 12 },
+  rebookSection: { background: COLORS.surfaceContainerLow, borderRadius: 12, padding: 16, textAlign: 'left', marginBottom: 12 },
   rebookOptions: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 },
   rebookChip: { padding: '6px 12px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' },
-  rebookSendBtn: { width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  doneCloseBtn: { width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: 'var(--border-light)', color: '#666', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
+  rebookSendBtn: { width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  doneCloseBtn: { width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: `${COLORS.outlineVariant}33`, color: COLORS.stone400, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
 };

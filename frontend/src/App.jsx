@@ -316,38 +316,55 @@ function BottomNav({ current }) {
   const isHubActive = hubPaths.includes(current);
 
   const tabs = [
-    { path: '/', label: 'Home', icon: '🏠' },
-    { path: '/calendar', label: 'Calendar', icon: '📅' },
+    { path: '/', label: 'Home', icon: 'home', isPetal: false },
+    { path: '/calendar', label: 'Calendar', icon: 'calendar', isPetal: false },
     { path: '/voice', label: 'florrie.ai', icon: null, isPetal: true },
-    { path: '/money', label: 'Money', icon: '💰' },
-    { path: '/hub', label: 'Hub', icon: '🧭' }
+    { path: '/money', label: 'Money', icon: 'money', isPetal: false },
+    { path: '/hub', label: 'Hub', icon: 'hub', isPetal: false }
   ];
+
+  const NavIcon = ({ name, color, size = 22 }) => {
+    const props = { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: color, strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' };
+    switch (name) {
+      case 'home': return <svg {...props}><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><polyline points="9,21 9,14 15,14 15,21"/></svg>;
+      case 'calendar': return <svg {...props}><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><text x="12" y="17.5" textAnchor="middle" fill={color} stroke="none" fontSize="8" fontWeight="700" fontFamily="inherit">{new Date().getDate()}</text></svg>;
+      case 'money': return <svg {...props}><line x1="2" y1="7" x2="22" y2="7"/><rect x="2" y="4" width="20" height="16" rx="2"/><circle cx="12" cy="14" r="3"/></svg>;
+      case 'hub': return <svg {...props}><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 014 10 14.5 14.5 0 01-4 10 14.5 14.5 0 01-4-10A14.5 14.5 0 0112 2z"/><line x1="2" y1="12" x2="22" y2="12"/></svg>;
+      default: return null;
+    }
+  };
 
   return (
     <nav style={styles.nav}>
       {tabs.map(tab => {
         const active = tab.path === '/hub' ? isHubActive : current === tab.path;
+        const iconColor = active ? 'var(--accent, #92405e)' : 'var(--text-muted, #B5AFA8)';
         return (
           <button
             key={tab.path}
             onClick={() => navigate(tab.path)}
             style={{
               ...styles.navItem,
-              color: active ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #B5AFA8)'
+              color: active ? 'var(--accent, #92405e)' : 'var(--text-muted, #B5AFA8)'
             }}
           >
             {tab.isPetal ? (
-              <img src="/florrie-petal.svg" alt="florrie" style={{ width: 22, height: 22 }} />
+              <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--accent, #92405e)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(146,64,94,0.3)', marginTop: -20, border: '3px solid var(--bg, #fef8f4)' }}>
+                <img src="/florrie-petal.svg" alt="florrie" style={{ width: 22, height: 22, filter: 'brightness(10)' }} />
+              </div>
             ) : (
-              <span style={styles.navIcon}>{tab.icon}</span>
+              <NavIcon name={tab.icon} color={iconColor} />
             )}
             <span style={{
               ...styles.navLabel,
-              fontWeight: active ? 600 : 400
+              fontWeight: active ? 600 : 400,
+              color: iconColor,
+              fontFamily: tab.isPetal ? "'Playfair Display', Georgia, serif" : 'inherit',
+              fontStyle: tab.isPetal ? 'italic' : 'normal',
             }}>
               {tab.label}
             </span>
-            {active && <div style={styles.navDot} />}
+            {active && !tab.isPetal && <div style={styles.navDot} />}
           </button>
         );
       })}
