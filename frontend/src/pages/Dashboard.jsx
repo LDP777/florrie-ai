@@ -292,49 +292,46 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/* ─── Alert Cards ─── */}
+      {/* ─── Insight Cards ─── */}
       <section style={S.alertGrid}>
-        {pendingCount > 0 && (
-          <button onClick={() => navigate('/calendar')} style={S.alertCard('#fedb9b', '#745a27', '#795f2b')}>
-            <div style={S.alertTop}>
-              <MIcon name="pending_actions" size={14} style={{ color: '#795f2b' }} />
-              <span style={S.alertBadge('#795f2b')}>Pending</span>
-            </div>
-            <p style={{ fontSize: 14, fontWeight: 500, color: '#745a27', margin: 0 }}>
-              {pendingCount} unconfirmed
-            </p>
-          </button>
-        )}
-        {insights.some(i => i.type === 'action' && i.actionPath === '/clients') && (
+        {/* Card 1: Schedule status — gaps or next appointment */}
+        <button onClick={() => navigate('/calendar')} style={S.alertCard('#fedb9b', '#745a27', '#795f2b')}>
+          <div style={S.alertTop}>
+            <MIcon name={remainingCount > 0 ? 'schedule' : 'check_circle'} size={14} style={{ color: '#795f2b' }} />
+            <span style={S.alertBadge('#795f2b')}>
+              {remainingCount > 0 ? 'Next Up' : 'Done'}
+            </span>
+          </div>
+          <p style={{ fontSize: 14, fontWeight: 600, color: '#745a27', margin: 0, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" }}>
+            {remainingCount > 0
+              ? (today.find(a => a.status !== 'completed')?.time || 'All clear')
+              : 'All done for today'}
+          </p>
+        </button>
+
+        {/* Card 2: Revenue context or retention nudge */}
+        {insights.some(i => i.type === 'action' && i.actionPath === '/clients') ? (
           <button onClick={() => navigate('/clients')} style={S.alertCard('#ffd9e2', '#92405e', '#782b49')}>
             <div style={S.alertTop}>
               <MIcon name="history" size={14} style={{ color: '#92405e' }} />
               <span style={S.alertBadge('#92405e')}>Retain</span>
             </div>
             <p style={{ fontSize: 14, fontWeight: 500, color: '#782b49', margin: 0 }}>
-              3 overdue rebookings
+              Overdue rebookings
             </p>
           </button>
-        )}
-        {pendingCount === 0 && !insights.some(i => i.type === 'action' && i.actionPath === '/clients') && (
-          <>
-            <div style={S.alertCard('#fedb9b', '#745a27', '#795f2b')}>
-              <div style={S.alertTop}>
-                <MIcon name="check_circle" size={14} style={{ color: '#795f2b' }} />
-                <span style={S.alertBadge('#795f2b')}>Status</span>
-              </div>
-              <p style={{ fontSize: 14, fontWeight: 500, color: '#745a27', margin: 0 }}>All confirmed</p>
+        ) : (
+          <button onClick={() => navigate('/money')} style={S.alertCard('#ffd9e2', '#92405e', '#782b49')}>
+            <div style={S.alertTop}>
+              <MIcon name="payments" size={14} style={{ color: '#92405e' }} />
+              <span style={S.alertBadge('#92405e')}>Revenue</span>
             </div>
-            <div style={S.alertCard('#ffd9e2', '#92405e', '#782b49')}>
-              <div style={S.alertTop}>
-                <MIcon name="schedule" size={14} style={{ color: '#92405e' }} />
-                <span style={S.alertBadge('#92405e')}>Next</span>
-              </div>
-              <p style={{ fontSize: 14, fontWeight: 500, color: '#782b49', margin: 0 }}>
-                {today.length > 0 ? today.find(a => a.status !== 'completed')?.time || 'Done' : 'Free day'}
-              </p>
-            </div>
-          </>
+            <p style={{ fontSize: 14, fontWeight: 600, color: '#782b49', margin: 0, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" }}>
+              {weeklyPulse.incomeChange != null
+                ? `${weeklyPulse.incomeChange >= 0 ? '↑' : '↓'} ${Math.abs(weeklyPulse.incomeChange)}% this week`
+                : fmt(weeklyPulse.income) + ' this week'}
+            </p>
+          </button>
         )}
       </section>
 
@@ -504,8 +501,8 @@ const S = {
     marginBottom: 4, fontFamily: "var(--font-sans, 'DM Sans')", margin: '0 0 4px',
   },
   heroValue: {
-    fontSize: 30, fontFamily: "var(--font-display, 'Playfair Display')",
-    fontStyle: 'italic', margin: 0, fontWeight: 400,
+    fontSize: 30, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
+    fontStyle: 'normal', margin: 0, fontWeight: 700, letterSpacing: '-0.02em',
   },
   heroDivider: {
     borderTop: '1px solid rgba(255,255,255,0.1)',
@@ -514,7 +511,7 @@ const S = {
   heroStats: { display: 'flex', justifyContent: 'space-between' },
   heroStat: { textAlign: 'center' },
   heroStatLabel: { fontSize: 12, opacity: 0.6, margin: '0 0 4px' },
-  heroStatValue: { fontSize: 18, fontWeight: 700, margin: 0 },
+  heroStatValue: { fontSize: 18, fontWeight: 700, margin: 0, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" },
 
   // Alert cards
   alertGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 },

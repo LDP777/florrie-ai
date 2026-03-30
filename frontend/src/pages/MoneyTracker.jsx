@@ -920,9 +920,9 @@ const S = {
     fontWeight: 700, opacity: 0.8,
   },
   heroValue: {
-    fontFamily: "var(--font-display, 'Playfair Display', serif)",
-    fontSize: 36, fontStyle: 'italic', fontWeight: 400,
-    lineHeight: 1.15, margin: '0 0 8px',
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
+    fontSize: 36, fontStyle: 'normal', fontWeight: 700,
+    lineHeight: 1.15, margin: '0 0 8px', letterSpacing: '-0.02em',
   },
   changeBadge: {
     display: 'inline-block', padding: '3px 10px', borderRadius: 12,
@@ -948,8 +948,8 @@ const S = {
     color: '#867277', fontWeight: 600,
   },
   bentoValue: {
-    fontFamily: "var(--font-display, 'Playfair Display', serif)",
-    fontSize: 18, fontStyle: 'italic', fontWeight: 400,
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
+    fontSize: 18, fontStyle: 'normal', fontWeight: 700, letterSpacing: '-0.01em',
   },
 
   // Quick stats row

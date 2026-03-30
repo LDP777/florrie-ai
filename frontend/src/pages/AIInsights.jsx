@@ -276,8 +276,9 @@ const S = {
     color: '#867277', marginBottom: 4,
   },
   statPillValue: {
-    fontFamily: "var(--font-display, 'Playfair Display', serif)",
-    fontSize: 20, fontStyle: 'italic', color: '#92405e',
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
+    fontSize: 20, fontStyle: 'normal', fontWeight: 700, color: '#92405e',
+    letterSpacing: '-0.01em',
   },
   tipCard: {
     background: 'rgba(254, 219, 155, 0.4)',
