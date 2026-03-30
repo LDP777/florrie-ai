@@ -834,7 +834,16 @@ function SubscriptionManager({ beautician }) {
       });
       const data = await response.json();
       if (data.url) {
-        window.location.href = data.url;
+        try {
+          const redirectUrl = new URL(data.url);
+          if (redirectUrl.hostname.endsWith('stripe.com')) {
+            window.location.href = data.url;
+          } else {
+            setError('Invalid portal redirect');
+          }
+        } catch {
+          setError('Invalid portal URL');
+        }
       } else {
         setError(data.error || 'Failed to open subscription portal');
       }

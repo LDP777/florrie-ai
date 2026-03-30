@@ -381,7 +381,16 @@ export default function BookingPage() {
 
       // If deposit required and checkout URL returned, redirect to Stripe
       if (data.checkout_url) {
-        window.location.href = data.checkout_url;
+        try {
+          const redirectUrl = new URL(data.checkout_url);
+          if (redirectUrl.hostname.endsWith('stripe.com')) {
+            window.location.href = data.checkout_url;
+          } else {
+            setError('Invalid payment redirect');
+          }
+        } catch {
+          setError('Invalid payment URL');
+        }
         return;
       }
 

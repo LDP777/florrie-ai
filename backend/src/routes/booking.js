@@ -192,10 +192,22 @@ router.patch('/appointments/:id/status', requireAuth, validate(statusTransitionS
  */
 router.get('/:slug/consultation-form/:formId', async (req, res) => {
   try {
+    // Resolve beautician from slug to filter by their ID
+    const { data: beautician, error: beauticianError } = await supabase
+      .from('beauticians')
+      .select('id')
+      .eq('booking_slug', req.params.slug)
+      .single();
+
+    if (beauticianError || !beautician) {
+      return res.status(404).json({ error: 'Beautician not found' });
+    }
+
     const { data: form } = await supabase
       .from('consultation_forms')
       .select('id, name, consent_text, consultation_form_fields(*)')
       .eq('id', req.params.formId)
+      .eq('beautician_id', beautician.id)
       .eq('is_active', true)
       .single();
 
@@ -523,8 +535,8 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
       }
       discountMeta = { type: 'promo', code: promo.code, promo_id: promo.id, discount_type: promo.discount_type, discount_value: promo.discount_value, discount_cents: discountCents };
 
-      // Increment usage count (non-blocking)
-      supabase.from('promo_codes').update({ current_uses: (promo.current_uses || 0) + 1 }).eq('id', promo.id).then();
+      // Increment usage count
+      await supabase.from('promo_codes').update({ current_uses: (promo.current_uses || 0) + 1 }).eq('id', promo.id);
     }
 
     // Try gift voucher if promo didn't match
@@ -541,8 +553,8 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
         discountCents = Math.min(voucher.amount, treatmentTotal);
         discountMeta = { type: 'voucher', code: voucher.code, voucher_id: voucher.id, discount_cents: discountCents };
 
-        // Mark voucher as redeemed (non-blocking — will be linked to appointment after insert)
-        supabase.from('gift_vouchers').update({ status: 'redeemed', redeemed_at: new Date().toISOString() }).eq('id', voucher.id).then();
+        // Mark voucher as redeemed
+        await supabase.from('gift_vouchers').update({ status: 'redeemed', redeemed_at: new Date().toISOString() }).eq('id', voucher.id);
       }
     }
 

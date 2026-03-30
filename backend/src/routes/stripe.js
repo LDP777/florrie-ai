@@ -124,7 +124,7 @@ router.get('/connect/status', requireAuth, requireStripe, async (req, res) => {
  * Creates a Stripe Checkout session for a booking deposit.
  * Redirects the client to Stripe's hosted payment page.
  */
-router.post('/checkout', requireStripe, async (req, res) => {
+router.post('/checkout', requireAuth, requireStripe, async (req, res) => {
   const { appointment_id, beautician_id, amount_cents, description } = req.body;
 
   if (!appointment_id || !beautician_id || !amount_cents) {
@@ -310,19 +310,26 @@ router.post('/charge-no-show', requireAuth, requireStripe, async (req, res) => {
 
   try {
     // Get appointment with client details
-    const { data: appointment } = await supabase
+    const { data: appointment, error: fetchError } = await supabase
       .from('appointments')
       .select('*, clients(id, first_name, last_name, stripe_customer_id, phone)')
       .eq('id', appointment_id)
       .eq('beautician_id', req.beautician.id)
       .single();
 
-    if (!appointment) {
+    if (fetchError || !appointment) {
       return res.status(404).json({ error: 'Appointment not found' });
     }
 
     if (appointment.status !== 'no_show') {
       return res.status(400).json({ error: 'Appointment must be marked as no-show first' });
+    }
+
+    // Validate amount doesn't exceed a reasonable cap
+    const feeCents = amount_cents || appointment.deposit_cents || appointment.price_cents;
+    const maxChargeable = (appointment.price_cents || 0) * 2;
+    if (feeCents > maxChargeable) {
+      return res.status(400).json({ error: `Amount exceeds reasonable limit (${maxChargeable} cents)` });
     }
 
     const client = appointment.clients;
@@ -332,9 +339,6 @@ router.post('/charge-no-show', requireAuth, requireStripe, async (req, res) => {
         suggest: 'Send a payment link instead.',
       });
     }
-
-    // Fee amount: use provided amount, or fall back to deposit amount, or treatment price
-    const feeCents = amount_cents || appointment.deposit_cents || appointment.price_cents;
     if (!feeCents || feeCents <= 0) {
       return res.status(400).json({ error: 'No valid amount to charge' });
     }
@@ -667,14 +671,24 @@ router.post('/webhook', async (req, res) => {
     return res.status(400).json({ error: 'Invalid signature' });
   }
 
-  // Idempotency — skip if we've already processed this event
-  const { data: existing } = await supabase
-    .from('stripe_events')
-    .select('id')
-    .eq('id', event.id)
-    .maybeSingle();
+  // Idempotency — use UPSERT for atomic duplicate detection
+  try {
+    const { error: insertError } = await supabase
+      .from('stripe_events')
+      .insert({ id: event.id, type: event.type, processed_at: new Date().toISOString() });
 
-  if (existing) {
+    if (insertError && insertError.code === '23505') {
+      // Duplicate event ID — already processed
+      return res.json({ received: true, status: 'already_processed' });
+    }
+    if (insertError) {
+      throw insertError;
+    }
+  } catch (err) {
+    if (err.code !== '23505') {
+      logger.error({ err }, 'Failed to record stripe event');
+      throw err;
+    }
     return res.json({ received: true, status: 'already_processed' });
   }
 

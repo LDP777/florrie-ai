@@ -120,7 +120,10 @@ router.post('/webhook', async (req, res) => {
 
   try {
     if (endpointSecret && sig) {
-      event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+      event = stripe.webhooks.constructEvent(req.rawBody || req.body, sig, endpointSecret);
+    } else if (endpointSecret) {
+      // Reject if secret is configured but no signature provided
+      return res.status(503).json({ error: 'Webhook signature verification failed' });
     } else {
       event = req.body;
     }

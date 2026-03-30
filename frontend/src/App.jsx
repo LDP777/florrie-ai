@@ -3,7 +3,6 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-
 import { supabase, isDevMode } from './lib/supabase.js';
 import { useTheme } from './lib/theme.jsx';
 import { useBeautician } from './lib/supabase.js';
-import QuickBook from './components/QuickBook.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 
 // Lazy-loaded pages (code splitting — each becomes its own chunk)
@@ -300,7 +299,6 @@ export default function App() {
         </Suspense>
       </div>
 
-      {showNav && <QuickBook />}
       {showNav && <BottomNav current={location.pathname} />}
       </div>
     </ErrorBoundary>

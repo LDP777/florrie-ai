@@ -333,18 +333,25 @@ router.post('/stripe', (req, res) => {
 
 /**
  * Find beautician by Twilio phone number.
- * MVP: uses global TWILIO_PHONE_NUMBER. Later, match against beautician.twilio_phone_number column.
+ * First tries to match phoneNumber against beautician columns, then falls back to first beautician.
  */
 async function findBeauticianByTwilioNumber(phoneNumber) {
-  // For MVP, find any beautician (assumes single-tenant per deployment)
-  // In production, add twilio_phone_number column and:
-  // const { data: beautician } = await supabase
-  //   .from('beauticians')
-  //   .select('*')
-  //   .eq('twilio_phone_number', phoneNumber)
-  //   .single();
+  // First try to match against twilio_phone or phone column
+  if (phoneNumber) {
+    const { data: beautician } = await supabase
+      .from('beauticians')
+      .select('*')
+      .or(`twilio_phone.eq.${phoneNumber},phone.eq.${phoneNumber}`)
+      .single();
 
-  // For now, assume the first beautician in the system (single-tenant MVP)
+    if (beautician) {
+      return beautician;
+    }
+
+    logger.warn({ phoneNumber }, 'Twilio number not matched to beautician, falling back to first beautician');
+  }
+
+  // Fallback: assume the first beautician in the system (single-tenant MVP)
   const { data: beautician } = await supabase
     .from('beauticians')
     .select('*')

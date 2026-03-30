@@ -147,12 +147,46 @@ router.post('/', requireAuth, async (req, res) => {
 router.patch('/:id', requireAuth, async (req, res) => {
   const allowedFields = [
     'status', 'starts_at', 'ends_at', 'beautician_notes',
-    'no_show_fee_charged', 'deposit_paid'
+    'no_show_fee_charged'
   ];
+
+  const VALID_TRANSITIONS = {
+    'pending': ['confirmed', 'cancelled'],
+    'confirmed': ['completed', 'cancelled', 'no_show'],
+    'completed': [],
+    'cancelled': [],
+    'no_show': []
+  };
 
   const updates = {};
   for (const field of allowedFields) {
     if (req.body[field] !== undefined) updates[field] = req.body[field];
+  }
+
+  // Validate status transition if status is being updated
+  if (req.body.status !== undefined) {
+    const { data: existing } = await supabase
+      .from('appointments')
+      .select('status')
+      .eq('id', req.params.id)
+      .eq('beautician_id', req.beautician.id)
+      .single();
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+
+    const currentStatus = existing.status;
+    const newStatus = req.body.status;
+    const allowedTransitions = VALID_TRANSITIONS[currentStatus] || [];
+
+    if (!allowedTransitions.includes(newStatus)) {
+      return res.status(400).json({
+        error: `Cannot transition from '${currentStatus}' to '${newStatus}'`,
+        currentStatus,
+        allowedTransitions
+      });
+    }
   }
 
   // Track cancellation

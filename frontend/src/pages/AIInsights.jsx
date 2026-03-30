@@ -1,340 +1,212 @@
-import { useState, useEffect } from 'react';
-import { useBeautician, supabase, isDevMode } from '../lib/supabase.js';
-import { ds, type } from '../lib/designSystem.js';
+import { useState, useEffect, useMemo } from 'react';
+import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
+import { ds, type, space } from '../lib/designSystem.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
-import ErrorCard from '../components/ErrorCard.jsx';
 
-const mockPredictions = [
-  { label: 'Next week revenue', value: '£4,280', confidence: 92, trend: '+12%', icon: '📈' },
-  { label: 'Booking demand', value: 'High', confidence: 87, trend: 'Thu–Sat peak', icon: '🔥' },
-  { label: 'No-show risk', value: '3 clients', confidence: 78, trend: '↓ from 5', icon: '⚠️' },
-  { label: 'Product restock', value: '4 items', confidence: 95, trend: 'Within 2wk', icon: '📦' },
+/* ─── Dev-mode sample data ──────────────────────────── */
+const DEV_APPOINTMENTS = [
+  { id: 1, client_name: 'Jessica Moore', treatment_name: 'Brow Lamination', starts_at: new Date().toISOString().slice(0, 10) + 'T09:30:00', status: 'confirmed', price_cents: 4500 },
+  { id: 2, client_name: 'Sarah Chen', treatment_name: 'Lash Lift & Tint', starts_at: new Date().toISOString().slice(0, 10) + 'T11:00:00', status: 'confirmed', price_cents: 5500 },
+  { id: 3, client_name: 'Emma Taylor', treatment_name: 'Gel Manicure', starts_at: new Date().toISOString().slice(0, 10) + 'T13:15:00', status: 'confirmed', price_cents: 3500 },
+  { id: 4, client_name: 'Olivia Brown', treatment_name: 'Facial Peel', starts_at: new Date().toISOString().slice(0, 10) + 'T15:00:00', status: 'pending', price_cents: 6500 },
+  { id: 5, client_name: 'Amy Wilson', treatment_name: 'Lip Filler Top-Up', starts_at: new Date().toISOString().slice(0, 10) + 'T16:30:00', status: 'confirmed', price_cents: 12000 },
 ];
 
-const churnData = [
-  { name: 'Jessica Moore', lastVisit: '47 days ago', risk: 94, spend: '£1,240/yr', trigger: 'Missed rebook window', avatar: 'JM' },
-  { name: 'Sarah Chen', lastVisit: '38 days ago', risk: 82, spend: '£890/yr', trigger: 'Cancelled last 2 appts', avatar: 'SC' },
-  { name: 'Emma Taylor', lastVisit: '52 days ago', risk: 76, spend: '£620/yr', trigger: 'Switched to competitor', avatar: 'ET' },
-  { name: 'Olivia Brown', lastVisit: '31 days ago', risk: 68, spend: '£1,580/yr', trigger: 'Reduced frequency', avatar: 'OB' },
-  { name: 'Amy Wilson', lastVisit: '44 days ago', risk: 61, spend: '£440/yr', trigger: 'Negative feedback', avatar: 'AW' },
+const DEV_ACTIVITY = [
+  { type: 'booking', message: 'New booking: Emma Taylor — Gel Manicure, today 1:15 PM', time: '2h ago', icon: '📅' },
+  { type: 'confirmation', message: 'Confirmed: Sarah Chen replied YES to her 11 AM appointment', time: '3h ago', icon: '✅' },
+  { type: 'reschedule', message: 'Rescheduled: Olivia Brown moved from Wed to today 3 PM', time: '4h ago', icon: '🔄' },
+  { type: 'review', message: 'New 5★ review from Lucy Hart: "Best brows in town!"', time: '5h ago', icon: '⭐' },
+  { type: 'reminder', message: 'Sent 3 appointment reminders for tomorrow', time: '6h ago', icon: '🔔' },
+  { type: 'gap', message: 'Gap detected: 2:00–3:00 PM today is open. Waitlist has 2 matches.', time: '7h ago', icon: '⚡' },
 ];
 
-const trends = [
-  { treatment: 'Lip Filler', direction: 'up', change: '+34%', period: 'vs last month', note: 'Highest growth — consider adding to promos' },
-  { treatment: 'Lash Lift & Tint', direction: 'up', change: '+22%', period: 'vs last month', note: 'Seasonal demand rising' },
-  { treatment: 'Classic Manicure', direction: 'down', change: '-15%', period: 'vs last month', note: 'Clients shifting to BIAB/gel' },
-  { treatment: 'Facial Peel', direction: 'up', change: '+18%', period: 'vs last month', note: 'Post-winter skin refresh trend' },
-  { treatment: 'Basic Brow Wax', direction: 'down', change: '-8%', period: 'vs last month', note: 'Lamination cannibalising demand' },
+const TIPS = [
+  { text: 'Thursday–Saturday is your money window. You\'re under-booked Mondays — consider a "Monday Glow" promo.', icon: '💡' },
+  { text: 'Lip Filler bookings are up 34% this month. Might be time for a dedicated Instagram reel.', icon: '📈' },
+  { text: '3 clients haven\'t rebooked in 40+ days. Sending a "we miss you" message could recover £2,100/yr.', icon: '💌' },
+  { text: 'Your average booking gap is 22 minutes. Tightening to 15 could fit 1 extra client per day.', icon: '⏱️' },
 ];
-
-const anomalies = [
-  { type: 'revenue', message: 'Tuesday revenue was 2.3x normal — investigate cause for replication', time: '2 days ago', severity: 'positive' },
-  { type: 'cancellation', message: 'Cancellation spike: 6 cancellations on Monday (avg is 1.8)', time: '3 days ago', severity: 'warning' },
-  { type: 'booking', message: 'New client acquisition up 40% this week vs 4-week avg', time: '1 day ago', severity: 'positive' },
-];
-
-const weeklyRevenue = [
-  { day: 'Mon', actual: 480, predicted: 520 },
-  { day: 'Tue', actual: 1180, predicted: 510 },
-  { day: 'Wed', actual: 620, predicted: 590 },
-  { day: 'Thu', actual: 780, predicted: 740 },
-  { day: 'Fri', actual: 920, predicted: 880 },
-  { day: 'Sat', actual: 1050, predicted: 990 },
-  { day: 'Sun', actual: null, predicted: 340 },
-];
-
-const tabs = ['Predictions', 'Churn Risk', 'Trends', 'Anomalies'];
 
 export default function AIInsights() {
   const { beautician, loading: bLoading } = useBeautician();
-  const [tab, setTab] = useState(0);
+  const [appointments, setAppointments] = useState([]);
+  const [activity, setActivity] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [predictions, setPredictions] = useState(isDevMode ? mockPredictions : []);
-  const [churnData, setChurnData] = useState(isDevMode ? churnData : []);
-  const [trends, setTrends] = useState(isDevMode ? trends : []);
-  const [anomalies, setAnomalies] = useState(isDevMode ? anomalies : []);
 
   useEffect(() => {
-    if (beautician && !bLoading) loadInsights();
+    if (bLoading || !beautician) return;
+    loadData();
   }, [beautician, bLoading]);
 
-  async function loadInsights() {
+  async function loadData() {
     setLoading(true);
     try {
-      if (isDevMode) {
-        setPredictions(mockPredictions);
-        setChurnData(churnData);
-        setTrends(trends);
-        setAnomalies(anomalies);
+      const today = new Date().toISOString().slice(0, 10);
+      const rows = await fetchRows('appointments', beautician.id, {
+        order: 'starts_at', ascending: true,
+        filters: { starts_at: `gte.${today}T00:00:00`, 'starts_at.lt': `${today}T23:59:59` },
+      });
+      if (rows && rows.length > 0) {
+        setAppointments(rows);
+      } else if (isDevMode) {
+        setAppointments(DEV_APPOINTMENTS);
       } else {
-        // In production, fetch real insights from analytics endpoints
-        // For now, fall back to dev data
-        setPredictions(mockPredictions);
-        setChurnData(churnData);
-        setTrends(trends);
-        setAnomalies(anomalies);
+        setAppointments([]);
       }
+      // Activity feed — would come from an activity_log table in production
+      setActivity(isDevMode ? DEV_ACTIVITY : []);
     } catch (err) {
-      logger.error('Load insights error:', err);
+      logger.error('Load AI insights error:', err);
+      if (isDevMode) {
+        setAppointments(DEV_APPOINTMENTS);
+        setActivity(DEV_ACTIVITY);
+      }
     } finally {
       setLoading(false);
     }
   }
 
-  if (bLoading || loading) {
-    return <div style={ds.page}><PageLoader /></div>;
-  }
+  const todaysTip = useMemo(() => TIPS[Math.floor(Math.random() * TIPS.length)], []);
 
-  const maxRev = Math.max(...weeklyRevenue.map(d => Math.max(d.actual || 0, d.predicted)));
+  const stats = useMemo(() => {
+    const confirmed = appointments.filter(a => a.status === 'confirmed' || a.status === 'completed');
+    const revenue = appointments.reduce((sum, a) => sum + (a.price_cents || 0), 0);
+    const completed = appointments.filter(a => a.status === 'completed').length;
+    const pending = appointments.filter(a => a.status === 'pending').length;
+    return { total: appointments.length, confirmed: confirmed.length, revenue, completed, pending };
+  }, [appointments]);
+
+  if (bLoading || loading) return <div style={ds.page}><PageLoader /></div>;
+
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const dateStr = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
     <div style={ds.page}>
       {/* Header */}
       <div style={{ marginBottom: 20 }}>
-        <h1 style={ds.pageTitle}>AI Insights</h1>
-        <p style={{ ...type.bodySmall, marginTop: 4 }}>florrie.ai's brain — predictions, risks, and opportunities</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+          <span style={{ fontSize: 22 }}>✨</span>
+          <h1 style={{ ...type.displayMd, margin: 0 }}>florrie.ai</h1>
+        </div>
+        <p style={{ ...type.bodySmall, color: 'var(--text-muted)', margin: 0 }}>
+          {dateStr} · {timeStr}
+        </p>
       </div>
 
-      {/* Confidence hero */}
-      <div style={{ ...ds.heroCard, marginBottom: 20 }}>
+      {/* Today's snapshot */}
+      <div style={{ ...ds.heroCard, marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>AI CONFIDENCE SCORE</div>
-            <div style={{ fontSize: 42, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1 }}>87%</div>
-            <div style={{ fontSize: 13, opacity: 0.9, marginTop: 6 }}>Based on 14 months of your data</div>
-          </div>
-          <div style={{ fontSize: 48 }}>🧠</div>
-        </div>
-        <div style={{ display: 'flex', gap: 16, marginTop: 16 }}>
-          {[{ label: 'Predictions made', val: '1,247' }, { label: 'Accuracy rate', val: '84%' }, { label: 'Actions taken', val: '89' }].map(s => (
-            <div key={s.label} style={{ flex: 1 }}>
-              <div style={{ fontSize: 18, fontWeight: 700 }}>{s.val}</div>
-              <div style={{ fontSize: 10, opacity: 0.75, marginTop: 2 }}>{s.label}</div>
+            <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Today's Snapshot</div>
+            <div style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-0.03em', lineHeight: 1 }}>{stats.total}</div>
+            <div style={{ fontSize: 13, opacity: 0.9, marginTop: 4 }}>
+              appointment{stats.total !== 1 ? 's' : ''} · £{(stats.revenue / 100).toFixed(0)} expected
             </div>
-          ))}
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            {stats.pending > 0 && (
+              <div style={{ ...ds.badge, background: 'rgba(255,255,255,0.2)', color: '#fff', marginBottom: 4 }}>
+                {stats.pending} pending
+              </div>
+            )}
+            <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>
+              {stats.confirmed} confirmed
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={ds.tabBar}>
-        {tabs.map((t, i) => (
-          <button key={t} onClick={() => setTab(i)} style={{ ...ds.tab, ...(tab === i ? ds.tabActive : {}) }}>{t}</button>
+      {/* Stats row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 20 }}>
+        {[
+          { label: 'Completed', value: stats.completed, icon: '✅' },
+          { label: 'Pending', value: stats.pending, icon: '⏳' },
+          { label: 'Revenue', value: `£${(stats.revenue / 100).toFixed(0)}`, icon: '💰' },
+        ].map(s => (
+          <div key={s.label} style={{ ...ds.card, textAlign: 'center', padding: '12px 8px' }}>
+            <div style={{ fontSize: 18, marginBottom: 4 }}>{s.icon}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>{s.value}</div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{s.label}</div>
+          </div>
         ))}
       </div>
 
-      {/* Predictions Tab */}
-      {tab === 0 && (
+      {/* AI Tip */}
+      <div style={{ ...ds.insightCard, marginBottom: 20 }}>
+        <span style={{ fontSize: 20 }}>{todaysTip.icon}</span>
         <div>
-          {/* Prediction cards */}
-          <div style={ds.statsGrid}>
-            {predictions.map(p => (
-              <div key={p.label} style={ds.statCard}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ fontSize: 20 }}>{p.icon}</span>
-                  <span style={{ ...ds.badge, ...ds.badgeAccent }}>{p.confidence}%</span>
-                </div>
-                <div style={ds.statValue}>{p.value}</div>
-                <div style={ds.statLabel}>{p.label}</div>
-                <div style={{ fontSize: 11, color: 'var(--success)', marginTop: 4, fontWeight: 500 }}>{p.trend}</div>
-              </div>
-            ))}
-          </div>
+          <div style={{ ...type.heading, fontSize: 13, marginBottom: 4, color: 'var(--accent)' }}>florrie.ai's take</div>
+          <div style={{ ...type.bodySmall, lineHeight: 1.5 }}>{todaysTip.text}</div>
+        </div>
+      </div>
 
-          {/* Revenue forecast chart */}
-          <div style={{ ...ds.card, marginBottom: 16 }}>
-            <div style={{ ...type.heading, marginBottom: 14 }}>Revenue Forecast — This Week</div>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', height: 120 }}>
-              {weeklyRevenue.map(d => (
-                <div key={d.day} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                  <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end', width: '100%', justifyContent: 'center', height: 100 }}>
-                    {d.actual !== null && (
-                      <div style={{ width: '40%', height: `${(d.actual / maxRev) * 100}%`, background: 'var(--accent)', borderRadius: '4px 4px 0 0', minHeight: 4 }} />
-                    )}
-                    <div style={{
-                      width: d.actual !== null ? '40%' : '70%',
-                      height: `${(d.predicted / maxRev) * 100}%`,
-                      background: d.actual === null ? 'var(--gold)' : 'var(--border)',
-                      borderRadius: '4px 4px 0 0',
-                      minHeight: 4,
-                      opacity: d.actual === null ? 1 : 0.5,
-                      border: d.actual === null ? '1px dashed var(--gold)' : 'none',
-                    }} />
+      {/* Today's schedule */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={ds.sectionTitle}>TODAY'S SCHEDULE</div>
+        {appointments.length === 0 ? (
+          <EmptyState message="No appointments today" icon="📅" />
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {appointments.map((apt, i) => {
+              const time = new Date(apt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+              const isPast = new Date(apt.starts_at) < now;
+              const isNext = !isPast && (i === 0 || new Date(appointments[i - 1].starts_at) < now);
+              return (
+                <div key={apt.id} style={{
+                  ...ds.card,
+                  display: 'flex', gap: 12, alignItems: 'center',
+                  opacity: isPast ? 0.5 : 1,
+                  borderLeft: isNext ? '3px solid var(--accent)' : '3px solid transparent',
+                }}>
+                  <div style={{
+                    width: 44, textAlign: 'center', flexShrink: 0,
+                  }}>
+                    <div style={{ ...type.heading, fontSize: 14 }}>{time}</div>
                   </div>
-                  <span style={{ ...type.caption, fontSize: 10, textTransform: 'none' }}>{d.day}</span>
-                </div>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <div style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--accent)' }} />
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Actual</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <div style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--gold)' }} />
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Predicted</span>
-              </div>
-            </div>
-          </div>
-
-          {/* AI Insight */}
-          <div style={ds.insightCard}>
-            <span style={{ fontSize: 20 }}>✨</span>
-            <div>
-              <div style={{ ...type.heading, fontSize: 13, marginBottom: 4 }}>florrie.ai's Take</div>
-              <div style={{ ...type.bodySmall, lineHeight: 1.5 }}>
-                Thursday–Saturday is your money window. You're consistently under-booked on Mondays — consider a "Monday Glow" promo to shift demand. Revenue is tracking 8% above last month.
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Churn Risk Tab */}
-      {tab === 1 && (
-        <div>
-          {/* Risk summary */}
-          <div style={{ ...ds.card, marginBottom: 16, background: 'linear-gradient(135deg, var(--danger-bg) 0%, var(--warning-bg) 100%)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ ...type.caption, marginBottom: 4 }}>CLIENTS AT RISK</div>
-                <div style={{ fontSize: 36, fontWeight: 700, color: 'var(--text-primary)' }}>5</div>
-                <div style={{ ...type.bodySmall, marginTop: 2 }}>Combined annual value: £4,770</div>
-              </div>
-              <div style={{ fontSize: 40 }}>🚨</div>
-            </div>
-          </div>
-
-          {/* Client risk list */}
-          {churnData.map((c, i) => (
-            <div key={c.name} style={{ ...ds.card, marginBottom: 10, display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: 12,
-                background: c.risk > 80 ? 'var(--danger-bg)' : c.risk > 65 ? 'var(--warning-bg)' : 'var(--accent-light)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 13, fontWeight: 600,
-                color: c.risk > 80 ? 'var(--danger)' : c.risk > 65 ? 'var(--warning)' : 'var(--accent)',
-                flexShrink: 0,
-              }}>
-                {c.avatar}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                  <span style={type.heading}>{c.name}</span>
-                  <span style={{
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ ...type.heading, fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {apt.client_name || 'Walk-in'}
+                    </div>
+                    <div style={{ ...type.bodySmall, color: 'var(--text-muted)', fontSize: 12 }}>
+                      {apt.treatment_name || 'Appointment'}
+                    </div>
+                  </div>
+                  <div style={{
                     ...ds.badge,
-                    background: c.risk > 80 ? 'var(--danger-bg)' : c.risk > 65 ? 'var(--warning-bg)' : 'var(--accent-light)',
-                    color: c.risk > 80 ? 'var(--danger)' : c.risk > 65 ? 'var(--warning)' : 'var(--accent)',
-                  }}>{c.risk}% risk</span>
+                    ...(apt.status === 'confirmed' ? ds.badgeSuccess : apt.status === 'completed' ? { background: 'var(--bg-subtle)', color: 'var(--text-muted)' } : ds.badgeWarning),
+                    fontSize: 10,
+                  }}>
+                    {apt.status === 'confirmed' ? '✓' : apt.status === 'completed' ? '✓ Done' : '⏳'}
+                  </div>
                 </div>
-                <div style={{ ...type.bodySmall, fontSize: 12 }}>{c.trigger}</div>
-                <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
-                  <span style={{ ...type.mono, fontSize: 11, color: 'var(--text-muted)' }}>Last: {c.lastVisit}</span>
-                  <span style={{ ...type.mono, fontSize: 11, color: 'var(--gold)' }}>{c.spend}</span>
-                </div>
-                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                  <button style={{ ...ds.btnGhost, fontSize: 11, padding: '6px 12px', background: 'var(--accent-light)', color: 'var(--accent)' }}>
-                    Send win-back
-                  </button>
-                  <button style={{ ...ds.btnGhost, fontSize: 11, padding: '6px 12px' }}>
-                    View profile
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-
-          <div style={ds.insightCard}>
-            <span style={{ fontSize: 20 }}>💡</span>
-            <div style={{ ...type.bodySmall, lineHeight: 1.5 }}>
-              Your biggest churn trigger is missed rebook windows. Turning on auto-rebook reminders at 21 days could reduce churn risk by ~30%.
-            </div>
+              );
+            })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Trends Tab */}
-      {tab === 2 && (
+      {/* Activity feed */}
+      {activity.length > 0 && (
         <div>
-          <div style={{ ...ds.sectionTitle, marginBottom: 12 }}>TREATMENT DEMAND SHIFTS</div>
-          {trends.map(t => (
-            <div key={t.treatment} style={{ ...ds.card, marginBottom: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={type.heading}>{t.treatment}</span>
-                <span style={{
-                  ...ds.badge,
-                  ...(t.direction === 'up' ? ds.badgeSuccess : ds.badgeDanger),
-                }}>{t.change}</span>
-              </div>
-              {/* Trend bar */}
-              <div style={{ height: 6, background: 'var(--bg-subtle)', borderRadius: 3, marginBottom: 8, overflow: 'hidden' }}>
-                <div style={{
-                  height: '100%',
-                  width: `${Math.min(Math.abs(parseInt(t.change)) * 2.5, 100)}%`,
-                  background: t.direction === 'up' ? 'var(--success)' : 'var(--danger)',
-                  borderRadius: 3,
-                  transition: 'width 0.5s ease',
-                }} />
-              </div>
-              <div style={{ ...type.bodySmall, fontSize: 12 }}>{t.note}</div>
-              <div style={{ ...type.mono, fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>{t.period}</div>
-            </div>
-          ))}
-
-          <div style={ds.insightCard}>
-            <span style={{ fontSize: 20 }}>📊</span>
-            <div style={{ ...type.bodySmall, lineHeight: 1.5 }}>
-              Lip filler demand is surging — if you have appointment gaps mid-week, consider a "Midweek Lip Special" to capture this growth while competitors are booked out weekends.
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Anomalies Tab */}
-      {tab === 3 && (
-        <div>
-          <div style={{ ...ds.sectionTitle, marginBottom: 12 }}>UNUSUAL PATTERNS DETECTED</div>
-          {anomalies.map((a, i) => (
-            <div key={i} style={{
-              ...ds.card,
-              marginBottom: 10,
-              borderLeft: `3px solid ${a.severity === 'positive' ? 'var(--success)' : 'var(--warning)'}`,
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                <span style={{
-                  ...ds.badge,
-                  ...(a.severity === 'positive' ? ds.badgeSuccess : ds.badgeWarning),
-                }}>{a.severity === 'positive' ? '✅ Positive' : '⚠️ Investigate'}</span>
-                <span style={{ ...type.mono, fontSize: 10, color: 'var(--text-muted)' }}>{a.time}</span>
-              </div>
-              <div style={{ ...type.body, fontSize: 13, lineHeight: 1.5 }}>{a.message}</div>
-            </div>
-          ))}
-
-          {/* Suggested actions */}
-          <div style={{ ...ds.card, marginTop: 16 }}>
-            <div style={{ ...type.heading, marginBottom: 12 }}>Suggested Actions</div>
-            {[
-              { action: 'Investigate Tuesday revenue spike', priority: 'High', icon: '🔍' },
-              { action: 'Review Monday cancellations for pattern', priority: 'Medium', icon: '📋' },
-              { action: 'Double down on new client acquisition channel', priority: 'High', icon: '🚀' },
-            ].map(a => (
-              <div key={a.action} style={{ ...ds.listRow, justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                  <span>{a.icon}</span>
-                  <span style={{ ...type.body, fontSize: 13 }}>{a.action}</span>
+          <div style={ds.sectionTitle}>RECENT ACTIVITY</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {activity.map((a, i) => (
+              <div key={i} style={{
+                ...ds.card, display: 'flex', gap: 10, alignItems: 'flex-start',
+                padding: '10px 12px',
+              }}>
+                <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{a.icon}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ ...type.body, fontSize: 13, lineHeight: 1.4 }}>{a.message}</div>
+                  <div style={{ ...type.mono, fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>{a.time}</div>
                 </div>
-                <span style={{ ...ds.badge, ...(a.priority === 'High' ? ds.badgeAccent : ds.badgeGold) }}>{a.priority}</span>
               </div>
             ))}
-          </div>
-
-          <div style={{ ...ds.insightCard, marginTop: 16 }}>
-            <span style={{ fontSize: 20 }}>🔮</span>
-            <div style={{ ...type.bodySmall, lineHeight: 1.5 }}>
-              Anomaly detection improves with time. florrie.ai has identified 3 patterns this week. The more data flows through, the sharper the alerts become.
-            </div>
           </div>
         </div>
       )}
