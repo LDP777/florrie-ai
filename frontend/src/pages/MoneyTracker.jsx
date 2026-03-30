@@ -77,6 +77,11 @@ export default function MoneyTracker() {
   const [period, setPeriod] = useState('week');
 
   const [receiptPreview, setReceiptPreview] = useState(null);
+  const [showLogTip, setShowLogTip] = useState(false);
+  const [showLogSale, setShowLogSale] = useState(false);
+  const [tipAmount, setTipAmount] = useState('');
+  const [saleAmount, setSaleAmount] = useState('');
+  const [saleDesc, setSaleDesc] = useState('');
   const receiptInputRef = useRef(null);
 
   const [newExpense, setNewExpense] = useState({
@@ -312,6 +317,47 @@ export default function MoneyTracker() {
     }
   }
 
+  // ── Log tip ──
+
+  async function handleLogTip() {
+    const cents = Math.round(parseFloat(tipAmount) * 100);
+    if (!cents || cents <= 0 || !beautician) return;
+    try {
+      const row = await insertRow('transactions', {
+        beautician_id: beautician.id,
+        type: 'tip',
+        amount_cents: cents,
+        description: 'Tip',
+      });
+      setTransactions(prev => [row, ...prev]);
+      setTipAmount('');
+      setShowLogTip(false);
+    } catch (err) {
+      logger.error('Log tip error:', err);
+    }
+  }
+
+  // ── Log product sale ──
+
+  async function handleLogSale() {
+    const cents = Math.round(parseFloat(saleAmount) * 100);
+    if (!cents || cents <= 0 || !beautician) return;
+    try {
+      const row = await insertRow('transactions', {
+        beautician_id: beautician.id,
+        type: 'product_sale',
+        amount_cents: cents,
+        description: saleDesc.trim() || 'Product sale',
+      });
+      setTransactions(prev => [row, ...prev]);
+      setSaleAmount('');
+      setSaleDesc('');
+      setShowLogSale(false);
+    } catch (err) {
+      logger.error('Log product sale error:', err);
+    }
+  }
+
   // ── Derived data ──
 
   const pulse = useMemo(() => !loading ? computePulse() : null, [loading, expenses, transactions]);
@@ -334,19 +380,15 @@ export default function MoneyTracker() {
 
   const maxDayRevenue = useMemo(() => Math.max(...dailyRevenue.map(d => d.total), 1), [dailyRevenue]);
 
-  // Breakdown: treatments vs products vs tips
+  // Breakdown by real transaction types
   const breakdown = useMemo(() => {
     if (!pulse) return { treatments: 0, products: 0, tips: 0 };
-    const treatments = transactions
-      .filter(t => new Date(t.created_at) >= startOfWeek(new Date()) && t.type === 'payment')
-      .reduce((s, t) => s + (t.amount_cents || 0), 0);
-    const tips = transactions
-      .filter(t => new Date(t.created_at) >= startOfWeek(new Date()) && t.type === 'tip')
-      .reduce((s, t) => s + (t.amount_cents || 0), 0);
+    const weekStart = startOfWeek(new Date());
+    const weekTx = transactions.filter(t => new Date(t.created_at) >= weekStart);
     return {
-      treatments,
-      products: Math.round(pulse.thisWeek.income * 0.1), // estimate
-      tips,
+      treatments: weekTx.filter(t => t.type === 'payment' || t.type === 'deposit' || t.type === 'no_show_fee').reduce((s, t) => s + (t.amount_cents || 0), 0),
+      products: weekTx.filter(t => t.type === 'product_sale').reduce((s, t) => s + (t.amount_cents || 0), 0),
+      tips: weekTx.filter(t => t.type === 'tip').reduce((s, t) => s + (t.amount_cents || 0), 0),
     };
   }, [pulse, transactions]);
 
@@ -460,17 +502,83 @@ export default function MoneyTracker() {
                   <span style={S.bentoLabel}>Treatments</span>
                   <span style={{ ...S.bentoValue, color: '#92405e' }}>{fmtShort(breakdown.treatments)}</span>
                 </div>
-                <div style={{ ...S.bentoCard, background: 'rgba(254, 219, 155, 0.3)', border: '1px solid rgba(116, 90, 39, 0.08)' }}>
+                <div
+                  onClick={() => setShowLogSale(s => !s)}
+                  style={{ ...S.bentoCard, background: 'rgba(254, 219, 155, 0.3)', border: '1px solid rgba(116, 90, 39, 0.08)', cursor: 'pointer' }}
+                >
                   <MIcon name="shopping_bag" size={20} style={{ color: '#745a27' }} />
                   <span style={S.bentoLabel}>Products</span>
                   <span style={{ ...S.bentoValue, color: '#745a27' }}>{fmtShort(breakdown.products)}</span>
+                  <span style={{ fontSize: 9, color: '#745a27', opacity: 0.6, marginTop: -2 }}>+ log sale</span>
                 </div>
-                <div style={{ ...S.bentoCard, background: 'rgba(91, 169, 123, 0.1)', border: '1px solid rgba(91, 169, 123, 0.08)' }}>
+                <div
+                  onClick={() => setShowLogTip(s => !s)}
+                  style={{ ...S.bentoCard, background: 'rgba(91, 169, 123, 0.1)', border: '1px solid rgba(91, 169, 123, 0.08)', cursor: 'pointer' }}
+                >
                   <MIcon name="volunteer_activism" size={20} style={{ color: 'var(--success)' }} />
                   <span style={S.bentoLabel}>Tips</span>
                   <span style={{ ...S.bentoValue, color: 'var(--success)' }}>{fmtShort(breakdown.tips)}</span>
+                  <span style={{ fontSize: 9, color: 'var(--success)', opacity: 0.6, marginTop: -2 }}>+ log tip</span>
                 </div>
               </section>
+
+              {/* ─── Quick Log Tip ─── */}
+              {showLogTip && (
+                <section style={S.quickLogCard}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <MIcon name="volunteer_activism" size={18} style={{ color: 'var(--success)' }} />
+                    <span style={{ fontSize: 14, fontWeight: 600, color: '#1d1b19' }}>Log a Tip</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      type="number" step="0.01" placeholder="Amount (£)"
+                      value={tipAmount}
+                      onChange={e => setTipAmount(e.target.value)}
+                      style={{ ...S.formInput, flex: 1 }}
+                      autoFocus
+                    />
+                    <button onClick={handleLogTip} style={{ ...S.btnPrimary, flex: 'none', padding: '11px 20px', background: 'var(--success, #5ba97b)' }}>
+                      Save
+                    </button>
+                    <button onClick={() => { setShowLogTip(false); setTipAmount(''); }} style={{ ...S.btnGhost, flex: 'none' }}>
+                      <MIcon name="close" size={16} />
+                    </button>
+                  </div>
+                </section>
+              )}
+
+              {/* ─── Quick Log Product Sale ─── */}
+              {showLogSale && (
+                <section style={S.quickLogCard}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <MIcon name="shopping_bag" size={18} style={{ color: '#745a27' }} />
+                    <span style={{ fontSize: 14, fontWeight: 600, color: '#1d1b19' }}>Log a Product Sale</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                    <input
+                      type="number" step="0.01" placeholder="Amount (£)"
+                      value={saleAmount}
+                      onChange={e => setSaleAmount(e.target.value)}
+                      style={{ ...S.formInput, flex: 1 }}
+                      autoFocus
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input
+                      type="text" placeholder="Product name (optional)"
+                      value={saleDesc}
+                      onChange={e => setSaleDesc(e.target.value)}
+                      style={{ ...S.formInput, flex: 1 }}
+                    />
+                    <button onClick={handleLogSale} style={{ ...S.btnPrimary, flex: 'none', padding: '11px 20px', background: '#745a27' }}>
+                      Save
+                    </button>
+                    <button onClick={() => { setShowLogSale(false); setSaleAmount(''); setSaleDesc(''); }} style={{ ...S.btnGhost, flex: 'none' }}>
+                      <MIcon name="close" size={16} />
+                    </button>
+                  </div>
+                </section>
+              )}
 
               {/* ─── Quick Stats ─── */}
               <section style={S.quickStats}>
@@ -504,14 +612,19 @@ export default function MoneyTracker() {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {recentTx.map(tx => {
-                      const name = tx.appointments?.clients?.first_name || 'Payment';
-                      const treatment = tx.appointments?.treatments?.name || '';
-                      const initial = name.charAt(0).toUpperCase();
+                      const isTipOrSale = tx.type === 'tip' || tx.type === 'product_sale';
+                      const name = isTipOrSale ? (tx.description || (tx.type === 'tip' ? 'Tip' : 'Product Sale')) : (tx.appointments?.clients?.first_name || 'Payment');
+                      const treatment = isTipOrSale ? '' : (tx.appointments?.treatments?.name || '');
+                      const initial = isTipOrSale ? (tx.type === 'tip' ? '♥' : '🛍') : name.charAt(0).toUpperCase();
                       const time = new Date(tx.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
                       const isIncome = tx.amount_cents >= 0;
                       return (
                         <div key={tx.id} style={S.txRow}>
-                          <div style={S.txAvatar}>{initial}</div>
+                          <div style={{
+                            ...S.txAvatar,
+                            ...(tx.type === 'tip' ? { background: 'linear-gradient(135deg, #d4f5e0 0%, #a3e4b8 100%)' } :
+                                tx.type === 'product_sale' ? { background: 'linear-gradient(135deg, #fedb9b 0%, #f5c563 100%)' } : {}),
+                          }}>{initial}</div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <p style={{ fontSize: 14, fontWeight: 600, color: '#1d1b19', margin: 0 }}>{name}</p>
                             <p style={{ fontSize: 11, color: '#867277', margin: 0 }}>
@@ -723,20 +836,25 @@ export default function MoneyTracker() {
             <EmptyState message="Payments from completed appointments will show here." icon="💳" />
           )}
           {transactions.map(tx => {
-            const name = tx.appointments?.clients?.first_name || 'Payment';
-            const treatment = tx.appointments?.treatments?.name || '';
-            const initial = name.charAt(0).toUpperCase();
+            const isTipOrSale = tx.type === 'tip' || tx.type === 'product_sale';
+            const name = isTipOrSale ? (tx.description || (tx.type === 'tip' ? 'Tip' : 'Product Sale')) : (tx.appointments?.clients?.first_name || 'Payment');
+            const treatment = isTipOrSale ? '' : (tx.appointments?.treatments?.name || '');
+            const initial = isTipOrSale ? (tx.type === 'tip' ? '♥' : '🛍') : name.charAt(0).toUpperCase();
+            const typeLabel = { payment: 'Payment', deposit: 'Deposit', no_show_fee: 'No-show fee', tip: 'Tip', product_sale: 'Product sale' }[tx.type] || tx.type;
             return (
               <div key={tx.id} style={S.txRow}>
-                <div style={S.txAvatar}>{initial}</div>
+                <div style={{
+                  ...S.txAvatar,
+                  ...(tx.type === 'tip' ? { background: 'linear-gradient(135deg, #d4f5e0 0%, #a3e4b8 100%)' } :
+                      tx.type === 'product_sale' ? { background: 'linear-gradient(135deg, #fedb9b 0%, #f5c563 100%)' } : {}),
+                }}>{initial}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontSize: 14, fontWeight: 600, color: '#1d1b19', margin: 0 }}>
                     {name}{treatment ? ` — ${treatment}` : ''}
                   </p>
                   <p style={{ fontSize: 11, color: '#867277', margin: 0 }}>
                     {new Date(tx.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                    {' · '}
-                    {tx.type === 'payment' ? 'Payment' : tx.type === 'deposit' ? 'Deposit' : tx.type === 'no_show_fee' ? 'No-show fee' : tx.type}
+                    {' · '}{typeLabel}
                   </p>
                 </div>
                 <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--success)', marginLeft: 12 }}>
@@ -846,6 +964,8 @@ const DEV_TRANSACTIONS = [
   { id: 'dev-tx1', type: 'payment', amount_cents: 4500, created_at: '2026-03-24T14:00:00Z', appointments: { clients: { first_name: 'Shauna' }, treatments: { name: 'Lamination & Hybrid Dye' } } },
   { id: 'dev-tx2', type: 'payment', amount_cents: 4000, created_at: '2026-03-24T11:00:00Z', appointments: { clients: { first_name: 'Daisy' }, treatments: { name: 'Lamination & Tint' } } },
   { id: 'dev-tx3', type: 'payment', amount_cents: 2500, created_at: '2026-03-23T15:00:00Z', appointments: { clients: { first_name: 'Jasmin' }, treatments: { name: 'HD Brows' } } },
+  { id: 'dev-tx4', type: 'tip', amount_cents: 500, created_at: '2026-03-24T14:15:00Z', description: 'Tip' },
+  { id: 'dev-tx5', type: 'product_sale', amount_cents: 1200, created_at: '2026-03-24T14:10:00Z', description: 'Velvet Shine Serum' },
 ];
 
 // ─── Styles — Stitch "Money & Revenue" reference ───
@@ -950,6 +1070,14 @@ const S = {
   bentoValue: {
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
     fontSize: 18, fontStyle: 'normal', fontWeight: 700, letterSpacing: '-0.01em',
+  },
+
+  // Quick log card
+  quickLogCard: {
+    background: '#fff', borderRadius: 16, padding: 16, marginBottom: 16,
+    border: '1px solid rgba(146, 64, 94, 0.08)',
+    boxShadow: '0 2px 8px rgba(146, 64, 94, 0.06)',
+    animation: 'fadeIn 0.2s ease',
   },
 
   // Quick stats row
