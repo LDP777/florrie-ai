@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { supabase } from '../index.js';
 import logger from '../lib/logger.js';
+import { createBookingSuggestion } from './automations.js';
 
 /**
  * AI Front Desk — The core agentic service.
@@ -354,8 +355,18 @@ Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`,
   const toneScore = await calculateToneScore(beautician, replyText);
 
   // Take any additional actions based on intent
+  // Suggest-and-confirm: don't auto-book. Surface it for the beautician to approve.
   if (intent === INTENTS.BOOKING_REQUEST && extracted?.treatment && extracted?.date) {
-    actions.push({ type: 'booking_suggested', treatment: extracted.treatment, date: extracted.date });
+    const suggestion = await createBookingSuggestion({
+      beauticianId: beautician.id,
+      clientId: context.client?.id || null,
+      treatmentName: extracted.treatment,
+      suggestedDate: extracted.date,
+      suggestedTime: extracted.time || null,
+      source: 'ai_front_desk',
+      messageId: context.messageId || null,
+    });
+    actions.push({ type: 'booking_suggestion_created', suggestionId: suggestion?.id, treatment: extracted.treatment, date: extracted.date });
   }
 
   return {

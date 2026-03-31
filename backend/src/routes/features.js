@@ -2505,4 +2505,54 @@ router.delete('/team-members/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
+// ============================================================================
+// BOOKING SUGGESTIONS (suggest-and-confirm from AI Front Desk / Voice)
+// ============================================================================
+
+/**
+ * GET /api/features/booking-suggestions
+ * Pending booking suggestions for the beautician's dashboard
+ */
+router.get('/booking-suggestions', requireAuth, async (req, res) => {
+  const status = req.query.status || 'pending';
+  const { data, error } = await supabase
+    .from('booking_suggestions')
+    .select('*, clients(first_name, last_name, phone, email)')
+    .eq('beautician_id', req.beautician.id)
+    .eq('status', status)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+  res.json({ bookingSuggestions: data });
+});
+
+/**
+ * PATCH /api/features/booking-suggestions/:id
+ * Approve or dismiss a booking suggestion
+ * Body: { status: 'approved' | 'dismissed' }
+ */
+router.patch('/booking-suggestions/:id', requireAuth, async (req, res) => {
+  const { status } = req.body;
+  if (!['approved', 'dismissed'].includes(status)) {
+    return res.status(400).json({ error: 'Status must be approved or dismissed' });
+  }
+
+  const { data, error } = await supabase
+    .from('booking_suggestions')
+    .update({ status, reviewed_at: new Date().toISOString() })
+    .eq('id', req.params.id)
+    .eq('beautician_id', req.beautician.id)
+    .select()
+    .single();
+
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+  res.json({ bookingSuggestion: data });
+});
+
 export default router;
