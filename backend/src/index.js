@@ -10,13 +10,6 @@ import { securityHeaders, paymentLimiter, sanitiseBody, idempotencyGuard } from 
 // Services
 import { processReminders } from './services/notifications.js';
 import { cleanupStaleBookings } from './services/cleanup.js';
-import {
-  processAftercareFollowups,
-  processRebookNudges,
-  processReviewRequests,
-  processAutomationRules,
-  processFollowUpSequences,
-} from './services/automations.js';
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -38,10 +31,10 @@ import exportsRoutes from './routes/exports.js';
 import promoCodesRoutes from './routes/promo-codes.js';
 import photoConsentRoutes from './routes/photo-consent.js';
 import locationsRoutes from './routes/locations.js';
-import voiceRoutes from './routes/voice.js';
+// voice.js removed — stub endpoint, no transcription infrastructure yet
 import consultationFormRoutes from './routes/consultation-forms.js';
 import billingRoutes from './routes/billing.js';
-import calendarFeedRoutes from './routes/calendar-feed.js';
+import waitlistRoutes from './routes/waitlist.js';
 
 dotenv.config();
 
@@ -149,10 +142,10 @@ app.use('/api/promo-codes', (req, res, next) => {
 }, promoCodesRoutes);
 app.use('/api/photo-consent', apiLimiter, photoConsentRoutes);
 app.use('/api/locations', apiLimiter, locationsRoutes);
-app.use('/api/voice', apiLimiter, voiceRoutes);
+// /api/voice removed — was a stub, no transcription infrastructure yet
 app.use('/api/consultation-forms', apiLimiter, consultationFormRoutes);
 app.use('/api/billing', apiLimiter, billingRoutes);
-app.use('/api/cal', bookingLimiter, calendarFeedRoutes); // public ICS feed — no auth
+app.use('/api/waitlist', apiLimiter, waitlistRoutes);
 
 // Error handler
 app.use((err, req, res, next) => {
@@ -198,48 +191,5 @@ app.listen(PORT, () => {
   // Run cleanup on startup
   cleanupStaleBookings().then(r => {
     if (r?.cancelled > 0) logger.info({ cancelled: r.cancelled }, 'Startup: cancelled stale bookings');
-  }).catch(() => {});
-
-  // ── Automations cron ──────────────────────────────
-  // Aftercare, rebook nudges, review requests, automation rules, follow-up sequences
-  // Run every 15 minutes — these are all idempotent (track sends to avoid duplicates)
-  const AUTOMATIONS_INTERVAL = 15 * 60 * 1000;
-  setInterval(async () => {
-    try {
-      const [aftercare, rebook, reviews, rules, sequences] = await Promise.allSettled([
-        processAftercareFollowups(),
-        processRebookNudges(),
-        processReviewRequests(),
-        processAutomationRules(),
-        processFollowUpSequences(),
-      ]);
-
-      const log = {};
-      if (aftercare.status === 'fulfilled' && aftercare.value?.sent > 0) log.aftercare = aftercare.value.sent;
-      if (rebook.status === 'fulfilled' && rebook.value?.sent > 0) log.rebook = rebook.value.sent;
-      if (reviews.status === 'fulfilled' && reviews.value?.sent > 0) log.reviews = reviews.value.sent;
-      if (rules.status === 'fulfilled' && rules.value?.fired > 0) log.rules = rules.value.fired;
-      if (sequences.status === 'fulfilled' && (sequences.value?.enrolled > 0 || sequences.value?.sent > 0)) {
-        log.sequences = { enrolled: sequences.value.enrolled, sent: sequences.value.sent };
-      }
-
-      if (Object.keys(log).length > 0) {
-        logger.info(log, 'Automations cron: processed');
-      }
-    } catch (err) {
-      logger.error({ err }, 'Automations cron: processing failed');
-    }
-  }, AUTOMATIONS_INTERVAL);
-
-  // Run automations once on startup
-  Promise.allSettled([
-    processAftercareFollowups(),
-    processRebookNudges(),
-    processReviewRequests(),
-    processAutomationRules(),
-    processFollowUpSequences(),
-  ]).then(results => {
-    const started = results.filter(r => r.status === 'fulfilled').length;
-    logger.info({ started, total: results.length }, 'Startup: automations initialised');
   }).catch(() => {});
 });
