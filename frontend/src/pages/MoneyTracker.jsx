@@ -323,13 +323,16 @@ export default function MoneyTracker() {
     const cents = Math.round(parseFloat(tipAmount) * 100);
     if (!cents || cents <= 0 || !beautician) return;
     try {
-      const row = await insertRow('transactions', {
+      const payload = {
         beautician_id: beautician.id,
         type: 'tip',
         amount_cents: cents,
         description: 'Tip',
-      });
-      setTransactions(prev => [row, ...prev]);
+      };
+      const row = await insertRow('transactions', payload);
+      // Ensure created_at exists for breakdown computation (dev mode doesn't set it)
+      const enriched = { ...row, created_at: row.created_at || new Date().toISOString() };
+      setTransactions(prev => [enriched, ...prev]);
       setTipAmount('');
       setShowLogTip(false);
     } catch (err) {
@@ -343,13 +346,15 @@ export default function MoneyTracker() {
     const cents = Math.round(parseFloat(saleAmount) * 100);
     if (!cents || cents <= 0 || !beautician) return;
     try {
-      const row = await insertRow('transactions', {
+      const payload = {
         beautician_id: beautician.id,
         type: 'product_sale',
         amount_cents: cents,
         description: saleDesc.trim() || 'Product sale',
-      });
-      setTransactions(prev => [row, ...prev]);
+      };
+      const row = await insertRow('transactions', payload);
+      const enriched = { ...row, created_at: row.created_at || new Date().toISOString() };
+      setTransactions(prev => [enriched, ...prev]);
       setSaleAmount('');
       setSaleDesc('');
       setShowLogSale(false);
