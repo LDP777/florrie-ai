@@ -569,6 +569,81 @@
         .testimonial-author { font-weight: 600; font-size: 14px; }
         .testimonial-role { font-size: 12px; color: var(--text-muted); }
 
+        /* ── Demo Video ── */
+        .demo {
+            padding: 100px 0;
+            text-align: center;
+        }
+
+        .demo-wrapper {
+            position: relative;
+            max-width: 800px;
+            margin: 0 auto;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 24px 64px rgba(45,42,38,0.12), 0 0 0 1px var(--card-border);
+            aspect-ratio: 16 / 9;
+            background: var(--text);
+        }
+
+        .demo-wrapper iframe {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        /* Placeholder state (before video is added) */
+        .demo-placeholder {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #2D2D3F 0%, #1A1A2E 40%, #C76B8A 100%);
+            color: var(--white);
+            cursor: pointer;
+            transition: opacity 0.3s;
+        }
+
+        .demo-placeholder:hover { opacity: 0.92; }
+
+        .play-btn {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+            transition: transform 0.2s;
+        }
+
+        .demo-placeholder:hover .play-btn { transform: scale(1.08); }
+
+        .play-btn svg {
+            width: 28px;
+            height: 28px;
+            fill: var(--white);
+            margin-left: 4px;
+        }
+
+        .demo-placeholder span {
+            font-size: 15px;
+            font-weight: 600;
+            opacity: 0.9;
+        }
+
+        .demo-caption {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 16px;
+        }
+
         /* ── Bottom CTA ── */
         .cta-section {
             padding: 72px 40px;
@@ -716,6 +791,7 @@
         <a href="#" class="logo">florrie</a>
         <ul class="nav-links">
             <li><a href="#features">Features</a></li>
+            <li><a href="#demo">Demo</a></li>
             <li><a href="#pricing">Pricing</a></li>
             <li><a href="#waitlist" class="btn btn-primary">Join Waitlist</a></li>
         </ul>
@@ -796,6 +872,25 @@
                 <p>Birthday offers, lapsed-client outreach, review requests. Set them once, they run on their own.</p>
             </div>
         </div>
+    </div>
+</section>
+
+<!-- Demo Video -->
+<section class="demo" id="demo">
+    <div class="container">
+        <div class="section-label">See it in action</div>
+        <h2 class="section-title">Two minutes. The full picture.</h2>
+        <p class="section-subtitle">Watch how Florrie handles bookings, client follow-ups, and payments without you lifting a finger.</p>
+        <div class="demo-wrapper reveal">
+            <!-- Replace data-video-id with your YouTube/Loom embed URL when ready -->
+            <div class="demo-placeholder" id="demo-placeholder" data-video-id="">
+                <div class="play-btn">
+                    <svg viewBox="0 0 24 24"><polygon points="8,5 19,12 8,19"/></svg>
+                </div>
+                <span>Watch the demo</span>
+            </div>
+        </div>
+        <p class="demo-caption">2 min overview &middot; No signup required</p>
     </div>
 </section>
 
@@ -1042,6 +1137,32 @@
     }, { threshold: 0.1, rootMargin: '0px 0px -60px 0px' });
 
     document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+
+    // ── Demo video click-to-play ──
+    document.getElementById('demo-placeholder')?.addEventListener('click', function() {
+        const videoId = this.dataset.videoId;
+        if (!videoId) {
+            // No video yet — scroll to waitlist instead
+            scrollToWaitlist();
+            return;
+        }
+        const wrapper = this.parentElement;
+        // Detect Loom vs YouTube
+        let src;
+        if (videoId.startsWith('http')) {
+            src = videoId; // full embed URL
+        } else if (videoId.length === 11) {
+            src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+        } else {
+            src = `https://www.loom.com/embed/${videoId}?autoplay=1`;
+        }
+        const iframe = document.createElement('iframe');
+        iframe.src = src;
+        iframe.allow = 'autoplay; fullscreen; picture-in-picture';
+        iframe.allowFullscreen = true;
+        this.style.display = 'none';
+        wrapper.appendChild(iframe);
+    });
 
     // ── Smooth scroll for nav ──
     document.querySelectorAll('a[href^="#"]').forEach(a => {
