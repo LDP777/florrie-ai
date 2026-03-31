@@ -77,7 +77,7 @@ const SHIFT_CATEGORIES = {
   booking: { label: 'Bookings', icon: 'event_available', color: '#5ba97b', bg: 'rgba(91,169,123,0.12)' },
   retention: { label: 'Retention', icon: 'loyalty', color: '#92405e', bg: 'rgba(255,217,226,0.3)' },
   payment: { label: 'Payments', icon: 'payments', color: '#3a7ca5', bg: 'rgba(58,124,165,0.1)' },
-  other: { label: 'Other', icon: 'auto_awesome', color: '#867277', bg: 'rgba(146,64,94,0.06)' },
+  other: { label: 'Other', icon: 'auto_awesome', color: '#6b5a5f', bg: 'rgba(146,64,94,0.06)' },
 };
 
 // ─── Material Icon helper ──────────────────────────────────
@@ -425,7 +425,7 @@ export default function Dashboard() {
               <p style={S.heroLabel}>Today's Forecast</p>
               <h2 style={S.heroValue}>{fmt(todayRevenue)}</h2>
             </div>
-            <MIcon name="trending_up" style={{ color: 'rgba(255,255,255,0.4)' }} size={28} />
+            <MIcon name="trending_up" style={{ color: 'rgba(255,255,255,0.6)' }} size={28} />
           </div>
           <div style={S.heroDivider} />
           <div style={S.heroStats}>
@@ -467,7 +467,7 @@ export default function Dashboard() {
             </div>
             <MIcon
               name={shiftExpanded ? 'expand_less' : 'expand_more'}
-              size={20} style={{ color: '#867277' }}
+              size={20} style={{ color: '#6b5a5f' }}
             />
           </div>
 
@@ -600,7 +600,7 @@ export default function Dashboard() {
               const isNow = isActive;
 
               return (
-                <div key={appt.id} style={{ display: 'flex', alignItems: 'center', gap: 12, opacity: isPast ? 0.4 : 1 }}>
+                <div key={appt.id} style={{ display: 'flex', alignItems: 'center', gap: 12, opacity: isPast ? 0.55 : 1 }}>
                   {/* Time */}
                   <span style={{
                     width: 48, fontSize: 12, fontWeight: isActive ? 700 : 400,
@@ -630,7 +630,7 @@ export default function Dashboard() {
                           }}>Now</span>
                         )}
                       </div>
-                      <p style={{ fontSize: 12, color: '#534247', margin: 0 }}>{appt.treatment}</p>
+                      <p style={{ fontSize: 12, color: '#3d2e33', margin: 0 }}>{appt.treatment}</p>
                     </div>
                     <span style={{
                       fontSize: 14, fontWeight: isActive ? 700 : 500,
@@ -757,7 +757,7 @@ export default function Dashboard() {
                 <span style={{ fontSize: 18 }}>{act.icon}</span>
                 <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <p style={{ fontSize: 12, color: '#1d1b19', margin: 0 }}>{act.text}</p>
-                  <span style={{ fontSize: 10, color: '#534247', whiteSpace: 'nowrap', marginLeft: 8 }}>{act.time}</span>
+                  <span style={{ fontSize: 10, color: '#3d2e33', whiteSpace: 'nowrap', marginLeft: 8 }}>{act.time}</span>
                 </div>
               </div>
             ))}
@@ -807,7 +807,7 @@ const S = {
   greetingSection: { paddingTop: 32, marginBottom: 32 },
   dateLabel: {
     fontFamily: "var(--font-sans, 'DM Sans', sans-serif)",
-    fontSize: 14, color: 'rgba(83, 66, 71, 0.7)', margin: '0 0 4px',
+    fontSize: 14, color: '#6b5a5f', margin: '0 0 4px',
     textTransform: 'uppercase', letterSpacing: '0.12em',
   },
   greeting: {
@@ -833,7 +833,7 @@ const S = {
     display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
   },
   heroLabel: {
-    fontSize: 12, opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.12em',
+    fontSize: 12, opacity: 0.85, textTransform: 'uppercase', letterSpacing: '0.12em',
     marginBottom: 4, fontFamily: "var(--font-sans, 'DM Sans')", margin: '0 0 4px',
   },
   heroValue: {
@@ -846,7 +846,7 @@ const S = {
   },
   heroStats: { display: 'flex', justifyContent: 'space-between' },
   heroStat: { textAlign: 'center' },
-  heroStatLabel: { fontSize: 12, opacity: 0.6, margin: '0 0 4px' },
+  heroStatLabel: { fontSize: 12, opacity: 0.85, margin: '0 0 4px' },
   heroStatValue: { fontSize: 18, fontWeight: 700, margin: 0, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" },
 
   // Shift Report
@@ -871,7 +871,7 @@ const S = {
     fontSize: 14, fontWeight: 600, color: '#1d1b19', margin: 0,
   },
   shiftSub: {
-    fontSize: 11, color: '#867277', margin: '2px 0 0', fontWeight: 500,
+    fontSize: 11, color: '#6b5a5f', margin: '2px 0 0', fontWeight: 500,
   },
   shiftBody: {
     padding: '0 18px 18px',
@@ -900,7 +900,7 @@ const S = {
     fontSize: 13, color: '#1d1b19', margin: 0, lineHeight: 1.35,
   },
   shiftItemMeta: {
-    fontSize: 10, color: '#867277', margin: '2px 0 0',
+    fontSize: 10, color: '#6b5a5f', margin: '2px 0 0',
   },
   shiftViewAll: {
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -948,7 +948,7 @@ const S = {
     margin: '0 0 4px',
   },
   insightText: {
-    fontSize: 14, color: 'rgba(116, 90, 39, 0.9)',
+    fontSize: 14, color: '#5e4820',
     lineHeight: 1.5, fontStyle: 'italic', margin: 0,
   },
 
@@ -972,7 +972,7 @@ const S = {
   // Activity feed
   activityLabel: {
     fontFamily: "var(--font-sans, 'DM Sans')",
-    fontSize: 10, fontWeight: 700, color: '#534247',
+    fontSize: 10, fontWeight: 700, color: '#3d2e33',
     textTransform: 'uppercase', letterSpacing: '0.2em',
     margin: '0 0 12px',
   },
@@ -1001,7 +1001,7 @@ const S = {
     fontSize: 14, fontWeight: 600, color: '#1d1b19', margin: 0,
   },
   attendanceSub: {
-    fontSize: 11, color: '#867277', margin: '2px 0 0', fontWeight: 500,
+    fontSize: 11, color: '#6b5a5f', margin: '2px 0 0', fontWeight: 500,
   },
   markAllBtn: {
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -1030,10 +1030,10 @@ const S = {
     fontSize: 14, fontWeight: 600, color: '#1d1b19', margin: 0,
   },
   attendanceMeta: {
-    fontSize: 11, color: '#867277', margin: '2px 0 0',
+    fontSize: 11, color: '#6b5a5f', margin: '2px 0 0',
   },
   attendanceHint: {
-    fontSize: 10, color: '#867277', textAlign: 'center',
+    fontSize: 10, color: '#6b5a5f', textAlign: 'center',
     margin: '12px 0 14px', fontStyle: 'italic',
   },
   attendanceSubmit: {
