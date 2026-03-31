@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBeautician, supabase, isDevMode } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
@@ -60,6 +60,26 @@ const DEV_ACTIVITY = [
   { id: 'act3', agent: 'calendar', icon: '📅', text: 'Megan R booked HD Brows for today 3:30pm', time: '3h ago' },
 ];
 
+// ── Shift Report mock data ──
+const DEV_SHIFT_REPORT = [
+  { id: 'sr1', category: 'message', agent: 'front_desk', summary: 'Confirmed Marcus\'s 11:30 booking via WhatsApp', value_cents: 0, created_at: new Date(Date.now() - 45 * 60000).toISOString() },
+  { id: 'sr2', category: 'message', agent: 'front_desk', summary: 'Replied to Instagram DM from new enquiry — booked Friday 10am', value_cents: 4500, created_at: new Date(Date.now() - 90 * 60000).toISOString() },
+  { id: 'sr3', category: 'message', agent: 'front_desk', summary: 'Sent aftercare tips to Sarah after her appointment', value_cents: 0, created_at: new Date(Date.now() - 120 * 60000).toISOString() },
+  { id: 'sr4', category: 'booking', agent: 'calendar', summary: 'Filled Wednesday 2pm gap — Jasmin confirmed', value_cents: 2500, created_at: new Date(Date.now() - 150 * 60000).toISOString() },
+  { id: 'sr5', category: 'retention', agent: 'comeback', summary: 'Nudged Daisy S — 12 days overdue for rebook', value_cents: 0, created_at: new Date(Date.now() - 180 * 60000).toISOString() },
+  { id: 'sr6', category: 'retention', agent: 'comeback', summary: 'Sent rebook reminder to Chloe B (6 weeks since last visit)', value_cents: 0, created_at: new Date(Date.now() - 200 * 60000).toISOString() },
+  { id: 'sr7', category: 'payment', agent: 'money', summary: 'Chased £45 deposit from Lena — paid', value_cents: 4500, created_at: new Date(Date.now() - 240 * 60000).toISOString() },
+  { id: 'sr8', category: 'payment', agent: 'money', summary: 'Logged £85 payment from Sarah\'s appointment', value_cents: 8500, created_at: new Date(Date.now() - 300 * 60000).toISOString() },
+];
+
+const SHIFT_CATEGORIES = {
+  message: { label: 'Messages', icon: 'chat_bubble', color: '#745a27', bg: 'rgba(254,219,155,0.3)' },
+  booking: { label: 'Bookings', icon: 'event_available', color: '#5ba97b', bg: 'rgba(91,169,123,0.12)' },
+  retention: { label: 'Retention', icon: 'loyalty', color: '#92405e', bg: 'rgba(255,217,226,0.3)' },
+  payment: { label: 'Payments', icon: 'payments', color: '#3a7ca5', bg: 'rgba(58,124,165,0.1)' },
+  other: { label: 'Other', icon: 'auto_awesome', color: '#867277', bg: 'rgba(146,64,94,0.06)' },
+};
+
 // ─── Material Icon helper ──────────────────────────────────
 function MIcon({ name, fill, size, style }) {
   return (
@@ -85,6 +105,8 @@ export default function Dashboard() {
   const [insights, setInsights] = useState(isDevMode ? DEV_INSIGHTS : []);
   const [activity, setActivity] = useState(isDevMode ? DEV_ACTIVITY : []);
   const [agentSummary, setAgentSummary] = useState(isDevMode ? DEV_AGENT_SUMMARY : {});
+  const [shiftReport, setShiftReport] = useState(isDevMode ? DEV_SHIFT_REPORT : []);
+  const [shiftExpanded, setShiftExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -209,6 +231,27 @@ export default function Dashboard() {
             time: timeAgo(new Date(a.created_at)),
           };
         }));
+
+        // Build shift report from today's actions
+        const todayActions = actions.filter(a => a.created_at?.slice(0, 10) === nowDate);
+        const shiftItems = todayActions.map(a => {
+          let category = 'other';
+          const at = (a.action_type || '').toLowerCase();
+          const agent = (a.digital_employee || '').toLowerCase();
+          if (agent === 'front_desk' || at.includes('message') || at.includes('reply') || at.includes('dm')) category = 'message';
+          else if (agent === 'calendar' || at.includes('book') || at.includes('gap') || at.includes('schedule')) category = 'booking';
+          else if (agent === 'comeback' || at.includes('nudge') || at.includes('rebook') || at.includes('retain')) category = 'retention';
+          else if (agent === 'money' || at.includes('payment') || at.includes('deposit') || at.includes('chase')) category = 'payment';
+          return {
+            id: a.id,
+            category,
+            agent: a.digital_employee || 'general',
+            summary: a.summary || a.action_type || 'Task completed',
+            value_cents: a.value_cents || 0,
+            created_at: a.created_at,
+          };
+        });
+        if (shiftItems.length > 0) setShiftReport(shiftItems);
       }
     } catch (err) {
       logger.error('Dashboard load error:', err);
@@ -232,6 +275,28 @@ export default function Dashboard() {
   const pendingCount = today.filter(a => a.status === 'pending').length;
   const remainingCount = today.length - completedCount;
   const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
+
+  // Shift report derived
+  const shiftStats = useMemo(() => {
+    if (!shiftReport.length) return null;
+    const totalActions = shiftReport.length;
+    const totalValue = shiftReport.reduce((s, r) => s + (r.value_cents || 0), 0);
+    const byCategory = {};
+    shiftReport.forEach(r => {
+      if (!byCategory[r.category]) byCategory[r.category] = { count: 0, value: 0, items: [] };
+      byCategory[r.category].count++;
+      byCategory[r.category].value += r.value_cents || 0;
+      byCategory[r.category].items.push(r);
+    });
+    // Estimate time saved: ~3 min per message, ~5 min per booking/retention, ~2 min per payment
+    const timeMins = shiftReport.reduce((s, r) => {
+      if (r.category === 'message') return s + 3;
+      if (r.category === 'booking' || r.category === 'retention') return s + 5;
+      if (r.category === 'payment') return s + 2;
+      return s + 2;
+    }, 0);
+    return { totalActions, totalValue, byCategory, timeMins };
+  }, [shiftReport]);
 
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-GB', { weekday: 'long', month: 'short', day: 'numeric' });
@@ -291,6 +356,88 @@ export default function Dashboard() {
           </div>
         </div>
       </section>
+
+      {/* ─── AI Shift Report ─── */}
+      {shiftStats && shiftStats.totalActions > 0 && (
+        <section style={S.shiftReport}>
+          {/* Collapsed summary — always visible */}
+          <div
+            onClick={() => setShiftExpanded(e => !e)}
+            style={S.shiftHeader}
+          >
+            <div style={S.shiftPulse}>
+              <MIcon name="auto_awesome" fill size={18} style={{ color: '#fff' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <p style={S.shiftTitle}>
+                Florrie handled {shiftStats.totalActions} task{shiftStats.totalActions !== 1 ? 's' : ''} today
+              </p>
+              <p style={S.shiftSub}>
+                {shiftStats.timeMins} min saved
+                {shiftStats.totalValue > 0 && ` · £${(shiftStats.totalValue / 100).toFixed(0)} secured`}
+              </p>
+            </div>
+            <MIcon
+              name={shiftExpanded ? 'expand_less' : 'expand_more'}
+              size={20} style={{ color: '#867277' }}
+            />
+          </div>
+
+          {/* Expanded detail */}
+          {shiftExpanded && (
+            <div style={S.shiftBody}>
+              {/* Category pills */}
+              <div style={S.shiftPills}>
+                {Object.entries(shiftStats.byCategory).map(([cat, data]) => {
+                  const meta = SHIFT_CATEGORIES[cat] || SHIFT_CATEGORIES.other;
+                  return (
+                    <div key={cat} style={{ ...S.shiftPill, background: meta.bg }}>
+                      <MIcon name={meta.icon} fill size={14} style={{ color: meta.color }} />
+                      <span style={{ fontSize: 11, fontWeight: 600, color: meta.color }}>
+                        {data.count} {meta.label}
+                      </span>
+                      {data.value > 0 && (
+                        <span style={{ fontSize: 10, color: meta.color, opacity: 0.7 }}>
+                          £{(data.value / 100).toFixed(0)}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Action list */}
+              <div style={S.shiftList}>
+                {shiftReport.slice(0, 6).map(item => {
+                  const meta = SHIFT_CATEGORIES[item.category] || SHIFT_CATEGORIES.other;
+                  const agentConfig = AGENTS.find(a => a.key === item.agent);
+                  return (
+                    <div key={item.id} style={S.shiftItem}>
+                      <div style={{ ...S.shiftDot, background: meta.color }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={S.shiftItemText}>{item.summary}</p>
+                        <p style={S.shiftItemMeta}>
+                          {agentConfig?.name || item.agent}
+                          {item.value_cents > 0 && ` · £${(item.value_cents / 100).toFixed(0)}`}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* View full log link */}
+              <button
+                onClick={() => navigate('/florrie')}
+                style={S.shiftViewAll}
+              >
+                View full activity log
+                <MIcon name="arrow_forward" size={14} style={{ color: '#92405e' }} />
+              </button>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* ─── Insight Cards ─── */}
       <section style={S.alertGrid}>
@@ -512,6 +659,67 @@ const S = {
   heroStat: { textAlign: 'center' },
   heroStatLabel: { fontSize: 12, opacity: 0.6, margin: '0 0 4px' },
   heroStatValue: { fontSize: 18, fontWeight: 700, margin: 0, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" },
+
+  // Shift Report
+  shiftReport: {
+    background: '#fff', borderRadius: 20, marginBottom: 16,
+    border: '1px solid rgba(146, 64, 94, 0.06)',
+    boxShadow: '0 2px 12px rgba(146, 64, 94, 0.05)',
+    overflow: 'hidden',
+  },
+  shiftHeader: {
+    display: 'flex', alignItems: 'center', gap: 12,
+    padding: '16px 18px', cursor: 'pointer',
+  },
+  shiftPulse: {
+    width: 36, height: 36, borderRadius: 12,
+    background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+    boxShadow: '0 2px 8px rgba(146, 64, 94, 0.25)',
+  },
+  shiftTitle: {
+    fontSize: 14, fontWeight: 600, color: '#1d1b19', margin: 0,
+  },
+  shiftSub: {
+    fontSize: 11, color: '#867277', margin: '2px 0 0', fontWeight: 500,
+  },
+  shiftBody: {
+    padding: '0 18px 18px',
+    borderTop: '1px solid rgba(146, 64, 94, 0.06)',
+    animation: 'fadeIn 0.2s ease',
+  },
+  shiftPills: {
+    display: 'flex', flexWrap: 'wrap', gap: 6, padding: '14px 0 12px',
+  },
+  shiftPill: {
+    display: 'flex', alignItems: 'center', gap: 5,
+    padding: '5px 10px', borderRadius: 10,
+  },
+  shiftList: {
+    display: 'flex', flexDirection: 'column', gap: 10,
+    marginBottom: 14,
+  },
+  shiftItem: {
+    display: 'flex', gap: 10, alignItems: 'flex-start',
+  },
+  shiftDot: {
+    width: 6, height: 6, borderRadius: 3, flexShrink: 0,
+    marginTop: 6,
+  },
+  shiftItemText: {
+    fontSize: 13, color: '#1d1b19', margin: 0, lineHeight: 1.35,
+  },
+  shiftItemMeta: {
+    fontSize: 10, color: '#867277', margin: '2px 0 0',
+  },
+  shiftViewAll: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+    width: '100%', padding: '10px 0', borderRadius: 12,
+    border: 'none', background: 'rgba(146, 64, 94, 0.05)',
+    color: '#92405e', fontSize: 12, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'inherit',
+  },
 
   // Alert cards
   alertGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 },
