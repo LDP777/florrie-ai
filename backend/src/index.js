@@ -34,6 +34,7 @@ import locationsRoutes from './routes/locations.js';
 // voice.js removed — stub endpoint, no transcription infrastructure yet
 import consultationFormRoutes from './routes/consultation-forms.js';
 import billingRoutes from './routes/billing.js';
+import calendarFeedRoutes from './routes/calendar-feed.js';
 
 dotenv.config();
 
@@ -144,6 +145,7 @@ app.use('/api/locations', apiLimiter, locationsRoutes);
 // /api/voice removed — was a stub, no transcription infrastructure yet
 app.use('/api/consultation-forms', apiLimiter, consultationFormRoutes);
 app.use('/api/billing', apiLimiter, billingRoutes);
+app.use('/api/cal', bookingLimiter, calendarFeedRoutes); // public ICS feed — no auth
 
 // Error handler
 app.use((err, req, res, next) => {
