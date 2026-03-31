@@ -5,28 +5,144 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 
-const DEV_FORECAST = [
-  { day: 'Mon', demand: 'Low', bookings: 4, capacity: 12, pct: 33, revenue: '£320', suggestion: 'Run a flash promo' },
-  { day: 'Tue', demand: 'Medium', bookings: 7, capacity: 12, pct: 58, revenue: '£580', suggestion: 'Push filler slots on socials' },
-  { day: 'Wed', demand: 'Medium', bookings: 8, capacity: 12, pct: 67, revenue: '£640', suggestion: 'On track — monitor' },
-  { day: 'Thu', demand: 'High', bookings: 11, capacity: 12, pct: 92, revenue: '£920', suggestion: 'Nearly full — consider waitlist' },
-  { day: 'Fri', demand: 'High', bookings: 12, capacity: 12, pct: 100, revenue: '£1,080', suggestion: 'Fully booked ✓' },
-  { day: 'Sat', demand: 'Peak', bookings: 12, capacity: 12, pct: 100, revenue: '£1,200', suggestion: 'Fully booked + 3 waitlisted' },
-  { day: 'Sun', demand: 'Low', bookings: 2, capacity: 6, pct: 33, revenue: '£180', suggestion: 'Reduced hours — normal' },
-];
+// ── Forecast computation engine ─────────────────────────────
+const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-const DEV_HEATMAP = [
-  { hour: '9am', mon: 2, tue: 3, wed: 4, thu: 5, fri: 5, sat: 5 },
-  { hour: '10am', mon: 3, tue: 4, wed: 4, thu: 5, fri: 5, sat: 5 },
-  { hour: '11am', mon: 2, tue: 3, wed: 5, thu: 5, fri: 5, sat: 5 },
-  { hour: '12pm', mon: 1, tue: 2, wed: 3, thu: 4, fri: 4, sat: 5 },
-  { hour: '1pm', mon: 1, tue: 2, wed: 2, thu: 3, fri: 4, sat: 4 },
-  { hour: '2pm', mon: 2, tue: 3, wed: 3, thu: 4, fri: 5, sat: 5 },
-  { hour: '3pm', mon: 2, tue: 3, wed: 4, thu: 5, fri: 5, sat: 5 },
-  { hour: '4pm', mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 5 },
-  { hour: '5pm', mon: 1, tue: 2, wed: 2, thu: 3, fri: 4, sat: 4 },
-  { hour: '6pm', mon: 0, tue: 1, wed: 1, thu: 2, fri: 3, sat: 3 },
-];
+function computeForecast(appointments, workingHours) {
+  const now = new Date();
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - now.getDay() + 1); // Monday
+  weekStart.setHours(0, 0, 0, 0);
+
+  const weekForecast = [];
+  for (let d = 0; d < 7; d++) {
+    const date = new Date(weekStart);
+    date.setDate(weekStart.getDate() + d);
+    const dow = date.getDay();
+    const dayKey = DAY_KEYS[dow];
+    const hours = workingHours?.[dayKey];
+
+    if (!hours) {
+      weekForecast.push({ day: DAY_LABELS[dow], demand: 'Closed', bookings: 0, capacity: 0, pct: 0, revenue: '£0', suggestion: 'Day off' });
+      continue;
+    }
+
+    const [sh, sm] = hours.start.split(':').map(Number);
+    const [eh, em] = hours.end.split(':').map(Number);
+    const totalMinutes = (eh * 60 + em) - (sh * 60 + sm);
+    const capacity = Math.floor(totalMinutes / 45); // ~45 min avg appointment
+
+    const dateStr = date.toISOString().slice(0, 10);
+    const dayAppts = appointments.filter(a => {
+      const aDate = (a.start_time || a.starts_at || '').slice(0, 10);
+      return aDate === dateStr && a.status !== 'cancelled';
+    });
+    const bookings = dayAppts.length;
+    const revenue = dayAppts.reduce((s, a) => s + (a.price_cents || 0), 0) / 100;
+    const pct = capacity > 0 ? Math.min(100, Math.round((bookings / capacity) * 100)) : 0;
+
+    let demand = 'Low';
+    let suggestion = 'Run a flash promo';
+    if (pct >= 95) { demand = 'Peak'; suggestion = 'Fully booked — consider waitlist'; }
+    else if (pct >= 80) { demand = 'High'; suggestion = 'Nearly full — great day ahead'; }
+    else if (pct >= 50) { demand = 'Medium'; suggestion = 'Push filler slots on socials'; }
+    else if (pct >= 25) { demand = 'Low'; suggestion = 'Run a flash promo'; }
+    else { demand = 'Low'; suggestion = 'Very quiet — personal outreach day?'; }
+
+    weekForecast.push({ day: DAY_LABELS[dow], demand, bookings, capacity, pct, revenue: `£${Math.round(revenue).toLocaleString()}`, suggestion });
+  }
+
+  return weekForecast;
+}
+
+function computeHeatmap(appointments, workingHours) {
+  const now = new Date();
+  // Use last 4 weeks of data to build hourly demand pattern
+  const fourWeeksAgo = new Date(now);
+  fourWeeksAgo.setDate(now.getDate() - 28);
+
+  const recentAppts = appointments.filter(a => {
+    const d = new Date(a.start_time || a.starts_at || '');
+    return d >= fourWeeksAgo && a.status !== 'cancelled';
+  });
+
+  // Count appointments per hour per day-of-week
+  const counts = {}; // { 'mon-11': 5, ... }
+  recentAppts.forEach(a => {
+    const d = new Date(a.start_time || a.starts_at);
+    const dow = DAY_KEYS[d.getDay()];
+    const hour = d.getHours();
+    const key = `${dow}-${hour}`;
+    counts[key] = (counts[key] || 0) + 1;
+  });
+
+  // Build heatmap rows for working hours range
+  const allHours = new Set();
+  ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(day => {
+    const h = workingHours?.[day];
+    if (h) {
+      const startH = parseInt(h.start);
+      const endH = parseInt(h.end);
+      for (let hr = startH; hr <= endH; hr++) allHours.add(hr);
+    }
+  });
+
+  const sortedHours = [...allHours].sort((a, b) => a - b);
+  return sortedHours.map(hr => {
+    const label = hr === 0 ? '12am' : hr < 12 ? `${hr}am` : hr === 12 ? '12pm' : `${hr - 12}pm`;
+    const row = { hour: label };
+    ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(day => {
+      const raw = counts[`${day}-${hr}`] || 0;
+      // Normalise to 0-5 scale (divide by 4 weeks, cap at 5)
+      row[day] = Math.min(5, Math.round((raw / 4) * 5));
+    });
+    return row;
+  });
+}
+
+// ── Dev mode: generate synthetic appointments ───────────────
+function generateDevAppointments(workingHours) {
+  const now = new Date();
+  const appts = [];
+  const treatments = ['Lamination & Hybrid Dye', 'HD Brows', 'Lash Lift & Tint', 'Hybrid Brows', 'Lamination & Tint'];
+  const prices = [4500, 2500, 4000, 3000, 4000];
+
+  // Generate 4 weeks of past + 1 week of future appointments
+  for (let d = -28; d <= 7; d++) {
+    const date = new Date(now);
+    date.setDate(now.getDate() + d);
+    const dow = date.getDay();
+    const dayKey = DAY_KEYS[dow];
+    const hours = workingHours?.[dayKey];
+    if (!hours) continue;
+
+    const [sh] = hours.start.split(':').map(Number);
+    const [eh] = hours.end.split(':').map(Number);
+
+    // Random number of appointments per day based on day pattern
+    const baseCount = dow === 4 || dow === 5 ? 6 : dow === 6 ? 7 : dow === 1 ? 2 : 4;
+    const count = Math.max(1, baseCount + Math.floor(Math.random() * 3) - 1);
+
+    for (let i = 0; i < count; i++) {
+      const hour = sh + Math.floor(Math.random() * (eh - sh));
+      const minute = Math.random() > 0.5 ? 0 : 30;
+      const aDate = new Date(date);
+      aDate.setHours(hour, minute, 0, 0);
+      const tIdx = Math.floor(Math.random() * treatments.length);
+
+      appts.push({
+        id: `dev-forecast-${d}-${i}`,
+        start_time: aDate.toISOString(),
+        treatment_name: treatments[tIdx],
+        price_cents: prices[tIdx],
+        duration_minutes: 45,
+        status: d <= 0 ? 'completed' : 'confirmed',
+      });
+    }
+  }
+  return appts;
+}
 
 const staffingRecs = [
   { day: 'Monday', current: 2, recommended: 1, reason: 'Overstaffed — only 33% booked', saving: '£120', icon: '⬇️' },
@@ -65,26 +181,37 @@ export default function DemandForecast() {
   async function loadForecast() {
     setLoading(true);
     try {
+      const wh = beautician.working_hours || {};
       if (isDevMode) {
-        setForecast(DEV_FORECAST);
-        setHeatmap(DEV_HEATMAP);
+        const devAppts = generateDevAppointments(wh);
+        setForecast(computeForecast(devAppts, wh));
+        setHeatmap(computeHeatmap(devAppts, wh));
       } else {
-        // Query appointments grouped by day/hour
+        // Fetch appointments from 4 weeks ago to 2 weeks ahead
+        const fourWeeksAgo = new Date();
+        fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+        const twoWeeksAhead = new Date();
+        twoWeeksAhead.setDate(twoWeeksAhead.getDate() + 14);
+
         const { data: appointments } = await supabase
           .from('appointments')
           .select('*')
           .eq('beautician_id', beautician.id)
-          .gte('start_time', new Date().toISOString());
+          .gte('start_time', fourWeeksAgo.toISOString())
+          .lte('start_time', twoWeeksAhead.toISOString());
 
-        // TODO: compute real forecast from appointment data
-        // For now, fall back to demo data
-        setForecast(DEV_FORECAST);
-        setHeatmap(DEV_HEATMAP);
+        if (appointments && appointments.length > 0) {
+          setForecast(computeForecast(appointments, wh));
+          setHeatmap(computeHeatmap(appointments, wh));
+        } else {
+          setForecast([]);
+          setHeatmap([]);
+        }
       }
     } catch (err) {
       logger.error('Load forecast error:', err);
-      setForecast(DEV_FORECAST);
-      setHeatmap(DEV_HEATMAP);
+      setForecast([]);
+      setHeatmap([]);
     } finally {
       setLoading(false);
     }

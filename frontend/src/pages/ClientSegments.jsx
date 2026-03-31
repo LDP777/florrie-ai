@@ -1,67 +1,197 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, supabase, isDevMode } from '../lib/supabase.js';
+import { useBeautician, supabase, isDevMode, DEV_CLIENTS } from '../lib/supabase.js';
 import { ds, type } from '../lib/designSystem.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 
-const DEV_SEGMENTS = [
+// ── Segment definitions — the buckets clients get sorted into ──
+const SEGMENT_DEFS = [
   {
-    name: 'VIP Regulars', icon: '👑', count: 34, revenue: '£48,200', avgSpend: '£1,418',
-    description: 'Visit 2+ times/month, spend above £100/visit',
-    growth: '+3 this month', color: 'var(--gold)', bgColor: 'var(--gold-light)',
-    rfm: { recency: 9, frequency: 9, monetary: 9 },
-    topTreatments: ['Lip Filler', 'Full Set Lashes', 'Facial Peel'],
+    key: 'vip', name: 'VIP Regulars', icon: '👑',
+    description: 'Visit 2+ times/month, spend above average',
+    color: 'var(--gold)', bgColor: 'var(--gold-light)',
     actions: ['Exclusive early access', 'VIP loyalty tier', 'Birthday premium gift'],
+    match: (c) => c.rfm.recency >= 8 && c.rfm.frequency >= 7 && c.rfm.monetary >= 7,
   },
   {
-    name: 'Loyal Mid-Tier', icon: '💎', count: 87, revenue: '£62,400', avgSpend: '£717',
-    description: 'Visit monthly, consistent spend £40–100',
-    growth: '+8 this month', color: 'var(--accent)', bgColor: 'var(--accent-light)',
-    rfm: { recency: 7, frequency: 7, monetary: 6 },
-    topTreatments: ['Gel Manicure', 'Brow Lamination', 'Lash Lift'],
+    key: 'loyal', name: 'Loyal Mid-Tier', icon: '💎',
+    description: 'Visit monthly, consistent spend',
+    color: 'var(--accent)', bgColor: 'var(--accent-light)',
     actions: ['Upsell to premium', 'Membership offer', 'Referral incentive'],
+    match: (c) => c.rfm.recency >= 5 && c.rfm.frequency >= 4 && c.rfm.monetary >= 3,
   },
   {
-    name: 'Declining', icon: '📉', count: 23, revenue: '£8,900', avgSpend: '£387',
-    description: 'Were regular, now 45+ days since last visit',
-    growth: '-2 this month', color: 'var(--warning)', bgColor: 'var(--warning-bg)',
-    rfm: { recency: 3, frequency: 6, monetary: 5 },
-    topTreatments: ['Classic Manicure', 'Brow Wax', 'Tint'],
-    actions: ['Win-back campaign', 'Personalised offer', 'Feedback request'],
-  },
-  {
-    name: 'New & Promising', icon: '🌱', count: 41, revenue: '£12,300', avgSpend: '£300',
-    description: 'First visited in last 60 days, booked 2nd appt',
-    growth: '+12 this month', color: 'var(--success)', bgColor: 'var(--success-bg)',
-    rfm: { recency: 8, frequency: 3, monetary: 4 },
-    topTreatments: ['Gel Manicure', 'Lash Lift & Tint', 'Facial'],
+    key: 'new', name: 'New & Promising', icon: '🌱',
+    description: 'First visited in last 60 days, booked 2+ appts',
+    color: 'var(--success)', bgColor: 'var(--success-bg)',
     actions: ['Welcome sequence', 'Loyalty enrollment', '3rd visit incentive'],
+    match: (c) => c.daysSinceFirst <= 60 && c.totalVisits >= 2,
   },
   {
-    name: 'One-Timers', icon: '👋', count: 156, revenue: '£9,400', avgSpend: '£60',
-    description: 'Single visit, no rebook',
-    growth: '+18 this month', color: 'var(--text-muted)', bgColor: 'var(--bg-subtle)',
-    rfm: { recency: 4, frequency: 1, monetary: 2 },
-    topTreatments: ['Basic Manicure', 'Brow Wax', 'Blow Dry'],
-    actions: ['Re-engagement email', '2nd visit discount', 'Survey why'],
+    key: 'declining', name: 'Declining', icon: '📉',
+    description: 'Were regular, now 45+ days since last visit',
+    color: 'var(--warning)', bgColor: 'var(--warning-bg)',
+    actions: ['Win-back campaign', 'Personalised offer', 'Feedback request'],
+    match: (c) => c.rfm.frequency >= 4 && c.daysSinceLast >= 45,
   },
   {
-    name: 'Dormant High-Value', icon: '💤', count: 15, revenue: '£0', avgSpend: '£980',
-    description: 'Previously spent £500+/yr, inactive 90+ days',
-    growth: '+1 this month', color: 'var(--danger)', bgColor: 'var(--danger-bg)',
-    rfm: { recency: 1, frequency: 5, monetary: 8 },
-    topTreatments: ['Dermal Filler', 'Full Set', 'Facial Package'],
+    key: 'dormant_hv', name: 'Dormant High-Value', icon: '💤',
+    description: 'Previously spent above average, inactive 90+ days',
+    color: 'var(--danger)', bgColor: 'var(--danger-bg)',
     actions: ['Personal call/text', 'Exclusive return offer', 'VIP comeback package'],
+    match: (c) => c.daysSinceLast >= 90 && c.rfm.monetary >= 5,
+  },
+  {
+    key: 'one_timer', name: 'One-Timers', icon: '👋',
+    description: 'Single visit, no rebook',
+    color: 'var(--text-muted)', bgColor: 'var(--bg-subtle)',
+    actions: ['Re-engagement email', '2nd visit discount', 'Survey why'],
+    match: (c) => c.totalVisits <= 1,
   },
 ];
+
+// ── RFM scoring engine ──────────────────────────────────────
+function computeRFMSegments(clients) {
+  const now = new Date();
+  // Score each client on R/F/M (1-10 scale)
+  const scored = clients.map(c => {
+    const appts = (c.appointments || [])
+      .map(a => new Date(a.created_at || a.start_time || a.starts_at))
+      .filter(d => !isNaN(d))
+      .sort((a, b) => b - a);
+    const lastVisit = appts[0] || new Date(c.last_visit_at || c.created_at || now);
+    const firstVisit = appts[appts.length - 1] || lastVisit;
+    const daysSinceLast = Math.floor((now - lastVisit) / 86400000);
+    const daysSinceFirst = Math.floor((now - firstVisit) / 86400000);
+    const totalVisits = appts.length || c.total_visits || 1;
+    const totalSpend = (c.total_spend_cents || 0) / 100;
+
+    return {
+      id: c.id,
+      name: `${c.first_name || ''} ${c.last_name || ''}`.trim(),
+      daysSinceLast,
+      daysSinceFirst,
+      totalVisits,
+      totalSpend,
+      lastTreatment: c.appointments?.[0]?.treatment_name || 'Treatment',
+      topTreatments: [...new Set((c.appointments || []).map(a => a.treatment_name).filter(Boolean))].slice(0, 3),
+      rfm: { recency: 5, frequency: 5, monetary: 5 }, // placeholder, scored below
+    };
+  });
+
+  // Compute percentile-based scores (relative to this beautician's clients)
+  if (scored.length > 0) {
+    const recencies = scored.map(c => c.daysSinceLast).sort((a, b) => a - b);
+    const frequencies = scored.map(c => c.totalVisits).sort((a, b) => a - b);
+    const monetaries = scored.map(c => c.totalSpend).sort((a, b) => a - b);
+
+    scored.forEach(c => {
+      c.rfm.recency = Math.max(1, Math.min(10, 10 - Math.round((recencies.indexOf(c.daysSinceLast) / Math.max(1, recencies.length - 1)) * 9)));
+      c.rfm.frequency = Math.max(1, Math.min(10, 1 + Math.round((frequencies.indexOf(c.totalVisits) / Math.max(1, frequencies.length - 1)) * 9)));
+      c.rfm.monetary = Math.max(1, Math.min(10, 1 + Math.round((monetaries.indexOf(c.totalSpend) / Math.max(1, monetaries.length - 1)) * 9)));
+    });
+  }
+
+  // Bucket clients into segments (first match wins, order matters)
+  const buckets = {};
+  SEGMENT_DEFS.forEach(s => { buckets[s.key] = []; });
+  const unmatched = [];
+
+  scored.forEach(c => {
+    let placed = false;
+    for (const def of SEGMENT_DEFS) {
+      if (def.match(c)) {
+        buckets[def.key].push(c);
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) unmatched.push(c);
+  });
+  // Drop unmatched into the closest-fit bucket (one-timer fallback)
+  unmatched.forEach(c => buckets.one_timer.push(c));
+
+  // Build segment objects for the UI
+  return SEGMENT_DEFS.map(def => {
+    const members = buckets[def.key];
+    const totalRevenue = members.reduce((s, c) => s + c.totalSpend, 0);
+    const avgR = members.length ? Math.round(members.reduce((s, c) => s + c.rfm.recency, 0) / members.length) : 0;
+    const avgF = members.length ? Math.round(members.reduce((s, c) => s + c.rfm.frequency, 0) / members.length) : 0;
+    const avgM = members.length ? Math.round(members.reduce((s, c) => s + c.rfm.monetary, 0) / members.length) : 0;
+    const topTreatments = [...new Set(members.flatMap(c => c.topTreatments))].slice(0, 3);
+
+    return {
+      name: def.name,
+      icon: def.icon,
+      count: members.length,
+      revenue: `£${Math.round(totalRevenue).toLocaleString()}`,
+      avgSpend: members.length ? `£${Math.round(totalRevenue / members.length).toLocaleString()}` : '£0',
+      description: def.description,
+      growth: '', // would need historical data to compute
+      color: def.color,
+      bgColor: def.bgColor,
+      rfm: { recency: avgR, frequency: avgF, monetary: avgM },
+      topTreatments: topTreatments.length ? topTreatments : ['No data yet'],
+      actions: def.actions,
+    };
+  }).filter(s => s.count > 0);
+}
+
+// ── Dev mode: synthetic clients with appointment history ────
+function generateDevClients() {
+  const now = new Date();
+  const names = [
+    'Shauna', 'Daisy S', 'Jasmin', 'Sophie', 'Grace', 'Beth', 'Amy', 'Chloe',
+    'Laura', 'Megan', 'Katie', 'Ellie M', 'Poppy', 'Ruby', 'Charlotte',
+    'Holly', 'Freya', 'Isla', 'Lucy', 'Molly', 'Emily', 'Amber', 'Zara',
+  ];
+  const treatments = [
+    'Lamination & Hybrid Dye', 'Lamination & Tint', 'HD Brows', 'Lash Lift & Tint',
+    'Hybrid Brows', 'Lamination Maintenance / Tint', 'Brow Jelly Mask', 'Ombre Brows',
+  ];
+  const prices = [4500, 4000, 2500, 4000, 3000, 2500, 700, 25000];
+
+  return names.map((name, i) => {
+    // Vary patterns: VIPs visit often & recently, dormants haven't been in ages, etc.
+    const isVip = i < 4;
+    const isLoyal = i >= 4 && i < 10;
+    const isNew = i >= 10 && i < 14;
+    const isDeclining = i >= 14 && i < 17;
+    const isDormant = i >= 17 && i < 20;
+    // rest are one-timers
+
+    const visitCount = isVip ? 12 + i : isLoyal ? 6 + (i % 3) : isNew ? 2 + (i % 2) : isDeclining ? 8 : isDormant ? 5 : 1;
+    const lastDaysAgo = isVip ? 3 + i : isLoyal ? 14 + i : isNew ? 5 + i : isDeclining ? 50 + i : isDormant ? 100 + i : 45 + (i * 3);
+    const treatIdx = i % treatments.length;
+    const pricePerVisit = prices[treatIdx];
+
+    const appts = [];
+    for (let v = 0; v < visitCount; v++) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - lastDaysAgo - (v * (isVip ? 14 : isLoyal ? 28 : 35)));
+      appts.push({ created_at: d.toISOString(), treatment_name: treatments[treatIdx], price_cents: pricePerVisit });
+    }
+
+    return {
+      id: `dev-seg-${i}`,
+      first_name: name,
+      last_name: '',
+      total_visits: visitCount,
+      total_spend_cents: visitCount * pricePerVisit,
+      last_visit_at: appts[0]?.created_at,
+      created_at: appts[appts.length - 1]?.created_at || now.toISOString(),
+      appointments: appts,
+    };
+  });
+}
 
 export default function ClientSegments() {
   const { beautician, loading: bLoading } = useBeautician();
   const [expanded, setExpanded] = useState(null);
   const [view, setView] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [segments, setSegments] = useState(isDevMode ? DEV_SEGMENTS : []);
+  const [segments, setSegments] = useState([]);
 
   useEffect(() => {
     if (beautician && !bLoading) loadSegments();
@@ -71,20 +201,24 @@ export default function ClientSegments() {
     setLoading(true);
     try {
       if (isDevMode) {
-        setSegments(DEV_SEGMENTS);
+        // Compute segments from synthetic dev data so the engine is exercised
+        const devClients = generateDevClients();
+        setSegments(computeRFMSegments(devClients));
       } else {
-        // Query clients and compute segments from RFM data
         const { data: clients } = await supabase
           .from('clients')
-          .select('*, appointments(created_at)')
+          .select('*, appointments(created_at, treatment_name, price_cents, start_time)')
           .eq('beautician_id', beautician.id);
 
-        // Compute segments from client data (placeholder)
-        setSegments(DEV_SEGMENTS);
+        if (clients && clients.length > 0) {
+          setSegments(computeRFMSegments(clients));
+        } else {
+          setSegments([]);
+        }
       }
     } catch (err) {
       logger.error('Load segments error:', err);
-      setSegments(DEV_SEGMENTS);
+      setSegments([]);
     } finally {
       setLoading(false);
     }

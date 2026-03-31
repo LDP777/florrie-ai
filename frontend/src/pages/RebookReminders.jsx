@@ -103,15 +103,42 @@ export default function RebookReminders() {
           .eq('beautician_id', beautician.id)
           .order('created_at', { ascending: false });
 
-        const processedClients = (data || []).map(c => ({
-          id: c.id,
-          name: c.first_name,
-          lastVisit: c.appointments?.[0]?.created_at || c.created_at,
-          treatment: c.appointments?.[0]?.treatment_name || 'Treatment',
-          avgInterval: 28, // Default, could be computed from history
-          phone: !!c.phone_number,
-          status: c.status || 'due',
-        }));
+        const now = new Date();
+        const processedClients = (data || []).map(c => {
+          const appts = (c.appointments || [])
+            .map(a => new Date(a.created_at))
+            .filter(d => !isNaN(d))
+            .sort((a, b) => b - a);
+          const lastVisit = appts[0] || new Date(c.created_at);
+          const daysSince = Math.floor((now - lastVisit) / 86400000);
+
+          // Compute real average interval from history
+          let avgInterval = 28;
+          if (appts.length >= 2) {
+            const intervals = [];
+            for (let i = 0; i < appts.length - 1; i++) {
+              intervals.push(Math.floor((appts[i] - appts[i + 1]) / 86400000));
+            }
+            avgInterval = Math.round(intervals.reduce((s, v) => s + v, 0) / intervals.length) || 28;
+          }
+
+          // Determine status from actual visit pattern
+          let status = 'due';
+          if (daysSince >= 60) status = 'dormant';
+          else if (daysSince > avgInterval) status = 'overdue';
+          else if (daysSince >= avgInterval - 7) status = 'due';
+          else return null; // Not due yet
+
+          return {
+            id: c.id,
+            name: `${c.first_name || ''} ${c.last_name || ''}`.trim(),
+            lastVisit: lastVisit.toISOString().slice(0, 10),
+            treatment: c.appointments?.[0]?.treatment_name || 'Treatment',
+            avgInterval,
+            phone: !!c.phone_number,
+            status,
+          };
+        }).filter(Boolean);
         setClients(processedClients);
       }
     } catch (err) {

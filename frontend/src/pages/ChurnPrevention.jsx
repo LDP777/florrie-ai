@@ -1,18 +1,140 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, supabase, isDevMode } from '../lib/supabase.js';
+import { useBeautician, supabase, isDevMode, fetchRows } from '../lib/supabase.js';
 import { ds, type } from '../lib/designSystem.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 
-const DEV_RISK_CLIENTS = [
-  { name: 'Jessica Moore', avatar: 'JM', risk: 94, daysSince: 47, ltv: '£1,240', trigger: 'Missed rebook window', lastTreatment: 'Full Set Lashes', status: 'no-action', email: 'jessica@email.com' },
-  { name: 'Sarah Chen', avatar: 'SC', risk: 82, daysSince: 38, trigger: 'Cancelled last 2 appts', ltv: '£890', lastTreatment: 'Lip Filler', status: 'contacted', email: 'sarah.c@email.com' },
-  { name: 'Emma Taylor', avatar: 'ET', risk: 76, daysSince: 52, trigger: 'Competitor check-in detected', ltv: '£620', lastTreatment: 'Gel Manicure', status: 'no-action', email: 'emma.t@email.com' },
-  { name: 'Olivia Brown', avatar: 'OB', risk: 68, daysSince: 31, trigger: 'Reduced visit frequency', ltv: '£1,580', lastTreatment: 'Facial Package', status: 'win-back-sent', email: 'olivia@email.com' },
-  { name: 'Amy Wilson', avatar: 'AW', risk: 61, daysSince: 44, trigger: 'Left negative review', ltv: '£440', lastTreatment: 'Brow Lamination', status: 'no-action', email: 'amy.w@email.com' },
-  { name: 'Rachel Green', avatar: 'RG', risk: 55, daysSince: 28, trigger: 'Downgraded treatments', ltv: '£720', lastTreatment: 'Basic Mani → Gel', status: 'contacted', email: 'rach@email.com' },
-];
+// ── Churn risk scoring engine ───────────────────────────────
+function computeChurnRisk(clients) {
+  const now = new Date();
+  const scored = [];
+
+  clients.forEach(c => {
+    const appts = (c.appointments || [])
+      .map(a => ({ date: new Date(a.created_at || a.start_time || a.starts_at), treatment: a.treatment_name, status: a.status, price: a.price_cents || 0 }))
+      .filter(a => !isNaN(a.date))
+      .sort((a, b) => b.date - a.date);
+
+    if (appts.length === 0) return; // skip clients with no appointments at all
+
+    const lastVisit = appts[0].date;
+    const daysSince = Math.floor((now - lastVisit) / 86400000);
+    const totalSpend = appts.reduce((s, a) => s + a.price, 0) / 100;
+    const name = `${c.first_name || ''} ${c.last_name || ''}`.trim();
+    const initials = (c.first_name?.[0] || '') + (c.last_name?.[0] || '');
+
+    // Compute average visit interval from appointment history
+    let avgInterval = 28; // default
+    if (appts.length >= 2) {
+      const intervals = [];
+      for (let i = 0; i < appts.length - 1; i++) {
+        intervals.push(Math.floor((appts[i].date - appts[i + 1].date) / 86400000));
+      }
+      avgInterval = Math.round(intervals.reduce((s, v) => s + v, 0) / intervals.length);
+    }
+
+    // Cancellation count in last 60 days
+    const recentCancels = appts.filter(a => a.status === 'cancelled' && (now - a.date) / 86400000 <= 60).length;
+
+    // Determine churn trigger (most relevant reason)
+    let trigger = '';
+    let riskScore = 0;
+
+    if (daysSince > avgInterval + 21) {
+      trigger = 'Missed rebook window';
+      riskScore += 40 + Math.min(30, (daysSince - avgInterval) / 2);
+    } else if (daysSince > avgInterval) {
+      trigger = 'Overdue for rebook';
+      riskScore += 25 + Math.min(20, (daysSince - avgInterval));
+    }
+
+    if (recentCancels >= 2) {
+      trigger = trigger || `Cancelled ${recentCancels} recent appts`;
+      riskScore += 25;
+    }
+
+    if (daysSince >= 90) {
+      trigger = 'Extended absence (90+ days)';
+      riskScore += 30;
+    } else if (daysSince >= 45) {
+      trigger = trigger || 'Extended absence (45+ days)';
+      riskScore += 15;
+    }
+
+    // Frequency decline: compare recent 3 months vs prior 3 months
+    const threeMonthsAgo = new Date(now); threeMonthsAgo.setMonth(now.getMonth() - 3);
+    const sixMonthsAgo = new Date(now); sixMonthsAgo.setMonth(now.getMonth() - 6);
+    const recentVisits = appts.filter(a => a.date >= threeMonthsAgo).length;
+    const priorVisits = appts.filter(a => a.date >= sixMonthsAgo && a.date < threeMonthsAgo).length;
+    if (priorVisits > 0 && recentVisits < priorVisits * 0.5) {
+      trigger = trigger || 'Reduced visit frequency';
+      riskScore += 15;
+    }
+
+    riskScore = Math.min(99, Math.max(0, Math.round(riskScore)));
+
+    // Only flag clients with meaningful risk
+    if (riskScore >= 30) {
+      scored.push({
+        name,
+        avatar: initials || name[0] || '?',
+        risk: riskScore,
+        daysSince,
+        ltv: `£${Math.round(totalSpend).toLocaleString()}`,
+        trigger: trigger || 'Below expected visit cadence',
+        lastTreatment: appts[0]?.treatment || 'Treatment',
+        status: c.churn_status || 'no-action',
+        email: c.email || '',
+      });
+    }
+  });
+
+  return scored.sort((a, b) => b.risk - a.risk);
+}
+
+// ── Dev-mode synthetic clients ──────────────────────────────
+function generateDevChurnClients() {
+  const now = new Date();
+  const clients = [
+    { first_name: 'Sophie', last_name: 'L', email: 'sophie@email.com', appointments: [] },
+    { first_name: 'Grace', last_name: 'K', email: 'grace@email.com', appointments: [] },
+    { first_name: 'Beth', last_name: 'W', email: 'beth@email.com', appointments: [] },
+    { first_name: 'Chloe', last_name: 'R', email: 'chloe@email.com', appointments: [] },
+    { first_name: 'Megan', last_name: 'T', email: 'megan@email.com', appointments: [] },
+    { first_name: 'Katie', last_name: 'P', email: 'katie@email.com', appointments: [] },
+    { first_name: 'Amber', last_name: 'J', email: 'amber@email.com', appointments: [] },
+    { first_name: 'Zara', last_name: 'H', email: 'zara@email.com', appointments: [] },
+  ];
+  const treatments = ['Lamination & Hybrid Dye', 'HD Brows', 'Lash Lift & Tint', 'Hybrid Brows', 'Lamination & Tint', 'Brow Jelly Mask', 'Ombre Brows', 'Lamination Maintenance / Tint'];
+  // Generate varied appointment histories that create churn signals
+  const patterns = [
+    { visits: 8, lastDaysAgo: 55, interval: 21, cancels: 0 },   // missed rebook + extended absence
+    { visits: 6, lastDaysAgo: 95, interval: 28, cancels: 0 },   // dormant
+    { visits: 4, lastDaysAgo: 40, interval: 14, cancels: 2 },   // cancellations
+    { visits: 10, lastDaysAgo: 48, interval: 21, cancels: 0 },  // was regular, now absent
+    { visits: 3, lastDaysAgo: 32, interval: 14, cancels: 1 },   // overdue
+    { visits: 12, lastDaysAgo: 60, interval: 28, cancels: 0 },  // declining frequency
+    { visits: 5, lastDaysAgo: 70, interval: 21, cancels: 0 },   // missed window
+    { visits: 7, lastDaysAgo: 110, interval: 35, cancels: 0 },  // long dormant
+  ];
+
+  clients.forEach((c, i) => {
+    const p = patterns[i];
+    for (let v = 0; v < p.visits; v++) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - p.lastDaysAgo - (v * p.interval));
+      c.appointments.push({
+        created_at: d.toISOString(),
+        treatment_name: treatments[i % treatments.length],
+        price_cents: 3000 + (i * 500),
+        status: v < p.cancels ? 'cancelled' : 'completed',
+      });
+    }
+  });
+
+  return clients;
+}
 
 const DEV_CAMPAIGNS = [
   { name: 'We miss you — 20% off', sent: 23, opened: 18, rebooked: 7, revenue: '£840', status: 'active' },
@@ -54,24 +176,28 @@ export default function ChurnPrevention() {
     setLoading(true);
     try {
       if (isDevMode) {
-        setRiskClients(DEV_RISK_CLIENTS);
+        const devClients = generateDevChurnClients();
+        setRiskClients(computeChurnRisk(devClients));
         setChurnCampaigns(DEV_CAMPAIGNS);
       } else {
-        // Query at-risk clients from DB
         const { data: clients } = await supabase
           .from('clients')
-          .select('*, appointments(created_at)')
-          .eq('beautician_id', beautician.id)
-          .order('created_at', { ascending: false });
+          .select('*, appointments(created_at, treatment_name, price_cents, start_time, status)')
+          .eq('beautician_id', beautician.id);
 
-        // TODO: compute real churn risk from client data
-        // For now, fall back to demo data
-        setRiskClients(DEV_RISK_CLIENTS);
-        setChurnCampaigns(DEV_CAMPAIGNS);
+        if (clients && clients.length > 0) {
+          setRiskClients(computeChurnRisk(clients));
+        } else {
+          setRiskClients([]);
+        }
+
+        // Fetch real campaigns if they exist
+        const campaigns = await fetchRows('churn_campaigns', beautician.id);
+        setChurnCampaigns(campaigns.length > 0 ? campaigns : DEV_CAMPAIGNS);
       }
     } catch (err) {
       logger.error('Load churn data error:', err);
-      setRiskClients(DEV_RISK_CLIENTS);
+      setRiskClients([]);
       setChurnCampaigns(DEV_CAMPAIGNS);
     } finally {
       setLoading(false);

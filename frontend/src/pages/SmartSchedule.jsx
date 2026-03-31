@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, isDevMode, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useBeautician, fetchRows, isDevMode, supabase, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -73,9 +73,63 @@ const FILLABILITY = {
   low: { label: 'Tough', color: '#E57373', bg: '#FEF2F2' },
 };
 
+// ── Compute fill suggestions from real client data ──────────
+function computeSuggestions(clients, treatments) {
+  const now = new Date();
+  const rebook_due = [];
+  const dormant_rescue = [];
+
+  (clients || []).forEach(c => {
+    const appts = (c.appointments || [])
+      .map(a => ({ date: new Date(a.created_at || a.start_time), treatment: a.treatment_name, price: a.price_cents }))
+      .filter(a => !isNaN(a.date))
+      .sort((a, b) => b.date - a.date);
+
+    if (appts.length === 0) return;
+    const daysSince = Math.floor((now - appts[0].date) / 86400000);
+
+    // Compute average interval
+    let avgInterval = 28;
+    if (appts.length >= 2) {
+      const intervals = [];
+      for (let i = 0; i < appts.length - 1; i++) {
+        intervals.push(Math.floor((appts[i].date - appts[i + 1].date) / 86400000));
+      }
+      avgInterval = Math.round(intervals.reduce((s, v) => s + v, 0) / intervals.length) || 28;
+    }
+
+    const lastTreatment = appts[0]?.treatment || 'Treatment';
+    const matchingTreatment = (treatments || []).find(t => t.name === lastTreatment) || { name: lastTreatment, duration_minutes: 45, price_cents: appts[0]?.price || 3000 };
+    const clientObj = { first_name: c.first_name || '', last_name: c.last_name || '' };
+
+    if (daysSince >= 60) {
+      dormant_rescue.push({
+        client: clientObj,
+        last_visit_days: daysSince,
+        treatment: matchingTreatment,
+        reason: `Hasn't been in ${daysSince} days — send a comeback offer?`,
+      });
+    } else if (daysSince > avgInterval) {
+      rebook_due.push({
+        client: clientObj,
+        treatment: matchingTreatment,
+        days_overdue: daysSince - avgInterval,
+        reason: `${lastTreatment} overdue by ${daysSince - avgInterval} days — usually rebooks every ${avgInterval} days`,
+      });
+    }
+  });
+
+  return {
+    rebook_due: rebook_due.sort((a, b) => b.days_overdue - a.days_overdue).slice(0, 5),
+    waitlist_match: [], // Would need a waitlist table
+    dormant_rescue: dormant_rescue.sort((a, b) => b.last_visit_days - a.last_visit_days).slice(0, 5),
+  };
+}
+
 export default function SmartSchedule() {
   const { beautician } = useBeautician();
   const [gaps, setGaps] = useState([]);
+  const [suggestions, setSuggestions] = useState(DEV_SUGGESTIONS);
   const [tab, setTab] = useState('gaps');
   const [loading, setLoading] = useState(true);
   const [selectedGap, setSelectedGap] = useState(null);
@@ -89,6 +143,7 @@ export default function SmartSchedule() {
     setLoading(true);
     if (isDevMode) {
       setGaps(generateDevGaps());
+      setSuggestions(DEV_SUGGESTIONS);
       setLoading(false);
       return;
     }
@@ -96,7 +151,6 @@ export default function SmartSchedule() {
       setLoading(false);
       return;
     }
-    // Fetch appointments for this week, compute gaps from working hours
     const now = new Date();
     const weekEnd = new Date(now);
     weekEnd.setDate(now.getDate() + 7);
@@ -109,13 +163,21 @@ export default function SmartSchedule() {
         ascending: true,
       });
 
-      // Filter to this week, build gaps from working hours
       const thisWeekAppts = appts.filter(a =>
         a.start_time && a.start_time.slice(0, 10) >= startStr && a.start_time.slice(0, 10) <= endStr
       );
 
       const computedGaps = computeGapsFromAppointments(thisWeekAppts, beautician.working_hours);
       setGaps(computedGaps);
+
+      // Fetch clients for fill suggestions
+      const { data: clients } = await supabase
+        ? supabase.from('clients').select('*, appointments(created_at, treatment_name, price_cents, start_time)').eq('beautician_id', beautician.id)
+        : { data: null };
+      const treatments = await fetchRows('treatments', beautician.id);
+      if (clients) {
+        setSuggestions(computeSuggestions(clients, treatments));
+      }
     } catch (err) {
       logger.error('Failed to load appointments:', err);
       setGaps([]);
@@ -279,7 +341,7 @@ export default function SmartSchedule() {
                     {selectedGap?.id === gap.id && (
                       <div style={styles.gapExpanded}>
                         {/* Rebook due */}
-                        {DEV_SUGGESTIONS.rebook_due.slice(0, gap.fillability === 'high' ? 2 : 1).map((s, i) => (
+                        {suggestions.rebook_due.slice(0, gap.fillability === 'high' ? 2 : 1).map((s, i) => (
                           <div key={`rb-${i}`} style={styles.suggestionCard}>
                             <div style={styles.suggestionTop}>
                               <div style={styles.suggAvatar}>{s.client.first_name[0]}</div>
@@ -306,15 +368,15 @@ export default function SmartSchedule() {
                         ))}
 
                         {/* Waitlist match */}
-                        {DEV_SUGGESTIONS.waitlist_match.length > 0 && gap.fillability !== 'low' && (
+                        {suggestions.waitlist_match.length > 0 && gap.fillability !== 'low' && (
                           <div style={styles.suggestionCard}>
                             <div style={styles.suggestionTop}>
                               <div style={{ ...styles.suggAvatar, background: '#E3F2FD' }}>
-                                <span style={{ color: '#1976D2' }}>{DEV_SUGGESTIONS.waitlist_match[0].client.first_name[0]}</span>
+                                <span style={{ color: '#1976D2' }}>{suggestions.waitlist_match[0].client.first_name[0]}</span>
                               </div>
                               <div style={styles.suggInfo}>
-                                <span style={styles.suggName}>{DEV_SUGGESTIONS.waitlist_match[0].client.first_name} {DEV_SUGGESTIONS.waitlist_match[0].client.last_name}</span>
-                                <span style={styles.suggReason}>On waitlist — wants {DEV_SUGGESTIONS.waitlist_match[0].preferred_day} {DEV_SUGGESTIONS.waitlist_match[0].preferred_time}</span>
+                                <span style={styles.suggName}>{suggestions.waitlist_match[0].client.first_name} {suggestions.waitlist_match[0].client.last_name}</span>
+                                <span style={styles.suggReason}>On waitlist — wants {suggestions.waitlist_match[0].preferred_day} {suggestions.waitlist_match[0].preferred_time}</span>
                               </div>
                             </div>
                             {messageSent[`waitlist-${gap.id}`] ? (
@@ -345,7 +407,7 @@ export default function SmartSchedule() {
           <div style={styles.suggSection}>
             <h3 style={styles.suggSectionTitle}>🔄 Rebook due</h3>
             <p style={styles.suggSectionDesc}>Clients overdue for their regular appointment</p>
-            {DEV_SUGGESTIONS.rebook_due.map((s, i) => (
+            {suggestions.rebook_due.map((s, i) => (
               <div key={`rb-${i}`} style={styles.suggFullCard}>
                 <div style={styles.suggestionTop}>
                   <div style={styles.suggAvatar}>{s.client.first_name[0]}</div>
@@ -369,7 +431,7 @@ export default function SmartSchedule() {
           <div style={styles.suggSection}>
             <h3 style={styles.suggSectionTitle}>💤 Dormant rescue</h3>
             <p style={styles.suggSectionDesc}>Clients going cold — win them back</p>
-            {DEV_SUGGESTIONS.dormant_rescue.map((s, i) => (
+            {suggestions.dormant_rescue.map((s, i) => (
               <div key={`dr-${i}`} style={styles.suggFullCard}>
                 <div style={styles.suggestionTop}>
                   <div style={{ ...styles.suggAvatar, background: '#FFF3E0' }}>
@@ -395,7 +457,7 @@ export default function SmartSchedule() {
           <div style={styles.suggSection}>
             <h3 style={styles.suggSectionTitle}>📋 Waitlist ready</h3>
             <p style={styles.suggSectionDesc}>Clients waiting for a slot that matches</p>
-            {DEV_SUGGESTIONS.waitlist_match.map((s, i) => (
+            {suggestions.waitlist_match.map((s, i) => (
               <div key={`wl-${i}`} style={styles.suggFullCard}>
                 <div style={styles.suggestionTop}>
                   <div style={{ ...styles.suggAvatar, background: '#E3F2FD' }}>
