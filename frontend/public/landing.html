@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Florrie — AI-Powered Salon Management</title>
+<title>florrie.ai — AI-Powered Salon Management</title>
 <meta content="Smart booking, payments, and client management for beauty businesses. Join the waitlist for early access." name="description"/>
-<meta property="og:title" content="Florrie — AI-Powered Salon Management">
+<meta property="og:title" content="florrie.ai — AI-Powered Salon Management">
 <meta property="og:description" content="Smart booking, payments, and client management for beauty businesses.">
 <meta property="og:type" content="website">
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
@@ -99,6 +99,8 @@
     transition: color 0.2s;
   }
   .nav-links a:hover { color: var(--primary); }
+  .nav-links .btn-primary,
+  .nav-links .btn-primary:hover { color: #fff !important; }
 
   /* ── Buttons ── */
   .btn {
@@ -374,11 +376,25 @@
     z-index: 5;
     animation: pulse-glow 3s infinite ease-in-out;
   }
-  .central-node span {
+  .central-node-logo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .central-node-logo .logo-text {
     color: #fff;
     font-family: 'Playfair Display', serif;
     font-style: italic;
-    font-size: 18px;
+    font-size: 17px;
+    letter-spacing: -0.3px;
+    line-height: 1;
+  }
+  .central-node-logo .logo-dot {
+    width: 4px;
+    height: 4px;
+    background: rgba(255,255,255,0.6);
+    border-radius: 50%;
   }
   @keyframes pulse-glow {
     0%, 100% { box-shadow: 0 0 40px rgba(199,107,138,0.3); }
@@ -779,7 +795,11 @@
     position: relative;
     z-index: 2;
     margin: 0 auto;
+    justify-content: center;
   }
+  .cta-section .form-success,
+  .cta-section .form-error { text-align: center; }
+
   .cta-section .waitlist-form input {
     border: none;
     background: rgba(255,255,255,0.18);
@@ -866,7 +886,7 @@
     .satellite-circle { width: 44px; height: 44px; }
     .satellite-circle .material-symbols-outlined { font-size: 18px; }
     .central-node { width: 80px; height: 80px; }
-    .central-node span { font-size: 14px; }
+    .central-node-logo .logo-text { font-size: 13px; }
   }
 </style>
 </head>
@@ -875,7 +895,7 @@
 <!-- Nav -->
 <header class="glass-nav">
   <nav class="nav-inner">
-    <a href="#" class="logo">florrie</a>
+    <a href="#" class="logo">florrie.ai</a>
     <ul class="nav-links">
       <li><a href="#features">Features</a></li>
       <li><a href="#ai">AI</a></li>
@@ -934,7 +954,9 @@
     <div class="neural-wrap">
       <canvas id="neuralCanvas"></canvas>
       <div class="central-node">
-        <span>Florrie</span>
+        <div class="central-node-logo">
+          <span class="logo-text">florrie.ai</span>
+        </div>
       </div>
 
       <div class="satellite sat-1">
@@ -1190,7 +1212,7 @@
 
 <!-- Bottom CTA -->
 <section class="cta-section" id="waitlist" style="margin-left:24px;margin-right:24px;">
-  <h2>Get early access to Florrie</h2>
+  <h2>Get early access to florrie.ai</h2>
   <p class="cta-sub">We're opening spots in batches. Join the waitlist and be first in line when we launch.</p>
   <form class="waitlist-form" id="cta-form">
     <input type="email" placeholder="you@yoursalon.com" required>
@@ -1206,7 +1228,7 @@
   <div class="container">
     <div class="footer-grid">
       <div class="footer-brand">
-        <a href="#" class="logo">florrie</a>
+        <a href="#" class="logo">florrie.ai</a>
         <p>AI-powered salon management for beauty professionals who want to grow without the admin headache.</p>
       </div>
       <div class="footer-col">
@@ -1231,7 +1253,7 @@
         </ul>
       </div>
     </div>
-    <div class="footer-bottom">&copy; 2026 Florrie. All rights reserved.</div>
+    <div class="footer-bottom">&copy; 2026 florrie.ai. All rights reserved.</div>
   </div>
 </footer>
 
