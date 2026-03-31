@@ -11,10 +11,14 @@ const stripe = process.env.STRIPE_SECRET_KEY
   : null;
 
 // Price IDs for each plan — set these in .env
+// Monthly and annual variants (annual = 10 months, i.e. 2 months free)
 const PRICE_IDS = {
   starter: process.env.STRIPE_PRICE_STARTER || '',
   pro: process.env.STRIPE_PRICE_PRO || '',
   team: process.env.STRIPE_PRICE_TEAM || '',
+  starter_annual: process.env.STRIPE_PRICE_STARTER_ANNUAL || '',
+  pro_annual: process.env.STRIPE_PRICE_PRO_ANNUAL || '',
+  team_annual: process.env.STRIPE_PRICE_TEAM_ANNUAL || '',
 };
 
 const APP_URL = process.env.APP_URL || 'https://app.florrie.ai';
@@ -29,8 +33,10 @@ router.post('/create-checkout', requireAuth, async (req, res) => {
       return res.status(503).json({ error: 'Billing is not configured yet. Please contact support.' });
     }
 
-    const { plan } = req.body;
-    if (!plan || !PRICE_IDS[plan]) {
+    const { plan, interval } = req.body;
+    // Support both monthly and annual: plan='pro', interval='annual' → key='pro_annual'
+    const priceKey = interval === 'annual' ? `${plan}_annual` : plan;
+    if (!plan || !PRICE_IDS[priceKey]) {
       return res.status(400).json({ error: 'Invalid plan selected' });
     }
 
@@ -57,17 +63,19 @@ router.post('/create-checkout', requireAuth, async (req, res) => {
     const session = await stripe.checkout.sessions.create({
       customer: stripeCustomerId,
       mode: 'subscription',
-      line_items: [{ price: PRICE_IDS[plan], quantity: 1 }],
+      line_items: [{ price: PRICE_IDS[priceKey], quantity: 1 }],
       success_url: `${APP_URL}/pricing?session_id={CHECKOUT_SESSION_ID}&success=1`,
       cancel_url: `${APP_URL}/pricing?cancelled=1`,
       metadata: {
         beautician_id: beautician.id,
         plan,
+        interval: interval || 'monthly',
       },
       subscription_data: {
         metadata: {
           beautician_id: beautician.id,
           plan,
+          interval: interval || 'monthly',
         },
       },
       allow_promotion_codes: true,

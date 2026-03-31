@@ -3,9 +3,11 @@
  *
  * Plans:
  *   free    — 5 clients, basic calendar, manual bookings
- *   starter — 50 clients, SMS, receipt scanning, reports
- *   pro     — Unlimited, AI Front Desk, WhatsApp, Smart Schedule, Content Autopilot
- *   team    — Everything + multi-location, staff rota, team KPIs
+ *   starter — 50 clients, SMS, receipt scanning, reports           (£39/mo or £390/yr)
+ *   pro     — Unlimited, AI Front Desk, WhatsApp, Smart Schedule   (£59/mo or £590/yr)
+ *   team    — Everything + multi-location, staff rota, team KPIs   (£89/mo or £890/yr)
+ *
+ * Annual billing = 2 months free (~17% discount).
  */
 
 const PLAN_HIERARCHY = { free: 0, starter: 1, pro: 2, team: 3 };
@@ -93,19 +95,26 @@ export function getRequiredPlan(feature) {
 export const PLANS = [
   {
     id: 'free', name: 'Free', price: 0, priceLabel: 'Free',
+    annualPrice: 0, annualPriceLabel: 'Free',
     features: ['5 clients', 'Basic calendar', 'Manual bookings', 'Public booking page'],
   },
   {
-    id: 'starter', name: 'Starter', price: 2900, priceLabel: '£29/mo',
-    features: ['50 clients', 'Online booking', 'SMS reminders', 'Receipt scanning', 'Basic reports'],
+    id: 'starter', name: 'Starter', price: 3900, priceLabel: '£39/mo',
+    annualPrice: 39000, annualPriceLabel: '£390/yr',
+    annualSaving: '2 months free',
+    features: ['50 clients', 'Online booking', 'SMS reminders (30/wk included)', 'Receipt scanning', 'Basic reports'],
   },
   {
     id: 'pro', name: 'Pro', price: 5900, priceLabel: '£59/mo',
+    annualPrice: 59000, annualPriceLabel: '£590/yr',
+    annualSaving: '2 months free',
     popular: true,
     features: ['Unlimited clients', 'AI Front Desk', 'WhatsApp automation', 'Smart Schedule', 'Content Autopilot', 'Full analytics'],
   },
   {
     id: 'team', name: 'Team', price: 8900, priceLabel: '£89/mo',
+    annualPrice: 89000, annualPriceLabel: '£890/yr',
+    annualSaving: '2 months free',
     features: ['Everything in Pro', 'Multi-location', 'Staff rota & KPIs', 'Up to 10 team members', 'Priority support'],
   },
 ];

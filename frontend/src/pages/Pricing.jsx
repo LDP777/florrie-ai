@@ -19,6 +19,7 @@ export default function Pricing() {
   const trialEnd = beautician?.trial_ends_at ? new Date(beautician.trial_ends_at) : null;
   const [loading, setLoading] = useState(null); // planId being loaded
   const [error, setError] = useState(null);
+  const [interval, setInterval] = useState('monthly'); // 'monthly' | 'annual'
 
   const daysLeft = trialEnd ? Math.max(0, Math.ceil((trialEnd - Date.now()) / 86400000)) : 0;
 
@@ -31,7 +32,7 @@ export default function Pricing() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ plan: planId }),
+        body: JSON.stringify({ plan: planId, interval }),
       });
       const data = await res.json();
       if (data.url) {
@@ -101,18 +102,36 @@ export default function Pricing() {
         <div style={S.error}>{error}</div>
       )}
 
+      {/* Monthly / Annual toggle */}
+      <div style={S.toggleWrap}>
+        <button
+          onClick={() => setInterval('monthly')}
+          style={{ ...S.toggleBtn, ...(interval === 'monthly' ? S.toggleActive : {}) }}
+        >Monthly</button>
+        <button
+          onClick={() => setInterval('annual')}
+          style={{ ...S.toggleBtn, ...(interval === 'annual' ? S.toggleActive : {}) }}
+        >Annual <span style={S.saveBadge}>Save 17%</span></button>
+      </div>
+
       {/* Plan cards */}
       <div style={S.plans}>
         {PLANS.map(plan => {
           const isCurrent = plan.id === currentPlan;
           const isPopular = plan.popular;
+          const showPrice = interval === 'annual' && plan.annualPriceLabel
+            ? plan.annualPriceLabel
+            : plan.priceLabel;
           return (
             <div key={plan.id} style={{ ...S.card, ...(isPopular ? S.cardPopular : {}), ...(isCurrent ? S.cardCurrent : {}) }}>
               {isPopular && <div style={S.popularBadge}>Most Popular</div>}
               <div style={S.cardHeader}>
                 <div style={S.planName}>{plan.name}</div>
-                <div style={S.planPrice}>{plan.priceLabel}</div>
+                <div style={S.planPrice}>{showPrice}</div>
               </div>
+              {interval === 'annual' && plan.annualSaving && (
+                <div style={S.annualSaving}>{plan.annualSaving}</div>
+              )}
               <div style={S.featureList}>
                 {plan.features.map(f => (
                   <div key={f} style={S.feature}>
@@ -185,6 +204,29 @@ const S = {
   error: {
     background: 'var(--danger-bg, #FDF0EF)', color: 'var(--danger, #D4605C)',
     padding: '10px 14px', borderRadius: 10, fontSize: 13, marginBottom: 16,
+  },
+
+  toggleWrap: {
+    display: 'flex', gap: 0, marginBottom: 16,
+    background: 'var(--bg-subtle, #F5F2EF)', borderRadius: 12, padding: 3,
+  },
+  toggleBtn: {
+    flex: 1, padding: '10px 0', borderRadius: 10, border: 'none',
+    background: 'transparent', color: 'var(--text-muted, #B5AFA8)',
+    fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+  },
+  toggleActive: {
+    background: 'var(--card, #fff)', color: 'var(--text, #2D2A26)',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+  },
+  saveBadge: {
+    background: 'var(--success, #5BA97B)', color: '#fff',
+    fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 6,
+  },
+  annualSaving: {
+    fontSize: 11, fontWeight: 600, color: 'var(--success, #5BA97B)',
+    marginTop: -8, marginBottom: 8,
   },
 
   plans: { display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 },

@@ -6,8 +6,8 @@
 import { supabase } from '../index.js';
 import logger from '../lib/logger.js';
 
-const FREE_SMS_LIMIT = 50;
-const SURPLUS_RATE_PENCE = 6; // 6p per surplus SMS (4p cost + 2p margin)
+const FREE_SMS_LIMIT = 30;
+const SURPLUS_RATE_PENCE = 8; // 8p per surplus SMS (4p cost + 4p margin)
 
 /**
  * Get the Monday (start of week) in UTC for a given date.
