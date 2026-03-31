@@ -389,7 +389,7 @@ export default function ContentAutopilot() {
             style={{
               ...styles.tab,
               borderBottomColor: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--accent, #C76B8A)' : 'transparent',
-              color: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #AAA5A0)'
+              color: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #7a7470)'
             }}
           >
             {t === 'ideas' ? 'Ideas' : t === 'drafts' ? `Drafts${drafts.length ? ` (${drafts.length})` : ''}` : t === 'posted' ? 'Posted' : 'Gallery'}
@@ -429,7 +429,7 @@ export default function ContentAutopilot() {
                 style={{
                   ...styles.composeTypeBtn,
                   background: composeType === type ? '#FBF0F3' : 'var(--bg-subtle, var(--bg-subtle, #F5F2EF))',
-                  color: composeType === type ? 'var(--accent, #C76B8A)' : '#8A8580',
+                  color: composeType === type ? 'var(--accent, #C76B8A)' : '#6b6560',
                   fontWeight: composeType === type ? 600 : 400,
                 }}
               >
@@ -448,7 +448,7 @@ export default function ContentAutopilot() {
             ) : (
               <div style={styles.photoPlaceholder}>
                 <span style={{ fontSize: 28 }}>📸</span>
-                <span style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)' }}>Add photo (optional)</span>
+                <span style={{ fontSize: 12, color: 'var(--text-muted, #7a7470)' }}>Add photo (optional)</span>
               </div>
             )}
             <input
@@ -990,7 +990,7 @@ const styles = {
     borderRadius: 10,
     border: 'none',
     background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))',
-    color: 'var(--text-muted, #B5AFA8)',
+    color: 'var(--text-muted, #7a7470)',
     fontSize: 13,
     cursor: 'pointer',
     fontFamily: 'inherit'
@@ -1028,11 +1028,11 @@ const styles = {
   },
   stat: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   statNum: { fontSize: 16, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
-  statLabel: { fontSize: 10, color: 'var(--text-muted, #B5AFA8)', textTransform: 'uppercase', letterSpacing: '0.04em' },
-  postedDate: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
+  statLabel: { fontSize: 10, color: 'var(--text-muted, #7a7470)', textTransform: 'uppercase', letterSpacing: '0.04em' },
+  postedDate: { fontSize: 11, color: 'var(--text-muted, #7a7470)' },
   emptyState: { textAlign: 'center', padding: '40px 20px' },
   emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 6px' },
-  emptyDesc: { fontSize: 13, color: 'var(--text-muted, #B5AFA8)', margin: 0, lineHeight: 1.5 },
+  emptyDesc: { fontSize: 13, color: 'var(--text-muted, #7a7470)', margin: 0, lineHeight: 1.5 },
 
   // Gallery
   galleryHeaderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
@@ -1053,9 +1053,9 @@ const styles = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   galleryPlaceholder: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 },
-  galleryPlaceholderText: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
+  galleryPlaceholderText: { fontSize: 11, color: 'var(--text-muted, #7a7470)' },
   galleryThumb: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
-  galleryArrow: { fontSize: 18, color: 'var(--text-muted, #B5AFA8)', flexShrink: 0 },
+  galleryArrow: { fontSize: 18, color: 'var(--text-muted, #7a7470)', flexShrink: 0 },
   gallerySelect: {
     width: '100%', padding: '10px 12px', borderRadius: 10,
     border: '1.5px solid var(--border, var(--border, #EDE9E4))', fontSize: 13, fontFamily: 'inherit',
@@ -1083,5 +1083,5 @@ const styles = {
   galleryCardFooter: { padding: '10px 14px' },
   galleryTreatmentName: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
   galleryCaption: { display: 'block', fontSize: 12, color: 'var(--text-secondary, #7A756F)', marginTop: 2 },
-  galleryDate: { display: 'block', fontSize: 10, color: 'var(--text-muted, #B5AFA8)', marginTop: 4 },
+  galleryDate: { display: 'block', fontSize: 10, color: 'var(--text-muted, #7a7470)', marginTop: 4 },
 };

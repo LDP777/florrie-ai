@@ -204,7 +204,7 @@ export default function Inbox() {
                   <span style={{
                     ...s.convPreview,
                     fontWeight: c.unread > 0 ? 600 : 400,
-                    color: c.unread > 0 ? 'var(--text, #2D2A26)' : 'var(--text-muted, #AAA5A0)',
+                    color: c.unread > 0 ? 'var(--text, #2D2A26)' : 'var(--text-muted, #7a7470)',
                   }}>
                     {c.lastMessage}
                   </span>

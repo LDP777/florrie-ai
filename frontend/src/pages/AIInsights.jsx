@@ -176,15 +176,15 @@ export default function AIInsights() {
               return (
                 <div key={apt.id} style={S.apptRow}>
                   <div style={{ textAlign: 'center', flexShrink: 0 }}>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#867277', margin: 0 }}>{time}</p>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#867277', margin: 0 }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#6b5a5f', margin: 0 }}>{time}</p>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#6b5a5f', margin: 0 }}>
                       {parseInt(time) >= 12 ? 'PM' : 'AM'}
                     </p>
                   </div>
                   <div style={S.apptDivider} />
                   <div style={{ flex: 1 }}>
                     <p style={{ fontSize: 14, fontWeight: 700, color: '#1d1b19', margin: 0 }}>{apt.client_name || 'Client'}</p>
-                    <p style={{ fontSize: 11, color: '#867277', margin: 0 }}>{apt.treatment_name || 'Appointment'}</p>
+                    <p style={{ fontSize: 11, color: '#6b5a5f', margin: 0 }}>{apt.treatment_name || 'Appointment'}</p>
                   </div>
                   {isFirst ? (
                     <MIcon name="star" fill size={14} style={{ color: 'rgba(116, 90, 39, 0.4)' }} />
@@ -214,7 +214,7 @@ export default function AIInsights() {
                   <p style={{ fontSize: 12, color: '#1d1b19', margin: 0 }} dangerouslySetInnerHTML={{
                     __html: a.message.replace(/^([^.]+\.)/, '<strong>$1</strong>'),
                   }} />
-                  <p style={{ fontSize: 9, color: '#867277', textTransform: 'uppercase', margin: '4px 0 0', fontFamily: "var(--font-sans)" }}>{a.time}</p>
+                  <p style={{ fontSize: 9, color: '#6b5a5f', textTransform: 'uppercase', margin: '4px 0 0', fontFamily: "var(--font-sans)" }}>{a.time}</p>
                 </div>
               </div>
             ))}
@@ -273,7 +273,7 @@ const S = {
   },
   statPillLabel: {
     fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em',
-    color: '#867277', marginBottom: 4,
+    color: '#6b5a5f', marginBottom: 4,
   },
   statPillValue: {
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
@@ -308,7 +308,7 @@ const S = {
     color: '#92405e', margin: 0,
   },
   seeAll: {
-    fontSize: 10, fontWeight: 700, color: '#867277',
+    fontSize: 10, fontWeight: 700, color: '#6b5a5f',
     textTransform: 'uppercase', letterSpacing: '0.12em',
   },
   apptRow: {

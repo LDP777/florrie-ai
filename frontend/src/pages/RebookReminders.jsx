@@ -186,7 +186,7 @@ export default function RebookReminders() {
             onClick={() => setTab(t.key)}
             style={{
               ...s.tab,
-              color: tab === t.key ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #AAA5A0)',
+              color: tab === t.key ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #7a7470)',
               borderBottom: tab === t.key ? '2px solid #C76B8A' : '2px solid transparent',
               fontWeight: tab === t.key ? 600 : 400,
             }}
@@ -404,7 +404,7 @@ const s = {
   },
   header: { marginBottom: 16 },
   title: { fontSize: 24, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },
-  sub: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', margin: '4px 0 0' },
+  sub: { fontSize: 13, color: 'var(--text-muted, #7a7470)', margin: '4px 0 0' },
   statsRow: { display: 'flex', gap: 8, marginBottom: 16 },
   statCard: {
     flex: 1,
@@ -417,7 +417,7 @@ const s = {
     gap: 2,
   },
   statValue: { fontSize: 20, fontWeight: 700, color: 'var(--text, #2D2A26)' },
-  statLabel: { fontSize: 10, color: 'var(--text-muted, #AAA5A0)', textTransform: 'uppercase', letterSpacing: '0.03em' },
+  statLabel: { fontSize: 10, color: 'var(--text-muted, #7a7470)', textTransform: 'uppercase', letterSpacing: '0.03em' },
   tabBar: { display: 'flex', borderBottom: '1px solid var(--border, #F0ECE8)', marginBottom: 14 },
   tab: {
     flex: 1, padding: '10px 0', background: 'none', border: 'none',
@@ -431,7 +431,7 @@ const s = {
   templateRow: {
     display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap',
   },
-  templateLabel: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)', fontWeight: 500 },
+  templateLabel: { fontSize: 12, color: 'var(--text-muted, #7a7470)', fontWeight: 500 },
   templateChips: { display: 'flex', gap: 6, flexWrap: 'wrap' },
   templateChip: {
     padding: '5px 12px', borderRadius: 16, fontSize: 12, fontWeight: 500,
@@ -453,7 +453,7 @@ const s = {
     fontSize: 14, fontWeight: 700, color: 'var(--accent, #C76B8A)', flexShrink: 0,
   },
   clientName: { display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  clientMeta: { display: 'block', fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
+  clientMeta: { display: 'block', fontSize: 11, color: 'var(--text-muted, #7a7470)' },
   clientRight: {},
   urgencyBadge: {
     fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 6,
@@ -487,7 +487,7 @@ const s = {
     fontFamily: 'inherit', boxShadow: '0 4px 14px rgba(199,107,138,0.3)',
   },
   empty: { textAlign: 'center', padding: '32px 20px' },
-  emptyText: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)' },
+  emptyText: { fontSize: 13, color: 'var(--text-muted, #7a7470)' },
   // Settings
   settingsSection: { display: 'flex', flexDirection: 'column', gap: 12 },
   toggleRow: {
@@ -496,7 +496,7 @@ const s = {
     border: '1px solid var(--border, #F0ECE8)',
   },
   toggleLabel: { display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  toggleDesc: { display: 'block', fontSize: 12, color: 'var(--text-muted, #AAA5A0)', marginTop: 2 },
+  toggleDesc: { display: 'block', fontSize: 12, color: 'var(--text-muted, #7a7470)', marginTop: 2 },
   toggle: {
     width: 44, height: 26, borderRadius: 13, border: 'none',
     cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s', background: 'var(--accent, #C76B8A)',
@@ -511,7 +511,7 @@ const s = {
     border: '1px solid var(--border, #F0ECE8)',
   },
   settingLabel: { display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)', marginBottom: 4 },
-  settingDesc: { display: 'block', fontSize: 12, color: 'var(--text-muted, #AAA5A0)', marginBottom: 10 },
+  settingDesc: { display: 'block', fontSize: 12, color: 'var(--text-muted, #7a7470)', marginBottom: 10 },
   chipRow: { display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 },
   intervalChip: {
     padding: '8px 14px', borderRadius: 10, fontSize: 13, fontWeight: 500,

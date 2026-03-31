@@ -235,7 +235,7 @@ export default function SmartSchedule() {
             style={{
               ...styles.tab,
               borderBottomColor: tab === t ? 'var(--accent, #C76B8A)' : 'transparent',
-              color: tab === t ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #AAA5A0)',
+              color: tab === t ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #7a7470)',
             }}
           >
             {t === 'gaps' ? 'Gaps' : t === 'suggestions' ? 'Fill Ideas' : 'Insights'}
@@ -492,7 +492,7 @@ const styles = {
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 16,
   },
   utilisationHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  utilisationLabel: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)', textTransform: 'uppercase', letterSpacing: '0.04em' },
+  utilisationLabel: { fontSize: 12, color: 'var(--text-muted, #7a7470)', textTransform: 'uppercase', letterSpacing: '0.04em' },
   utilisationPct: { fontSize: 14, fontWeight: 700, color: 'var(--text-primary, #2D2A26)' },
   utilisationBar: {
     height: 8, borderRadius: 4, background: '#F0ECE8', overflow: 'hidden', marginBottom: 8,
@@ -503,7 +503,7 @@ const styles = {
     transition: 'width 0.6s ease',
   },
   utilisationStats: { display: 'flex', justifyContent: 'space-between' },
-  utilisationStat: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
+  utilisationStat: { fontSize: 11, color: 'var(--text-muted, #7a7470)' },
 
   tabs: { display: 'flex', gap: 16, borderBottom: '1px solid #F0ECE8', marginBottom: 16 },
   tab: {
@@ -523,11 +523,11 @@ const styles = {
   gapTime: { display: 'flex', flexDirection: 'column', gap: 2 },
   gapDay: { fontSize: 12, fontWeight: 600, color: 'var(--accent, #C76B8A)' },
   gapSlot: { fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #2D2A26)' },
-  gapDuration: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
+  gapDuration: { fontSize: 11, color: 'var(--text-muted, #7a7470)' },
   fillBadge: {
     padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
   },
-  gapSuggestHint: { fontSize: 12, color: '#8A8580', marginTop: 8, display: 'block' },
+  gapSuggestHint: { fontSize: 12, color: '#6b6560', marginTop: 8, display: 'block' },
 
   // Expanded gap suggestions
   gapExpanded: {
@@ -545,14 +545,14 @@ const styles = {
   },
   suggInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 1 },
   suggName: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
-  suggReason: { fontSize: 11, color: '#8A8580', lineHeight: 1.3 },
-  suggDetail: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
+  suggReason: { fontSize: 11, color: '#6b6560', lineHeight: 1.3 },
+  suggDetail: { fontSize: 11, color: 'var(--text-muted, #7a7470)' },
   suggTreatment: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     padding: '6px 0', marginBottom: 6,
   },
   suggTreatLabel: { fontSize: 12, fontWeight: 500, color: '#5A5550' },
-  suggTreatDur: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
+  suggTreatDur: { fontSize: 11, color: 'var(--text-muted, #7a7470)' },
   offerBtn: {
     width: '100%', padding: '8px 0', borderRadius: 8, border: 'none',
     background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 12, fontWeight: 600,
@@ -566,12 +566,12 @@ const styles = {
   // Full suggestion cards
   suggSection: { marginBottom: 20 },
   suggSectionTitle: { fontSize: 15, fontWeight: 600, margin: '0 0 2px', color: 'var(--text-primary, #2D2A26)' },
-  suggSectionDesc: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)', margin: '0 0 12px' },
+  suggSectionDesc: { fontSize: 12, color: 'var(--text-muted, #7a7470)', margin: '0 0 12px' },
   suggFullCard: {
     background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 14,
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 10,
   },
-  suggReasonText: { fontSize: 12, color: '#8A8580', margin: '8px 0', lineHeight: 1.4 },
+  suggReasonText: { fontSize: 12, color: '#6b6560', margin: '8px 0', lineHeight: 1.4 },
   overdueBadge: {
     padding: '3px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600,
     background: '#FEF2F2', color: '#E57373', flexShrink: 0,
@@ -584,7 +584,7 @@ const styles = {
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
   },
   insightNum: { display: 'block', fontSize: 22, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
-  insightLabel: { display: 'block', fontSize: 11, color: 'var(--text-muted, #AAA5A0)', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 4 },
+  insightLabel: { display: 'block', fontSize: 11, color: 'var(--text-muted, #7a7470)', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 4 },
 
   insightSection: {
     background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16, marginBottom: 12,
@@ -600,7 +600,7 @@ const styles = {
   hardSlotList: { display: 'flex', flexDirection: 'column', gap: 8 },
   hardSlot: { display: 'flex', flexDirection: 'column', gap: 2, padding: '8px 0', borderBottom: '1px solid #FAF8F5' },
   hardSlotText: { fontSize: 13, fontWeight: 600, color: '#E57373' },
-  hardSlotNote: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
+  hardSlotNote: { fontSize: 11, color: 'var(--text-muted, #7a7470)' },
 
   tipCard: {
     display: 'flex', alignItems: 'flex-start', gap: 4,
@@ -610,8 +610,8 @@ const styles = {
   tipText: { display: 'block', fontSize: 12, color: '#5A5550', lineHeight: 1.5 },
 
   // Empty
-  loadingText: { textAlign: 'center', color: 'var(--text-muted, #AAA5A0)', padding: 40, fontSize: 14 },
+  loadingText: { textAlign: 'center', color: 'var(--text-muted, #7a7470)', padding: 40, fontSize: 14 },
   emptyState: { textAlign: 'center', padding: '40px 20px' },
   emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 4px', color: 'var(--text-primary, #2D2A26)' },
-  emptyDesc: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', margin: 0, lineHeight: 1.5 },
+  emptyDesc: { fontSize: 13, color: 'var(--text-muted, #7a7470)', margin: 0, lineHeight: 1.5 },
 };

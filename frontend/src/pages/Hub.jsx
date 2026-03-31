@@ -199,7 +199,7 @@ export default function Hub() {
 
       {/* ─── Search ─── */}
       <div style={S.searchWrap}>
-        <MIcon name="search" size={18} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#867277', pointerEvents: 'none' }} />
+        <MIcon name="search" size={18} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#6b5a5f', pointerEvents: 'none' }} />
         <input
           type="text"
           placeholder="Search features..."
@@ -255,7 +255,7 @@ export default function Hub() {
                     name="expand_more"
                     size={18}
                     style={{
-                      color: '#867277',
+                      color: '#6b5a5f',
                       transition: 'transform 0.2s ease',
                       transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)',
                     }}
@@ -311,7 +311,7 @@ export default function Hub() {
       {search && filtered.length === 0 && (
         <div style={{ textAlign: 'center', padding: '48px 0' }}>
           <MIcon name="search_off" size={40} style={{ color: '#d8c1c6' }} />
-          <p style={{ margin: '12px 0 0', color: '#867277', fontSize: 14 }}>No features match "{search}"</p>
+          <p style={{ margin: '12px 0 0', color: '#6b5a5f', fontSize: 14 }}>No features match "{search}"</p>
         </div>
       )}
     </div>
@@ -336,7 +336,7 @@ const S = {
     letterSpacing: '-0.02em', color: '#92405e', margin: 0,
   },
   subtitle: {
-    fontSize: 13, color: '#867277', marginTop: 4, marginBottom: 20,
+    fontSize: 13, color: '#6b5a5f', marginTop: 4, marginBottom: 20,
   },
 
   // Search
@@ -361,7 +361,7 @@ const S = {
     transform: 'translateY(-50%)',
     background: '#f3ede9', border: 'none', borderRadius: 10,
     width: 24, height: 24,
-    color: '#867277', cursor: 'pointer',
+    color: '#6b5a5f', cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
 
@@ -405,13 +405,13 @@ const S = {
     letterSpacing: '-0.01em',
   },
   catDesc: {
-    fontSize: 11, color: '#867277', marginTop: 1,
+    fontSize: 11, color: '#6b5a5f', marginTop: 1,
   },
   catRight: {
     display: 'flex', alignItems: 'center', gap: 4,
   },
   catCount: {
-    fontSize: 11, fontWeight: 600, color: '#867277',
+    fontSize: 11, fontWeight: 600, color: '#6b5a5f',
     background: '#f3ede9', padding: '2px 7px', borderRadius: 8,
   },
 
@@ -436,7 +436,7 @@ const S = {
     fontSize: 13, fontWeight: 600, color: '#1d1b19', lineHeight: 1.2,
   },
   itemDesc: {
-    fontSize: 10, color: '#867277', lineHeight: 1.3, marginTop: 2,
+    fontSize: 10, color: '#6b5a5f', lineHeight: 1.3, marginTop: 2,
   },
   lockBadge: {
     fontSize: 8, fontWeight: 700,

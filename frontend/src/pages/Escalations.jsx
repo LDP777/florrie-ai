@@ -3,7 +3,6 @@ import { useBeautician, supabase, isDevMode, updateRow } from '../lib/supabase.j
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
-import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
  * Escalations — the "needs your attention" inbox.

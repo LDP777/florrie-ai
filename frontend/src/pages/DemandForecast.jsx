@@ -4,9 +4,8 @@ import { ds, type } from '../lib/designSystem.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
-import ErrorCard from '../components/ErrorCard.jsx';
 
-const forecast = [
+const DEV_FORECAST = [
   { day: 'Mon', demand: 'Low', bookings: 4, capacity: 12, pct: 33, revenue: '£320', suggestion: 'Run a flash promo' },
   { day: 'Tue', demand: 'Medium', bookings: 7, capacity: 12, pct: 58, revenue: '£580', suggestion: 'Push filler slots on socials' },
   { day: 'Wed', demand: 'Medium', bookings: 8, capacity: 12, pct: 67, revenue: '£640', suggestion: 'On track — monitor' },
@@ -16,7 +15,7 @@ const forecast = [
   { day: 'Sun', demand: 'Low', bookings: 2, capacity: 6, pct: 33, revenue: '£180', suggestion: 'Reduced hours — normal' },
 ];
 
-const heatmap = [
+const DEV_HEATMAP = [
   { hour: '9am', mon: 2, tue: 3, wed: 4, thu: 5, fri: 5, sat: 5 },
   { hour: '10am', mon: 3, tue: 4, wed: 4, thu: 5, fri: 5, sat: 5 },
   { hour: '11am', mon: 2, tue: 3, wed: 5, thu: 5, fri: 5, sat: 5 },
@@ -56,8 +55,8 @@ export default function DemandForecast() {
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [forecast, setForecast] = useState(isDevMode ? forecast : []);
-  const [heatmap, setHeatmap] = useState(isDevMode ? heatmap : []);
+  const [forecast, setForecast] = useState(isDevMode ? DEV_FORECAST : []);
+  const [heatmap, setHeatmap] = useState(isDevMode ? DEV_HEATMAP : []);
 
   useEffect(() => {
     if (beautician && !bLoading) loadForecast();
@@ -67,8 +66,8 @@ export default function DemandForecast() {
     setLoading(true);
     try {
       if (isDevMode) {
-        setForecast(forecast);
-        setHeatmap(heatmap);
+        setForecast(DEV_FORECAST);
+        setHeatmap(DEV_HEATMAP);
       } else {
         // Query appointments grouped by day/hour
         const { data: appointments } = await supabase
@@ -77,21 +76,22 @@ export default function DemandForecast() {
           .eq('beautician_id', beautician.id)
           .gte('start_time', new Date().toISOString());
 
-        // Compute forecast from appointments (placeholder)
-        setForecast(forecast);
-        setHeatmap(heatmap);
+        // TODO: compute real forecast from appointment data
+        // For now, fall back to demo data
+        setForecast(DEV_FORECAST);
+        setHeatmap(DEV_HEATMAP);
       }
     } catch (err) {
       logger.error('Load forecast error:', err);
-      setForecast(forecast);
-      setHeatmap(heatmap);
+      setForecast(DEV_FORECAST);
+      setHeatmap(DEV_HEATMAP);
     } finally {
       setLoading(false);
     }
   }
 
   if (bLoading || loading) {
-    return <div style={ds.page}><div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted, #AAA5A0)' }}>Loading...</div></div>;
+    return <div style={ds.page}><div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted, #7a7470)' }}>Loading...</div></div>;
   }
 
   const demandColor = (level) => {

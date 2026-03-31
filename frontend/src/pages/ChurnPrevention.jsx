@@ -4,9 +4,8 @@ import { ds, type } from '../lib/designSystem.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
-import ErrorCard from '../components/ErrorCard.jsx';
 
-const riskClients = [
+const DEV_RISK_CLIENTS = [
   { name: 'Jessica Moore', avatar: 'JM', risk: 94, daysSince: 47, ltv: '£1,240', trigger: 'Missed rebook window', lastTreatment: 'Full Set Lashes', status: 'no-action', email: 'jessica@email.com' },
   { name: 'Sarah Chen', avatar: 'SC', risk: 82, daysSince: 38, trigger: 'Cancelled last 2 appts', ltv: '£890', lastTreatment: 'Lip Filler', status: 'contacted', email: 'sarah.c@email.com' },
   { name: 'Emma Taylor', avatar: 'ET', risk: 76, daysSince: 52, trigger: 'Competitor check-in detected', ltv: '£620', lastTreatment: 'Gel Manicure', status: 'no-action', email: 'emma.t@email.com' },
@@ -15,7 +14,7 @@ const riskClients = [
   { name: 'Rachel Green', avatar: 'RG', risk: 55, daysSince: 28, trigger: 'Downgraded treatments', ltv: '£720', lastTreatment: 'Basic Mani → Gel', status: 'contacted', email: 'rach@email.com' },
 ];
 
-const campaigns = [
+const DEV_CAMPAIGNS = [
   { name: 'We miss you — 20% off', sent: 23, opened: 18, rebooked: 7, revenue: '£840', status: 'active' },
   { name: 'VIP comeback package', sent: 8, opened: 6, rebooked: 4, revenue: '£1,200', status: 'active' },
   { name: 'Personal text from stylist', sent: 12, opened: 12, rebooked: 5, revenue: '£620', status: 'paused' },
@@ -44,8 +43,8 @@ export default function ChurnPrevention() {
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [riskClients, setRiskClients] = useState(isDevMode ? riskClients : []);
-  const [churnCampaigns, setChurnCampaigns] = useState(isDevMode ? campaigns : []);
+  const [riskClients, setRiskClients] = useState(isDevMode ? DEV_RISK_CLIENTS : []);
+  const [churnCampaigns, setChurnCampaigns] = useState(isDevMode ? DEV_CAMPAIGNS : []);
 
   useEffect(() => {
     if (beautician && !bLoading) loadChurnData();
@@ -55,8 +54,8 @@ export default function ChurnPrevention() {
     setLoading(true);
     try {
       if (isDevMode) {
-        setRiskClients(riskClients);
-        setChurnCampaigns(campaigns);
+        setRiskClients(DEV_RISK_CLIENTS);
+        setChurnCampaigns(DEV_CAMPAIGNS);
       } else {
         // Query at-risk clients from DB
         const { data: clients } = await supabase
@@ -65,14 +64,15 @@ export default function ChurnPrevention() {
           .eq('beautician_id', beautician.id)
           .order('created_at', { ascending: false });
 
-        // Filter to at-risk (placeholder)
-        setRiskClients(riskClients);
-        setChurnCampaigns(campaigns);
+        // TODO: compute real churn risk from client data
+        // For now, fall back to demo data
+        setRiskClients(DEV_RISK_CLIENTS);
+        setChurnCampaigns(DEV_CAMPAIGNS);
       }
     } catch (err) {
       logger.error('Load churn data error:', err);
-      setRiskClients(riskClients);
-      setChurnCampaigns(campaigns);
+      setRiskClients(DEV_RISK_CLIENTS);
+      setChurnCampaigns(DEV_CAMPAIGNS);
     } finally {
       setLoading(false);
     }
@@ -181,7 +181,7 @@ export default function ChurnPrevention() {
       {/* Campaigns Tab */}
       {tab === 1 && (
         <div>
-          {campaigns.map(c => {
+          {churnCampaigns.map(c => {
             const convRate = c.sent > 0 ? ((c.rebooked / c.sent) * 100).toFixed(0) : 0;
             return (
               <div key={c.name} style={{ ...ds.card, marginBottom: 12 }}>

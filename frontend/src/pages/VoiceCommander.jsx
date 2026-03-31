@@ -27,7 +27,7 @@ const AGENT_ROUTES = {
   campaigns: { label: 'Campaigns', icon: '💌', color: '#E57373' },
   money: { label: 'Money', icon: '💰', color: '#4CAF50' },
   content: { label: 'Content', icon: '📸', color: '#F5A623' },
-  settings: { label: 'Settings', icon: '⚙️', color: '#8A8580' },
+  settings: { label: 'Settings', icon: '⚙️', color: '#6b6560' },
   general: { label: 'florrie.ai', icon: '✨', color: 'var(--accent, #C76B8A)' },
 };
 

@@ -14,7 +14,6 @@ import { isDevMode, useBeautician, fetchRows, insertRow, updateRow, deleteRow } 
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
-import ErrorCard from '../components/ErrorCard.jsx';
 
 const DEV_SEQUENCES = [
   {
@@ -219,7 +218,7 @@ export default function FollowUpSequences() {
                     </div>
                   </div>
                   <div style={S.seqRight}>
-                    <span style={{ ...S.activeBadge, background: seq.active ? 'var(--success-bg, #EDF7F0)' : 'var(--border, #F0ECE8)', color: seq.active ? 'var(--success, #5BA97B)' : 'var(--text-muted, #AAA5A0)' }}>
+                    <span style={{ ...S.activeBadge, background: seq.active ? 'var(--success-bg, #EDF7F0)' : 'var(--border, #F0ECE8)', color: seq.active ? 'var(--success, #5BA97B)' : 'var(--text-muted, #7a7470)' }}>
                       {seq.active ? 'Active' : 'Paused'}
                     </span>
                   </div>
@@ -381,10 +380,10 @@ const S = {
   statsRow: { display: 'flex', gap: 10, marginBottom: 16 },
   statCard: { flex: 1, background: 'var(--card, #fff)', borderRadius: 12, padding: '12px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   statValue: { fontSize: 18, fontWeight: 700 },
-  statLabel: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
+  statLabel: { fontSize: 11, color: 'var(--text-muted, #7a7470)' },
 
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
-  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: 'var(--text-muted, #AAA5A0)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: 'var(--text-muted, #7a7470)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   tabActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)' },
 
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
@@ -395,7 +394,7 @@ const S = {
   seqIcon: { width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 },
   seqInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
   seqName: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  seqMeta: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)' },
+  seqMeta: { fontSize: 12, color: 'var(--text-muted, #7a7470)' },
   seqRight: {},
   activeBadge: { padding: '4px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600 },
 
@@ -410,11 +409,11 @@ const S = {
   timelineContent: { flex: 1, paddingBottom: 12 },
   stepHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: 4 },
   stepDelay: { fontSize: 12, fontWeight: 600, color: 'var(--accent, #C76B8A)' },
-  stepChannel: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
+  stepChannel: { fontSize: 11, color: 'var(--text-muted, #7a7470)' },
   stepMessage: { fontSize: 13, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.4, margin: 0, background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', borderRadius: 8, padding: '8px 10px' },
 
   treatmentRow: { display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginBottom: 12 },
-  treatmentLabel: { fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)' },
+  treatmentLabel: { fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #7a7470)' },
   treatmentTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--accent-light, #FFF0F3)', color: 'var(--accent, #C76B8A)', fontSize: 11 },
 
   seqStats: { display: 'flex', gap: 16, marginBottom: 12 },
@@ -430,7 +429,7 @@ const S = {
   analyticsRow: { display: 'flex', gap: 12 },
   analyticsMetric: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2 },
   analyticsVal: { fontSize: 18, fontWeight: 700, color: 'var(--text, #2D2A26)' },
-  analyticsLabel: { fontSize: 10, color: 'var(--text-muted, #AAA5A0)' },
+  analyticsLabel: { fontSize: 10, color: 'var(--text-muted, #7a7470)' },
   miniBar: { height: 4, borderRadius: 2, background: 'var(--border, #F0ECE8)', marginTop: 4 },
   miniBarFill: { height: 4, borderRadius: 2 },
 
@@ -447,7 +446,7 @@ const S = {
   stepForm: { background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', borderRadius: 10, padding: 12, marginBottom: 8 },
   stepFormHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: 8 },
   stepNum: { fontSize: 12, fontWeight: 600, color: 'var(--accent, #C76B8A)' },
-  removeBtn: { background: 'none', border: 'none', color: 'var(--text-muted, #AAA5A0)', fontSize: 14, cursor: 'pointer' },
+  removeBtn: { background: 'none', border: 'none', color: 'var(--text-muted, #7a7470)', fontSize: 14, cursor: 'pointer' },
   stepFormRow: { display: 'flex', gap: 8, marginBottom: 8 },
   miniSelect: { padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border, #F0ECE8)', fontSize: 13, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', background: 'var(--bg-card, #fff)', outline: 'none' },
   textarea: { width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border, #F0ECE8)', fontSize: 13, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },

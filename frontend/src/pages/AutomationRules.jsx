@@ -105,7 +105,7 @@ export default function AutomationRules() {
       .then(rows => setRules(rows.length ? rows : mockRules));
   }, [beautician, bLoading]);
 
-  if (bLoading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted, var(--text-muted, #B5AFA8))' }}>Loading...</div>;
+  if (bLoading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted, var(--text-muted, #7a7470))' }}>Loading...</div>;
 
   const toggleRule = async (id) => {
     const rule = rules.find(r => r.id === id);
@@ -209,7 +209,7 @@ export default function AutomationRules() {
           </div>
 
           {/* Only if (conditions) */}
-          <div style={styles.stepLabel}>🔍 ONLY IF... <span style={{ fontSize: 11, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontWeight: 400 }}>(optional)</span></div>
+          <div style={styles.stepLabel}>🔍 ONLY IF... <span style={{ fontSize: 11, color: 'var(--text-muted, var(--text-muted, #7a7470))', fontWeight: 400 }}>(optional)</span></div>
           <div style={styles.conditionsList}>
             {conditionOptions.map(c => (
               <div key={c.id} style={styles.conditionRow}>
@@ -300,11 +300,11 @@ export default function AutomationRules() {
                   <div style={styles.ruleStatRow}>
                     <div style={styles.ruleStatItem}>
                       <div style={{ fontSize: 18, fontWeight: 700 }}>{rule.runs}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' }}>Total runs</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted, var(--text-muted, #7a7470))' }}>Total runs</div>
                     </div>
                     <div style={styles.ruleStatItem}>
                       <div style={{ fontSize: 13, fontWeight: 500 }}>{rule.lastRun}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' }}>Last fired</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted, var(--text-muted, #7a7470))' }}>Last fired</div>
                     </div>
                   </div>
                   <div style={styles.ruleActions}>
@@ -357,9 +357,9 @@ export default function AutomationRules() {
               }} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary, #2D2A26)' }}>{log.action}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' }}>{log.rule} · {log.client}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted, var(--text-muted, #7a7470))' }}>{log.rule} · {log.client}</div>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' }}>{log.time}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted, var(--text-muted, #7a7470))' }}>{log.time}</div>
             </div>
           ))}
         </div>
@@ -372,7 +372,7 @@ const styles = {
   page: { padding: '16px 16px 100px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: 0 },
-  subtitle: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', marginTop: 2 },
+  subtitle: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #7a7470))', marginTop: 2 },
   createBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   createCard: { background: 'var(--bg-card, #fff)', borderRadius: 16, padding: 16, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', marginBottom: 16 },
@@ -398,7 +398,7 @@ const styles = {
   ruleHeader: { display: 'flex', alignItems: 'center', gap: 12, padding: 14, cursor: 'pointer' },
   ruleName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)', marginBottom: 2 },
   ruleDesc: { fontSize: 12, color: '#6B6560', lineHeight: 1.4, marginBottom: 6 },
-  ruleMeta: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
+  ruleMeta: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: 'var(--text-muted, var(--text-muted, #7a7470))' },
   toggle: { width: 42, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s' },
   toggleDot: { width: 20, height: 20, borderRadius: 10, background: 'var(--bg-card, #fff)', position: 'absolute', top: 2, left: 2, transition: 'transform 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.15)' },
   ruleExpanded: { padding: '0 14px 14px', borderTop: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))' },
@@ -407,7 +407,7 @@ const styles = {
   ruleActions: { display: 'flex', gap: 8 },
   ruleActionBtn: { padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', background: 'var(--bg, var(--bg, #FAF8F5))', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#6B6560' },
 
-  templatesHint: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', marginBottom: 12 },
+  templatesHint: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #7a7470))', marginBottom: 12 },
   templateCard: { display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 14, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', marginBottom: 10 },
   useTemplateBtn: { padding: '8px 14px', borderRadius: 8, border: 'none', background: 'var(--border, var(--border, var(--border, #EDE9E4)))', color: 'var(--text-primary, #2D2A26)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
 
