@@ -110,6 +110,11 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // ── Attendance marking ──
+  const [attendanceMap, setAttendanceMap] = useState({}); // id → 'attended' | 'no_show'
+  const [attendanceSaving, setAttendanceSaving] = useState(false);
+  const [attendanceDone, setAttendanceDone] = useState(false);
+
   useEffect(() => {
     if (beautician) loadData();
   }, [beautician]);
@@ -268,6 +273,89 @@ export default function Dashboard() {
     const hrs = Math.round(mins / 60);
     if (hrs < 24) return `${hrs}h ago`;
     return `${Math.round(hrs / 24)}d ago`;
+  }
+
+  // ── Attendance helpers ──
+  const unresolvedAppts = today.filter(a => a.status === 'confirmed' || a.status === 'pending');
+  const showAttendance = unresolvedAppts.length > 0 && !attendanceDone;
+
+  // Only show after ALL appointments for the day are finished (last end time has passed)
+  const allAppointmentsDone = useMemo(() => {
+    if (isDevMode) return true; // always show in dev for testing
+    if (today.length === 0) return false;
+    const now = new Date();
+    const activeAppts = today.filter(a => a.status !== 'cancelled');
+    if (activeAppts.length === 0) return false;
+    // Check if the last appointment's end time has passed
+    return activeAppts.every(a => {
+      const [h, m] = (a.time || '00:00').split(':').map(Number);
+      const endTime = new Date();
+      endTime.setHours(h, m, 0, 0);
+      endTime.setMinutes(endTime.getMinutes() + (a.duration || 60));
+      return now >= endTime;
+    });
+  }, [today]);
+
+  function toggleAttendance(id) {
+    setAttendanceMap(prev => {
+      const current = prev[id];
+      if (!current) return { ...prev, [id]: 'attended' };
+      if (current === 'attended') return { ...prev, [id]: 'no_show' };
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  }
+
+  function markAllAttended() {
+    const map = {};
+    unresolvedAppts.forEach(a => { map[a.id] = 'attended'; });
+    setAttendanceMap(map);
+  }
+
+  async function submitAttendance() {
+    setAttendanceSaving(true);
+    try {
+      // In dev mode, just simulate
+      if (isDevMode) {
+        setToday(prev => prev.map(a => {
+          const mark = attendanceMap[a.id];
+          if (!mark) return a;
+          return { ...a, status: mark === 'attended' ? 'completed' : 'no_show' };
+        }));
+        setAttendanceDone(true);
+        setAttendanceSaving(false);
+        return;
+      }
+
+      // Real mode: PATCH each appointment status
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const updates = Object.entries(attendanceMap).map(([id, mark]) => {
+        const newStatus = mark === 'attended' ? 'completed' : 'no_show';
+        return fetch(`/api/booking/appointments/${id}/status`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ status: newStatus }),
+        });
+      });
+
+      await Promise.all(updates);
+
+      // Update local state
+      setToday(prev => prev.map(a => {
+        const mark = attendanceMap[a.id];
+        if (!mark) return a;
+        return { ...a, status: mark === 'attended' ? 'completed' : 'no_show' };
+      }));
+      setAttendanceDone(true);
+    } catch (err) {
+      logger.error('Attendance submit error:', err);
+    } finally {
+      setAttendanceSaving(false);
+    }
   }
 
   const todayRevenue = today.reduce((sum, a) => sum + (a.price_cents || 0), 0);
@@ -558,6 +646,107 @@ export default function Dashboard() {
         )}
       </section>
 
+      {/* ─── Attendance Check ─── */}
+      {showAttendance && allAppointmentsDone && (
+        <section style={S.attendanceCard}>
+          <div style={S.attendanceHeader}>
+            <div style={S.attendancePulse}>
+              <MIcon name="fact_check" fill size={18} style={{ color: '#fff' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <p style={S.attendanceTitle}>Quick attendance check</p>
+              <p style={S.attendanceSub}>
+                {unresolvedAppts.length} appointment{unresolvedAppts.length !== 1 ? 's' : ''} to confirm
+              </p>
+            </div>
+          </div>
+
+          {/* Mark all attended shortcut */}
+          <button onClick={markAllAttended} style={S.markAllBtn}>
+            <MIcon name="done_all" size={16} style={{ color: '#5ba97b' }} />
+            Everyone attended
+          </button>
+
+          {/* Appointment list */}
+          <div style={S.attendanceList}>
+            {unresolvedAppts.map(appt => {
+              const mark = attendanceMap[appt.id];
+              const isAttended = mark === 'attended';
+              const isNoShow = mark === 'no_show';
+
+              return (
+                <div
+                  key={appt.id}
+                  onClick={() => toggleAttendance(appt.id)}
+                  style={{
+                    ...S.attendanceRow,
+                    background: isAttended ? 'rgba(91,169,123,0.08)' : isNoShow ? 'rgba(232,93,117,0.06)' : '#fff',
+                    borderColor: isAttended ? 'rgba(91,169,123,0.25)' : isNoShow ? 'rgba(232,93,117,0.2)' : 'rgba(146,64,94,0.08)',
+                  }}
+                >
+                  {/* Status icon */}
+                  <div style={{
+                    ...S.attendanceCheck,
+                    background: isAttended ? '#5ba97b' : isNoShow ? '#E85D75' : '#ede7e3',
+                  }}>
+                    <MIcon
+                      name={isAttended ? 'check' : isNoShow ? 'close' : 'remove'}
+                      fill
+                      size={14}
+                      style={{ color: (isAttended || isNoShow) ? '#fff' : '#867277' }}
+                    />
+                  </div>
+
+                  {/* Client info */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={S.attendanceName}>{appt.client}</p>
+                    <p style={S.attendanceMeta}>{appt.time} · {appt.treatment}</p>
+                  </div>
+
+                  {/* Status label */}
+                  {mark && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      color: isAttended ? '#5ba97b' : '#E85D75',
+                    }}>
+                      {isAttended ? 'Attended' : 'No-show'}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Tap hint */}
+          <p style={S.attendanceHint}>
+            Tap once = attended · Tap again = no-show · Tap again = undo
+          </p>
+
+          {/* Submit */}
+          <button
+            onClick={submitAttendance}
+            disabled={Object.keys(attendanceMap).length === 0 || attendanceSaving}
+            style={{
+              ...S.attendanceSubmit,
+              opacity: Object.keys(attendanceMap).length === 0 ? 0.4 : 1,
+            }}
+          >
+            {attendanceSaving ? 'Saving...' : `Confirm ${Object.keys(attendanceMap).length} of ${unresolvedAppts.length}`}
+          </button>
+        </section>
+      )}
+
+      {/* Attendance done toast */}
+      {attendanceDone && (
+        <section style={S.attendanceDoneBanner}>
+          <MIcon name="check_circle" fill size={18} style={{ color: '#5ba97b' }} />
+          <p style={{ fontSize: 13, fontWeight: 600, color: '#5ba97b', margin: 0 }}>
+            Attendance confirmed — nice one!
+          </p>
+        </section>
+      )}
+
       {/* ─── Activity Feed ─── */}
       {activity.length > 0 && (
         <section style={{ paddingTop: 8 }}>
@@ -789,6 +978,77 @@ const S = {
   },
   activityRow: {
     display: 'flex', alignItems: 'center', gap: 12,
+  },
+
+  // Attendance card
+  attendanceCard: {
+    background: '#fff', borderRadius: 20, marginBottom: 16,
+    border: '1px solid rgba(146, 64, 94, 0.08)',
+    boxShadow: '0 2px 12px rgba(146, 64, 94, 0.05)',
+    padding: 18, overflow: 'hidden',
+  },
+  attendanceHeader: {
+    display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16,
+  },
+  attendancePulse: {
+    width: 36, height: 36, borderRadius: 12,
+    background: 'linear-gradient(135deg, #745a27 0%, #a07b3f 100%)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+    boxShadow: '0 2px 8px rgba(116, 90, 39, 0.2)',
+  },
+  attendanceTitle: {
+    fontSize: 14, fontWeight: 600, color: '#1d1b19', margin: 0,
+  },
+  attendanceSub: {
+    fontSize: 11, color: '#867277', margin: '2px 0 0', fontWeight: 500,
+  },
+  markAllBtn: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+    width: '100%', padding: '10px 0', borderRadius: 12, marginBottom: 12,
+    border: '1.5px solid rgba(91,169,123,0.3)',
+    background: 'rgba(91,169,123,0.06)',
+    color: '#5ba97b', fontSize: 13, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'inherit',
+  },
+  attendanceList: {
+    display: 'flex', flexDirection: 'column', gap: 8,
+  },
+  attendanceRow: {
+    display: 'flex', alignItems: 'center', gap: 12,
+    padding: '12px 14px', borderRadius: 14,
+    border: '1px solid rgba(146,64,94,0.08)',
+    cursor: 'pointer', transition: 'all 0.15s ease',
+    WebkitTapHighlightColor: 'transparent',
+  },
+  attendanceCheck: {
+    width: 28, height: 28, borderRadius: 8,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0, transition: 'all 0.15s ease',
+  },
+  attendanceName: {
+    fontSize: 14, fontWeight: 600, color: '#1d1b19', margin: 0,
+  },
+  attendanceMeta: {
+    fontSize: 11, color: '#867277', margin: '2px 0 0',
+  },
+  attendanceHint: {
+    fontSize: 10, color: '#867277', textAlign: 'center',
+    margin: '12px 0 14px', fontStyle: 'italic',
+  },
+  attendanceSubmit: {
+    width: '100%', padding: '14px 0', borderRadius: 14,
+    border: 'none',
+    background: 'linear-gradient(135deg, #745a27 0%, #a07b3f 100%)',
+    color: '#fff', fontSize: 14, fontWeight: 700,
+    cursor: 'pointer', fontFamily: 'inherit',
+    boxShadow: '0 4px 16px rgba(116, 90, 39, 0.2)',
+  },
+  attendanceDoneBanner: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+    background: 'rgba(91,169,123,0.08)', borderRadius: 14,
+    padding: '12px 16px', marginBottom: 16,
+    border: '1px solid rgba(91,169,123,0.15)',
   },
 
   // Share button
