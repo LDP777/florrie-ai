@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useBeautician, updateRow, supabase } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
+import { API_BASE } from '../lib/config.js';
 import SMSUsageWidget from '../components/SMSUsageWidget.jsx';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -327,12 +328,12 @@ export default function Settings({ onLogout }) {
                   borderRadius: 10, padding: '10px 12px', marginBottom: 10, wordBreak: 'break-all',
                 }}>
                   <span style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)', flex: 1, fontFamily: 'monospace' }}>
-                    {`${window.location.origin.replace(/:\d+$/, ':3001')}/api/cal/${beautician.booking_slug}/feed.ics`}
+                    {`${API_BASE}/api/cal/${beautician.booking_slug}/feed.ics`}
                   </span>
                 </div>
                 <button
                   onClick={() => {
-                    const url = `${window.location.origin.replace(/:\d+$/, ':3001')}/api/cal/${beautician.booking_slug}/feed.ics`;
+                    const url = `${API_BASE}/api/cal/${beautician.booking_slug}/feed.ics`;
                     navigator.clipboard.writeText(url);
                     alert('Calendar URL copied!');
                   }}
@@ -344,9 +345,12 @@ export default function Settings({ onLogout }) {
                 >
                   Copy calendar URL
                 </button>
-                <p style={{ fontSize: 11, color: 'var(--text-muted, #AAA5A0)', marginTop: 8, lineHeight: 1.4 }}>
-                  On iPhone: Settings → Calendar → Accounts → Add Account → Other → Add Subscribed Calendar → paste the URL.
-                </p>
+                <div style={{ fontSize: 11, color: 'var(--text-muted, #AAA5A0)', marginTop: 10, lineHeight: 1.6 }}>
+                  <p style={{ margin: '0 0 6px', fontWeight: 600, color: 'var(--text-secondary, #6B6560)' }}>🍎 iPhone / Apple Calendar</p>
+                  <p style={{ margin: '0 0 10px' }}>Settings → Calendar → Accounts → Add Account → Other → Add Subscribed Calendar → paste URL</p>
+                  <p style={{ margin: '0 0 6px', fontWeight: 600, color: 'var(--text-secondary, #6B6560)' }}>📅 Google Calendar</p>
+                  <p style={{ margin: 0 }}>On desktop: calendar.google.com → Other calendars (+) → From URL → paste URL</p>
+                </div>
               </div>
             ) : (
               <p style={{ fontSize: 13, color: 'var(--text-muted, #AAA5A0)' }}>
