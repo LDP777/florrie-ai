@@ -530,14 +530,14 @@ export default function Dashboard() {
       {/* ─── Insight Cards ─── */}
       <section style={S.alertGrid}>
         {/* Card 1: Schedule status — gaps or next appointment */}
-        <button onClick={() => navigate('/calendar')} style={S.alertCard('#fedb9b', '#745a27', '#795f2b')}>
+        <button onClick={() => navigate('/calendar')} style={S.alertCard('#fedb9b', '#5c4418', '#4a3710')}>
           <div style={S.alertTop}>
-            <MIcon name={remainingCount > 0 ? 'schedule' : 'check_circle'} size={14} style={{ color: '#795f2b' }} />
-            <span style={S.alertBadge('#795f2b')}>
+            <MIcon name={remainingCount > 0 ? 'schedule' : 'check_circle'} size={14} style={{ color: '#5c4418' }} />
+            <span style={S.alertBadge('#5c4418')}>
               {remainingCount > 0 ? 'Next Up' : 'Done'}
             </span>
           </div>
-          <p style={{ fontSize: 14, fontWeight: 600, color: '#745a27', margin: 0, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: '#4a3710', margin: 0, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" }}>
             {remainingCount > 0
               ? (today.find(a => a.status !== 'completed')?.time || 'All clear')
               : 'All done for today'}
@@ -546,22 +546,22 @@ export default function Dashboard() {
 
         {/* Card 2: Revenue context or retention nudge */}
         {insights.some(i => i.type === 'action' && i.actionPath === '/clients') ? (
-          <button onClick={() => navigate('/clients')} style={S.alertCard('#ffd9e2', '#92405e', '#782b49')}>
+          <button onClick={() => navigate('/clients')} style={S.alertCard('#ffd9e2', '#6e2d45', '#5a1f35')}>
             <div style={S.alertTop}>
-              <MIcon name="history" size={14} style={{ color: '#92405e' }} />
-              <span style={S.alertBadge('#92405e')}>Retain</span>
+              <MIcon name="history" size={14} style={{ color: '#6e2d45' }} />
+              <span style={S.alertBadge('#6e2d45')}>Retain</span>
             </div>
-            <p style={{ fontSize: 14, fontWeight: 500, color: '#782b49', margin: 0 }}>
+            <p style={{ fontSize: 14, fontWeight: 500, color: '#5a1f35', margin: 0 }}>
               Overdue rebookings
             </p>
           </button>
         ) : (
-          <button onClick={() => navigate('/money')} style={S.alertCard('#ffd9e2', '#92405e', '#782b49')}>
+          <button onClick={() => navigate('/money')} style={S.alertCard('#ffd9e2', '#6e2d45', '#5a1f35')}>
             <div style={S.alertTop}>
-              <MIcon name="payments" size={14} style={{ color: '#92405e' }} />
-              <span style={S.alertBadge('#92405e')}>Revenue</span>
+              <MIcon name="payments" size={14} style={{ color: '#6e2d45' }} />
+              <span style={S.alertBadge('#6e2d45')}>Revenue</span>
             </div>
-            <p style={{ fontSize: 14, fontWeight: 600, color: '#782b49', margin: 0, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: '#5a1f35', margin: 0, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" }}>
               {weeklyPulse.incomeChange != null
                 ? `${weeklyPulse.incomeChange >= 0 ? '↑' : '↓'} ${Math.abs(weeklyPulse.incomeChange)}% this week`
                 : fmt(weeklyPulse.income) + ' this week'}
@@ -913,9 +913,9 @@ const S = {
   // Alert cards
   alertGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 },
   alertCard: (bg, accent, text) => ({
-    background: `${bg}20`,
+    background: `${bg}40`,
     padding: 16, borderRadius: 16,
-    border: `1px solid ${bg}30`,
+    border: `1px solid ${bg}60`,
     display: 'flex', flexDirection: 'column', gap: 8,
     cursor: 'pointer', fontFamily: 'inherit',
     textAlign: 'left',
