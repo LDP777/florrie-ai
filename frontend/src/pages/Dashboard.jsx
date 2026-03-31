@@ -913,9 +913,9 @@ const S = {
   // Alert cards
   alertGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 },
   alertCard: (bg, accent, text) => ({
-    background: `${bg}40`,
+    background: `${bg}90`,
     padding: 16, borderRadius: 16,
-    border: `1px solid ${bg}60`,
+    border: `1px solid ${bg}`,
     display: 'flex', flexDirection: 'column', gap: 8,
     cursor: 'pointer', fontFamily: 'inherit',
     textAlign: 'left',
