@@ -1,7 +1,38 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
+
+const treatmentSchema = z.object({
+  name: z.string().min(1).max(200).trim(),
+  description: z.string().max(5000).nullable().optional(),
+  duration_minutes: z.number().int().min(1).max(480),
+  buffer_minutes: z.number().int().min(0).max(120).optional().default(0),
+  price_cents: z.number().int().min(0),
+  deposit_cents: z.number().int().min(0).optional().default(0),
+  category: z.string().max(100).nullable().optional(),
+  product_cost_cents: z.number().int().min(0).optional().default(0),
+  contraindications: z.array(z.string().max(200)).max(20).optional().default([])
+});
+
+const treatmentUpdateSchema = z.object({
+  name: z.string().min(1).max(200).trim().optional(),
+  description: z.string().max(5000).nullable().optional(),
+  duration_minutes: z.number().int().min(1).max(480).optional(),
+  buffer_minutes: z.number().int().min(0).max(120).optional(),
+  price_cents: z.number().int().min(0).optional(),
+  deposit_cents: z.number().int().min(0).optional(),
+  deposit_percent: z.number().min(0).max(100).optional(),
+  category: z.string().max(100).nullable().optional(),
+  product_cost_cents: z.number().int().min(0).optional(),
+  contraindications: z.array(z.string().max(200)).max(20).optional(),
+  is_active: z.boolean().optional(),
+  booking_enabled: z.boolean().optional(),
+  sort_order: z.number().int().min(0).optional(),
+  requires_consultation: z.boolean().optional(),
+  consultation_form_id: z.string().uuid().nullable().optional()
+}).strict();
 
 const router = Router();
 
@@ -34,27 +65,14 @@ router.get('/', requireAuth, async (req, res) => {
  */
 router.post('/', requireAuth, async (req, res) => {
   try {
-    const { name, description, duration_minutes, buffer_minutes, price_cents,
-            deposit_cents, category, product_cost_cents, contraindications } = req.body;
-
-    if (!name || !duration_minutes || price_cents === undefined) {
-      return res.status(400).json({ error: 'Name, duration, and price are required' });
+    const parsed = treatmentSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.issues[0].message });
     }
 
     const { data, error } = await supabase
       .from('treatments')
-      .insert({
-        beautician_id: req.beautician.id,
-        name,
-        description: description || null,
-        duration_minutes,
-        buffer_minutes: buffer_minutes || 0,
-        price_cents,
-        deposit_cents: deposit_cents || 0,
-        category: category || null,
-        product_cost_cents: product_cost_cents || 0,
-        contraindications: contraindications || []
-      })
+      .insert({ beautician_id: req.beautician.id, ...parsed.data })
       .select()
       .single();
 
@@ -75,16 +93,14 @@ router.post('/', requireAuth, async (req, res) => {
  */
 router.patch('/:id', requireAuth, async (req, res) => {
   try {
-    const allowedFields = [
-      'name', 'description', 'duration_minutes', 'buffer_minutes',
-      'price_cents', 'deposit_cents', 'deposit_percent', 'category', 'product_cost_cents',
-      'contraindications', 'is_active', 'booking_enabled', 'sort_order',
-      'requires_consultation', 'consultation_form_id'
-    ];
+    const parsed = treatmentUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: parsed.error.issues[0].message });
+    }
+    const updates = parsed.data;
 
-    const updates = {};
-    for (const field of allowedFields) {
-      if (req.body[field] !== undefined) updates[field] = req.body[field];
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No valid fields to update' });
     }
 
     const { data, error } = await supabase

@@ -338,10 +338,12 @@ router.post('/stripe', (req, res) => {
 async function findBeauticianByTwilioNumber(phoneNumber) {
   // First try to match against twilio_phone or phone column
   if (phoneNumber) {
+    // Sanitise: strip non-phone characters to prevent .or() filter injection
+    const sanitisedPhone = phoneNumber.replace(/[^0-9+\-() ]/g, '').substring(0, 30);
     const { data: beautician } = await supabase
       .from('beauticians')
       .select('*')
-      .or(`twilio_phone.eq.${phoneNumber},phone.eq.${phoneNumber}`)
+      .or(`twilio_phone.eq.${sanitisedPhone},phone.eq.${sanitisedPhone}`)
       .single();
 
     if (beautician) {

@@ -85,6 +85,46 @@ router.post('/', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Treatment not found' });
   }
 
+  // Validate starts_at is a valid date
+  const startsAtDate = new Date(starts_at);
+  if (isNaN(startsAtDate.getTime())) {
+    return res.status(400).json({ error: 'Invalid starts_at date format' });
+  }
+
+  // Block appointments in the past
+  if (startsAtDate < new Date()) {
+    return res.status(400).json({ error: 'Cannot book an appointment in the past' });
+  }
+
+  // Validate appointment falls within working hours
+  const { data: beauticianHours } = await supabase
+    .from('beauticians')
+    .select('working_hours')
+    .eq('id', req.beautician.id)
+    .single();
+
+  if (beauticianHours?.working_hours) {
+    const dayKey = startsAtDate.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
+    const hours = beauticianHours.working_hours[dayKey];
+
+    if (!hours) {
+      return res.status(400).json({ error: 'Not available on this day' });
+    }
+
+    // Parse working hours (e.g. "09:00" and "17:00")
+    const [startH, startM] = hours.start.split(':').map(Number);
+    const [endH, endM] = hours.end.split(':').map(Number);
+    const apptHour = startsAtDate.getUTCHours();
+    const apptMin = startsAtDate.getUTCMinutes();
+    const apptTime = apptHour * 60 + apptMin;
+    const workStart = startH * 60 + startM;
+    const workEnd = endH * 60 + endM;
+
+    if (apptTime < workStart || apptTime >= workEnd) {
+      return res.status(400).json({ error: 'Requested time is outside working hours' });
+    }
+  }
+
   // Check for client lateness padding
   const { data: client } = await supabase
     .from('clients')

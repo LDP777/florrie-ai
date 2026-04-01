@@ -19,7 +19,10 @@ router.get('/', requireAuth, async (req, res) => {
     .limit(30);
 
   if (req.query.status) {
-    query = query.eq('status', req.query.status);
+    const validStatuses = ['draft', 'approved', 'published', 'rejected', 'scheduled'];
+    if (validStatuses.includes(req.query.status)) {
+      query = query.eq('status', req.query.status);
+    }
   }
 
   const { data, error } = await query;

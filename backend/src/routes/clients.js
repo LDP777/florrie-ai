@@ -75,7 +75,11 @@ router.get('/', requireAuth, async (req, res) => {
   }
 
   if (req.query.search) {
-    query = query.or(`first_name.ilike.%${req.query.search}%,last_name.ilike.%${req.query.search}%,email.ilike.%${req.query.search}%`);
+    // Sanitise: strip PostgREST filter metacharacters to prevent .or() injection
+    const search = req.query.search.replace(/[^a-zA-Z0-9\s\-'.@]/g, '').trim().substring(0, 100);
+    if (search) {
+      query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`);
+    }
   }
 
   // Apply pagination

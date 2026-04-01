@@ -16,7 +16,7 @@ router.get('/', requireAuth, async (req, res) => {
     .select('*, clients(first_name, last_name)')
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false })
-    .limit(req.query.limit ? parseInt(req.query.limit) : 50);
+    .limit(Math.min(100, Math.max(1, parseInt(req.query.limit) || 50)));
 
   if (req.query.employee) {
     query = query.eq('digital_employee', req.query.employee);

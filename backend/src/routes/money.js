@@ -1,8 +1,18 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
 import Anthropic from '@anthropic-ai/sdk';
 import logger from '../lib/logger.js';
+
+const expenseSchema = z.object({
+  amount_cents: z.number().int().min(1, 'Amount must be positive'),
+  vendor: z.string().max(200).nullable().optional(),
+  description: z.string().max(1000).nullable().optional(),
+  category: z.string().min(1).max(100),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}/, 'Date must be YYYY-MM-DD format'),
+  tax_deductible: z.boolean().optional().default(true)
+});
 
 const router = Router();
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -224,11 +234,12 @@ router.get('/tax-summary', requireAuth, async (req, res) => {
  * Log a new expense (manual entry).
  */
 router.post('/expenses', requireAuth, async (req, res) => {
-  const { amount_cents, vendor, description, category, date, tax_deductible } = req.body;
-
-  if (!amount_cents || !category || !date) {
-    return res.status(400).json({ error: 'Amount, category, and date are required' });
+  const parsed = expenseSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.issues[0].message });
   }
+
+  const { amount_cents, vendor, description, category, date, tax_deductible } = parsed.data;
 
   const { data, error } = await supabase
     .from('expenses')
@@ -239,7 +250,7 @@ router.post('/expenses', requireAuth, async (req, res) => {
       description: description || null,
       category,
       date,
-      tax_deductible: tax_deductible !== false,
+      tax_deductible,
       tax_year: getTaxYear(new Date(date))
     })
     .select()
@@ -334,7 +345,29 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
     const text = response.content[0].text.trim();
     const jsonStr = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    const extracted = JSON.parse(jsonStr);
+    const rawParsed = JSON.parse(jsonStr);
+
+    // Validate AI output structure before trusting it
+    const receiptOutputSchema = z.object({
+      vendor: z.string().max(300).default('Unknown'),
+      total_amount: z.number().int().min(0).max(100_000_00), // max £100k in pence
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}/).default(new Date().toISOString().split('T')[0]),
+      category: z.enum(['products', 'rent', 'training', 'travel', 'equipment', 'insurance', 'marketing', 'software', 'utilities', 'other']).default('other'),
+      description: z.string().max(1000).default(''),
+      line_items: z.array(z.object({
+        description: z.string().max(300),
+        amount_cents: z.number().int().min(0)
+      })).max(50).optional(),
+      confidence: z.number().min(0).max(1).optional()
+    });
+
+    const validated = receiptOutputSchema.safeParse(rawParsed);
+    if (!validated.success) {
+      logger.warn({ issues: validated.error.issues, raw: rawParsed }, 'Receipt scan AI output failed validation');
+      return res.status(422).json({ error: 'Could not extract valid receipt data — try a clearer photo' });
+    }
+
+    const extracted = validated.data;
 
     // Use Claude's self-assessed confidence, default to 0.8 if not returned
     const confidence = typeof extracted.confidence === 'number'

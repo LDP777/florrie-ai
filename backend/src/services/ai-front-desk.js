@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { z } from 'zod';
 import { supabase } from '../index.js';
 import logger from '../lib/logger.js';
 import { createBookingSuggestion } from './automations.js';
@@ -248,7 +249,29 @@ Only include extracted fields if they're mentioned in the message. Confidence is
     const text = response.content[0].text.trim();
     // Handle potential markdown wrapping
     const jsonStr = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    return JSON.parse(jsonStr);
+    const raw = JSON.parse(jsonStr);
+
+    // Validate AI classification output
+    const classificationSchema = z.object({
+      intent: z.enum([
+        'booking_request', 'price_enquiry', 'availability_check',
+        'reschedule', 'cancellation', 'general_question',
+        'greeting', 'review_thanks', 'complaint', 'unknown'
+      ]).default('unknown'),
+      confidence: z.number().min(0).max(1).default(0),
+      extracted: z.object({
+        treatment: z.string().max(200).optional(),
+        date: z.string().max(50).optional(),
+        time: z.string().max(50).optional()
+      }).passthrough().default({})
+    });
+
+    const validated = classificationSchema.safeParse(raw);
+    if (!validated.success) {
+      logger.warn({ issues: validated.error.issues, raw }, 'Classification AI output failed validation');
+      return { intent: INTENTS.UNKNOWN, confidence: 0.0, extracted: {} };
+    }
+    return validated.data;
   } catch (err) {
     logger.error({ err }, 'Classification parse error');
     return { intent: INTENTS.UNKNOWN, confidence: 0.0, extracted: {} };
@@ -593,7 +616,25 @@ Return JSON with:
   try {
     const text = response.content[0].text.trim();
     const jsonStr = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    return JSON.parse(jsonStr);
+    const raw = JSON.parse(jsonStr);
+
+    // Validate tone analysis output
+    const toneSchema = z.object({
+      greetingStyle: z.string().max(500).default(''),
+      signoffStyle: z.string().max(500).default(''),
+      emojiUsage: z.enum(['never', 'rarely', 'moderate', 'frequent']).default('moderate'),
+      formality: z.enum(['casual', 'warm-professional', 'formal']).default('warm-professional'),
+      keyPhrases: z.array(z.string().max(200)).max(20).default([]),
+      avoidPhrases: z.array(z.string().max(200)).max(20).default([]),
+      exampleMessages: z.array(z.string().max(1000)).max(5).default([])
+    });
+
+    const validated = toneSchema.safeParse(raw);
+    if (!validated.success) {
+      logger.warn({ issues: validated.error.issues, raw }, 'Tone pattern AI output failed validation');
+      return {};
+    }
+    return validated.data;
   } catch (err) {
     logger.warn({ err }, 'Tone pattern analysis parse error');
     return {};

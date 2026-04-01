@@ -447,6 +447,40 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
 
   if (!treatment) return res.status(404).json({ error: 'Treatment not found' });
 
+  // Block appointments in the past
+  const startsAtCheck = new Date(starts_at);
+  if (startsAtCheck < new Date()) {
+    return res.status(400).json({ error: 'Cannot book an appointment in the past' });
+  }
+
+  // Validate appointment falls within working hours
+  const { data: beauticianHours } = await supabase
+    .from('beauticians')
+    .select('working_hours')
+    .eq('id', beautician.id)
+    .single();
+
+  if (beauticianHours?.working_hours) {
+    const dayKey = startsAtCheck.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
+    const hours = beauticianHours.working_hours[dayKey];
+
+    if (!hours) {
+      return res.status(400).json({ error: 'Not available on this day' });
+    }
+
+    const [startH, startM] = hours.start.split(':').map(Number);
+    const [endH, endM] = hours.end.split(':').map(Number);
+    const apptHour = startsAtCheck.getUTCHours();
+    const apptMin = startsAtCheck.getUTCMinutes();
+    const apptTime = apptHour * 60 + apptMin;
+    const workStart = startH * 60 + startM;
+    const workEnd = endH * 60 + endM;
+
+    if (apptTime < workStart || apptTime >= workEnd) {
+      return res.status(400).json({ error: 'Requested time is outside working hours' });
+    }
+  }
+
   // Find or create client (track whether new for consultation form trigger)
   const nameParts = client_name.trim().split(' ');
   const firstName = nameParts[0];
