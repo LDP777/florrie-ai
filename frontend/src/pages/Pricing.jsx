@@ -6,7 +6,7 @@
  * history and manage-subscription link.
  */
 import { useState } from 'react';
-import { useBeautician } from '../lib/supabase.js';
+import { useBeautician, supabase } from '../lib/supabase.js';
 import { PLANS } from '../lib/subscription.js';
 import { ds, type } from '../lib/designSystem.js';
 
@@ -28,10 +28,13 @@ export default function Pricing() {
     setLoading(planId);
     setError(null);
     try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
       const res = await fetch(`${API}/api/billing/create-checkout`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify({ plan: planId, interval }),
       });
       const data = await res.json();
@@ -50,9 +53,12 @@ export default function Pricing() {
   async function handleManage() {
     setError(null);
     try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
       const res = await fetch(`${API}/api/billing/portal`, {
         method: 'POST',
-        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
       });
       const data = await res.json();
       if (data.url) {
