@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requirePlan } from '../middleware/require-plan.js';
 import { createPostFromPhoto, publishPost, draftAvailabilityPost, generateCaption } from '../services/content-autopilot.js';
 import logger from '../lib/logger.js';
 
@@ -10,7 +11,7 @@ const router = Router();
  * GET /api/content
  * List content posts. ?status=draft for the approval queue.
  */
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', requireAuth, requirePlan('pro'), async (req, res) => {
   let query = supabase
     .from('content_posts')
     .select('*')

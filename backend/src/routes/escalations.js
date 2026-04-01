@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requirePlan } from '../middleware/require-plan.js';
 import { learnFromCorrection } from '../services/ai-front-desk.js';
 import { sendSMS } from '../services/notifications.js';
 import logger from '../lib/logger.js';
@@ -11,7 +12,7 @@ const router = Router();
  * GET /api/escalations
  * Messages that need the beautician's attention.
  */
-router.get('/', requireAuth, async (req, res) => {
+router.get('/', requireAuth, requirePlan('pro'), async (req, res) => {
   const { data, error } = await supabase
     .from('messages')
     .select('*, clients(first_name, last_name, phone)')

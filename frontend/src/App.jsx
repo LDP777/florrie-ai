@@ -4,6 +4,7 @@ import { supabase, isDevMode } from './lib/supabase.js';
 import { useTheme } from './lib/theme.jsx';
 import { useBeautician } from './lib/supabase.js';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
+import PlanGate from './components/PlanGate.jsx';
 
 // Lazy-loaded pages (code splitting — each becomes its own chunk)
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
@@ -221,28 +222,28 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/calendar" element={<CalendarView />} />
             <Route path="/escalations" element={<Escalations />} />
-            <Route path="/content" element={<ContentAutopilot />} />
+            <Route path="/content" element={<PlanGate feature="content_autopilot"><ContentAutopilot /></PlanGate>} />
             <Route path="/money" element={<MoneyTracker />} />
             <Route path="/clients" element={<Clients />} />
             <Route path="/treatments" element={<Treatments />} />
             <Route path="/settings" element={<Settings supabase={supabase} onLogout={async () => { if (supabase) await supabase.auth.signOut(); setSession(null); }} />} />
-            <Route path="/team" element={<Team />} />
+            <Route path="/team" element={<PlanGate feature="team_management"><Team /></PlanGate>} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/waitlist" element={<Waitlist />} />
             <Route path="/digest" element={<WeeklyDigest />} />
-            <Route path="/campaigns" element={<Campaigns />} />
+            <Route path="/campaigns" element={<PlanGate feature="campaigns"><Campaigns /></PlanGate>} />
             <Route path="/voice" element={<VoiceCommander />} />
             <Route path="/reviews" element={<Reviews />} />
             <Route path="/import" element={<ClientImport />} />
-            <Route path="/loyalty" element={<Loyalty />} />
-            <Route path="/aftercare" element={<Aftercare />} />
-            <Route path="/smart-schedule" element={<SmartSchedule />} />
+            <Route path="/loyalty" element={<PlanGate feature="loyalty"><Loyalty /></PlanGate>} />
+            <Route path="/aftercare" element={<PlanGate feature="aftercare"><Aftercare /></PlanGate>} />
+            <Route path="/smart-schedule" element={<PlanGate feature="smart_schedule"><SmartSchedule /></PlanGate>} />
             <Route path="/vouchers" element={<GiftVouchers />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/hours" element={<HoursExceptions />} />
             <Route path="/patch-tests" element={<PatchTests />} />
             {/* /forms removed — use /consultation-forms instead */}
-            <Route path="/reports" element={<Reports />} />
+            <Route path="/reports" element={<PlanGate feature="reports"><Reports /></PlanGate>} />
             <Route path="/policies" element={<Policies />} />
             <Route path="/business" element={<BusinessProfile />} />
             <Route path="/rebook" element={<RebookReminders />} />
@@ -261,7 +262,7 @@ export default function App() {
             <Route path="/photo-consent" element={<PhotoConsent />} />
             <Route path="/waitlist-pro" element={<WaitlistPro />} />
             <Route path="/client-timeline" element={<ClientTimeline />} />
-            <Route path="/rota" element={<StaffRota />} />
+            <Route path="/rota" element={<PlanGate feature="staff_rota"><StaffRota /></PlanGate>} />
             <Route path="/deposits" element={<DepositTracker />} />
             <Route path="/addons" element={<AddOns />} />
             <Route path="/cancellations" element={<CancellationLog />} />
@@ -272,21 +273,21 @@ export default function App() {
             <Route path="/goals" element={<RevenueGoals />} />
             <Route path="/price-list" element={<PriceList />} />
             <Route path="/treatment-stats" element={<TreatmentStats />} />
-            <Route path="/staff-performance" element={<StaffPerformance />} />
+            <Route path="/staff-performance" element={<PlanGate feature="staff_performance"><StaffPerformance /></PlanGate>} />
 
             <Route path="/memberships" element={<ClientMemberships />} />
             <Route path="/comms" element={<CommsLog />} />
             <Route path="/end-of-day" element={<EndOfDay />} />
             <Route path="/automations" element={<AutomationRules />} />
-            <Route path="/whatsapp" element={<WhatsAppConfig />} />
+            <Route path="/whatsapp" element={<PlanGate feature="whatsapp"><WhatsAppConfig /></PlanGate>} />
             <Route path="/portal" element={<ClientPortal />} />
-            <Route path="/ai-insights" element={<AIInsights />} />
-            <Route path="/segments" element={<ClientSegments />} />
-            <Route path="/churn" element={<ChurnPrevention />} />
-            <Route path="/demand" element={<DemandForecast />} />
-            <Route path="/locations" element={<MultiLocation />} />
+            <Route path="/ai-insights" element={<PlanGate feature="ai_insights"><AIInsights /></PlanGate>} />
+            <Route path="/segments" element={<PlanGate feature="client_segments"><ClientSegments /></PlanGate>} />
+            <Route path="/churn" element={<PlanGate feature="churn_prevention"><ChurnPrevention /></PlanGate>} />
+            <Route path="/demand" element={<PlanGate feature="demand_forecast"><DemandForecast /></PlanGate>} />
+            <Route path="/locations" element={<PlanGate feature="multi_location"><MultiLocation /></PlanGate>} />
             <Route path="/integrations" element={<Integrations />} />
-            <Route path="/sms" element={<SMSConfig />} />
+            <Route path="/sms" element={<PlanGate feature="sms"><SMSConfig /></PlanGate>} />
             <Route path="/api-settings" element={<APISettings />} />
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/hub" element={<Hub />} />
