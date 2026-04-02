@@ -4,6 +4,8 @@ import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { updateClientIntelligence } from '../services/client-intelligence.js';
+import { triggerSequence } from '../services/email-sequences.js';
+import { scheduleReviewRequest } from '../services/review-requests.js';
 import logger from '../lib/logger.js';
 
 const router = Router();
@@ -301,6 +303,12 @@ router.post('/:id/complete', requireAuth, async (req, res) => {
 
   // Fire-and-forget: update client intelligence
   updateClientIntelligence(req.beautician.id, appointment.client_id).catch(() => {});
+
+  // Fire-and-forget: schedule review request (2hr delay, SMS/WhatsApp + email)
+  if (appointment.client_id) {
+    scheduleReviewRequest(req.beautician.id, appointment.id, appointment.client_id)
+      .catch(err => logger.warn({ err }, 'Review request scheduling failed'));
+  }
 
   res.json({ appointment });
 });

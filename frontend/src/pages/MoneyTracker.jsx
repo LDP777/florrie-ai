@@ -46,6 +46,19 @@ const CATEGORIES = [
 
 const getCategoryMeta = (val) => CATEGORIES.find(c => c.value === val) || CATEGORIES[CATEGORIES.length - 1];
 
+const HMRC_LABELS = {
+  cost_of_goods: 'COGS',
+  premises: 'Premises',
+  admin: 'Admin',
+  travel: 'Travel',
+  advertising: 'Advertising',
+  professional_fees: 'Prof. Fees',
+  insurance: 'Insurance',
+  interest: 'Interest',
+  phone: 'Phone',
+  other_expenses: 'Other',
+};
+
 function startOfWeek(date) {
   const d = new Date(date);
   const day = d.getDay();
@@ -227,6 +240,47 @@ export default function MoneyTracker() {
       monthlyIncome[key] = (monthlyIncome[key] || 0) + (t.amount_cents || 0);
     });
 
+    const taxableProfit = totalIncome - totalExpenses;
+    const profitPounds = taxableProfit / 100;
+
+    // UK Income Tax 2025/26 bands
+    const personalAllowance = 12_570;
+    const basicBand = 50_270;
+    let incomeTax = 0;
+    if (profitPounds > personalAllowance) {
+      const taxable = profitPounds - personalAllowance;
+      const basicPortion = Math.min(taxable, basicBand - personalAllowance);
+      const higherPortion = Math.max(0, taxable - basicPortion);
+      incomeTax = basicPortion * 0.20 + higherPortion * 0.40;
+    }
+
+    // NI Class 2 (£3.45/week if profit > £12,570)
+    const niClass2 = profitPounds > personalAllowance ? 3.45 * 52 : 0;
+
+    // NI Class 4 (6% on £12,570-£50,270, 2% above)
+    let niClass4 = 0;
+    if (profitPounds > personalAllowance) {
+      const band1 = Math.min(profitPounds, basicBand) - personalAllowance;
+      const band2 = Math.max(0, profitPounds - basicBand);
+      niClass4 = band1 * 0.06 + band2 * 0.02;
+    }
+
+    const totalTaxLiability = incomeTax + niClass2 + niClass4;
+    const quarterlySetAside = totalTaxLiability / 4;
+
+    // Days until next payment deadline
+    const now2 = new Date();
+    const deadlines = [
+      { label: 'Payment on account 1', date: new Date(year + 1, 0, 31) },
+      { label: 'Payment on account 2', date: new Date(year + 1, 6, 31) },
+      { label: 'Balancing payment', date: new Date(year + 2, 0, 31) },
+    ];
+    const nextDeadline = deadlines.find(d => d.date > now2) || deadlines[deadlines.length - 1];
+    const daysUntilDeadline = Math.max(0, Math.ceil((nextDeadline.date - now2) / (1000 * 60 * 60 * 24)));
+
+    // Progress through tax year (for progress bar)
+    const yearProgress = Math.min(1, Math.max(0, (now2 - start) / (end - start)));
+
     return {
       taxYear: `${year}/${year + 1}`,
       period: {
@@ -235,11 +289,18 @@ export default function MoneyTracker() {
       },
       totalIncome,
       totalExpenses,
-      taxableProfit: totalIncome - totalExpenses,
+      taxableProfit,
       transactionCount: yearTx.length,
       expenseCount: yearExp.length,
       expensesByCategory,
       monthlyIncome,
+      incomeTax: Math.round(incomeTax * 100),
+      niClass2: Math.round(niClass2 * 100),
+      niClass4: Math.round(niClass4 * 100),
+      totalTaxLiability: Math.round(totalTaxLiability * 100),
+      quarterlySetAside: Math.round(quarterlySetAside * 100),
+      nextDeadline: { label: nextDeadline.label, daysLeft: daysUntilDeadline },
+      yearProgress,
     };
   }
 
@@ -821,6 +882,7 @@ export default function MoneyTracker() {
                     <p style={{ fontSize: 10, color: '#867277', margin: '2px 0 0' }}>
                       {new Date(exp.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                       {' · '}{catMeta.label}
+                      {exp.hmrc_category && ` · ${HMRC_LABELS[exp.hmrc_category] || exp.hmrc_category}`}
                       {exp.tax_deductible && ' · Tax ✓'}
                     </p>
                   </div>
@@ -875,40 +937,86 @@ export default function MoneyTracker() {
       {tab === 'tax' && (
         <div>
           {(() => {
-            const taxSummary = computeTax();
+            const t = computeTax();
             return (
               <>
+                {/* Header */}
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                     <MIcon name="receipt_long" size={18} style={{ color: '#92405e' }} />
-                    <h3 style={S.sectionHeading}>Tax Year {taxSummary.taxYear}</h3>
+                    <h3 style={S.sectionHeading}>Tax Year {t.taxYear}</h3>
                   </div>
-                  <span style={{ fontSize: 12, color: '#867277' }}>{taxSummary.period.start} to {taxSummary.period.end}</span>
+                  <span style={{ fontSize: 12, color: '#867277' }}>{t.period.start} to {t.period.end}</span>
+
+                  {/* Year progress bar */}
+                  <div style={{ marginTop: 10, background: 'var(--border, #EDE9E4)', borderRadius: 4, height: 6, overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.round(t.yearProgress * 100)}%`, height: '100%', background: 'var(--accent, #C76B8A)', borderRadius: 4, transition: 'width 0.3s ease' }} />
+                  </div>
+                  <span style={{ fontSize: 11, color: '#867277', marginTop: 4, display: 'block' }}>{Math.round(t.yearProgress * 100)}% through tax year</span>
                 </div>
 
-                {/* Tax summary cards */}
+                {/* Set aside hero card */}
+                <div style={S.setAsideCard}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Set aside this quarter</span>
+                  <span style={{ fontSize: 32, fontWeight: 700, color: '#fff', margin: '6px 0' }}>{fmt(t.quarterlySetAside)}</span>
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>
+                    {t.nextDeadline.label} — {t.nextDeadline.daysLeft} days away
+                  </span>
+                </div>
+
+                {/* Profit + Tax summary */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
                   <div style={S.taxCard}>
                     <span style={S.taxCardLabel}>Total Income</span>
-                    <span style={S.taxCardValue}>{fmt(taxSummary.totalIncome)}</span>
-                    <span style={{ fontSize: 11, color: '#867277' }}>{taxSummary.transactionCount} transactions</span>
+                    <span style={S.taxCardValue}>{fmt(t.totalIncome)}</span>
+                    <span style={{ fontSize: 11, color: '#867277' }}>{t.transactionCount} transactions</span>
                   </div>
                   <div style={S.taxCard}>
                     <span style={S.taxCardLabel}>Deductible Expenses</span>
-                    <span style={S.taxCardValue}>{fmt(taxSummary.totalExpenses)}</span>
-                    <span style={{ fontSize: 11, color: '#867277' }}>{taxSummary.expenseCount} items</span>
+                    <span style={S.taxCardValue}>{fmt(t.totalExpenses)}</span>
+                    <span style={{ fontSize: 11, color: '#867277' }}>{t.expenseCount} items</span>
                   </div>
                   <div style={{ ...S.taxCard, border: '1.5px solid rgba(146, 64, 94, 0.15)' }}>
                     <span style={S.taxCardLabel}>Taxable Profit</span>
-                    <span style={{ ...S.taxCardValue, color: '#92405e' }}>{fmt(taxSummary.taxableProfit)}</span>
+                    <span style={{ ...S.taxCardValue, color: '#92405e' }}>{fmt(t.taxableProfit)}</span>
+                  </div>
+                </div>
+
+                {/* Tax breakdown */}
+                <div style={S.breakdownCard}>
+                  <h4 style={S.breakdownTitle}>Tax Breakdown</h4>
+                  <div style={S.breakdownRow}>
+                    <div>
+                      <span style={{ fontSize: 13, color: '#534247' }}>Income Tax</span>
+                      <span style={{ fontSize: 11, color: '#867277', display: 'block' }}>20% basic rate (over £12,570)</span>
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#1d1b19' }}>{fmt(t.incomeTax)}</span>
+                  </div>
+                  <div style={S.breakdownRow}>
+                    <div>
+                      <span style={{ fontSize: 13, color: '#534247' }}>NI Class 2</span>
+                      <span style={{ fontSize: 11, color: '#867277', display: 'block' }}>£3.45/week if profit over threshold</span>
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#1d1b19' }}>{fmt(t.niClass2)}</span>
+                  </div>
+                  <div style={S.breakdownRow}>
+                    <div>
+                      <span style={{ fontSize: 13, color: '#534247' }}>NI Class 4</span>
+                      <span style={{ fontSize: 11, color: '#867277', display: 'block' }}>6% on £12,570–£50,270</span>
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#1d1b19' }}>{fmt(t.niClass4)}</span>
+                  </div>
+                  <div style={{ ...S.breakdownRow, borderBottom: 'none', paddingTop: 12 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: '#92405e' }}>Total estimated liability</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: '#92405e' }}>{fmt(t.totalTaxLiability)}</span>
                   </div>
                 </div>
 
                 {/* Expense breakdown by category */}
-                {Object.keys(taxSummary.expensesByCategory).length > 0 && (
+                {Object.keys(t.expensesByCategory).length > 0 && (
                   <div style={S.breakdownCard}>
                     <h4 style={S.breakdownTitle}>Expenses by Category</h4>
-                    {Object.entries(taxSummary.expensesByCategory)
+                    {Object.entries(t.expensesByCategory)
                       .sort(([, a], [, b]) => b.total_cents - a.total_cents)
                       .map(([cat, data]) => (
                         <div key={cat} style={S.breakdownRow}>
@@ -924,10 +1032,10 @@ export default function MoneyTracker() {
                 )}
 
                 {/* Monthly income */}
-                {Object.keys(taxSummary.monthlyIncome).length > 0 && (
+                {Object.keys(t.monthlyIncome).length > 0 && (
                   <div style={S.breakdownCard}>
                     <h4 style={S.breakdownTitle}>Monthly Income</h4>
-                    {Object.entries(taxSummary.monthlyIncome)
+                    {Object.entries(t.monthlyIncome)
                       .sort(([a], [b]) => a.localeCompare(b))
                       .map(([month, cents]) => {
                         const [y, m] = month.split('-');
@@ -943,11 +1051,30 @@ export default function MoneyTracker() {
                   </div>
                 )}
 
+                {/* Export for accountant */}
+                <button
+                  onClick={() => {
+                    const a = document.createElement('a');
+                    a.href = `/api/exports/tax-quarterly?year=${t.taxYear.replace('/', '-')}`;
+                    a.download = '';
+                    a.click();
+                  }}
+                  style={{
+                    width: '100%', padding: '14px 0', borderRadius: 12,
+                    border: 'none', background: '#92405e', color: '#fff',
+                    fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                    fontFamily: 'inherit', marginBottom: 12,
+                  }}
+                >
+                  <MIcon name="download" size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                  Export for Accountant
+                </button>
+
                 <p style={{
                   fontSize: 12, color: '#867277', textAlign: 'center',
                   padding: '16px 20px', lineHeight: 1.5, fontStyle: 'italic',
                 }}>
-                  These figures are for reference. Always check with your accountant before filing your self-assessment.
+                  Estimate only. Consult an accountant for your specific situation.
                 </p>
               </>
             );
@@ -1149,6 +1276,12 @@ const S = {
   compValue: { fontSize: 13, fontWeight: 500, color: '#1d1b19' },
 
   // Tax cards
+  setAsideCard: {
+    background: 'linear-gradient(135deg, #92405e 0%, #6d2e46 100%)',
+    borderRadius: 16, padding: 20, marginBottom: 16,
+    display: 'flex', flexDirection: 'column', alignItems: 'center',
+    textAlign: 'center',
+  },
   taxCard: {
     background: '#fff', borderRadius: 16, padding: 16,
     border: '1px solid rgba(146, 64, 94, 0.05)',

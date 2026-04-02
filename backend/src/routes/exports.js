@@ -168,4 +168,158 @@ router.get('/appointments', requireAuth, async (req, res) => {
   }
 });
 
+/**
+ * GET /api/exports/tax-quarterly
+ * Export quarterly tax summary as CSV for accountants.
+ * Query: ?year=2025-26 (UK tax year, defaults to current)
+ *
+ * Generates a single CSV with sections:
+ *   1. Summary (income, expenses, profit, tax estimates)
+ *   2. Income by month
+ *   3. Expenses by HMRC category
+ *   4. Expense detail list
+ */
+router.get('/tax-quarterly', requireAuth, async (req, res) => {
+  try {
+    const taxYear = req.query.year || getCurrentTaxYear();
+    const [startYear] = taxYear.split('-').map(Number);
+    const periodStart = `${startYear}-04-06`;
+    const periodEnd = `${startYear + 1}-04-05`;
+
+    // Fetch data
+    const [{ data: income }, { data: expenses }] = await Promise.all([
+      supabase
+        .from('transactions')
+        .select('amount_cents, type, created_at')
+        .eq('beautician_id', req.beautician.id)
+        .eq('status', 'completed')
+        .gte('created_at', `${periodStart}T00:00:00Z`)
+        .lte('created_at', `${periodEnd}T23:59:59Z`),
+      supabase
+        .from('expenses')
+        .select('amount_cents, category, hmrc_category, vendor, description, date, tax_deductible')
+        .eq('beautician_id', req.beautician.id)
+        .gte('date', periodStart)
+        .lte('date', periodEnd)
+        .order('date', { ascending: true })
+    ]);
+
+    const totalIncome = (income || []).reduce((s, t) => s + t.amount_cents, 0);
+    const deductible = (expenses || []).filter(e => e.tax_deductible);
+    const totalExpenses = deductible.reduce((s, e) => s + e.amount_cents, 0);
+    const taxableProfit = totalIncome - totalExpenses;
+    const profitPounds = taxableProfit / 100;
+
+    // Tax calc
+    const personalAllowance = 12_570;
+    const basicBand = 50_270;
+    let incomeTax = 0;
+    if (profitPounds > personalAllowance) {
+      const taxable = profitPounds - personalAllowance;
+      const basicPortion = Math.min(taxable, basicBand - personalAllowance);
+      const higherPortion = Math.max(0, taxable - basicPortion);
+      incomeTax = basicPortion * 0.20 + higherPortion * 0.40;
+    }
+    const niClass2 = profitPounds > personalAllowance ? 3.45 * 52 : 0;
+    let niClass4 = 0;
+    if (profitPounds > personalAllowance) {
+      const b1 = Math.min(profitPounds, basicBand) - personalAllowance;
+      const b2 = Math.max(0, profitPounds - basicBand);
+      niClass4 = b1 * 0.06 + b2 * 0.02;
+    }
+    const totalTax = incomeTax + niClass2 + niClass4;
+
+    const fmtP = (cents) => (cents / 100).toFixed(2);
+
+    // Build CSV sections
+    const lines = [];
+
+    // Section 1: Summary
+    lines.push('FLORRIE.AI — QUARTERLY TAX EXPORT');
+    lines.push(`Tax Year,${taxYear}`);
+    lines.push(`Period,${periodStart} to ${periodEnd}`);
+    lines.push(`Generated,${new Date().toISOString().split('T')[0]}`);
+    lines.push('');
+    lines.push('SUMMARY');
+    lines.push(`Total Income,${fmtP(totalIncome)}`);
+    lines.push(`Total Deductible Expenses,${fmtP(totalExpenses)}`);
+    lines.push(`Taxable Profit,${fmtP(taxableProfit)}`);
+    lines.push('');
+    lines.push('ESTIMATED TAX LIABILITY');
+    lines.push(`Income Tax (20% basic rate),${incomeTax.toFixed(2)}`);
+    lines.push(`NI Class 2 (£3.45/wk),${niClass2.toFixed(2)}`);
+    lines.push(`NI Class 4 (6%),${niClass4.toFixed(2)}`);
+    lines.push(`Total Estimated Tax,${totalTax.toFixed(2)}`);
+    lines.push('');
+
+    // Section 2: Income by month
+    lines.push('INCOME BY MONTH');
+    lines.push('Month,Amount');
+    const monthlyIncome = {};
+    (income || []).forEach(t => {
+      const month = new Date(t.created_at).toISOString().slice(0, 7);
+      monthlyIncome[month] = (monthlyIncome[month] || 0) + t.amount_cents;
+    });
+    Object.entries(monthlyIncome).sort(([a], [b]) => a.localeCompare(b)).forEach(([m, c]) => {
+      lines.push(`${m},${fmtP(c)}`);
+    });
+    lines.push('');
+
+    // Section 3: Expenses by HMRC category
+    const HMRC_LABELS = {
+      cost_of_goods: 'Cost of Goods Sold', premises: 'Premises', admin: 'Admin Costs',
+      travel: 'Travel', advertising: 'Advertising', professional_fees: 'Professional Fees',
+      insurance: 'Insurance', interest: 'Interest', phone: 'Phone & Internet',
+      other_expenses: 'Other Allowable Expenses'
+    };
+    lines.push('EXPENSES BY HMRC CATEGORY');
+    lines.push('HMRC Category,Count,Amount');
+    const byHmrc = {};
+    deductible.forEach(e => {
+      const hcat = e.hmrc_category || 'other_expenses';
+      if (!byHmrc[hcat]) byHmrc[hcat] = { count: 0, total: 0 };
+      byHmrc[hcat].count += 1;
+      byHmrc[hcat].total += e.amount_cents;
+    });
+    Object.entries(byHmrc).sort(([, a], [, b]) => b.total - a.total).forEach(([cat, d]) => {
+      lines.push(`${escapeCSVField(HMRC_LABELS[cat] || cat)},${d.count},${fmtP(d.total)}`);
+    });
+    lines.push('');
+
+    // Section 4: Expense detail
+    lines.push('EXPENSE DETAIL');
+    lines.push('Date,Vendor,Description,Category,HMRC Category,Amount,Tax Deductible');
+    (expenses || []).forEach(e => {
+      lines.push([
+        e.date,
+        escapeCSVField(e.vendor || ''),
+        escapeCSVField(e.description || ''),
+        e.category,
+        HMRC_LABELS[e.hmrc_category] || e.hmrc_category || '',
+        fmtP(e.amount_cents),
+        e.tax_deductible ? 'Yes' : 'No'
+      ].join(','));
+    });
+
+    lines.push('');
+    lines.push('NOTE: These figures are estimates only. Please consult your accountant before filing your self-assessment.');
+
+    const csv = lines.join('\n');
+    const filename = `florrie-tax-${taxYear.replace('/', '-')}-${new Date().toISOString().split('T')[0]}.csv`;
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (err) {
+    logger.error({ err }, 'Failed to generate tax export');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+function getCurrentTaxYear() {
+  const now = new Date();
+  const year = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+  return `${year}-${String(year + 1).slice(2)}`;
+}
+
 export default router;

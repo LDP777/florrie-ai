@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
+import { triggerSequence } from '../services/email-sequences.js';
 import logger from '../lib/logger.js';
 
 const router = Router();
@@ -67,6 +68,11 @@ router.post('/signup', validate(signupSchema), async (req, res) => {
     await supabase.auth.admin.deleteUser(authData.user.id);
     return res.status(500).json({ error: 'Failed to create profile' });
   }
+
+  // Fire welcome email sequence (async, don't block signup response)
+  triggerSequence('welcome', beautician.id).catch(err =>
+    logger.warn({ err, beauticianId: beautician.id }, 'Welcome sequence trigger failed')
+  );
 
   res.status(201).json({ user: authData.user, beautician });
 });

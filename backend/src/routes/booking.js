@@ -3,6 +3,7 @@ import { z } from 'zod';
 import Stripe from 'stripe';
 import { supabase } from '../index.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
+import { pushNewBooking } from '../services/push-notifications.js';
 import { sendConsultationFormSMS } from './consultation-forms.js';
 import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -703,6 +704,11 @@ router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
     notification_text: `New booking: ${firstName} — ${treatment.name}, ${startsDate.toLocaleDateString('en-GB')} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
   });
   if (logErr) logger.warn({ err: logErr }, 'AI action log failed (non-fatal)');
+
+  // Push notification — beautician gets a team-style alert
+  const timeStr = startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const dateStr = startsDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  pushNewBooking(beautician.id, firstName, treatment.name, `${dateStr} at ${timeStr}`).catch(() => {});
 
   // ── DEPOSIT FLOW ──────────────────────────────────────────
   // If deposit required but Stripe isn't configured, return booking with deposit_pending flag

@@ -223,11 +223,11 @@ export async function publishPost(beauticianId, postId) {
 
   const { data: beautician } = await supabase
     .from('beauticians')
-    .select('instagram_page_id, instagram_token')
+    .select('instagram_page_id, instagram_page_token')
     .eq('id', beauticianId)
     .single();
 
-  if (!beautician?.instagram_page_id || !beautician?.instagram_token) {
+  if (!beautician?.instagram_page_id || !beautician?.instagram_page_token) {
     // No Instagram connected — mark as approved but can't publish
     await supabase.from('content_posts').update({
       status: 'approved',
@@ -249,7 +249,7 @@ export async function publishPost(beauticianId, postId) {
         body: JSON.stringify({
           image_url: post.image_url,
           caption: fullCaption,
-          access_token: beautician.instagram_token
+          access_token: beautician.instagram_page_token
         })
       }
     );
@@ -265,7 +265,7 @@ export async function publishPost(beauticianId, postId) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           creation_id: container.id,
-          access_token: beautician.instagram_token
+          access_token: beautician.instagram_page_token
         })
       }
     );

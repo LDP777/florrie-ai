@@ -26,7 +26,8 @@ const QUICK_REPLIES = [
   { key: 'moved', label: 'Moved it', text: "No worries, I've moved that for you xx" },
 ];
 
-const CHANNEL_ICONS = { whatsapp: '💬', sms: '📱', email: '✉️' };
+const CHANNEL_ICONS = { whatsapp: '💬', sms: '📱', email: '✉️', instagram: '📸' };
+const CHANNEL_FILTERS = ['all', 'whatsapp', 'sms', 'email', 'instagram'];
 
 // ── Dev mock data (fallback) ──────────────────────────────────────────────
 const DEV_CONVERSATIONS = [
@@ -40,6 +41,23 @@ const DEV_CONVERSATIONS = [
     ],
     aiDraft: "No worries at all lovely! I've got 2pm or 3:30pm free on Friday — which works best for you? xx",
   },
+  {
+    id: 'conv-2', client: 'Jess', channel: 'instagram', unread: 1,
+    lastMessage: 'Hiya! Saw your lash set post — do you have any slots this week?', lastTime: '11:45',
+    messages: [
+      { id: 'm4', dir: 'in', text: 'Hiya! Saw your lash set post — do you have any slots this week?', time: '11:45', read: false },
+    ],
+    aiDraft: "Hey Jess! Thank you so much 🥰 I've got Thursday 1pm or Saturday 10am free — want me to pencil you in? xx",
+  },
+  {
+    id: 'conv-3', client: 'Megan', channel: 'sms', unread: 0,
+    lastMessage: 'Thanks babe, see you Saturday! x', lastTime: 'Yesterday',
+    messages: [
+      { id: 'm5', dir: 'out', text: 'Hey Megan! Just a reminder you\'re booked in Saturday at 11am for brows xx', time: '14:00', read: true },
+      { id: 'm6', dir: 'in', text: 'Thanks babe, see you Saturday! x', time: '14:12', read: true },
+    ],
+    aiDraft: null,
+  },
 ];
 
 // ── Component ──────────────────────────────────────────────
@@ -51,6 +69,7 @@ export default function Inbox() {
   const [activeId, setActiveId] = useState(null);
   const [compose, setCompose] = useState('');
   const [showAiDraft, setShowAiDraft] = useState(true);
+  const [channelFilter, setChannelFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
@@ -118,6 +137,7 @@ export default function Inbox() {
   }
 
   const active = conversations.find(c => c.id === activeId);
+  const filtered = channelFilter === 'all' ? conversations : conversations.filter(c => c.channel === channelFilter);
   const totalUnread = conversations.reduce((s, c) => s + c.unread, 0);
 
   useEffect(() => {
@@ -174,11 +194,29 @@ export default function Inbox() {
         </div>
         <p style={s.sub}>Client messages across all channels</p>
 
+        {/* Channel filter pills */}
+        <div style={s.filterRow}>
+          {CHANNEL_FILTERS.map(f => (
+            <button
+              key={f}
+              onClick={() => setChannelFilter(f)}
+              style={{
+                ...s.filterPill,
+                background: channelFilter === f ? 'var(--accent)' : 'var(--bg-card)',
+                color: channelFilter === f ? '#fff' : 'var(--text-secondary)',
+                border: channelFilter === f ? 'none' : '1px solid var(--border)',
+              }}
+            >
+              {f === 'all' ? 'All' : `${CHANNEL_ICONS[f] || ''} ${f[0].toUpperCase() + f.slice(1)}`}
+            </button>
+          ))}
+        </div>
+
         <div style={s.convList}>
-          {conversations.length === 0 ? (
-            <EmptyState title="No conversations" description="Start messaging with your clients to see them here." />
+          {filtered.length === 0 ? (
+            <EmptyState title="No conversations" description={channelFilter === 'all' ? 'Start messaging with your clients to see them here.' : `No ${channelFilter} conversations yet.`} />
           ) : (
-            conversations.map(c => (
+            filtered.map(c => (
             <button
               key={c.id}
               onClick={() => openConversation(c.id)}
@@ -331,7 +369,24 @@ const s = {
     padding: '2px 8px',
     borderRadius: 10,
   },
-  sub: { fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 16px' },
+  sub: { fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 12px' },
+  filterRow: {
+    display: 'flex',
+    gap: 6,
+    marginBottom: 12,
+    overflowX: 'auto',
+    paddingBottom: 2,
+  },
+  filterPill: {
+    padding: '5px 12px',
+    borderRadius: 14,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
+  },
   convList: { display: 'flex', flexDirection: 'column', gap: 4 },
   convItem: {
     display: 'flex',

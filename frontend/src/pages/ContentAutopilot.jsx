@@ -1,6 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useBeautician, supabase, isDevMode, fetchRows, insertRow, updateRow, deleteRow, DEV_TREATMENTS } from '../lib/supabase.js';
+import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
+
+function getToken() {
+  const raw = localStorage.getItem('sb-auth-token');
+  if (!raw) return null;
+  try { return JSON.parse(raw)?.access_token || raw; } catch { return raw; }
+}
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
@@ -309,16 +316,36 @@ export default function ContentAutopilot() {
   async function handleApprove(postId) {
     setPublishing(postId);
     try {
-      await updateRow('content_posts', postId, {
-        status: 'posted',
-        approved_at: new Date().toISOString(),
-        posted_at: new Date().toISOString(),
+      if (isDevMode) {
+        // Dev mode: just move locally
+        setDrafts(prev => prev.filter(p => p.id !== postId));
+        setPublishing(null);
+        return;
+      }
+
+      // Call backend publish endpoint — handles Instagram Graph API if connected
+      const token = getToken();
+      const res = await fetch(`${API_BASE}/api/content/${postId}/publish`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
       });
+
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Publish failed');
+
       setDrafts(prev => prev.filter(p => p.id !== postId));
+
       // Reload posted
-      if (!isDevMode) {
-        const p = await fetchRows('content_posts', beautician.id, { eq: { status: 'posted' }, order: 'posted_at', ascending: false });
-        setPosted(p);
+      const p = await fetchRows('content_posts', beautician.id, { eq: { status: 'posted' }, order: 'posted_at', ascending: false });
+      setPosted(p);
+
+      if (result.published) {
+        logger.info('Post published to Instagram', result.instagramId);
+      } else {
+        logger.info('Post approved (Instagram not connected)', result.reason);
       }
     } catch (err) {
       logger.error('Approve error:', err);

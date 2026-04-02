@@ -30,6 +30,12 @@ const DEV_ACTIVITY = [
   { type: 'payment', message: 'Payment Received: £240.00 from Maya L.', time: '1h ago', icon: '💰' },
 ];
 
+const DEV_COACHING = [
+  { id: 'vc-1', summary: "Your Saturday mornings fill within 2 hours. You could increase your gel set by £5 — demand supports it.", metadata: { coaching_type: 'high_demand' } },
+  { id: 'vc-2', summary: "You haven't updated prices on 4 treatments in 6+ months. A £3 increase across these adds roughly £280/month based on your current bookings.", metadata: { coaching_type: 'price_stale' } },
+  { id: 'vc-3', summary: "Clients who add brow lamination spend £25 more per visit. Mention it when rebooking lash clients — it could mean £150/month extra.", metadata: { coaching_type: 'upsell' } },
+];
+
 const TIPS = [
   { text: 'Emma tends to purchase \'Velvet Shine Serum\' every 3 appointments. She\'s due today—mention the loyalty discount for a likely upsell.' },
   { text: 'Thursday–Saturday is your money window. You\'re under-booked Mondays — consider a "Monday Glow" promo.' },
@@ -51,6 +57,7 @@ export default function AIInsights() {
   const { beautician, loading: bLoading } = useBeautician();
   const [appointments, setAppointments] = useState([]);
   const [activity, setActivity] = useState([]);
+  const [coachingCards, setCoachingCards] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -74,6 +81,18 @@ export default function AIInsights() {
         setAppointments([]);
       }
       setActivity(isDevMode ? DEV_ACTIVITY : []);
+
+      // Fetch value coaching insights
+      if (!isDevMode) {
+        const coaching = await fetchRows('ai_actions', beautician.id, {
+          order: 'created_at', ascending: false,
+          filters: { action_type: 'eq.value_coaching' },
+          limit: 3,
+        });
+        setCoachingCards(coaching || []);
+      } else {
+        setCoachingCards(DEV_COACHING);
+      }
     } catch (err) {
       logger.error('Load AI insights error:', err);
       if (isDevMode) {
@@ -159,6 +178,27 @@ export default function AIInsights() {
           </div>
         </div>
       </section>
+
+      {/* ─── Value Coaching ─── */}
+      {coachingCards.length > 0 && (
+        <section style={{ marginBottom: 24 }}>
+          <div style={S.sectionHeader}>
+            <h3 style={S.sectionHeading}>Revenue Opportunities</h3>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {coachingCards.map((card, i) => {
+              const icons = { high_demand: '📈', price_stale: '💰', upsell: '✨' };
+              const coachType = card.metadata?.coaching_type || 'upsell';
+              return (
+                <div key={card.id || i} style={S.coachingCard}>
+                  <span style={{ fontSize: 22, flexShrink: 0 }}>{icons[coachType] || '💡'}</span>
+                  <p style={{ fontSize: 13, lineHeight: 1.55, margin: 0, color: 'var(--text-primary, #1d1b19)' }}>{card.summary}</p>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* ─── Next Appointments ─── */}
       <section style={{ marginBottom: 32 }}>
@@ -297,6 +337,12 @@ const S = {
   tipText: {
     fontSize: 12, color: 'rgba(121, 95, 43, 0.8)',
     lineHeight: 1.5, fontStyle: 'italic', margin: 0,
+  },
+  coachingCard: {
+    display: 'flex', gap: 14, alignItems: 'flex-start',
+    background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16,
+    border: '1px solid var(--gold-light, rgba(201, 169, 110, 0.15))',
+    boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
   },
   sectionHeader: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',

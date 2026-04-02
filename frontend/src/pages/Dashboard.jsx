@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useBeautician, supabase, isDevMode } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import SpotlightSearch from '../components/SpotlightSearch.jsx';
+import SetupChecklist from '../components/SetupChecklist.jsx';
+import AgentAvatars from '../components/AgentAvatars.jsx';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
@@ -327,6 +329,12 @@ export default function Dashboard() {
           {getGreeting()}, {beautician?.first_name || 'there'}
         </h1>
       </section>
+
+      {/* ─── Setup Checklist (shown until fully onboarded) ─── */}
+      <SetupChecklist />
+
+      {/* ─── AI Agent Avatars — live team status ─── */}
+      <AgentAvatars />
 
       {/* ─── Hero Stats Card ─── */}
       <section style={S.heroCard}>

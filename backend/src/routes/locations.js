@@ -11,6 +11,11 @@ const createLocationSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200).trim(),
   address: z.string().max(500).trim().optional().nullable(),
   phone: z.string().max(30).trim().optional().nullable(),
+  email: z.string().email().trim().optional().nullable(),
+  postcode: z.string().max(20).trim().optional().nullable(),
+  booking_slug: z.string().max(100).regex(/^[a-z0-9-]+$/).trim().optional().nullable(),
+  timezone: z.string().max(50).optional().default('Europe/London'),
+  notes: z.string().max(1000).trim().optional().nullable(),
   is_primary: z.boolean().optional().default(false),
   status: z.enum(['active', 'setup', 'archived']).optional().default('active'),
 });
@@ -19,6 +24,11 @@ const updateLocationSchema = z.object({
   name: z.string().min(1).max(200).trim().optional(),
   address: z.string().max(500).trim().optional().nullable(),
   phone: z.string().max(30).trim().optional().nullable(),
+  email: z.string().email().trim().optional().nullable(),
+  postcode: z.string().max(20).trim().optional().nullable(),
+  booking_slug: z.string().max(100).regex(/^[a-z0-9-]+$/).trim().optional().nullable(),
+  timezone: z.string().max(50).optional(),
+  notes: z.string().max(1000).trim().optional().nullable(),
   is_primary: z.boolean().optional(),
   status: z.enum(['active', 'setup', 'archived']).optional(),
 }).strict();
@@ -189,6 +199,40 @@ router.delete('/:id', requireAuth, async (req, res) => {
   } catch (err) {
     logger.error({ err }, 'Delete location error');
     res.status(500).json({ error: 'Failed to delete location' });
+  }
+});
+
+/**
+ * POST /api/locations/:id/set-default
+ * Set a location as the active location for the current session.
+ * Updates beauticians.default_location_id.
+ */
+router.post('/:id/set-default', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Verify location belongs to beautician
+    const { data: loc, error: checkErr } = await supabase
+      .from('locations')
+      .select('id')
+      .eq('id', id)
+      .eq('beautician_id', req.beautician.id)
+      .single();
+
+    if (checkErr || !loc) {
+      return res.status(404).json({ error: 'Location not found' });
+    }
+
+    const { error } = await supabase
+      .from('beauticians')
+      .update({ default_location_id: id })
+      .eq('id', req.beautician.id);
+
+    if (error) return res.status(500).json({ error: 'Failed to set default location' });
+    res.json({ success: true, default_location_id: id });
+  } catch (err) {
+    logger.error({ err }, 'Set default location error');
+    res.status(500).json({ error: 'Failed to set default location' });
   }
 });
 

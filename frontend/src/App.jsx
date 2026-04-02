@@ -5,6 +5,7 @@ import { useTheme } from './lib/theme.jsx';
 import { useBeautician } from './lib/supabase.js';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import PlanGate from './components/PlanGate.jsx';
+import InstallPrompt from './components/InstallPrompt.jsx';
 
 // Lazy-loaded pages (code splitting — each becomes its own chunk)
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
@@ -217,6 +218,7 @@ export default function App() {
             <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)' }}>— Connect Supabase to see real data</span>
           </div>
         )}
+        <InstallPrompt />
         <div style={styles.pageContainer}>
           <Suspense fallback={<PageLoader />}>
             <Routes>

@@ -105,47 +105,254 @@ export async function sendSMS({ to, body, beauticianId }) {
 }
 
 // ── WhatsApp via Meta Cloud API ──────────────
-// Note: WhatsApp is being deprioritized. Twilio SMS is primary.
+// Primary channel for clients with WhatsApp. Falls back to Twilio SMS.
 const WA_TOKEN = process.env.WHATSAPP_TOKEN;
 const WA_PHONE_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
+/**
+ * Send a WhatsApp template message (for booking confirmations, reminders etc.)
+ */
 export async function sendWhatsApp({ to, templateName, templateParams }) {
   if (!WA_TOKEN || !WA_PHONE_ID) {
     logger.debug('WhatsApp not configured, skipping');
     return null;
   }
 
-  try {
-    const res = await fetch(
-      `https://graph.facebook.com/v18.0/${WA_PHONE_ID}/messages`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${WA_TOKEN}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: to.replace(/[^0-9]/g, ''),
-          type: 'template',
-          template: {
-            name: templateName,
-            language: { code: 'en' },
-            components: templateParams ? [{
-              type: 'body',
-              parameters: templateParams.map(p => ({ type: 'text', text: p })),
-            }] : undefined,
+  const maxRetries = 2;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(
+        `https://graph.facebook.com/v21.0/${WA_PHONE_ID}/messages`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${WA_TOKEN}`,
+            'Content-Type': 'application/json',
           },
-        }),
-      }
-    );
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            to: to.replace(/[^0-9]/g, ''),
+            type: 'template',
+            template: {
+              name: templateName,
+              language: { code: 'en' },
+              components: templateParams ? [{
+                type: 'body',
+                parameters: templateParams.map(p => ({ type: 'text', text: p })),
+              }] : undefined,
+            },
+          }),
+        }
+      );
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(JSON.stringify(data.error || data));
-    return data;
-  } catch (err) {
-    logger.error({ err }, 'WhatsApp send error');
+      const data = await res.json();
+      if (!res.ok) throw new Error(JSON.stringify(data.error || data));
+      logger.info({ to, templateName }, 'WhatsApp template sent');
+      return data;
+    } catch (err) {
+      if (attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 1000));
+      } else {
+        logger.error({ err, attempts: maxRetries + 1 }, 'WhatsApp template send failed');
+        return null;
+      }
+    }
+  }
+}
+
+/**
+ * Send a freeform WhatsApp text message.
+ * Used for AI-generated replies, nudges, and non-template messages.
+ * Note: freeform messages can only be sent within the 24-hour conversation window.
+ */
+export async function sendWhatsAppText({ to, body }) {
+  if (!WA_TOKEN || !WA_PHONE_ID) {
+    logger.debug('WhatsApp not configured, skipping freeform');
     return null;
+  }
+
+  const maxRetries = 2;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(
+        `https://graph.facebook.com/v21.0/${WA_PHONE_ID}/messages`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${WA_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            to: to.replace(/[^0-9]/g, ''),
+            type: 'text',
+            text: { body },
+          }),
+        }
+      );
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(JSON.stringify(data.error || data));
+      logger.info({ to }, 'WhatsApp text sent');
+      return data;
+    } catch (err) {
+      if (attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 1000));
+      } else {
+        logger.error({ err, attempts: maxRetries + 1 }, 'WhatsApp text send failed');
+        return null;
+      }
+    }
+  }
+}
+
+// ── Instagram DM via Graph API ──────────────
+// Sends replies to Instagram DMs using the page token stored per-beautician.
+// Falls back to the global INSTAGRAM_PAGE_TOKEN env var for single-tenant setups.
+
+/**
+ * Send an Instagram DM reply.
+ * Uses the Instagram Send API (same as Messenger platform).
+ * The recipient must have messaged the page first (24-hour window).
+ *
+ * @param {string} recipientId - Instagram-scoped user ID (IGSID)
+ * @param {string} text        - Message body
+ * @param {string} [pageToken] - Per-beautician page token (falls back to env)
+ */
+export async function sendInstagramDM({ recipientId, text, pageToken }) {
+  const token = pageToken || process.env.INSTAGRAM_PAGE_TOKEN;
+  if (!token) {
+    logger.debug('Instagram page token not configured, skipping DM');
+    return null;
+  }
+
+  const maxRetries = 2;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const res = await fetch(
+        `https://graph.instagram.com/v21.0/me/messages`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            recipient: { id: recipientId },
+            message: { text },
+          }),
+        }
+      );
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(JSON.stringify(data.error || data));
+      logger.info({ recipientId }, 'Instagram DM sent');
+      return data;
+    } catch (err) {
+      if (attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 1000));
+      } else {
+        logger.error({ err, attempts: maxRetries + 1 }, 'Instagram DM send failed');
+        return null;
+      }
+    }
+  }
+}
+
+/**
+ * Smart channel selector — picks the best channel for a given client.
+ * Priority: Instagram (if DM thread exists) > WhatsApp > SMS > Email
+ *
+ * Returns: 'instagram' | 'whatsapp' | 'sms' | 'email' | null
+ */
+export function pickChannel(client, beauticianPrefs = {}) {
+  const override = beauticianPrefs.channel;
+  if (override && override !== 'auto') return override;
+
+  // Instagram: client came via Instagram DM and token is available
+  if (client?.instagram_id && (beauticianPrefs.instagram_page_token || process.env.INSTAGRAM_PAGE_TOKEN)) {
+    return 'instagram';
+  }
+
+  // WhatsApp: client has an active WhatsApp ID and env is configured
+  if (client?.whatsapp_id && WA_TOKEN && WA_PHONE_ID) return 'whatsapp';
+
+  // SMS: client has a phone and Twilio is configured
+  if (client?.phone && TWILIO_SID && TWILIO_TOKEN && TWILIO_FROM) return 'sms';
+
+  // Email: last resort
+  if (client?.email) return 'email';
+
+  return null;
+}
+
+/**
+ * Send a message via the best available channel.
+ * Freeform text — used by AI Front Desk, nudges, etc.
+ * Cascade: Instagram > WhatsApp > SMS > Email
+ */
+export async function sendMessage({ client, body, beauticianId, beauticianPrefs }) {
+  const channel = pickChannel(client, beauticianPrefs);
+
+  if (channel === 'instagram') {
+    const result = await sendInstagramDM({
+      recipientId: client.instagram_id,
+      text: body,
+      pageToken: beauticianPrefs?.instagram_page_token,
+    });
+    if (result) {
+      await logComms(beauticianId, client.id, 'instagram', 'outbound', body);
+      return { channel: 'instagram', result };
+    }
+    // Fall through to WhatsApp if Instagram fails
+  }
+
+  if (channel === 'whatsapp' || (channel === 'instagram')) {
+    const result = await sendWhatsAppText({ to: client.whatsapp_id || client.phone, body });
+    if (result) {
+      await logComms(beauticianId, client.id, 'whatsapp', 'outbound', body);
+      return { channel: 'whatsapp', result };
+    }
+    // Fall through to SMS
+  }
+
+  if (channel === 'sms' || ['whatsapp', 'instagram'].includes(channel)) {
+    if (client?.phone) {
+      const result = await sendSMS({ to: client.phone, body, beauticianId });
+      if (result) {
+        await logComms(beauticianId, client.id, 'sms', 'outbound', body);
+        return { channel: 'sms', result };
+      }
+    }
+  }
+
+  if (client?.email) {
+    const result = await sendEmail({ to: client.email, subject: 'Message from your beautician', text: body, html: `<p>${body}</p>` });
+    if (result) {
+      await logComms(beauticianId, client.id, 'email', 'outbound', body);
+      return { channel: 'email', result };
+    }
+  }
+
+  logger.warn({ clientId: client?.id }, 'No channel available for client');
+  return null;
+}
+
+/**
+ * Log outbound communication to comms_log table.
+ */
+async function logComms(beauticianId, clientId, channel, direction, content) {
+  try {
+    await supabase.from('messages').insert({
+      beautician_id: beauticianId,
+      client_id: clientId,
+      channel,
+      direction,
+      content,
+      ai_handled: true,
+    });
+  } catch (err) {
+    logger.warn({ err }, 'Failed to log comms');
   }
 }
 

@@ -49,6 +49,10 @@ export default function BookingPage() {
   const [addOns, setAddOns] = useState([]);
   const [selectedAddOns, setSelectedAddOns] = useState([]);
 
+  // Retail products (booking page shop)
+  const [retailProducts, setRetailProducts] = useState([]);
+  const [cart, setCart] = useState({}); // { productId: quantity }
+
   // Payment type: 'deposit' or 'full'
   const [paymentType, setPaymentType] = useState('deposit');
 
@@ -128,6 +132,26 @@ export default function BookingPage() {
       const exists = prev.find(a => a.id === addOn.id);
       if (exists) return prev.filter(a => a.id !== addOn.id);
       return [...prev, addOn];
+    });
+  }
+
+  // Cart helpers for retail products
+  const cartItems = Object.entries(cart)
+    .filter(([, qty]) => qty > 0)
+    .map(([id, qty]) => {
+      const product = retailProducts.find(p => p.id === id);
+      return product ? { ...product, qty, lineTotal: product.price_cents * qty } : null;
+    })
+    .filter(Boolean);
+  const cartTotalCents = cartItems.reduce((sum, item) => sum + item.lineTotal, 0);
+
+  function updateCart(productId, delta) {
+    setCart(prev => {
+      const product = retailProducts.find(p => p.id === productId);
+      const max = product?.max_per_order || 5;
+      const current = prev[productId] || 0;
+      const next = Math.max(0, Math.min(max, current + delta));
+      return { ...prev, [productId]: next };
     });
   }
 
@@ -265,6 +289,15 @@ export default function BookingPage() {
           .order('name');
 
         setAddOns(ao || []);
+
+        // Fetch retail products for this beautician
+        try {
+          const res = await fetch(`${API_BASE}/api/products/public/${b.id}`);
+          if (res.ok) {
+            const products = await res.json();
+            setRetailProducts(products);
+          }
+        } catch { /* products are optional — fail silently */ }
       } catch (err) {
         setError("Something went wrong loading this page.");
       } finally {
@@ -365,6 +398,7 @@ export default function BookingPage() {
           notes: clientDetails.notes || null,
           consultation: needsConsultation ? consultationAnswers : null,
           add_ons: selectedAddOns.map(ao => ({ id: ao.id, price_cents: ao.price_cents })),
+          products: cartItems.map(item => ({ id: item.id, quantity: item.qty, price_cents: item.price_cents })),
           payment_type: paymentType,
           discount_code: appliedDiscount?.code || null,
           is_member: memberInfo?.is_member || false,
@@ -652,6 +686,84 @@ export default function BookingPage() {
                 {selectedAddOns.length > 0 && (
                   <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 8, background: brandLight, fontSize: 13, fontWeight: 500, color: brand, textAlign: 'center' }}>
                     Total: £{(grandTotalCents / 100).toFixed(2)} · {(selectedTreatment.duration_minutes || 0) + addOnDuration} min
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Retail Products — shown after treatment selected */}
+            {selectedTreatment && retailProducts.length > 0 && (
+              <div style={{ marginTop: 20 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4, color: 'var(--text-primary)', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" }}>
+                  Take-home products
+                </h3>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10 }}>
+                  Add to your booking and collect at your appointment
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {retailProducts.map(product => {
+                    const qty = cart[product.id] || 0;
+                    return (
+                      <div
+                        key={product.id}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 12,
+                          padding: '12px 14px', borderRadius: 10,
+                          border: `1.5px solid ${qty > 0 ? brand : '#E8E4DF'}`,
+                          background: qty > 0 ? brandLight : '#fff',
+                        }}
+                      >
+                        {product.image_url && (
+                          <img
+                            src={product.image_url}
+                            alt={product.name}
+                            style={{ width: 44, height: 44, borderRadius: 8, objectFit: 'cover' }}
+                          />
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>{product.name}</div>
+                          {product.description && (
+                            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {product.description}
+                            </div>
+                          )}
+                          <div style={{ fontSize: 13, fontWeight: 600, color: brand, marginTop: 2 }}>
+                            £{(product.price_cents / 100).toFixed(2)}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {qty > 0 && (
+                            <button
+                              onClick={() => updateCart(product.id, -1)}
+                              style={{
+                                width: 28, height: 28, borderRadius: '50%', border: `1px solid ${brand}`,
+                                background: '#fff', color: brand, fontSize: 16, fontWeight: 700,
+                                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontFamily: 'inherit', padding: 0,
+                              }}
+                            >−</button>
+                          )}
+                          {qty > 0 && (
+                            <span style={{ fontSize: 14, fontWeight: 600, minWidth: 16, textAlign: 'center' }}>{qty}</span>
+                          )}
+                          <button
+                            onClick={() => updateCart(product.id, 1)}
+                            style={{
+                              width: 28, height: 28, borderRadius: '50%', border: 'none',
+                              background: qty > 0 ? brand : '#E8E4DF', color: qty > 0 ? '#fff' : '#666',
+                              fontSize: 16, fontWeight: 700, cursor: 'pointer',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontFamily: 'inherit', padding: 0,
+                            }}
+                          >+</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                {cartTotalCents > 0 && (
+                  <div style={{ marginTop: 10, padding: '8px 12px', borderRadius: 8, background: brandLight, fontSize: 13, fontWeight: 500, color: brand, textAlign: 'center' }}>
+                    Products: £{(cartTotalCents / 100).toFixed(2)} · {cartItems.length} item{cartItems.length !== 1 ? 's' : ''}
                   </div>
                 )}
               </div>
@@ -964,6 +1076,18 @@ export default function BookingPage() {
                   ))}
                 </>
               )}
+              {cartItems.length > 0 && (
+                <>
+                  {cartItems.map(item => (
+                    <div key={item.id} style={styles.summaryRow}>
+                      <span style={styles.summaryLabel}>
+                        🛍 {item.name} × {item.qty}
+                      </span>
+                      <span style={styles.summaryValue}>£{(item.lineTotal / 100).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </>
+              )}
               {discountCents > 0 && (
                 <div style={styles.summaryRow}>
                   <span style={{ ...styles.summaryLabel, color: 'var(--success, #38A169)' }}>
@@ -977,7 +1101,7 @@ export default function BookingPage() {
               <div style={{ ...styles.summaryRow, borderBottom: 'none' }}>
                 <span style={styles.summaryLabel}>Total</span>
                 <span style={{ ...styles.summaryValue, color: brand, fontWeight: 700, fontSize: 18 }}>
-                  £{(grandTotalCents / 100).toFixed(2)}
+                  £{((grandTotalCents + cartTotalCents) / 100).toFixed(2)}
                 </span>
               </div>
               {hasDeposit && !selectedPackage && (

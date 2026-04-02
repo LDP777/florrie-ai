@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { supabase } from '../index.js';
 import logger from '../lib/logger.js';
 import { createBookingSuggestion } from './automations.js';
+import { sendMessage, sendInstagramDM, sendWhatsAppText, sendSMS } from './notifications.js';
+import { pushEscalation, pushTeamUpdate } from './push-notifications.js';
 
 /**
  * AI Front Desk — The core agentic service.
@@ -130,6 +132,9 @@ export async function processInboundMessage(messageId, beautician, client, messa
         notification_sent: true,
         notification_text: `New message from ${client?.first_name || 'someone'} needs your attention`
       });
+
+      // Push notification for escalation — beautician needs to act
+      pushEscalation(beautician.id, client?.first_name || 'Someone', messageContent).catch(() => {});
 
       logger.info({ handled: false, intent: classification.intent, escalated: true }, 'AI Front Desk escalated message');
       return { handled: false, intent: classification.intent, escalated: true, suggestion };
@@ -672,32 +677,46 @@ function getAvailableDays(existingAppointments, workingHours) {
 }
 
 async function sendResponse(beautician, client, responseText, originalMessage) {
-  // WhatsApp send
-  if (beautician.whatsapp_phone_id && client?.whatsapp_id) {
+  // Detect which channel the client came in on
+  const inboundChannel = client?.preferred_channel || 'sms';
+  let sent = false;
+
+  if (inboundChannel === 'instagram' && client?.instagram_id) {
     try {
-      await fetch(`https://graph.facebook.com/v21.0/${beautician.whatsapp_phone_id}/messages`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: client.whatsapp_id,
-          type: 'text',
-          text: { body: responseText }
-        })
+      const result = await sendInstagramDM({
+        recipientId: client.instagram_id,
+        text: responseText,
+        pageToken: beautician.instagram_page_token,
       });
+      if (result) sent = true;
     } catch (err) {
-      logger.error({ err }, 'WhatsApp send error');
+      logger.error({ err }, 'Instagram DM send error in Front Desk');
     }
+  } else if (inboundChannel === 'whatsapp' && beautician.whatsapp_phone_id && client?.whatsapp_id) {
+    try {
+      const result = await sendWhatsAppText({ to: client.whatsapp_id, body: responseText });
+      if (result) sent = true;
+    } catch (err) {
+      logger.error({ err }, 'WhatsApp send error in Front Desk');
+    }
+  } else if (client?.phone) {
+    try {
+      const result = await sendSMS({ to: client.phone, body: responseText, beauticianId: beautician.id });
+      if (result) sent = true;
+    } catch (err) {
+      logger.error({ err }, 'SMS send error in Front Desk');
+    }
+  }
+
+  if (!sent) {
+    logger.warn({ clientId: client?.id, channel: inboundChannel }, 'Front Desk: could not send response on any channel');
   }
 
   // Store outbound message
   await supabase.from('messages').insert({
     beautician_id: beautician.id,
     client_id: client?.id,
-    channel: 'whatsapp',
+    channel: inboundChannel,
     direction: 'outbound',
     content: responseText,
     ai_handled: true,

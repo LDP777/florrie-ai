@@ -6,12 +6,14 @@ import { createClient } from '@supabase/supabase-js';
 import logger from './lib/logger.js';
 import { apiLimiter, authLimiter, bookingLimiter } from './middleware/rate-limit.js';
 import { securityHeaders, paymentLimiter, sanitiseBody, idempotencyGuard } from './middleware/security.js';
+import { locationScope } from './middleware/location.js';
 
 // Services
 import { processReminders } from './services/notifications.js';
 import { cleanupStaleBookings } from './services/cleanup.js';
 import { runAutonomousCycle } from './services/autonomous-scheduler.js';
 import { runPredictiveNudges } from './services/predictive-nudge.js';
+import { processEmailQueue, checkTrialExpiry } from './services/email-sequences.js';
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -38,6 +40,12 @@ import consultationFormRoutes from './routes/consultation-forms.js';
 import billingRoutes from './routes/billing.js';
 import waitlistRoutes from './routes/waitlist.js';
 import widgetRoutes from './routes/widget.js';
+import instagramWebhookRoutes from './routes/instagram-webhooks.js';
+import referralRoutes from './routes/referrals.js';
+import pushRoutes from './routes/push.js';
+import agentStatusRoutes from './routes/agent-status.js';
+import hmrcRoutes from './routes/hmrc.js';
+import productRoutes from './routes/products.js';
 
 dotenv.config();
 
@@ -111,6 +119,7 @@ app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(sanitiseBody);
+app.use(locationScope);
 
 // Health check
 app.get('/health', (req, res) => {
@@ -149,7 +158,13 @@ app.use('/api/locations', apiLimiter, locationsRoutes);
 app.use('/api/consultation-forms', apiLimiter, consultationFormRoutes);
 app.use('/api/billing', apiLimiter, billingRoutes);
 app.use('/api/waitlist', apiLimiter, waitlistRoutes);
+app.use('/api/referrals', apiLimiter, referralRoutes);
+app.use('/api/push', apiLimiter, pushRoutes);
+app.use('/api/agents', apiLimiter, agentStatusRoutes);
+app.use('/api/hmrc', apiLimiter, hmrcRoutes);
+app.use('/api/products', apiLimiter, productRoutes);
 app.use('/api/widget-state', apiLimiter, widgetRoutes);
+app.use('/api/webhooks/instagram', webhookLimiter, instagramWebhookRoutes);
 
 // Error handler
 app.use((err, req, res, next) => {
@@ -230,4 +245,33 @@ app.listen(PORT, () => {
       logger.error({ err }, 'Startup: predictive nudge scan failed');
     });
   }, 60_000);
+
+  // Email sequence queue — process due emails every 15 minutes
+  const EMAIL_QUEUE_INTERVAL = 15 * 60 * 1000; // 15 minutes
+  setInterval(async () => {
+    try {
+      const result = await processEmailQueue();
+      if (result.sent > 0) logger.info(result, 'Email queue: processed');
+    } catch (err) {
+      logger.error({ err }, 'Email queue cron: failed');
+    }
+  }, EMAIL_QUEUE_INTERVAL);
+
+  // Trial expiry check — daily, triggers warning emails for expiring trials
+  const TRIAL_CHECK_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+  setInterval(async () => {
+    try {
+      const result = await checkTrialExpiry();
+      if (result.triggered > 0) logger.info(result, 'Trial expiry: triggered sequences');
+    } catch (err) {
+      logger.error({ err }, 'Trial expiry cron: failed');
+    }
+  }, TRIAL_CHECK_INTERVAL);
+
+  // Run email queue 45s after startup
+  setTimeout(() => {
+    processEmailQueue().catch(err => {
+      logger.error({ err }, 'Startup: email queue processing failed');
+    });
+  }, 45_000);
 });

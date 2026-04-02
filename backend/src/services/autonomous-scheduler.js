@@ -15,6 +15,9 @@ import { refreshAllIntelligence } from './client-intelligence.js';
 import { draftAvailabilityPost } from './content-autopilot.js';
 import { processInboundMessage } from './ai-front-desk.js';
 import { sendSMS } from './notifications.js';
+import { runValueCoaching } from './value-coaching.js';
+import { processReviewRequests } from './review-requests.js';
+import { pushTeamUpdate } from './push-notifications.js';
 import logger from '../lib/logger.js';
 
 const DEFAULT_CONFIDENCE = 0.90;
@@ -46,6 +49,38 @@ export async function runAutonomousCycle() {
     }
 
     logger.info(`Autonomous scheduler: cycle complete for ${beauticians.length} beauticians`);
+
+    // Value coaching runs weekly — check if it's been 7+ days
+    try {
+      const { data: lastCoaching } = await supabase
+        .from('ai_actions')
+        .select('created_at')
+        .eq('action_type', 'value_coaching')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const daysSinceLast = lastCoaching
+        ? (Date.now() - new Date(lastCoaching.created_at).getTime()) / (24 * 60 * 60 * 1000)
+        : 999;
+
+      if (daysSinceLast >= 7) {
+        logger.info('Autonomous scheduler: running weekly value coaching');
+        await runValueCoaching();
+      }
+    } catch (err) {
+      logger.error({ err }, 'Value coaching trigger failed');
+    }
+
+    // Process any due review requests (2hr delayed from appointment completion)
+    try {
+      const reviewResult = await processReviewRequests();
+      if (reviewResult.sent > 0) {
+        logger.info(reviewResult, 'Review requests: sent');
+      }
+    } catch (err) {
+      logger.error({ err }, 'Review requests processing failed');
+    }
   } catch (err) {
     logger.error({ err }, 'Autonomous scheduler: fatal error');
   }
@@ -265,6 +300,13 @@ async function logAction(beauticianId, actionType, status, summary, confidence, 
         : 'general',
       created_at: new Date().toISOString(),
     });
+
+    // Fire push notification for executed actions (not pending/escalated ones)
+    if (status === 'executed') {
+      pushTeamUpdate(beauticianId, actionType, summary).catch((err) =>
+        logger.debug({ err }, 'Push notification failed (non-critical)')
+      );
+    }
   } catch (err) {
     logger.warn({ err }, 'Failed to log AI action');
   }
