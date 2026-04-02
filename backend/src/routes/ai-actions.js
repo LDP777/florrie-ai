@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
-import { requirePlan } from '../middleware/require-plan.js';
 import logger from '../lib/logger.js';
 
 const router = Router();
@@ -11,7 +10,7 @@ const router = Router();
  * Activity feed — all AI actions, most recent first.
  * Supports filtering by digital_employee.
  */
-router.get('/', requireAuth, requirePlan('pro'), async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   let query = supabase
     .from('ai_actions')
     .select('*, clients(first_name, last_name)')
