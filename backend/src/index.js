@@ -46,6 +46,7 @@ import pushRoutes from './routes/push.js';
 import agentStatusRoutes from './routes/agent-status.js';
 import hmrcRoutes from './routes/hmrc.js';
 import productRoutes from './routes/products.js';
+import migrateRoutes from './routes/migrate.js';
 
 dotenv.config();
 
@@ -163,6 +164,7 @@ app.use('/api/push', apiLimiter, pushRoutes);
 app.use('/api/agents', apiLimiter, agentStatusRoutes);
 app.use('/api/hmrc', apiLimiter, hmrcRoutes);
 app.use('/api/products', apiLimiter, productRoutes);
+app.use('/api/migrate', apiLimiter, migrateRoutes);
 app.use('/api/widget-state', apiLimiter, widgetRoutes);
 app.use('/api/webhooks/instagram', webhookLimiter, instagramWebhookRoutes);
 
