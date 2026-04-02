@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useBeautician, supabase, isDevMode, insertRow } from '../lib/supabase.js';
+import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
@@ -304,7 +305,7 @@ export default function MoneyTracker() {
     };
   }
 
-  // ── Receipt scanning ──
+  // ── Receipt scanning with Claude Vision OCR ──
 
   async function handleReceiptScan(e) {
     const file = e.target.files?.[0];
@@ -325,21 +326,74 @@ export default function MoneyTracker() {
             date: new Date().toISOString().split('T')[0],
             tax_deductible: true
           });
+          setReceiptPreview(reader.result);
           setShowAddExpense(true);
           setScanning(false);
           return;
         }
 
+        // 1. Upload receipt image to Supabase Storage
         const path = `${beautician.id}/receipts/${Date.now()}-${file.name}`;
         await supabase.storage.from('content-images').upload(path, file);
         const { data: urlData } = supabase.storage.from('content-images').getPublicUrl(path);
+        const receiptUrl = urlData?.publicUrl || '';
 
-        setNewExpense(prev => ({
-          ...prev,
-          description: `Receipt: ${file.name}`,
-          receipt_url: urlData?.publicUrl || '',
-          date: new Date().toISOString().split('T')[0],
-        }));
+        // 2. Send to Claude Vision OCR endpoint
+        const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+        let extracted = null;
+        let confidence = 0;
+
+        try {
+          const scanRes = await fetch(`${API_BASE}/api/money/expenses/scan`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ image_base64: base64 }),
+          });
+
+          if (scanRes.ok) {
+            const scanData = await scanRes.json();
+            extracted = scanData.extracted;
+            confidence = scanData.confidence || 0;
+          } else {
+            const errData = await scanRes.json().catch(() => ({}));
+            logger.warn('Receipt OCR failed:', errData.error || scanRes.status);
+          }
+        } catch (ocrErr) {
+          logger.warn('Receipt OCR request failed:', ocrErr);
+        }
+
+        // 3. Populate expense form — use OCR data if available, fallback to manual
+        if (extracted) {
+          const amountPounds = extracted.total_amount
+            ? (extracted.total_amount / 100).toFixed(2)
+            : '';
+
+          setNewExpense({
+            amount: amountPounds,
+            vendor: extracted.vendor || '',
+            description: extracted.description || '',
+            category: extracted.category || 'other',
+            date: extracted.date || new Date().toISOString().split('T')[0],
+            tax_deductible: true,
+            receipt_url: receiptUrl,
+            hmrc_category: extracted.hmrc_category || '',
+            line_items: extracted.line_items || [],
+            ocr_confidence: confidence,
+          });
+        } else {
+          // OCR failed — still open the form with the receipt attached
+          setNewExpense(prev => ({
+            ...prev,
+            description: `Receipt: ${file.name}`,
+            receipt_url: receiptUrl,
+            date: new Date().toISOString().split('T')[0],
+          }));
+        }
+
+        setReceiptPreview(reader.result);
         setShowAddExpense(true);
         setScanning(false);
       };
@@ -737,10 +791,10 @@ export default function MoneyTracker() {
               <MIcon name="add" size={16} style={{ color: '#fff', marginRight: 4 }} />
               Add Expense
             </button>
-            <label style={S.btnSecondary}>
+            <label style={{ ...S.btnSecondary, opacity: scanning ? 0.6 : 1, pointerEvents: scanning ? 'none' : 'auto' }}>
               <MIcon name="photo_camera" size={16} style={{ marginRight: 4 }} />
-              Scan Receipt
-              <input type="file" accept="image/*" capture="environment" onChange={handleReceiptScan} style={{ display: 'none' }} />
+              {scanning ? 'Reading receipt...' : 'Scan Receipt'}
+              <input type="file" accept="image/*" capture="environment" onChange={handleReceiptScan} style={{ display: 'none' }} disabled={scanning} />
             </label>
           </div>
 
@@ -846,6 +900,21 @@ export default function MoneyTracker() {
                   />
                 </div>
               </div>
+
+              {newExpense.ocr_confidence > 0 && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '8px 12px', marginBottom: 12, borderRadius: 8,
+                  background: newExpense.ocr_confidence >= 0.8 ? 'var(--success-bg, #E8F5E9)' : 'var(--gold-light, #FDF8EE)',
+                  fontSize: 12, color: newExpense.ocr_confidence >= 0.8 ? 'var(--success, #5BA97B)' : 'var(--gold-text, #8A7245)',
+                }}>
+                  <span>{newExpense.ocr_confidence >= 0.8 ? '✓' : '⚠'}</span>
+                  <span>
+                    Auto-filled from receipt ({Math.round(newExpense.ocr_confidence * 100)}% confident)
+                    {newExpense.ocr_confidence < 0.8 ? ' — double-check the details' : ''}
+                  </span>
+                </div>
+              )}
 
               <label style={{
                 display: 'flex', alignItems: 'center', fontSize: 13,
