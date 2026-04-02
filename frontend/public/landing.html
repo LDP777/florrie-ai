@@ -1,1180 +1,1428 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Florrie — AI-Powered Salon Management</title>
-    <meta name="description" content="Smart booking, payments, and client management for beauty businesses. Join the waitlist for early access.">
-    <meta property="og:title" content="Florrie — AI-Powered Salon Management">
-    <meta property="og:description" content="Smart booking, payments, and client management for beauty businesses.">
-    <meta property="og:type" content="website">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --primary: #C76B8A;
-            --primary-dark: #b45a79;
-            --secondary: #C9A96E;
-            --bg: #FAF8F5;
-            --text: #2D2A26;
-            --text-secondary: #7A756F;
-            --text-muted: #AAA5A0;
-            --card-border: #F0ECE8;
-            --light-gray: #F5F3F0;
-            --white: #FFFFFF;
-            --success: #5BA97B;
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        html { scroll-behavior: smooth; }
-
-        body {
-            font-family: 'DM Sans', -apple-system, sans-serif;
-            background: var(--bg);
-            color: var(--text);
-            line-height: 1.6;
-            overflow-x: hidden;
-            -webkit-font-smoothing: antialiased;
-        }
-
-        /* Subtle grain */
-        body::before {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" seed="2"/><feColorMatrix type="saturate" values="0.3"/></filter><rect width="100%" height="100%" fill="rgba(45,42,38,0.015)" filter="url(%23n)"/></svg>');
-            pointer-events: none;
-            z-index: 1;
-        }
-
-        .container {
-            max-width: 1140px;
-            margin: 0 auto;
-            padding: 0 24px;
-            position: relative;
-            z-index: 2;
-        }
-
-        /* ── Nav ── */
-        nav {
-            position: sticky;
-            top: 0;
-            background: rgba(250, 248, 245, 0.92);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            z-index: 100;
-            border-bottom: 1px solid var(--card-border);
-        }
-
-        .nav-inner {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 18px 0;
-        }
-
-        .logo {
-            font-family: 'Playfair Display', serif;
-            font-size: 26px;
-            font-weight: 700;
-            color: var(--primary);
-            text-decoration: none;
-            letter-spacing: -0.5px;
-        }
-
-        .nav-links {
-            display: flex;
-            gap: 32px;
-            list-style: none;
-            align-items: center;
-        }
-
-        .nav-links a {
-            color: var(--text);
-            text-decoration: none;
-            font-size: 14px;
-            font-weight: 500;
-            transition: color 0.2s;
-        }
-
-        .nav-links a:hover { color: var(--primary); }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 11px 24px;
-            border-radius: 10px;
-            font-weight: 600;
-            font-size: 14px;
-            font-family: inherit;
-            border: none;
-            cursor: pointer;
-            transition: all 0.25s ease;
-            text-decoration: none;
-        }
-
-        .btn-primary {
-            background: var(--primary);
-            color: var(--white);
-            box-shadow: 0 4px 16px rgba(199, 107, 138, 0.2);
-        }
-
-        .btn-primary:hover {
-            background: var(--primary-dark);
-            transform: translateY(-1px);
-            box-shadow: 0 6px 24px rgba(199, 107, 138, 0.3);
-        }
-
-        .btn-ghost {
-            background: transparent;
-            color: var(--primary);
-            border: 1.5px solid var(--primary);
-        }
-
-        .btn-ghost:hover {
-            background: var(--primary);
-            color: var(--white);
-        }
-
-        /* ── Hero ── */
-        .hero {
-            padding: 100px 0 80px;
-            position: relative;
-            text-align: center;
-        }
-
-        .hero::before {
-            content: '';
-            position: absolute;
-            top: -200px;
-            right: -100px;
-            width: 600px;
-            height: 600px;
-            background: radial-gradient(circle, rgba(199,107,138,0.07) 0%, transparent 70%);
-            border-radius: 50%;
-        }
-
-        .hero::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: -150px;
-            width: 500px;
-            height: 500px;
-            background: radial-gradient(circle, rgba(201,169,110,0.05) 0%, transparent 70%);
-            border-radius: 50%;
-        }
-
-        .hero-badge {
-            display: inline-block;
-            padding: 6px 16px;
-            background: rgba(199,107,138,0.08);
-            color: var(--primary);
-            font-size: 13px;
-            font-weight: 600;
-            border-radius: 20px;
-            margin-bottom: 24px;
-            letter-spacing: 0.02em;
-        }
-
-        .hero h1 {
-            font-family: 'Playfair Display', serif;
-            font-size: 60px;
-            font-weight: 700;
-            line-height: 1.08;
-            letter-spacing: -1.5px;
-            margin-bottom: 20px;
-            max-width: 700px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        .hero p {
-            font-size: 18px;
-            color: var(--text-secondary);
-            max-width: 540px;
-            margin: 0 auto 36px;
-            line-height: 1.7;
-        }
-
-        /* ── Waitlist Form (shared) ── */
-        .waitlist-form {
-            display: flex;
-            gap: 10px;
-            max-width: 460px;
-            margin: 0 auto;
-        }
-
-        .waitlist-form input {
-            flex: 1;
-            min-width: 0;
-            padding: 14px 18px;
-            border: 1.5px solid var(--card-border);
-            border-radius: 10px;
-            font-family: inherit;
-            font-size: 14px;
-            background: var(--white);
-            transition: border-color 0.2s;
-        }
-
-        .waitlist-form input:focus {
-            outline: none;
-            border-color: var(--primary);
-        }
-
-        .waitlist-form input::placeholder { color: var(--text-muted); }
-
-        .waitlist-form .btn { white-space: nowrap; padding: 14px 28px; }
-
-        .form-note {
-            font-size: 12px;
-            color: var(--text-muted);
-            margin-top: 10px;
-            text-align: center;
-        }
-
-        .form-success {
-            display: none;
-            text-align: center;
-            padding: 16px;
-            background: rgba(91,169,123,0.08);
-            border-radius: 12px;
-            color: var(--success);
-            font-weight: 600;
-            font-size: 15px;
-        }
-
-        .form-error {
-            display: none;
-            text-align: center;
-            padding: 10px;
-            color: #D4605C;
-            font-size: 13px;
-            margin-top: 8px;
-        }
-
-        /* ── Social proof ── */
-        .social-proof {
-            padding: 50px 0;
-            border-top: 1px solid var(--card-border);
-            border-bottom: 1px solid var(--card-border);
-        }
-
-        .proof-row {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 48px;
-            flex-wrap: wrap;
-        }
-
-        .proof-item {
-            text-align: center;
-        }
-
-        .proof-number {
-            font-family: 'Playfair Display', serif;
-            font-size: 28px;
-            font-weight: 700;
-            color: var(--primary);
-        }
-
-        .proof-label {
-            font-size: 12px;
-            color: var(--text-muted);
-            font-weight: 500;
-            letter-spacing: 0.03em;
-            margin-top: 2px;
-        }
-
-        /* ── Features ── */
-        .features { padding: 100px 0; }
-
-        .section-label {
-            text-align: center;
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--primary);
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            margin-bottom: 12px;
-        }
-
-        .section-title {
-            font-family: 'Playfair Display', serif;
-            font-size: 42px;
-            font-weight: 700;
-            text-align: center;
-            margin-bottom: 16px;
-            line-height: 1.15;
-            letter-spacing: -0.5px;
-        }
-
-        .section-subtitle {
-            text-align: center;
-            font-size: 16px;
-            color: var(--text-secondary);
-            max-width: 520px;
-            margin: 0 auto 56px;
-        }
-
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 24px;
-        }
-
-        .feature-card {
-            padding: 32px;
-            border: 1px solid var(--card-border);
-            border-radius: 14px;
-            background: var(--white);
-            transition: all 0.3s ease;
-        }
-
-        .feature-card:hover {
-            border-color: var(--primary);
-            box-shadow: 0 8px 32px rgba(199,107,138,0.1);
-            transform: translateY(-4px);
-        }
-
-        .feature-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 22px;
-            margin-bottom: 18px;
-            background: rgba(199,107,138,0.06);
-        }
-
-        .feature-card h3 {
-            font-size: 17px;
-            font-weight: 700;
-            margin-bottom: 8px;
-        }
-
-        .feature-card p {
-            font-size: 14px;
-            color: var(--text-secondary);
-            line-height: 1.6;
-        }
-
-        /* ── Pricing ── */
-        .pricing {
-            padding: 100px 0;
-            background: linear-gradient(135deg, rgba(199,107,138,0.025) 0%, rgba(201,169,110,0.025) 100%);
-            border-radius: 24px;
-        }
-
-        .pricing-toggle {
-            display: flex;
-            gap: 0;
-            max-width: 260px;
-            margin: 0 auto 48px;
-            background: var(--light-gray);
-            border-radius: 10px;
-            padding: 3px;
-        }
-
-        .pricing-toggle button {
-            flex: 1;
-            padding: 10px 16px;
-            border: none;
-            border-radius: 8px;
-            font-family: inherit;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            background: transparent;
-            color: var(--text-muted);
-            transition: all 0.2s;
-        }
-
-        .pricing-toggle button.active {
-            background: var(--white);
-            color: var(--text);
-            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-        }
-
-        .pricing-toggle .save-tag {
-            font-size: 10px;
-            font-weight: 700;
-            background: var(--success);
-            color: var(--white);
-            padding: 2px 6px;
-            border-radius: 4px;
-            margin-left: 4px;
-            vertical-align: middle;
-        }
-
-        .pricing-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
-        }
-
-        .pricing-card {
-            padding: 32px 24px;
-            border: 1px solid var(--card-border);
-            border-radius: 14px;
-            background: var(--white);
-            position: relative;
-            transition: all 0.3s ease;
-        }
-
-        .pricing-card:hover {
-            border-color: var(--primary);
-            box-shadow: 0 8px 32px rgba(199,107,138,0.1);
-        }
-
-        .pricing-card.popular {
-            border: 2px solid var(--primary);
-            box-shadow: 0 8px 32px rgba(199,107,138,0.12);
-        }
-
-        .popular-tag {
-            position: absolute;
-            top: -11px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--primary);
-            color: var(--white);
-            padding: 4px 14px;
-            border-radius: 16px;
-            font-size: 11px;
-            font-weight: 600;
-            letter-spacing: 0.03em;
-        }
-
-        .pricing-name {
-            font-family: 'Playfair Display', serif;
-            font-size: 20px;
-            font-weight: 700;
-            margin-bottom: 8px;
-        }
-
-        .pricing-amount {
-            font-size: 36px;
-            font-weight: 700;
-            color: var(--primary);
-            margin-bottom: 4px;
-        }
-
-        .pricing-amount span { font-size: 14px; color: var(--text-muted); font-weight: 400; }
-
-        .pricing-annual-note {
-            font-size: 12px;
-            color: var(--success);
-            font-weight: 600;
-            margin-bottom: 12px;
-            display: none;
-        }
-
-        .pricing-desc {
-            font-size: 13px;
-            color: var(--text-muted);
-            margin-bottom: 20px;
-            line-height: 1.4;
-        }
-
-        .pricing-features {
-            list-style: none;
-            margin-bottom: 24px;
-        }
-
-        .pricing-features li {
-            padding: 8px 0;
-            font-size: 13px;
-            color: var(--text-secondary);
-            display: flex;
-            align-items: center;
-            border-bottom: 1px solid var(--light-gray);
-        }
-
-        .pricing-features li::before {
-            content: '\2713';
-            color: var(--secondary);
-            font-weight: 700;
-            margin-right: 10px;
-            font-size: 14px;
-        }
-
-        .pricing-cta {
-            width: 100%;
-            padding: 11px 0;
-            border-radius: 10px;
-            font-weight: 600;
-            font-size: 13px;
-            font-family: inherit;
-            cursor: pointer;
-            transition: all 0.2s;
-            border: none;
-            text-align: center;
-        }
-
-        .pricing-cta.primary {
-            background: var(--primary);
-            color: var(--white);
-        }
-
-        .pricing-cta.primary:hover { background: var(--primary-dark); }
-
-        .pricing-cta.outline {
-            background: transparent;
-            color: var(--primary);
-            border: 1.5px solid var(--primary);
-        }
-
-        .pricing-cta.outline:hover {
-            background: var(--primary);
-            color: var(--white);
-        }
-
-        /* ── Testimonials ── */
-        .testimonials { padding: 100px 0; }
-
-        .testimonials-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 24px;
-        }
-
-        .testimonial-card {
-            padding: 32px;
-            background: var(--white);
-            border: 1px solid var(--card-border);
-            border-radius: 14px;
-        }
-
-        .stars {
-            color: var(--secondary);
-            margin-bottom: 14px;
-            font-size: 13px;
-            letter-spacing: 2px;
-        }
-
-        .testimonial-text {
-            font-size: 14px;
-            color: var(--text);
-            margin-bottom: 20px;
-            line-height: 1.7;
-            font-style: italic;
-        }
-
-        .testimonial-author { font-weight: 600; font-size: 14px; }
-        .testimonial-role { font-size: 12px; color: var(--text-muted); }
-
-        /* ── Demo Video ── */
-        .demo {
-            padding: 100px 0;
-            text-align: center;
-        }
-
-        .demo-wrapper {
-            position: relative;
-            max-width: 800px;
-            margin: 0 auto;
-            border-radius: 16px;
-            overflow: hidden;
-            box-shadow: 0 24px 64px rgba(45,42,38,0.12), 0 0 0 1px var(--card-border);
-            aspect-ratio: 16 / 9;
-            background: var(--text);
-        }
-
-        .demo-wrapper iframe {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            border: none;
-        }
-
-        /* Placeholder state (before video is added) */
-        .demo-placeholder {
-            position: absolute;
-            inset: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background: linear-gradient(135deg, #2D2D3F 0%, #1A1A2E 40%, #C76B8A 100%);
-            color: var(--white);
-            cursor: pointer;
-            transition: opacity 0.3s;
-        }
-
-        .demo-placeholder:hover { opacity: 0.92; }
-
-        .play-btn {
-            width: 72px;
-            height: 72px;
-            border-radius: 50%;
-            background: rgba(255,255,255,0.15);
-            backdrop-filter: blur(8px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 16px;
-            transition: transform 0.2s;
-        }
-
-        .demo-placeholder:hover .play-btn { transform: scale(1.08); }
-
-        .play-btn svg {
-            width: 28px;
-            height: 28px;
-            fill: var(--white);
-            margin-left: 4px;
-        }
-
-        .demo-placeholder span {
-            font-size: 15px;
-            font-weight: 600;
-            opacity: 0.9;
-        }
-
-        .demo-caption {
-            font-size: 13px;
-            color: var(--text-muted);
-            margin-top: 16px;
-        }
-
-        /* ── Bottom CTA ── */
-        .cta-section {
-            padding: 72px 40px;
-            background: linear-gradient(135deg, var(--primary) 0%, #a95578 100%);
-            border-radius: 20px;
-            color: var(--white);
-            text-align: center;
-            margin: 80px 0;
-        }
-
-        .cta-section h2 {
-            font-family: 'Playfair Display', serif;
-            font-size: 40px;
-            font-weight: 700;
-            margin-bottom: 16px;
-        }
-
-        .cta-section p {
-            font-size: 16px;
-            margin-bottom: 32px;
-            opacity: 0.92;
-            max-width: 480px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        .cta-section .waitlist-form input {
-            border: none;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-        }
-
-        .cta-section .waitlist-form .btn {
-            background: var(--text);
-            color: var(--white);
-        }
-
-        .cta-section .waitlist-form .btn:hover {
-            background: #1a1815;
-        }
-
-        .cta-section .form-note { color: rgba(255,255,255,0.7); }
-        .cta-section .form-success { background: rgba(255,255,255,0.15); color: var(--white); }
-        .cta-section .form-error { color: rgba(255,200,200,0.9); }
-
-        /* ── Footer ── */
-        footer {
-            padding: 48px 0;
-            border-top: 1px solid var(--card-border);
-            background: var(--light-gray);
-        }
-
-        .footer-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr 1fr 1fr;
-            gap: 40px;
-            margin-bottom: 32px;
-        }
-
-        .footer-brand p {
-            font-size: 13px;
-            color: var(--text-muted);
-            margin-top: 8px;
-            line-height: 1.5;
-            max-width: 240px;
-        }
-
-        .footer-col h4 {
-            font-size: 13px;
-            font-weight: 700;
-            color: var(--text);
-            margin-bottom: 14px;
-        }
-
-        .footer-col ul { list-style: none; }
-
-        .footer-col ul li { margin-bottom: 10px; }
-
-        .footer-col ul li a {
-            color: var(--text-muted);
-            text-decoration: none;
-            font-size: 13px;
-            transition: color 0.2s;
-        }
-
-        .footer-col ul li a:hover { color: var(--primary); }
-
-        .footer-bottom {
-            text-align: center;
-            padding-top: 24px;
-            border-top: 1px solid var(--card-border);
-            font-size: 12px;
-            color: var(--text-muted);
-        }
-
-        /* ── Scroll reveal ── */
-        .reveal {
-            opacity: 0;
-            transform: translateY(24px);
-            transition: opacity 0.6s ease, transform 0.6s ease;
-        }
-
-        .reveal.visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        /* ── Responsive ── */
-        @media (max-width: 900px) {
-            .features-grid,
-            .testimonials-grid { grid-template-columns: 1fr 1fr; }
-            .pricing-grid { grid-template-columns: 1fr 1fr; gap: 16px; }
-            .footer-grid { grid-template-columns: 1fr 1fr; }
-        }
-
-        @media (max-width: 640px) {
-            .nav-links { gap: 16px; }
-            .nav-links a:not(.btn) { display: none; }
-
-            .hero { padding: 72px 0 56px; }
-            .hero h1 { font-size: 36px; letter-spacing: -0.8px; }
-            .hero p { font-size: 15px; margin-bottom: 28px; }
-
-            .waitlist-form { flex-direction: column; }
-            .waitlist-form input, .waitlist-form .btn { width: 100%; }
-
-            .section-title { font-size: 30px; }
-            .features-grid,
-            .pricing-grid,
-            .testimonials-grid { grid-template-columns: 1fr; }
-
-            .pricing-card.popular { transform: none; }
-
-            .cta-section { padding: 48px 20px; margin: 48px 0; }
-            .cta-section h2 { font-size: 28px; }
-
-            .footer-grid { grid-template-columns: 1fr; gap: 24px; }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>florrie — AI for your salon</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital@0;1&family=Noto+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background-color: #fef8f4;
+      color: #1d1b19;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Grain texture overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.03;
+      mix-blend-mode: overlay;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' seed='2'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    }
+
+    /* ===== TYPOGRAPHY ===== */
+    h1, h2, h3, h4, h5, h6 {
+      font-weight: 400;
+      line-height: 1.2;
+    }
+
+    .display-italic {
+      font-family: 'Playfair Display', serif;
+      font-style: italic;
+      font-weight: 700;
+      color: #92405e;
+      letter-spacing: -0.02em;
+    }
+
+    .section-heading {
+      font-family: 'Noto Serif', serif;
+      font-style: italic;
+      font-weight: 400;
+      color: #1d1b19;
+    }
+
+    .label {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #867277;
+    }
+
+    .mono {
+      font-family: 'DM Mono', monospace;
+      font-weight: 400;
+      font-size: 13px;
+      color: #534247;
+    }
+
+    /* ===== LAYOUT ===== */
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    .container-narrow {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ===== NAVIGATION ===== */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      backdrop-filter: blur(12px);
+      background: rgba(254, 248, 244, 0.8);
+      border-bottom: 1px solid rgba(216, 193, 198, 0.5);
+      padding: 16px 24px;
+    }
+
+    nav .nav-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      font-family: 'Playfair Display', serif;
+      font-style: italic;
+      font-weight: 700;
+      font-size: 20px;
+      color: #92405e;
+      letter-spacing: -0.02em;
+    }
+
+    .nav-cta {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      color: #92405e;
+      text-decoration: none;
+      transition: color 0.2s ease;
+    }
+
+    .nav-cta:hover {
+      color: #782b49;
+    }
+
+    /* ===== HERO ===== */
+    .hero {
+      padding-top: 160px;
+      padding-bottom: 120px;
+      text-align: center;
+    }
+
+    .hero-label {
+      margin-bottom: 24px;
+    }
+
+    .hero h1 {
+      font-size: clamp(40px, 6vw, 64px);
+      margin-bottom: 24px;
+      max-width: 100%;
+    }
+
+    .hero-subtext {
+      font-size: 18px;
+      color: #534247;
+      margin: 0 auto 48px;
+      max-width: 480px;
+      line-height: 1.7;
+    }
+
+    /* ===== FORMS ===== */
+    .waitlist-form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-width: 400px;
+      margin: 0 auto 16px;
+    }
+
+    .waitlist-form input {
+      padding: 14px 20px;
+      border: 1px solid #d8c1c6;
+      border-radius: 24px;
+      background: #f8f2ef;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 14px;
+      color: #1d1b19;
+      transition: border-color 0.2s ease, background 0.2s ease;
+    }
+
+    .waitlist-form input::placeholder {
+      color: #867277;
+    }
+
+    .waitlist-form input:focus {
+      outline: none;
+      border-color: #92405e;
+      background: #ffffff;
+    }
+
+    .waitlist-form button {
+      padding: 14px 32px;
+      border: none;
+      border-radius: 24px;
+      background: linear-gradient(135deg, #c76b8a 0%, #92405e 100%);
+      color: #ffffff;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(146, 64, 94, 0.25);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .waitlist-form button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(146, 64, 94, 0.3);
+    }
+
+    .waitlist-form button:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+
+    .form-note {
+      font-size: 12px;
+      color: #867277;
+    }
+
+    .success-message {
+      display: none;
+      padding: 16px 20px;
+      background: #f0f7f4;
+      border: 1px solid #5BA97B;
+      border-radius: 12px;
+      color: #1d1b19;
+      font-size: 14px;
+      max-width: 400px;
+      margin: 0 auto;
+    }
+
+    .success-message.show {
+      display: block;
+    }
+
+    .error-message {
+      display: none;
+      padding: 12px 16px;
+      background: #fdf4f2;
+      border: 1px solid #d4943a;
+      border-radius: 12px;
+      color: #782b49;
+      font-size: 13px;
+      max-width: 400px;
+      margin: 0 auto 16px;
+    }
+
+    .error-message.show {
+      display: block;
+    }
+
+    /* ===== PITCH SECTION ===== */
+    .pitch-section {
+      padding: 120px 24px;
+    }
+
+    .pitch-block {
+      text-align: center;
+      margin-bottom: 80px;
+    }
+
+    .pitch-block:last-child {
+      margin-bottom: 0;
+    }
+
+    .pitch-headline {
+      font-size: 28px;
+      margin-bottom: 16px;
+      color: #1d1b19;
+    }
+
+    .pitch-text {
+      font-size: 16px;
+      color: #534247;
+      max-width: 500px;
+      margin: 0 auto;
+      line-height: 1.7;
+    }
+
+    /* ===== DIVIDER ===== */
+    .divider {
+      height: 1px;
+      background: rgba(216, 193, 198, 0.4);
+      margin: 60px 0;
+    }
+
+    /* ===== SOCIAL PROOF ===== */
+    .social-proof {
+      padding: 48px 24px;
+      text-align: center;
+    }
+
+    .proof-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 32px;
+      font-size: 13px;
+      color: #867277;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 600;
+    }
+
+    .proof-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .proof-separator {
+      width: 1px;
+      height: 16px;
+      background: rgba(216, 193, 198, 0.4);
+    }
+
+    @media (max-width: 640px) {
+      .proof-row {
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .proof-separator {
+        display: none;
+      }
+    }
+
+    /* ===== HOW IT WORKS ===== */
+    .how-it-works {
+      background: #f3ede9;
+      padding: 80px 24px;
+    }
+
+    .how-it-works-header {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+
+    .how-it-works .label {
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .how-it-works h2 {
+      font-size: clamp(28px, 5vw, 48px);
+      margin-bottom: 0;
+    }
+
+    .timeline {
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    .timeline-item {
+      display: flex;
+      gap: 24px;
+      margin-bottom: 48px;
+      padding-bottom: 48px;
+      border-bottom: 1px solid rgba(216, 193, 198, 0.3);
+    }
+
+    .timeline-item:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .timeline-time {
+      flex-shrink: 0;
+      width: 80px;
+      text-align: right;
+      color: #534247;
+      font-weight: 600;
+    }
+
+    .timeline-content {
+      flex: 1;
+      color: #534247;
+      line-height: 1.7;
+    }
+
+    /* ===== PRICING ===== */
+    .pricing-section {
+      padding: 80px 24px;
+    }
+
+    .pricing-header {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+
+    .pricing-header .label {
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .pricing-header h2 {
+      font-size: clamp(28px, 5vw, 48px);
+      margin-bottom: 16px;
+    }
+
+    .pricing-subtext {
+      font-size: 16px;
+      color: #534247;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    .toggle-container {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 48px;
+      background: #f3ede9;
+      border-radius: 20px;
+      padding: 4px;
+      width: fit-content;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .toggle-btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 16px;
+      background: transparent;
+      color: #534247;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    .toggle-btn.active {
+      background: #ffffff;
+      color: #92405e;
+      box-shadow: 0 1px 4px rgba(146, 64, 94, 0.08);
+    }
+
+    .pricing-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 24px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .pricing-card {
+      background: #ffffff;
+      border: 1px solid #d8c1c6;
+      border-radius: 16px;
+      padding: 32px 24px;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.3s ease;
+    }
+
+    .pricing-card:hover {
+      box-shadow: 0 8px 24px rgba(146, 64, 94, 0.08);
+      border-color: #92405e;
+    }
+
+    .pricing-card.popular {
+      border: 2px solid #92405e;
+      box-shadow: 0 8px 24px rgba(146, 64, 94, 0.12);
+      transform: scale(1.02);
+    }
+
+    .pricing-popular-tag {
+      display: inline-block;
+      background: #92405e;
+      color: #ffffff;
+      padding: 4px 12px;
+      border-radius: 8px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 16px;
+      width: fit-content;
+    }
+
+    .pricing-tier {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1d1b19;
+      margin-bottom: 8px;
+    }
+
+    .pricing-price {
+      font-size: 32px;
+      font-weight: 700;
+      color: #92405e;
+      margin-bottom: 4px;
+    }
+
+    .pricing-price-period {
+      font-size: 12px;
+      color: #867277;
+      margin-bottom: 24px;
+    }
+
+    .pricing-description {
+      font-size: 13px;
+      color: #534247;
+      margin-bottom: 24px;
+      min-height: 40px;
+    }
+
+    .pricing-features {
+      flex: 1;
+      margin-bottom: 24px;
+    }
+
+    .pricing-feature {
+      font-size: 13px;
+      color: #534247;
+      line-height: 1.8;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(216, 193, 198, 0.3);
+    }
+
+    .pricing-feature:last-child {
+      border-bottom: none;
+    }
+
+    .pricing-card button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 12px;
+      background: #92405e;
+      color: #ffffff;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .pricing-card button:hover {
+      background: #782b49;
+      transform: translateY(-2px);
+    }
+
+    /* ===== TESTIMONIAL ===== */
+    .testimonial-section {
+      padding: 100px 24px;
+      text-align: center;
+      background: #fef8f4;
+    }
+
+    .testimonial-quote {
+      position: relative;
+      margin-bottom: 32px;
+    }
+
+    .quote-mark {
+      font-family: 'Playfair Display', serif;
+      font-size: 72px;
+      color: #92405e;
+      opacity: 0.3;
+      line-height: 0.5;
+      margin-bottom: 16px;
+    }
+
+    .testimonial-text {
+      font-family: 'Playfair Display', serif;
+      font-style: italic;
+      font-weight: 700;
+      font-size: clamp(20px, 4vw, 28px);
+      color: #1d1b19;
+      max-width: 700px;
+      margin: 0 auto 24px;
+      letter-spacing: -0.01em;
+    }
+
+    .testimonial-attribution {
+      font-size: 13px;
+      color: #867277;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    /* ===== FINAL CTA ===== */
+    .final-cta {
+      background: linear-gradient(135deg, #c76b8a 0%, #92405e 100%);
+      padding: 80px 24px;
+      text-align: center;
+      color: #ffffff;
+    }
+
+    .final-cta h2 {
+      font-size: clamp(32px, 5vw, 48px);
+      margin-bottom: 16px;
+    }
+
+    .final-cta-subtext {
+      font-size: 16px;
+      margin-bottom: 40px;
+      opacity: 0.95;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .final-cta .waitlist-form input {
+      background: #ffffff;
+      color: #1d1b19;
+      border-color: transparent;
+    }
+
+    .final-cta .waitlist-form button {
+      background: #92405e;
+      color: #ffffff;
+    }
+
+    .final-cta .waitlist-form button:hover:not(:disabled) {
+      background: #782b49;
+    }
+
+    .final-cta .form-note {
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    /* ===== FOOTER ===== */
+    footer {
+      background: #f3ede9;
+      padding: 40px 24px;
+      text-align: center;
+      border-top: 1px solid #d8c1c6;
+    }
+
+    .footer-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 24px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      color: #867277;
+    }
+
+    .footer-logo {
+      font-family: 'Playfair Display', serif;
+      font-style: italic;
+      font-weight: 700;
+      color: #92405e;
+      font-size: 14px;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+    }
+
+    .footer-links a {
+      color: #867277;
+      text-decoration: none;
+      transition: color 0.2s ease;
+    }
+
+    .footer-links a:hover {
+      color: #92405e;
+    }
+
+    /* ===== PROBLEM SECTION ===== */
+    .problem-section {
+      padding: 100px 24px 80px;
+      background: #f3ede9;
+    }
+
+    .problem-header {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+
+    .problem-header .label {
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .problem-header h2 {
+      font-size: clamp(26px, 4vw, 40px);
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .problem-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .problem-card {
+      padding: 28px;
+      background: #fef8f4;
+      border-radius: 16px;
+      border: 1px solid rgba(216, 193, 198, 0.4);
+    }
+
+    .problem-card-time {
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      color: #92405e;
+      font-weight: 500;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .problem-card p {
+      font-size: 15px;
+      color: #534247;
+      line-height: 1.7;
+    }
+
+    @media (max-width: 640px) {
+      .problem-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+      .problem-card {
+        padding: 20px;
+      }
+    }
+
+    /* ===== MEET FLORRIE ===== */
+    .meet-section {
+      padding: 100px 24px;
+      text-align: center;
+    }
+
+    .meet-header {
+      margin-bottom: 40px;
+    }
+
+    .meet-header .label {
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .meet-header h2 {
+      font-size: clamp(28px, 5vw, 44px);
+      margin-bottom: 0;
+    }
+
+    .meet-body {
+      max-width: 620px;
+      margin: 0 auto;
+    }
+
+    .meet-body p {
+      font-size: 16px;
+      color: #534247;
+      line-height: 1.8;
+      margin-bottom: 20px;
+    }
+
+    .meet-body p:last-child {
+      margin-bottom: 0;
+    }
+
+    .meet-detail {
+      margin-top: 40px;
+      padding: 24px 28px;
+      background: #f3ede9;
+      border-radius: 14px;
+      font-size: 14px;
+      color: #534247;
+      line-height: 1.7;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+      text-align: left;
+      border-left: 3px solid #92405e;
+    }
+
+    /* ===== INLINE TESTIMONIAL ===== */
+    .inline-testimonial {
+      padding: 60px 24px;
+      text-align: center;
+      background: #fef8f4;
+    }
+
+    .inline-testimonial blockquote {
+      font-family: 'Playfair Display', serif;
+      font-style: italic;
+      font-weight: 700;
+      font-size: clamp(18px, 3vw, 24px);
+      color: #1d1b19;
+      max-width: 600px;
+      margin: 0 auto 16px;
+      letter-spacing: -0.01em;
+      line-height: 1.4;
+    }
+
+    .inline-testimonial cite {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-style: normal;
+      font-size: 12px;
+      color: #867277;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    /* ===== UK BEAUTY SECTION ===== */
+    .uk-section {
+      padding: 100px 24px;
+      background: #fef8f4;
+    }
+
+    .uk-header {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+
+    .uk-header .label {
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .uk-header h2 {
+      font-size: clamp(26px, 4.5vw, 42px);
+      margin-bottom: 16px;
+    }
+
+    .uk-header p {
+      font-size: 16px;
+      color: #534247;
+      max-width: 520px;
+      margin: 0 auto;
+      line-height: 1.7;
+    }
+
+    .uk-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .uk-card {
+      padding: 28px;
+      background: #ffffff;
+      border-radius: 16px;
+      border: 1px solid #d8c1c6;
+      transition: box-shadow 0.3s ease;
+    }
+
+    .uk-card:hover {
+      box-shadow: 0 8px 24px rgba(146, 64, 94, 0.06);
+    }
+
+    .uk-card h3 {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      color: #1d1b19;
+      margin-bottom: 10px;
+    }
+
+    .uk-card p {
+      font-size: 14px;
+      color: #534247;
+      line-height: 1.7;
+    }
+
+    @media (max-width: 640px) {
+      .uk-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 768px) {
+      nav {
+        padding: 12px 16px;
+      }
+
+      nav .nav-content {
+        padding: 0;
+      }
+
+      .logo {
+        font-size: 16px;
+      }
+
+      .nav-cta {
+        font-size: 12px;
+      }
+
+      .hero {
+        padding-top: 100px;
+        padding-bottom: 80px;
+      }
+
+      .hero h1 {
+        margin-bottom: 20px;
+      }
+
+      .hero-subtext {
+        font-size: 16px;
+        margin-bottom: 40px;
+      }
+
+      .waitlist-form {
+        max-width: 100%;
+      }
+
+      .pitch-section {
+        padding: 80px 24px;
+      }
+
+      .pitch-block {
+        margin-bottom: 60px;
+      }
+
+      .pitch-headline {
+        font-size: 24px;
+      }
+
+      .pitch-text {
+        font-size: 14px;
+      }
+
+      .social-proof {
+        padding: 40px 16px;
+      }
+
+      .problem-section {
+        padding: 60px 16px;
+      }
+
+      .meet-section {
+        padding: 60px 16px;
+      }
+
+      .uk-section {
+        padding: 60px 16px;
+      }
+
+      .inline-testimonial {
+        padding: 40px 16px;
+      }
+
+      .inline-testimonial blockquote {
+        font-size: 18px;
+      }
+
+      .meet-detail {
+        padding: 18px 20px;
+        font-size: 13px;
+      }
+
+      .how-it-works {
+        padding: 60px 16px;
+      }
+
+      .how-it-works-header {
+        margin-bottom: 40px;
+      }
+
+      .timeline-item {
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .timeline-time {
+        width: auto;
+        text-align: left;
+      }
+
+      .pricing-section {
+        padding: 60px 16px;
+      }
+
+      .pricing-card {
+        padding: 24px 16px;
+      }
+
+      .pricing-card.popular {
+        transform: scale(1);
+      }
+
+      .testimonial-section {
+        padding: 60px 16px;
+      }
+
+      .testimonial-text {
+        font-size: 20px;
+      }
+
+      .final-cta {
+        padding: 60px 16px;
+      }
+
+      .final-cta h2 {
+        font-size: 28px;
+      }
+
+      .footer-content {
+        flex-direction: column;
+        gap: 16px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .hero {
+        padding-top: 80px;
+        padding-bottom: 60px;
+      }
+
+      .hero h1 {
+        font-size: 32px;
+      }
+
+      .hero-subtext {
+        font-size: 14px;
+      }
+
+      .pitch-headline {
+        font-size: 20px;
+      }
+
+      .pitch-text {
+        font-size: 13px;
+      }
+
+      .pricing-header h2 {
+        font-size: 24px;
+      }
+
+      .testimonial-text {
+        font-size: 18px;
+      }
+
+      .final-cta h2 {
+        font-size: 24px;
+      }
+
+      .quote-mark {
+        font-size: 48px;
+      }
+    }
+  </style>
 </head>
 <body>
-
-<!-- Nav -->
-<nav>
-    <div class="container nav-inner">
-        <a href="#" class="logo">florrie</a>
-        <ul class="nav-links">
-            <li><a href="#features">Features</a></li>
-            <li><a href="#demo">Demo</a></li>
-            <li><a href="#pricing">Pricing</a></li>
-            <li><a href="#waitlist" class="btn btn-primary">Join Waitlist</a></li>
-        </ul>
+  <!-- Navigation -->
+  <nav>
+    <div class="nav-content">
+      <div class="logo">florrie</div>
+      <a href="/login" class="nav-cta">Sign in</a>
     </div>
-</nav>
+  </nav>
 
-<!-- Hero -->
-<section class="hero">
-    <div class="container">
-        <div class="hero-badge">Early access opening soon</div>
-        <h1>Your salon, beautifully managed</h1>
-        <p>AI-powered booking, payments, and client management for beauty professionals. One app, zero chaos.</p>
-        <form class="waitlist-form" id="hero-form">
-            <input type="email" placeholder="you@yoursalon.com" required>
-            <button type="submit" class="btn btn-primary">Join Waitlist</button>
-        </form>
-        <div class="form-success" id="hero-success">You're on the list! Check your inbox.</div>
-        <div class="form-error" id="hero-error"></div>
-        <p class="form-note">Free to join. No credit card required.</p>
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container-narrow">
+      <div class="label">For beauticians</div>
+      <h1 class="display-italic">The AI that runs your salon while you run your business</h1>
+      <p class="hero-subtext">Florrie handles your bookings, replies to clients in your voice, tracks your tax, and keeps you compliant. You focus on the chair.</p>
+
+      <a href="/login" class="waitlist-form" style="display:flex; text-decoration:none;">
+        <button type="button" style="width:100%;">Start free — no card needed</button>
+      </a>
+      <p class="form-note">Switch from Fresha or Timely in 60 seconds.</p>
     </div>
-</section>
+  </section>
 
-<!-- Social Proof -->
-<section class="social-proof">
-    <div class="container">
-        <div class="proof-row">
-            <div class="proof-item">
-                <div class="proof-number">500+</div>
-                <div class="proof-label">On the waitlist</div>
-            </div>
-            <div class="proof-item">
-                <div class="proof-number">30s</div>
-                <div class="proof-label">Average signup time</div>
-            </div>
-            <div class="proof-item">
-                <div class="proof-number">6</div>
-                <div class="proof-label">AI features at launch</div>
-            </div>
-        </div>
+  <!-- The Problem -->
+  <section class="problem-section">
+    <div class="problem-header">
+      <span class="label">Sound familiar?</span>
+      <h2 class="display-italic">You didn't start a beauty business to answer WhatsApp at midnight</h2>
     </div>
-</section>
-
-<!-- Features -->
-<section class="features" id="features">
-    <div class="container">
-        <div class="section-label">What you get</div>
-        <h2 class="section-title">Built for how you actually work</h2>
-        <p class="section-subtitle">Florrie handles the admin so you can focus on your clients.</p>
-        <div class="features-grid">
-            <div class="feature-card reveal">
-                <div class="feature-icon">&#128197;</div>
-                <h3>Smart Scheduling</h3>
-                <p>AI fills calendar gaps, syncs with Google Calendar, and lets clients book 24/7 from your branded page.</p>
-            </div>
-            <div class="feature-card reveal">
-                <div class="feature-icon">&#128172;</div>
-                <h3>AI Front Desk</h3>
-                <p>Replies to WhatsApp and SMS in your tone. Handles rescheduling, FAQs, and new enquiries while you work.</p>
-            </div>
-            <div class="feature-card reveal">
-                <div class="feature-icon">&#128179;</div>
-                <h3>Payments & Deposits</h3>
-                <p>Stripe-powered card payments, deposit protection, and automatic no-show fees. No awkward chasing.</p>
-            </div>
-            <div class="feature-card reveal">
-                <div class="feature-icon">&#129504;</div>
-                <h3>Client Intelligence</h3>
-                <p>Churn risk scores, rebooking nudges, and aftercare follow-ups. Know who needs attention before they disappear.</p>
-            </div>
-            <div class="feature-card reveal">
-                <div class="feature-icon">&#128200;</div>
-                <h3>Business Analytics</h3>
-                <p>Revenue tracking, demand forecasting, and staff performance dashboards. Decisions backed by data, not guesswork.</p>
-            </div>
-            <div class="feature-card reveal">
-                <div class="feature-icon">&#128246;</div>
-                <h3>Automated Campaigns</h3>
-                <p>Birthday offers, lapsed-client outreach, review requests. Set them once, they run on their own.</p>
-            </div>
-        </div>
+    <div class="problem-grid">
+      <div class="problem-card">
+        <div class="problem-card-time">The 11pm message</div>
+        <p>"Can I move my Thursday to Friday?" You're half asleep. You open your diary, scroll through next week, find a gap, type a reply. Then you lie there for twenty minutes because your brain won't switch off.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-card-time">The shoebox</div>
+        <p>Receipts from Sally Beauty. Amazon. Your wax supplier. That Uber to the training course. They're in a drawer, a carrier bag, your coat pocket. You'll sort them in January. You said that last January too.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-card-time">The no-show</div>
+        <p>She booked three weeks ago. No confirmation sent, no patch test done. You find out at 9am when the chair's empty and your morning's got a hole in it. You scroll back through your messages to check. Nothing.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-card-time">The Sunday night</div>
+        <p>You sit on the sofa with your phone and a notebook. Moving appointments around. Writing next week's Instagram caption. Checking who needs reminders. Two hours gone. You haven't even thought about what you're actually doing with your week.</p>
+      </div>
     </div>
-</section>
+  </section>
 
-<!-- Demo Video -->
-<section class="demo" id="demo">
-    <div class="container">
-        <div class="section-label">See it in action</div>
-        <h2 class="section-title">Two minutes. The full picture.</h2>
-        <p class="section-subtitle">Watch how Florrie handles bookings, client follow-ups, and payments without you lifting a finger.</p>
-        <div class="demo-wrapper reveal">
-            <!-- Replace data-video-id with your YouTube/Loom embed URL when ready -->
-            <div class="demo-placeholder" id="demo-placeholder" data-video-id="">
-                <div class="play-btn">
-                    <svg viewBox="0 0 24 24"><polygon points="8,5 19,12 8,19"/></svg>
-                </div>
-                <span>Watch the demo</span>
-            </div>
-        </div>
-        <p class="demo-caption">2 min overview &middot; No signup required</p>
+  <!-- Pitch -->
+  <section class="pitch-section">
+    <div class="pitch-block">
+      <h2 class="section-heading pitch-headline">She talks like you</h2>
+      <p class="pitch-text">Florrie learns your tone from every correction. She picks up your abbreviations, your sign-off style, the way you greet regulars vs new enquiries. After a week, clients can't tell the difference.</p>
     </div>
-</section>
 
-<!-- Pricing -->
-<section class="pricing" id="pricing">
-    <div class="container">
-        <div class="section-label">Pricing</div>
-        <h2 class="section-title">Simple, transparent pricing</h2>
-        <p class="section-subtitle">Start free, upgrade when you're ready. No lock-in.</p>
-
-        <div class="pricing-toggle">
-            <button class="active" data-interval="monthly">Monthly</button>
-            <button data-interval="annual">Annual <span class="save-tag">-17%</span></button>
-        </div>
-
-        <div class="pricing-grid">
-            <div class="pricing-card reveal">
-                <div class="pricing-name">Free</div>
-                <div class="pricing-amount">&#163;0<span>/mo</span></div>
-                <p class="pricing-desc">Get started, no card needed</p>
-                <ul class="pricing-features">
-                    <li>Up to 5 clients</li>
-                    <li>Basic booking calendar</li>
-                    <li>Google Calendar sync</li>
-                    <li>Public booking page</li>
-                </ul>
-                <button class="pricing-cta outline" onclick="scrollToWaitlist()">Join Waitlist</button>
-            </div>
-            <div class="pricing-card reveal">
-                <div class="pricing-name">Starter</div>
-                <div class="pricing-amount" data-monthly="&#163;39" data-annual="&#163;390">&#163;39<span>/mo</span></div>
-                <div class="pricing-annual-note">2 months free</div>
-                <p class="pricing-desc">For growing solo beauticians</p>
-                <ul class="pricing-features">
-                    <li>Up to 50 clients</li>
-                    <li>Online payments</li>
-                    <li>SMS reminders (30/wk incl.)</li>
-                    <li>Receipt scanning</li>
-                    <li>Reports & analytics</li>
-                </ul>
-                <button class="pricing-cta outline" onclick="scrollToWaitlist()">Join Waitlist</button>
-            </div>
-            <div class="pricing-card popular reveal">
-                <div class="popular-tag">Most Popular</div>
-                <div class="pricing-name">Pro</div>
-                <div class="pricing-amount" data-monthly="&#163;59" data-annual="&#163;590">&#163;59<span>/mo</span></div>
-                <div class="pricing-annual-note">2 months free</div>
-                <p class="pricing-desc">For ambitious beauty businesses</p>
-                <ul class="pricing-features">
-                    <li>Unlimited clients</li>
-                    <li>AI Front Desk</li>
-                    <li>WhatsApp automation</li>
-                    <li>Smart Schedule + Campaigns</li>
-                    <li>Content Autopilot</li>
-                    <li>Full analytics suite</li>
-                </ul>
-                <button class="pricing-cta primary" onclick="scrollToWaitlist()">Join Waitlist</button>
-            </div>
-            <div class="pricing-card reveal">
-                <div class="pricing-name">Team</div>
-                <div class="pricing-amount" data-monthly="&#163;89" data-annual="&#163;890">&#163;89<span>/mo</span></div>
-                <div class="pricing-annual-note">2 months free</div>
-                <p class="pricing-desc">For multi-location teams</p>
-                <ul class="pricing-features">
-                    <li>Everything in Pro</li>
-                    <li>Multiple locations</li>
-                    <li>Staff rota & KPIs</li>
-                    <li>Up to 10 team members</li>
-                    <li>Priority support</li>
-                </ul>
-                <button class="pricing-cta outline" onclick="scrollToWaitlist()">Join Waitlist</button>
-            </div>
-        </div>
+    <div class="pitch-block">
+      <h2 class="section-heading pitch-headline">Your tax, sorted</h2>
+      <p class="pitch-text">Snap a receipt, Florrie files it. Every payment tracked against HMRC categories in real time. When self-assessment comes around, you export a clean summary instead of panicking over a carrier bag of paper.</p>
     </div>
-</section>
 
-<!-- Testimonials -->
-<section class="testimonials">
-    <div class="container">
-        <div class="section-label">Early feedback</div>
-        <h2 class="section-title">What beta testers are saying</h2>
-        <div class="testimonials-grid">
-            <div class="testimonial-card reveal">
-                <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-                <p class="testimonial-text">"I used to spend Sunday nights sorting my diary for the week. Florrie does it in seconds. The AI gap-filling is unreal."</p>
-                <div class="testimonial-author">Maya P.</div>
-                <div class="testimonial-role">Brow Artist, Manchester</div>
-            </div>
-            <div class="testimonial-card reveal">
-                <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-                <p class="testimonial-text">"My no-shows dropped by half after turning on WhatsApp reminders. And I didn't have to set up a single thing myself."</p>
-                <div class="testimonial-author">Sophie R.</div>
-                <div class="testimonial-role">Lash Tech, London</div>
-            </div>
-            <div class="testimonial-card reveal">
-                <div class="stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
-                <p class="testimonial-text">"First salon app that doesn't look like it was designed for a dentist. Gorgeous UI, and it actually understands beauty businesses."</p>
-                <div class="testimonial-author">Jess C.</div>
-                <div class="testimonial-role">Nail Tech, Birmingham</div>
-            </div>
-        </div>
+    <div class="pitch-block">
+      <h2 class="section-heading pitch-headline">Compliance on autopilot</h2>
+      <p class="pitch-text">Patch test tracking, consultation forms, aftercare messages. Florrie knows which clients need what, and sends reminders before their appointment. Not after something goes wrong.</p>
     </div>
-</section>
+  </section>
 
-<!-- Bottom CTA -->
-<section class="cta-section container" id="waitlist">
-    <h2>Get early access to Florrie</h2>
-    <p>We're opening spots in batches. Join the waitlist and be first in line when we launch.</p>
-    <form class="waitlist-form" id="cta-form">
-        <input type="email" placeholder="you@yoursalon.com" required>
-        <button type="submit" class="btn">Join Waitlist</button>
-    </form>
-    <div class="form-success" id="cta-success">You're on the list! Check your inbox.</div>
-    <div class="form-error" id="cta-error"></div>
-    <p class="form-note">Free to join. We'll never spam you.</p>
-</section>
-
-<!-- Footer -->
-<footer>
-    <div class="container">
-        <div class="footer-grid">
-            <div class="footer-brand">
-                <a href="#" class="logo">florrie</a>
-                <p>AI-powered salon management for beauty professionals who want to grow without the admin headache.</p>
-            </div>
-            <div class="footer-col">
-                <h4>Product</h4>
-                <ul>
-                    <li><a href="#features">Features</a></li>
-                    <li><a href="#pricing">Pricing</a></li>
-                </ul>
-            </div>
-            <div class="footer-col">
-                <h4>Company</h4>
-                <ul>
-                    <li><a href="#">About</a></li>
-                    <li><a href="#">Blog</a></li>
-                </ul>
-            </div>
-            <div class="footer-col">
-                <h4>Legal</h4>
-                <ul>
-                    <li><a href="#">Privacy</a></li>
-                    <li><a href="#">Terms</a></li>
-                </ul>
-            </div>
-        </div>
-        <div class="footer-bottom">
-            &copy; 2026 Florrie. All rights reserved.
-        </div>
+  <!-- Dividers & Social Proof -->
+  <div class="divider"></div>
+  <section class="social-proof">
+    <div class="proof-row">
+      <div class="proof-item">Now open — start free</div>
+      <div class="proof-separator"></div>
+      <div class="proof-item">Built for UK beauticians</div>
+      <div class="proof-separator"></div>
+      <div class="proof-item">7 AI features at launch</div>
     </div>
-</footer>
+  </section>
+  <div class="divider"></div>
 
-<script>
-    // ── API base (empty = same origin in prod; override for dev) ──
-    const API_BASE = '';
+  <!-- Meet Florrie -->
+  <section class="meet-section">
+    <div class="meet-header">
+      <span class="label">Who she is</span>
+      <h2 class="display-italic">She's the colleague you always needed</h2>
+    </div>
+    <div class="meet-body">
+      <p>Florrie reads your WhatsApp, Instagram DMs, texts, and emails. She replies in your voice. Not a chatbot voice. Yours. She writes "hiya lovely" because that's what you write. She knows your cancellation policy word for word. She knows you don't take bookings before 10 on Mondays.</p>
+      <p>She gets better every time you correct her. Changed a reply she sent? She remembers why and adjusts next time. After a week, your regulars won't notice the difference. New clients will think you reply fast.</p>
+      <p>She books appointments, sends confirmations, chases no-shows, fills last-minute gaps from your waitlist, and nudges clients to rebook when they're due. All while you're with a client, or at the gym, or asleep.</p>
+      <div class="meet-detail">
+        When she's not sure about something, she flags it and steps aside. Complaints, clinical questions, anything sensitive. You decide. She learns from that too.
+      </div>
+    </div>
+  </section>
 
-    // ── Waitlist submit ──
-    async function submitWaitlist(form, successEl, errorEl) {
-        const email = form.querySelector('input[type="email"]').value.trim();
-        if (!email) return;
+  <!-- Inline Testimonial -->
+  <section class="inline-testimonial">
+    <blockquote>"I tested her by not replying to anything for a whole Saturday. Checked my phone at 6pm — four new bookings, two reschedules, all handled. I nearly cried."</blockquote>
+    <cite>Jade T. — Lash tech, Birmingham</cite>
+  </section>
 
-        const btn = form.querySelector('button[type="submit"]');
-        btn.disabled = true;
-        btn.textContent = 'Joining...';
-        errorEl.style.display = 'none';
+  <!-- How It Works -->
+  <section class="how-it-works">
+    <div class="how-it-works-header">
+      <div class="label">How it works</div>
+      <h2 class="display-italic">Your morning. Reimagined.</h2>
+    </div>
 
-        try {
-            const res = await fetch(`${API_BASE}/api/waitlist`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, source: 'landing_page' }),
-            });
+    <div class="timeline">
+      <div class="timeline-item">
+        <div class="timeline-time mono">7:30am</div>
+        <div class="timeline-content">You're still in bed. Florrie's been up since six. Three WhatsApp messages came in overnight: a new booking request, a reschedule, and someone asking about lash lift prices. All handled. Two confirmations sent. One price list shared with a link to book.</div>
+      </div>
 
-            const data = await res.json();
+      <div class="timeline-item">
+        <div class="timeline-time mono">9:15am</div>
+        <div class="timeline-content">Your first client sits down. Your phone buzzes. Cancellation for 2pm. Florrie's already texted the next three people on your waitlist. By the time you look up from the brow, the slot's filled. You didn't touch your phone once.</div>
+      </div>
 
-            if (res.ok && data.success) {
-                form.style.display = 'none';
-                successEl.style.display = 'block';
-                form.closest('section').querySelector('.form-note')?.remove();
-            } else {
-                errorEl.textContent = data.error || 'Something went wrong. Try again.';
-                errorEl.style.display = 'block';
-                btn.disabled = false;
-                btn.textContent = 'Join Waitlist';
-            }
-        } catch (err) {
-            errorEl.textContent = 'Could not connect. Check your internet and try again.';
-            errorEl.style.display = 'block';
-            btn.disabled = false;
-            btn.textContent = 'Join Waitlist';
-        }
-    }
+      <div class="timeline-item">
+        <div class="timeline-time mono">12:00pm</div>
+        <div class="timeline-content">Lunch. You snap a photo of a receipt from Sally Beauty. £34 for wax supplies. Florrie scans it, files it under HMRC consumables, and your running tax estimate ticks up. No spreadsheet. No shoebox. Thirty seconds and it's done.</div>
+      </div>
 
-    // Wire up both forms
-    document.getElementById('hero-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        submitWaitlist(this, document.getElementById('hero-success'), document.getElementById('hero-error'));
-    });
+      <div class="timeline-item">
+        <div class="timeline-time mono">2:30pm</div>
+        <div class="timeline-content">A new enquiry lands on Instagram. "Do you do brow lamination? How much?" Florrie replies with your prices, your availability next week, and a booking link. The client books for Thursday. You never saw the message.</div>
+      </div>
 
-    document.getElementById('cta-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        submitWaitlist(this, document.getElementById('cta-success'), document.getElementById('cta-error'));
-    });
+      <div class="timeline-item">
+        <div class="timeline-time mono">4:00pm</div>
+        <div class="timeline-content">Florrie flags something: Emma Collins has a tint booked for Friday, but her last patch test was eight weeks ago. Needs a fresh one. Florrie's already sent Emma a reminder with instructions and a link to confirm.</div>
+      </div>
 
-    // ── Scroll to waitlist ──
-    function scrollToWaitlist() {
-        document.getElementById('waitlist').scrollIntoView({ behavior: 'smooth', block: 'center' });
-        setTimeout(() => {
-            document.querySelector('#cta-form input')?.focus();
-        }, 500);
-    }
+      <div class="timeline-item">
+        <div class="timeline-time mono">6:30pm</div>
+        <div class="timeline-content">Your last client leaves. Florrie's sent three aftercare messages, nudged two people to rebook, and drafted tomorrow's Instagram caption for you to approve. You close the salon door. The admin is already done.</div>
+      </div>
+    </div>
+  </section>
 
-    // ── Pricing toggle ──
-    document.querySelectorAll('.pricing-toggle button').forEach(btn => {
-        btn.addEventListener('click', function() {
-            document.querySelectorAll('.pricing-toggle button').forEach(b => b.classList.remove('active'));
-            this.classList.add('active');
+  <!-- Built for UK Beauty -->
+  <section class="uk-section">
+    <div class="uk-header">
+      <span class="label">Built for your world</span>
+      <h2 class="display-italic">We know HMRC. We know patch tests. We know your January.</h2>
+      <p>Florrie was built for UK beauticians from day one. Not adapted from a generic booking tool. Built.</p>
+    </div>
+    <div class="uk-grid">
+      <div class="uk-card">
+        <h3>Self-assessment, sorted</h3>
+        <p>Florrie tracks your income and expenses against HMRC categories in real time. When January comes, you export a clean summary. Your accountant gets a spreadsheet instead of a carrier bag.</p>
+      </div>
+      <div class="uk-card">
+        <h3>Making Tax Digital ready</h3>
+        <p>MTD is coming for everyone. Florrie keeps your records in the format HMRC expects, so you're not scrambling to digitise a year of paper when the deadline hits.</p>
+      </div>
+      <div class="uk-card">
+        <h3>Patch test tracking</h3>
+        <p>Regulations say you need them. Florrie remembers when each client's patch test expires and sends reminders before their appointment. Not after something goes wrong and you're checking your records.</p>
+      </div>
+      <div class="uk-card">
+        <h3>Aftercare on record</h3>
+        <p>Every treatment gets the right aftercare message, sent automatically. If a client ever disputes what they were told, you have a timestamped record. Protection for you and your business.</p>
+      </div>
+    </div>
+  </section>
 
-            const isAnnual = this.dataset.interval === 'annual';
+  <!-- Inline Testimonial 2 -->
+  <section class="inline-testimonial">
+    <blockquote>"The tax tracking sold me. I paid my accountant £400 last year just to sort my receipts into categories. Florrie does it the moment I take a photo."</blockquote>
+    <cite>Priya K. — Nail artist, Leeds</cite>
+  </section>
 
-            document.querySelectorAll('.pricing-amount[data-monthly]').forEach(el => {
-                if (isAnnual) {
-                    el.innerHTML = `${el.dataset.annual}<span>/yr</span>`;
-                } else {
-                    el.innerHTML = `${el.dataset.monthly}<span>/mo</span>`;
-                }
-            });
+  <!-- Pricing -->
+  <section class="pricing-section">
+    <div class="pricing-header">
+      <div class="label">Pricing</div>
+      <h2 class="display-italic">Simple, fair pricing</h2>
+      <p class="pricing-subtext">Start free. Upgrade when Florrie proves herself.</p>
+    </div>
 
-            document.querySelectorAll('.pricing-annual-note').forEach(el => {
-                el.style.display = isAnnual ? 'block' : 'none';
-            });
+    <div class="toggle-container">
+      <button class="toggle-btn active" data-period="monthly">Monthly</button>
+      <button class="toggle-btn" data-period="annual">Annual<span style="font-size: 10px; margin-left: 4px;">Save 17%</span></button>
+    </div>
+
+    <div class="pricing-cards">
+      <!-- Free -->
+      <div class="pricing-card">
+        <div class="pricing-tier">Free</div>
+        <div class="pricing-price"><span class="price-amount">£0</span></div>
+        <div class="pricing-price-period">/month</div>
+        <div class="pricing-description">Get started</div>
+        <div class="pricing-features">
+          <div class="pricing-feature">5 clients</div>
+          <div class="pricing-feature">Basic calendar</div>
+          <div class="pricing-feature">Booking page</div>
+          <div class="pricing-feature">5 AI messages/month</div>
+        </div>
+        <button onclick="window.location='/login'">Start free</button>
+      </div>
+
+      <!-- Starter -->
+      <div class="pricing-card">
+        <div class="pricing-tier">Starter</div>
+        <div class="pricing-price"><span class="price-amount" data-monthly="£19" data-annual="£190">£19</span></div>
+        <div class="pricing-price-period monthly-text">/month</div>
+        <div class="pricing-description">For solo beauticians</div>
+        <div class="pricing-features">
+          <div class="pricing-feature">50 clients</div>
+          <div class="pricing-feature">Payments</div>
+          <div class="pricing-feature">SMS reminders</div>
+          <div class="pricing-feature">Receipt scanning</div>
+          <div class="pricing-feature">Reports</div>
+        </div>
+        <button onclick="window.location='/login'">Start free</button>
+      </div>
+
+      <!-- Pro -->
+      <div class="pricing-card popular">
+        <div class="pricing-popular-tag">Popular</div>
+        <div class="pricing-tier">Pro</div>
+        <div class="pricing-price"><span class="price-amount" data-monthly="£39" data-annual="£393">£39</span></div>
+        <div class="pricing-price-period monthly-text">/month</div>
+        <div class="pricing-description">For growing businesses</div>
+        <div class="pricing-features">
+          <div class="pricing-feature">Unlimited clients</div>
+          <div class="pricing-feature">Full AI receptionist</div>
+          <div class="pricing-feature">WhatsApp</div>
+          <div class="pricing-feature">Tax dashboard</div>
+          <div class="pricing-feature">Content autopilot</div>
+          <div class="pricing-feature">Analytics</div>
+        </div>
+        <button onclick="window.location='/login'">Start free</button>
+      </div>
+
+      <!-- Team -->
+      <div class="pricing-card">
+        <div class="pricing-tier">Team</div>
+        <div class="pricing-price"><span class="price-amount" data-monthly="£69" data-annual="£690">£69</span></div>
+        <div class="pricing-price-period monthly-text">/month</div>
+        <div class="pricing-description">For teams & salons</div>
+        <div class="pricing-features">
+          <div class="pricing-feature">Everything in Pro</div>
+          <div class="pricing-feature">Multi-location</div>
+          <div class="pricing-feature">Staff rota</div>
+          <div class="pricing-feature">10 team members</div>
+          <div class="pricing-feature">Priority support</div>
+        </div>
+        <button onclick="window.location='/login'">Start free</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Testimonial -->
+  <section class="testimonial-section">
+    <div class="container-narrow">
+      <div class="testimonial-quote">
+        <div class="quote-mark">"</div>
+        <p class="testimonial-text">I used to spend my Sunday nights sorting next week's diary. Now Florrie does it in seconds.</p>
+        <p class="testimonial-attribution">Maya P. — Brow artist, Manchester</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <section class="final-cta" id="waitlist">
+    <div class="container-narrow">
+      <h2 class="display-italic">Your salon deserves this</h2>
+      <p class="final-cta-subtext">Start free. Switch from Fresha or Timely in 60 seconds.</p>
+
+      <a href="/login" class="waitlist-form" style="display:flex; text-decoration:none;">
+        <button type="button" style="width:100%;">Start free — no card needed</button>
+      </a>
+      <p class="form-note">Already have an account? <a href="/login" style="color:#92405e;">Sign in</a></p>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-content">
+      <div class="footer-logo">florrie</div>
+      <span>© 2026</span>
+      <div class="footer-links">
+        <a href="#">Privacy</a>
+        <a href="#">Terms</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Pricing toggle
+    const toggleBtns = document.querySelectorAll('.toggle-btn');
+    const priceAmounts = document.querySelectorAll('.price-amount');
+    const monthlyTexts = document.querySelectorAll('.monthly-text');
+
+    toggleBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        toggleBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        const period = btn.dataset.period;
+        const isAnnual = period === 'annual';
+
+        priceAmounts.forEach(el => {
+          if (isAnnual) {
+            el.textContent = el.dataset.annual;
+          } else {
+            el.textContent = el.dataset.monthly;
+          }
         });
+
+        monthlyTexts.forEach(el => {
+          el.textContent = isAnnual ? '/year' : '/month';
+        });
+      });
     });
 
-    // ── Scroll reveal ──
-    const revealObserver = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add('visible');
-                revealObserver.unobserve(entry.target);
-            }
+    // Waitlist form submission
+    async function submitWaitlist(event, form, successId, errorId) {
+      event.preventDefault();
+
+      const email = form.querySelector('input[type="email"]').value.trim();
+      const btn = form.querySelector('button[type="submit"]');
+      const errorEl = document.getElementById(errorId);
+      const successEl = document.getElementById(successId);
+
+      if (!email) return;
+
+      btn.disabled = true;
+      const originalText = btn.textContent;
+      btn.textContent = 'Joining...';
+      errorEl.classList.remove('show');
+
+      try {
+        const res = await fetch('/api/waitlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, source: 'landing_page' }),
         });
-    }, { threshold: 0.1, rootMargin: '0px 0px -60px 0px' });
 
-    document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+        const data = await res.json();
 
-    // ── Demo video click-to-play ──
-    document.getElementById('demo-placeholder')?.addEventListener('click', function() {
-        const videoId = this.dataset.videoId;
-        if (!videoId) {
-            // No video yet — scroll to waitlist instead
-            scrollToWaitlist();
-            return;
-        }
-        const wrapper = this.parentElement;
-        // Detect Loom vs YouTube
-        let src;
-        if (videoId.startsWith('http')) {
-            src = videoId; // full embed URL
-        } else if (videoId.length === 11) {
-            src = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
+        if (res.ok && data.success) {
+          form.style.display = 'none';
+          successEl.classList.add('show');
         } else {
-            src = `https://www.loom.com/embed/${videoId}?autoplay=1`;
+          errorEl.textContent = data.error || 'Something went wrong. Try again.';
+          errorEl.classList.add('show');
+          btn.disabled = false;
+          btn.textContent = originalText;
         }
-        const iframe = document.createElement('iframe');
-        iframe.src = src;
-        iframe.allow = 'autoplay; fullscreen; picture-in-picture';
-        iframe.allowFullscreen = true;
-        this.style.display = 'none';
-        wrapper.appendChild(iframe);
-    });
+      } catch (err) {
+        errorEl.textContent = 'Network error. Check your connection.';
+        errorEl.classList.add('show');
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    }
 
-    // ── Smooth scroll for nav ──
-    document.querySelectorAll('a[href^="#"]').forEach(a => {
-        a.addEventListener('click', function(e) {
-            const href = this.getAttribute('href');
-            if (href === '#') return;
-            e.preventDefault();
-            const target = document.querySelector(href);
-            if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        });
-    });
-</script>
-
+    // Scroll to waitlist CTA
+    function scrollToWaitlist() {
+      const finalForm = document.getElementById('finalForm');
+      finalForm.scrollIntoView({ behavior: 'smooth' });
+      finalForm.querySelector('input[type="email"]').focus();
+    }
+  </script>
 </body>
 </html>
