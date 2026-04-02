@@ -3,49 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Florrie — AI receptionist for UK salons. Handles bookings, client messages, tax, and compliance. Join 200+ beauticians on the waitlist.">
-  <meta name="og:title" content="Florrie AI — Your AI Receptionist for the Salon">
-  <meta name="og:description" content="Florrie handles bookings, client messages, tax, and compliance — so you can focus on the chair. Built for UK beauticians.">
-  <meta name="og:image" content="https://florrie.ai/og-image.jpg">
-  <meta name="og:url" content="https://florrie.ai">
-  <meta name="twitter:card" content="summary_large_image">
-  <title>Florrie AI — Your AI Receptionist for the Salon</title>
-
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..146,100..900;1,9..146,100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
-
+  <title>florrie — AI for your salon</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital@0;1&family=Noto+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined" rel="stylesheet">
   <style>
-    /* === Root & Base Styles === */
-    :root {
-      --primary: #C76B8A;
-      --primary-dark: #b45a79;
-      --primary-deep: #92405e;
-      --secondary: #C9A96E;
-      --bg-base: #FAF8F5;
-      --bg-surface: #F5F3F0;
-      --text-primary: #2D2A26;
-      --text-secondary: #7A756F;
-      --text-muted: #AAA5A0;
-      --card-bg: #FFFFFF;
-      --card-border: #F0ECE8;
-      --success: #5BA97B;
-      --warning: #E8A44C;
-      --error: #D4615B;
-
-      --radius-sm: 12px;
-      --radius-md: 16px;
-      --radius-lg: 20px;
-
-      --shadow-sm: 0 2px 8px rgba(45, 42, 38, 0.04);
-      --shadow-md: 0 4px 16px rgba(45, 42, 38, 0.08);
-      --shadow-lg: 0 12px 32px rgba(45, 42, 38, 0.12);
-      --shadow-xl: 0 20px 48px rgba(45, 42, 38, 0.16);
-
-      --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
     * {
       margin: 0;
       padding: 0;
@@ -57,197 +18,191 @@
     }
 
     body {
-      font-family: 'DM Sans', sans-serif;
-      color: var(--text-primary);
-      background-color: var(--bg-base);
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background-color: #fef8f4;
+      color: #1d1b19;
       line-height: 1.6;
-      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
 
     /* Grain texture overlay */
     body::before {
       content: '';
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' seed='2'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+      inset: 0;
       pointer-events: none;
       z-index: 9999;
+      opacity: 0.03;
       mix-blend-mode: overlay;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' seed='2'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
     }
 
-    /* Responsive spacing */
+    /* ===== TYPOGRAPHY ===== */
+    h1, h2, h3, h4, h5, h6 {
+      font-weight: 400;
+      line-height: 1.2;
+    }
+
+    .display-italic {
+      font-family: 'Playfair Display', serif;
+      font-style: italic;
+      font-weight: 700;
+      color: #92405e;
+      letter-spacing: -0.02em;
+    }
+
+    .section-heading {
+      font-family: 'Noto Serif', serif;
+      font-style: italic;
+      font-weight: 400;
+      color: #1d1b19;
+    }
+
+    .label {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #867277;
+    }
+
+    .mono {
+      font-family: 'DM Mono', monospace;
+      font-weight: 400;
+      font-size: 13px;
+      color: #534247;
+    }
+
+    /* ===== LAYOUT ===== */
     .container {
       max-width: 1200px;
       margin: 0 auto;
       padding: 0 24px;
     }
 
-    /* === Navigation === */
+    .container-narrow {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ===== NAVIGATION ===== */
     nav {
       position: fixed;
       top: 0;
       left: 0;
       right: 0;
-      z-index: 100;
-      background: rgba(250, 248, 245, 0.8);
-      backdrop-filter: blur(10px);
-      border-bottom: 1px solid var(--card-border);
-      box-shadow: var(--shadow-sm);
+      z-index: 1000;
+      backdrop-filter: blur(12px);
+      background: rgba(254, 248, 244, 0.8);
+      border-bottom: 1px solid rgba(216, 193, 198, 0.5);
+      padding: 16px 24px;
     }
 
-    .nav-content {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px 24px;
+    nav .nav-content {
       max-width: 1200px;
       margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
 
     .logo {
       font-family: 'Playfair Display', serif;
-      font-size: 24px;
-      font-weight: 600;
       font-style: italic;
-      color: var(--primary);
-      text-decoration: none;
-      letter-spacing: -0.5px;
-    }
-
-    .nav-links {
-      display: flex;
-      gap: 32px;
-      align-items: center;
-      list-style: none;
-    }
-
-    .nav-links a {
-      text-decoration: none;
-      color: var(--text-secondary);
-      font-size: 14px;
-      font-weight: 500;
-      transition: var(--transition);
-      cursor: pointer;
-    }
-
-    .nav-links a:hover {
-      color: var(--primary);
+      font-weight: 700;
+      font-size: 20px;
+      color: #92405e;
+      letter-spacing: -0.02em;
     }
 
     .nav-cta {
-      background: var(--primary);
-      color: white;
-      padding: 10px 20px;
-      border-radius: var(--radius-md);
-      border: none;
-      cursor: pointer;
-      font-weight: 600;
+      font-family: 'Plus Jakarta Sans', sans-serif;
       font-size: 14px;
-      transition: var(--transition);
+      font-weight: 600;
+      color: #92405e;
+      text-decoration: none;
+      transition: color 0.2s ease;
     }
 
     .nav-cta:hover {
-      background: var(--primary-dark);
-      transform: translateY(-2px);
-      box-shadow: var(--shadow-md);
+      color: #782b49;
     }
 
-    @media (max-width: 768px) {
-      .nav-links {
-        display: none;
-      }
-      .logo {
-        font-size: 20px;
-      }
-    }
-
-    /* === Hero Section === */
+    /* ===== HERO ===== */
     .hero {
-      padding: 120px 24px 80px;
-      margin-top: 60px;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 48px;
-      align-items: center;
+      padding-top: 160px;
+      padding-bottom: 120px;
+      text-align: center;
     }
 
-    .hero-content h1 {
-      font-family: 'Playfair Display', serif;
-      font-size: 56px;
-      font-weight: 700;
-      line-height: 1.2;
-      margin-bottom: 16px;
-      color: var(--text-primary);
-    }
-
-    .hero-content h1 em {
-      font-style: italic;
-      color: var(--primary);
-    }
-
-    .hero-badge {
-      display: inline-block;
-      background: rgba(199, 107, 138, 0.1);
-      border: 1px solid rgba(199, 107, 138, 0.3);
-      color: var(--primary);
-      padding: 8px 16px;
-      border-radius: var(--radius-md);
-      font-size: 13px;
-      font-weight: 600;
+    .hero-label {
       margin-bottom: 24px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
     }
 
-    .hero-subhead {
+    .hero h1 {
+      font-size: clamp(40px, 6vw, 64px);
+      margin-bottom: 24px;
+      max-width: 100%;
+    }
+
+    .hero-subtext {
       font-size: 18px;
-      color: var(--text-secondary);
+      color: #534247;
+      margin: 0 auto 48px;
+      max-width: 480px;
       line-height: 1.7;
-      margin-bottom: 32px;
     }
 
+    /* ===== FORMS ===== */
     .waitlist-form {
       display: flex;
+      flex-direction: column;
       gap: 12px;
-      margin-bottom: 32px;
+      max-width: 400px;
+      margin: 0 auto 16px;
     }
 
     .waitlist-form input {
-      flex: 1;
-      padding: 14px 16px;
-      border: 1px solid var(--card-border);
-      border-radius: var(--radius-md);
-      font-family: inherit;
-      font-size: 16px;
-      transition: var(--transition);
-      background: var(--card-bg);
+      padding: 14px 20px;
+      border: 1px solid #d8c1c6;
+      border-radius: 24px;
+      background: #f8f2ef;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 14px;
+      color: #1d1b19;
+      transition: border-color 0.2s ease, background 0.2s ease;
+    }
+
+    .waitlist-form input::placeholder {
+      color: #867277;
     }
 
     .waitlist-form input:focus {
       outline: none;
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(199, 107, 138, 0.1);
+      border-color: #92405e;
+      background: #ffffff;
     }
 
     .waitlist-form button {
-      padding: 14px 28px;
-      background: var(--primary);
-      color: white;
+      padding: 14px 32px;
       border: none;
-      border-radius: var(--radius-md);
+      border-radius: 24px;
+      background: linear-gradient(135deg, #c76b8a 0%, #92405e 100%);
+      color: #ffffff;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
-      transition: var(--transition);
-      white-space: nowrap;
+      box-shadow: 0 2px 8px rgba(146, 64, 94, 0.25);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
 
     .waitlist-form button:hover:not(:disabled) {
-      background: var(--primary-dark);
       transform: translateY(-2px);
-      box-shadow: var(--shadow-md);
+      box-shadow: 0 4px 12px rgba(146, 64, 94, 0.3);
     }
 
     .waitlist-form button:disabled {
@@ -255,1335 +210,847 @@
       cursor: not-allowed;
     }
 
-    .form-success {
-      display: none;
-      padding: 16px;
-      background: rgba(91, 169, 123, 0.1);
-      border: 1px solid rgba(91, 169, 123, 0.3);
-      border-radius: var(--radius-md);
-      color: var(--success);
-      font-weight: 600;
-    }
-
-    .form-error {
-      display: none;
-      padding: 12px 16px;
-      background: rgba(212, 97, 91, 0.1);
-      border: 1px solid rgba(212, 97, 91, 0.3);
-      border-radius: var(--radius-md);
-      color: var(--error);
-      font-size: 14px;
-      margin-bottom: 16px;
-    }
-
-    /* Phone mockup */
-    .hero-phone {
-      position: relative;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-
-    .phone-frame {
-      width: 280px;
-      height: 560px;
-      background: #000;
-      border-radius: 40px;
-      padding: 12px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-      position: relative;
-      overflow: hidden;
-    }
-
-    .phone-notch {
-      position: absolute;
-      top: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 150px;
-      height: 28px;
-      background: #000;
-      border-radius: 0 0 20px 20px;
-      z-index: 10;
-    }
-
-    .phone-screen {
-      width: 100%;
-      height: 100%;
-      background: #faf8f5;
-      border-radius: 35px;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .chat-header {
-      background: var(--bg-surface);
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--card-border);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      min-height: 56px;
-    }
-
-    .chat-avatar {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-family: 'Playfair Display', serif;
-      font-size: 18px;
-      font-weight: 700;
-      font-style: italic;
-    }
-
-    .chat-header-text {
-      flex: 1;
-    }
-
-    .chat-header-name {
-      font-weight: 600;
-      font-size: 14px;
-      color: var(--text-primary);
-    }
-
-    .chat-header-status {
+    .form-note {
       font-size: 12px;
-      color: var(--success);
-      display: flex;
-      align-items: center;
-      gap: 4px;
+      color: #867277;
     }
 
-    .status-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--success);
-    }
-
-    .chat-messages {
-      flex: 1;
-      overflow-y: auto;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .message {
-      display: flex;
-      opacity: 0;
-      animation: messageSlide 0.5s ease forwards;
-    }
-
-    @keyframes messageSlide {
-      from {
-        opacity: 0;
-        transform: translateY(16px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .message.client {
-      justify-content: flex-end;
-    }
-
-    .message-bubble {
-      max-width: 85%;
-      padding: 10px 14px;
-      border-radius: 16px;
-      font-size: 13px;
-      line-height: 1.4;
-    }
-
-    .message.client .message-bubble {
-      background: var(--primary);
-      color: white;
-      border-radius: 16px 4px 16px 16px;
-    }
-
-    .message.bot .message-bubble {
-      background: var(--bg-surface);
-      color: var(--text-primary);
-      border: 1px solid var(--card-border);
-      border-radius: 4px 16px 16px 16px;
-    }
-
-    .typing-indicator {
-      display: flex;
-      gap: 4px;
-      align-items: center;
-      height: 20px;
-    }
-
-    .typing-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--text-muted);
-      animation: typing 1.4s infinite;
-    }
-
-    .typing-dot:nth-child(2) {
-      animation-delay: 0.2s;
-    }
-
-    .typing-dot:nth-child(3) {
-      animation-delay: 0.4s;
-    }
-
-    @keyframes typing {
-      0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
-      30% { opacity: 1; transform: translateY(-8px); }
-    }
-
-    .booking-confirm {
-      background: rgba(91, 169, 123, 0.1);
-      border: 1px solid rgba(91, 169, 123, 0.3);
+    .success-message {
+      display: none;
+      padding: 16px 20px;
+      background: #f0f7f4;
+      border: 1px solid #5BA97B;
       border-radius: 12px;
-      padding: 12px;
-      font-size: 12px;
-      display: flex;
-      gap: 8px;
-      align-items: flex-start;
+      color: #1d1b19;
+      font-size: 14px;
+      max-width: 400px;
+      margin: 0 auto;
     }
 
-    .booking-confirm-icon {
-      color: var(--success);
-      font-weight: 700;
+    .success-message.show {
+      display: block;
+    }
+
+    .error-message {
+      display: none;
+      padding: 12px 16px;
+      background: #fdf4f2;
+      border: 1px solid #d4943a;
+      border-radius: 12px;
+      color: #782b49;
+      font-size: 13px;
+      max-width: 400px;
+      margin: 0 auto 16px;
+    }
+
+    .error-message.show {
+      display: block;
+    }
+
+    /* ===== PITCH SECTION ===== */
+    .pitch-section {
+      padding: 120px 24px;
+    }
+
+    .pitch-block {
+      text-align: center;
+      margin-bottom: 80px;
+    }
+
+    .pitch-block:last-child {
+      margin-bottom: 0;
+    }
+
+    .pitch-headline {
+      font-size: 28px;
+      margin-bottom: 16px;
+      color: #1d1b19;
+    }
+
+    .pitch-text {
       font-size: 16px;
-      flex-shrink: 0;
+      color: #534247;
+      max-width: 500px;
+      margin: 0 auto;
+      line-height: 1.7;
     }
 
-    .booking-confirm-text {
-      color: var(--text-primary);
-      line-height: 1.3;
+    /* ===== DIVIDER ===== */
+    .divider {
+      height: 1px;
+      background: rgba(216, 193, 198, 0.4);
+      margin: 60px 0;
     }
 
-    .booking-confirm-text strong {
-      color: var(--success);
+    /* ===== SOCIAL PROOF ===== */
+    .social-proof {
+      padding: 48px 24px;
+      text-align: center;
     }
 
-    @media (max-width: 1024px) {
-      .hero {
-        grid-template-columns: 1fr;
-        padding: 100px 24px 60px;
+    .proof-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 32px;
+      font-size: 13px;
+      color: #867277;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 600;
+    }
+
+    .proof-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .proof-separator {
+      width: 1px;
+      height: 16px;
+      background: rgba(216, 193, 198, 0.4);
+    }
+
+    @media (max-width: 640px) {
+      .proof-row {
+        flex-direction: column;
+        gap: 16px;
       }
 
-      .hero-content h1 {
-        font-size: 42px;
-      }
-
-      .hero-phone {
+      .proof-separator {
         display: none;
       }
     }
 
-    /* === Demo Section === */
-    .demos {
+    /* ===== HOW IT WORKS ===== */
+    .how-it-works {
+      background: #f3ede9;
       padding: 80px 24px;
-      background: var(--bg-surface);
     }
 
-    .demos-header {
+    .how-it-works-header {
       text-align: center;
-      margin-bottom: 48px;
+      margin-bottom: 60px;
     }
 
-    .demos-header h2 {
-      font-family: 'Playfair Display', serif;
-      font-size: 44px;
-      font-weight: 700;
+    .how-it-works .label {
       margin-bottom: 16px;
-      color: var(--text-primary);
+      display: block;
     }
 
-    .demos-header p {
-      font-size: 16px;
-      color: var(--text-secondary);
-      max-width: 500px;
+    .how-it-works h2 {
+      font-size: clamp(28px, 5vw, 48px);
+      margin-bottom: 0;
+    }
+
+    .timeline {
+      max-width: 700px;
       margin: 0 auto;
     }
 
-    .demo-tabs {
+    .timeline-item {
       display: flex;
-      gap: 12px;
+      gap: 24px;
       margin-bottom: 48px;
-      justify-content: center;
-      flex-wrap: wrap;
+      padding-bottom: 48px;
+      border-bottom: 1px solid rgba(216, 193, 198, 0.3);
     }
 
-    .demo-tab {
-      padding: 12px 20px;
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: var(--radius-md);
-      cursor: pointer;
+    .timeline-item:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .timeline-time {
+      flex-shrink: 0;
+      width: 80px;
+      text-align: right;
+      color: #534247;
       font-weight: 600;
-      font-size: 14px;
-      color: var(--text-secondary);
-      transition: var(--transition);
     }
 
-    .demo-tab.active {
-      background: var(--primary);
-      color: white;
-      border-color: var(--primary);
-    }
-
-    .demo-tab:hover:not(.active) {
-      border-color: var(--primary);
-      color: var(--primary);
-    }
-
-    .demo-content {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 48px;
-      align-items: center;
-    }
-
-    .demo-content.hidden {
-      display: none;
-    }
-
-    .demo-copy h3 {
-      font-family: 'Playfair Display', serif;
-      font-size: 32px;
-      font-weight: 700;
-      margin-bottom: 16px;
-      color: var(--text-primary);
-    }
-
-    .demo-copy p {
-      font-size: 16px;
-      color: var(--text-secondary);
-      margin-bottom: 24px;
+    .timeline-content {
+      flex: 1;
+      color: #534247;
       line-height: 1.7;
     }
 
-    .demo-badges {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    .demo-badge {
-      display: flex;
-      gap: 12px;
-      align-items: flex-start;
-      padding: 12px 0;
-    }
-
-    .demo-badge-icon {
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      background: rgba(199, 107, 138, 0.1);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--primary);
-      font-size: 14px;
-      flex-shrink: 0;
-      font-weight: 700;
-    }
-
-    .demo-badge-text {
-      font-size: 14px;
-      color: var(--text-secondary);
-      line-height: 1.5;
-    }
-
-    /* Demo visuals */
-    .demo-visual {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: var(--radius-lg);
-      padding: 24px;
-      box-shadow: var(--shadow-md);
-      min-height: 400px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    /* Tax Dashboard Demo */
-    .tax-dashboard {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-      width: 100%;
-    }
-
-    .stat-cards {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 12px;
-    }
-
-    .stat-card {
-      background: var(--bg-surface);
-      border-radius: var(--radius-md);
-      padding: 16px;
-      text-align: center;
-    }
-
-    .stat-card-label {
-      font-size: 12px;
-      color: var(--text-muted);
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 8px;
-    }
-
-    .stat-card-value {
-      font-size: 20px;
-      font-weight: 700;
-      color: var(--text-primary);
-      font-family: 'DM Sans', monospace;
-    }
-
-    .stat-card.revenue .stat-card-value {
-      color: var(--success);
-    }
-
-    .stat-card.expenses .stat-card-value {
-      color: var(--warning);
-    }
-
-    .stat-card.tax .stat-card-value {
-      color: var(--primary);
-    }
-
-    .chart-placeholder {
-      width: 100%;
-      height: 120px;
-      background: var(--bg-surface);
-      border-radius: var(--radius-md);
-      position: relative;
-      overflow: hidden;
-    }
-
-    .chart-bar {
-      position: absolute;
-      bottom: 0;
-      width: 12%;
-      background: linear-gradient(180deg, var(--primary), var(--primary-dark));
-      border-radius: 4px 4px 0 0;
-      transition: height 0.6s ease;
-    }
-
-    .chart-bar:nth-child(1) { left: 6%; height: 30%; }
-    .chart-bar:nth-child(2) { left: 18%; height: 45%; }
-    .chart-bar:nth-child(3) { left: 30%; height: 55%; }
-    .chart-bar:nth-child(4) { left: 42%; height: 70%; }
-    .chart-bar:nth-child(5) { left: 54%; height: 80%; }
-    .chart-bar:nth-child(6) { left: 66%; height: 95%; }
-
-    .receipt-card {
-      background: var(--bg-surface);
-      border-radius: var(--radius-md);
-      padding: 12px;
-      font-size: 12px;
-      color: var(--text-secondary);
-    }
-
-    .receipt-card strong {
-      color: var(--text-primary);
-    }
-
-    .mtd-badge {
-      display: inline-block;
-      background: rgba(91, 169, 123, 0.1);
-      color: var(--success);
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 700;
-      margin-top: 8px;
-    }
-
-    /* Compliance Demo */
-    .compliance-dashboard {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-      width: 100%;
-    }
-
-    .compliance-score {
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      padding: 20px;
-      background: var(--bg-surface);
-      border-radius: var(--radius-md);
-    }
-
-    .score-ring {
-      position: relative;
-      width: 80px;
-      height: 80px;
-      flex-shrink: 0;
-    }
-
-    .score-ring-svg {
-      width: 100%;
-      height: 100%;
-      transform: rotate(-90deg);
-    }
-
-    .score-text {
-      flex: 1;
-    }
-
-    .score-percent {
-      font-size: 24px;
-      font-weight: 700;
-      color: var(--text-primary);
-    }
-
-    .score-label {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-top: 4px;
-    }
-
-    .compliance-alert {
-      background: rgba(232, 164, 76, 0.1);
-      border: 1px solid rgba(232, 164, 76, 0.3);
-      border-radius: var(--radius-md);
-      padding: 12px;
-      font-size: 12px;
-      color: var(--text-secondary);
-      display: flex;
-      gap: 8px;
-    }
-
-    .compliance-alert-icon {
-      flex-shrink: 0;
-      color: var(--warning);
-      font-weight: 700;
-    }
-
-    .compliance-rows {
-      font-size: 12px;
-    }
-
-    .compliance-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 8px 0;
-      border-bottom: 1px solid var(--card-border);
-    }
-
-    .compliance-row:last-child {
-      border-bottom: none;
-    }
-
-    .compliance-name {
-      color: var(--text-primary);
-      font-weight: 500;
-    }
-
-    .compliance-status {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-weight: 600;
-    }
-
-    .compliance-status.ok {
-      color: var(--success);
-    }
-
-    .compliance-status.warning {
-      color: var(--warning);
-    }
-
-    .compliance-status.new {
-      color: var(--text-muted);
-    }
-
-    .compliance-stats {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 12px;
-      margin-top: 12px;
-    }
-
-    .compliance-stat {
-      background: var(--bg-surface);
-      border-radius: var(--radius-md);
-      padding: 12px;
-      text-align: center;
-    }
-
-    .compliance-stat-number {
-      font-size: 18px;
-      font-weight: 700;
-      color: var(--primary);
-    }
-
-    .compliance-stat-label {
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-top: 4px;
-    }
-
-    /* Smart Booking Demo */
-    .booking-flow {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      width: 100%;
-    }
-
-    .booking-step {
-      display: none;
-    }
-
-    .booking-step.active {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      animation: fadeIn 0.5s ease;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-
-    .step-indicator {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 8px;
-      font-size: 12px;
-    }
-
-    .step-dot {
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: var(--bg-surface);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: var(--text-muted);
-      font-weight: 700;
-    }
-
-    .step-dot.active {
-      background: var(--primary);
-      color: white;
-    }
-
-    .service-cards {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-
-    .service-card {
-      background: var(--bg-surface);
-      border: 2px solid transparent;
-      border-radius: var(--radius-md);
-      padding: 12px;
-      cursor: pointer;
-      transition: var(--transition);
-      text-align: center;
-    }
-
-    .service-card.selected {
-      border-color: var(--primary);
-      background: rgba(199, 107, 138, 0.1);
-    }
-
-    .service-card-name {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--text-primary);
-      margin-bottom: 4px;
-    }
-
-    .service-card-price {
-      font-size: 14px;
-      font-weight: 700;
-      color: var(--primary);
-    }
-
-    .time-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr 1fr;
-      gap: 8px;
-    }
-
-    .time-slot {
-      padding: 10px 8px;
-      border: 1px solid var(--card-border);
-      border-radius: var(--radius-sm);
-      text-align: center;
-      font-size: 11px;
-      cursor: pointer;
-      transition: var(--transition);
-    }
-
-    .time-slot.unavailable {
-      background: var(--bg-surface);
-      color: var(--text-muted);
-      cursor: not-allowed;
-      opacity: 0.5;
-    }
-
-    .time-slot.available:hover {
-      border-color: var(--primary);
-      color: var(--primary);
-    }
-
-    .time-slot.selected {
-      background: var(--primary);
-      color: white;
-      border-color: var(--primary);
-      font-weight: 600;
-    }
-
-    .booking-helper {
-      background: rgba(91, 169, 123, 0.1);
-      border: 1px solid rgba(91, 169, 123, 0.3);
-      border-radius: var(--radius-sm);
-      padding: 10px;
-      font-size: 11px;
-      color: var(--success);
-      text-align: center;
-    }
-
-    .booking-complete {
-      background: rgba(91, 169, 123, 0.1);
-      border: 1px solid rgba(91, 169, 123, 0.3);
-      border-radius: var(--radius-md);
-      padding: 20px;
-      text-align: center;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .booking-complete-icon {
-      font-size: 32px;
-      color: var(--success);
-    }
-
-    .booking-complete-text {
-      font-size: 12px;
-      color: var(--text-secondary);
-      font-weight: 500;
-    }
-
-    @media (max-width: 768px) {
-      .demo-content {
-        grid-template-columns: 1fr;
-      }
-
-      .demos-header h2 {
-        font-size: 32px;
-      }
-
-      .stat-cards {
-        grid-template-columns: 1fr;
-      }
-
-      .service-cards {
-        grid-template-columns: 1fr 1fr;
-      }
-    }
-
-    /* === Social Proof === */
-    .social-proof {
-      display: flex;
-      justify-content: space-around;
-      padding: 60px 24px;
-      background: var(--card-bg);
-      border-top: 1px solid var(--card-border);
-      border-bottom: 1px solid var(--card-border);
-    }
-
-    .proof-item {
-      text-align: center;
-    }
-
-    .proof-number {
-      font-family: 'Playfair Display', serif;
-      font-size: 36px;
-      font-weight: 700;
-      color: var(--primary);
-      margin-bottom: 8px;
-    }
-
-    .proof-label {
-      font-size: 14px;
-      color: var(--text-secondary);
-    }
-
-    @media (max-width: 768px) {
-      .social-proof {
-        flex-direction: column;
-        gap: 24px;
-      }
-    }
-
-    /* === Feature Grid === */
-    .features {
+    /* ===== PRICING ===== */
+    .pricing-section {
       padding: 80px 24px;
-    }
-
-    .features h2 {
-      font-family: 'Playfair Display', serif;
-      font-size: 44px;
-      font-weight: 700;
-      text-align: center;
-      margin-bottom: 48px;
-      color: var(--text-primary);
-    }
-
-    .feature-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 24px;
-    }
-
-    .feature-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: var(--radius-lg);
-      padding: 32px;
-      transition: var(--transition);
-      opacity: 0;
-      animation: cardReveal 0.6s ease forwards;
-    }
-
-    @keyframes cardReveal {
-      from {
-        opacity: 0;
-        transform: translateY(24px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .feature-card:nth-child(1) { animation-delay: 0.1s; }
-    .feature-card:nth-child(2) { animation-delay: 0.2s; }
-    .feature-card:nth-child(3) { animation-delay: 0.3s; }
-    .feature-card:nth-child(4) { animation-delay: 0.4s; }
-    .feature-card:nth-child(5) { animation-delay: 0.5s; }
-    .feature-card:nth-child(6) { animation-delay: 0.6s; }
-
-    .feature-card:hover {
-      border-color: var(--primary);
-      box-shadow: var(--shadow-lg);
-      transform: translateY(-4px);
-    }
-
-    .feature-icon {
-      font-size: 32px;
-      margin-bottom: 16px;
-    }
-
-    .feature-card h3 {
-      font-family: 'Playfair Display', serif;
-      font-size: 20px;
-      font-weight: 600;
-      margin-bottom: 12px;
-      color: var(--text-primary);
-    }
-
-    .feature-card p {
-      font-size: 14px;
-      color: var(--text-secondary);
-      line-height: 1.6;
-    }
-
-    @media (max-width: 1024px) {
-      .feature-grid {
-        grid-template-columns: repeat(2, 1fr);
-      }
-    }
-
-    @media (max-width: 768px) {
-      .feature-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .features h2 {
-        font-size: 32px;
-      }
-    }
-
-    /* === Pricing Section === */
-    .pricing {
-      padding: 80px 24px;
-      background: var(--bg-surface);
     }
 
     .pricing-header {
       text-align: center;
-      margin-bottom: 48px;
+      margin-bottom: 60px;
     }
 
-    .pricing-header h2 {
-      font-family: 'Playfair Display', serif;
-      font-size: 44px;
-      font-weight: 700;
-      margin-bottom: 24px;
-      color: var(--text-primary);
-    }
-
-    .pricing-toggle {
-      display: inline-flex;
-      gap: 8px;
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: var(--radius-md);
-      padding: 4px;
-    }
-
-    .pricing-toggle-btn {
-      padding: 8px 16px;
-      border: none;
-      background: transparent;
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 14px;
-      border-radius: var(--radius-sm);
-      transition: var(--transition);
-      color: var(--text-secondary);
-    }
-
-    .pricing-toggle-btn.active {
-      background: var(--primary);
-      color: white;
-    }
-
-    .savings-badge {
-      display: inline-block;
-      background: rgba(91, 169, 123, 0.1);
-      color: var(--success);
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 700;
-      margin-left: 8px;
-    }
-
-    .pricing-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 24px;
-    }
-
-    .pricing-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: var(--radius-lg);
-      padding: 32px;
-      position: relative;
-      opacity: 0;
-      animation: cardReveal 0.6s ease forwards;
-    }
-
-    .pricing-card:nth-child(1) { animation-delay: 0.1s; }
-    .pricing-card:nth-child(2) { animation-delay: 0.2s; }
-    .pricing-card:nth-child(3) { animation-delay: 0.3s; }
-    .pricing-card:nth-child(4) { animation-delay: 0.4s; }
-
-    .pricing-card.popular {
-      border: 2px solid var(--primary);
-      box-shadow: var(--shadow-lg);
-      transform: scale(1.05);
-    }
-
-    .popular-badge {
-      position: absolute;
-      top: -12px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--primary);
-      color: white;
-      padding: 4px 12px;
-      border-radius: 12px;
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-    }
-
-    .pricing-name {
-      font-family: 'Playfair Display', serif;
-      font-size: 22px;
-      font-weight: 600;
-      margin-bottom: 8px;
-      color: var(--text-primary);
-    }
-
-    .pricing-price {
-      display: flex;
-      align-items: baseline;
-      gap: 4px;
-      margin-bottom: 4px;
-    }
-
-    .pricing-amount {
-      font-size: 36px;
-      font-weight: 700;
-      color: var(--text-primary);
-    }
-
-    .pricing-period {
-      color: var(--text-muted);
-      font-size: 14px;
-    }
-
-    .pricing-save {
-      font-size: 12px;
-      color: var(--success);
-      font-weight: 600;
-      margin-bottom: 24px;
-      display: none;
-    }
-
-    .pricing-save.show {
+    .pricing-header .label {
+      margin-bottom: 16px;
       display: block;
     }
 
-    .pricing-features {
-      list-style: none;
-      margin-bottom: 28px;
+    .pricing-header h2 {
+      font-size: clamp(28px, 5vw, 48px);
+      margin-bottom: 16px;
     }
 
-    .pricing-features li {
-      font-size: 13px;
-      color: var(--text-secondary);
-      padding: 8px 0;
-      border-bottom: 1px solid var(--card-border);
+    .pricing-subtext {
+      font-size: 16px;
+      color: #534247;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+
+    .toggle-container {
       display: flex;
+      justify-content: center;
       gap: 8px;
+      margin-bottom: 48px;
+      background: #f3ede9;
+      border-radius: 20px;
+      padding: 4px;
+      width: fit-content;
+      margin-left: auto;
+      margin-right: auto;
     }
 
-    .pricing-features li:last-child {
+    .toggle-btn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 16px;
+      background: transparent;
+      color: #534247;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    .toggle-btn.active {
+      background: #ffffff;
+      color: #92405e;
+      box-shadow: 0 1px 4px rgba(146, 64, 94, 0.08);
+    }
+
+    .pricing-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 24px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .pricing-card {
+      background: #ffffff;
+      border: 1px solid #d8c1c6;
+      border-radius: 16px;
+      padding: 32px 24px;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.3s ease;
+    }
+
+    .pricing-card:hover {
+      box-shadow: 0 8px 24px rgba(146, 64, 94, 0.08);
+      border-color: #92405e;
+    }
+
+    .pricing-card.popular {
+      border: 2px solid #92405e;
+      box-shadow: 0 8px 24px rgba(146, 64, 94, 0.12);
+      transform: scale(1.02);
+    }
+
+    .pricing-popular-tag {
+      display: inline-block;
+      background: #92405e;
+      color: #ffffff;
+      padding: 4px 12px;
+      border-radius: 8px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 16px;
+      width: fit-content;
+    }
+
+    .pricing-tier {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1d1b19;
+      margin-bottom: 8px;
+    }
+
+    .pricing-price {
+      font-size: 32px;
+      font-weight: 700;
+      color: #92405e;
+      margin-bottom: 4px;
+    }
+
+    .pricing-price-period {
+      font-size: 12px;
+      color: #867277;
+      margin-bottom: 24px;
+    }
+
+    .pricing-description {
+      font-size: 13px;
+      color: #534247;
+      margin-bottom: 24px;
+      min-height: 40px;
+    }
+
+    .pricing-features {
+      flex: 1;
+      margin-bottom: 24px;
+    }
+
+    .pricing-feature {
+      font-size: 13px;
+      color: #534247;
+      line-height: 1.8;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(216, 193, 198, 0.3);
+    }
+
+    .pricing-feature:last-child {
       border-bottom: none;
     }
 
-    .pricing-features li::before {
-      content: '✓';
-      color: var(--primary);
-      font-weight: 700;
-      flex-shrink: 0;
-    }
-
-    .pricing-cta {
-      width: 100%;
-      padding: 14px;
+    .pricing-card button {
+      padding: 12px 24px;
       border: none;
-      border-radius: var(--radius-md);
+      border-radius: 12px;
+      background: #92405e;
+      color: #ffffff;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 13px;
       font-weight: 600;
       cursor: pointer;
-      transition: var(--transition);
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .pricing-card button:hover {
+      background: #782b49;
+      transform: translateY(-2px);
+    }
+
+    /* ===== TESTIMONIAL ===== */
+    .testimonial-section {
+      padding: 100px 24px;
+      text-align: center;
+      background: #fef8f4;
+    }
+
+    .testimonial-quote {
+      position: relative;
+      margin-bottom: 32px;
+    }
+
+    .quote-mark {
+      font-family: 'Playfair Display', serif;
+      font-size: 72px;
+      color: #92405e;
+      opacity: 0.3;
+      line-height: 0.5;
+      margin-bottom: 16px;
+    }
+
+    .testimonial-text {
+      font-family: 'Playfair Display', serif;
+      font-style: italic;
+      font-weight: 700;
+      font-size: clamp(20px, 4vw, 28px);
+      color: #1d1b19;
+      max-width: 700px;
+      margin: 0 auto 24px;
+      letter-spacing: -0.01em;
+    }
+
+    .testimonial-attribution {
+      font-size: 13px;
+      color: #867277;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    /* ===== FINAL CTA ===== */
+    .final-cta {
+      background: linear-gradient(135deg, #c76b8a 0%, #92405e 100%);
+      padding: 80px 24px;
+      text-align: center;
+      color: #ffffff;
+    }
+
+    .final-cta h2 {
+      font-size: clamp(32px, 5vw, 48px);
+      margin-bottom: 16px;
+    }
+
+    .final-cta-subtext {
+      font-size: 16px;
+      margin-bottom: 40px;
+      opacity: 0.95;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .final-cta .waitlist-form input {
+      background: #ffffff;
+      color: #1d1b19;
+      border-color: transparent;
+    }
+
+    .final-cta .waitlist-form button {
+      background: #92405e;
+      color: #ffffff;
+    }
+
+    .final-cta .waitlist-form button:hover:not(:disabled) {
+      background: #782b49;
+    }
+
+    .final-cta .form-note {
+      color: rgba(255, 255, 255, 0.8);
+    }
+
+    /* ===== FOOTER ===== */
+    footer {
+      background: #f3ede9;
+      padding: 40px 24px;
+      text-align: center;
+      border-top: 1px solid #d8c1c6;
+    }
+
+    .footer-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 24px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      color: #867277;
+    }
+
+    .footer-logo {
+      font-family: 'Playfair Display', serif;
+      font-style: italic;
+      font-weight: 700;
+      color: #92405e;
       font-size: 14px;
     }
 
-    .pricing-card:not(.popular) .pricing-cta {
-      background: var(--bg-surface);
-      color: var(--primary);
-      border: 1px solid var(--card-border);
+    .footer-links {
+      display: flex;
+      gap: 24px;
     }
 
-    .pricing-card:not(.popular) .pricing-cta:hover {
-      border-color: var(--primary);
-      background: rgba(199, 107, 138, 0.1);
+    .footer-links a {
+      color: #867277;
+      text-decoration: none;
+      transition: color 0.2s ease;
     }
 
-    .pricing-card.popular .pricing-cta {
-      background: var(--primary);
-      color: white;
+    .footer-links a:hover {
+      color: #92405e;
     }
 
-    .pricing-card.popular .pricing-cta:hover {
-      background: var(--primary-dark);
-      transform: translateY(-2px);
-      box-shadow: var(--shadow-md);
+    /* ===== PROBLEM SECTION ===== */
+    .problem-section {
+      padding: 100px 24px 80px;
+      background: #f3ede9;
     }
 
-    @media (max-width: 1024px) {
-      .pricing-grid {
-        grid-template-columns: repeat(2, 1fr);
+    .problem-header {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+
+    .problem-header .label {
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .problem-header h2 {
+      font-size: clamp(26px, 4vw, 40px);
+      max-width: 600px;
+      margin: 0 auto;
+    }
+
+    .problem-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .problem-card {
+      padding: 28px;
+      background: #fef8f4;
+      border-radius: 16px;
+      border: 1px solid rgba(216, 193, 198, 0.4);
+    }
+
+    .problem-card-time {
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      color: #92405e;
+      font-weight: 500;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .problem-card p {
+      font-size: 15px;
+      color: #534247;
+      line-height: 1.7;
+    }
+
+    @media (max-width: 640px) {
+      .problem-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+      .problem-card {
+        padding: 20px;
+      }
+    }
+
+    /* ===== MEET FLORRIE ===== */
+    .meet-section {
+      padding: 100px 24px;
+      text-align: center;
+    }
+
+    .meet-header {
+      margin-bottom: 40px;
+    }
+
+    .meet-header .label {
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .meet-header h2 {
+      font-size: clamp(28px, 5vw, 44px);
+      margin-bottom: 0;
+    }
+
+    .meet-body {
+      max-width: 620px;
+      margin: 0 auto;
+    }
+
+    .meet-body p {
+      font-size: 16px;
+      color: #534247;
+      line-height: 1.8;
+      margin-bottom: 20px;
+    }
+
+    .meet-body p:last-child {
+      margin-bottom: 0;
+    }
+
+    .meet-detail {
+      margin-top: 40px;
+      padding: 24px 28px;
+      background: #f3ede9;
+      border-radius: 14px;
+      font-size: 14px;
+      color: #534247;
+      line-height: 1.7;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+      text-align: left;
+      border-left: 3px solid #92405e;
+    }
+
+    /* ===== INLINE TESTIMONIAL ===== */
+    .inline-testimonial {
+      padding: 60px 24px;
+      text-align: center;
+      background: #fef8f4;
+    }
+
+    .inline-testimonial blockquote {
+      font-family: 'Playfair Display', serif;
+      font-style: italic;
+      font-weight: 700;
+      font-size: clamp(18px, 3vw, 24px);
+      color: #1d1b19;
+      max-width: 600px;
+      margin: 0 auto 16px;
+      letter-spacing: -0.01em;
+      line-height: 1.4;
+    }
+
+    .inline-testimonial cite {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-style: normal;
+      font-size: 12px;
+      color: #867277;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    /* ===== UK BEAUTY SECTION ===== */
+    .uk-section {
+      padding: 100px 24px;
+      background: #fef8f4;
+    }
+
+    .uk-header {
+      text-align: center;
+      margin-bottom: 60px;
+    }
+
+    .uk-header .label {
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .uk-header h2 {
+      font-size: clamp(26px, 4.5vw, 42px);
+      margin-bottom: 16px;
+    }
+
+    .uk-header p {
+      font-size: 16px;
+      color: #534247;
+      max-width: 520px;
+      margin: 0 auto;
+      line-height: 1.7;
+    }
+
+    .uk-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .uk-card {
+      padding: 28px;
+      background: #ffffff;
+      border-radius: 16px;
+      border: 1px solid #d8c1c6;
+      transition: box-shadow 0.3s ease;
+    }
+
+    .uk-card:hover {
+      box-shadow: 0 8px 24px rgba(146, 64, 94, 0.06);
+    }
+
+    .uk-card h3 {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      color: #1d1b19;
+      margin-bottom: 10px;
+    }
+
+    .uk-card p {
+      font-size: 14px;
+      color: #534247;
+      line-height: 1.7;
+    }
+
+    @media (max-width: 640px) {
+      .uk-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 768px) {
+      nav {
+        padding: 12px 16px;
+      }
+
+      nav .nav-content {
+        padding: 0;
+      }
+
+      .logo {
+        font-size: 16px;
+      }
+
+      .nav-cta {
+        font-size: 12px;
+      }
+
+      .hero {
+        padding-top: 100px;
+        padding-bottom: 80px;
+      }
+
+      .hero h1 {
+        margin-bottom: 20px;
+      }
+
+      .hero-subtext {
+        font-size: 16px;
+        margin-bottom: 40px;
+      }
+
+      .waitlist-form {
+        max-width: 100%;
+      }
+
+      .pitch-section {
+        padding: 80px 24px;
+      }
+
+      .pitch-block {
+        margin-bottom: 60px;
+      }
+
+      .pitch-headline {
+        font-size: 24px;
+      }
+
+      .pitch-text {
+        font-size: 14px;
+      }
+
+      .social-proof {
+        padding: 40px 16px;
+      }
+
+      .problem-section {
+        padding: 60px 16px;
+      }
+
+      .meet-section {
+        padding: 60px 16px;
+      }
+
+      .uk-section {
+        padding: 60px 16px;
+      }
+
+      .inline-testimonial {
+        padding: 40px 16px;
+      }
+
+      .inline-testimonial blockquote {
+        font-size: 18px;
+      }
+
+      .meet-detail {
+        padding: 18px 20px;
+        font-size: 13px;
+      }
+
+      .how-it-works {
+        padding: 60px 16px;
+      }
+
+      .how-it-works-header {
+        margin-bottom: 40px;
+      }
+
+      .timeline-item {
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .timeline-time {
+        width: auto;
+        text-align: left;
+      }
+
+      .pricing-section {
+        padding: 60px 16px;
+      }
+
+      .pricing-card {
+        padding: 24px 16px;
       }
 
       .pricing-card.popular {
         transform: scale(1);
       }
+
+      .testimonial-section {
+        padding: 60px 16px;
+      }
+
+      .testimonial-text {
+        font-size: 20px;
+      }
+
+      .final-cta {
+        padding: 60px 16px;
+      }
+
+      .final-cta h2 {
+        font-size: 28px;
+      }
+
+      .footer-content {
+        flex-direction: column;
+        gap: 16px;
+      }
     }
 
-    @media (max-width: 768px) {
-      .pricing-grid {
-        grid-template-columns: 1fr;
+    @media (max-width: 480px) {
+      .hero {
+        padding-top: 80px;
+        padding-bottom: 60px;
+      }
+
+      .hero h1 {
+        font-size: 32px;
+      }
+
+      .hero-subtext {
+        font-size: 14px;
+      }
+
+      .pitch-headline {
+        font-size: 20px;
+      }
+
+      .pitch-text {
+        font-size: 13px;
       }
 
       .pricing-header h2 {
-        font-size: 32px;
-      }
-    }
-
-    /* === Testimonials === */
-    .testimonials {
-      padding: 80px 24px;
-    }
-
-    .testimonials h2 {
-      font-family: 'Playfair Display', serif;
-      font-size: 44px;
-      font-weight: 700;
-      text-align: center;
-      margin-bottom: 48px;
-      color: var(--text-primary);
-    }
-
-    .testimonial-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 24px;
-    }
-
-    .testimonial-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: var(--radius-lg);
-      padding: 28px;
-      opacity: 0;
-      animation: cardReveal 0.6s ease forwards;
-    }
-
-    .testimonial-card:nth-child(1) { animation-delay: 0.1s; }
-    .testimonial-card:nth-child(2) { animation-delay: 0.2s; }
-    .testimonial-card:nth-child(3) { animation-delay: 0.3s; }
-
-    .testimonial-stars {
-      color: var(--warning);
-      font-size: 14px;
-      margin-bottom: 12px;
-    }
-
-    .testimonial-text {
-      font-size: 15px;
-      color: var(--text-secondary);
-      line-height: 1.7;
-      margin-bottom: 16px;
-      font-style: italic;
-    }
-
-    .testimonial-author {
-      font-weight: 600;
-      color: var(--text-primary);
-      font-size: 14px;
-    }
-
-    .testimonial-role {
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-
-    @media (max-width: 768px) {
-      .testimonial-grid {
-        grid-template-columns: 1fr;
+        font-size: 24px;
       }
 
-      .testimonials h2 {
-        font-size: 32px;
-      }
-    }
-
-    /* === Bottom CTA === */
-    .bottom-cta {
-      padding: 80px 24px;
-      background: linear-gradient(135deg, var(--primary-deep), var(--primary));
-      color: white;
-      text-align: center;
-    }
-
-    .bottom-cta h2 {
-      font-family: 'Playfair Display', serif;
-      font-size: 44px;
-      font-weight: 700;
-      margin-bottom: 16px;
-    }
-
-    .bottom-cta p {
-      font-size: 18px;
-      margin-bottom: 32px;
-      opacity: 0.95;
-    }
-
-    .bottom-form {
-      display: flex;
-      gap: 12px;
-      max-width: 500px;
-      margin: 0 auto;
-    }
-
-    .bottom-form input {
-      flex: 1;
-      padding: 14px 16px;
-      border: none;
-      border-radius: var(--radius-md);
-      font-family: inherit;
-      font-size: 16px;
-    }
-
-    .bottom-form button {
-      padding: 14px 28px;
-      background: rgba(255, 255, 255, 0.2);
-      color: white;
-      border: 1px solid rgba(255, 255, 255, 0.4);
-      border-radius: var(--radius-md);
-      font-weight: 600;
-      cursor: pointer;
-      transition: var(--transition);
-    }
-
-    .bottom-form button:hover:not(:disabled) {
-      background: rgba(255, 255, 255, 0.3);
-      border-color: rgba(255, 255, 255, 0.6);
-      transform: translateY(-2px);
-    }
-
-    .bottom-success {
-      display: none;
-      color: white;
-      padding: 16px;
-      background: rgba(91, 169, 123, 0.2);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      border-radius: var(--radius-md);
-      font-weight: 600;
-    }
-
-    .bottom-error {
-      display: none;
-      color: rgba(255, 255, 255, 0.9);
-      padding: 12px 16px;
-      background: rgba(212, 97, 91, 0.2);
-      border: 1px solid rgba(212, 97, 91, 0.4);
-      border-radius: var(--radius-md);
-      font-size: 14px;
-      margin-bottom: 16px;
-    }
-
-    @media (max-width: 768px) {
-      .bottom-cta {
-        padding: 60px 24px;
+      .testimonial-text {
+        font-size: 18px;
       }
 
-      .bottom-cta h2 {
-        font-size: 32px;
+      .final-cta h2 {
+        font-size: 24px;
       }
 
-      .bottom-form {
-        flex-direction: column;
-      }
-
-      .bottom-form input,
-      .bottom-form button {
-        width: 100%;
-      }
-    }
-
-    /* === Footer === */
-    footer {
-      background: var(--text-primary);
-      color: white;
-      padding: 48px 24px;
-      font-size: 14px;
-    }
-
-    .footer-content {
-      display: grid;
-      grid-template-columns: 2fr 1fr 1fr 1fr;
-      gap: 32px;
-      max-width: 1200px;
-      margin: 0 auto;
-      padding-bottom: 32px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    }
-
-    .footer-brand h3 {
-      font-family: 'Playfair Display', serif;
-      font-size: 18px;
-      margin-bottom: 8px;
-    }
-
-    .footer-brand p {
-      opacity: 0.7;
-      font-size: 13px;
-      line-height: 1.6;
-    }
-
-    .footer-links {
-      list-style: none;
-    }
-
-    .footer-links h4 {
-      font-weight: 600;
-      margin-bottom: 12px;
-      opacity: 1;
-    }
-
-    .footer-links li {
-      margin-bottom: 8px;
-    }
-
-    .footer-links a {
-      color: white;
-      text-decoration: none;
-      opacity: 0.7;
-      transition: var(--transition);
-    }
-
-    .footer-links a:hover {
-      opacity: 1;
-    }
-
-    .footer-bottom {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      max-width: 1200px;
-      margin: 0 auto;
-      opacity: 0.7;
-      font-size: 12px;
-    }
-
-    @media (max-width: 768px) {
-      .footer-content {
-        grid-template-columns: 1fr;
-        gap: 24px;
-      }
-
-      .footer-bottom {
-        flex-direction: column;
-        gap: 16px;
-        text-align: center;
+      .quote-mark {
+        font-size: 48px;
       }
     }
   </style>
@@ -1592,727 +1059,380 @@
   <!-- Navigation -->
   <nav>
     <div class="nav-content">
-      <a href="#" class="logo">florrie.ai</a>
-      <ul class="nav-links">
-        <li><a href="#features">Features</a></li>
-        <li><a href="#demos">Demos</a></li>
-        <li><a href="#pricing">Pricing</a></li>
-        <li><a href="#waitlist-bottom" class="nav-cta">Join Waitlist</a></li>
-      </ul>
+      <div class="logo">florrie</div>
+      <a href="#waitlist" class="nav-cta">Join the waitlist</a>
     </div>
   </nav>
 
-  <!-- Hero Section -->
-  <section class="hero" id="hero">
-    <div class="hero-content">
-      <div class="hero-badge">Early access opening soon</div>
-      <h1>Your AI <em>receptionist</em> for the salon</h1>
-      <p class="hero-subhead">Florrie handles bookings, client messages, tax, and compliance — so you can focus on the chair. Built for UK beauticians.</p>
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container-narrow">
+      <div class="label">For beauticians</div>
+      <h1 class="display-italic">The AI that runs your salon while you run your business</h1>
+      <p class="hero-subtext">Florrie handles your bookings, replies to clients in your voice, tracks your tax, and keeps you compliant. You focus on the chair.</p>
 
-      <form class="waitlist-form" id="hero-form">
-        <input type="email" placeholder="your@email.com" required>
-        <button type="submit">Join Waitlist</button>
+      <div class="error-message" id="heroError"></div>
+      <form class="waitlist-form" id="heroForm" onsubmit="submitWaitlist(event, this, 'heroSuccess', 'heroError')">
+        <input type="email" placeholder="Enter your email" required>
+        <button type="submit">Get early access</button>
       </form>
-      <div class="form-error" id="hero-error"></div>
-      <div class="form-success" id="hero-success">✓ You're on the waitlist! We'll email you when we open.</div>
+      <div class="success-message" id="heroSuccess">
+        Check your email—we'll be in touch soon.
+      </div>
+      <p class="form-note">Free to join. No card needed.</p>
     </div>
+  </section>
 
-    <div class="hero-phone">
-      <div class="phone-frame">
-        <div class="phone-notch"></div>
-        <div class="phone-screen">
-          <div class="chat-header">
-            <div class="chat-avatar">f</div>
-            <div class="chat-header-text">
-              <div class="chat-header-name">Florrie</div>
-              <div class="chat-header-status">
-                <span class="status-dot"></span>
-                Online
-              </div>
-            </div>
-          </div>
-          <div class="chat-messages" id="chat-messages">
-            <div class="message client" style="animation-delay: 0s;">
-              <div class="message-bubble">Hey! Can I get a brow lamination on Thursday afternoon? 💕</div>
-            </div>
-            <div class="message bot" style="animation-delay: 1.5s;">
-              <div class="typing-indicator">
-                <div class="typing-dot"></div>
-                <div class="typing-dot"></div>
-                <div class="typing-dot"></div>
-              </div>
-            </div>
-            <div class="message bot" style="animation-delay: 3s;">
-              <div class="message-bubble">Hey lovely! 💗 Thursday works great. I've got 2:30pm free — that suit you? It's £45 for the lami, takes about 45 mins x</div>
-            </div>
-            <div class="message client" style="animation-delay: 4.5s;">
-              <div class="message-bubble">Perfect! Book me in 🙌</div>
-            </div>
-            <div class="message bot" style="animation-delay: 5.5s;">
-              <div class="booking-confirm">
-                <div class="booking-confirm-icon">✓</div>
-                <div class="booking-confirm-text"><strong>Brow Lamination</strong><br>Thurs 10 Apr, 2:30pm<br>£45</div>
-              </div>
-            </div>
-          </div>
-        </div>
+  <!-- The Problem -->
+  <section class="problem-section">
+    <div class="problem-header">
+      <span class="label">Sound familiar?</span>
+      <h2 class="display-italic">You didn't start a beauty business to answer WhatsApp at midnight</h2>
+    </div>
+    <div class="problem-grid">
+      <div class="problem-card">
+        <div class="problem-card-time">The 11pm message</div>
+        <p>"Can I move my Thursday to Friday?" You're half asleep. You open your diary, scroll through next week, find a gap, type a reply. Then you lie there for twenty minutes because your brain won't switch off.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-card-time">The shoebox</div>
+        <p>Receipts from Sally Beauty. Amazon. Your wax supplier. That Uber to the training course. They're in a drawer, a carrier bag, your coat pocket. You'll sort them in January. You said that last January too.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-card-time">The no-show</div>
+        <p>She booked three weeks ago. No confirmation sent, no patch test done. You find out at 9am when the chair's empty and your morning's got a hole in it. You scroll back through your messages to check. Nothing.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-card-time">The Sunday night</div>
+        <p>You sit on the sofa with your phone and a notebook. Moving appointments around. Writing next week's Instagram caption. Checking who needs reminders. Two hours gone. You haven't even thought about what you're actually doing with your week.</p>
       </div>
     </div>
   </section>
 
-  <!-- Demo Section -->
-  <section class="demos" id="demos">
-    <div class="container">
-      <div class="demos-header">
-        <h2>See Florrie in action</h2>
-        <p>Four features. Zero admin.</p>
-      </div>
+  <!-- Pitch -->
+  <section class="pitch-section">
+    <div class="pitch-block">
+      <h2 class="section-heading pitch-headline">She talks like you</h2>
+      <p class="pitch-text">Florrie learns your tone from every correction. She picks up your abbreviations, your sign-off style, the way you greet regulars vs new enquiries. After a week, clients can't tell the difference.</p>
+    </div>
 
-      <div class="demo-tabs">
-        <button class="demo-tab active" data-tab="0">AI Receptionist</button>
-        <button class="demo-tab" data-tab="1">Tax Dashboard</button>
-        <button class="demo-tab" data-tab="2">Compliance</button>
-        <button class="demo-tab" data-tab="3">Smart Booking</button>
-      </div>
+    <div class="pitch-block">
+      <h2 class="section-heading pitch-headline">Your tax, sorted</h2>
+      <p class="pitch-text">Snap a receipt, Florrie files it. Every payment tracked against HMRC categories in real time. When self-assessment comes around, you export a clean summary instead of panicking over a carrier bag of paper.</p>
+    </div>
 
-      <!-- Demo 1: AI Receptionist -->
-      <div class="demo-content" id="demo-0">
-        <div class="demo-copy">
-          <h3>She reads, replies, and books clients for you</h3>
-          <p>WhatsApp, Instagram, SMS, email. Florrie handles every message in your voice.</p>
-          <div class="demo-badges">
-            <div class="demo-badge">
-              <div class="demo-badge-icon">✓</div>
-              <div class="demo-badge-text">Learns your tone from corrections</div>
-            </div>
-            <div class="demo-badge">
-              <div class="demo-badge-icon">✓</div>
-              <div class="demo-badge-text">Escalates when unsure</div>
-            </div>
-            <div class="demo-badge">
-              <div class="demo-badge-icon">✓</div>
-              <div class="demo-badge-text">Works 24/7 while you sleep</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="demo-visual">
-          <div class="phone-frame" style="width: 240px; height: 480px;">
-            <div class="phone-notch"></div>
-            <div class="phone-screen">
-              <div class="chat-header">
-                <div class="chat-avatar">f</div>
-                <div class="chat-header-text">
-                  <div class="chat-header-name">Florrie</div>
-                  <div class="chat-header-status">
-                    <span class="status-dot"></span>
-                    Online
-                  </div>
-                </div>
-              </div>
-              <div class="chat-messages">
-                <div class="message client" style="animation-delay: 0s;">
-                  <div class="message-bubble">Hiya, can I book a full set with you?</div>
-                </div>
-                <div class="message bot" style="animation-delay: 1.5s;">
-                  <div class="typing-indicator">
-                    <div class="typing-dot"></div>
-                    <div class="typing-dot"></div>
-                    <div class="typing-dot"></div>
-                  </div>
-                </div>
-                <div class="message bot" style="animation-delay: 3s;">
-                  <div class="message-bubble">Of course babe! I've got slots available next week x</div>
-                </div>
-                <div class="message client" style="animation-delay: 4.5s;">
-                  <div class="message-bubble">Tuesday afternoon? 💅</div>
-                </div>
-                <div class="message bot" style="animation-delay: 5.5s;">
-                  <div class="booking-confirm">
-                    <div class="booking-confirm-icon">✓</div>
-                    <div class="booking-confirm-text"><strong>Full Set</strong><br>Tues, 2:00pm</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Demo 2: Tax Dashboard -->
-      <div class="demo-content hidden" id="demo-1">
-        <div class="demo-copy">
-          <h3>Stop dreading self-assessment</h3>
-          <p>Real-time tax tracking built for UK beauticians. Receipt scanning, HMRC categories, quarterly exports.</p>
-          <div class="demo-badges">
-            <div class="demo-badge">
-              <div class="demo-badge-icon">✓</div>
-              <div class="demo-badge-text">Receipt OCR auto-categorises expenses</div>
-            </div>
-            <div class="demo-badge">
-              <div class="demo-badge-icon">✓</div>
-              <div class="demo-badge-text">Income tax + NI calculated live</div>
-            </div>
-            <div class="demo-badge">
-              <div class="demo-badge-icon">✓</div>
-              <div class="demo-badge-text">Export-ready for your accountant</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="demo-visual">
-          <div class="tax-dashboard">
-            <div class="stat-cards">
-              <div class="stat-card revenue">
-                <div class="stat-card-label">Revenue YTD</div>
-                <div class="stat-card-value">£38,450</div>
-              </div>
-              <div class="stat-card expenses">
-                <div class="stat-card-label">Expenses</div>
-                <div class="stat-card-value">£8,920</div>
-              </div>
-              <div class="stat-card tax">
-                <div class="stat-card-label">Tax Set Aside</div>
-                <div class="stat-card-value">£5,906</div>
-              </div>
-            </div>
-
-            <div class="chart-placeholder" id="chart-demo">
-              <div class="chart-bar"></div>
-              <div class="chart-bar"></div>
-              <div class="chart-bar"></div>
-              <div class="chart-bar"></div>
-              <div class="chart-bar"></div>
-              <div class="chart-bar"></div>
-            </div>
-
-            <div class="receipt-card">
-              📸 Receipt scanned — Wax supplies £34.50, HMRC: Consumables, ✓ Auto-categorised
-              <div class="mtd-badge">MTD Ready</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Demo 3: Compliance -->
-      <div class="demo-content hidden" id="demo-2">
-        <div class="demo-copy">
-          <h3>Compliance built in, not bolted on</h3>
-          <p>Patch tests, aftercare protocols, consultation forms — tracked and enforced automatically.</p>
-          <div class="demo-badges">
-            <div class="demo-badge">
-              <div class="demo-badge-icon">✓</div>
-              <div class="demo-badge-text">Alerts before overdue patch tests</div>
-            </div>
-            <div class="demo-badge">
-              <div class="demo-badge-icon">✓</div>
-              <div class="demo-badge-text">Consultation forms pre-filled</div>
-            </div>
-            <div class="demo-badge">
-              <div class="demo-badge-icon">✓</div>
-              <div class="demo-badge-text">Aftercare reminders sent automatically</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="demo-visual">
-          <div class="compliance-dashboard">
-            <div class="compliance-score">
-              <div class="score-ring">
-                <svg class="score-ring-svg" viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="45" fill="none" stroke="#f5f3f0" stroke-width="8"></circle>
-                  <circle cx="50" cy="50" r="45" fill="none" stroke="#C76B8A" stroke-width="8" stroke-dasharray="282" stroke-dashoffset="18" stroke-linecap="round"></circle>
-                </svg>
-              </div>
-              <div class="score-text">
-                <div class="score-percent">94%</div>
-                <div class="score-label">Compliance Score</div>
-              </div>
-            </div>
-
-            <div class="compliance-alert">
-              <div class="compliance-alert-icon">⚠</div>
-              <div>Patch test overdue — Emma Collins, tint booked Fri, last patch 8 weeks ago</div>
-            </div>
-
-            <div class="compliance-rows">
-              <div class="compliance-row">
-                <div class="compliance-name">Sophie Ward</div>
-                <div class="compliance-status ok">✓ All clear</div>
-              </div>
-              <div class="compliance-row">
-                <div class="compliance-name">Maya Chen</div>
-                <div class="compliance-status ok">✓ Patch OK</div>
-              </div>
-              <div class="compliance-row">
-                <div class="compliance-name">Emma Collins</div>
-                <div class="compliance-status warning">⚠ Patch due</div>
-              </div>
-              <div class="compliance-row">
-                <div class="compliance-name">Jade Roberts</div>
-                <div class="compliance-status new">• New client</div>
-              </div>
-            </div>
-
-            <div class="compliance-stats">
-              <div class="compliance-stat">
-                <div class="compliance-stat-number">12</div>
-                <div class="compliance-stat-label">Patch tests</div>
-              </div>
-              <div class="compliance-stat">
-                <div class="compliance-stat-number">8</div>
-                <div class="compliance-stat-label">Forms filed</div>
-              </div>
-              <div class="compliance-stat">
-                <div class="compliance-stat-number">23</div>
-                <div class="compliance-stat-label">Aftercare sent</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Demo 4: Smart Booking -->
-      <div class="demo-content hidden" id="demo-3">
-        <div class="demo-copy">
-          <h3>Booking that just works</h3>
-          <p>Client picks a slot, Florrie handles confirmations, reminders, and follow-ups.</p>
-          <div class="demo-badges">
-            <div class="demo-badge">
-              <div class="demo-badge-icon">✓</div>
-              <div class="demo-badge-text">AI suggests optimal time slots</div>
-            </div>
-            <div class="demo-badge">
-              <div class="demo-badge-icon">✓</div>
-              <div class="demo-badge-text">Automated SMS confirmations</div>
-            </div>
-            <div class="demo-badge">
-              <div class="demo-badge-icon">✓</div>
-              <div class="demo-badge-text">24hr reminders prevent no-shows</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="demo-visual">
-          <div class="booking-flow" id="booking-flow">
-            <!-- Step 1: Service -->
-            <div class="booking-step active" id="booking-step-1">
-              <div class="step-indicator">
-                <div class="step-dot active">1</div>
-                <div class="step-dot">2</div>
-                <div class="step-dot">3</div>
-              </div>
-              <div class="service-cards">
-                <div class="service-card selected">
-                  <div class="service-card-name">Brow Lami</div>
-                  <div class="service-card-price">£45</div>
-                </div>
-                <div class="service-card">
-                  <div class="service-card-name">Tint+Shape</div>
-                  <div class="service-card-price">£28</div>
-                </div>
-                <div class="service-card">
-                  <div class="service-card-name">Brow Wax</div>
-                  <div class="service-card-price">£14</div>
-                </div>
-                <div class="service-card">
-                  <div class="service-card-name">Full Lash Set</div>
-                  <div class="service-card-price">£60</div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Step 2: Time -->
-            <div class="booking-step" id="booking-step-2">
-              <div class="step-indicator">
-                <div class="step-dot active">1</div>
-                <div class="step-dot active">2</div>
-                <div class="step-dot">3</div>
-              </div>
-              <div class="time-grid">
-                <div class="time-slot unavailable">9:00am</div>
-                <div class="time-slot unavailable">10:00am</div>
-                <div class="time-slot available">11:00am</div>
-                <div class="time-slot available">12:00pm</div>
-                <div class="time-slot unavailable">1:00pm</div>
-                <div class="time-slot selected">2:30pm</div>
-                <div class="time-slot available">3:30pm</div>
-                <div class="time-slot available">4:30pm</div>
-              </div>
-              <div class="booking-helper">🤖 Florrie suggests 2:30pm — gap before your next client</div>
-            </div>
-
-            <!-- Step 3: Confirm -->
-            <div class="booking-step" id="booking-step-3">
-              <div class="step-indicator">
-                <div class="step-dot active">1</div>
-                <div class="step-dot active">2</div>
-                <div class="step-dot active">3</div>
-              </div>
-              <div class="booking-complete">
-                <div class="booking-complete-icon">✓</div>
-                <div class="booking-complete-text">Booked! Confirmation + reminder sent automatically</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div class="pitch-block">
+      <h2 class="section-heading pitch-headline">Compliance on autopilot</h2>
+      <p class="pitch-text">Patch test tracking, consultation forms, aftercare messages. Florrie knows which clients need what, and sends reminders before their appointment. Not after something goes wrong.</p>
     </div>
   </section>
 
-  <!-- Social Proof -->
+  <!-- Dividers & Social Proof -->
+  <div class="divider"></div>
   <section class="social-proof">
-    <div class="proof-item">
-      <div class="proof-number">200+</div>
-      <div class="proof-label">On the waitlist</div>
-    </div>
-    <div class="proof-item">
-      <div class="proof-number">30s</div>
-      <div class="proof-label">Average signup time</div>
-    </div>
-    <div class="proof-item">
-      <div class="proof-number">7</div>
-      <div class="proof-label">AI features at launch</div>
+    <div class="proof-row">
+      <div class="proof-item">200+ on the waitlist</div>
+      <div class="proof-separator"></div>
+      <div class="proof-item">Built for UK beauticians</div>
+      <div class="proof-separator"></div>
+      <div class="proof-item">7 AI features at launch</div>
     </div>
   </section>
+  <div class="divider"></div>
 
-  <!-- Features Grid -->
-  <section class="features" id="features">
-    <div class="container">
-      <h2>Everything you need, nothing you don't</h2>
-      <div class="feature-grid">
-        <div class="feature-card">
-          <div class="feature-icon">📅</div>
-          <h3>Smart Scheduling</h3>
-          <p>AI fills calendar gaps, syncs with Google Calendar, clients book 24/7 without a confirmation text to you.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">💬</div>
-          <h3>AI Front Desk</h3>
-          <p>Replies to WhatsApp and SMS in your tone. Handles rescheduling, FAQs, and knows your pricing by heart.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">💳</div>
-          <h3>Payments & Deposits</h3>
-          <p>Stripe-powered payments, deposit protection, automatic no-show fees — all without lifting a finger.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">📊</div>
-          <h3>Client Intelligence</h3>
-          <p>Churn risk scores, rebooking nudges, aftercare follow-ups. Know who's about to ghost before they do.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">📈</div>
-          <h3>Tax Dashboard</h3>
-          <p>Real-time tax liability, receipt OCR, HMRC categories, quarterly export. Your accountant will love you.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">📱</div>
-          <h3>Content Autopilot</h3>
-          <p>AI-generated Instagram captions from your photos. Stay visible without the sweat.</p>
-        </div>
+  <!-- Meet Florrie -->
+  <section class="meet-section">
+    <div class="meet-header">
+      <span class="label">Who she is</span>
+      <h2 class="display-italic">She's the colleague you always needed</h2>
+    </div>
+    <div class="meet-body">
+      <p>Florrie reads your WhatsApp, Instagram DMs, texts, and emails. She replies in your voice. Not a chatbot voice. Yours. She writes "hiya lovely" because that's what you write. She knows your cancellation policy word for word. She knows you don't take bookings before 10 on Mondays.</p>
+      <p>She gets better every time you correct her. Changed a reply she sent? She remembers why and adjusts next time. After a week, your regulars won't notice the difference. New clients will think you reply fast.</p>
+      <p>She books appointments, sends confirmations, chases no-shows, fills last-minute gaps from your waitlist, and nudges clients to rebook when they're due. All while you're with a client, or at the gym, or asleep.</p>
+      <div class="meet-detail">
+        When she's not sure about something, she flags it and steps aside. Complaints, clinical questions, anything sensitive. You decide. She learns from that too.
       </div>
     </div>
   </section>
 
-  <!-- Pricing Section -->
-  <section class="pricing" id="pricing">
-    <div class="container">
-      <div class="pricing-header">
-        <h2>Simple, transparent pricing</h2>
-        <div class="pricing-toggle">
-          <button class="pricing-toggle-btn active" data-period="monthly">Monthly</button>
-          <button class="pricing-toggle-btn" data-period="annual">Annual<span class="savings-badge">Save 2 months</span></button>
-        </div>
+  <!-- Inline Testimonial -->
+  <section class="inline-testimonial">
+    <blockquote>"I tested her by not replying to anything for a whole Saturday. Checked my phone at 6pm — four new bookings, two reschedules, all handled. I nearly cried."</blockquote>
+    <cite>Jade T. — Lash tech, Birmingham</cite>
+  </section>
+
+  <!-- How It Works -->
+  <section class="how-it-works">
+    <div class="how-it-works-header">
+      <div class="label">How it works</div>
+      <h2 class="display-italic">Your morning. Reimagined.</h2>
+    </div>
+
+    <div class="timeline">
+      <div class="timeline-item">
+        <div class="timeline-time mono">7:30am</div>
+        <div class="timeline-content">You're still in bed. Florrie's been up since six. Three WhatsApp messages came in overnight: a new booking request, a reschedule, and someone asking about lash lift prices. All handled. Two confirmations sent. One price list shared with a link to book.</div>
       </div>
 
-      <div class="pricing-grid">
-        <!-- Free -->
-        <div class="pricing-card">
-          <div class="pricing-name">Free</div>
-          <div class="pricing-price">
-            <span class="pricing-amount">£0</span>
-            <span class="pricing-period">/month</span>
-          </div>
-          <div class="pricing-save"></div>
-          <ul class="pricing-features">
-            <li>5 clients</li>
-            <li>Basic calendar</li>
-            <li>Booking page</li>
-            <li>5 AI chats/month</li>
-          </ul>
-          <button class="pricing-cta" onclick="document.getElementById('waitlist-bottom').scrollIntoView({behavior: 'smooth'})">Join Waitlist</button>
-        </div>
+      <div class="timeline-item">
+        <div class="timeline-time mono">9:15am</div>
+        <div class="timeline-content">Your first client sits down. Your phone buzzes. Cancellation for 2pm. Florrie's already texted the next three people on your waitlist. By the time you look up from the brow, the slot's filled. You didn't touch your phone once.</div>
+      </div>
 
-        <!-- Starter -->
-        <div class="pricing-card">
-          <div class="pricing-name">Starter</div>
-          <div class="pricing-price">
-            <span class="pricing-amount">£19</span>
-            <span class="pricing-period monthly-price">/month</span>
-            <span class="pricing-period annual-price hidden">/month</span>
-          </div>
-          <div class="pricing-save annual-save hidden">£38 annual</div>
-          <ul class="pricing-features">
-            <li>50 clients</li>
-            <li>Online payments</li>
-            <li>SMS reminders</li>
-            <li>Receipt scanning</li>
-            <li>Reports</li>
-          </ul>
-          <button class="pricing-cta" onclick="document.getElementById('waitlist-bottom').scrollIntoView({behavior: 'smooth'})">Join Waitlist</button>
-        </div>
+      <div class="timeline-item">
+        <div class="timeline-time mono">12:00pm</div>
+        <div class="timeline-content">Lunch. You snap a photo of a receipt from Sally Beauty. £34 for wax supplies. Florrie scans it, files it under HMRC consumables, and your running tax estimate ticks up. No spreadsheet. No shoebox. Thirty seconds and it's done.</div>
+      </div>
 
-        <!-- Pro (Popular) -->
-        <div class="pricing-card popular">
-          <div class="popular-badge">Most popular</div>
-          <div class="pricing-name">Pro</div>
-          <div class="pricing-price">
-            <span class="pricing-amount">£39</span>
-            <span class="pricing-period monthly-price">/month</span>
-            <span class="pricing-period annual-price hidden">/month</span>
-          </div>
-          <div class="pricing-save annual-save hidden">£78 annual</div>
-          <ul class="pricing-features">
-            <li>Unlimited clients</li>
-            <li>Full AI receptionist</li>
-            <li>WhatsApp automation</li>
-            <li>Tax dashboard</li>
-            <li>Content autopilot</li>
-            <li>Full analytics</li>
-          </ul>
-          <button class="pricing-cta" onclick="document.getElementById('waitlist-bottom').scrollIntoView({behavior: 'smooth'})">Join Waitlist</button>
-        </div>
+      <div class="timeline-item">
+        <div class="timeline-time mono">2:30pm</div>
+        <div class="timeline-content">A new enquiry lands on Instagram. "Do you do brow lamination? How much?" Florrie replies with your prices, your availability next week, and a booking link. The client books for Thursday. You never saw the message.</div>
+      </div>
 
-        <!-- Team -->
-        <div class="pricing-card">
-          <div class="pricing-name">Team</div>
-          <div class="pricing-price">
-            <span class="pricing-amount">£69</span>
-            <span class="pricing-period monthly-price">/month</span>
-            <span class="pricing-period annual-price hidden">/month</span>
-          </div>
-          <div class="pricing-save annual-save hidden">£138 annual</div>
-          <ul class="pricing-features">
-            <li>Everything in Pro</li>
-            <li>Multiple locations</li>
-            <li>Staff rota</li>
-            <li>Up to 10 team members</li>
-            <li>Priority support</li>
-          </ul>
-          <button class="pricing-cta" onclick="document.getElementById('waitlist-bottom').scrollIntoView({behavior: 'smooth'})">Join Waitlist</button>
-        </div>
+      <div class="timeline-item">
+        <div class="timeline-time mono">4:00pm</div>
+        <div class="timeline-content">Florrie flags something: Emma Collins has a tint booked for Friday, but her last patch test was eight weeks ago. Needs a fresh one. Florrie's already sent Emma a reminder with instructions and a link to confirm.</div>
+      </div>
+
+      <div class="timeline-item">
+        <div class="timeline-time mono">6:30pm</div>
+        <div class="timeline-content">Your last client leaves. Florrie's sent three aftercare messages, nudged two people to rebook, and drafted tomorrow's Instagram caption for you to approve. You close the salon door. The admin is already done.</div>
       </div>
     </div>
   </section>
 
-  <!-- Testimonials -->
-  <section class="testimonials">
-    <div class="container">
-      <h2>Loved by UK beauticians</h2>
-      <div class="testimonial-grid">
-        <div class="testimonial-card">
-          <div class="testimonial-stars">★★★★★</div>
-          <p class="testimonial-text">"Florrie's scheduling is a game-changer. I used to spend 20 minutes a day confirming bookings. Now? Zero friction."</p>
-          <div class="testimonial-author">Maya P.</div>
-          <div class="testimonial-role">Brow Artist, Manchester</div>
-        </div>
-        <div class="testimonial-card">
-          <div class="testimonial-stars">★★★★★</div>
-          <p class="testimonial-text">"The WhatsApp reminders cut my no-shows in half. My clients actually show up now — Florrie's got their back."</p>
-          <div class="testimonial-author">Sophie R.</div>
-          <div class="testimonial-role">Lash Tech, London</div>
-        </div>
-        <div class="testimonial-card">
-          <div class="testimonial-stars">★★★★★</div>
-          <p class="testimonial-text">"Finally a tool that gets it. Not designed by big salons — built for solo artists and small teams like mine."</p>
-          <div class="testimonial-author">Jess C.</div>
-          <div class="testimonial-role">Nail Tech, Birmingham</div>
-        </div>
+  <!-- Built for UK Beauty -->
+  <section class="uk-section">
+    <div class="uk-header">
+      <span class="label">Built for your world</span>
+      <h2 class="display-italic">We know HMRC. We know patch tests. We know your January.</h2>
+      <p>Florrie was built for UK beauticians from day one. Not adapted from a generic booking tool. Built.</p>
+    </div>
+    <div class="uk-grid">
+      <div class="uk-card">
+        <h3>Self-assessment, sorted</h3>
+        <p>Florrie tracks your income and expenses against HMRC categories in real time. When January comes, you export a clean summary. Your accountant gets a spreadsheet instead of a carrier bag.</p>
+      </div>
+      <div class="uk-card">
+        <h3>Making Tax Digital ready</h3>
+        <p>MTD is coming for everyone. Florrie keeps your records in the format HMRC expects, so you're not scrambling to digitise a year of paper when the deadline hits.</p>
+      </div>
+      <div class="uk-card">
+        <h3>Patch test tracking</h3>
+        <p>Regulations say you need them. Florrie remembers when each client's patch test expires and sends reminders before their appointment. Not after something goes wrong and you're checking your records.</p>
+      </div>
+      <div class="uk-card">
+        <h3>Aftercare on record</h3>
+        <p>Every treatment gets the right aftercare message, sent automatically. If a client ever disputes what they were told, you have a timestamped record. Protection for you and your business.</p>
       </div>
     </div>
   </section>
 
-  <!-- Bottom CTA -->
-  <section class="bottom-cta" id="waitlist-bottom">
-    <h2>Get early access to florrie.ai</h2>
-    <p>We're opening spots in batches. Join the waitlist and be first in line.</p>
+  <!-- Inline Testimonial 2 -->
+  <section class="inline-testimonial">
+    <blockquote>"The tax tracking sold me. I paid my accountant £400 last year just to sort my receipts into categories. Florrie does it the moment I take a photo."</blockquote>
+    <cite>Priya K. — Nail artist, Leeds</cite>
+  </section>
 
-    <form class="bottom-form" id="bottom-form">
-      <input type="email" placeholder="your@email.com" required>
-      <button type="submit">Join Waitlist</button>
-    </form>
-    <div class="bottom-error" id="bottom-error"></div>
-    <div class="bottom-success" id="bottom-success">✓ You're on the waitlist! Check your inbox for next steps.</div>
+  <!-- Pricing -->
+  <section class="pricing-section">
+    <div class="pricing-header">
+      <div class="label">Pricing</div>
+      <h2 class="display-italic">Simple, fair pricing</h2>
+      <p class="pricing-subtext">Start free. Upgrade when Florrie proves herself.</p>
+    </div>
+
+    <div class="toggle-container">
+      <button class="toggle-btn active" data-period="monthly">Monthly</button>
+      <button class="toggle-btn" data-period="annual">Annual<span style="font-size: 10px; margin-left: 4px;">Save 17%</span></button>
+    </div>
+
+    <div class="pricing-cards">
+      <!-- Free -->
+      <div class="pricing-card">
+        <div class="pricing-tier">Free</div>
+        <div class="pricing-price"><span class="price-amount">£0</span></div>
+        <div class="pricing-price-period">/month</div>
+        <div class="pricing-description">Get started</div>
+        <div class="pricing-features">
+          <div class="pricing-feature">5 clients</div>
+          <div class="pricing-feature">Basic calendar</div>
+          <div class="pricing-feature">Booking page</div>
+          <div class="pricing-feature">5 AI messages/month</div>
+        </div>
+        <button onclick="scrollToWaitlist()">Join the waitlist</button>
+      </div>
+
+      <!-- Starter -->
+      <div class="pricing-card">
+        <div class="pricing-tier">Starter</div>
+        <div class="pricing-price"><span class="price-amount" data-monthly="£19" data-annual="£190">£19</span></div>
+        <div class="pricing-price-period monthly-text">/month</div>
+        <div class="pricing-description">For solo beauticians</div>
+        <div class="pricing-features">
+          <div class="pricing-feature">50 clients</div>
+          <div class="pricing-feature">Payments</div>
+          <div class="pricing-feature">SMS reminders</div>
+          <div class="pricing-feature">Receipt scanning</div>
+          <div class="pricing-feature">Reports</div>
+        </div>
+        <button onclick="scrollToWaitlist()">Join the waitlist</button>
+      </div>
+
+      <!-- Pro -->
+      <div class="pricing-card popular">
+        <div class="pricing-popular-tag">Popular</div>
+        <div class="pricing-tier">Pro</div>
+        <div class="pricing-price"><span class="price-amount" data-monthly="£39" data-annual="£393">£39</span></div>
+        <div class="pricing-price-period monthly-text">/month</div>
+        <div class="pricing-description">For growing businesses</div>
+        <div class="pricing-features">
+          <div class="pricing-feature">Unlimited clients</div>
+          <div class="pricing-feature">Full AI receptionist</div>
+          <div class="pricing-feature">WhatsApp</div>
+          <div class="pricing-feature">Tax dashboard</div>
+          <div class="pricing-feature">Content autopilot</div>
+          <div class="pricing-feature">Analytics</div>
+        </div>
+        <button onclick="scrollToWaitlist()">Join the waitlist</button>
+      </div>
+
+      <!-- Team -->
+      <div class="pricing-card">
+        <div class="pricing-tier">Team</div>
+        <div class="pricing-price"><span class="price-amount" data-monthly="£69" data-annual="£690">£69</span></div>
+        <div class="pricing-price-period monthly-text">/month</div>
+        <div class="pricing-description">For teams & salons</div>
+        <div class="pricing-features">
+          <div class="pricing-feature">Everything in Pro</div>
+          <div class="pricing-feature">Multi-location</div>
+          <div class="pricing-feature">Staff rota</div>
+          <div class="pricing-feature">10 team members</div>
+          <div class="pricing-feature">Priority support</div>
+        </div>
+        <button onclick="scrollToWaitlist()">Join the waitlist</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Testimonial -->
+  <section class="testimonial-section">
+    <div class="container-narrow">
+      <div class="testimonial-quote">
+        <div class="quote-mark">"</div>
+        <p class="testimonial-text">I used to spend my Sunday nights sorting next week's diary. Now Florrie does it in seconds.</p>
+        <p class="testimonial-attribution">Maya P. — Brow artist, Manchester</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <section class="final-cta" id="waitlist">
+    <div class="container-narrow">
+      <h2 class="display-italic">Your salon deserves this</h2>
+      <p class="final-cta-subtext">Join the waitlist. We're opening access in batches.</p>
+
+      <div class="error-message" id="finalError"></div>
+      <form class="waitlist-form" id="finalForm" onsubmit="submitWaitlist(event, this, 'finalSuccess', 'finalError')">
+        <input type="email" placeholder="Enter your email" required>
+        <button type="submit">Get early access</button>
+      </form>
+      <div class="success-message" id="finalSuccess">
+        Check your email—we'll be in touch soon.
+      </div>
+      <p class="form-note">Free to join. We'll never spam you.</p>
+    </div>
   </section>
 
   <!-- Footer -->
   <footer>
     <div class="footer-content">
-      <div class="footer-brand">
-        <h3>florrie.ai</h3>
-        <p>AI receptionist for UK salons. Bookings, messages, tax, compliance — all handled.</p>
+      <div class="footer-logo">florrie</div>
+      <span>© 2026</span>
+      <div class="footer-links">
+        <a href="#">Privacy</a>
+        <a href="#">Terms</a>
       </div>
-      <div>
-        <h4>Product</h4>
-        <ul class="footer-links">
-          <li><a href="#features">Features</a></li>
-          <li><a href="#demos">Demo</a></li>
-          <li><a href="#pricing">Pricing</a></li>
-          <li><a href="#">Blog</a></li>
-        </ul>
-      </div>
-      <div>
-        <h4>Company</h4>
-        <ul class="footer-links">
-          <li><a href="#">About</a></li>
-          <li><a href="#">Careers</a></li>
-          <li><a href="#">Contact</a></li>
-        </ul>
-      </div>
-      <div>
-        <h4>Legal</h4>
-        <ul class="footer-links">
-          <li><a href="#">Privacy</a></li>
-          <li><a href="#">Terms</a></li>
-          <li><a href="#">Cookies</a></li>
-        </ul>
-      </div>
-    </div>
-    <div class="footer-bottom">
-      <span>© 2026 Florrie AI. All rights reserved.</span>
-      <span>Built for beauty professionals</span>
     </div>
   </footer>
 
   <script>
-    // === Waitlist Form Handlers ===
-    function submitWaitlist(form, successEl, errorEl) {
-      const email = form.querySelector('input[type="email"]').value.trim();
-      if (!email) return;
+    // Pricing toggle
+    const toggleBtns = document.querySelectorAll('.toggle-btn');
+    const priceAmounts = document.querySelectorAll('.price-amount');
+    const monthlyTexts = document.querySelectorAll('.monthly-text');
 
-      const btn = form.querySelector('button[type="submit"]');
-      btn.disabled = true;
-      btn.textContent = 'Joining...';
-      errorEl.style.display = 'none';
-
-      fetch('/api/waitlist', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, source: 'landing_page' }),
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (data.success) {
-            form.style.display = 'none';
-            successEl.style.display = 'block';
-          } else {
-            errorEl.textContent = data.error || 'Something went wrong. Try again.';
-            errorEl.style.display = 'block';
-            btn.disabled = false;
-            btn.textContent = 'Join Waitlist';
-          }
-        })
-        .catch(() => {
-          errorEl.textContent = 'Network error. Check your connection.';
-          errorEl.style.display = 'block';
-          btn.disabled = false;
-          btn.textContent = 'Join Waitlist';
-        });
-    }
-
-    document.getElementById('hero-form').addEventListener('submit', (e) => {
-      e.preventDefault();
-      submitWaitlist(e.target, document.getElementById('hero-success'), document.getElementById('hero-error'));
-    });
-
-    document.getElementById('bottom-form').addEventListener('submit', (e) => {
-      e.preventDefault();
-      submitWaitlist(e.target, document.getElementById('bottom-success'), document.getElementById('bottom-error'));
-    });
-
-    // === Demo Tabs ===
-    const demoTabs = document.querySelectorAll('.demo-tab');
-    const demoContents = document.querySelectorAll('.demo-content');
-
-    demoTabs.forEach((tab, index) => {
-      tab.addEventListener('click', () => {
-        demoTabs.forEach(t => t.classList.remove('active'));
-        demoContents.forEach(c => c.classList.add('hidden'));
-
-        tab.classList.add('active');
-        document.getElementById(`demo-${index}`).classList.remove('hidden');
-
-        if (index === 3) {
-          resetBookingFlow();
-        }
-      });
-    });
-
-    // === Booking Flow ===
-    function resetBookingFlow() {
-      showBookingStep(1);
-      setTimeout(() => showBookingStep(2), 4000);
-      setTimeout(() => showBookingStep(3), 7000);
-      setTimeout(() => showBookingStep(1), 10000);
-    }
-
-    function showBookingStep(step) {
-      document.querySelectorAll('.booking-step').forEach(s => s.classList.remove('active'));
-      document.getElementById(`booking-step-${step}`).classList.add('active');
-    }
-
-    // Start booking animation loop
-    setInterval(resetBookingFlow, 13000);
-
-    // === Pricing Toggle ===
-    const pricingToggles = document.querySelectorAll('.pricing-toggle-btn');
-    pricingToggles.forEach(btn => {
+    toggleBtns.forEach(btn => {
       btn.addEventListener('click', () => {
-        pricingToggles.forEach(b => b.classList.remove('active'));
+        toggleBtns.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
 
         const period = btn.dataset.period;
-        document.querySelectorAll('.monthly-price').forEach(el => {
-          el.classList.toggle('hidden', period === 'annual');
-        });
-        document.querySelectorAll('.annual-price').forEach(el => {
-          el.classList.toggle('hidden', period === 'monthly');
-        });
-        document.querySelectorAll('.annual-save').forEach(el => {
-          el.classList.toggle('hidden', period === 'monthly');
-          el.classList.toggle('show', period === 'annual');
-        });
-      });
-    });
+        const isAnnual = period === 'annual';
 
-    // === Scroll to Section ===
-    document.querySelectorAll('a[href^="#"]').forEach(link => {
-      link.addEventListener('click', (e) => {
-        const href = link.getAttribute('href');
-        if (href !== '#') {
-          e.preventDefault();
-          const target = document.querySelector(href);
-          if (target) {
-            target.scrollIntoView({ behavior: 'smooth' });
+        priceAmounts.forEach(el => {
+          if (isAnnual) {
+            el.textContent = el.dataset.annual;
+          } else {
+            el.textContent = el.dataset.monthly;
           }
-        }
+        });
+
+        monthlyTexts.forEach(el => {
+          el.textContent = isAnnual ? '/year' : '/month';
+        });
       });
     });
 
-    // === Chat Animation Loop ===
-    const chatMessages = document.getElementById('chat-messages');
-    function restartChatAnimation() {
-      const messages = chatMessages.querySelectorAll('.message, .typing-indicator');
-      messages.forEach(msg => {
-        msg.style.animation = 'none';
-        setTimeout(() => {
-          msg.style.animation = '';
-        }, 10);
-      });
+    // Waitlist form submission
+    async function submitWaitlist(event, form, successId, errorId) {
+      event.preventDefault();
+
+      const email = form.querySelector('input[type="email"]').value.trim();
+      const btn = form.querySelector('button[type="submit"]');
+      const errorEl = document.getElementById(errorId);
+      const successEl = document.getElementById(successId);
+
+      if (!email) return;
+
+      btn.disabled = true;
+      const originalText = btn.textContent;
+      btn.textContent = 'Joining...';
+      errorEl.classList.remove('show');
+
+      try {
+        const res = await fetch('/api/waitlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, source: 'landing_page' }),
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          form.style.display = 'none';
+          successEl.classList.add('show');
+        } else {
+          errorEl.textContent = data.error || 'Something went wrong. Try again.';
+          errorEl.classList.add('show');
+          btn.disabled = false;
+          btn.textContent = originalText;
+        }
+      } catch (err) {
+        errorEl.textContent = 'Network error. Check your connection.';
+        errorEl.classList.add('show');
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
     }
 
-    setInterval(restartChatAnimation, 8000);
+    // Scroll to waitlist CTA
+    function scrollToWaitlist() {
+      const finalForm = document.getElementById('finalForm');
+      finalForm.scrollIntoView({ behavior: 'smooth' });
+      finalForm.querySelector('input[type="email"]').focus();
+    }
   </script>
 </body>
 </html>
