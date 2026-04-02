@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { supabase } from '../index.js';
 import { requireAuth } from '../middleware/auth.js';
-import { checkClientLimit } from '../middleware/require-plan.js';
+// Client limits removed — all plans have unlimited clients (Apr 2026)
 import { validate } from '../middleware/validate.js';
 import { refreshAllIntelligence } from '../services/client-intelligence.js';
 import logger from '../lib/logger.js';
@@ -141,7 +141,7 @@ router.get('/:id', requireAuth, async (req, res) => {
  * POST /api/clients
  * Create a new client.
  */
-router.post('/', requireAuth, checkClientLimit(supabase), validate(createClientSchema), async (req, res) => {
+router.post('/', requireAuth, validate(createClientSchema), async (req, res) => {
   const { first_name, last_name, email, phone, preferred_channel, notes } = req.body;
 
   const { data, error } = await supabase
