@@ -118,17 +118,39 @@
       letter-spacing: -0.02em;
     }
 
-    .nav-cta {
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .nav-signin {
       font-family: 'Plus Jakarta Sans', sans-serif;
       font-size: 14px;
-      font-weight: 600;
-      color: #92405e;
+      font-weight: 500;
+      color: #6b5a5f;
       text-decoration: none;
       transition: color 0.2s ease;
     }
 
+    .nav-signin:hover {
+      color: #1d1b19;
+    }
+
+    .nav-cta {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      background: #92405e;
+      text-decoration: none;
+      padding: 10px 22px;
+      border-radius: 10px;
+      transition: background 0.2s ease;
+    }
+
     .nav-cta:hover {
-      color: #782b49;
+      background: #782b49;
     }
 
     /* ===== HERO ===== */
@@ -156,58 +178,55 @@
       line-height: 1.7;
     }
 
-    /* ===== FORMS ===== */
-    .waitlist-form {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      max-width: 400px;
-      margin: 0 auto 16px;
-    }
-
-    .waitlist-form input {
-      padding: 14px 20px;
-      border: 1px solid #d8c1c6;
-      border-radius: 24px;
-      background: #f8f2ef;
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      font-size: 14px;
-      color: #1d1b19;
-      transition: border-color 0.2s ease, background 0.2s ease;
-    }
-
-    .waitlist-form input::placeholder {
-      color: #867277;
-    }
-
-    .waitlist-form input:focus {
-      outline: none;
-      border-color: #92405e;
-      background: #ffffff;
-    }
-
-    .waitlist-form button {
-      padding: 14px 32px;
+    /* ===== CTA BUTTONS ===== */
+    .hero-cta {
+      display: inline-block;
+      padding: 16px 48px;
       border: none;
-      border-radius: 24px;
+      border-radius: 14px;
       background: linear-gradient(135deg, #c76b8a 0%, #92405e 100%);
       color: #ffffff;
       font-family: 'Plus Jakarta Sans', sans-serif;
-      font-size: 14px;
+      font-size: 16px;
       font-weight: 600;
+      text-decoration: none;
       cursor: pointer;
       box-shadow: 0 2px 8px rgba(146, 64, 94, 0.25);
       transition: transform 0.2s ease, box-shadow 0.2s ease;
+      margin-bottom: 12px;
     }
 
-    .waitlist-form button:hover:not(:disabled) {
+    .hero-cta:hover {
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(146, 64, 94, 0.3);
+      box-shadow: 0 4px 16px rgba(146, 64, 94, 0.3);
     }
 
-    .waitlist-form button:disabled {
-      opacity: 0.7;
-      cursor: not-allowed;
+    .hero-note {
+      font-size: 13px;
+      color: #867277;
+      margin: 0 auto 16px;
+    }
+
+    .final-cta-btn {
+      display: inline-block;
+      padding: 16px 48px;
+      border: none;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #c76b8a 0%, #92405e 100%);
+      color: #ffffff;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(146, 64, 94, 0.25);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      margin-bottom: 16px;
+    }
+
+    .final-cta-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(146, 64, 94, 0.3);
     }
 
     .form-note {
@@ -607,19 +626,14 @@
       margin-right: auto;
     }
 
-    .final-cta .waitlist-form input {
+    .final-cta .final-cta-btn {
       background: #ffffff;
-      color: #1d1b19;
-      border-color: transparent;
+      color: #92405e;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     }
 
-    .final-cta .waitlist-form button {
-      background: #92405e;
-      color: #ffffff;
-    }
-
-    .final-cta .waitlist-form button:hover:not(:disabled) {
-      background: #782b49;
+    .final-cta .final-cta-btn:hover {
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
     }
 
     .final-cta .form-note {
@@ -898,6 +912,15 @@
 
       .nav-cta {
         font-size: 12px;
+        padding: 8px 16px;
+      }
+
+      .nav-signin {
+        font-size: 12px;
+      }
+
+      .nav-links {
+        gap: 12px;
       }
 
       .hero {
@@ -912,10 +935,6 @@
       .hero-subtext {
         font-size: 16px;
         margin-bottom: 40px;
-      }
-
-      .waitlist-form {
-        max-width: 100%;
       }
 
       .pitch-section {
@@ -1060,7 +1079,10 @@
   <nav>
     <div class="nav-content">
       <div class="logo">florrie</div>
-      <a href="#waitlist" class="nav-cta">Join the waitlist</a>
+      <div class="nav-links">
+        <a href="/login" class="nav-signin">Sign in</a>
+        <a href="/login" class="nav-cta">Try for free</a>
+      </div>
     </div>
   </nav>
 
@@ -1071,12 +1093,9 @@
       <h1 class="display-italic">The AI that runs your salon while you run your business</h1>
       <p class="hero-subtext">Florrie handles your bookings, replies to clients in your voice, tracks your tax, and keeps you compliant. You focus on the chair.</p>
 
-      <div class="error-message" id="heroError"></div>
-      <form class="waitlist-form" id="heroForm" onsubmit="submitWaitlist(event, this, 'heroSuccess', 'heroError')">
-        <input type="email" placeholder="Enter your email" required>
-        <button type="submit">Get early access</button>
-      </form>
-      <div class="success-message" id="heroSuccess">
+      <a href="/login" class="hero-cta">Try for free</a>
+      <p class="hero-note">14-day free trial. No card required.</p>
+      <div class="success-message" id="heroSuccess" style="display:none">
         Check your email—we'll be in touch soon.
       </div>
       <p class="form-note">Free to join. No card needed.</p>
@@ -1131,7 +1150,7 @@
   <div class="divider"></div>
   <section class="social-proof">
     <div class="proof-row">
-      <div class="proof-item">200+ on the waitlist</div>
+      <div class="proof-item">Built for UK salons</div>
       <div class="proof-separator"></div>
       <div class="proof-item">Built for UK beauticians</div>
       <div class="proof-separator"></div>
@@ -1266,7 +1285,7 @@
           <div class="pricing-feature">Analytics & reports</div>
           <div class="pricing-feature">120 messages/month included</div>
         </div>
-        <button onclick="scrollToWaitlist()">Start your free trial</button>
+        <a href="/login" class="pricing-cta-btn" style="display:inline-block; padding:14px 40px; border:none; border-radius:12px; background:linear-gradient(135deg, #c76b8a 0%, #92405e 100%); color:#fff; font-family:'Plus Jakarta Sans', sans-serif; font-size:15px; font-weight:600; text-decoration:none; cursor:pointer; box-shadow:0 2px 8px rgba(146,64,94,0.25); transition:transform 0.2s ease;">Try for free</a>
       </div>
     </div>
 
@@ -1287,20 +1306,13 @@
   </section>
 
   <!-- Final CTA -->
-  <section class="final-cta" id="waitlist">
+  <section class="final-cta" id="start">
     <div class="container-narrow">
       <h2 class="display-italic">Your salon deserves this</h2>
-      <p class="final-cta-subtext">Join the waitlist. We're opening access in batches.</p>
+      <p class="final-cta-subtext">14-day free trial. Everything included. No card required.</p>
 
-      <div class="error-message" id="finalError"></div>
-      <form class="waitlist-form" id="finalForm" onsubmit="submitWaitlist(event, this, 'finalSuccess', 'finalError')">
-        <input type="email" placeholder="Enter your email" required>
-        <button type="submit">Get early access</button>
-      </form>
-      <div class="success-message" id="finalSuccess">
-        Check your email—we'll be in touch soon.
-      </div>
-      <p class="form-note">Free to join. We'll never spam you.</p>
+      <a href="/login" class="final-cta-btn">Try for free</a>
+      <p class="form-note">Already have an account? <a href="/login" style="color:#92405e;">Sign in</a></p>
     </div>
   </section>
 
@@ -1344,53 +1356,9 @@
       });
     });
 
-    // Waitlist form submission
-    async function submitWaitlist(event, form, successId, errorId) {
-      event.preventDefault();
-
-      const email = form.querySelector('input[type="email"]').value.trim();
-      const btn = form.querySelector('button[type="submit"]');
-      const errorEl = document.getElementById(errorId);
-      const successEl = document.getElementById(successId);
-
-      if (!email) return;
-
-      btn.disabled = true;
-      const originalText = btn.textContent;
-      btn.textContent = 'Joining...';
-      errorEl.classList.remove('show');
-
-      try {
-        const res = await fetch('/api/waitlist', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, source: 'landing_page' }),
-        });
-
-        const data = await res.json();
-
-        if (res.ok && data.success) {
-          form.style.display = 'none';
-          successEl.classList.add('show');
-        } else {
-          errorEl.textContent = data.error || 'Something went wrong. Try again.';
-          errorEl.classList.add('show');
-          btn.disabled = false;
-          btn.textContent = originalText;
-        }
-      } catch (err) {
-        errorEl.textContent = 'Network error. Check your connection.';
-        errorEl.classList.add('show');
-        btn.disabled = false;
-        btn.textContent = originalText;
-      }
-    }
-
-    // Scroll to waitlist CTA
-    function scrollToWaitlist() {
-      const finalForm = document.getElementById('finalForm');
-      finalForm.scrollIntoView({ behavior: 'smooth' });
-      finalForm.querySelector('input[type="email"]').focus();
+    // Scroll to CTA
+    function scrollToStart() {
+      document.getElementById('start').scrollIntoView({ behavior: 'smooth' });
     }
   </script>
 </body>

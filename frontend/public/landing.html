@@ -118,17 +118,39 @@
       letter-spacing: -0.02em;
     }
 
-    .nav-cta {
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .nav-signin {
       font-family: 'Plus Jakarta Sans', sans-serif;
       font-size: 14px;
-      font-weight: 600;
-      color: #92405e;
+      font-weight: 500;
+      color: #6b5a5f;
       text-decoration: none;
       transition: color 0.2s ease;
     }
 
+    .nav-signin:hover {
+      color: #1d1b19;
+    }
+
+    .nav-cta {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      background: #92405e;
+      text-decoration: none;
+      padding: 10px 22px;
+      border-radius: 10px;
+      transition: background 0.2s ease;
+    }
+
     .nav-cta:hover {
-      color: #782b49;
+      background: #782b49;
     }
 
     /* ===== HERO ===== */
@@ -156,58 +178,55 @@
       line-height: 1.7;
     }
 
-    /* ===== FORMS ===== */
-    .waitlist-form {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      max-width: 400px;
-      margin: 0 auto 16px;
-    }
-
-    .waitlist-form input {
-      padding: 14px 20px;
-      border: 1px solid #d8c1c6;
-      border-radius: 24px;
-      background: #f8f2ef;
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      font-size: 14px;
-      color: #1d1b19;
-      transition: border-color 0.2s ease, background 0.2s ease;
-    }
-
-    .waitlist-form input::placeholder {
-      color: #867277;
-    }
-
-    .waitlist-form input:focus {
-      outline: none;
-      border-color: #92405e;
-      background: #ffffff;
-    }
-
-    .waitlist-form button {
-      padding: 14px 32px;
+    /* ===== CTA BUTTONS ===== */
+    .hero-cta {
+      display: inline-block;
+      padding: 16px 48px;
       border: none;
-      border-radius: 24px;
+      border-radius: 14px;
       background: linear-gradient(135deg, #c76b8a 0%, #92405e 100%);
       color: #ffffff;
       font-family: 'Plus Jakarta Sans', sans-serif;
-      font-size: 14px;
+      font-size: 16px;
       font-weight: 600;
+      text-decoration: none;
       cursor: pointer;
       box-shadow: 0 2px 8px rgba(146, 64, 94, 0.25);
       transition: transform 0.2s ease, box-shadow 0.2s ease;
+      margin-bottom: 12px;
     }
 
-    .waitlist-form button:hover:not(:disabled) {
+    .hero-cta:hover {
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(146, 64, 94, 0.3);
+      box-shadow: 0 4px 16px rgba(146, 64, 94, 0.3);
     }
 
-    .waitlist-form button:disabled {
-      opacity: 0.7;
-      cursor: not-allowed;
+    .hero-note {
+      font-size: 13px;
+      color: #867277;
+      margin: 0 auto 16px;
+    }
+
+    .final-cta-btn {
+      display: inline-block;
+      padding: 16px 48px;
+      border: none;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #c76b8a 0%, #92405e 100%);
+      color: #ffffff;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(146, 64, 94, 0.25);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      margin-bottom: 16px;
+    }
+
+    .final-cta-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(146, 64, 94, 0.3);
     }
 
     .form-note {
@@ -607,19 +626,14 @@
       margin-right: auto;
     }
 
-    .final-cta .waitlist-form input {
+    .final-cta .final-cta-btn {
       background: #ffffff;
-      color: #1d1b19;
-      border-color: transparent;
+      color: #92405e;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     }
 
-    .final-cta .waitlist-form button {
-      background: #92405e;
-      color: #ffffff;
-    }
-
-    .final-cta .waitlist-form button:hover:not(:disabled) {
-      background: #782b49;
+    .final-cta .final-cta-btn:hover {
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
     }
 
     .final-cta .form-note {
@@ -898,6 +912,15 @@
 
       .nav-cta {
         font-size: 12px;
+        padding: 8px 16px;
+      }
+
+      .nav-signin {
+        font-size: 12px;
+      }
+
+      .nav-links {
+        gap: 12px;
       }
 
       .hero {
@@ -912,10 +935,6 @@
       .hero-subtext {
         font-size: 16px;
         margin-bottom: 40px;
-      }
-
-      .waitlist-form {
-        max-width: 100%;
       }
 
       .pitch-section {
@@ -1060,7 +1079,10 @@
   <nav>
     <div class="nav-content">
       <div class="logo">florrie</div>
-      <a href="/login" class="nav-cta">Sign in</a>
+      <div class="nav-links">
+        <a href="/login" class="nav-signin">Sign in</a>
+        <a href="/login" class="nav-cta">Try for free</a>
+      </div>
     </div>
   </nav>
 
@@ -1071,10 +1093,12 @@
       <h1 class="display-italic">The AI that runs your salon while you run your business</h1>
       <p class="hero-subtext">Florrie handles your bookings, replies to clients in your voice, tracks your tax, and keeps you compliant. You focus on the chair.</p>
 
-      <a href="/login" class="waitlist-form" style="display:flex; text-decoration:none;">
-        <button type="button" style="width:100%;">Start free — no card needed</button>
-      </a>
-      <p class="form-note">Switch from Fresha or Timely in 60 seconds.</p>
+      <a href="/login" class="hero-cta">Try for free</a>
+      <p class="hero-note">14-day free trial. No card required.</p>
+      <div class="success-message" id="heroSuccess" style="display:none">
+        Check your email—we'll be in touch soon.
+      </div>
+      <p class="form-note">Free to join. No card needed.</p>
     </div>
   </section>
 
@@ -1126,7 +1150,7 @@
   <div class="divider"></div>
   <section class="social-proof">
     <div class="proof-row">
-      <div class="proof-item">Now open — start free</div>
+      <div class="proof-item">Built for UK salons</div>
       <div class="proof-separator"></div>
       <div class="proof-item">Built for UK beauticians</div>
       <div class="proof-separator"></div>
@@ -1234,80 +1258,39 @@
   <section class="pricing-section">
     <div class="pricing-header">
       <div class="label">Pricing</div>
-      <h2 class="display-italic">Simple, fair pricing</h2>
-      <p class="pricing-subtext">Start free. Upgrade when Florrie proves herself.</p>
+      <h2 class="display-italic">One plan. Everything included.</h2>
+      <p class="pricing-subtext">14-day free trial. No card required. Cancel anytime.</p>
     </div>
 
     <div class="toggle-container">
       <button class="toggle-btn active" data-period="monthly">Monthly</button>
-      <button class="toggle-btn" data-period="annual">Annual<span style="font-size: 10px; margin-left: 4px;">Save 17%</span></button>
+      <button class="toggle-btn" data-period="annual">Annual<span style="font-size: 10px; margin-left: 4px;">Save £58</span></button>
     </div>
 
-    <div class="pricing-cards">
-      <!-- Free -->
-      <div class="pricing-card">
-        <div class="pricing-tier">Free</div>
-        <div class="pricing-price"><span class="price-amount">£0</span></div>
-        <div class="pricing-price-period">/month</div>
-        <div class="pricing-description">Get started</div>
-        <div class="pricing-features">
-          <div class="pricing-feature">5 clients</div>
-          <div class="pricing-feature">Basic calendar</div>
-          <div class="pricing-feature">Booking page</div>
-          <div class="pricing-feature">5 AI messages/month</div>
-        </div>
-        <button onclick="window.location='/login'">Start free</button>
-      </div>
-
-      <!-- Starter -->
-      <div class="pricing-card">
-        <div class="pricing-tier">Starter</div>
-        <div class="pricing-price"><span class="price-amount" data-monthly="£19" data-annual="£190">£19</span></div>
-        <div class="pricing-price-period monthly-text">/month</div>
-        <div class="pricing-description">For solo beauticians</div>
-        <div class="pricing-features">
-          <div class="pricing-feature">50 clients</div>
-          <div class="pricing-feature">Payments</div>
-          <div class="pricing-feature">SMS reminders</div>
-          <div class="pricing-feature">Receipt scanning</div>
-          <div class="pricing-feature">Reports</div>
-        </div>
-        <button onclick="window.location='/login'">Start free</button>
-      </div>
-
-      <!-- Pro -->
+    <div class="pricing-cards" style="max-width: 480px;">
       <div class="pricing-card popular">
-        <div class="pricing-popular-tag">Popular</div>
-        <div class="pricing-tier">Pro</div>
-        <div class="pricing-price"><span class="price-amount" data-monthly="£39" data-annual="£393">£39</span></div>
+        <div class="pricing-popular-tag">Everything you need</div>
+        <div class="pricing-tier">Florrie</div>
+        <div class="pricing-price"><span class="price-amount" data-monthly="£29" data-annual="£290">£29</span></div>
         <div class="pricing-price-period monthly-text">/month</div>
-        <div class="pricing-description">For growing businesses</div>
+        <div class="pricing-description">For solo beauticians and small salons</div>
         <div class="pricing-features">
           <div class="pricing-feature">Unlimited clients</div>
-          <div class="pricing-feature">Full AI receptionist</div>
-          <div class="pricing-feature">WhatsApp</div>
-          <div class="pricing-feature">Tax dashboard</div>
+          <div class="pricing-feature">AI receptionist (WhatsApp, SMS, Instagram)</div>
+          <div class="pricing-feature">Smart scheduling & waitlist</div>
+          <div class="pricing-feature">Tax dashboard & HMRC tracking</div>
+          <div class="pricing-feature">Receipt scanning</div>
           <div class="pricing-feature">Content autopilot</div>
-          <div class="pricing-feature">Analytics</div>
+          <div class="pricing-feature">Compliance & patch test tracking</div>
+          <div class="pricing-feature">Analytics & reports</div>
+          <div class="pricing-feature">120 messages/month included</div>
         </div>
-        <button onclick="window.location='/login'">Start free</button>
+        <a href="/login" class="pricing-cta-btn" style="display:inline-block; padding:14px 40px; border:none; border-radius:12px; background:linear-gradient(135deg, #c76b8a 0%, #92405e 100%); color:#fff; font-family:'Plus Jakarta Sans', sans-serif; font-size:15px; font-weight:600; text-decoration:none; cursor:pointer; box-shadow:0 2px 8px rgba(146,64,94,0.25); transition:transform 0.2s ease;">Try for free</a>
       </div>
+    </div>
 
-      <!-- Team -->
-      <div class="pricing-card">
-        <div class="pricing-tier">Team</div>
-        <div class="pricing-price"><span class="price-amount" data-monthly="£69" data-annual="£690">£69</span></div>
-        <div class="pricing-price-period monthly-text">/month</div>
-        <div class="pricing-description">For teams & salons</div>
-        <div class="pricing-features">
-          <div class="pricing-feature">Everything in Pro</div>
-          <div class="pricing-feature">Multi-location</div>
-          <div class="pricing-feature">Staff rota</div>
-          <div class="pricing-feature">10 team members</div>
-          <div class="pricing-feature">Priority support</div>
-        </div>
-        <button onclick="window.location='/login'">Start free</button>
-      </div>
+    <div style="text-align: center; margin-top: 32px; max-width: 480px; margin-left: auto; margin-right: auto;">
+      <p class="mono" style="font-size: 12px; color: #867277;">Got a team? Add extra seats for £15/month each. Multi-location, staff rota, performance tracking included.</p>
     </div>
   </section>
 
@@ -1323,14 +1306,12 @@
   </section>
 
   <!-- Final CTA -->
-  <section class="final-cta" id="waitlist">
+  <section class="final-cta" id="start">
     <div class="container-narrow">
       <h2 class="display-italic">Your salon deserves this</h2>
-      <p class="final-cta-subtext">Start free. Switch from Fresha or Timely in 60 seconds.</p>
+      <p class="final-cta-subtext">14-day free trial. Everything included. No card required.</p>
 
-      <a href="/login" class="waitlist-form" style="display:flex; text-decoration:none;">
-        <button type="button" style="width:100%;">Start free — no card needed</button>
-      </a>
+      <a href="/login" class="final-cta-btn">Try for free</a>
       <p class="form-note">Already have an account? <a href="/login" style="color:#92405e;">Sign in</a></p>
     </div>
   </section>
@@ -1375,53 +1356,9 @@
       });
     });
 
-    // Waitlist form submission
-    async function submitWaitlist(event, form, successId, errorId) {
-      event.preventDefault();
-
-      const email = form.querySelector('input[type="email"]').value.trim();
-      const btn = form.querySelector('button[type="submit"]');
-      const errorEl = document.getElementById(errorId);
-      const successEl = document.getElementById(successId);
-
-      if (!email) return;
-
-      btn.disabled = true;
-      const originalText = btn.textContent;
-      btn.textContent = 'Joining...';
-      errorEl.classList.remove('show');
-
-      try {
-        const res = await fetch('/api/waitlist', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, source: 'landing_page' }),
-        });
-
-        const data = await res.json();
-
-        if (res.ok && data.success) {
-          form.style.display = 'none';
-          successEl.classList.add('show');
-        } else {
-          errorEl.textContent = data.error || 'Something went wrong. Try again.';
-          errorEl.classList.add('show');
-          btn.disabled = false;
-          btn.textContent = originalText;
-        }
-      } catch (err) {
-        errorEl.textContent = 'Network error. Check your connection.';
-        errorEl.classList.add('show');
-        btn.disabled = false;
-        btn.textContent = originalText;
-      }
-    }
-
-    // Scroll to waitlist CTA
-    function scrollToWaitlist() {
-      const finalForm = document.getElementById('finalForm');
-      finalForm.scrollIntoView({ behavior: 'smooth' });
-      finalForm.querySelector('input[type="email"]').focus();
+    // Scroll to CTA
+    function scrollToStart() {
+      document.getElementById('start').scrollIntoView({ behavior: 'smooth' });
     }
   </script>
 </body>
