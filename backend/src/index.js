@@ -35,7 +35,7 @@ import exportsRoutes from './routes/exports.js';
 import promoCodesRoutes from './routes/promo-codes.js';
 import photoConsentRoutes from './routes/photo-consent.js';
 import locationsRoutes from './routes/locations.js';
-// voice.js removed — stub endpoint, no transcription infrastructure yet
+import voiceRoutes from './routes/voice.js';
 import consultationFormRoutes from './routes/consultation-forms.js';
 import billingRoutes from './routes/billing.js';
 import waitlistRoutes from './routes/waitlist.js';
@@ -155,7 +155,7 @@ app.use('/api/promo-codes', (req, res, next) => {
 }, promoCodesRoutes);
 app.use('/api/photo-consent', apiLimiter, photoConsentRoutes);
 app.use('/api/locations', apiLimiter, locationsRoutes);
-// /api/voice removed — was a stub, no transcription infrastructure yet
+app.use('/api/voice', apiLimiter, voiceRoutes);
 app.use('/api/consultation-forms', apiLimiter, consultationFormRoutes);
 app.use('/api/billing', apiLimiter, billingRoutes);
 app.use('/api/waitlist', apiLimiter, waitlistRoutes);

@@ -1,24 +1,17 @@
 import { useState, useRef, useEffect } from 'react';
 import { useBeautician, supabase, isDevMode, fetchRows } from '../lib/supabase.js';
+import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
-import PageLoader from '../components/PageLoader.jsx';
-import EmptyState from '../components/EmptyState.jsx';
-import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
  * Voice Commander — Talk to florrie.ai.
  *
- * This is the conversational voice interface to the entire AI agent network.
- * Speak naturally and florrie.ai routes your request to the right agent:
+ * Real Web Speech API for voice transcription in-browser.
+ * Text or transcript is sent to POST /api/voice/command which uses
+ * Claude to classify intent and execute actions (bookings, schedule
+ * checks, messages, notes, time blocks).
  *
- *   "Move Shauna to Thursday 2pm"       → Calendar agent
- *   "Send a comeback message to Daisy"  → Campaign agent
- *   "What did I earn this week?"        → Analytics agent
- *   "Block out Friday afternoon"        → Schedule agent
- *   "Draft a post about lash lifts"     → Content agent
- *
- * Powered by Web Speech API for recording, Claude for understanding,
- * and the agent network for execution.
+ * Falls back to text-only input when Speech API is unavailable.
  */
 
 const AGENT_ROUTES = {
@@ -31,16 +24,14 @@ const AGENT_ROUTES = {
   general: { label: 'florrie.ai', icon: '✨', color: 'var(--accent, #C76B8A)' },
 };
 
-// Simulated conversation for dev mode
-const DEV_CONVERSATION = [
-  {
-    id: '1',
-    role: 'assistant',
-    text: "Hey lovely! I'm here whenever you need me. Just tap the mic and talk — I'll handle everything.",
-    agent: 'general',
-    timestamp: new Date(Date.now() - 3600000).toISOString(),
-  },
-];
+const INTENT_TO_AGENT = {
+  book_appointment: 'calendar',
+  check_schedule: 'calendar',
+  send_message: 'campaigns',
+  add_note: 'general',
+  block_time: 'calendar',
+  unknown: 'general',
+};
 
 const EXAMPLE_PROMPTS = [
   "Move Shauna's appointment to Thursday",
@@ -48,37 +39,53 @@ const EXAMPLE_PROMPTS = [
   "Send a comeback message to dormant clients",
   "Block out Friday afternoon",
   "Draft an Instagram post about lash lifts",
-  "Who's my most loyal client?",
+  "What's my schedule today?",
 ];
+
+// Check Web Speech API support
+const SpeechRecognition = typeof window !== 'undefined'
+  ? (window.SpeechRecognition || window.webkitSpeechRecognition)
+  : null;
 
 export default function VoiceCommander() {
   const { beautician, loading: bLoading } = useBeautician();
-  const [messages, setMessages] = useState(isDevMode ? DEV_CONVERSATION : []);
+  const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [textInput, setTextInput] = useState('');
   const [pulseAnim, setPulseAnim] = useState(false);
+  const [interimTranscript, setInterimTranscript] = useState('');
+  const [speechSupported, setSpeechSupported] = useState(!!SpeechRecognition);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const recognitionRef = useRef(null);
 
+  // Init greeting + load history
   useEffect(() => {
-    if (beautician && !bLoading) loadHistory();
+    if (!bLoading) loadHistory();
   }, [beautician, bLoading]);
 
   async function loadHistory() {
     setLoading(true);
     try {
-      if (isDevMode) {
-        setMessages(DEV_CONVERSATION);
+      const greeting = {
+        id: '0', role: 'assistant',
+        text: speechSupported
+          ? "Hey lovely! Tap the mic and talk to me, or type below. I'll handle everything."
+          : "Hey lovely! Type anything below and I'll take care of it. Voice isn't supported in this browser, but I've got you covered.",
+        agent: 'general',
+        timestamp: new Date().toISOString(),
+      };
+
+      if (isDevMode || !beautician) {
+        setMessages([greeting]);
       } else {
-        // Only show today's AI-driven actions — booking confirmations belong in Notifications
         const todayStr = new Date().toISOString().slice(0, 10);
         const data = await fetchRows('ai_actions', beautician.id, {
           order: 'created_at', ascending: false, limit: 20,
           filters: { created_at: `gte.${todayStr}T00:00:00` },
         });
-        // Filter out booking notifications — only show insights, nudges, content, recommendations
         const BOOKING_TYPES = ['booking_confirmed', 'booking_created', 'appointment_booked', 'booking_reminder'];
         const aiOnly = (data || []).filter(action =>
           !BOOKING_TYPES.includes(action.action_type) &&
@@ -91,20 +98,96 @@ export default function VoiceCommander() {
           agent: action.digital_employee || 'general',
           timestamp: action.created_at,
         }));
-        const greeting = { id: '0', role: 'assistant', text: "Hey lovely! I'm here whenever you need me.", agent: 'general', timestamp: new Date().toISOString() };
         setMessages([greeting, ...mapped]);
       }
     } catch (err) {
       logger.error('Load action history error:', err);
-      setMessages(DEV_CONVERSATION);
+      setMessages([{
+        id: '0', role: 'assistant',
+        text: "Hey lovely! I'm here whenever you need me.",
+        agent: 'general', timestamp: new Date().toISOString(),
+      }]);
     } finally {
       setLoading(false);
     }
   }
 
+  // Auto-scroll on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // ── Web Speech API ──────────────────────────────────────
+  function startRecording() {
+    if (!SpeechRecognition) {
+      inputRef.current?.focus();
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-GB';
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      setIsRecording(true);
+      setPulseAnim(true);
+      setInterimTranscript('');
+    };
+
+    recognition.onresult = (event) => {
+      let interim = '';
+      let final = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          final += transcript;
+        } else {
+          interim += transcript;
+        }
+      }
+      if (final) {
+        setInterimTranscript('');
+        processMessage(final, true);
+      } else {
+        setInterimTranscript(interim);
+      }
+    };
+
+    recognition.onerror = (event) => {
+      logger.error('Speech recognition error:', event.error);
+      setIsRecording(false);
+      setPulseAnim(false);
+      setInterimTranscript('');
+
+      if (event.error === 'not-allowed') {
+        addSystemMessage("Microphone access denied. Check your browser settings, or type your message instead.");
+        setSpeechSupported(false);
+      } else if (event.error === 'no-speech') {
+        addSystemMessage("I didn't catch that. Try again or type your message.");
+      }
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+      setPulseAnim(false);
+      setInterimTranscript('');
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  }
+
+  function stopRecording() {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+    setIsRecording(false);
+    setPulseAnim(false);
+    setInterimTranscript('');
+  }
 
   function handleRecord() {
     if (isRecording) {
@@ -114,32 +197,20 @@ export default function VoiceCommander() {
     }
   }
 
-  function startRecording() {
-    setIsRecording(true);
-    setPulseAnim(true);
-
-    // In production, this would use Web Speech API or MediaRecorder
-    // For dev mode, simulate a recording after 2 seconds
-    if (isDevMode) {
-      setTimeout(() => {
-        stopRecording("Move Shauna's lamination to Thursday at 2pm");
-      }, 2500);
-    }
+  function addSystemMessage(text) {
+    setMessages(prev => [...prev, {
+      id: crypto.randomUUID(),
+      role: 'assistant',
+      text,
+      agent: 'general',
+      timestamp: new Date().toISOString(),
+    }]);
   }
 
-  function stopRecording(transcript) {
-    setIsRecording(false);
-    setPulseAnim(false);
-
-    if (transcript) {
-      processMessage(transcript, true);
-    }
-  }
-
+  // ── Message Processing ──────────────────────────────────
   async function processMessage(text, isVoice = false) {
     if (!text.trim()) return;
 
-    // Add user message
     const userMsg = {
       id: crypto.randomUUID(),
       role: 'user',
@@ -151,47 +222,101 @@ export default function VoiceCommander() {
     setTextInput('');
     setIsProcessing(true);
 
-    // Simulate AI processing
-    await new Promise(r => setTimeout(r, 1200 + Math.random() * 800));
+    try {
+      const token = (await supabase?.auth.getSession())?.data?.session?.access_token;
 
-    // Generate response based on keywords (dev mode simulation)
-    const response = generateDevResponse(text.trim());
-    setMessages(prev => [...prev, response]);
-    setIsProcessing(false);
+      if (!token || isDevMode) {
+        // Dev mode fallback — local keyword matching
+        await new Promise(r => setTimeout(r, 800));
+        const response = generateDevResponse(text.trim());
+        setMessages(prev => [...prev, response]);
+        setIsProcessing(false);
+        return;
+      }
+
+      // Real backend call
+      const res = await fetch(`${API_BASE}/api/voice/command`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ text: text.trim() }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Server error ${res.status}`);
+      }
+
+      const data = await res.json();
+
+      const agent = INTENT_TO_AGENT[data.intent] || 'general';
+      const aiMsg = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        text: data.action?.message || data.transcript || "Done — but I'm not sure what to say about it.",
+        agent,
+        intent: data.intent,
+        confidence: data.confidence,
+        action: buildAction(data),
+        timestamp: new Date().toISOString(),
+      };
+
+      setMessages(prev => [...prev, aiMsg]);
+    } catch (err) {
+      logger.error('Voice command failed:', err);
+      addSystemMessage(`Something went wrong: ${err.message}. Try again or type your request.`);
+    } finally {
+      setIsProcessing(false);
+    }
   }
 
+  function buildAction(data) {
+    if (!data.intent || data.intent === 'unknown') return null;
+    const routes = {
+      book_appointment: { label: 'View in Calendar', path: '/calendar' },
+      check_schedule: { label: 'Open Calendar', path: '/calendar' },
+      send_message: { label: 'Review Message', path: '/inbox' },
+      add_note: { label: 'View Checklist', path: '/checklist' },
+      block_time: { label: 'View Schedule', path: '/schedule' },
+    };
+    return routes[data.intent] || null;
+  }
+
+  // Dev mode fallback
   function generateDevResponse(input) {
     const lower = input.toLowerCase();
     let agent = 'general';
     let text = '';
     let action = null;
 
-    if (lower.includes('move') || lower.includes('reschedule') || lower.includes('appointment') || lower.includes('block') || lower.includes('thursday') || lower.includes('book')) {
+    if (lower.includes('move') || lower.includes('reschedule') || lower.includes('appointment') || lower.includes('block') || lower.includes('book')) {
       agent = 'calendar';
-      text = "Done — I've moved Shauna's Lamination & Hybrid Dye to Thursday 2pm. She'll get a confirmation message automatically. Want me to check if that clashes with anything?";
-      action = { type: 'moved_appointment', label: 'View in Calendar', path: '/calendar' };
-    } else if (lower.includes('earn') || lower.includes('revenue') || lower.includes('money') || lower.includes('paid') || lower.includes('income')) {
+      text = "I'd move that for you but I'm in demo mode right now. Once you're logged in, voice commands hit the real backend and I'll handle bookings, rescheduling, and time blocks.";
+      action = { label: 'View Calendar', path: '/calendar' };
+    } else if (lower.includes('earn') || lower.includes('revenue') || lower.includes('money') || lower.includes('paid') || lower.includes('week')) {
       agent = 'money';
-      text = "This week you've taken £385 across 9 appointments. That's up 12% on last week. Your best day was Tuesday (£135). Want the full breakdown?";
-      action = { type: 'view_analytics', label: 'View Analytics', path: '/analytics' };
+      text = "In demo mode I can't pull real numbers, but once live I'll fetch your earnings, breakdowns, and comparisons instantly.";
+      action = { label: 'View Money', path: '/money' };
     } else if (lower.includes('comeback') || lower.includes('dormant') || lower.includes('send') || lower.includes('message') || lower.includes('campaign')) {
       agent = 'campaigns';
-      text = "On it — I've found 3 clients who haven't been in for 30+ days: Jasmin, Daisy S, and Shauna. I've drafted a comeback message in your voice. Want me to show you before I send?";
-      action = { type: 'draft_campaign', label: 'Review Campaign', path: '/campaigns' };
+      text = "Campaign commands work when you're logged in — I'll find dormant clients, draft messages in your voice, and queue them for your approval.";
+      action = { label: 'View Inbox', path: '/inbox' };
     } else if (lower.includes('post') || lower.includes('instagram') || lower.includes('content') || lower.includes('draft')) {
       agent = 'content';
-      text = "I've drafted an Instagram caption about lash lifts. Here's what I've got:\n\n\"Lash lift season is here ✨ Wake up with perfectly curled lashes every morning — no extensions needed. DM to book xx\"\n\nWant me to tweak it?";
-      action = { type: 'view_draft', label: 'View in Content', path: '/content' };
+      text = "Content drafting is live when connected — I generate captions, hashtags, and schedule posts. Type or say what you want and I'll draft it.";
+      action = { label: 'View Content', path: '/content' };
+    } else if (lower.includes('schedule') || lower.includes('today') || lower.includes('tomorrow')) {
+      agent = 'calendar';
+      text = "Once you're logged in I'll pull your real schedule. In demo mode I can't see your bookings.";
+      action = { label: 'View Calendar', path: '/calendar' };
     } else if (lower.includes('loyal') || lower.includes('client') || lower.includes('who')) {
       agent = 'clients';
-      text = "Your most loyal client is Daisy S — 12 visits, £540 total spend, and she rebooks every 3-4 weeks. She's due back in about 5 days.";
-      action = { type: 'view_client', label: 'View Client', path: '/clients' };
-    } else if (lower.includes('block') || lower.includes('day off') || lower.includes('holiday')) {
-      agent = 'calendar';
-      text = "Done — I've blocked out Friday afternoon from 1pm. No one can book during that time. Want me to block the whole day instead?";
+      text = "Client lookups need your real data. Log in and ask me again — I'll tell you visit counts, spend totals, and when they're due back.";
+      action = { label: 'View Clients', path: '/clients' };
     } else {
-      agent = 'general';
-      text = "Got it! I'll look into that for you. Is there anything specific you'd like me to do with this?";
+      text = "I'm in demo mode so I can't take real actions yet. Once you're logged in, I handle bookings, schedule, messages, notes, and more — just speak naturally.";
     }
 
     return {
@@ -206,9 +331,11 @@ export default function VoiceCommander() {
 
   function handleTextSubmit(e) {
     e.preventDefault();
-    if (textInput.trim()) {
-      processMessage(textInput, false);
-    }
+    if (textInput.trim()) processMessage(textInput, false);
+  }
+
+  function handleActionClick(path) {
+    if (path) window.location.href = path;
   }
 
   return (
@@ -216,7 +343,9 @@ export default function VoiceCommander() {
       {/* Header */}
       <div style={styles.header}>
         <h1 style={styles.title}>Ask Florrie</h1>
-        <p style={styles.subtitle}>Your AI team member. Ask anything.</p>
+        <p style={styles.subtitle}>
+          {speechSupported ? 'Tap the mic or type — I handle everything.' : 'Type anything — I handle everything.'}
+        </p>
       </div>
 
       {/* Messages */}
@@ -257,8 +386,17 @@ export default function VoiceCommander() {
                 <span style={styles.voiceBadge}>🎙️ Voice</span>
               )}
 
+              {msg.confidence != null && msg.role === 'assistant' && (
+                <span style={styles.confidenceBadge}>
+                  {Math.round(msg.confidence * 100)}% confident
+                </span>
+              )}
+
               {msg.action && (
-                <button style={styles.actionBtn}>
+                <button
+                  style={styles.actionBtn}
+                  onClick={() => handleActionClick(msg.action.path)}
+                >
                   {msg.action.label} →
                 </button>
               )}
@@ -285,7 +423,7 @@ export default function VoiceCommander() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Example prompts (show when conversation is short) */}
+      {/* Example prompts */}
       {messages.length <= 2 && !isProcessing && (
         <div style={styles.promptsSection}>
           <span style={styles.promptsLabel}>Try saying:</span>
@@ -305,13 +443,20 @@ export default function VoiceCommander() {
 
       {/* Input area */}
       <div style={styles.inputArea}>
+        {/* Live transcript preview */}
+        {interimTranscript && (
+          <div style={styles.interimBar}>
+            <span style={styles.interimText}>{interimTranscript}</span>
+          </div>
+        )}
+
         <form onSubmit={handleTextSubmit} style={styles.inputForm}>
           <input
             ref={inputRef}
             type="text"
             value={textInput}
             onChange={e => setTextInput(e.target.value)}
-            placeholder="Type a message..."
+            placeholder={isRecording ? 'Listening...' : 'Type a message...'}
             style={styles.textInput}
             disabled={isProcessing || isRecording}
           />
@@ -320,17 +465,26 @@ export default function VoiceCommander() {
               ↑
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={handleRecord}
-              style={{
-                ...styles.micBtn,
-                background: isRecording ? 'var(--danger)' : 'linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%)',
-                animation: pulseAnim ? 'pulse 1.5s ease infinite' : 'none',
-              }}
-            >
-              {isRecording ? '⏹' : '🎙️'}
-            </button>
+            speechSupported ? (
+              <button
+                type="button"
+                onClick={handleRecord}
+                disabled={isProcessing}
+                style={{
+                  ...styles.micBtn,
+                  background: isRecording
+                    ? 'var(--danger, #D4605C)'
+                    : 'linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%)',
+                  animation: pulseAnim ? 'pulse 1.5s ease infinite' : 'none',
+                }}
+              >
+                {isRecording ? '⏹' : '🎙️'}
+              </button>
+            ) : (
+              <button type="submit" style={styles.sendBtn} disabled={!textInput.trim() || isProcessing}>
+                ↑
+              </button>
+            )
           )}
         </form>
 
@@ -357,7 +511,6 @@ const styles = {
   title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
   subtitle: { fontSize: 13, color: 'var(--accent)', margin: 0, fontWeight: 500 },
 
-  // Messages
   messagesContainer: {
     flex: 1, overflowY: 'auto', padding: '8px 16px 16px',
     display: 'flex', flexDirection: 'column', gap: 12,
@@ -388,6 +541,10 @@ const styles = {
   },
   msgText: { fontSize: 14, lineHeight: 1.5, margin: 0, whiteSpace: 'pre-wrap' },
   voiceBadge: { display: 'inline-block', fontSize: 10, opacity: 0.7, marginTop: 4 },
+  confidenceBadge: {
+    display: 'inline-block', fontSize: 10, opacity: 0.5, marginTop: 4,
+    fontStyle: 'italic',
+  },
   actionBtn: {
     display: 'block', marginTop: 8, padding: '6px 12px', borderRadius: 8,
     border: '1.5px solid var(--border)', background: 'transparent',
@@ -395,14 +552,12 @@ const styles = {
     cursor: 'pointer', fontFamily: 'inherit',
   },
 
-  // Typing indicator
   typingDots: { display: 'flex', gap: 2, padding: '4px 0' },
   typingDot: {
     fontSize: 28, lineHeight: '16px', color: 'var(--text-muted)',
     animation: 'pulse 1.2s ease infinite',
   },
 
-  // Example prompts
   promptsSection: { padding: '0 16px 12px', flexShrink: 0 },
   promptsLabel: { display: 'block', fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 500 },
   promptsGrid: { display: 'flex', flexWrap: 'wrap', gap: 6 },
@@ -413,7 +568,6 @@ const styles = {
     cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
   },
 
-  // Input area
   inputArea: { flexShrink: 0, padding: '8px 16px 24px', background: 'var(--bg)' },
   inputForm: { display: 'flex', gap: 8, alignItems: 'center' },
   textInput: {
@@ -434,7 +588,13 @@ const styles = {
     flexShrink: 0, boxShadow: '0 2px 8px rgba(199,107,138,0.3)',
   },
 
-  // Recording indicator
+  interimBar: {
+    padding: '6px 12px', marginBottom: 8, borderRadius: 10,
+    background: 'var(--accent-light)', fontSize: 13,
+    color: 'var(--text-secondary)', fontStyle: 'italic',
+  },
+  interimText: { opacity: 0.8 },
+
   recordingBar: {
     display: 'flex', alignItems: 'center', gap: 8,
     padding: '8px 12px', marginTop: 8, borderRadius: 10,
