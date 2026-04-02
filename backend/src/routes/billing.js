@@ -12,13 +12,12 @@ const stripe = process.env.STRIPE_SECRET_KEY
 
 // Price IDs for each plan — set these in .env
 // Monthly and annual variants (annual = 10 months, i.e. 2 months free)
+// Price IDs — set these in .env when Stripe products are created
 const PRICE_IDS = {
-  starter: process.env.STRIPE_PRICE_STARTER || '',
-  pro: process.env.STRIPE_PRICE_PRO || '',
-  team: process.env.STRIPE_PRICE_TEAM || '',
-  starter_annual: process.env.STRIPE_PRICE_STARTER_ANNUAL || '',
-  pro_annual: process.env.STRIPE_PRICE_PRO_ANNUAL || '',
-  team_annual: process.env.STRIPE_PRICE_TEAM_ANNUAL || '',
+  florrie: process.env.STRIPE_PRICE_FLORRIE || '',
+  florrie_team: process.env.STRIPE_PRICE_FLORRIE_TEAM || '',
+  florrie_annual: process.env.STRIPE_PRICE_FLORRIE_ANNUAL || '',
+  florrie_team_annual: process.env.STRIPE_PRICE_FLORRIE_TEAM_ANNUAL || '',
 };
 
 const APP_URL = process.env.APP_URL || 'https://app.florrie.ai';
@@ -34,7 +33,7 @@ router.post('/create-checkout', requireAuth, async (req, res) => {
     }
 
     const { plan, interval } = req.body;
-    // Support both monthly and annual: plan='pro', interval='annual' → key='pro_annual'
+    // Support both monthly and annual: plan='florrie', interval='annual' → key='florrie_annual'
     const priceKey = interval === 'annual' ? `${plan}_annual` : plan;
     if (!plan || !PRICE_IDS[priceKey]) {
       return res.status(400).json({ error: 'Invalid plan selected' });
@@ -190,7 +189,7 @@ router.post('/webhook', async (req, res) => {
           await supabase
             .from('beauticians')
             .update({
-              subscription_plan: 'free',
+              subscription_plan: 'trial',
               subscription_status: 'cancelled',
               stripe_subscription_id: null,
             })

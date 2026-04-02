@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useBeautician, updateRow, insertRow, isDevMode } from '../lib/supabase.js';
-import { PLANS } from '../lib/subscription.js';
+import { PLAN } from '../lib/subscription.js';
 import logger from '../lib/logger.js';
 
 /**
@@ -599,39 +599,34 @@ export default function Onboarding({ onComplete }) {
         </div>
       )}
 
-      {/* === STEP 6: Choose Your Plan === */}
+      {/* === STEP 6: You're All Set === */}
       {step === 6 && (
         <div style={styles.stepContent}>
           <h1 style={styles.stepTitle}>You're all set</h1>
           <p style={styles.stepDesc}>
-            Start free. Upgrade when your business is ready.
+            Your 14-day free trial is active. Full access to everything — no card needed.
           </p>
 
-          <div style={styles.planGrid}>
-            {PLANS.map(plan => (
-              <div
-                key={plan.id}
-                style={{
-                  ...styles.planCard,
-                  ...(plan.popular ? styles.planCardPopular : {}),
-                }}
-              >
-                {plan.popular && <div style={styles.popularBadge}>Most popular</div>}
-                <div style={styles.planName}>{plan.name}</div>
-                <div style={styles.planPrice}>{plan.priceLabel}</div>
-                <ul style={styles.planFeatures}>
-                  {plan.features.map((f, i) => (
-                    <li key={i} style={styles.planFeature}>
-                      <span style={{ color: 'var(--success, #5BA97B)' }}>✓</span> {f}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+          <div style={{
+            ...styles.planCard,
+            border: '1.5px solid var(--accent, #C76B8A)',
+            boxShadow: '0 2px 12px rgba(199, 107, 138, 0.12)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div style={styles.planName}>{PLAN.name}</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent, #C76B8A)' }}>{PLAN.monthlyLabel}</div>
+            </div>
+            <ul style={styles.planFeatures}>
+              {PLAN.features.map((f, i) => (
+                <li key={i} style={styles.planFeature}>
+                  <span style={{ color: 'var(--success, #5BA97B)' }}>✓</span> {f}
+                </li>
+              ))}
+            </ul>
           </div>
 
           <p style={styles.trialNote}>
-            Your 14-day free trial includes all Pro features. No card needed.
+            After your trial, it's {PLAN.monthlyLabel} — or save with annual billing at {PLAN.annualLabel}.
           </p>
 
           <button

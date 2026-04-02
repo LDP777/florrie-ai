@@ -238,7 +238,7 @@ router.post('/subscribe', requireAuth, requireStripe, async (req, res) => {
       success_url: `${FRONTEND_URL}/settings?plan=success`,
       cancel_url: `${FRONTEND_URL}/settings?plan=cancelled`,
       subscription_data: {
-        trial_period_days: req.beautician.subscription_plan === 'free' ? 14 : undefined,
+        trial_period_days: req.beautician.subscription_plan === 'trial' ? 14 : undefined,
         metadata: { beautician_id: req.beautician.id, plan_id },
       },
     });
@@ -816,7 +816,7 @@ router.post('/webhook', async (req, res) => {
           await supabase
             .from('beauticians')
             .update({
-              subscription_plan: planId || 'starter',
+              subscription_plan: planId || 'florrie',
               subscription_stripe_id: sub.id,
               subscription_status: sub.status === 'active' || sub.status === 'trialing' ? 'active' : sub.status,
               subscription_current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
@@ -834,7 +834,7 @@ router.post('/webhook', async (req, res) => {
           await supabase
             .from('beauticians')
             .update({
-              subscription_plan: 'free',
+              subscription_plan: 'trial',
               subscription_status: 'cancelled',
               subscription_stripe_id: null,
             })

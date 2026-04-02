@@ -223,7 +223,7 @@ export async function checkTrialExpiry() {
     .select('id')
     .gte('trial_ends_at', threeDaysFromNow.toISOString())
     .lt('trial_ends_at', fourDaysFromNow.toISOString())
-    .in('subscription_plan', ['free', 'trial']);
+    .eq('subscription_plan', 'trial');
 
   if (!expiring?.length) return { triggered: 0 };
 

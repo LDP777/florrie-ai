@@ -173,7 +173,7 @@ export default function Hub() {
   const navigate = useNavigate();
   const location = useLocation();
   const { beautician } = useBeautician();
-  const plan = beautician?.subscription_plan || 'free';
+  const plan = beautician?.subscription_plan || 'trial';
 
   const filtered = useMemo(() => {
     if (!search.trim()) return CATEGORIES;

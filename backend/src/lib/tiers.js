@@ -1,104 +1,138 @@
 /**
  * Tier configuration — single source of truth for server-side enforcement.
  *
- * Prices (master plan revision, Apr 2026):
- *   Free    — £0     5 clients, 5 AI chats/mo, no WhatsApp, no content autopilot
- *   Starter — £19/mo 50 clients, basic AI (50 chats/mo), SMS, reports
- *   Pro     — £39/mo Unlimited clients + AI, WhatsApp, Content Autopilot, tax dashboard
- *   Team    — £69/mo Everything + multi-location, staff rota, performance, up to 10 seats
+ * Commercial model (Apr 2026):
+ *   Trial       — 14 days, full access to everything, no card required
+ *   Florrie     — £29/mo (annual: £290/yr, saves £58). Solo beauticians. Everything included.
+ *   Florrie Team — £29/mo + £15/seat. Multi-location, staff rota, up to 10 team members.
  *
- * Annual = 10 months (2 months free, ~17% discount).
+ * Messaging: 120 messages/month included (SMS + WhatsApp combined).
+ *   Overages: 6p/SMS, 5p/WhatsApp conversation over the limit.
+ *
+ * AI: Unlimited. Haiku for routine tasks, Sonnet for content generation.
+ *   Cost to serve: ~£0.23/user/month. Not metered, not limited.
+ *
+ * Gross margin: ~87% at £29/mo.
  */
 
-export const TIER_HIERARCHY = { free: 0, starter: 1, pro: 2, team: 3 };
+export const TIER_HIERARCHY = { trial: 0, florrie: 1, florrie_team: 2 };
 
 export const TIERS = {
-  free: {
-    id: 'free',
-    name: 'Free',
+  trial: {
+    id: 'trial',
+    name: '14-day free trial',
     price_monthly_pence: 0,
     price_annual_pence: 0,
-    max_clients: 5,
+    trial_days: 14,
+    max_clients: null, // unlimited during trial
     max_team_members: 1,
-    ai_chats_per_month: 5,
-    includes_sms: false,
-    includes_whatsapp: false,
-    includes_ai_front_desk: false,
-    includes_content_autopilot: false,
-    includes_tax_dashboard: false,
-    features: ['5 clients', 'Basic calendar', 'Manual bookings', 'Public booking page', '5 AI chats/month'],
-  },
-  starter: {
-    id: 'starter',
-    name: 'Starter',
-    price_monthly_pence: 1900,
-    price_annual_pence: 19000,
-    max_clients: 50,
-    max_team_members: 1,
-    ai_chats_per_month: 50,
-    includes_sms: true,
-    includes_whatsapp: false,
-    includes_ai_front_desk: false,
-    includes_content_autopilot: false,
-    includes_tax_dashboard: false,
-    features: ['50 clients', 'Online booking', 'SMS reminders', 'Receipt scanning', 'Basic reports', '50 AI chats/month'],
-  },
-  pro: {
-    id: 'pro',
-    name: 'Pro',
-    price_monthly_pence: 3900,
-    price_annual_pence: 39000,
-    max_clients: null, // unlimited
-    max_team_members: 2,
+    messages_per_month: 120,
     ai_chats_per_month: null, // unlimited
     includes_sms: true,
     includes_whatsapp: true,
     includes_ai_front_desk: true,
     includes_content_autopilot: true,
     includes_tax_dashboard: true,
-    features: ['Unlimited clients', 'AI Front Desk', 'WhatsApp automation', 'Smart Schedule', 'Content Autopilot', 'Tax dashboard', 'Full analytics'],
+    features: [
+      'Full access for 14 days',
+      'Unlimited clients',
+      'AI receptionist',
+      'WhatsApp & SMS',
+      'Tax dashboard',
+      'Smart scheduling',
+      'Content autopilot',
+      'Compliance tracking',
+      '120 messages/month',
+    ],
   },
-  team: {
-    id: 'team',
-    name: 'Team',
-    price_monthly_pence: 6900,
-    price_annual_pence: 69000,
-    max_clients: null,
+  florrie: {
+    id: 'florrie',
+    name: 'Florrie',
+    price_monthly_pence: 2900,
+    price_annual_pence: 29000, // £290/yr (save £58)
+    trial_days: 0,
+    max_clients: null, // unlimited
+    max_team_members: 1,
+    messages_per_month: 120,
+    ai_chats_per_month: null, // unlimited
+    includes_sms: true,
+    includes_whatsapp: true,
+    includes_ai_front_desk: true,
+    includes_content_autopilot: true,
+    includes_tax_dashboard: true,
+    features: [
+      'Unlimited clients',
+      'AI receptionist',
+      'WhatsApp & SMS automation',
+      'Smart scheduling',
+      'Tax dashboard & HMRC tracking',
+      'Content autopilot',
+      'Compliance & patch test tracking',
+      'Analytics & reports',
+      'Receipt scanning',
+      '120 messages/month included',
+    ],
+  },
+  florrie_team: {
+    id: 'florrie_team',
+    name: 'Florrie for Teams',
+    price_monthly_pence: 2900, // base price same, +1500 per extra seat
+    price_annual_pence: 29000,
+    extra_seat_monthly_pence: 1500,
+    extra_seat_annual_pence: 15000,
+    trial_days: 0,
+    max_clients: null, // unlimited
     max_team_members: 10,
+    messages_per_month: 120, // per seat
     ai_chats_per_month: null,
     includes_sms: true,
     includes_whatsapp: true,
     includes_ai_front_desk: true,
     includes_content_autopilot: true,
     includes_tax_dashboard: true,
-    features: ['Everything in Pro', 'Multi-location', 'Staff rota & KPIs', 'Up to 10 team members', 'Priority support'],
+    features: [
+      'Everything in Florrie',
+      'Multi-location support',
+      'Staff rota & scheduling',
+      'Team performance tracking',
+      'Up to 10 team members',
+      '+£15/month per extra seat',
+      '120 messages/month per seat',
+      'Priority support',
+    ],
   },
 };
 
 /**
- * Feature → minimum tier required.
- * Backend mirror of frontend FEATURE_GATES for server-side enforcement.
+ * Feature gates.
+ *
+ * With the new model, almost everything is available on all paid tiers.
+ * Only multi-location and staff management features are team-gated.
+ * Trial gets full access (same as florrie) for 14 days.
  */
 export const FEATURE_GATES = {
-  ai_front_desk: 'pro',
-  whatsapp: 'pro',
-  smart_schedule: 'pro',
-  content_autopilot: 'pro',
-  campaigns: 'pro',
-  ai_insights: 'pro',
-  churn_prevention: 'pro',
-  demand_forecast: 'pro',
-  client_segments: 'pro',
-  tax_dashboard: 'pro',
-  sms: 'starter',
-  reports: 'starter',
-  receipt_scanning: 'starter',
-  loyalty: 'starter',
-  aftercare: 'starter',
-  multi_location: 'team',
-  staff_rota: 'team',
-  staff_performance: 'team',
-  team_management: 'team',
+  // Available to all (trial + florrie + team)
+  ai_front_desk: 'trial',
+  whatsapp: 'trial',
+  smart_schedule: 'trial',
+  content_autopilot: 'trial',
+  campaigns: 'trial',
+  ai_insights: 'trial',
+  churn_prevention: 'trial',
+  demand_forecast: 'trial',
+  client_segments: 'trial',
+  tax_dashboard: 'trial',
+  sms: 'trial',
+  reports: 'trial',
+  receipt_scanning: 'trial',
+  loyalty: 'trial',
+  aftercare: 'trial',
+
+  // Team only
+  multi_location: 'florrie_team',
+  staff_rota: 'florrie_team',
+  staff_performance: 'florrie_team',
+  team_management: 'florrie_team',
 };
 
 /**
@@ -106,7 +140,7 @@ export const FEATURE_GATES = {
  */
 export function hasFeature(plan, feature) {
   const required = FEATURE_GATES[feature];
-  if (!required) return true;
+  if (!required) return true; // no gate = available to all
   return (TIER_HIERARCHY[plan] || 0) >= (TIER_HIERARCHY[required] || 0);
 }
 
@@ -114,19 +148,42 @@ export function hasFeature(plan, feature) {
  * Get the tier config for a plan.
  */
 export function getTier(plan) {
-  return TIERS[plan] || TIERS.free;
+  return TIERS[plan] || TIERS.trial;
 }
 
 /**
- * Check if a beautician has exceeded their AI chat limit for the current month.
- * Returns { allowed: boolean, used: number, limit: number|null }
+ * Check if a beautician has exceeded their monthly message limit.
+ * Returns { allowed, used, limit, remaining, overage rates }
  */
-export function checkAiChatLimit(plan, usedThisMonth) {
+export function checkMessageLimit(plan, usedThisMonth, teamMembers = 1) {
   const tier = getTier(plan);
-  if (tier.ai_chats_per_month === null) return { allowed: true, used: usedThisMonth, limit: null };
+  const limit = (tier.messages_per_month || 120) * teamMembers;
   return {
-    allowed: usedThisMonth < tier.ai_chats_per_month,
+    allowed: usedThisMonth < limit,
     used: usedThisMonth,
-    limit: tier.ai_chats_per_month,
+    limit,
+    remaining: Math.max(0, limit - usedThisMonth),
+    overage_rate_sms_pence: 6,
+    overage_rate_whatsapp_pence: 5,
   };
+}
+
+/**
+ * Check if a trial has expired.
+ */
+export function isTrialExpired(plan, trialEndsAt) {
+  if (plan !== 'trial') return false;
+  if (!trialEndsAt) return true;
+  return new Date() > new Date(trialEndsAt);
+}
+
+/**
+ * Calculate total monthly cost for a team plan.
+ */
+export function calculateTeamCost(extraSeats, isAnnual = false) {
+  const tier = TIERS.florrie_team;
+  if (isAnnual) {
+    return tier.price_annual_pence + (extraSeats * tier.extra_seat_annual_pence);
+  }
+  return tier.price_monthly_pence + (extraSeats * tier.extra_seat_monthly_pence);
 }

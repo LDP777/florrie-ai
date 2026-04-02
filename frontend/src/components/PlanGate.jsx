@@ -12,13 +12,13 @@
  */
 import { useNavigate } from 'react-router-dom';
 import { useBeautician } from '../lib/supabase.js';
-import { hasFeature, getRequiredPlan, PLANS } from '../lib/subscription.js';
+import { hasFeature, getRequiredPlan, PLAN, TEAM_ADDON, getPlanName } from '../lib/subscription.js';
 import { ds, type } from '../lib/designSystem.js';
 
 export default function PlanGate({ feature, children }) {
   const { beautician } = useBeautician();
   const navigate = useNavigate();
-  const currentPlan = beautician?.subscription_plan || 'free';
+  const currentPlan = beautician?.subscription_plan || 'trial';
 
   // If the user has access, render the page normally
   if (hasFeature(currentPlan, feature)) {
@@ -26,9 +26,10 @@ export default function PlanGate({ feature, children }) {
   }
 
   const requiredPlan = getRequiredPlan(feature);
-  const planInfo = PLANS.find(p => p.id === requiredPlan);
-  const planName = planInfo?.name || requiredPlan;
-  const planPrice = planInfo?.priceLabel || '';
+  // Only team features are gated now — everything else is available to all
+  const isTeamFeature = requiredPlan === 'florrie_team';
+  const planName = isTeamFeature ? TEAM_ADDON.name : PLAN.name;
+  const planPrice = isTeamFeature ? TEAM_ADDON.seatMonthlyLabel : PLAN.monthlyLabel;
 
   // Feature display names for the prompt
   const featureNames = {
@@ -67,7 +68,7 @@ export default function PlanGate({ feature, children }) {
         </p>
 
         <div style={styles.featureList}>
-          {planInfo?.features?.map((f, i) => (
+          {(isTeamFeature ? TEAM_ADDON.extras : PLAN.features).map((f, i) => (
             <div key={i} style={styles.featureItem}>
               <span className="material-symbols-outlined" style={styles.checkIcon}>check_circle</span>
               <span>{f}</span>

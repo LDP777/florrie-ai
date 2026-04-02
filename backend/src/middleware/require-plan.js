@@ -2,24 +2,43 @@
  * require-plan middleware — blocks API access for features above the user's plan.
  *
  * Usage:
- *   router.get('/insights', requireAuth, requirePlan('pro'), async (req, res) => { ... });
+ *   router.get('/team-stats', requireAuth, requirePlan('florrie_team'), async (req, res) => { ... });
  *
- * Plan hierarchy: free < starter < pro < team
+ * Plan hierarchy: trial < florrie < florrie_team
+ *
+ * New model (Apr 2026): almost everything is available to all tiers.
+ * Only multi-location and staff management features are team-gated.
+ * AI and clients are unlimited on all paid tiers.
  */
-
-const PLAN_HIERARCHY = { free: 0, starter: 1, pro: 2, team: 3 };
+import { TIER_HIERARCHY, hasFeature, getTier, checkMessageLimit, isTrialExpired } from '../lib/tiers.js';
 
 /**
  * Returns Express middleware that checks if req.beautician.subscription_plan
  * meets the minimum required plan.
  *
- * @param {string} minimumPlan - 'starter' | 'pro' | 'team'
+ * @param {string} minimumPlan - 'florrie' | 'florrie_team'
  */
 export function requirePlan(minimumPlan) {
   return (req, res, next) => {
-    const currentPlan = req.beautician?.subscription_plan || 'free';
-    const currentLevel = PLAN_HIERARCHY[currentPlan] ?? 0;
-    const requiredLevel = PLAN_HIERARCHY[minimumPlan] ?? 0;
+    const currentPlan = req.beautician?.subscription_plan || 'trial';
+    const currentLevel = TIER_HIERARCHY[currentPlan] ?? 0;
+    const requiredLevel = TIER_HIERARCHY[minimumPlan] ?? 0;
+
+    // Trial users get full access (same as florrie) for 14 days
+    if (currentPlan === 'trial') {
+      const expired = isTrialExpired('trial', req.beautician?.trial_ends_at);
+      if (expired) {
+        return res.status(403).json({
+          error: 'Trial expired',
+          required_plan: 'florrie',
+          current_plan: 'trial',
+        });
+      }
+      // Trial not expired — allow access to florrie-level features
+      if (requiredLevel <= (TIER_HIERARCHY.florrie ?? 1)) {
+        return next();
+      }
+    }
 
     if (currentLevel >= requiredLevel) {
       return next();
@@ -34,84 +53,65 @@ export function requirePlan(minimumPlan) {
 }
 
 /**
- * AI chat limit check — for routes that trigger AI chat/actions.
- * Free: 5/mo, Starter: 50/mo, Pro/Team: unlimited
+ * Message limit check — for routes that send SMS/WhatsApp.
+ * 120 messages/month included on all plans. Overages allowed but tracked.
  */
-const AI_CHAT_LIMITS = { free: 5, starter: 50, pro: Infinity, team: Infinity };
-
-export function checkAiChatLimit(supabase) {
+export function checkMessageLimitMiddleware(supabase) {
   return async (req, res, next) => {
-    const plan = req.beautician?.subscription_plan || 'free';
-    const limit = AI_CHAT_LIMITS[plan] ?? 5;
-
-    if (limit === Infinity) return next();
-
+    const plan = req.beautician?.subscription_plan || 'trial';
     const bid = req.beautician.id;
 
-    // Check if we need to reset the counter (new month)
-    const resetAt = req.beautician.ai_chats_reset_at ? new Date(req.beautician.ai_chats_reset_at) : new Date(0);
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    // Get current month's usage
+    const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+    const { count } = await supabase
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('beautician_id', bid)
+      .gte('created_at', monthStart);
 
-    let used = req.beautician.ai_chats_this_month || 0;
+    const used = count || 0;
+    const teamMembers = req.beautician.team_member_count || 1;
+    const { allowed, limit, remaining } = checkMessageLimit(plan, used, teamMembers);
 
-    if (resetAt < monthStart) {
-      // Reset counter for new month
-      await supabase
-        .from('beauticians')
-        .update({ ai_chats_this_month: 0, ai_chats_reset_at: now.toISOString() })
-        .eq('id', bid);
-      used = 0;
-    }
+    // Attach usage info to request for downstream use
+    req.messageUsage = { used, limit, remaining, overLimit: !allowed };
 
-    if (used >= limit) {
-      return res.status(403).json({
-        error: `AI chat limit reached (${limit}/month on ${plan} plan). Upgrade for more.`,
-        required_plan: plan === 'free' ? 'starter' : 'pro',
-        current_plan: plan,
-        used,
-        limit,
-      });
-    }
-
-    // Increment counter
-    await supabase
-      .from('beauticians')
-      .update({ ai_chats_this_month: used + 1 })
-      .eq('id', bid);
-
+    // We don't block — overages are billed. Just attach the info.
     next();
   };
 }
 
 /**
- * Client limit check — for routes that create clients.
- * Free: 5, Starter: 50, Pro/Team: unlimited
+ * Trial expiry check — blocks access if trial has expired.
+ * Used on routes where we want to enforce the paywall.
  */
-const CLIENT_LIMITS = { free: 5, starter: 50, pro: Infinity, team: Infinity };
+export function requireActiveSubscription() {
+  return (req, res, next) => {
+    const plan = req.beautician?.subscription_plan || 'trial';
+    const status = req.beautician?.subscription_status;
 
-export function checkClientLimit(supabase) {
-  return async (req, res, next) => {
-    const plan = req.beautician?.subscription_plan || 'free';
-    const limit = CLIENT_LIMITS[plan] ?? 5;
+    // Active paid subscription — always pass
+    if (status === 'active' && (plan === 'florrie' || plan === 'florrie_team')) {
+      return next();
+    }
 
-    if (limit === Infinity) return next();
+    // Trial — check expiry
+    if (plan === 'trial') {
+      const expired = isTrialExpired('trial', req.beautician?.trial_ends_at);
+      if (!expired) return next();
 
-    const { count, error } = await supabase
-      .from('clients')
-      .select('id', { count: 'exact', head: true })
-      .eq('beautician_id', req.beautician.id);
-
-    if (error) return next(); // Don't block on count errors
-
-    if ((count || 0) >= limit) {
       return res.status(403).json({
-        error: `Client limit reached (${limit} on ${plan} plan). Upgrade to add more.`,
-        required_plan: plan === 'free' ? 'starter' : 'pro',
-        current_plan: plan,
+        error: 'Trial expired',
+        required_plan: 'florrie',
+        current_plan: 'trial',
       });
     }
 
-    next();
+    // Cancelled or unknown — block
+    return res.status(403).json({
+      error: 'Subscription required',
+      required_plan: 'florrie',
+      current_plan: plan,
+    });
   };
 }
