@@ -136,7 +136,7 @@ export default function Escalations() {
           <span style={{ fontSize: 36, marginBottom: 12, display: 'block' }}>✨</span>
           <p style={styles.emptyTitle}>All clear</p>
           <p style={styles.emptyDesc}>
-            Front Desk is handling everything. You'll see messages here when it needs your input.
+            Florrie is handling everything. You'll see messages here when she needs your input.
           </p>
         </div>
       ) : (
@@ -170,7 +170,7 @@ export default function Escalations() {
               {/* AI suggestion */}
               {msg.ai_response && editingId !== msg.id && (
                 <div style={styles.suggestionBubble}>
-                  <span style={styles.bubbleLabel}>Front Desk suggests:</span>
+                  <span style={styles.bubbleLabel}>Florrie suggests:</span>
                   <p style={styles.bubbleText}>{msg.ai_response}</p>
                 </div>
               )}

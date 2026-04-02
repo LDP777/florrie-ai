@@ -32,13 +32,13 @@ export default function PlanGate({ feature, children }) {
 
   // Feature display names for the prompt
   const featureNames = {
-    ai_front_desk: 'AI Front Desk',
+    ai_front_desk: 'Florrie Auto-Reply',
     whatsapp: 'WhatsApp Automation',
-    smart_schedule: 'Smart Schedule',
-    content_autopilot: 'Content Autopilot',
+    smart_schedule: "Florrie's Schedule",
+    content_autopilot: 'Florrie Content',
     campaigns: 'Campaigns',
-    ai_insights: 'AI Insights',
-    churn_prevention: 'Churn Prevention',
+    ai_insights: "Florrie's Insights",
+    churn_prevention: 'Client Retention',
     demand_forecast: 'Demand Forecast',
     client_segments: 'Client Segments',
     sms: 'SMS Reminders',

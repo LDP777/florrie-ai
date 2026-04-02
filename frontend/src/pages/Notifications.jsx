@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, isDevMode } from '../lib/supabase.js';
+import { useBeautician, isDevMode, fetchRows, updateRow } from '../lib/supabase.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 
@@ -116,15 +116,43 @@ export default function Notifications() {
       setLoading(false);
       return;
     }
+    try {
+      const rows = await fetchRows('notifications', beautician?.id, {
+        order: { column: 'created_at', ascending: false },
+        limit: 100,
+      });
+      setNotifications((rows || []).map(r => ({
+        id: r.id,
+        category: r.category,
+        type: r.type,
+        title: r.title,
+        body: r.body,
+        time: r.created_at,
+        read: r.read,
+        actionUrl: r.action_url,
+      })));
+    } catch (err) {
+      console.error('Failed to load notifications:', err);
+      setNotifications([]);
+    }
     setLoading(false);
   }
 
-  function markRead(id) {
+  async function markRead(id) {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    if (!isDevMode) {
+      try { await updateRow('notifications', id, { read: true }); } catch (e) { /* silent */ }
+    }
   }
 
-  function markAllRead() {
+  async function markAllRead() {
+    const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    if (!isDevMode) {
+      for (const uid of unreadIds) {
+        try { await updateRow('notifications', uid, { read: true }); } catch (e) { /* silent */ }
+      }
+    }
   }
 
   const filtered = filter === 'all' ? notifications : notifications.filter(n => n.category === filter);

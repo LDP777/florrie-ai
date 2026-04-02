@@ -77,7 +77,7 @@ const SHIFT_CATEGORIES = {
   booking: { label: 'Bookings', icon: 'event_available', color: '#5ba97b', bg: 'rgba(91,169,123,0.12)' },
   retention: { label: 'Retention', icon: 'loyalty', color: '#92405e', bg: 'rgba(255,217,226,0.3)' },
   payment: { label: 'Payments', icon: 'payments', color: '#3a7ca5', bg: 'rgba(58,124,165,0.1)' },
-  other: { label: 'Other', icon: 'auto_awesome', color: '#6b5a5f', bg: 'rgba(146,64,94,0.06)' },
+  other: { label: 'Other', icon: 'auto_awesome', color: '#867277', bg: 'rgba(146,64,94,0.06)' },
 };
 
 // ─── Material Icon helper ──────────────────────────────────
@@ -109,11 +109,6 @@ export default function Dashboard() {
   const [shiftExpanded, setShiftExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  // ── Attendance marking ──
-  const [attendanceMap, setAttendanceMap] = useState({}); // id → 'attended' | 'no_show'
-  const [attendanceSaving, setAttendanceSaving] = useState(false);
-  const [attendanceDone, setAttendanceDone] = useState(false);
 
   useEffect(() => {
     if (beautician) loadData();
@@ -275,89 +270,6 @@ export default function Dashboard() {
     return `${Math.round(hrs / 24)}d ago`;
   }
 
-  // ── Attendance helpers ──
-  const unresolvedAppts = today.filter(a => a.status === 'confirmed' || a.status === 'pending');
-  const showAttendance = unresolvedAppts.length > 0 && !attendanceDone;
-
-  // Only show after ALL appointments for the day are finished (last end time has passed)
-  const allAppointmentsDone = useMemo(() => {
-    if (isDevMode) return true; // always show in dev for testing
-    if (today.length === 0) return false;
-    const now = new Date();
-    const activeAppts = today.filter(a => a.status !== 'cancelled');
-    if (activeAppts.length === 0) return false;
-    // Check if the last appointment's end time has passed
-    return activeAppts.every(a => {
-      const [h, m] = (a.time || '00:00').split(':').map(Number);
-      const endTime = new Date();
-      endTime.setHours(h, m, 0, 0);
-      endTime.setMinutes(endTime.getMinutes() + (a.duration || 60));
-      return now >= endTime;
-    });
-  }, [today]);
-
-  function toggleAttendance(id) {
-    setAttendanceMap(prev => {
-      const current = prev[id];
-      if (!current) return { ...prev, [id]: 'attended' };
-      if (current === 'attended') return { ...prev, [id]: 'no_show' };
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
-  }
-
-  function markAllAttended() {
-    const map = {};
-    unresolvedAppts.forEach(a => { map[a.id] = 'attended'; });
-    setAttendanceMap(map);
-  }
-
-  async function submitAttendance() {
-    setAttendanceSaving(true);
-    try {
-      // In dev mode, just simulate
-      if (isDevMode) {
-        setToday(prev => prev.map(a => {
-          const mark = attendanceMap[a.id];
-          if (!mark) return a;
-          return { ...a, status: mark === 'attended' ? 'completed' : 'no_show' };
-        }));
-        setAttendanceDone(true);
-        setAttendanceSaving(false);
-        return;
-      }
-
-      // Real mode: PATCH each appointment status
-      const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const updates = Object.entries(attendanceMap).map(([id, mark]) => {
-        const newStatus = mark === 'attended' ? 'completed' : 'no_show';
-        return fetch(`/api/booking/appointments/${id}/status`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
-          body: JSON.stringify({ status: newStatus }),
-        });
-      });
-
-      await Promise.all(updates);
-
-      // Update local state
-      setToday(prev => prev.map(a => {
-        const mark = attendanceMap[a.id];
-        if (!mark) return a;
-        return { ...a, status: mark === 'attended' ? 'completed' : 'no_show' };
-      }));
-      setAttendanceDone(true);
-    } catch (err) {
-      logger.error('Attendance submit error:', err);
-    } finally {
-      setAttendanceSaving(false);
-    }
-  }
-
   const todayRevenue = today.reduce((sum, a) => sum + (a.price_cents || 0), 0);
   const completedCount = today.filter(a => a.status === 'completed').length;
   const pendingCount = today.filter(a => a.status === 'pending').length;
@@ -425,7 +337,7 @@ export default function Dashboard() {
               <p style={S.heroLabel}>Today's Forecast</p>
               <h2 style={S.heroValue}>{fmt(todayRevenue)}</h2>
             </div>
-            <MIcon name="trending_up" style={{ color: 'rgba(255,255,255,0.6)' }} size={28} />
+            <MIcon name="trending_up" style={{ color: 'rgba(255,255,255,0.4)' }} size={28} />
           </div>
           <div style={S.heroDivider} />
           <div style={S.heroStats}>
@@ -467,7 +379,7 @@ export default function Dashboard() {
             </div>
             <MIcon
               name={shiftExpanded ? 'expand_less' : 'expand_more'}
-              size={20} style={{ color: '#6b5a5f' }}
+              size={20} style={{ color: '#867277' }}
             />
           </div>
 
@@ -530,14 +442,14 @@ export default function Dashboard() {
       {/* ─── Insight Cards ─── */}
       <section style={S.alertGrid}>
         {/* Card 1: Schedule status — gaps or next appointment */}
-        <button onClick={() => navigate('/calendar')} style={S.alertCard('#fedb9b', '#5c4418', '#4a3710')}>
+        <button onClick={() => navigate('/calendar')} style={S.alertCard('#fedb9b', '#745a27', '#795f2b')}>
           <div style={S.alertTop}>
-            <MIcon name={remainingCount > 0 ? 'schedule' : 'check_circle'} size={14} style={{ color: '#5c4418' }} />
-            <span style={S.alertBadge('#5c4418')}>
+            <MIcon name={remainingCount > 0 ? 'schedule' : 'check_circle'} size={14} style={{ color: '#795f2b' }} />
+            <span style={S.alertBadge('#795f2b')}>
               {remainingCount > 0 ? 'Next Up' : 'Done'}
             </span>
           </div>
-          <p style={{ fontSize: 14, fontWeight: 600, color: '#4a3710', margin: 0, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: '#745a27', margin: 0, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" }}>
             {remainingCount > 0
               ? (today.find(a => a.status !== 'completed')?.time || 'All clear')
               : 'All done for today'}
@@ -546,22 +458,22 @@ export default function Dashboard() {
 
         {/* Card 2: Revenue context or retention nudge */}
         {insights.some(i => i.type === 'action' && i.actionPath === '/clients') ? (
-          <button onClick={() => navigate('/clients')} style={S.alertCard('#ffd9e2', '#6e2d45', '#5a1f35')}>
+          <button onClick={() => navigate('/clients')} style={S.alertCard('#ffd9e2', '#92405e', '#782b49')}>
             <div style={S.alertTop}>
-              <MIcon name="history" size={14} style={{ color: '#6e2d45' }} />
-              <span style={S.alertBadge('#6e2d45')}>Retain</span>
+              <MIcon name="history" size={14} style={{ color: '#92405e' }} />
+              <span style={S.alertBadge('#92405e')}>Retain</span>
             </div>
-            <p style={{ fontSize: 14, fontWeight: 500, color: '#5a1f35', margin: 0 }}>
+            <p style={{ fontSize: 14, fontWeight: 500, color: '#782b49', margin: 0 }}>
               Overdue rebookings
             </p>
           </button>
         ) : (
-          <button onClick={() => navigate('/money')} style={S.alertCard('#ffd9e2', '#6e2d45', '#5a1f35')}>
+          <button onClick={() => navigate('/money')} style={S.alertCard('#ffd9e2', '#92405e', '#782b49')}>
             <div style={S.alertTop}>
-              <MIcon name="payments" size={14} style={{ color: '#6e2d45' }} />
-              <span style={S.alertBadge('#6e2d45')}>Revenue</span>
+              <MIcon name="payments" size={14} style={{ color: '#92405e' }} />
+              <span style={S.alertBadge('#92405e')}>Revenue</span>
             </div>
-            <p style={{ fontSize: 14, fontWeight: 600, color: '#5a1f35', margin: 0, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: '#782b49', margin: 0, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" }}>
               {weeklyPulse.incomeChange != null
                 ? `${weeklyPulse.incomeChange >= 0 ? '↑' : '↓'} ${Math.abs(weeklyPulse.incomeChange)}% this week`
                 : fmt(weeklyPulse.income) + ' this week'}
@@ -600,7 +512,7 @@ export default function Dashboard() {
               const isNow = isActive;
 
               return (
-                <div key={appt.id} style={{ display: 'flex', alignItems: 'center', gap: 12, opacity: isPast ? 0.55 : 1 }}>
+                <div key={appt.id} style={{ display: 'flex', alignItems: 'center', gap: 12, opacity: isPast ? 0.4 : 1 }}>
                   {/* Time */}
                   <span style={{
                     width: 48, fontSize: 12, fontWeight: isActive ? 700 : 400,
@@ -630,7 +542,7 @@ export default function Dashboard() {
                           }}>Now</span>
                         )}
                       </div>
-                      <p style={{ fontSize: 12, color: '#3d2e33', margin: 0 }}>{appt.treatment}</p>
+                      <p style={{ fontSize: 12, color: '#534247', margin: 0 }}>{appt.treatment}</p>
                     </div>
                     <span style={{
                       fontSize: 14, fontWeight: isActive ? 700 : 500,
@@ -646,107 +558,6 @@ export default function Dashboard() {
         )}
       </section>
 
-      {/* ─── Attendance Check ─── */}
-      {showAttendance && allAppointmentsDone && (
-        <section style={S.attendanceCard}>
-          <div style={S.attendanceHeader}>
-            <div style={S.attendancePulse}>
-              <MIcon name="fact_check" fill size={18} style={{ color: '#fff' }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <p style={S.attendanceTitle}>Quick attendance check</p>
-              <p style={S.attendanceSub}>
-                {unresolvedAppts.length} appointment{unresolvedAppts.length !== 1 ? 's' : ''} to confirm
-              </p>
-            </div>
-          </div>
-
-          {/* Mark all attended shortcut */}
-          <button onClick={markAllAttended} style={S.markAllBtn}>
-            <MIcon name="done_all" size={16} style={{ color: '#5ba97b' }} />
-            Everyone attended
-          </button>
-
-          {/* Appointment list */}
-          <div style={S.attendanceList}>
-            {unresolvedAppts.map(appt => {
-              const mark = attendanceMap[appt.id];
-              const isAttended = mark === 'attended';
-              const isNoShow = mark === 'no_show';
-
-              return (
-                <div
-                  key={appt.id}
-                  onClick={() => toggleAttendance(appt.id)}
-                  style={{
-                    ...S.attendanceRow,
-                    background: isAttended ? 'rgba(91,169,123,0.08)' : isNoShow ? 'rgba(232,93,117,0.06)' : '#fff',
-                    borderColor: isAttended ? 'rgba(91,169,123,0.25)' : isNoShow ? 'rgba(232,93,117,0.2)' : 'rgba(146,64,94,0.08)',
-                  }}
-                >
-                  {/* Status icon */}
-                  <div style={{
-                    ...S.attendanceCheck,
-                    background: isAttended ? '#5ba97b' : isNoShow ? '#E85D75' : '#ede7e3',
-                  }}>
-                    <MIcon
-                      name={isAttended ? 'check' : isNoShow ? 'close' : 'remove'}
-                      fill
-                      size={14}
-                      style={{ color: (isAttended || isNoShow) ? '#fff' : '#867277' }}
-                    />
-                  </div>
-
-                  {/* Client info */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={S.attendanceName}>{appt.client}</p>
-                    <p style={S.attendanceMeta}>{appt.time} · {appt.treatment}</p>
-                  </div>
-
-                  {/* Status label */}
-                  {mark && (
-                    <span style={{
-                      fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-                      letterSpacing: '0.05em',
-                      color: isAttended ? '#5ba97b' : '#E85D75',
-                    }}>
-                      {isAttended ? 'Attended' : 'No-show'}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Tap hint */}
-          <p style={S.attendanceHint}>
-            Tap once = attended · Tap again = no-show · Tap again = undo
-          </p>
-
-          {/* Submit */}
-          <button
-            onClick={submitAttendance}
-            disabled={Object.keys(attendanceMap).length === 0 || attendanceSaving}
-            style={{
-              ...S.attendanceSubmit,
-              opacity: Object.keys(attendanceMap).length === 0 ? 0.4 : 1,
-            }}
-          >
-            {attendanceSaving ? 'Saving...' : `Confirm ${Object.keys(attendanceMap).length} of ${unresolvedAppts.length}`}
-          </button>
-        </section>
-      )}
-
-      {/* Attendance done toast */}
-      {attendanceDone && (
-        <section style={S.attendanceDoneBanner}>
-          <MIcon name="check_circle" fill size={18} style={{ color: '#5ba97b' }} />
-          <p style={{ fontSize: 13, fontWeight: 600, color: '#5ba97b', margin: 0 }}>
-            Attendance confirmed — nice one!
-          </p>
-        </section>
-      )}
-
       {/* ─── Activity Feed ─── */}
       {activity.length > 0 && (
         <section style={{ paddingTop: 8 }}>
@@ -757,7 +568,7 @@ export default function Dashboard() {
                 <span style={{ fontSize: 18 }}>{act.icon}</span>
                 <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <p style={{ fontSize: 12, color: '#1d1b19', margin: 0 }}>{act.text}</p>
-                  <span style={{ fontSize: 10, color: '#3d2e33', whiteSpace: 'nowrap', marginLeft: 8 }}>{act.time}</span>
+                  <span style={{ fontSize: 10, color: '#534247', whiteSpace: 'nowrap', marginLeft: 8 }}>{act.time}</span>
                 </div>
               </div>
             ))}
@@ -807,7 +618,7 @@ const S = {
   greetingSection: { paddingTop: 32, marginBottom: 32 },
   dateLabel: {
     fontFamily: "var(--font-sans, 'DM Sans', sans-serif)",
-    fontSize: 14, color: '#6b5a5f', margin: '0 0 4px',
+    fontSize: 14, color: 'rgba(83, 66, 71, 0.7)', margin: '0 0 4px',
     textTransform: 'uppercase', letterSpacing: '0.12em',
   },
   greeting: {
@@ -833,7 +644,7 @@ const S = {
     display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
   },
   heroLabel: {
-    fontSize: 12, opacity: 0.85, textTransform: 'uppercase', letterSpacing: '0.12em',
+    fontSize: 12, opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.12em',
     marginBottom: 4, fontFamily: "var(--font-sans, 'DM Sans')", margin: '0 0 4px',
   },
   heroValue: {
@@ -846,7 +657,7 @@ const S = {
   },
   heroStats: { display: 'flex', justifyContent: 'space-between' },
   heroStat: { textAlign: 'center' },
-  heroStatLabel: { fontSize: 12, opacity: 0.85, margin: '0 0 4px' },
+  heroStatLabel: { fontSize: 12, opacity: 0.6, margin: '0 0 4px' },
   heroStatValue: { fontSize: 18, fontWeight: 700, margin: 0, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" },
 
   // Shift Report
@@ -871,7 +682,7 @@ const S = {
     fontSize: 14, fontWeight: 600, color: '#1d1b19', margin: 0,
   },
   shiftSub: {
-    fontSize: 11, color: '#6b5a5f', margin: '2px 0 0', fontWeight: 500,
+    fontSize: 11, color: '#867277', margin: '2px 0 0', fontWeight: 500,
   },
   shiftBody: {
     padding: '0 18px 18px',
@@ -900,7 +711,7 @@ const S = {
     fontSize: 13, color: '#1d1b19', margin: 0, lineHeight: 1.35,
   },
   shiftItemMeta: {
-    fontSize: 10, color: '#6b5a5f', margin: '2px 0 0',
+    fontSize: 10, color: '#867277', margin: '2px 0 0',
   },
   shiftViewAll: {
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -913,9 +724,9 @@ const S = {
   // Alert cards
   alertGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 },
   alertCard: (bg, accent, text) => ({
-    background: `${bg}90`,
+    background: `${bg}20`,
     padding: 16, borderRadius: 16,
-    border: `1px solid ${bg}`,
+    border: `1px solid ${bg}30`,
     display: 'flex', flexDirection: 'column', gap: 8,
     cursor: 'pointer', fontFamily: 'inherit',
     textAlign: 'left',
@@ -948,7 +759,7 @@ const S = {
     margin: '0 0 4px',
   },
   insightText: {
-    fontSize: 14, color: '#5e4820',
+    fontSize: 14, color: 'rgba(116, 90, 39, 0.9)',
     lineHeight: 1.5, fontStyle: 'italic', margin: 0,
   },
 
@@ -972,83 +783,12 @@ const S = {
   // Activity feed
   activityLabel: {
     fontFamily: "var(--font-sans, 'DM Sans')",
-    fontSize: 10, fontWeight: 700, color: '#3d2e33',
+    fontSize: 10, fontWeight: 700, color: '#534247',
     textTransform: 'uppercase', letterSpacing: '0.2em',
     margin: '0 0 12px',
   },
   activityRow: {
     display: 'flex', alignItems: 'center', gap: 12,
-  },
-
-  // Attendance card
-  attendanceCard: {
-    background: '#fff', borderRadius: 20, marginBottom: 16,
-    border: '1px solid rgba(146, 64, 94, 0.08)',
-    boxShadow: '0 2px 12px rgba(146, 64, 94, 0.05)',
-    padding: 18, overflow: 'hidden',
-  },
-  attendanceHeader: {
-    display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16,
-  },
-  attendancePulse: {
-    width: 36, height: 36, borderRadius: 12,
-    background: 'linear-gradient(135deg, #745a27 0%, #a07b3f 100%)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0,
-    boxShadow: '0 2px 8px rgba(116, 90, 39, 0.2)',
-  },
-  attendanceTitle: {
-    fontSize: 14, fontWeight: 600, color: '#1d1b19', margin: 0,
-  },
-  attendanceSub: {
-    fontSize: 11, color: '#6b5a5f', margin: '2px 0 0', fontWeight: 500,
-  },
-  markAllBtn: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-    width: '100%', padding: '10px 0', borderRadius: 12, marginBottom: 12,
-    border: '1.5px solid rgba(91,169,123,0.3)',
-    background: 'rgba(91,169,123,0.06)',
-    color: '#5ba97b', fontSize: 13, fontWeight: 600,
-    cursor: 'pointer', fontFamily: 'inherit',
-  },
-  attendanceList: {
-    display: 'flex', flexDirection: 'column', gap: 8,
-  },
-  attendanceRow: {
-    display: 'flex', alignItems: 'center', gap: 12,
-    padding: '12px 14px', borderRadius: 14,
-    border: '1px solid rgba(146,64,94,0.08)',
-    cursor: 'pointer', transition: 'all 0.15s ease',
-    WebkitTapHighlightColor: 'transparent',
-  },
-  attendanceCheck: {
-    width: 28, height: 28, borderRadius: 8,
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0, transition: 'all 0.15s ease',
-  },
-  attendanceName: {
-    fontSize: 14, fontWeight: 600, color: '#1d1b19', margin: 0,
-  },
-  attendanceMeta: {
-    fontSize: 11, color: '#6b5a5f', margin: '2px 0 0',
-  },
-  attendanceHint: {
-    fontSize: 10, color: '#6b5a5f', textAlign: 'center',
-    margin: '12px 0 14px', fontStyle: 'italic',
-  },
-  attendanceSubmit: {
-    width: '100%', padding: '14px 0', borderRadius: 14,
-    border: 'none',
-    background: 'linear-gradient(135deg, #745a27 0%, #a07b3f 100%)',
-    color: '#fff', fontSize: 14, fontWeight: 700,
-    cursor: 'pointer', fontFamily: 'inherit',
-    boxShadow: '0 4px 16px rgba(116, 90, 39, 0.2)',
-  },
-  attendanceDoneBanner: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-    background: 'rgba(91,169,123,0.08)', borderRadius: 14,
-    padding: '12px 16px', marginBottom: 16,
-    border: '1px solid rgba(91,169,123,0.15)',
   },
 
   // Share button

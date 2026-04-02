@@ -62,40 +62,18 @@ export default function AIInsights() {
     setLoading(true);
     try {
       const today = new Date().toISOString().slice(0, 10);
-
-      // Fetch today's appointments
       const rows = await fetchRows('appointments', beautician.id, {
         order: 'starts_at', ascending: true,
+        filters: { starts_at: `gte.${today}T00:00:00`, 'starts_at.lt': `${today}T23:59:59` },
       });
-      const todaysAppts = (rows || []).filter(a => (a.starts_at || a.start_time || '').slice(0, 10) === today);
-
-      if (todaysAppts.length > 0) {
-        setAppointments(todaysAppts);
+      if (rows && rows.length > 0) {
+        setAppointments(rows);
       } else if (isDevMode) {
         setAppointments(DEV_APPOINTMENTS);
       } else {
         setAppointments([]);
       }
-
-      // Build activity feed from recent appointments + AI actions
-      if (!isDevMode) {
-        const recent = (rows || [])
-          .filter(a => a.status === 'confirmed' || a.status === 'completed')
-          .sort((a, b) => new Date(b.created_at || b.starts_at) - new Date(a.created_at || a.starts_at))
-          .slice(0, 5);
-
-        const feed = recent.map(a => {
-          const mins = Math.round((Date.now() - new Date(a.created_at || a.starts_at)) / 60000);
-          const timeStr = mins < 60 ? `${mins}m ago` : mins < 1440 ? `${Math.round(mins / 60)}h ago` : `${Math.round(mins / 1440)}d ago`;
-          if (a.status === 'completed') {
-            return { type: 'payment', message: `Payment Received: £${((a.price_cents || 0) / 100).toFixed(2)} from ${a.client_name || 'client'}.`, time: timeStr, icon: '💰' };
-          }
-          return { type: 'booking', message: `Booking: ${a.client_name || 'Client'} for ${a.treatment_name || 'appointment'}.`, time: timeStr, icon: '📅' };
-        });
-        setActivity(feed.length > 0 ? feed : []);
-      } else {
-        setActivity(DEV_ACTIVITY);
-      }
+      setActivity(isDevMode ? DEV_ACTIVITY : []);
     } catch (err) {
       logger.error('Load AI insights error:', err);
       if (isDevMode) {
@@ -198,15 +176,15 @@ export default function AIInsights() {
               return (
                 <div key={apt.id} style={S.apptRow}>
                   <div style={{ textAlign: 'center', flexShrink: 0 }}>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#6b5a5f', margin: 0 }}>{time}</p>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#6b5a5f', margin: 0 }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#867277', margin: 0 }}>{time}</p>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: '#867277', margin: 0 }}>
                       {parseInt(time) >= 12 ? 'PM' : 'AM'}
                     </p>
                   </div>
                   <div style={S.apptDivider} />
                   <div style={{ flex: 1 }}>
                     <p style={{ fontSize: 14, fontWeight: 700, color: '#1d1b19', margin: 0 }}>{apt.client_name || 'Client'}</p>
-                    <p style={{ fontSize: 11, color: '#6b5a5f', margin: 0 }}>{apt.treatment_name || 'Appointment'}</p>
+                    <p style={{ fontSize: 11, color: '#867277', margin: 0 }}>{apt.treatment_name || 'Appointment'}</p>
                   </div>
                   {isFirst ? (
                     <MIcon name="star" fill size={14} style={{ color: 'rgba(116, 90, 39, 0.4)' }} />
@@ -236,7 +214,7 @@ export default function AIInsights() {
                   <p style={{ fontSize: 12, color: '#1d1b19', margin: 0 }} dangerouslySetInnerHTML={{
                     __html: a.message.replace(/^([^.]+\.)/, '<strong>$1</strong>'),
                   }} />
-                  <p style={{ fontSize: 9, color: '#6b5a5f', textTransform: 'uppercase', margin: '4px 0 0', fontFamily: "var(--font-sans)" }}>{a.time}</p>
+                  <p style={{ fontSize: 9, color: '#867277', textTransform: 'uppercase', margin: '4px 0 0', fontFamily: "var(--font-sans)" }}>{a.time}</p>
                 </div>
               </div>
             ))}
@@ -295,7 +273,7 @@ const S = {
   },
   statPillLabel: {
     fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em',
-    color: '#6b5a5f', marginBottom: 4,
+    color: '#867277', marginBottom: 4,
   },
   statPillValue: {
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
@@ -330,7 +308,7 @@ const S = {
     color: '#92405e', margin: 0,
   },
   seeAll: {
-    fontSize: 10, fontWeight: 700, color: '#6b5a5f',
+    fontSize: 10, fontWeight: 700, color: '#867277',
     textTransform: 'uppercase', letterSpacing: '0.12em',
   },
   apptRow: {

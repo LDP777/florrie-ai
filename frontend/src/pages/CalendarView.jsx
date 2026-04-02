@@ -535,7 +535,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
             {appointment.buffer_minutes > 0 && (
               <div style={styles.detailRow}><span style={styles.detailLabel}>Buffer</span><span style={styles.detailValue}>{appointment.buffer_minutes} min cleanup</span></div>
             )}
-            {appointment.ai_booked && <div style={styles.detailRow}><span style={styles.detailLabel}>Booked by</span><span style={styles.aiTag}>AI Front Desk</span></div>}
+            {appointment.ai_booked && <div style={styles.detailRow}><span style={styles.detailLabel}>Booked by</span><span style={styles.aiTag}>Florrie</span></div>}
           </div>
           {canComplete && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>

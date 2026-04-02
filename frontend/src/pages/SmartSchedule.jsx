@@ -267,7 +267,7 @@ export default function SmartSchedule() {
     <div style={styles.page}>
       <div style={styles.header}>
         <div>
-          <h1 style={styles.title}>Smart Schedule</h1>
+          <h1 style={styles.title}>Florrie's Schedule</h1>
           <p style={styles.subtitle}>Fill gaps, maximise your week</p>
         </div>
       </div>

@@ -6,7 +6,8 @@
  * so Ellie never walks into an appointment blind.
  */
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, isDevMode } from '../lib/supabase.js';
+import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
@@ -69,6 +70,44 @@ export default function ClientTimeline() {
   const [allEvents, setAllEvents] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showAddNote, setShowAddNote] = useState(false);
+  const [noteText, setNoteText] = useState('');
+  const [noteSaving, setNoteSaving] = useState(false);
+
+  async function handleAddNote() {
+    if (!noteText.trim() || !selectedClient) return;
+    setNoteSaving(true);
+    try {
+      const now = new Date().toISOString();
+      const noteEvent = {
+        id: 'note-' + Date.now(),
+        type: 'note',
+        date: now,
+        title: 'Quick Note',
+        detail: noteText.trim(),
+      };
+
+      if (!isDevMode && beautician) {
+        await insertRow('client_notes', {
+          beautician_id: beautician.id,
+          client_id: selectedClient,
+          note: noteText.trim(),
+          created_at: now,
+        });
+      }
+
+      setAllEvents(prev => ({
+        ...prev,
+        [selectedClient]: [noteEvent, ...(prev[selectedClient] || [])],
+      }));
+      setNoteText('');
+      setShowAddNote(false);
+    } catch (err) {
+      logger.error('Failed to add note:', err);
+    } finally {
+      setNoteSaving(false);
+    }
+  }
 
   // Fetch clients and their appointment history
   useEffect(() => {
@@ -206,6 +245,29 @@ export default function ClientTimeline() {
         ))}
       </div>
 
+      {/* Add Note */}
+      {client && !showAddNote && (
+        <button style={S.addNoteBtn} onClick={() => setShowAddNote(true)}>+ Add Note</button>
+      )}
+      {showAddNote && (
+        <div style={S.addNoteCard}>
+          <textarea
+            style={S.noteInput}
+            rows={3}
+            placeholder={`Quick note about ${client?.name || 'client'}...`}
+            value={noteText}
+            onChange={e => setNoteText(e.target.value)}
+            autoFocus
+          />
+          <div style={S.noteActions}>
+            <button style={S.noteCancelBtn} onClick={() => { setShowAddNote(false); setNoteText(''); }}>Cancel</button>
+            <button style={{ ...S.noteSaveBtn, opacity: noteSaving || !noteText.trim() ? 0.5 : 1 }} disabled={noteSaving || !noteText.trim()} onClick={handleAddNote}>
+              {noteSaving ? 'Saving…' : 'Save Note'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Timeline */}
       <div style={S.timeline}>
         {events.length === 0 ? (
@@ -296,6 +358,13 @@ const S = {
   filterRow: { display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', paddingBottom: 2 },
   filterChip: { padding: '6px 12px', borderRadius: 16, border: '1px solid var(--border, #F0ECE8)', background: 'var(--card, #fff)', color: 'var(--text-secondary, #8B6F5E)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
   filterActive: { background: 'var(--text-primary, #2D2A26)', color: 'var(--bg-card, #fff)', border: '1px solid var(--text-primary, #2D2A26)' },
+
+  addNoteBtn: { width: '100%', padding: '10px 0', borderRadius: 10, border: '1px dashed var(--border, #F0ECE8)', background: 'transparent', color: 'var(--accent, #C76B8A)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 12 },
+  addNoteCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 14, marginBottom: 12 },
+  noteInput: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #F0ECE8)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
+  noteActions: { display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' },
+  noteCancelBtn: { padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border, #F0ECE8)', background: 'transparent', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-secondary, #8B6F5E)' },
+  noteSaveBtn: { padding: '8px 16px', borderRadius: 8, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   timeline: {},
   monthHeader: { fontSize: 13, fontWeight: 700, color: 'var(--text-muted, #B5AFA8)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '12px 0 8px' },

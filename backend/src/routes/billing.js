@@ -163,12 +163,22 @@ router.post('/webhook', async (req, res) => {
       case 'customer.subscription.updated': {
         const sub = event.data.object;
         const beauticianId = sub.metadata?.beautician_id;
+        const plan = sub.metadata?.plan;
         if (beauticianId) {
           const status = sub.status === 'active' ? 'active' : sub.status === 'past_due' ? 'past_due' : sub.status;
+          const updates = {
+            subscription_status: status,
+            subscription_current_period_end: sub.current_period_end
+              ? new Date(sub.current_period_end * 1000).toISOString()
+              : null,
+          };
+          // Update plan if metadata contains it (upgrade/downgrade)
+          if (plan) updates.subscription_plan = plan;
           await supabase
             .from('beauticians')
-            .update({ subscription_status: status })
+            .update(updates)
             .eq('id', beauticianId);
+          logger.info({ beauticianId, plan, status }, 'Subscription updated');
         }
         break;
       }

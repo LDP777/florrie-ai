@@ -215,8 +215,8 @@ export default function ChurnPrevention() {
   return (
     <div style={ds.page}>
       <div style={{ marginBottom: 20 }}>
-        <h1 style={ds.pageTitle}>Churn Prevention</h1>
-        <p style={{ ...type.bodySmall, marginTop: 4 }}>Catch at-risk clients before they leave</p>
+        <h1 style={ds.pageTitle}>Client Retention</h1>
+        <p style={{ ...type.bodySmall, marginTop: 4 }}>Florrie spots at-risk clients before they leave</p>
       </div>
 
       {/* Hero */}

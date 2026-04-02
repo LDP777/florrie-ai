@@ -10,6 +10,7 @@ import PlanGate from './components/PlanGate.jsx';
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
 const CalendarView = lazy(() => import('./pages/CalendarView.jsx'));
 const Escalations = lazy(() => import('./pages/Escalations.jsx'));
+const ApprovalQueue = lazy(() => import('./pages/ApprovalQueue.jsx'));
 const ContentAutopilot = lazy(() => import('./pages/ContentAutopilot.jsx'));
 const MoneyTracker = lazy(() => import('./pages/MoneyTracker.jsx'));
 const BookingPage = lazy(() => import('./pages/BookingPage.jsx'));
@@ -222,6 +223,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/calendar" element={<CalendarView />} />
             <Route path="/escalations" element={<Escalations />} />
+            <Route path="/approval-queue" element={<ApprovalQueue />} />
             <Route path="/content" element={<PlanGate feature="content_autopilot"><ContentAutopilot /></PlanGate>} />
             <Route path="/money" element={<MoneyTracker />} />
             <Route path="/clients" element={<Clients />} />

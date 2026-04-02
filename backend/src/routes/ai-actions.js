@@ -94,4 +94,90 @@ router.get('/summary', requireAuth, async (req, res) => {
   });
 });
 
+/**
+ * POST /api/ai-actions/:id/execute
+ * Approve and execute a queued autonomous action.
+ */
+router.post('/:id/execute', requireAuth, async (req, res) => {
+  const { id } = req.params;
+
+  // Fetch the action
+  const { data: action, error: fetchErr } = await supabase
+    .from('ai_actions')
+    .select('*')
+    .eq('id', id)
+    .eq('beautician_id', req.beautician.id)
+    .single();
+
+  if (fetchErr || !action) {
+    return res.status(404).json({ error: 'Action not found' });
+  }
+
+  if (action.status !== 'pending_approval') {
+    return res.status(400).json({ error: 'Action already processed' });
+  }
+
+  try {
+    // Execute based on action type
+    if (action.action_type === 'rebook_nudge' && action.client_id) {
+      // Fetch client phone and send nudge
+      const { data: client } = await supabase
+        .from('clients')
+        .select('first_name, phone')
+        .eq('id', action.client_id)
+        .single();
+
+      if (client?.phone) {
+        const { sendSMS } = await import('../services/notifications.js');
+        await sendSMS({
+          to: client.phone,
+          body: `Hey ${client.first_name}! It's been a while since your last visit. We'd love to see you again — fancy booking in? 💕`,
+          beauticianId: req.beautician.id,
+        });
+      }
+    } else if (action.action_type === 'gap_post') {
+      // Gap post was already drafted, just mark executed
+      // The draft lives in content_posts table
+    }
+
+    // Update status
+    await supabase
+      .from('ai_actions')
+      .update({
+        status: 'executed',
+        resolved_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+
+    res.json({ ok: true, action_type: action.action_type });
+  } catch (err) {
+    logger.error({ err, actionId: id }, 'Failed to execute approved action');
+    res.status(500).json({ error: 'Execution failed' });
+  }
+});
+
+/**
+ * POST /api/ai-actions/:id/dismiss
+ * Dismiss a queued autonomous action.
+ */
+router.post('/:id/dismiss', requireAuth, async (req, res) => {
+  const { id } = req.params;
+
+  const { error } = await supabase
+    .from('ai_actions')
+    .update({
+      status: 'dismissed',
+      resolved_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .eq('beautician_id', req.beautician.id)
+    .eq('status', 'pending_approval');
+
+  if (error) {
+    return res.status(500).json({ error: 'Failed to dismiss' });
+  }
+
+  res.json({ ok: true });
+});
+
 export default router;

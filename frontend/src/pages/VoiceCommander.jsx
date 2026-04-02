@@ -215,8 +215,8 @@ export default function VoiceCommander() {
     <div style={styles.page}>
       {/* Header */}
       <div style={styles.header}>
-        <h1 style={styles.title}>Talk to florrie.ai</h1>
-        <p style={styles.subtitle}>Your AI receptionist. Just ask.</p>
+        <h1 style={styles.title}>Ask Florrie</h1>
+        <p style={styles.subtitle}>Your AI team member. Ask anything.</p>
       </div>
 
       {/* Messages */}

@@ -5,7 +5,7 @@
  * upload treatment photos, tag them, and create before/after pairs that
  * she can share to Instagram or embed on her booking page.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { isDevMode, useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 
@@ -35,6 +35,7 @@ export default function Portfolio() {
   const [uploadForm, setUploadForm] = useState({ treatment: '', client: '', type: 'after', tags: [] });
   const [photos, setPhotos] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [editingPhoto, setEditingPhoto] = useState(null);
 
   async function handleDeletePhoto(id) {
     if (!confirm('Delete this photo?')) return;
@@ -43,6 +44,37 @@ export default function Portfolio() {
       setPhotos(prev => prev.filter(p => p.id !== id));
     } catch (err) {
       logger.error('Failed to delete photo:', err);
+    }
+  }
+
+  function handleEditPhoto(photo, e) {
+    if (e) e.stopPropagation();
+    setEditingPhoto(photo);
+    setUploadForm({
+      treatment: photo.treatment || '',
+      client: photo.client || '',
+      type: photo.type || 'after',
+      tags: photo.tags || [],
+    });
+    setShowUpload(true);
+  }
+
+  async function handleSharePhoto(pair, channel) {
+    const photo = pair?.after || pair?.before || pair;
+    const treatmentName = photo?.treatment || 'Treatment';
+    const clientName = photo?.client || '';
+
+    if (channel === 'Copy Link') {
+      const shareUrl = `${window.location.origin}/portfolio/${photo?.id || ''}`;
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        alert('Link copied!');
+      } catch { alert('Could not copy link'); }
+    } else if (channel === 'WhatsApp') {
+      const text = encodeURIComponent(`Check out this ${treatmentName} result${clientName ? ` for ${clientName}` : ''}!`);
+      window.open(`https://wa.me/?text=${text}`, '_blank');
+    } else if (channel === 'Instagram') {
+      alert('Save the photo to your camera roll to share on Instagram.');
     }
   }
 
@@ -144,7 +176,10 @@ export default function Portfolio() {
                 <span style={S.photoTreatment}>{p.treatment}</span>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={S.photoClient}>{p.client}</span>
-                  <button onClick={(e) => { e.stopPropagation(); handleDeletePhoto(p.id); }} style={S.deleteBtn}>×</button>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button onClick={(e) => handleEditPhoto(p, e)} style={{ ...S.deleteBtn, color: 'var(--accent, #C76B8A)' }}>✎</button>
+                    <button onClick={(e) => { e.stopPropagation(); handleDeletePhoto(p.id); }} style={S.deleteBtn}>×</button>
+                  </div>
                 </div>
               </div>
               {p.type !== 'single' && (
@@ -192,7 +227,7 @@ export default function Portfolio() {
                 {selectedPair === i && (
                   <div style={S.shareRow}>
                     {['Instagram', 'WhatsApp', 'Copy Link'].map(ch => (
-                      <button key={ch} style={S.shareBtn}>{ch}</button>
+                      <button key={ch} style={S.shareBtn} onClick={(e) => { e.stopPropagation(); handleSharePhoto(pair, ch); }}>{ch}</button>
                     ))}
                   </div>
                 )}
@@ -204,9 +239,9 @@ export default function Portfolio() {
 
       {/* Upload modal */}
       {showUpload && (
-        <div style={S.overlay} onClick={() => setShowUpload(false)}>
+        <div style={S.overlay} onClick={() => { setShowUpload(false); setEditingPhoto(null); setUploadForm({ treatment: '', client: '', type: 'after', tags: [] }); }}>
           <div style={S.modal} onClick={e => e.stopPropagation()}>
-            <h2 style={S.modalTitle}>Add Photo</h2>
+            <h2 style={S.modalTitle}>{editingPhoto ? 'Edit Photo' : 'Add Photo'}</h2>
 
             {/* Upload zone */}
             <div style={S.uploadZone}>
@@ -243,16 +278,29 @@ export default function Portfolio() {
               if (!uploadForm.treatment) return;
               setSaving(true);
               try {
-                const created = await insertRow('portfolio_photos', {
-                  beautician_id: beautician.id,
-                  treatment: uploadForm.treatment,
-                  client: uploadForm.client || null,
-                  type: uploadForm.type,
-                  tags: uploadForm.tags,
-                  date: new Date().toISOString().split('T')[0],
-                });
-                setPhotos(prev => [created, ...prev]);
+                if (editingPhoto) {
+                  // Update existing photo
+                  const updated = await updateRow('portfolio_photos', editingPhoto.id, {
+                    treatment: uploadForm.treatment,
+                    client: uploadForm.client || null,
+                    type: uploadForm.type,
+                    tags: uploadForm.tags,
+                  });
+                  setPhotos(prev => prev.map(p => p.id === editingPhoto.id ? { ...p, ...updated } : p));
+                } else {
+                  // Create new photo
+                  const created = await insertRow('portfolio_photos', {
+                    beautician_id: beautician.id,
+                    treatment: uploadForm.treatment,
+                    client: uploadForm.client || null,
+                    type: uploadForm.type,
+                    tags: uploadForm.tags,
+                    date: new Date().toISOString().split('T')[0],
+                  });
+                  setPhotos(prev => [created, ...prev]);
+                }
                 setShowUpload(false);
+                setEditingPhoto(null);
                 setUploadForm({ treatment: '', client: '', type: 'after', tags: [] });
               } catch (err) {
                 logger.error('Failed to save photo:', err);
@@ -260,7 +308,7 @@ export default function Portfolio() {
                 setSaving(false);
               }
             }}>
-              {saving ? 'Saving…' : 'Save Photo'}
+              {saving ? 'Saving…' : editingPhoto ? 'Save Changes' : 'Save Photo'}
             </button>
           </div>
         </div>

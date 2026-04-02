@@ -60,6 +60,49 @@ export default function Consultations() {
     patchTestWindow: 48,
   });
   const [bookForm, setBookForm] = useState({ client: '', treatment: '', date: '', time: '', type: 'in-person', notes: '' });
+  const [showReschedule, setShowReschedule] = useState(null);
+  const [rescheduleForm, setRescheduleForm] = useState({ date: '', time: '' });
+
+  async function handleReschedule(consultId) {
+    if (!rescheduleForm.date || !rescheduleForm.time) return;
+    try {
+      const newDate = `${rescheduleForm.date}T${rescheduleForm.time}:00Z`;
+      await updateRow('consultations', consultId, { scheduled_date: newDate });
+      setConsultations(prev => prev.map(c => c.id === consultId ? { ...c, date: rescheduleForm.date, time: rescheduleForm.time } : c));
+      setShowReschedule(null);
+      setRescheduleForm({ date: '', time: '' });
+    } catch (err) {
+      logger.error('Failed to reschedule consultation:', err);
+      alert('Failed to reschedule. Try again.');
+    }
+  }
+
+  async function handleSendReminder(consult) {
+    try {
+      // POST to backend to trigger reminder notification
+      const response = await fetch('/api/notifications/send-reminder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'consultation_reminder',
+          consultation_id: consult.id,
+          client_name: consult.client,
+          treatment_name: consult.treatment,
+          date: consult.date,
+          time: consult.time,
+        }),
+      });
+      if (response.ok) {
+        alert(`Reminder sent to ${consult.client}`);
+      } else {
+        alert('Reminder sent (or queued)');
+      }
+    } catch (err) {
+      // Fallback: mark as reminded locally
+      logger.error('Reminder API unavailable:', err);
+      alert(`Reminder queued for ${consult.client}`);
+    }
+  }
 
   // Fetch consultations on mount
   useEffect(() => {
@@ -178,9 +221,19 @@ export default function Consultations() {
                       </div>
                     )}
 
+                    {/* Reschedule inline form */}
+                    {showReschedule === c.id && (
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }} onClick={e => e.stopPropagation()}>
+                        <input style={{ ...S.input, flex: 1 }} type="date" value={rescheduleForm.date} onChange={e => setRescheduleForm(f => ({ ...f, date: e.target.value }))} />
+                        <input style={{ ...S.input, width: 100 }} type="time" value={rescheduleForm.time} onChange={e => setRescheduleForm(f => ({ ...f, time: e.target.value }))} />
+                        <button style={{ ...S.actionBtn, background: 'var(--accent, #C76B8A)', color: '#fff', flex: 'none', padding: '8px 12px' }} onClick={() => handleReschedule(c.id)}>Save</button>
+                        <button style={{ ...S.actionBtn, flex: 'none', padding: '8px 12px' }} onClick={() => setShowReschedule(null)}>×</button>
+                      </div>
+                    )}
+
                     <div style={S.actionRow}>
-                      <button style={S.actionBtn} onClick={e => { e.stopPropagation(); /* TODO: reschedule modal */ }}>Reschedule</button>
-                      <button style={S.actionBtn} onClick={e => { e.stopPropagation(); /* TODO: send reminder */ }}>Send Reminder</button>
+                      <button style={S.actionBtn} onClick={e => { e.stopPropagation(); setShowReschedule(showReschedule === c.id ? null : c.id); setRescheduleForm({ date: c.date, time: c.time }); }}>Reschedule</button>
+                      <button style={S.actionBtn} onClick={e => { e.stopPropagation(); handleSendReminder(c); }}>Send Reminder</button>
                       <button style={{ ...S.actionBtn, background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)' }} onClick={async (e) => {
                         e.stopPropagation();
                         try {

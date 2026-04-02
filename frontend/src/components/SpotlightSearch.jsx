@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 const FEATURES = [
   // Your Day
   { path: '/calendar', name: 'Calendar', desc: 'View and manage appointments', icon: '📅', cat: 'Your Day' },
-  { path: '/smart-schedule', name: 'Smart Schedule', desc: 'AI-optimised time slots', icon: '🧠', cat: 'Your Day' },
+  { path: '/smart-schedule', name: "Florrie's Schedule", desc: 'AI-optimised time slots', icon: '🧠', cat: 'Your Day' },
   { path: '/checklist', name: 'Daily Checklist', desc: 'Opening and closing tasks', icon: '☑️', cat: 'Your Day' },
   { path: '/end-of-day', name: 'End of Day', desc: 'Cash-up and close', icon: '🌙', cat: 'Your Day' },
   { path: '/notifications', name: 'Notifications', desc: 'Alerts and reminders', icon: '🔔', cat: 'Your Day' },
@@ -18,7 +18,7 @@ const FEATURES = [
   { path: '/tags', name: 'Tags & Groups', desc: 'Organise and segment', icon: '🏷️', cat: 'Clients' },
   { path: '/waitlist', name: 'Waitlist', desc: 'Manage waiting clients', icon: '📋', cat: 'Clients' },
   { path: '/segments', name: 'Client Segments', desc: 'Smart grouping', icon: '🎯', cat: 'Clients' },
-  { path: '/churn', name: 'Churn Prevention', desc: 'At-risk clients', icon: '🛡️', cat: 'Clients' },
+  { path: '/churn', name: 'Client Retention', desc: 'At-risk clients', icon: '🛡️', cat: 'Clients' },
   { path: '/waitlist-pro', name: 'Waitlist Pro', desc: 'Advanced waitlist', icon: '📋', cat: 'Clients' },
   { path: '/photo-consent', name: 'Photo Consent', desc: 'Before/after consent', icon: '📷', cat: 'Clients' },
 
@@ -45,7 +45,7 @@ const FEATURES = [
   { path: '/analytics', name: 'Analytics', desc: 'Performance metrics', icon: '📈', cat: 'Money' },
 
   // Marketing
-  { path: '/content', name: 'Content Autopilot', desc: 'AI-written captions', icon: '📸', cat: 'Marketing' },
+  { path: '/content', name: 'Florrie Content', desc: 'AI-written captions', icon: '📸', cat: 'Marketing' },
   { path: '/reviews', name: 'Reviews', desc: 'Collect and respond', icon: '⭐', cat: 'Marketing' },
   { path: '/referrals', name: 'Referrals', desc: 'Word-of-mouth tracking', icon: '🤝', cat: 'Marketing' },
   { path: '/loyalty', name: 'Loyalty', desc: 'Points and rewards', icon: '🏆', cat: 'Marketing' },
@@ -56,7 +56,8 @@ const FEATURES = [
 
   // Communications
   { path: '/inbox', name: 'Inbox', desc: 'All messages in one place', icon: '💬', cat: 'Comms' },
-  { path: '/escalations', name: 'Escalations', desc: 'AI-flagged messages', icon: '🚨', cat: 'AI' },
+  { path: '/escalations', name: 'Florrie Needs You', desc: 'Messages Florrie flagged', icon: '🚨', cat: 'AI' },
+  { path: '/approval-queue', name: "Florrie's Queue", desc: 'Actions awaiting your sign-off', icon: '✅', cat: 'AI' },
   { path: '/whatsapp', name: 'WhatsApp', desc: 'Business messaging', icon: '📱', cat: 'Comms' },
   { path: '/templates', name: 'Message Templates', desc: 'Reusable messages', icon: '💬', cat: 'Comms' },
   { path: '/automations', name: 'Automations', desc: 'If-this-then-that rules', icon: '⚡', cat: 'Comms' },
@@ -64,7 +65,7 @@ const FEATURES = [
 
   // AI
   { path: '/voice', name: 'florrie.ai', desc: 'Your AI assistant', icon: '✨', cat: 'AI' },
-  { path: '/ai-insights', name: 'AI Insights', desc: 'Predictions and trends', icon: '🧠', cat: 'AI' },
+  { path: '/ai-insights', name: "Florrie's Insights", desc: 'Predictions and trends', icon: '🧠', cat: 'AI' },
   { path: '/demand', name: 'Demand Forecast', desc: 'Capacity planning', icon: '📊', cat: 'AI' },
   { path: '/sequences', name: 'Follow-up Sequences', desc: 'Automated follow-ups', icon: '🔁', cat: 'AI' },
 

@@ -546,7 +546,7 @@ export default function Settings({ onLogout }) {
           <div style={styles.card}>
             <h3 style={styles.cardTitle}>Auto-reply</h3>
             <p style={styles.cardDesc}>
-              When enabled, the AI Front Desk answers messages automatically when it's confident enough.
+              When enabled, Florrie answers messages automatically when she's confident enough.
               Messages below the confidence threshold get escalated to you.
             </p>
 
@@ -574,18 +574,63 @@ export default function Settings({ onLogout }) {
           </div>
 
           <div style={styles.card}>
-            <h3 style={styles.cardTitle}>Tone model</h3>
+            <h3 style={styles.cardTitle}>Florrie's Voice</h3>
             <p style={styles.cardDesc}>
               {tone.corrections_count
-                ? `The AI has learned from ${tone.corrections_count} corrections.`
-                : 'Trained from your real messaging style. The AI uses your greetings, sign-offs, and emoji habits.'}
+                ? `Florrie has learned from ${tone.corrections_count} corrections.`
+                : 'Teach Florrie how you talk. She uses your greetings, sign-offs, and emoji habits to sound like you.'}
             </p>
-            {tone.greeting_style && <ToneRow label="Greeting" value={tone.greeting_style} />}
-            {tone.sign_off_style && <ToneRow label="Sign-off" value={tone.sign_off_style} />}
-            {tone.emoji_usage && <ToneRow label="Emojis" value={tone.emoji_usage} />}
-            {tone.formality && <ToneRow label="Formality" value={tone.formality} />}
-            {tone.key_phrases?.length > 0 && <ToneRow label="Key phrases" value={tone.key_phrases.join(', ')} />}
-            {tone.avoid?.length > 0 && <ToneRow label="Avoids" value={tone.avoid.join(', ')} />}
+            <FieldEditor label="Greeting style" value={tone.greeting_style || ''} placeholder="e.g. Hey lovely! / Hiya babe! / Hi there!" onSave={v => saveProfile({ tone_model: { ...tone, greeting_style: v } })} />
+            <FieldEditor label="Sign-off style" value={tone.sign_off_style || ''} placeholder="e.g. See you soon! xx / Thanks hun 💕" onSave={v => saveProfile({ tone_model: { ...tone, sign_off_style: v } })} />
+            <div style={styles.fieldRow}>
+              <span style={styles.fieldLabel}>Emoji usage</span>
+              <div style={styles.chipRow}>
+                {['none', 'light', 'moderate', 'heavy'].map(level => (
+                  <button
+                    key={level}
+                    onClick={() => saveProfile({ tone_model: { ...tone, emoji_usage: level } })}
+                    style={{
+                      ...styles.chip,
+                      background: (tone.emoji_usage || 'moderate') === level ? 'var(--accent)' : 'var(--bg-hover)',
+                      color: (tone.emoji_usage || 'moderate') === level ? '#fff' : 'var(--text-secondary)',
+                    }}
+                  >
+                    {level}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={styles.fieldRow}>
+              <span style={styles.fieldLabel}>Formality</span>
+              <div style={styles.chipRow}>
+                {['casual', 'friendly', 'professional', 'formal'].map(level => (
+                  <button
+                    key={level}
+                    onClick={() => saveProfile({ tone_model: { ...tone, formality: level } })}
+                    style={{
+                      ...styles.chip,
+                      background: (tone.formality || 'friendly') === level ? 'var(--accent)' : 'var(--bg-hover)',
+                      color: (tone.formality || 'friendly') === level ? '#fff' : 'var(--text-secondary)',
+                    }}
+                  >
+                    {level}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <FieldEditor label="Key phrases" value={(tone.key_phrases || []).join(', ')} placeholder="e.g. lovely, babe, hun, pop in" onSave={v => saveProfile({ tone_model: { ...tone, key_phrases: v.split(',').map(s => s.trim()).filter(Boolean) } })} />
+            <FieldEditor label="Words to avoid" value={(tone.avoid || []).join(', ')} placeholder="e.g. dear, madam, sir" onSave={v => saveProfile({ tone_model: { ...tone, avoid: v.split(',').map(s => s.trim()).filter(Boolean) } })} />
+          </div>
+
+          <div style={styles.card}>
+            <h3 style={styles.cardTitle}>Example messages</h3>
+            <p style={styles.cardDesc}>
+              Show Florrie exactly how you'd reply. She uses these as reference when writing on your behalf.
+            </p>
+            <FewShotExamples
+              examples={tone.few_shot_examples || []}
+              onSave={examples => saveProfile({ tone_model: { ...tone, few_shot_examples: examples } })}
+            />
           </div>
         </div>
       )}
@@ -630,6 +675,78 @@ export default function Settings({ onLogout }) {
           </div>
           <button onClick={handleLogout} style={styles.logoutBtn}>Sign out</button>
         </div>
+      )}
+    </div>
+  );
+}
+
+function FewShotExamples({ examples, onSave }) {
+  const [items, setItems] = useState(examples.length ? examples : []);
+  const [adding, setAdding] = useState(false);
+  const [newQ, setNewQ] = useState('');
+  const [newA, setNewA] = useState('');
+
+  function addExample() {
+    if (!newQ.trim() || !newA.trim()) return;
+    const updated = [...items, { customer: newQ.trim(), reply: newA.trim() }];
+    setItems(updated);
+    onSave(updated);
+    setNewQ('');
+    setNewA('');
+    setAdding(false);
+  }
+
+  function removeExample(idx) {
+    const updated = items.filter((_, i) => i !== idx);
+    setItems(updated);
+    onSave(updated);
+  }
+
+  return (
+    <div>
+      {items.map((ex, i) => (
+        <div key={i} style={styles.exampleCard}>
+          <div style={styles.exampleBubble}>
+            <span style={styles.exampleLabel}>Customer</span>
+            <p style={styles.exampleText}>{ex.customer}</p>
+          </div>
+          <div style={{ ...styles.exampleBubble, background: 'var(--accent-light)', borderLeft: '3px solid var(--accent)' }}>
+            <span style={styles.exampleLabel}>Your reply</span>
+            <p style={styles.exampleText}>{ex.reply}</p>
+          </div>
+          <button onClick={() => removeExample(i)} style={styles.removeExBtn}>Remove</button>
+        </div>
+      ))}
+
+      {adding ? (
+        <div style={styles.addExForm}>
+          <textarea
+            value={newQ}
+            onChange={e => setNewQ(e.target.value)}
+            placeholder="What the customer says..."
+            rows={2}
+            style={styles.exTextarea}
+          />
+          <textarea
+            value={newA}
+            onChange={e => setNewA(e.target.value)}
+            placeholder="How you'd reply..."
+            rows={2}
+            style={{ ...styles.exTextarea, borderColor: 'var(--accent)' }}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={addExample} disabled={!newQ.trim() || !newA.trim()} style={styles.addExSaveBtn}>
+              Save example
+            </button>
+            <button onClick={() => { setAdding(false); setNewQ(''); setNewA(''); }} style={styles.addExCancelBtn}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setAdding(true)} style={styles.addExBtn}>
+          + Add example
+        </button>
       )}
     </div>
   );
@@ -857,6 +974,20 @@ const styles = {
   syncHint: { display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 1 },
   bufferOptions: { display: 'flex', gap: 6, flexWrap: 'wrap' },
   bufferChip: { padding: '8px 14px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+
+  // Florrie's Voice
+  chipRow: { display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 },
+  chip: { padding: '6px 14px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textTransform: 'capitalize' },
+  exampleCard: { background: 'var(--bg-hover)', borderRadius: 10, padding: 12, marginBottom: 10 },
+  exampleBubble: { background: 'var(--bg-card)', borderRadius: 8, padding: '8px 12px', marginBottom: 6 },
+  exampleLabel: { fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 2 },
+  exampleText: { fontSize: 13, lineHeight: 1.5, margin: 0, color: 'var(--text-primary)' },
+  removeExBtn: { background: 'none', border: 'none', fontSize: 11, color: 'var(--danger)', cursor: 'pointer', padding: '4px 0', fontFamily: 'inherit' },
+  addExForm: { display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 },
+  exTextarea: { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', outline: 'none', lineHeight: 1.5, boxSizing: 'border-box', background: 'var(--bg-card)' },
+  addExSaveBtn: { padding: '10px 18px', borderRadius: 10, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  addExCancelBtn: { padding: '10px 14px', borderRadius: 10, border: 'none', background: 'var(--bg-hover)', color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' },
+  addExBtn: { padding: '10px 0', background: 'none', border: 'none', color: 'var(--accent)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 };
 
 /**

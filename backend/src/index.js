@@ -10,6 +10,8 @@ import { securityHeaders, paymentLimiter, sanitiseBody, idempotencyGuard } from 
 // Services
 import { processReminders } from './services/notifications.js';
 import { cleanupStaleBookings } from './services/cleanup.js';
+import { runAutonomousCycle } from './services/autonomous-scheduler.js';
+import { runPredictiveNudges } from './services/predictive-nudge.js';
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -35,6 +37,7 @@ import locationsRoutes from './routes/locations.js';
 import consultationFormRoutes from './routes/consultation-forms.js';
 import billingRoutes from './routes/billing.js';
 import waitlistRoutes from './routes/waitlist.js';
+import widgetRoutes from './routes/widget.js';
 
 dotenv.config();
 
@@ -146,6 +149,7 @@ app.use('/api/locations', apiLimiter, locationsRoutes);
 app.use('/api/consultation-forms', apiLimiter, consultationFormRoutes);
 app.use('/api/billing', apiLimiter, billingRoutes);
 app.use('/api/waitlist', apiLimiter, waitlistRoutes);
+app.use('/api/widget-state', apiLimiter, widgetRoutes);
 
 // Error handler
 app.use((err, req, res, next) => {
@@ -192,4 +196,38 @@ app.listen(PORT, () => {
   cleanupStaleBookings().then(r => {
     if (r?.cancelled > 0) logger.info({ cancelled: r.cancelled }, 'Startup: cancelled stale bookings');
   }).catch(() => {});
+
+  // Florrie autonomous scheduler — rebook nudges, gap posts, unanswered messages
+  const AUTONOMOUS_INTERVAL = 2 * 60 * 60 * 1000; // every 2 hours
+  setInterval(async () => {
+    try {
+      await runAutonomousCycle();
+    } catch (err) {
+      logger.error({ err }, 'Autonomous cron: cycle failed');
+    }
+  }, AUTONOMOUS_INTERVAL);
+
+  // Run first autonomous cycle 30s after startup (let DB connections settle)
+  setTimeout(() => {
+    runAutonomousCycle().catch(err => {
+      logger.error({ err }, 'Startup: autonomous cycle failed');
+    });
+  }, 30_000);
+
+  // Predictive nudges — daily at startup, then every 24 hours
+  const PREDICTIVE_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+  setInterval(async () => {
+    try {
+      await runPredictiveNudges();
+    } catch (err) {
+      logger.error({ err }, 'Predictive nudge cron: failed');
+    }
+  }, PREDICTIVE_INTERVAL);
+
+  // Run first predictive scan 60s after startup
+  setTimeout(() => {
+    runPredictiveNudges().catch(err => {
+      logger.error({ err }, 'Startup: predictive nudge scan failed');
+    });
+  }, 60_000);
 });

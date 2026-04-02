@@ -372,8 +372,8 @@ export default function ContentAutopilot() {
       {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
       <div style={styles.header}>
         <div>
-          <h1 style={styles.title}>Content</h1>
-          <p style={styles.subtitle}>Your Social Media Manager</p>
+          <h1 style={styles.title}>Florrie Content</h1>
+          <p style={styles.subtitle}>Florrie writes your captions and posts</p>
         </div>
         <button onClick={() => startCompose('before_after', '')} style={styles.uploadBtn}>
           + New Post

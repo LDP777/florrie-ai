@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useBeautician, updateRow, insertRow, isDevMode } from '../lib/supabase.js';
+import { PLANS } from '../lib/subscription.js';
 import logger from '../lib/logger.js';
 
 /**
@@ -54,7 +55,7 @@ export default function Onboarding({ onComplete }) {
   const [importFile, setImportFile] = useState(null);
   const [importStatus, setImportStatus] = useState(null);
 
-  const totalSteps = 5;
+  const totalSteps = 6;
   const progress = (step / totalSteps) * 100;
 
   if (bLoading) {
@@ -223,7 +224,7 @@ export default function Onboarding({ onComplete }) {
 
   function skipStep() {
     setError(null);
-    if (step < 5) {
+    if (step < totalSteps) {
       setStep(step + 1);
     }
   }
@@ -585,16 +586,60 @@ export default function Onboarding({ onComplete }) {
           </div>
 
           <button
-            onClick={finishOnboarding}
+            onClick={() => setStep(6)}
             style={styles.primaryBtn}
           >
-            {importStatus ? 'Done — Go to Dashboard' : 'Skip — Go to Dashboard'}
+            {importStatus ? 'Done — Next' : 'Skip — Next'}
           </button>
           {!importStatus && (
             <button onClick={skipStep} style={styles.skipBtn}>
               Skip this step
             </button>
           )}
+        </div>
+      )}
+
+      {/* === STEP 6: Choose Your Plan === */}
+      {step === 6 && (
+        <div style={styles.stepContent}>
+          <h1 style={styles.stepTitle}>You're all set</h1>
+          <p style={styles.stepDesc}>
+            Start free. Upgrade when your business is ready.
+          </p>
+
+          <div style={styles.planGrid}>
+            {PLANS.map(plan => (
+              <div
+                key={plan.id}
+                style={{
+                  ...styles.planCard,
+                  ...(plan.popular ? styles.planCardPopular : {}),
+                }}
+              >
+                {plan.popular && <div style={styles.popularBadge}>Most popular</div>}
+                <div style={styles.planName}>{plan.name}</div>
+                <div style={styles.planPrice}>{plan.priceLabel}</div>
+                <ul style={styles.planFeatures}>
+                  {plan.features.map((f, i) => (
+                    <li key={i} style={styles.planFeature}>
+                      <span style={{ color: 'var(--success, #5BA97B)' }}>✓</span> {f}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+
+          <p style={styles.trialNote}>
+            Your 14-day free trial includes all Pro features. No card needed.
+          </p>
+
+          <button
+            onClick={finishOnboarding}
+            style={styles.primaryBtn}
+          >
+            Go to Dashboard
+          </button>
         </div>
       )}
     </div>
@@ -821,5 +866,69 @@ const styles = {
     fontFamily: 'inherit',
     marginTop: 8,
     textDecoration: 'underline',
-  }
+  },
+
+  // Plan selection (step 6)
+  planGrid: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+    marginBottom: 16,
+  },
+  planCard: {
+    background: 'var(--bg-card, #fff)',
+    border: '1.5px solid var(--border)',
+    borderRadius: 14,
+    padding: '16px 18px',
+    position: 'relative',
+  },
+  planCardPopular: {
+    border: '1.5px solid var(--accent, #C76B8A)',
+    boxShadow: '0 2px 12px rgba(199, 107, 138, 0.12)',
+  },
+  popularBadge: {
+    position: 'absolute',
+    top: -10,
+    right: 14,
+    background: 'var(--accent, #C76B8A)',
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 600,
+    padding: '3px 10px',
+    borderRadius: 6,
+    letterSpacing: '0.02em',
+  },
+  planName: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: 'var(--text-primary)',
+    marginBottom: 2,
+  },
+  planPrice: {
+    fontSize: 13,
+    color: 'var(--text-secondary)',
+    marginBottom: 8,
+  },
+  planFeatures: {
+    listStyle: 'none',
+    padding: 0,
+    margin: 0,
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '4px 14px',
+  },
+  planFeature: {
+    fontSize: 11,
+    color: 'var(--text-secondary)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+  },
+  trialNote: {
+    fontSize: 12,
+    color: 'var(--accent, #C76B8A)',
+    textAlign: 'center',
+    margin: '0 0 16px',
+    fontWeight: 500,
+  },
 };
