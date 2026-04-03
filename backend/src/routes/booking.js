@@ -8,6 +8,7 @@ import { sendConsultationFormSMS } from './consultation-forms.js';
 import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
 import { calculatePlatformFee } from '../lib/platform-fees.js';
+import { verifyTurnstile } from '../middleware/turnstile.js';
 import logger from '../lib/logger.js';
 
 const router = Router();
@@ -426,7 +427,7 @@ router.post('/:slug/validate-code', async (req, res) => {
  * Checkout session and returns checkout_url for redirect.
  * Returning clients with a saved Stripe customer see their saved cards.
  */
-router.post('/:slug/book', validate(bookingSchema), async (req, res) => {
+router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req, res) => {
   const { treatment_id, starts_at, client_name, client_email, client_phone, notes, consultation, add_ons, payment_type, discount_code, photo_consent, client_package_id } = req.body;
 
   // Get beautician from slug (include Stripe fields for deposit flow)

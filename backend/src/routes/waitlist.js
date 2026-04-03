@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { supabase } from '../index.js';
 import { apiLimiter } from '../middleware/rate-limit.js';
+import { verifyTurnstile } from '../middleware/turnstile.js';
 import { sendEmail } from '../services/notifications.js';
 import logger from '../lib/logger.js';
 
@@ -20,7 +21,7 @@ const waitlistSchema = z.object({
  * Accepts: { email, name?, source? }
  * Returns: { success: true, message: "You're on the list!" }
  */
-router.post('/', apiLimiter, async (req, res) => {
+router.post('/', apiLimiter, verifyTurnstile, async (req, res) => {
   try {
     // Validate request body
     const { email, name, source } = waitlistSchema.parse(req.body);

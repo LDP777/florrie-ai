@@ -46,7 +46,9 @@ router.post('/signup', validate(signupSchema), async (req, res) => {
   });
 
   if (authError) {
-    return res.status(400).json({ error: authError.message });
+    logger.error({ err: authError }, 'Signup failed');
+    // Return generic message — never expose whether an email already exists
+    return res.status(400).json({ error: 'Signup failed. Please try again.' });
   }
 
   // Create beautician profile
