@@ -7,6 +7,7 @@
 import { supabase } from '../index.js';
 import logger from '../lib/logger.js';
 import { trackSMSUsage } from './sms-metering.js';
+import { checkWhatsAppQuota, trackWhatsAppMessage } from './whatsapp-metering.js';
 
 // ── Email via Resend ─────────────────────────
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
@@ -106,15 +107,38 @@ export async function sendSMS({ to, body, beauticianId }) {
 
 // ── WhatsApp via Meta Cloud API ──────────────
 // Primary channel for clients with WhatsApp. Falls back to Twilio SMS.
+// Each beautician has their own phone_number_id registered to Florrie's WABA.
+// Florrie pays Meta; usage is metered against the 120 msg/month plan limit.
 const WA_TOKEN = process.env.WHATSAPP_TOKEN;
-const WA_PHONE_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
 /**
  * Send a WhatsApp template message (for booking confirmations, reminders etc.)
+ * beauticianId is required — used to look up per-beautician phone_number_id and check quota.
  */
-export async function sendWhatsApp({ to, templateName, templateParams }) {
-  if (!WA_TOKEN || !WA_PHONE_ID) {
-    logger.debug('WhatsApp not configured, skipping');
+export async function sendWhatsApp({ to, templateName, templateParams, beauticianId }) {
+  if (!WA_TOKEN) {
+    logger.debug('WhatsApp token not configured, skipping');
+    return null;
+  }
+
+  // Resolve phone_number_id from beautician record
+  let phoneNumberId = null;
+  if (beauticianId) {
+    const quota = await checkWhatsAppQuota(beauticianId);
+    if (!quota.allowed) {
+      logger.warn({ beauticianId, reason: quota.reason }, 'WhatsApp send blocked — quota or config issue');
+      return null;
+    }
+    const { data: b } = await supabase
+      .from('beauticians')
+      .select('whatsapp_phone_id')
+      .eq('id', beauticianId)
+      .single();
+    phoneNumberId = b?.whatsapp_phone_id;
+  }
+
+  if (!phoneNumberId) {
+    logger.debug({ beauticianId }, 'No WhatsApp phone_number_id, skipping');
     return null;
   }
 
@@ -122,7 +146,7 @@ export async function sendWhatsApp({ to, templateName, templateParams }) {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       const res = await fetch(
-        `https://graph.facebook.com/v21.0/${WA_PHONE_ID}/messages`,
+        `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
         {
           method: 'POST',
           headers: {
@@ -148,6 +172,7 @@ export async function sendWhatsApp({ to, templateName, templateParams }) {
       const data = await res.json();
       if (!res.ok) throw new Error(JSON.stringify(data.error || data));
       logger.info({ to, templateName }, 'WhatsApp template sent');
+      if (beauticianId) await trackWhatsAppMessage(beauticianId);
       return data;
     } catch (err) {
       if (attempt < maxRetries) {
@@ -165,9 +190,30 @@ export async function sendWhatsApp({ to, templateName, templateParams }) {
  * Used for AI-generated replies, nudges, and non-template messages.
  * Note: freeform messages can only be sent within the 24-hour conversation window.
  */
-export async function sendWhatsAppText({ to, body }) {
-  if (!WA_TOKEN || !WA_PHONE_ID) {
-    logger.debug('WhatsApp not configured, skipping freeform');
+export async function sendWhatsAppText({ to, body, beauticianId }) {
+  if (!WA_TOKEN) {
+    logger.debug('WhatsApp token not configured, skipping freeform');
+    return null;
+  }
+
+  // Resolve phone_number_id from beautician record
+  let phoneNumberId = null;
+  if (beauticianId) {
+    const quota = await checkWhatsAppQuota(beauticianId);
+    if (!quota.allowed) {
+      logger.warn({ beauticianId, reason: quota.reason }, 'WhatsApp text blocked — quota or config issue');
+      return null;
+    }
+    const { data: b } = await supabase
+      .from('beauticians')
+      .select('whatsapp_phone_id')
+      .eq('id', beauticianId)
+      .single();
+    phoneNumberId = b?.whatsapp_phone_id;
+  }
+
+  if (!phoneNumberId) {
+    logger.debug({ beauticianId }, 'No WhatsApp phone_number_id, skipping text');
     return null;
   }
 
@@ -175,7 +221,7 @@ export async function sendWhatsAppText({ to, body }) {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       const res = await fetch(
-        `https://graph.facebook.com/v21.0/${WA_PHONE_ID}/messages`,
+        `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
         {
           method: 'POST',
           headers: {
@@ -194,6 +240,7 @@ export async function sendWhatsAppText({ to, body }) {
       const data = await res.json();
       if (!res.ok) throw new Error(JSON.stringify(data.error || data));
       logger.info({ to }, 'WhatsApp text sent');
+      if (beauticianId) await trackWhatsAppMessage(beauticianId);
       return data;
     } catch (err) {
       if (attempt < maxRetries) {
@@ -274,8 +321,8 @@ export function pickChannel(client, beauticianPrefs = {}) {
     return 'instagram';
   }
 
-  // WhatsApp: client has an active WhatsApp ID and env is configured
-  if (client?.whatsapp_id && WA_TOKEN && WA_PHONE_ID) return 'whatsapp';
+  // WhatsApp: client has an active WhatsApp ID, token is configured, and beautician has a registered number
+  if (client?.whatsapp_id && WA_TOKEN && beauticianPrefs?.whatsapp_connected) return 'whatsapp';
 
   // SMS: client has a phone and Twilio is configured
   if (client?.phone && TWILIO_SID && TWILIO_TOKEN && TWILIO_FROM) return 'sms';
