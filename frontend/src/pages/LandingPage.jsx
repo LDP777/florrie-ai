@@ -1,1325 +1,617 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const LANDING_CSS = `
-/* Landing page scoped reset */
-.landing-root {
-  position: fixed;
-  inset: 0;
-  z-index: 9990;
-  overflow-y: auto;
-  overflow-x: hidden;
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background-color: #fef8f4;
-  color: #1d1b19;
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  scroll-behavior: smooth;
-}
-
-.landing-root * {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-/* Grain texture overlay */
-.landing-root::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 9999;
-  opacity: 0.03;
-  mix-blend-mode: overlay;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' seed='2'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
-}
-
-/* ===== TYPOGRAPHY ===== */
-.landing-root h1, .landing-root h2, .landing-root h3, .landing-root h4, .landing-root h5, .landing-root h6 {
-  font-weight: 400;
-  line-height: 1.2;
-}
-
-.landing-root .display-italic {
-  font-family: 'Playfair Display', serif;
-  font-style: italic;
-  font-weight: 700;
-  color: #92405e;
-  letter-spacing: -0.02em;
-}
-
-.landing-root .section-heading {
-  font-family: 'Noto Serif', serif;
-  font-style: italic;
-  font-weight: 400;
-  color: #1d1b19;
-}
-
-.landing-root .label {
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #867277;
-}
-
-.landing-root .mono {
-  font-family: 'DM Mono', monospace;
-  font-weight: 400;
-  font-size: 13px;
-  color: #534247;
-}
-
-/* ===== LAYOUT ===== */
-.landing-root .container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 24px;
-}
-
-.landing-root .container-narrow {
-  max-width: 600px;
-  margin: 0 auto;
-  padding: 0 24px;
-}
-
-/* ===== NAVIGATION ===== */
-.landing-root .landing-nav {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 10000;
-  backdrop-filter: blur(12px);
-  background: rgba(254, 248, 244, 0.8);
-  border-bottom: 1px solid rgba(216, 193, 198, 0.5);
-  padding: 16px 24px;
-}
-
-.landing-root .nav-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.landing-root .logo {
-  font-family: 'Playfair Display', serif;
-  font-style: italic;
-  font-weight: 700;
-  font-size: 20px;
-  color: #92405e;
-  letter-spacing: -0.02em;
-}
-
-.landing-root .nav-links {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.landing-root .nav-signin {
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 14px;
-  font-weight: 500;
-  color: #6b5a5f;
-  text-decoration: none;
-  transition: color 0.2s ease;
-  cursor: pointer;
-}
-
-.landing-root .nav-signin:hover {
-  color: #1d1b19;
-}
-
-.landing-root .nav-cta {
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 14px;
-  font-weight: 600;
-  color: #fff;
-  background: #92405e;
-  text-decoration: none;
-  padding: 10px 22px;
-  border-radius: 10px;
-  transition: background 0.2s ease;
-  cursor: pointer;
-}
-
-.landing-root .nav-cta:hover {
-  background: #782b49;
-}
-
-/* ===== HERO ===== */
-.landing-root .hero {
-  padding-top: 160px;
-  padding-bottom: 120px;
-  text-align: center;
-}
-
-.landing-root .hero-label {
-  margin-bottom: 24px;
-}
-
-.landing-root .hero h1 {
-  font-size: clamp(40px, 6vw, 64px);
-  margin-bottom: 24px;
-  max-width: 100%;
-}
-
-.landing-root .hero-subtext {
-  font-size: 18px;
-  color: #534247;
-  margin: 0 auto 48px;
-  max-width: 480px;
-  line-height: 1.7;
-}
-
-/* ===== CTA BUTTONS ===== */
-.landing-root .hero-cta {
-  display: inline-block;
-  padding: 16px 48px;
-  border: none;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #c76b8a 0%, #92405e 100%);
-  color: #ffffff;
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 16px;
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(146, 64, 94, 0.25);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  margin-bottom: 12px;
-}
-
-.landing-root .hero-cta:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(146, 64, 94, 0.3);
-}
-
-.landing-root .hero-note {
-  font-size: 13px;
-  color: #867277;
-  margin: 0 auto 16px;
-}
-
-.landing-root .final-cta-btn {
-  display: inline-block;
-  padding: 16px 48px;
-  border: none;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #c76b8a 0%, #92405e 100%);
-  color: #ffffff;
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 16px;
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(146, 64, 94, 0.25);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  margin-bottom: 16px;
-}
-
-.landing-root .final-cta-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(146, 64, 94, 0.3);
-}
-
-.landing-root .form-note {
-  font-size: 12px;
-  color: #867277;
-}
-
-/* ===== DIVIDER ===== */
-.landing-root .divider {
-  height: 1px;
-  background: rgba(216, 193, 198, 0.4);
-  margin: 60px 0;
-}
-
-/* ===== SOCIAL PROOF ===== */
-.landing-root .social-proof {
-  padding: 48px 24px;
-  text-align: center;
-}
-
-.landing-root .proof-row {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 32px;
-  font-size: 13px;
-  color: #867277;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-weight: 600;
-}
-
-.landing-root .proof-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.landing-root .proof-separator {
-  width: 1px;
-  height: 16px;
-  background: rgba(216, 193, 198, 0.4);
-}
-
-@media (max-width: 640px) {
-  .landing-root .proof-row {
-    flex-direction: column;
-    gap: 16px;
-  }
-  .landing-root .proof-separator {
-    display: none;
-  }
-}
-
-/* ===== HOW IT WORKS ===== */
-.landing-root .how-it-works {
-  background: #f3ede9;
-  padding: 80px 24px;
-}
-
-.landing-root .how-it-works-header {
-  text-align: center;
-  margin-bottom: 60px;
-}
-
-.landing-root .how-it-works .label {
-  margin-bottom: 16px;
-  display: block;
-}
-
-.landing-root .how-it-works h2 {
-  font-size: clamp(28px, 5vw, 48px);
-  margin-bottom: 0;
-}
-
-.landing-root .timeline {
-  max-width: 700px;
-  margin: 0 auto;
-}
-
-.landing-root .timeline-item {
-  display: flex;
-  gap: 24px;
-  margin-bottom: 48px;
-  padding-bottom: 48px;
-  border-bottom: 1px solid rgba(216, 193, 198, 0.3);
-}
-
-.landing-root .timeline-item:last-child {
-  border-bottom: none;
-  margin-bottom: 0;
-  padding-bottom: 0;
-}
-
-.landing-root .timeline-time {
-  flex-shrink: 0;
-  width: 80px;
-  text-align: right;
-  color: #534247;
-  font-weight: 600;
-}
-
-.landing-root .timeline-content {
-  flex: 1;
-  color: #534247;
-  line-height: 1.7;
-}
-
-/* ===== PRICING ===== */
-.landing-root .pricing-section {
-  padding: 80px 24px;
-}
-
-.landing-root .pricing-header {
-  text-align: center;
-  margin-bottom: 60px;
-}
-
-.landing-root .pricing-header .label {
-  margin-bottom: 16px;
-  display: block;
-}
-
-.landing-root .pricing-header h2 {
-  font-size: clamp(28px, 5vw, 48px);
-  margin-bottom: 16px;
-}
-
-.landing-root .pricing-subtext {
-  font-size: 16px;
-  color: #534247;
-  max-width: 500px;
-  margin: 0 auto;
-}
-
-.landing-root .toggle-container {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin-bottom: 48px;
-  background: #f3ede9;
-  border-radius: 20px;
-  padding: 4px;
-  width: fit-content;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.landing-root .toggle-btn {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 16px;
-  background: transparent;
-  color: #534247;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-family: 'Plus Jakarta Sans', sans-serif;
-}
-
-.landing-root .toggle-btn.active {
-  background: #ffffff;
-  color: #92405e;
-  box-shadow: 0 1px 4px rgba(146, 64, 94, 0.08);
-}
-
-.landing-root .pricing-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 24px;
-  max-width: 1100px;
-  margin: 0 auto;
-}
-
-.landing-root .pricing-card {
-  background: #ffffff;
-  border: 1px solid #d8c1c6;
-  border-radius: 16px;
-  padding: 32px 24px;
-  display: flex;
-  flex-direction: column;
-  transition: all 0.3s ease;
-}
-
-.landing-root .pricing-card:hover {
-  box-shadow: 0 8px 24px rgba(146, 64, 94, 0.08);
-  border-color: #92405e;
-}
-
-.landing-root .pricing-card.popular {
-  border: 2px solid #92405e;
-  box-shadow: 0 8px 24px rgba(146, 64, 94, 0.12);
-  transform: scale(1.02);
-}
-
-.landing-root .pricing-popular-tag {
-  display: inline-block;
-  background: #92405e;
-  color: #ffffff;
-  padding: 4px 12px;
-  border-radius: 8px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  margin-bottom: 16px;
-  width: fit-content;
-}
-
-.landing-root .pricing-tier {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1d1b19;
-  margin-bottom: 8px;
-}
-
-.landing-root .pricing-price {
-  font-size: 32px;
-  font-weight: 700;
-  color: #92405e;
-  margin-bottom: 4px;
-}
-
-.landing-root .pricing-price-period {
-  font-size: 12px;
-  color: #867277;
-  margin-bottom: 24px;
-}
-
-.landing-root .pricing-description {
-  font-size: 13px;
-  color: #534247;
-  margin-bottom: 24px;
-  min-height: 40px;
-}
-
-.landing-root .pricing-features {
-  flex: 1;
-  margin-bottom: 24px;
-}
-
-.landing-root .pricing-feature {
-  font-size: 13px;
-  color: #534247;
-  line-height: 1.8;
-  padding: 8px 0;
-  border-bottom: 1px solid rgba(216, 193, 198, 0.3);
-}
-
-.landing-root .pricing-feature:last-child {
-  border-bottom: none;
-}
-
-.landing-root .pricing-cta-btn {
-  display: inline-block;
-  padding: 14px 40px;
-  border: none;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #c76b8a 0%, #92405e 100%);
-  color: #fff;
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 15px;
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(146, 64, 94, 0.25);
-  transition: transform 0.2s ease;
-}
-
-.landing-root .pricing-cta-btn:hover {
-  transform: translateY(-2px);
-}
-
-/* ===== TESTIMONIAL ===== */
-.landing-root .testimonial-section {
-  padding: 100px 24px;
-  text-align: center;
-  background: #fef8f4;
-}
-
-.landing-root .testimonial-quote {
-  position: relative;
-  margin-bottom: 32px;
-}
-
-.landing-root .quote-mark {
-  font-family: 'Playfair Display', serif;
-  font-size: 72px;
-  color: #92405e;
-  opacity: 0.3;
-  line-height: 0.5;
-  margin-bottom: 16px;
-}
-
-.landing-root .testimonial-text {
-  font-family: 'Playfair Display', serif;
-  font-style: italic;
-  font-weight: 700;
-  font-size: clamp(20px, 4vw, 28px);
-  color: #1d1b19;
-  max-width: 700px;
-  margin: 0 auto 24px;
-  letter-spacing: -0.01em;
-}
-
-.landing-root .testimonial-attribution {
-  font-size: 13px;
-  color: #867277;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-
-/* ===== FINAL CTA ===== */
-.landing-root .final-cta {
-  background: linear-gradient(135deg, #c76b8a 0%, #92405e 100%);
-  padding: 80px 24px;
-  text-align: center;
-  color: #ffffff;
-}
-
-.landing-root .final-cta h2 {
-  font-size: clamp(32px, 5vw, 48px);
-  margin-bottom: 16px;
-}
-
-.landing-root .final-cta-subtext {
-  font-size: 16px;
-  margin-bottom: 40px;
-  opacity: 0.95;
-  max-width: 500px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.landing-root .final-cta .final-cta-btn {
-  background: #ffffff;
-  color: #92405e;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-.landing-root .final-cta .final-cta-btn:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-}
-
-.landing-root .final-cta .form-note {
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.landing-root .final-cta .form-note a {
-  color: rgba(255, 255, 255, 0.95);
-}
-
-/* ===== FOOTER ===== */
-.landing-root .landing-footer {
-  background: #f3ede9;
-  padding: 40px 24px;
-  text-align: center;
-  border-top: 1px solid #d8c1c6;
-}
-
-.landing-root .footer-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 24px;
-  flex-wrap: wrap;
-  font-size: 13px;
-  color: #867277;
-}
-
-.landing-root .footer-logo {
-  font-family: 'Playfair Display', serif;
-  font-style: italic;
-  font-weight: 700;
-  color: #92405e;
-  font-size: 14px;
-}
-
-.landing-root .footer-links {
-  display: flex;
-  gap: 24px;
-}
-
-.landing-root .footer-links a {
-  color: #867277;
-  text-decoration: none;
-  transition: color 0.2s ease;
-}
-
-.landing-root .footer-links a:hover {
-  color: #92405e;
-}
-
-/* ===== PROBLEM SECTION ===== */
-.landing-root .problem-section {
-  padding: 100px 24px 80px;
-  background: #f3ede9;
-}
-
-.landing-root .problem-header {
-  text-align: center;
-  margin-bottom: 60px;
-}
-
-.landing-root .problem-header .label {
-  margin-bottom: 16px;
-  display: block;
-}
-
-.landing-root .problem-header h2 {
-  font-size: clamp(26px, 4vw, 40px);
-  max-width: 600px;
-  margin: 0 auto;
-}
-
-.landing-root .problem-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 32px;
-  max-width: 900px;
-  margin: 0 auto;
-}
-
-.landing-root .problem-card {
-  padding: 28px;
-  background: #fef8f4;
-  border-radius: 16px;
-  border: 1px solid rgba(216, 193, 198, 0.4);
-}
-
-.landing-root .problem-card-time {
-  font-family: 'DM Mono', monospace;
-  font-size: 12px;
-  color: #92405e;
-  font-weight: 500;
-  margin-bottom: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.landing-root .problem-card p {
-  font-size: 15px;
-  color: #534247;
-  line-height: 1.7;
-}
-
-@media (max-width: 640px) {
-  .landing-root .problem-grid {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
-  .landing-root .problem-card {
-    padding: 20px;
-  }
-}
-
-/* ===== MEET FLORRIE ===== */
-.landing-root .meet-section {
-  padding: 100px 24px;
-  text-align: center;
-}
-
-.landing-root .meet-header {
-  margin-bottom: 40px;
-}
-
-.landing-root .meet-header .label {
-  margin-bottom: 16px;
-  display: block;
-}
-
-.landing-root .meet-header h2 {
-  font-size: clamp(28px, 5vw, 44px);
-  margin-bottom: 0;
-}
-
-.landing-root .meet-body {
-  max-width: 620px;
-  margin: 0 auto;
-}
-
-.landing-root .meet-body p {
-  font-size: 16px;
-  color: #534247;
-  line-height: 1.8;
-  margin-bottom: 20px;
-  text-align: left;
-}
-
-.landing-root .meet-body p:last-child {
-  margin-bottom: 0;
-}
-
-.landing-root .meet-detail {
-  margin-top: 40px;
-  padding: 24px 28px;
-  background: #f3ede9;
-  border-radius: 14px;
-  font-size: 14px;
-  color: #534247;
-  line-height: 1.7;
-  max-width: 500px;
-  margin-left: auto;
-  margin-right: auto;
-  text-align: left;
-  border-left: 3px solid #92405e;
-}
-
-/* ===== INLINE TESTIMONIAL ===== */
-.landing-root .inline-testimonial {
-  padding: 60px 24px;
-  text-align: center;
-  background: #fef8f4;
-}
-
-.landing-root .inline-testimonial blockquote {
-  font-family: 'Playfair Display', serif;
-  font-style: italic;
-  font-weight: 700;
-  font-size: clamp(18px, 3vw, 24px);
-  color: #1d1b19;
-  max-width: 600px;
-  margin: 0 auto 16px;
-  letter-spacing: -0.01em;
-  line-height: 1.4;
-}
-
-.landing-root .inline-testimonial cite {
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-style: normal;
-  font-size: 12px;
-  color: #867277;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-
-/* ===== UK BEAUTY SECTION ===== */
-.landing-root .uk-section {
-  padding: 100px 24px;
-  background: #fef8f4;
-}
-
-.landing-root .uk-header {
-  text-align: center;
-  margin-bottom: 60px;
-}
-
-.landing-root .uk-header .label {
-  margin-bottom: 16px;
-  display: block;
-}
-
-.landing-root .uk-header h2 {
-  font-size: clamp(26px, 4.5vw, 42px);
-  margin-bottom: 16px;
-}
-
-.landing-root .uk-header p {
-  font-size: 16px;
-  color: #534247;
-  max-width: 520px;
-  margin: 0 auto;
-  line-height: 1.7;
-}
-
-.landing-root .uk-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 32px;
-  max-width: 900px;
-  margin: 0 auto;
-}
-
-.landing-root .uk-card {
-  padding: 28px;
-  background: #ffffff;
-  border-radius: 16px;
-  border: 1px solid #d8c1c6;
-  transition: box-shadow 0.3s ease;
-}
-
-.landing-root .uk-card:hover {
-  box-shadow: 0 8px 24px rgba(146, 64, 94, 0.06);
-}
-
-.landing-root .uk-card h3 {
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 16px;
-  font-weight: 700;
-  color: #1d1b19;
-  margin-bottom: 10px;
-}
-
-.landing-root .uk-card p {
-  font-size: 14px;
-  color: #534247;
-  line-height: 1.7;
-}
-
-@media (max-width: 640px) {
-  .landing-root .uk-grid {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
-}
-
-/* ===== PITCH SECTION ===== */
-.landing-root .pitch-section {
-  padding: 120px 24px;
-}
-
-.landing-root .pitch-block {
-  text-align: center;
-  margin-bottom: 80px;
-}
-
-.landing-root .pitch-block:last-child {
-  margin-bottom: 0;
-}
-
-.landing-root .pitch-headline {
-  font-size: 28px;
-  margin-bottom: 16px;
-  color: #1d1b19;
-}
-
-.landing-root .pitch-text {
-  font-size: 16px;
-  color: #534247;
-  max-width: 500px;
-  margin: 0 auto;
-  line-height: 1.7;
-}
-
-/* ===== RESPONSIVE ===== */
-@media (max-width: 768px) {
-  .landing-root .landing-nav {
-    padding: 12px 16px;
-  }
-  .landing-root .nav-content {
-    padding: 0;
-  }
-  .landing-root .logo {
-    font-size: 16px;
-  }
-  .landing-root .nav-cta {
-    font-size: 12px;
-    padding: 8px 16px;
-  }
-  .landing-root .nav-signin {
-    font-size: 12px;
-  }
-  .landing-root .nav-links {
-    gap: 12px;
-  }
-  .landing-root .hero {
-    padding-top: 100px;
-    padding-bottom: 80px;
-  }
-  .landing-root .hero h1 {
-    margin-bottom: 20px;
-  }
-  .landing-root .hero-subtext {
-    font-size: 16px;
-    margin-bottom: 40px;
-  }
-  .landing-root .pitch-section {
-    padding: 80px 24px;
-  }
-  .landing-root .pitch-block {
-    margin-bottom: 60px;
-  }
-  .landing-root .pitch-headline {
-    font-size: 24px;
-  }
-  .landing-root .pitch-text {
-    font-size: 14px;
-  }
-  .landing-root .social-proof {
-    padding: 40px 16px;
-  }
-  .landing-root .problem-section {
-    padding: 60px 16px;
-  }
-  .landing-root .meet-section {
-    padding: 60px 16px;
-  }
-  .landing-root .uk-section {
-    padding: 60px 16px;
-  }
-  .landing-root .inline-testimonial {
-    padding: 40px 16px;
-  }
-  .landing-root .inline-testimonial blockquote {
-    font-size: 18px;
-  }
-  .landing-root .meet-detail {
-    padding: 18px 20px;
-    font-size: 13px;
-  }
-  .landing-root .how-it-works {
-    padding: 60px 16px;
-  }
-  .landing-root .how-it-works-header {
-    margin-bottom: 40px;
-  }
-  .landing-root .timeline-item {
-    flex-direction: column;
-    gap: 12px;
-  }
-  .landing-root .timeline-time {
-    width: auto;
-    text-align: left;
-  }
-  .landing-root .pricing-section {
-    padding: 60px 16px;
-  }
-  .landing-root .pricing-card {
-    padding: 24px 16px;
-  }
-  .landing-root .pricing-card.popular {
-    transform: scale(1);
-  }
-  .landing-root .testimonial-section {
-    padding: 60px 16px;
-  }
-  .landing-root .testimonial-text {
-    font-size: 20px;
-  }
-  .landing-root .final-cta {
-    padding: 60px 16px;
-  }
-  .landing-root .final-cta h2 {
-    font-size: 28px;
-  }
-  .landing-root .footer-content {
-    flex-direction: column;
-    gap: 16px;
-  }
-}
-
-@media (max-width: 480px) {
-  .landing-root .hero {
-    padding-top: 80px;
-    padding-bottom: 60px;
-  }
-  .landing-root .hero h1 {
-    font-size: 32px;
-  }
-  .landing-root .hero-subtext {
-    font-size: 14px;
-  }
-  .landing-root .pitch-headline {
-    font-size: 20px;
-  }
-  .landing-root .pitch-text {
-    font-size: 13px;
-  }
-  .landing-root .pricing-header h2 {
-    font-size: 24px;
-  }
-  .landing-root .testimonial-text {
-    font-size: 18px;
-  }
-  .landing-root .final-cta h2 {
-    font-size: 24px;
-  }
-  .landing-root .quote-mark {
-    font-size: 48px;
-  }
-}
-`;
+const FLORRIE_LOGO_SVG = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 80" fill="none" style="height:40px;width:auto;">
+  <g transform="translate(8,8) scale(0.8)">
+    <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#C76B8A" opacity="0.75" transform="rotate(0 40 40)"/>
+    <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#C76B8A" opacity="0.65" transform="rotate(72 40 40)"/>
+    <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#C76B8A" opacity="0.55" transform="rotate(144 40 40)"/>
+    <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#C76B8A" opacity="0.55" transform="rotate(216 40 40)"/>
+    <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#C76B8A" opacity="0.65" transform="rotate(288 40 40)"/>
+    <circle cx="40" cy="40" r="6.4" fill="#C9A96E"/>
+  </g>
+  <text x="80" y="52" font-family="'Playfair Display',Georgia,serif" font-size="36" font-weight="500" fill="#2D2A26" letter-spacing="-0.5">florrie</text>
+  <text x="224" y="52" font-family="'DM Sans',sans-serif" font-size="24" font-weight="300" fill="#C76B8A" letter-spacing="0.5">.ai</text>
+</svg>`;
+
+const FLORRIE_LOGO_WHITE_SVG = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 80" fill="none" style="height:36px;width:auto;">
+  <g transform="translate(8,8) scale(0.8)">
+    <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#fff" opacity="0.75" transform="rotate(0 40 40)"/>
+    <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#fff" opacity="0.65" transform="rotate(72 40 40)"/>
+    <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#fff" opacity="0.55" transform="rotate(144 40 40)"/>
+    <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#fff" opacity="0.55" transform="rotate(216 40 40)"/>
+    <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#fff" opacity="0.65" transform="rotate(288 40 40)"/>
+    <circle cx="40" cy="40" r="6.4" fill="#C9A96E"/>
+  </g>
+  <text x="80" y="52" font-family="'Playfair Display',Georgia,serif" font-size="36" font-weight="500" fill="#fff" letter-spacing="-0.5">florrie</text>
+  <text x="224" y="52" font-family="'DM Sans',sans-serif" font-size="24" font-weight="300" fill="#C9A96E" letter-spacing="0.5">.ai</text>
+</svg>`;
 
 export default function LandingPage() {
   const navigate = useNavigate();
-  const rootRef = useRef(null);
+  const [pricing, setPricing] = useState('monthly');
 
-  const goToLogin = useCallback((e) => {
-    if (e) e.preventDefault();
-    navigate('/login');
-  }, [navigate]);
+  const priceData = {
+    monthly: { price: '£29', period: '/month', note: 'Includes 120 AI messages/month. 10p per message after that.' },
+    annual:  { price: '£290', period: '/year',  note: 'Includes 120 AI messages/month. 10p per message after that. 2 months free vs monthly.' },
+  };
 
-  // Inject scoped CSS + set up pricing toggle
   useEffect(() => {
-    // Inject CSS
-    const style = document.createElement('style');
-    style.id = 'landing-page-css';
-    style.textContent = LANDING_CSS;
-    document.head.appendChild(style);
+    // Tailwind CDN (v3) + config
+    if (!document.getElementById('tw-cdn')) {
+      const s = document.createElement('script');
+      s.id = 'tw-cdn';
+      s.src = 'https://cdn.tailwindcss.com?plugins=forms,container-queries';
+      document.head.appendChild(s);
+      s.onload = () => {
+        if (window.tailwind) {
+          window.tailwind.config = {
+            darkMode: 'class',
+            theme: {
+              extend: {
+                colors: {
+                  'on-background': '#1c1c1a', 'surface-container-lowest': '#ffffff',
+                  'surface-container-high': '#eae8e5', 'inverse-on-surface': '#f3f0ed',
+                  'outline-variant': '#d8c1c6', 'surface-container': '#f0edea',
+                  'on-secondary-fixed-variant': '#5a4312', 'on-error': '#ffffff',
+                  'surface-variant': '#e5e2df', 'background': '#fcf9f6',
+                  'primary-container': '#b05877', 'secondary-fixed': '#ffdea4',
+                  'on-surface-variant': '#534247', 'on-primary-container': '#fffbff',
+                  'on-error-container': '#93000a', 'primary': '#92405e',
+                  'on-primary': '#ffffff', 'primary-fixed-dim': '#ffb1c8',
+                  'surface-bright': '#fcf9f6', 'surface-dim': '#dcdad7',
+                  'primary-fixed': '#ffd9e2', 'secondary-container': '#fedb9b',
+                  'surface-container-highest': '#e5e2df', 'inverse-surface': '#31302f',
+                  'outline': '#867277', 'tertiary': '#605a5e',
+                  'surface-container-low': '#f6f3f0', 'on-secondary': '#ffffff',
+                  'on-primary-fixed': '#3e001d', 'on-primary-fixed-variant': '#782b49',
+                  'on-surface': '#1c1c1a', 'error': '#ba1a1a',
+                  'surface': '#fcf9f6', 'secondary': '#745a27',
+                  'on-secondary-container': '#795f2b', 'inverse-primary': '#ffb1c8',
+                },
+                borderRadius: { 'DEFAULT': '0.125rem', 'lg': '0.25rem', 'xl': '0.5rem', 'full': '0.75rem' },
+                fontFamily: {
+                  'headline': ['Newsreader', 'serif'],
+                  'body': ['Plus Jakarta Sans', 'sans-serif'],
+                  'label': ['Plus Jakarta Sans', 'sans-serif'],
+                },
+              },
+            },
+          };
+        }
+      };
+    }
+
+    // Material Symbols
+    if (!document.getElementById('material-symbols')) {
+      const l = document.createElement('link');
+      l.id = 'material-symbols';
+      l.rel = 'stylesheet';
+      l.href = 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap';
+      document.head.appendChild(l);
+    }
+
+    // Google Fonts (Newsreader + Plus Jakarta Sans + Playfair + DM Sans)
+    if (!document.getElementById('landing-fonts')) {
+      const l = document.createElement('link');
+      l.id = 'landing-fonts';
+      l.rel = 'stylesheet';
+      l.href = 'https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@1,6..72,200..800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;1,400&family=DM+Sans:wght@300;400&display=swap';
+      document.head.appendChild(l);
+    }
+
+    // Custom CSS (keyframes + base landing styles)
+    const styleId = 'landing-page-css-v2';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        #landing-root { position:fixed; inset:0; z-index:9990; overflow-y:auto; overflow-x:hidden;
+          font-family:'Plus Jakarta Sans',sans-serif; background-color:#fcf9f6; color:#1c1c1a;
+          line-height:1.65; font-size:17px; -webkit-font-smoothing:antialiased; }
+        #landing-root h1,#landing-root h2,#landing-root h3 { font-family:'Newsreader',serif; }
+        #landing-root .font-serif { font-family:'Newsreader',serif; }
+        #landing-root .shadow-florrie { box-shadow:0 4px 20px rgba(146,64,94,0.06); }
+        #landing-root .material-symbols-outlined { font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24; }
+        @keyframes hub-pulse {
+          0%,100% { box-shadow:0 0 30px 6px rgba(199,107,138,0.4); }
+          50%      { box-shadow:0 0 60px 20px rgba(199,107,138,0.2); }
+        }
+        @keyframes float-a { 0%,100%{transform:translate(-50%,-50%) translateY(0)} 50%{transform:translate(-50%,-50%) translateY(-10px)} }
+        @keyframes float-b { 0%,100%{transform:translate(-50%,-50%) translateY(0)} 50%{transform:translate(-50%,-50%) translateY(-8px)} }
+        @keyframes float-c { 0%,100%{transform:translate(-50%,-50%) translateY(0)} 50%{transform:translate(-50%,-50%) translateY(-12px)} }
+        @keyframes float-d { 0%,100%{transform:translate(-50%,-50%) translateY(0)} 50%{transform:translate(-50%,-50%) translateY(-9px)} }
+        @keyframes float-e { 0%,100%{transform:translate(-50%,-50%) translateY(0)} 50%{transform:translate(-50%,-50%) translateY(-11px)} }
+        @keyframes dot-pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        @keyframes dash-flow { to{stroke-dashoffset:-16} }
+        @keyframes slide-in-left  { from{opacity:0;transform:translateX(-12px)} to{opacity:1;transform:translateX(0)} }
+        @keyframes slide-in-right { from{opacity:0;transform:translateX(12px)}  to{opacity:1;transform:translateX(0)} }
+        .agent-hub  { animation:hub-pulse 3s ease-in-out infinite; }
+        .agent-1 { animation:float-a 5s ease-in-out infinite; animation-delay:0s; }
+        .agent-2 { animation:float-b 6s ease-in-out infinite; animation-delay:0.8s; }
+        .agent-3 { animation:float-c 5.5s ease-in-out infinite; animation-delay:1.6s; }
+        .agent-4 { animation:float-d 6.5s ease-in-out infinite; animation-delay:2.4s; }
+        .agent-5 { animation:float-e 5.2s ease-in-out infinite; animation-delay:3.2s; }
+        .online-dot  { animation:dot-pulse 2s ease-in-out infinite; }
+        .online-dot-2{ animation:dot-pulse 2s ease-in-out infinite; animation-delay:0.5s; }
+        .online-dot-3{ animation:dot-pulse 2s ease-in-out infinite; animation-delay:1s; }
+        .online-dot-4{ animation:dot-pulse 2s ease-in-out infinite; animation-delay:1.5s; }
+        .online-dot-5{ animation:dot-pulse 2s ease-in-out infinite; animation-delay:0.3s; }
+        .agent-line   { animation:dash-flow 1.2s linear infinite; }
+        .agent-line-2 { animation:dash-flow 1.4s linear infinite; }
+        .agent-line-3 { animation:dash-flow 1.1s linear infinite; }
+        .agent-line-4 { animation:dash-flow 1.5s linear infinite; }
+        .agent-line-5 { animation:dash-flow 1.3s linear infinite; }
+        .msg-1 { animation:slide-in-left  0.5s 0.3s ease both; }
+        .msg-2 { animation:slide-in-right 0.5s 1.2s ease both; opacity:0; }
+        .msg-3 { animation:slide-in-left  0.5s 2.2s ease both; opacity:0; }
+        .msg-4 { animation:slide-in-right 0.5s 3.3s ease both; opacity:0; }
+      `;
+      document.head.appendChild(style);
+    }
 
     // Set page title
     const prevTitle = document.title;
-    document.title = 'florrie — AI for your salon';
+    document.title = 'Florrie | AI Business Assistant for Beauty Professionals';
 
-    // Hide body overflow while landing is shown (it has its own scroll)
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    return () => {
-      style.remove();
-      document.title = prevTitle;
-      document.body.style.overflow = prevOverflow;
-    };
-  }, []);
-
-  // Intercept all internal link clicks
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-
+    // Intercept in-app links so React Router handles them
+    const root = document.getElementById('landing-root');
     const handleClick = (e) => {
-      const link = e.target.closest('a[href="/login"]');
-      if (link) {
+      const a = e.target.closest('a[href]');
+      if (!a) return;
+      const href = a.getAttribute('href');
+      if (href === '/login' || href === '/signup') {
         e.preventDefault();
-        navigate('/login');
+        navigate(href);
       }
     };
+    root?.addEventListener('click', handleClick);
 
-    root.addEventListener('click', handleClick);
-    return () => root.removeEventListener('click', handleClick);
+    return () => {
+      document.title = prevTitle;
+      root?.removeEventListener('click', handleClick);
+    };
   }, [navigate]);
 
-  // Pricing toggle logic
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
+  const { price, period, note } = priceData[pricing];
 
-    const toggleBtns = root.querySelectorAll('.toggle-btn');
-    const handleToggle = (e) => {
-      const btn = e.currentTarget;
-      toggleBtns.forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+  const FloLogo = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 80" fill="none" className="h-10 w-auto">
+      <g transform="translate(8,8) scale(0.8)">
+        <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#C76B8A" opacity="0.75" transform="rotate(0 40 40)"/>
+        <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#C76B8A" opacity="0.65" transform="rotate(72 40 40)"/>
+        <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#C76B8A" opacity="0.55" transform="rotate(144 40 40)"/>
+        <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#C76B8A" opacity="0.55" transform="rotate(216 40 40)"/>
+        <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#C76B8A" opacity="0.65" transform="rotate(288 40 40)"/>
+        <circle cx="40" cy="40" r="6.4" fill="#C9A96E"/>
+      </g>
+      <text x="80" y="52" fontFamily="'Playfair Display',Georgia,serif" fontSize="36" fontWeight="500" fill="#2D2A26" letterSpacing="-0.5">florrie</text>
+      <text x="224" y="52" fontFamily="'DM Sans',sans-serif" fontSize="24" fontWeight="300" fill="#C76B8A" letterSpacing="0.5">.ai</text>
+    </svg>
+  );
 
-      const isAnnual = btn.dataset.period === 'annual';
-      root.querySelectorAll('.price-amount').forEach(el => {
-        el.textContent = isAnnual ? el.dataset.annual : el.dataset.monthly;
-      });
-      root.querySelectorAll('.monthly-text').forEach(el => {
-        el.textContent = isAnnual ? '/year' : '/month';
-      });
-    };
+  const FloLogoFooter = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 80" fill="none" className="h-9 w-auto">
+      <g transform="translate(8,8) scale(0.8)">
+        <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#C76B8A" opacity="0.75" transform="rotate(0 40 40)"/>
+        <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#C76B8A" opacity="0.65" transform="rotate(72 40 40)"/>
+        <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#C76B8A" opacity="0.55" transform="rotate(144 40 40)"/>
+        <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#C76B8A" opacity="0.55" transform="rotate(216 40 40)"/>
+        <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#C76B8A" opacity="0.65" transform="rotate(288 40 40)"/>
+        <circle cx="40" cy="40" r="6.4" fill="#C9A96E"/>
+      </g>
+      <text x="80" y="52" fontFamily="'Playfair Display',Georgia,serif" fontSize="36" fontWeight="500" fill="#2D2A26" letterSpacing="-0.5">florrie</text>
+      <text x="224" y="52" fontFamily="'DM Sans',sans-serif" fontSize="24" fontWeight="300" fill="#C76B8A" letterSpacing="0.5">.ai</text>
+    </svg>
+  );
 
-    toggleBtns.forEach(btn => btn.addEventListener('click', handleToggle));
-    return () => toggleBtns.forEach(btn => btn.removeEventListener('click', handleToggle));
-  }, []);
+  const PetalIcon = ({ className = 'w-14 h-14' }) => (
+    <svg viewBox="0 0 100 100" fill="none" className={className}>
+      <ellipse cx="50" cy="30" rx="16" ry="24" fill="#fff" opacity="0.85" transform="rotate(0 50 50)"/>
+      <ellipse cx="50" cy="30" rx="16" ry="24" fill="#fff" opacity="0.75" transform="rotate(72 50 50)"/>
+      <ellipse cx="50" cy="30" rx="16" ry="24" fill="#fff" opacity="0.65" transform="rotate(144 50 50)"/>
+      <ellipse cx="50" cy="30" rx="16" ry="24" fill="#fff" opacity="0.65" transform="rotate(216 50 50)"/>
+      <ellipse cx="50" cy="30" rx="16" ry="24" fill="#fff" opacity="0.75" transform="rotate(288 50 50)"/>
+      <circle cx="50" cy="50" r="8" fill="#C9A96E"/>
+    </svg>
+  );
+
+  const Icon = ({ name, className = '', style = {} }) => (
+    <span className={`material-symbols-outlined ${className}`} style={style}>{name}</span>
+  );
+
+  const StarFilled = () => (
+    <Icon name="star" style={{ fontVariationSettings: "'FILL' 1" }} />
+  );
 
   return (
-    <div className="landing-root" ref={rootRef}>
-      {/* Navigation */}
-      <div className="landing-nav">
-        <div className="nav-content">
-          <div className="logo">florrie</div>
-          <div className="nav-links">
-            <a href="/login" className="nav-signin" onClick={goToLogin}>Sign in</a>
-            <a href="/login" className="nav-cta" onClick={goToLogin}>Try for free</a>
-          </div>
-        </div>
-      </div>
+    <div id="landing-root">
 
-      {/* Hero */}
-      <section className="hero">
-        <div className="container-narrow">
-          <div className="label">For beauticians</div>
-          <h1 className="display-italic">The AI that runs your salon while you run your business</h1>
-          <p className="hero-subtext">Florrie handles your bookings, replies to clients in your voice, tracks your tax, and keeps you compliant. You focus on the chair.</p>
-          <a href="/login" className="hero-cta" onClick={goToLogin}>Try for free</a>
-          <p className="hero-note">14-day free trial. No card required.</p>
+      {/* ── NAV ── */}
+      <nav className="fixed top-0 w-full z-50 bg-white/70 backdrop-blur-md shadow-florrie">
+        <div className="flex justify-between items-center max-w-[1200px] mx-auto px-6 lg:px-10 py-4 w-full">
+          <a href="/"><FloLogo /></a>
+          <div className="hidden md:flex gap-8 items-center">
+            <a className="text-on-surface-variant font-medium hover:text-primary transition-colors" href="#features">Features</a>
+            <a className="text-on-surface-variant font-medium hover:text-primary transition-colors" href="#pricing">Pricing</a>
+            <a className="text-on-surface-variant font-medium hover:text-primary transition-colors" href="#how-it-works">How it works</a>
+          </div>
+          <div className="flex items-center gap-4 lg:gap-6">
+            <a className="hidden sm:block text-primary font-semibold hover:opacity-80 transition-opacity" href="/login">Sign in</a>
+            <a className="bg-primary text-on-primary px-6 py-2.5 rounded-full font-semibold shadow-md hover:scale-95 transition-transform duration-200" href="#pricing">Start free trial</a>
+          </div>
         </div>
-      </section>
+      </nav>
 
-      {/* Pitch */}
-      <section className="pitch-section">
-        <div className="pitch-block">
-          <h2 className="section-heading pitch-headline">She talks like you</h2>
-          <p className="pitch-text">Florrie learns your tone from every correction. She picks up your abbreviations, your sign-off style, the way you greet regulars vs new enquiries. After a week, clients can't tell the difference.</p>
-        </div>
-        <div className="pitch-block">
-          <h2 className="section-heading pitch-headline">Your tax, sorted</h2>
-          <p className="pitch-text">Snap a receipt, Florrie files it. Every payment tracked against HMRC categories in real time. When self-assessment comes around, you export a clean summary instead of panicking over a carrier bag of paper.</p>
-        </div>
-        <div className="pitch-block">
-          <h2 className="section-heading pitch-headline">Compliance on autopilot</h2>
-          <p className="pitch-text">Patch test tracking, consultation forms, aftercare messages. Florrie knows which clients need what, and sends reminders before their appointment. Not after something goes wrong.</p>
-        </div>
-      </section>
-
-      {/* Social Proof */}
-      <div className="divider" />
-      <section className="social-proof">
-        <div className="proof-row">
-          <div className="proof-item">Built for UK salons</div>
-          <div className="proof-separator" />
-          <div className="proof-item">Built for UK beauticians</div>
-          <div className="proof-separator" />
-          <div className="proof-item">7 AI features at launch</div>
-        </div>
-      </section>
-      <div className="divider" />
-
-      {/* The Problem */}
-      <section className="problem-section">
-        <div className="problem-header">
-          <span className="label">Sound familiar?</span>
-          <h2 className="display-italic">You didn't start a beauty business to answer WhatsApp at midnight</h2>
-        </div>
-        <div className="problem-grid">
-          <div className="problem-card">
-            <div className="problem-card-time">The 11pm message</div>
-            <p>"Can I move my Thursday to Friday?" You're half asleep. You open your diary, scroll through next week, find a gap, type a reply. Then you lie there for twenty minutes because your brain won't switch off.</p>
-          </div>
-          <div className="problem-card">
-            <div className="problem-card-time">The shoebox</div>
-            <p>Receipts from Sally Beauty. Amazon. Your wax supplier. That Uber to the training course. They're in a drawer, a carrier bag, your coat pocket. You'll sort them in January. You said that last January too.</p>
-          </div>
-          <div className="problem-card">
-            <div className="problem-card-time">The no-show</div>
-            <p>She booked three weeks ago. No confirmation sent, no patch test done. You find out at 9am when the chair's empty and your morning's got a hole in it. You scroll back through your messages to check. Nothing.</p>
-          </div>
-          <div className="problem-card">
-            <div className="problem-card-time">The Sunday night</div>
-            <p>You sit on the sofa with your phone and a notebook. Moving appointments around. Writing next week's Instagram caption. Checking who needs reminders. Two hours gone. You haven't even thought about what you're actually doing with your week.</p>
-          </div>
-        </div>
-      </section>
-
-      {/* Meet Florrie */}
-      <section className="meet-section">
-        <div className="meet-header">
-          <span className="label">Who she is</span>
-          <h2 className="display-italic">She's the colleague you always needed</h2>
-        </div>
-        <div className="meet-body">
-          <p>Florrie reads your WhatsApp, Instagram DMs, texts, and emails. She replies in your voice. Not a chatbot voice. Yours. She writes "hiya lovely" because that's what you write. She knows your cancellation policy word for word. She knows you don't take bookings before 10 on Mondays.</p>
-          <p>She gets better every time you correct her. Changed a reply she sent? She remembers why and adjusts next time. After a week, your regulars won't notice the difference. New clients will think you reply fast.</p>
-          <p>She books appointments, sends confirmations, chases no-shows, fills last-minute gaps from your waitlist, and nudges clients to rebook when they're due. All while you're with a client, or at the gym, or asleep.</p>
-          <div className="meet-detail">
-            When she's not sure about something, she flags it and steps aside. Complaints, clinical questions, anything sensitive. You decide. She learns from that too.
-          </div>
-        </div>
-      </section>
-
-      {/* Inline Testimonial */}
-      <section className="inline-testimonial">
-        <blockquote>"I tested her by not replying to anything for a whole Saturday. Checked my phone at 6pm — four new bookings, two reschedules, all handled. I nearly cried."</blockquote>
-        <cite>Jade T. — Lash tech, Birmingham</cite>
-      </section>
-
-      {/* How It Works */}
-      <section className="how-it-works">
-        <div className="how-it-works-header">
-          <div className="label">How it works</div>
-          <h2 className="display-italic">Your morning. Reimagined.</h2>
-        </div>
-        <div className="timeline">
-          <div className="timeline-item">
-            <div className="timeline-time mono">7:30am</div>
-            <div className="timeline-content">You're still in bed. Florrie's been up since six. Three WhatsApp messages came in overnight: a new booking request, a reschedule, and someone asking about lash lift prices. All handled. Two confirmations sent. One price list shared with a link to book.</div>
-          </div>
-          <div className="timeline-item">
-            <div className="timeline-time mono">9:15am</div>
-            <div className="timeline-content">Your first client sits down. Your phone buzzes. Cancellation for 2pm. Florrie's already texted the next three people on your waitlist. By the time you look up from the brow, the slot's filled. You didn't touch your phone once.</div>
-          </div>
-          <div className="timeline-item">
-            <div className="timeline-time mono">12:00pm</div>
-            <div className="timeline-content">Lunch. You snap a photo of a receipt from Sally Beauty. £34 for wax supplies. Florrie scans it, files it under HMRC consumables, and your running tax estimate ticks up. No spreadsheet. No shoebox. Thirty seconds and it's done.</div>
-          </div>
-          <div className="timeline-item">
-            <div className="timeline-time mono">2:30pm</div>
-            <div className="timeline-content">A new enquiry lands on Instagram. "Do you do brow lamination? How much?" Florrie replies with your prices, your availability next week, and a booking link. The client books for Thursday. You never saw the message.</div>
-          </div>
-          <div className="timeline-item">
-            <div className="timeline-time mono">4:00pm</div>
-            <div className="timeline-content">Florrie flags something: Emma Collins has a tint booked for Friday, but her last patch test was eight weeks ago. Needs a fresh one. Florrie's already sent Emma a reminder with instructions and a link to confirm.</div>
-          </div>
-          <div className="timeline-item">
-            <div className="timeline-time mono">6:30pm</div>
-            <div className="timeline-content">Your last client leaves. Florrie's sent three aftercare messages, nudged two people to rebook, and drafted tomorrow's Instagram caption for you to approve. You close the salon door. The admin is already done.</div>
-          </div>
-        </div>
-      </section>
-
-      {/* Built for UK Beauty */}
-      <section className="uk-section">
-        <div className="uk-header">
-          <span className="label">Built for your world</span>
-          <h2 className="display-italic">We know HMRC. We know patch tests. We know your January.</h2>
-          <p>Florrie was built for UK beauticians from day one. Not adapted from a generic booking tool. Built.</p>
-        </div>
-        <div className="uk-grid">
-          <div className="uk-card">
-            <h3>Self-assessment, sorted</h3>
-            <p>Florrie tracks your income and expenses against HMRC categories in real time. When January comes, you export a clean summary. Your accountant gets a spreadsheet instead of a carrier bag.</p>
-          </div>
-          <div className="uk-card">
-            <h3>Making Tax Digital ready</h3>
-            <p>MTD is coming for everyone. Florrie keeps your records in the format HMRC expects, so you're not scrambling to digitise a year of paper when the deadline hits.</p>
-          </div>
-          <div className="uk-card">
-            <h3>Patch test tracking</h3>
-            <p>Regulations say you need them. Florrie remembers when each client's patch test expires and sends reminders before their appointment. Not after something goes wrong and you're checking your records.</p>
-          </div>
-          <div className="uk-card">
-            <h3>Aftercare on record</h3>
-            <p>Every treatment gets the right aftercare message, sent automatically. If a client ever disputes what they were told, you have a timestamped record. Protection for you and your business.</p>
-          </div>
-        </div>
-      </section>
-
-      {/* Inline Testimonial 2 */}
-      <section className="inline-testimonial">
-        <blockquote>"The tax tracking sold me. I paid my accountant £400 last year just to sort my receipts into categories. Florrie does it the moment I take a photo."</blockquote>
-        <cite>Priya K. — Nail artist, Leeds</cite>
-      </section>
-
-      {/* Pricing */}
-      <section className="pricing-section">
-        <div className="pricing-header">
-          <div className="label">Pricing</div>
-          <h2 className="display-italic">One plan. Everything included.</h2>
-          <p className="pricing-subtext">14-day free trial. No card required. Cancel anytime.</p>
-        </div>
-
-        <div className="toggle-container">
-          <button className="toggle-btn active" data-period="monthly">Monthly</button>
-          <button className="toggle-btn" data-period="annual">Annual<span style={{ fontSize: '10px', marginLeft: '4px' }}>Save £58</span></button>
-        </div>
-
-        <div className="pricing-cards" style={{ maxWidth: '480px' }}>
-          <div className="pricing-card popular">
-            <div className="pricing-popular-tag">Everything you need</div>
-            <div className="pricing-tier">Florrie</div>
-            <div className="pricing-price"><span className="price-amount" data-monthly="£29" data-annual="£290">£29</span></div>
-            <div className="pricing-price-period monthly-text">/month</div>
-            <div className="pricing-description">For solo beauticians and small salons</div>
-            <div className="pricing-features">
-              <div className="pricing-feature">Unlimited clients</div>
-              <div className="pricing-feature">AI receptionist (WhatsApp, SMS, Instagram)</div>
-              <div className="pricing-feature">Smart scheduling & waitlist</div>
-              <div className="pricing-feature">Tax dashboard & HMRC tracking</div>
-              <div className="pricing-feature">Receipt scanning</div>
-              <div className="pricing-feature">Content autopilot</div>
-              <div className="pricing-feature">Compliance & patch test tracking</div>
-              <div className="pricing-feature">Analytics & reports</div>
-              <div className="pricing-feature">120 messages/month included</div>
+      {/* ── HERO ── */}
+      <section className="pt-32 pb-20 lg:pt-48 lg:pb-32 px-6 overflow-hidden">
+        <div className="max-w-[1200px] mx-auto grid lg:grid-cols-[1.2fr_1fr] gap-16 items-center">
+          <div className="space-y-8">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary-fixed text-on-primary-fixed-variant rounded-full text-sm font-semibold tracking-wide">
+              <Icon name="auto_awesome" className="text-sm" style={{ fontVariationSettings: "'FILL' 1" }} />
+              AI for beauty professionals
             </div>
-            <a href="/login" className="pricing-cta-btn" onClick={goToLogin}>Try for free</a>
+            <h1 className="text-5xl lg:text-7xl font-serif italic leading-[1.1] text-on-surface">
+              While you're doing lashes, Florrie's taking bookings.
+            </h1>
+            <p className="text-xl text-on-surface-variant max-w-lg">
+              Five AI agents run behind the scenes — one handles WhatsApp bookings, one tracks your taxes, one keeps your records clean. They work around the clock so you don't have to.
+            </p>
+            {/* Agent status bar */}
+            <div className="flex flex-wrap gap-3 pt-1">
+              {[
+                { color: '#34d399', label: 'Booking Agent',    cls: 'online-dot' },
+                { color: '#fbbf24', label: 'Tax Agent',        cls: 'online-dot-2' },
+                { color: '#2dd4bf', label: 'Compliance Agent', cls: 'online-dot-3' },
+                { color: '#a78bfa', label: 'Follow-up Agent',  cls: 'online-dot-4' },
+                { color: '#38bdf8', label: 'Insights Agent',   cls: 'online-dot-5' },
+              ].map(({ color, label, cls }) => (
+                <span key={label} className="inline-flex items-center gap-1.5 text-xs font-medium text-on-surface-variant bg-surface-container px-3 py-1.5 rounded-full">
+                  <span className={`w-2 h-2 rounded-full ${cls}`} style={{ backgroundColor: color, display:'inline-block' }}></span>
+                  {label}
+                </span>
+              ))}
+            </div>
+            <div className="flex flex-col sm:flex-row gap-4 pt-2">
+              <a className="bg-gradient-to-r from-primary to-primary-container text-on-primary px-8 py-4 rounded-full font-bold text-lg text-center hover:shadow-lg transition-all" href="#pricing">Start your free trial</a>
+              <a className="border border-outline-variant text-primary px-8 py-4 rounded-full font-bold text-lg text-center hover:bg-surface-container-low transition-colors" href="#how-it-works">See how it works</a>
+            </div>
+            <div className="flex items-center gap-3 py-2">
+              <div className="flex text-secondary">
+                {[...Array(5)].map((_, i) => <StarFilled key={i} />)}
+              </div>
+              <span className="text-on-surface-variant font-medium">Loved by 200+ UK beauty pros</span>
+            </div>
           </div>
-        </div>
 
-        <div style={{ textAlign: 'center', marginTop: '32px', maxWidth: '480px', marginLeft: 'auto', marginRight: 'auto' }}>
-          <p className="mono" style={{ fontSize: '12px', color: '#867277' }}>Got a team? Add extra seats for £15/month each. Multi-location, staff rota, performance tracking included.</p>
+          {/* WhatsApp mockup */}
+          <div className="relative">
+            <div className="absolute -inset-10 bg-primary/5 rounded-full blur-3xl -z-10"></div>
+            <div className="bg-white rounded-[3rem] p-4 shadow-florrie border border-white/20 max-w-[320px] mx-auto" style={{ transform: 'rotate(2deg)' }}>
+              <div className="bg-stone-50 rounded-[2.5rem] overflow-hidden border border-stone-200">
+                <div className="p-4 flex items-center gap-3 text-white" style={{ background: '#075e54' }}>
+                  <Icon name="arrow_back" />
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-base flex-shrink-0" style={{ background: 'linear-gradient(135deg,#f9a8d4,#ec4899)' }}>E</div>
+                  <div>
+                    <p className="text-sm font-bold leading-none">Emma</p>
+                    <p className="text-[10px] opacity-80">Online</p>
+                  </div>
+                </div>
+                <div className="p-4 space-y-4 min-h-[380px]" style={{ background: '#e5ddd5' }}>
+                  <div className="msg-1 bg-white p-3 rounded-xl rounded-tl-none shadow-sm max-w-[80%] text-sm">
+                    Hey! Do you have anything free Saturday afternoon? Two weeks time?
+                  </div>
+                  <div className="msg-2 p-3 rounded-xl rounded-tr-none shadow-sm ml-auto max-w-[80%] text-sm" style={{ background: '#dcf8c6' }}>
+                    <p className="font-bold text-[10px] mb-1" style={{ color: '#92405e' }}>Florrie AI</p>
+                    Hi Emma! I've got Saturday 12 April at 2pm or 4pm free for a full set. Want me to pencil you in? 💅
+                  </div>
+                  <div className="msg-3 bg-white p-3 rounded-xl rounded-tl-none shadow-sm max-w-[80%] text-sm">
+                    2pm please!
+                  </div>
+                  <div className="msg-4 p-3 rounded-xl rounded-tr-none shadow-sm ml-auto max-w-[80%] text-sm" style={{ background: '#dcf8c6' }}>
+                    <p className="font-bold text-[10px] mb-1" style={{ color: '#92405e' }}>Florrie AI</p>
+                    Done! Booking confirmed for 2pm. I've sent your patch test reminder too. See you then! 🌸
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Testimonial */}
-      <section className="testimonial-section">
-        <div className="container-narrow">
-          <div className="testimonial-quote">
-            <div className="quote-mark">"</div>
-            <p className="testimonial-text">I used to spend my Sunday nights sorting next week's diary. Now Florrie does it in seconds.</p>
-            <p className="testimonial-attribution">Maya P. — Brow artist, Manchester</p>
+      {/* ── SOCIAL PROOF BAR ── */}
+      <section className="bg-white py-12 border-y border-surface-container overflow-hidden">
+        <div className="max-w-[1200px] mx-auto px-6">
+          <div className="flex flex-wrap justify-center md:justify-between items-center gap-8 text-on-surface-variant font-medium opacity-80">
+            <div className="flex items-center gap-2"><span className="text-secondary flex"><StarFilled /></span> 4.9 on Google</div>
+            <div className="hidden md:block w-px h-4 bg-outline-variant/30"></div>
+            <div>Trusted by beauty pros in 40+ UK towns</div>
+            <div className="hidden md:block w-px h-4 bg-outline-variant/30"></div>
+            <div>200+ active users</div>
+            <div className="hidden md:block w-px h-4 bg-outline-variant/30"></div>
+            <div className="italic">"Finally, an app that gets it" — Emily, Manchester</div>
           </div>
         </div>
       </section>
 
-      {/* Final CTA */}
-      <section className="final-cta" id="start">
-        <div className="container-narrow">
-          <h2 className="display-italic">Your salon deserves this</h2>
-          <p className="final-cta-subtext">14-day free trial. Everything included. No card required.</p>
-          <a href="/login" className="final-cta-btn" onClick={goToLogin}>Try for free</a>
-          <p className="form-note">Already have an account? <a href="/login" onClick={goToLogin} style={{ color: 'rgba(255,255,255,0.95)' }}>Sign in</a></p>
+      {/* ── PROBLEM ── */}
+      <section className="py-24 px-6 bg-surface-container-low">
+        <div className="max-w-[1000px] mx-auto text-center mb-16">
+          <h2 className="text-4xl lg:text-5xl font-serif italic mb-6">Running a beauty business is a full-time job. Running it solo is two.</h2>
+          <p className="text-lg text-on-surface-variant max-w-2xl mx-auto">
+            You trained to do hair, nails, lashes — not to spend your evenings replying to enquiries, chasing receipts and trying to remember who needs a patch test retake. Florrie handles the admin layer so you can get back to the work you're good at.
+          </p>
+        </div>
+        <div className="max-w-[1200px] mx-auto grid md:grid-cols-2 gap-8">
+          <div className="bg-white p-8 rounded-xl shadow-florrie space-y-4">
+            <div className="flex items-center gap-3 text-error">
+              <Icon name="block" /><h3 className="font-bold text-xl">The old way</h3>
+            </div>
+            <ul className="space-y-4">
+              {['Miss enquiries when you\'re with a client','Forgot to log that cash payment for tax','No-shows with no warning','Patch test records on a paper notepad'].map(t => (
+                <li key={t} className="flex gap-3 text-on-surface-variant"><Icon name="close" className="text-sm mt-1 text-error" />{t}</li>
+              ))}
+            </ul>
+          </div>
+          <div className="p-8 rounded-xl shadow-florrie space-y-4 border-l-4 border-primary" style={{ background: '#ffd9e2' }}>
+            <div className="flex items-center gap-3 text-primary">
+              <Icon name="check_circle" style={{ fontVariationSettings: "'FILL' 1" }} />
+              <h3 className="font-bold text-xl">The Florrie way</h3>
+            </div>
+            <ul className="space-y-4">
+              {['Booking Agent replies instantly, 24/7','Tax Agent logs every payment automatically','Follow-up Agent sends reminders and holds deposits','Compliance Agent keeps digital records up to date'].map(t => (
+                <li key={t} className="flex gap-3" style={{ color: '#782b49' }}><Icon name="done" className="text-sm mt-1 text-primary" />{t}</li>
+              ))}
+            </ul>
+          </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <div className="landing-footer">
-        <div className="footer-content">
-          <div className="footer-logo">florrie</div>
-          <span>© 2026</span>
-          <div className="footer-links">
-            <a href="#">Privacy</a>
-            <a href="#">Terms</a>
+      {/* ── FEATURES ── */}
+      <section className="py-24 px-6 bg-white" id="features">
+        <div className="max-w-[1200px] mx-auto">
+          <div className="mb-16">
+            <span className="text-primary font-bold tracking-widest uppercase text-xs">What Florrie does</span>
+            <h2 className="text-4xl lg:text-5xl font-serif italic mt-4">Everything you need in one place.</h2>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8 lg:gap-12">
+            {[
+              { icon: 'chat_bubble',    title: 'AI Receptionist',       desc: 'Reads every WhatsApp message and replies in seconds — booking appointments, answering FAQs and handling reschedules while you work.' },
+              { icon: 'calendar_month', title: 'Smart Booking',          desc: 'Clients book via your link or WhatsApp. Florrie checks availability, confirms appointments and sends reminders — no double-bookings, no gaps left open.' },
+              { icon: 'payments',       title: 'Tax Dashboard',          desc: 'Built for UK sole traders. Log income, track expenses and see your HMRC estimate in real time — no spreadsheets, no boxes of receipts.' },
+              { icon: 'verified_user',  title: 'Compliance Tracking',    desc: 'Patch test records, allergy histories and consultation forms in one place. Florrie flags when a patch test is due before an appointment.' },
+              { icon: 'groups',         title: 'Client Profiles',        desc: 'Every client\'s booking history, notes, preferences and records in one card. Know exactly who\'s coming in before they walk through the door.' },
+              { icon: 'send',           title: 'Automated Follow-ups',   desc: 'Thank-you messages, review requests and rebooking nudges go out after every appointment — without you touching your phone.' },
+            ].map(({ icon, title, desc }) => (
+              <div key={title} className="group">
+                <div className="w-14 h-14 bg-primary-fixed rounded-full flex items-center justify-center mb-6 transition-transform group-hover:scale-110">
+                  <Icon name={icon} className="text-primary text-3xl" />
+                </div>
+                <h3 className="font-bold text-xl mb-3">{title}</h3>
+                <p className="text-on-surface-variant">{desc}</p>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      </section>
+
+      {/* ── AI TEAM ── */}
+      <section id="ai-team" className="py-24 px-6 relative overflow-hidden" style={{ background: '#1A1A1A' }}>
+        <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse 60% 50% at 50% 50%, rgba(199,107,138,0.12) 0%, transparent 70%)' }}></div>
+        <div className="max-w-[1200px] mx-auto relative" style={{ zIndex: 10 }}>
+          <div className="text-center mb-16">
+            <span className="font-bold tracking-widest uppercase text-xs" style={{ color: '#C76B8A' }}>Your AI team</span>
+            <h2 className="text-4xl lg:text-5xl font-serif italic mt-4 text-white">Five AI employees.<br/>Zero extra desks.</h2>
+            <p className="mt-6 max-w-2xl mx-auto text-lg" style={{ color: 'rgba(255,255,255,0.6)' }}>
+              Florrie isn't one AI. It's five specialised agents running in parallel — each handling a different part of your business, sharing context, handing off to each other when needed.
+            </p>
+          </div>
+
+          {/* Desktop orbital */}
+          <div className="relative mx-auto hidden lg:block" style={{ width: 520, height: 520 }}>
+            <div className="absolute inset-0 rounded-full border border-dashed" style={{ borderColor: 'rgba(255,255,255,0.08)', animation: 'spin 80s linear infinite' }}></div>
+            {/* SVG lines */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 520 520" style={{ zIndex: 0 }}>
+              <line x1="260" y1="260" x2="260" y2="76"  stroke="#C76B8A" strokeWidth="1.5" strokeDasharray="5 5" opacity="0.4" className="agent-line"/>
+              <line x1="260" y1="260" x2="441" y2="201" stroke="#C9A96E" strokeWidth="1.5" strokeDasharray="5 5" opacity="0.4" className="agent-line-2"/>
+              <line x1="260" y1="260" x2="372" y2="414" stroke="#A78BFA" strokeWidth="1.5" strokeDasharray="5 5" opacity="0.4" className="agent-line-3"/>
+              <line x1="260" y1="260" x2="148" y2="414" stroke="#7BC8A4" strokeWidth="1.5" strokeDasharray="5 5" opacity="0.4" className="agent-line-4"/>
+              <line x1="260" y1="260" x2="79"  y2="201" stroke="#67B8C5" strokeWidth="1.5" strokeDasharray="5 5" opacity="0.4" className="agent-line-5"/>
+            </svg>
+            {/* Hub */}
+            <div className="agent-hub absolute rounded-full flex items-center justify-center" style={{ top:'50%', left:'50%', transform:'translate(-50%,-50%)', width:96, height:96, background:'#C76B8A', zIndex:20 }}>
+              <PetalIcon />
+            </div>
+            {/* Agents */}
+            {[
+              { cls:'agent-1', top:'13.5%', left:'50%',   color:'#C76B8A', icon:'chat_bubble',  label:'Booking Agent',    dot:'online-dot' },
+              { cls:'agent-2', top:'38.7%', left:'84.8%', color:'#C9A96E', icon:'receipt_long', label:'Tax Agent',        dot:'online-dot-2' },
+              { cls:'agent-3', top:'79.6%', left:'71.5%', color:'#A78BFA', icon:'send',         label:'Follow-up Agent',  dot:'online-dot-3' },
+              { cls:'agent-4', top:'79.6%', left:'28.5%', color:'#7BC8A4', icon:'verified_user',label:'Compliance Agent', dot:'online-dot-4' },
+              { cls:'agent-5', top:'38.7%', left:'15.2%', color:'#67B8C5', icon:'insights',     label:'Insights Agent',   dot:'online-dot-5' },
+            ].map(({ cls, top, left, color, icon, label, dot }) => (
+              <div key={label} className={`${cls} absolute text-center`} style={{ top, left, transform:'translate(-50%,-50%)', zIndex:10 }}>
+                <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2" style={{ background:`${color}33`, border:`1px solid ${color}66` }}>
+                  <Icon name={icon} className="text-2xl" style={{ color }} />
+                </div>
+                <p className="text-white text-xs font-semibold whitespace-nowrap">{label}</p>
+                <div className="flex items-center justify-center gap-1 mt-1">
+                  <span className={`w-1.5 h-1.5 rounded-full ${dot} inline-block`} style={{ background:'#34d399' }}></span>
+                  <span className="text-[10px]" style={{ color: 'rgba(255,255,255,0.4)' }}>active</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Mobile grid */}
+          <div className="grid grid-cols-2 gap-4 lg:hidden mt-8 max-w-sm mx-auto">
+            {[
+              { color:'#C76B8A', icon:'chat_bubble',  label:'Booking Agent',    sub:'WhatsApp bookings, 24/7',       span:false },
+              { color:'#C9A96E', icon:'receipt_long', label:'Tax Agent',        sub:'Income, expenses, HMRC',        span:false },
+              { color:'#7BC8A4', icon:'verified_user',label:'Compliance Agent', sub:'Patch tests, records',          span:false },
+              { color:'#A78BFA', icon:'send',         label:'Follow-up Agent',  sub:'Reminders, rebooking',          span:false },
+              { color:'#67B8C5', icon:'insights',     label:'Insights Agent',   sub:'Weekly revenue and performance summaries', span:true  },
+            ].map(({ color, icon, label, sub, span }) => (
+              <div key={label} className={`${span ? 'col-span-2' : ''} rounded-2xl p-5 text-center`} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: `${color}33` }}>
+                  <Icon name={icon} style={{ color }} />
+                </div>
+                <p className="text-white text-sm font-semibold">{label}</p>
+                <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>{sub}</p>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-center text-sm mt-12 max-w-lg mx-auto" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            All five agents are included in every Florrie plan. No add-ons, no tiers, no switching between tools.
+          </p>
+        </div>
+      </section>
+
+      {/* ── HOW IT WORKS ── */}
+      <section className="py-24 px-6" id="how-it-works" style={{ background: '#F5EBF0' }}>
+        <div className="max-w-[1200px] mx-auto">
+          <h2 className="text-4xl lg:text-5xl font-serif italic mb-16 text-center">Up and running in 10 minutes.</h2>
+          <div className="relative flex flex-col md:flex-row gap-12 items-start">
+            <div className="hidden md:block absolute top-12 left-0 w-full h-0.5 bg-primary/20" style={{ zIndex: 0 }}>
+              <div className="h-full bg-primary w-2/3"></div>
+            </div>
+            {[
+              { n:'1', title:'Sign up',            desc:'Add your services, set your availability and tell Florrie how you like to work. Takes about 10 minutes. No card needed to start.', active:true },
+              { n:'2', title:'Connect WhatsApp',   desc:'Link your business number. Florrie sits in the background — your clients message the same number they already have. Nothing changes for them.', active:true },
+              { n:'3', title:'Let Florrie work',   desc:'From the moment it\'s live, your five AI agents handle replies, bookings and reminders. Check the dashboard when it suits you.', active:false },
+            ].map(({ n, title, desc, active }) => (
+              <div key={n} className="relative flex-1 space-y-6" style={{ zIndex: 10 }}>
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl border-4 ${active ? 'bg-primary text-on-primary border-[#F5EBF0]' : 'bg-surface-container text-on-surface-variant border-[#F5EBF0]'}`}>{n}</div>
+                <h3 className="font-bold text-2xl">{title}</h3>
+                <p className="text-on-surface-variant">{desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── TESTIMONIALS ── */}
+      <section className="py-24 px-6 bg-white overflow-hidden">
+        <div className="max-w-[1200px] mx-auto">
+          <h2 className="text-4xl lg:text-5xl font-serif italic mb-16 text-center">Real beauty pros. Real results.</h2>
+          <div className="grid md:grid-cols-3 gap-8">
+            {[
+              { name:'Sarah', role:'Nail Tech, Bristol',           grad:'linear-gradient(135deg,#fca5a5,#f472b6)', quote:'"I used to spend every Sunday evening booking people in. Now I actually watch a film with my kids. The Booking Agent handles everything while I\'m sleeping."' },
+              { name:'Jade',  role:'Lash Artist, London',          grad:'linear-gradient(135deg,#fcd34d,#fb923c)', quote:'"The tax dashboard is worth the £29 on its own. I used to dread January. Now I screenshot the summary and send it straight to my accountant."' },
+              { name:'Priya', role:'Beauty Therapist, Manchester', grad:'linear-gradient(135deg,#c4b5fd,#818cf8)', quote:'"My no-show rate dropped from about 20% to almost nothing. The Follow-up Agent sends reminders that are firm but warm — clients actually appreciate them."' },
+            ].map(({ name, role, grad, quote }) => (
+              <div key={name} className="p-8 bg-surface-container-low rounded-xl relative" style={{ borderLeft: '4px solid #745a27' }}>
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-xl flex-shrink-0" style={{ background: grad }}>{name[0]}</div>
+                  <div><p className="font-bold">{name}</p><p className="text-sm text-on-surface-variant">{role}</p></div>
+                </div>
+                <div className="inline-block px-2 py-0.5 bg-secondary-container text-on-secondary-container rounded text-[10px] font-bold uppercase tracking-wider mb-4">Florrie client since 2024</div>
+                <blockquote className="font-serif italic text-xl leading-relaxed">{quote}</blockquote>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── PRICING ── */}
+      <section className="py-24 px-6 bg-background" id="pricing">
+        <div className="max-w-[1200px] mx-auto text-center">
+          <span className="text-primary font-bold tracking-widest uppercase text-xs">Simple pricing</span>
+          <h2 className="text-4xl lg:text-5xl font-serif italic mt-4 mb-4">One plan. No surprises.</h2>
+          <p className="text-on-surface-variant mb-12">No contracts. Cancel any time.</p>
+          <div className="inline-flex items-center p-1 bg-surface-container rounded-full mb-12">
+            <button
+              className={`px-6 py-2 rounded-full font-bold transition-all ${pricing === 'monthly' ? 'bg-white shadow-sm' : 'text-on-surface-variant'}`}
+              onClick={() => setPricing('monthly')}
+            >Monthly</button>
+            <button
+              className={`px-6 py-2 font-bold transition-all ${pricing === 'annual' ? 'bg-white shadow-sm rounded-full' : 'text-on-surface-variant'}`}
+              onClick={() => setPricing('annual')}
+            >Annual <span className="text-primary text-xs ml-1">(2 months free)</span></button>
+          </div>
+          <div className="max-w-md mx-auto bg-white rounded-[2rem] p-10 shadow-florrie relative" style={{ border: '2px solid rgba(146,64,94,0.1)' }}>
+            <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-on-primary px-4 py-1 rounded-full text-xs font-bold tracking-widest uppercase">All 5 AI agents included</div>
+            <h3 className="text-3xl font-serif italic mb-2">Florrie Pro</h3>
+            <div className="flex items-center justify-center gap-1 mb-1">
+              <span className="text-4xl font-bold">{price}</span>
+              <span className="text-on-surface-variant">{period}</span>
+            </div>
+            <p className="text-on-surface-variant text-sm mb-8">{note}</p>
+            <ul className="text-left space-y-4 mb-10">
+              {['AI WhatsApp Receptionist','Smart booking & reminders','Tax & income dashboard','Compliance & client records','Unlimited clients & appointments','All 5 AI agents, always on'].map(f => (
+                <li key={f} className="flex gap-3"><Icon name="check" className="text-primary" />{f}</li>
+              ))}
+            </ul>
+            <a className="block w-full bg-primary text-on-primary py-4 rounded-xl font-bold text-lg hover:scale-105 transition-transform text-center" href="/login">Start your free 14-day trial</a>
+            <p className="text-xs text-on-surface-variant mt-4">No card required to start.</p>
+          </div>
+          <p className="text-on-surface-variant text-sm mt-8">Running a small team? <a href="/login" className="text-primary font-semibold">Ask about our team plan →</a></p>
+        </div>
+      </section>
+
+      {/* ── FINAL CTA ── */}
+      <section className="py-24 px-6">
+        <div className="max-w-[1200px] mx-auto rounded-[3rem] p-12 lg:p-24 text-center relative overflow-hidden shadow-2xl" style={{ background: '#31302f' }}>
+          <div className="absolute top-0 right-0 w-96 h-96 blur-[100px]" style={{ background: 'rgba(146,64,94,0.2)', transform: 'translate(50%,-50%)' }}></div>
+          <div className="absolute bottom-0 left-0 w-96 h-96 blur-[100px]" style={{ background: 'rgba(116,90,39,0.1)', transform: 'translate(-50%,50%)' }}></div>
+          <div className="relative space-y-8" style={{ zIndex: 10 }}>
+            <span className="font-bold tracking-widest uppercase text-xs" style={{ color: '#C76B8A' }}>Start today</span>
+            <h2 className="text-4xl lg:text-6xl font-serif italic text-white leading-tight">Your next client is already<br/>typing a message.</h2>
+            <p className="text-lg max-w-xl mx-auto" style={{ color: 'rgba(255,255,255,0.7)' }}>Make sure Florrie's there to answer it.</p>
+            <div className="pt-4">
+              <a className="inline-flex items-center gap-3 bg-primary text-on-primary px-10 py-5 rounded-full font-bold text-xl hover:bg-primary-container transition-all" href="/login">
+                Start your free 14-day trial <Icon name="arrow_forward" />
+              </a>
+            </div>
+            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>No card required · Cancel any time · Set up in 10 minutes</p>
+          </div>
+        </div>
+      </section>
+
+      {/* ── FOOTER ── */}
+      <footer className="bg-surface-container-low pt-20 pb-10">
+        <div className="max-w-[1200px] mx-auto px-10 grid grid-cols-1 md:grid-cols-4 gap-12 mb-20">
+          <div className="space-y-6">
+            <a href="/"><FloLogoFooter /></a>
+            <p className="text-on-surface-variant text-sm">AI for independent beauty professionals. Built in the UK.</p>
+          </div>
+          <div>
+            <h4 className="font-bold mb-6 text-sm uppercase tracking-widest text-primary">Product</h4>
+            <ul className="space-y-4 text-sm text-on-surface-variant">
+              {[['Features','#features'],['AI Team','#ai-team'],['Pricing','#pricing'],['How it works','#how-it-works']].map(([l,h]) => (
+                <li key={l}><a className="hover:text-primary transition-colors" href={h}>{l}</a></li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-bold mb-6 text-sm uppercase tracking-widest text-primary">Company</h4>
+            <ul className="space-y-4 text-sm text-on-surface-variant">
+              {[['About','#'],['Privacy policy','#'],['Terms of service','#']].map(([l,h]) => (
+                <li key={l}><a className="hover:text-primary transition-colors" href={h}>{l}</a></li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-bold mb-6 text-sm uppercase tracking-widest text-primary">Connect</h4>
+            <ul className="space-y-4 text-sm text-on-surface-variant">
+              {[['Instagram','#'],['TikTok','#'],['hello@florrie.ai','mailto:hello@florrie.ai']].map(([l,h]) => (
+                <li key={l}><a className="hover:text-primary transition-colors" href={h}>{l}</a></li>
+              ))}
+            </ul>
+          </div>
+        </div>
+        <div className="max-w-[1200px] mx-auto px-10 pt-10 flex flex-col md:flex-row justify-between items-center gap-6" style={{ borderTop: '1px solid rgba(134,114,119,0.2)' }}>
+          <p className="text-sm text-on-surface-variant/70">© 2025 Florrie Ltd. All rights reserved.</p>
+          <div className="flex gap-6">
+            <a className="text-on-surface-variant hover:text-primary transition-colors" href="#"><Icon name="public" /></a>
+            <a className="text-on-surface-variant hover:text-primary transition-colors" href="mailto:hello@florrie.ai"><Icon name="mail" /></a>
+          </div>
+        </div>
+      </footer>
+
     </div>
   );
 }
