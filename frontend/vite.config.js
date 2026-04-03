@@ -93,8 +93,12 @@ export default defineConfig({
             },
           },
         ],
-        // Precache the app shell
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Precache the app shell (exclude landing page — it's served separately)
+        globPatterns: ['**/*.{js,css,ico,png,svg,woff2}', 'index.html'],
+        globIgnores: ['landing.html', 'landing-v2.html'],
+        // Don't intercept navigation to landing page
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/landing\.html$/, /^\/$/,  /^\/api\//, /^\/book\//],
         // Skip waiting so updates apply immediately
         skipWaiting: true,
         clientsClaim: true,
