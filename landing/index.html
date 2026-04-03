@@ -1072,6 +1072,218 @@
         font-size: 48px;
       }
     }
+
+    /* ===== WAITLIST FORM ===== */
+    .waitlist-form {
+      max-width: 440px;
+      margin: 0 auto;
+    }
+
+    .waitlist-input-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .waitlist-input {
+      flex: 1;
+      padding: 14px 18px;
+      border: 1.5px solid #d8c1c6;
+      border-radius: 12px;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 15px;
+      color: #1d1b19;
+      background: #ffffff;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    .waitlist-input:focus {
+      border-color: #92405e;
+    }
+
+    .waitlist-input::placeholder {
+      color: #b8a3a8;
+    }
+
+    .waitlist-btn {
+      padding: 14px 24px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #c76b8a 0%, #92405e 100%);
+      color: #ffffff;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 2px 8px rgba(146, 64, 94, 0.25);
+    }
+
+    .waitlist-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(146, 64, 94, 0.3);
+    }
+
+    .waitlist-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .waitlist-form .success-message,
+    .waitlist-form .error-message {
+      margin-top: 8px;
+      margin-bottom: 0;
+    }
+
+    @media (max-width: 480px) {
+      .waitlist-input-row {
+        flex-direction: column;
+      }
+      .waitlist-btn {
+        width: 100%;
+      }
+    }
+
+    /* ===== WHATSAPP CALLOUT ===== */
+    .whatsapp-callout {
+      background: #f3ede9;
+      padding: 80px 24px;
+    }
+
+    .whatsapp-callout-inner {
+      max-width: 700px;
+      margin: 0 auto;
+      background: #ffffff;
+      border-radius: 20px;
+      padding: 48px 48px 40px;
+      border: 1px solid #d8c1c6;
+      position: relative;
+      overflow: hidden;
+      text-align: center;
+    }
+
+    .whatsapp-callout-inner::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: #25D366;
+    }
+
+    .whatsapp-icon {
+      width: 52px;
+      height: 52px;
+      background: #25D366;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+    }
+
+    .whatsapp-callout h2 {
+      font-size: clamp(22px, 4vw, 32px);
+      margin-bottom: 20px;
+    }
+
+    .whatsapp-callout p {
+      font-size: 16px;
+      color: #534247;
+      line-height: 1.75;
+      margin-bottom: 14px;
+      max-width: 540px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .whatsapp-callout p:last-of-type {
+      margin-bottom: 0;
+    }
+
+    .whatsapp-stat {
+      display: inline-block;
+      margin-top: 28px;
+      padding: 10px 22px;
+      background: rgba(37, 211, 102, 0.08);
+      border: 1px solid rgba(37, 211, 102, 0.25);
+      border-radius: 8px;
+      font-size: 13px;
+      color: #1d1b19;
+      font-weight: 600;
+    }
+
+    @media (max-width: 640px) {
+      .whatsapp-callout-inner {
+        padding: 32px 24px 28px;
+      }
+    }
+
+    /* ===== REPLACE TOOLS (pricing comparison) ===== */
+    .replace-tools {
+      max-width: 440px;
+      margin: 32px auto 0;
+      background: #f3ede9;
+      border-radius: 14px;
+      padding: 24px 28px;
+      text-align: left;
+    }
+
+    .replace-tools-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #867277;
+      margin-bottom: 16px;
+    }
+
+    .replace-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 9px 0;
+      border-bottom: 1px solid rgba(216, 193, 198, 0.4);
+      font-size: 14px;
+    }
+
+    .replace-row:last-of-type {
+      border-bottom: none;
+    }
+
+    .replace-row-name {
+      color: #534247;
+    }
+
+    .replace-row-price {
+      font-family: 'DM Mono', monospace;
+      font-size: 13px;
+      color: #92405e;
+      text-decoration: line-through;
+      opacity: 0.65;
+    }
+
+    .replace-total-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0 0;
+      font-size: 15px;
+      font-weight: 700;
+      color: #1d1b19;
+      margin-top: 4px;
+      border-top: 1px solid rgba(216, 193, 198, 0.6);
+    }
+
+    .replace-total-price {
+      font-family: 'DM Mono', monospace;
+      font-size: 16px;
+      color: #92405e;
+    }
   </style>
 </head>
 <body>
@@ -1081,7 +1293,7 @@
       <div class="logo">florrie</div>
       <div class="nav-links">
         <a href="/login" class="nav-signin">Sign in</a>
-        <a href="/login" class="nav-cta">Try for free</a>
+        <a href="#start" class="nav-cta">Join waitlist</a>
       </div>
     </div>
   </nav>
@@ -1093,12 +1305,15 @@
       <h1 class="display-italic">The AI that runs your salon while you run your business</h1>
       <p class="hero-subtext">Florrie handles your bookings, replies to clients in your voice, tracks your tax, and keeps you compliant. You focus on the chair.</p>
 
-      <a href="/login" class="hero-cta">Try for free</a>
-      <p class="hero-note">14-day free trial. No card required.</p>
-      <div class="success-message" id="heroSuccess" style="display:none">
-        Check your email—we'll be in touch soon.
-      </div>
-      <p class="form-note">Free to join. No card needed.</p>
+      <form class="waitlist-form" id="heroForm">
+        <div class="waitlist-input-row">
+          <input type="email" class="waitlist-input" placeholder="your@email.com" required>
+          <button type="submit" class="waitlist-btn">Join waitlist</button>
+        </div>
+        <div class="error-message" id="heroError"></div>
+        <div class="success-message" id="heroSuccess"></div>
+      </form>
+      <p class="hero-note" style="margin-top: 14px;">Launching soon. First to join, first to get access.</p>
     </div>
   </section>
 
@@ -1144,6 +1359,26 @@
       <h2 class="section-heading pitch-headline">Compliance on autopilot</h2>
       <p class="pitch-text">Patch test tracking, consultation forms, aftercare messages. Florrie knows which clients need what, and sends reminders before their appointment. Not after something goes wrong.</p>
     </div>
+
+    <div class="pitch-block">
+      <h2 class="section-heading pitch-headline">Your Instagram, handled</h2>
+      <p class="pitch-text">Florrie drafts your captions, replies to DMs, and keeps your posting consistent — without you having to think about it on a Sunday evening. Connect your account once and the content brain comes off your plate.</p>
+    </div>
+  </section>
+
+  <!-- WhatsApp Callout -->
+  <section class="whatsapp-callout">
+    <div class="whatsapp-callout-inner">
+      <div class="whatsapp-icon">
+        <svg width="27" height="27" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+        </svg>
+      </div>
+      <h2 class="display-italic">WhatsApp is your business. Florrie lives there too.</h2>
+      <p>Most UK beauticians already run their diary through WhatsApp. No apps for clients to download. No portals to remember. Clients message you the way they always have — Florrie just handles it on your behalf.</p>
+      <p>She replies in your name, takes bookings, sends confirmations, fills cancellation slots from your waitlist, and keeps every conversation in one place. All through the number your clients already have saved.</p>
+      <div class="whatsapp-stat">92% of UK beauticians say WhatsApp is their main client channel</div>
+    </div>
   </section>
 
   <!-- Dividers & Social Proof -->
@@ -1168,6 +1403,7 @@
     <div class="meet-body">
       <p>Florrie reads your WhatsApp, Instagram DMs, texts, and emails. She replies in your voice. Not a chatbot voice. Yours. She writes "hiya lovely" because that's what you write. She knows your cancellation policy word for word. She knows you don't take bookings before 10 on Mondays.</p>
       <p>She gets better every time you correct her. Changed a reply she sent? She remembers why and adjusts next time. After a week, your regulars won't notice the difference. New clients will think you reply fast.</p>
+      <p>Got an existing client list? Import it from a spreadsheet in seconds. Every name, number, and note carries over — Florrie knows who everyone is from day one, no manual entry required.</p>
       <p>She books appointments, sends confirmations, chases no-shows, fills last-minute gaps from your waitlist, and nudges clients to rebook when they're due. All while you're with a client, or at the gym, or asleep.</p>
       <div class="meet-detail">
         When she's not sure about something, she flags it and steps aside. Complaints, clinical questions, anything sensitive. You decide. She learns from that too.
@@ -1285,11 +1521,38 @@
           <div class="pricing-feature">Analytics & reports</div>
           <div class="pricing-feature">120 messages/month included</div>
         </div>
-        <a href="/login" class="pricing-cta-btn" style="display:inline-block; padding:14px 40px; border:none; border-radius:12px; background:linear-gradient(135deg, #c76b8a 0%, #92405e 100%); color:#fff; font-family:'Plus Jakarta Sans', sans-serif; font-size:15px; font-weight:600; text-decoration:none; cursor:pointer; box-shadow:0 2px 8px rgba(146,64,94,0.25); transition:transform 0.2s ease;">Try for free</a>
+        <form class="waitlist-form" id="pricingForm" style="margin: 0;">
+          <div class="waitlist-input-row" style="flex-direction: column; gap: 8px;">
+            <input type="email" class="waitlist-input" placeholder="your@email.com" required>
+            <button type="submit" class="waitlist-btn" style="width: 100%; padding: 14px;">Join waitlist</button>
+          </div>
+          <div class="error-message" id="pricingError"></div>
+          <div class="success-message" id="pricingSuccess"></div>
+        </form>
       </div>
     </div>
 
-    <div style="text-align: center; margin-top: 32px; max-width: 480px; margin-left: auto; margin-right: auto;">
+    <div class="replace-tools">
+      <div class="replace-tools-label">What you're replacing</div>
+      <div class="replace-row">
+        <span class="replace-row-name">Booking app (Treatwell, Fresha Pro)</span>
+        <span class="replace-row-price">~£35/mo</span>
+      </div>
+      <div class="replace-row">
+        <span class="replace-row-name">Tax software (QuickBooks, FreeAgent)</span>
+        <span class="replace-row-price">~£15/mo</span>
+      </div>
+      <div class="replace-row">
+        <span class="replace-row-name">Accountant sorting receipts</span>
+        <span class="replace-row-price">~£33/mo</span>
+      </div>
+      <div class="replace-total-row">
+        <span>Florrie — all three</span>
+        <span class="replace-total-price">£29/mo</span>
+      </div>
+    </div>
+
+    <div style="text-align: center; margin-top: 24px; max-width: 480px; margin-left: auto; margin-right: auto;">
       <p class="mono" style="font-size: 12px; color: #867277;">Got a team? Add extra seats for £15/month each. Multi-location, staff rota, performance tracking included.</p>
     </div>
   </section>
@@ -1308,11 +1571,18 @@
   <!-- Final CTA -->
   <section class="final-cta" id="start">
     <div class="container-narrow">
-      <h2 class="display-italic">Your salon deserves this</h2>
-      <p class="final-cta-subtext">14-day free trial. Everything included. No card required.</p>
+      <h2 class="display-italic">Be the first salon on the list</h2>
+      <p class="final-cta-subtext" style="margin-bottom: 32px;">We're opening doors to a small group of early salons. Join the waitlist and you'll hear from us first.</p>
 
-      <a href="/login" class="final-cta-btn">Try for free</a>
-      <p class="form-note">Already have an account? <a href="/login" style="color:#92405e;">Sign in</a></p>
+      <form class="waitlist-form" id="finalForm" style="max-width: 420px;">
+        <div class="waitlist-input-row">
+          <input type="email" class="waitlist-input" placeholder="your@email.com" required style="background: rgba(255,255,255,0.97);">
+          <button type="submit" class="waitlist-btn" style="background: #ffffff; color: #92405e; box-shadow: 0 2px 8px rgba(0,0,0,0.12);">Join waitlist</button>
+        </div>
+        <div class="error-message" id="finalError" style="background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.4); color: #fff;"></div>
+        <div class="success-message" id="finalSuccess" style="background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.4); color: #fff;"></div>
+      </form>
+      <p class="form-note" style="margin-top: 14px;">No spam. Just early access and launch updates.</p>
     </div>
   </section>
 
@@ -1343,11 +1613,7 @@
         const isAnnual = period === 'annual';
 
         priceAmounts.forEach(el => {
-          if (isAnnual) {
-            el.textContent = el.dataset.annual;
-          } else {
-            el.textContent = el.dataset.monthly;
-          }
+          el.textContent = isAnnual ? el.dataset.annual : el.dataset.monthly;
         });
 
         monthlyTexts.forEach(el => {
@@ -1360,6 +1626,64 @@
     function scrollToStart() {
       document.getElementById('start').scrollIntoView({ behavior: 'smooth' });
     }
+
+    // Waitlist form submission
+    async function submitWaitlist(formId, successId, errorId, source) {
+      const form = document.getElementById(formId);
+      const input = form.querySelector('.waitlist-input');
+      const btn = form.querySelector('.waitlist-btn');
+      const successEl = document.getElementById(successId);
+      const errorEl = document.getElementById(errorId);
+      const email = input.value.trim();
+
+      if (!email) return;
+
+      const originalText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Joining...';
+      if (errorEl) { errorEl.textContent = ''; errorEl.classList.remove('show'); }
+
+      try {
+        const res = await fetch('/api/waitlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, source })
+        });
+
+        if (res.ok) {
+          form.querySelector('.waitlist-input-row').style.display = 'none';
+          if (successEl) {
+            successEl.textContent = "You're on the list. We'll be in touch.";
+            successEl.classList.add('show');
+            successEl.style.display = 'block';
+          }
+        } else {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'Something went wrong. Try again.');
+        }
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = originalText;
+        if (errorEl) {
+          errorEl.textContent = err.message;
+          errorEl.classList.add('show');
+        }
+      }
+    }
+
+    [
+      { form: 'heroForm',    success: 'heroSuccess',    error: 'heroError',    source: 'hero' },
+      { form: 'pricingForm', success: 'pricingSuccess', error: 'pricingError', source: 'pricing' },
+      { form: 'finalForm',   success: 'finalSuccess',   error: 'finalError',   source: 'final' },
+    ].forEach(({ form, success, error, source }) => {
+      const el = document.getElementById(form);
+      if (el) {
+        el.addEventListener('submit', (e) => {
+          e.preventDefault();
+          submitWaitlist(form, success, error, source);
+        });
+      }
+    });
   </script>
 </body>
 </html>
