@@ -84,6 +84,7 @@ const SMSConfig = lazy(() => import('./pages/SMSConfig.jsx'));
 const APISettings = lazy(() => import('./pages/APISettings.jsx'));
 const Pricing = lazy(() => import('./pages/Pricing.jsx'));
 const Hub = lazy(() => import('./pages/Hub.jsx'));
+const LandingPage = lazy(() => import('./pages/LandingPage.jsx'));
 const NotFound = lazy(() => import('./pages/NotFound.jsx'));
 
 function PageLoader() {
@@ -191,6 +192,7 @@ export default function App() {
     return (
       <Suspense fallback={<PageLoader />}>
         <Routes>
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login supabase={supabase} />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
