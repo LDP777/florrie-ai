@@ -98,7 +98,7 @@ export default defineConfig({
         globIgnores: ['landing.html', 'landing-v2.html'],
         // Don't intercept navigation to landing page
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/landing\.html$/, /^\/$/,  /^\/api\//, /^\/book\//],
+        navigateFallbackDenylist: [/^\/landing\.html$/, /^\/api\//, /^\/book\//],
         // Skip waiting so updates apply immediately
         skipWaiting: true,
         clientsClaim: true,
