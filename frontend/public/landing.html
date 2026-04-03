@@ -161,7 +161,7 @@
     </div>
     <div class="flex items-center gap-4 lg:gap-6">
       <a class="hidden sm:block text-primary font-semibold hover:opacity-80 transition-opacity" href="#">Sign in</a>
-      <a class="bg-primary text-on-primary px-6 py-2.5 rounded-full font-semibold shadow-md hover:scale-95 transition-transform duration-200" href="#pricing">Start free trial</a>
+      <a class="bg-primary text-on-primary px-6 py-2.5 rounded-full font-semibold shadow-md hover:scale-95 transition-transform duration-200" href="#waitlist">Join waitlist</a>
     </div>
   </div>
 </nav>
@@ -203,9 +203,13 @@
           <span class="w-2 h-2 rounded-full bg-orange-400 online-dot"></span>Content Agent
         </span>
       </div>
-      <div class="flex flex-col sm:flex-row gap-4 pt-2">
-        <a class="bg-gradient-to-r from-primary to-primary-container text-on-primary px-8 py-4 rounded-full font-bold text-lg text-center hover:shadow-lg transition-all" href="#pricing">Start your free trial</a>
-        <a class="border border-outline-variant text-primary px-8 py-4 rounded-full font-bold text-lg text-center hover:bg-surface-container-low transition-colors" href="#how-it-works">See how it works</a>
+      <form class="flex flex-col sm:flex-row gap-3 pt-2" id="heroForm" onsubmit="submitWaitlist(event,'heroForm')">
+        <input type="email" placeholder="Enter your email" required class="flex-1 px-5 py-4 rounded-full border border-outline-variant bg-white text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary text-base" />
+        <button type="submit" class="bg-gradient-to-r from-primary to-primary-container text-on-primary px-8 py-4 rounded-full font-bold text-lg hover:shadow-lg transition-all whitespace-nowrap">Join the waitlist →</button>
+      </form>
+      <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 pt-1">
+        <p class="text-sm text-on-surface-variant">Free 14-day trial · No card needed · Set up in 10 minutes</p>
+        <a class="text-primary font-semibold text-sm hover:opacity-80 transition-opacity whitespace-nowrap" href="#how-it-works">See how it works →</a>
       </div>
       <div class="flex items-center gap-3 py-2">
         <div class="flex text-secondary">
@@ -457,6 +461,59 @@
 </section>
 
 <!-- ============================================================
+     5c. WHATSAPP FOR BEAUTICIANS
+     ============================================================ -->
+<section class="py-24 px-6 bg-[#F0F9F7]">
+  <div class="max-w-[1100px] mx-auto grid lg:grid-cols-2 gap-16 items-center">
+    <div class="space-y-6">
+      <div class="inline-flex items-center gap-2 px-4 py-1.5 bg-[#25D366]/15 text-[#128C7E] rounded-full text-sm font-bold">
+        <svg viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 flex-shrink-0"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+        Built for WhatsApp
+      </div>
+      <h2 class="text-4xl lg:text-5xl font-serif italic leading-tight">Your clients already have your number. Don't make them download anything.</h2>
+      <p class="text-on-surface-variant text-lg">Beauty clients book over WhatsApp. They don't want an app, a login, or a link they have to remember. Florrie plugs straight into the number they already text you on — your clients don't even notice there's an AI.</p>
+      <ul class="space-y-5">
+        <li class="flex gap-3 items-start">
+          <span class="material-symbols-outlined text-[#128C7E] mt-0.5 flex-shrink-0" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+          <span><strong>Keep your existing number.</strong> No new SIM, no second number. Florrie works quietly in the background on the number clients already text.</span>
+        </li>
+        <li class="flex gap-3 items-start">
+          <span class="material-symbols-outlined text-[#128C7E] mt-0.5 flex-shrink-0" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+          <span><strong>Replies in seconds, any hour.</strong> Saturday 11pm enquiries, Bank Holiday messages, 7am texts while you're on the school run — all answered instantly.</span>
+        </li>
+        <li class="flex gap-3 items-start">
+          <span class="material-symbols-outlined text-[#128C7E] mt-0.5 flex-shrink-0" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+          <span><strong>Import your clients in 30 seconds.</strong> Bring your existing client list across from any booking tool or spreadsheet. Florrie picks up right where you left off.</span>
+        </li>
+      </ul>
+    </div>
+    <!-- WhatsApp mockup -->
+    <div class="bg-white rounded-[2rem] p-6 shadow-florrie border border-surface-container max-w-sm mx-auto w-full">
+      <div class="bg-[#075e54] text-white rounded-t-xl px-4 py-3 flex items-center gap-3 -mx-2 mt-[-1.5rem] rounded-tl-[1.5rem] rounded-tr-[1.5rem]">
+        <div class="w-9 h-9 rounded-full bg-gradient-to-br from-rose-300 to-pink-400 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">K</div>
+        <div>
+          <p class="text-sm font-bold">Kira — London Lashes</p>
+          <p class="text-[10px] opacity-70">Florrie AI · Online</p>
+        </div>
+      </div>
+      <div class="bg-[#e5ddd5] p-4 space-y-3 rounded-b-xl -mx-2">
+        <div class="bg-white p-3 rounded-xl rounded-tl-none shadow-sm max-w-[85%] text-sm">Hi! Can I book a lash lift for next Saturday?</div>
+        <div class="bg-[#dcf8c6] p-3 rounded-xl rounded-tr-none shadow-sm ml-auto max-w-[85%] text-sm">
+          <p class="font-bold text-[#128C7E] text-[10px] mb-1">Florrie AI</p>
+          Hi! I've got Saturday 13th at 10am or 2pm free. Which works? 😊
+        </div>
+        <div class="bg-white p-3 rounded-xl rounded-tl-none shadow-sm max-w-[85%] text-sm">2pm please!</div>
+        <div class="bg-[#dcf8c6] p-3 rounded-xl rounded-tr-none shadow-sm ml-auto max-w-[85%] text-sm">
+          <p class="font-bold text-[#128C7E] text-[10px] mb-1">Florrie AI</p>
+          Done! Patch test reminder goes out 48hrs before. See you then 🌸
+        </div>
+      </div>
+      <p class="text-xs text-on-surface-variant text-center mt-4 italic">Florrie replied in 4 seconds · You were with a client</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
      6. AI TEAM — animated agent visualisation
      ============================================================ -->
 <section id="ai-team" class="py-24 px-6 bg-[#1A1A1A] relative overflow-hidden">
@@ -641,7 +698,7 @@
       <div class="relative z-10 flex-1 space-y-6">
         <div class="w-12 h-12 bg-surface-container text-on-surface-variant rounded-full flex items-center justify-center font-bold text-xl border-4 border-[#F5EBF0]">3</div>
         <h3 class="font-bold text-2xl">Let Florrie work</h3>
-        <p class="text-on-surface-variant">From the moment it's live, your five AI agents handle replies, bookings and reminders. Check the dashboard when it suits you.</p>
+        <p class="text-on-surface-variant">From the moment it's live, your six AI agents handle replies, bookings, content and reminders. Check the dashboard when it suits you.</p>
       </div>
     </div>
   </div>
@@ -705,6 +762,38 @@
     <span class="text-primary font-bold tracking-widest uppercase text-xs">Simple pricing</span>
     <h2 class="text-4xl lg:text-5xl font-serif italic mt-4 mb-4">One plan. No surprises.</h2>
     <p class="text-on-surface-variant mb-12">No contracts. Cancel any time.</p>
+
+    <!-- Replace-tools comparison -->
+    <div class="max-w-xl mx-auto mb-12 bg-white border border-surface-container rounded-2xl p-6 text-left shadow-florrie" id="waitlist">
+      <p class="text-center text-on-surface-variant text-xs font-bold mb-5 uppercase tracking-widest">What you're replacing for £29/mo</p>
+      <div class="space-y-3">
+        <div class="flex justify-between items-center text-sm py-1">
+          <span class="text-on-surface-variant">Booking app (Fresha, Acuity, Calendly)</span>
+          <span class="font-semibold text-error">~£20/mo</span>
+        </div>
+        <div class="flex justify-between items-center text-sm py-1">
+          <span class="text-on-surface-variant">Social media scheduling tool</span>
+          <span class="font-semibold text-error">~£12/mo</span>
+        </div>
+        <div class="flex justify-between items-center text-sm py-1">
+          <span class="text-on-surface-variant">Tax / bookkeeping app</span>
+          <span class="font-semibold text-error">~£15/mo</span>
+        </div>
+        <div class="flex justify-between items-center text-sm py-1">
+          <span class="text-on-surface-variant">WhatsApp chatbot / auto-reply tool</span>
+          <span class="font-semibold text-error">~£25/mo</span>
+        </div>
+        <div class="border-t border-outline-variant/30 mt-2 pt-3 flex justify-between items-center">
+          <span class="font-semibold text-sm text-on-surface-variant">All of that, bought separately</span>
+          <span class="font-bold text-error line-through text-lg">~£72/mo</span>
+        </div>
+        <div class="bg-primary-fixed rounded-xl px-4 py-3 flex justify-between items-center">
+          <span class="font-bold text-on-primary-fixed-variant">All of it. Inside Florrie.</span>
+          <span class="font-bold text-primary text-xl">£29/mo</span>
+        </div>
+      </div>
+    </div>
+
     <div class="inline-flex items-center p-1 bg-surface-container rounded-full mb-12">
       <button class="px-6 py-2 bg-white rounded-full font-bold shadow-sm" id="btn-monthly" onclick="togglePricing('monthly')">Monthly</button>
       <button class="px-6 py-2 font-bold text-on-surface-variant" id="btn-annual" onclick="togglePricing('annual')">Annual <span class="text-primary text-xs ml-1">(2 months free)</span></button>
@@ -726,8 +815,11 @@
         <li class="flex gap-3"><span class="material-symbols-outlined text-primary">check</span>Content Agent — post ideas &amp; caption drafts</li>
         <li class="flex gap-3"><span class="material-symbols-outlined text-primary">check</span>All 6 AI agents, always on</li>
       </ul>
-      <a class="block w-full bg-primary text-on-primary py-4 rounded-xl font-bold text-lg hover:scale-105 transition-transform" href="#">Start your free 14-day trial</a>
-      <p class="text-xs text-on-surface-variant mt-4">No card required to start.</p>
+      <form id="pricingForm" onsubmit="submitWaitlist(event,'pricingForm')" class="space-y-3">
+        <input type="email" placeholder="Enter your email to join" required class="w-full px-5 py-4 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary text-base" />
+        <button type="submit" class="block w-full bg-primary text-on-primary py-4 rounded-xl font-bold text-lg hover:scale-105 transition-transform">Join the waitlist →</button>
+      </form>
+      <p class="text-xs text-on-surface-variant mt-4">Free 14-day trial when we launch · No card required.</p>
     </div>
     <p class="text-on-surface-variant text-sm mt-8">Running a small team? <a href="#" class="text-primary font-semibold">Ask about our team plan →</a></p>
   </div>
@@ -744,13 +836,11 @@
       <span class="text-[#C76B8A] font-bold tracking-widest uppercase text-xs">Start today</span>
       <h2 class="text-4xl lg:text-6xl font-serif italic text-white leading-tight">Your next client is already<br/>typing a message.</h2>
       <p class="text-white/70 text-lg max-w-xl mx-auto">Make sure Florrie's there to answer it.</p>
-      <div class="pt-4">
-        <a class="inline-flex items-center gap-3 bg-primary text-on-primary px-10 py-5 rounded-full font-bold text-xl hover:bg-primary-container transition-all" href="#">
-          Start your free 14-day trial
-          <span class="material-symbols-outlined">arrow_forward</span>
-        </a>
-      </div>
-      <p class="text-white/40 text-sm">No card required · Cancel any time · Set up in 10 minutes</p>
+      <form id="finalForm" onsubmit="submitWaitlist(event,'finalForm')" class="flex flex-col sm:flex-row gap-3 pt-4 max-w-md mx-auto">
+        <input type="email" placeholder="Your email address" required class="flex-1 px-5 py-4 rounded-full border border-white/20 bg-white/10 text-white placeholder:text-white/40 focus:outline-none focus:border-white/50 text-base" />
+        <button type="submit" class="bg-primary text-on-primary px-8 py-4 rounded-full font-bold text-lg hover:bg-primary-container transition-all whitespace-nowrap">Join waitlist →</button>
+      </form>
+      <p class="text-white/40 text-sm">Free 14-day trial · No card required · Set up in 10 minutes</p>
     </div>
   </div>
 </section>
@@ -813,6 +903,35 @@
 </footer>
 
 <script>
+  // Waitlist form submission
+  async function submitWaitlist(e, formId) {
+    e.preventDefault();
+    const form = document.getElementById(formId);
+    const emailInput = form.querySelector('input[type="email"]');
+    const btn = form.querySelector('button[type="submit"]');
+    const email = emailInput.value;
+    const origText = btn.textContent;
+    btn.textContent = 'Joining...';
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/waitlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, source: formId })
+      });
+      if (res.ok || res.status === 409) {
+        form.innerHTML = '<p class="text-primary font-semibold py-3 text-center">You\'re on the list 🌸 We\'ll be in touch soon.</p>';
+      } else {
+        throw new Error('non-ok');
+      }
+    } catch {
+      btn.textContent = origText;
+      btn.disabled = false;
+      emailInput.setCustomValidity('Something went wrong — try hello@florrie.ai');
+      emailInput.reportValidity();
+    }
+  }
+
   // Pricing toggle
   function togglePricing(mode) {
     const price = document.getElementById('price-display');
