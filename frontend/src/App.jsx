@@ -156,6 +156,7 @@ export default function App() {
 
   const isPublicRoute = location.pathname.startsWith('/book/') || location.pathname.startsWith('/form/');
   const isAuthRoute = location.pathname === '/login';
+  const isLandingRoute = location.pathname === '/';
 
   if (loading) {
     return (
@@ -180,8 +181,13 @@ export default function App() {
     );
   }
 
-  // Not logged in → login
+  // Not logged in → landing page at /, login at /login
   if (!session) {
+    // If unauthenticated user hits /, send them to the static landing page
+    if (isLandingRoute) {
+      window.location.replace('/landing.html');
+      return null;
+    }
     return (
       <Suspense fallback={<PageLoader />}>
         <Routes>
