@@ -180,7 +180,7 @@
         While you're doing lashes, Florrie's taking bookings.
       </h1>
       <p class="text-xl text-on-surface-variant max-w-lg">
-        Five AI agents run behind the scenes — one handles WhatsApp bookings, one tracks your taxes, one keeps your records clean. They work around the clock so you don't have to.
+        Six AI agents run behind the scenes — one handles WhatsApp bookings, one generates and posts your content, one tracks your taxes, one keeps your records clean. They work around the clock so you don't have to.
       </p>
       <!-- Agent status bar -->
       <div class="flex flex-wrap gap-3 pt-1">
@@ -198,6 +198,9 @@
         </span>
         <span class="inline-flex items-center gap-1.5 text-xs font-medium text-on-surface-variant bg-surface-container px-3 py-1.5 rounded-full">
           <span class="w-2 h-2 rounded-full bg-sky-400 online-dot-5"></span>Insights Agent
+        </span>
+        <span class="inline-flex items-center gap-1.5 text-xs font-medium text-on-surface-variant bg-surface-container px-3 py-1.5 rounded-full">
+          <span class="w-2 h-2 rounded-full bg-orange-400 online-dot"></span>Content Agent
         </span>
       </div>
       <div class="flex flex-col sm:flex-row gap-4 pt-2">
@@ -333,6 +336,10 @@
           <span class="material-symbols-outlined text-sm mt-1 text-primary">done</span>
           Compliance Agent keeps digital records up to date
         </li>
+        <li class="flex gap-3 text-on-primary-fixed-variant">
+          <span class="material-symbols-outlined text-sm mt-1 text-primary">done</span>
+          Content Agent generates posts and replies to DMs
+        </li>
       </ul>
     </div>
   </div>
@@ -396,6 +403,55 @@
         <h3 class="font-bold text-xl mb-3">Automated Follow-ups</h3>
         <p class="text-on-surface-variant mb-6">Thank-you messages, review requests and rebooking nudges go out after every appointment — without you touching your phone.</p>
       </div>
+      <!-- Content Autopilot -->
+      <div class="group">
+        <div class="w-14 h-14 bg-primary-fixed rounded-full flex items-center justify-center mb-6 transition-transform group-hover:scale-110">
+          <span class="material-symbols-outlined text-primary text-3xl">auto_awesome</span>
+        </div>
+        <h3 class="font-bold text-xl mb-3">Content Autopilot</h3>
+        <p class="text-on-surface-variant mb-6">Florrie generates post ideas based on your treatments, drafts captions in your tone and schedules them for you. You approve in five minutes. She handles the rest.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     5b. CONTENT AGENT CALLOUT
+     ============================================================ -->
+<section class="py-20 px-6 bg-[#1A1A1A]">
+  <div class="max-w-[900px] mx-auto">
+    <div class="bg-[#232323] rounded-[2rem] p-10 lg:p-14 relative overflow-hidden border border-white/10">
+      <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-400 via-primary to-primary-container"></div>
+      <div class="absolute top-0 right-0 w-80 h-80 bg-orange-400/5 blur-[80px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+      <div class="relative z-10">
+        <div class="flex items-center gap-3 mb-6">
+          <div class="w-10 h-10 rounded-full bg-orange-400/15 border border-orange-400/30 flex items-center justify-center flex-shrink-0">
+            <span class="material-symbols-outlined text-orange-400 text-xl">auto_awesome</span>
+          </div>
+          <span class="text-orange-400 font-bold tracking-widest uppercase text-xs">Content Agent</span>
+        </div>
+        <h2 class="text-3xl lg:text-4xl font-serif italic text-white mb-6 leading-tight">She generates the ideas.<br/>You just say yes or no.</h2>
+        <p class="text-white/60 text-lg mb-8 max-w-xl">Tell Florrie what treatments you offer and she builds a content calendar around them. Post ideas, caption drafts, hashtag sets — written in your voice, ready to approve in a batch every week.</p>
+        <div class="grid sm:grid-cols-2 gap-4 mb-8">
+          <div class="bg-white/5 border border-white/10 rounded-xl p-5">
+            <p class="text-white font-semibold mb-1">Weekly batch generation</p>
+            <p class="text-white/50 text-sm">Five to seven post ideas every week, drafted around your actual services and schedule. Review them in one go.</p>
+          </div>
+          <div class="bg-white/5 border border-white/10 rounded-xl p-5">
+            <p class="text-white font-semibold mb-1">Auto-schedule &amp; post</p>
+            <p class="text-white/50 text-sm">Approve what you like, skip what you don't. Florrie schedules approved posts at the best times for your audience and posts automatically.</p>
+          </div>
+          <div class="bg-white/5 border border-white/10 rounded-xl p-5">
+            <p class="text-white font-semibold mb-1">DM replies on Instagram</p>
+            <p class="text-white/50 text-sm">Enquiries that come through Instagram DMs get the same treatment as WhatsApp — answered in your tone, booking link included.</p>
+          </div>
+          <div class="bg-white/5 border border-white/10 rounded-xl p-5">
+            <p class="text-white font-semibold mb-1">Your tone, not generic AI</p>
+            <p class="text-white/50 text-sm">Florrie learns how you write from your existing messages and captions. The output reads like you — not like a chatbot had a go.</p>
+          </div>
+        </div>
+        <p class="text-white/40 text-sm">No Sunday evening caption writing. No blank page staring back at you.</p>
+      </div>
     </div>
   </div>
 </section>
@@ -410,9 +466,9 @@
   <div class="max-w-[1200px] mx-auto relative z-10">
     <div class="text-center mb-16">
       <span class="text-[#C76B8A] font-bold tracking-widest uppercase text-xs">Your AI team</span>
-      <h2 class="text-4xl lg:text-5xl font-serif italic mt-4 text-white">Five AI employees.<br/>Zero extra desks.</h2>
+      <h2 class="text-4xl lg:text-5xl font-serif italic mt-4 text-white">Six AI employees.<br/>Zero extra desks.</h2>
       <p class="text-white/60 mt-6 max-w-2xl mx-auto text-lg">
-        Florrie isn't one AI. It's five specialised agents running in parallel — each handling a different part of your business, sharing context, handing off to each other when needed.
+        Florrie isn't one AI. It's six specialised agents running in parallel — handling bookings, content, tax, compliance, follow-ups and insights. They share context and hand off to each other so nothing falls through.
       </p>
     </div>
 
@@ -539,18 +595,25 @@
         <p class="text-white text-sm font-semibold">Follow-up Agent</p>
         <p class="text-white/40 text-xs mt-1">Reminders, rebooking</p>
       </div>
-      <div class="col-span-2 bg-white/5 border border-white/10 rounded-2xl p-5 text-center">
+      <div class="bg-white/5 border border-white/10 rounded-2xl p-5 text-center">
         <div class="w-12 h-12 rounded-full bg-[#67B8C5]/20 flex items-center justify-center mx-auto mb-3">
           <span class="material-symbols-outlined text-[#67B8C5]">insights</span>
         </div>
         <p class="text-white text-sm font-semibold">Insights Agent</p>
-        <p class="text-white/40 text-xs mt-1">Weekly revenue and performance summaries</p>
+        <p class="text-white/40 text-xs mt-1">Revenue and performance summaries</p>
+      </div>
+      <div class="bg-white/5 border border-white/10 rounded-2xl p-5 text-center">
+        <div class="w-12 h-12 rounded-full bg-orange-400/20 flex items-center justify-center mx-auto mb-3">
+          <span class="material-symbols-outlined text-orange-400">auto_awesome</span>
+        </div>
+        <p class="text-white text-sm font-semibold">Content Agent</p>
+        <p class="text-white/40 text-xs mt-1">Post ideas, captions, Instagram DMs</p>
       </div>
     </div>
 
     <!-- Caption below -->
     <p class="text-center text-white/40 text-sm mt-12 max-w-lg mx-auto">
-      All five agents are included in every Florrie plan. No add-ons, no tiers, no switching between tools.
+      All six agents are included in every Florrie plan. No add-ons, no tiers, no switching between tools.
     </p>
   </div>
 </section>
@@ -647,7 +710,7 @@
       <button class="px-6 py-2 font-bold text-on-surface-variant" id="btn-annual" onclick="togglePricing('annual')">Annual <span class="text-primary text-xs ml-1">(2 months free)</span></button>
     </div>
     <div class="max-w-md mx-auto bg-white rounded-[2rem] p-10 shadow-florrie border-2 border-primary/10 relative">
-      <div class="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-on-primary px-4 py-1 rounded-full text-xs font-bold tracking-widest uppercase">All 5 AI agents included</div>
+      <div class="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-on-primary px-4 py-1 rounded-full text-xs font-bold tracking-widest uppercase">All 6 AI agents included</div>
       <h3 class="text-3xl font-serif italic mb-2">Florrie Pro</h3>
       <div class="flex items-center justify-center gap-1 mb-1">
         <span class="text-4xl font-bold" id="price-display">£29</span>
@@ -660,7 +723,8 @@
         <li class="flex gap-3"><span class="material-symbols-outlined text-primary">check</span>Tax &amp; income dashboard</li>
         <li class="flex gap-3"><span class="material-symbols-outlined text-primary">check</span>Compliance &amp; client records</li>
         <li class="flex gap-3"><span class="material-symbols-outlined text-primary">check</span>Unlimited clients &amp; appointments</li>
-        <li class="flex gap-3"><span class="material-symbols-outlined text-primary">check</span>All 5 AI agents, always on</li>
+        <li class="flex gap-3"><span class="material-symbols-outlined text-primary">check</span>Content Agent — post ideas &amp; caption drafts</li>
+        <li class="flex gap-3"><span class="material-symbols-outlined text-primary">check</span>All 6 AI agents, always on</li>
       </ul>
       <a class="block w-full bg-primary text-on-primary py-4 rounded-xl font-bold text-lg hover:scale-105 transition-transform" href="#">Start your free 14-day trial</a>
       <p class="text-xs text-on-surface-variant mt-4">No card required to start.</p>
