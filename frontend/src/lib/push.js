@@ -14,9 +14,15 @@ import logger from './logger.js';
  */
 
 function getToken() {
-  const raw = localStorage.getItem('sb-auth-token');
+  // Supabase stores session under sb-<project-ref>-auth-token — find it by pattern
+  const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
+  if (!key) return null;
+  const raw = localStorage.getItem(key);
   if (!raw) return null;
-  try { return JSON.parse(raw)?.access_token || raw; } catch { return raw; }
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed?.access_token || parsed?.session?.access_token || raw;
+  } catch { return raw; }
 }
 
 function authHeaders() {

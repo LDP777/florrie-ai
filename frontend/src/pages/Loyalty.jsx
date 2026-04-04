@@ -80,7 +80,7 @@ export default function Loyalty() {
           .from('loyalty_config')
           .select('*')
           .eq('beautician_id', beautician.id)
-          .single();
+          .maybeSingle();
         if (configErr) throw configErr;
         setLoyaltyConfig(config || { enabled: true, points_per_dollar: 1 });
 

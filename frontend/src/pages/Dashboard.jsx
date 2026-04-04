@@ -183,14 +183,14 @@ export default function Dashboard() {
           const summaryData = await resp.json();
           const mapped = {};
           if (summaryData.countByEmployee) {
-            for (const row of summaryData.countByEmployee) {
-              mapped[row.digital_employee] = { today: row.today_count || 0, latest: null };
+            for (const [key, val] of Object.entries(summaryData.countByEmployee)) {
+              mapped[key] = { today: val?.today || 0, latest: null };
             }
           }
           if (summaryData.latestByEmployee) {
-            for (const row of summaryData.latestByEmployee) {
-              if (!mapped[row.digital_employee]) mapped[row.digital_employee] = { today: 0 };
-              mapped[row.digital_employee].latest = row.summary || row.action_type;
+            for (const [key, val] of Object.entries(summaryData.latestByEmployee)) {
+              if (!mapped[key]) mapped[key] = { today: 0 };
+              mapped[key].latest = val?.summary || val?.action_type || null;
             }
           }
           setAgentSummary(mapped);
