@@ -934,7 +934,7 @@
     btn.textContent = 'Joining...';
     btn.disabled = true;
     try {
-      const res = await fetch(`${_SB_URL}/rest/v1/waitlist`, {
+      const res = await fetch(`${_SB_URL}/rest/v1/signup_waitlist`, {
         method: 'POST',
         headers: {
           'apikey': _SB_KEY,
