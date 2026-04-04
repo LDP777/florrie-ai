@@ -90,11 +90,15 @@ export default function Clients() {
       }
 
       const [clientRes, apptsRes, msgsRes] = await Promise.all([
-        supabase.from('clients').select('*').eq('id', id).single(),
+        supabase.from('clients').select('*').eq('id', id).maybeSingle(),
         supabase.from('appointments').select('*, treatments(name)').eq('client_id', id).order('starts_at', { ascending: false }).limit(10),
         supabase.from('messages').select('*').eq('client_id', id).order('created_at', { ascending: false }).limit(5),
       ]);
 
+      if (!clientRes.data) {
+        logger.warn('Client not found for id:', id);
+        return;
+      }
       setClientDetail({
         client: clientRes.data,
         appointments: apptsRes.data || [],

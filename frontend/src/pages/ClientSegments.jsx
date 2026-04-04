@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useBeautician, supabase, isDevMode, DEV_CLIENTS } from '../lib/supabase.js';
 import { ds, type } from '../lib/designSystem.js';
 import logger from '../lib/logger.js';
@@ -188,6 +189,7 @@ function generateDevClients() {
 
 export default function ClientSegments() {
   const { beautician, loading: bLoading } = useBeautician();
+  const navigate = useNavigate();
   const [expanded, setExpanded] = useState(null);
   const [view, setView] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -314,8 +316,12 @@ export default function ClientSegments() {
                   <div style={{ ...ds.sectionTitle, marginBottom: 8 }}>SUGGESTED ACTIONS</div>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {seg.actions.map(a => (
-                      <button key={a} style={{ ...ds.btnGhost, fontSize: 11, padding: '6px 12px', background: seg.bgColor, color: seg.color }}>
-                        {a}
+                      <button
+                        key={a}
+                        style={{ ...ds.btnGhost, fontSize: 11, padding: '6px 12px', background: seg.bgColor, color: seg.color }}
+                        onClick={() => navigate('/campaigns', { state: { segment: seg.name, action: a } })}
+                      >
+                        {a} →
                       </button>
                     ))}
                   </div>
@@ -401,12 +407,27 @@ export default function ClientSegments() {
             </div>
           </div>
 
-          <div style={ds.insightCard}>
-            <span style={{ fontSize: 20 }}>🎯</span>
-            <div style={{ ...type.bodySmall, lineHeight: 1.5 }}>
-              Your "Dormant High-Value" segment (15 clients) represents £14,700 in lost annual revenue. A personal outreach campaign to this group has 3x the ROI of broad marketing.
-            </div>
-          </div>
+          {(() => {
+            const dormant = segments.find(s => s.name === 'Dormant High-Value');
+            const declining = segments.find(s => s.name === 'Declining');
+            const target = dormant || declining;
+            if (!target || target.count === 0) return null;
+            const lostRevenue = target.count * (parseInt(target.avgSpend?.replace(/[^0-9]/g, '') || 0));
+            return (
+              <div style={ds.insightCard}>
+                <span style={{ fontSize: 20 }}>🎯</span>
+                <div style={{ ...type.bodySmall, lineHeight: 1.5 }}>
+                  Your "{target.name}" segment ({target.count} client{target.count !== 1 ? 's' : ''}) represents {target.revenue} in potentially recoverable revenue. A personal outreach campaign to this group typically has 3× the ROI of broad marketing.{' '}
+                  <span
+                    style={{ color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline' }}
+                    onClick={() => navigate('/campaigns', { state: { segment: target.name } })}
+                  >
+                    Create a campaign →
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>

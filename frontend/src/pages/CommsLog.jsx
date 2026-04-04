@@ -38,7 +38,7 @@ const TYPE_LABELS = {
 };
 
 function timeAgo(dateStr) {
-  const now = new Date('2026-03-26T12:00:00');
+  const now = new Date();
   const d = new Date(dateStr);
   const mins = Math.floor((now - d) / 60000);
   if (mins < 60) return `${mins}m ago`;
