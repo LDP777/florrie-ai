@@ -55,14 +55,15 @@ export async function sendEmail({ to, subject, html, text }) {
   }
 }
 
-// ── SMS via Twilio ───────────────────────────
-const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID;
-const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
-const TWILIO_FROM = process.env.TWILIO_PHONE_NUMBER;
+// ── SMS via Bird (MessageBird) ───────────────
+// Bird replaced Twilio for SMS — no regulatory bundle required for UK,
+// and ~90% cheaper per message. Twilio vars remain for WhatsApp config.
+const BIRD_API_KEY = process.env.BIRD_API_KEY;
+const BIRD_ORIGINATOR = process.env.BIRD_ORIGINATOR || 'Florrie';
 
 export async function sendSMS({ to, body, beauticianId }) {
-  if (!TWILIO_SID || !TWILIO_TOKEN || !TWILIO_FROM) {
-    logger.debug('Twilio not configured, skipping SMS');
+  if (!BIRD_API_KEY) {
+    logger.debug('Bird not configured, skipping SMS');
     return null;
   }
 
@@ -73,25 +74,26 @@ export async function sendSMS({ to, body, beauticianId }) {
   }
 
   const maxRetries = 2;
-  const retryDelay = 1000; // 1 second
+  const retryDelay = 1000;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      const auth = Buffer.from(`${TWILIO_SID}:${TWILIO_TOKEN}`).toString('base64');
-      const res = await fetch(
-        `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Basic ${auth}`,
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: new URLSearchParams({ To: to, From: TWILIO_FROM, Body: body }),
-        }
-      );
+      const res = await fetch('https://rest.messagebird.com/messages', {
+        method: 'POST',
+        headers: {
+          'Authorization': `AccessKey ${BIRD_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          originator: BIRD_ORIGINATOR,
+          recipients: [to.replace(/[^0-9]/g, '')],
+          body,
+        }),
+      });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Twilio error');
+      if (!res.ok) throw new Error(data.errors?.[0]?.description || 'Bird error');
+      logger.info({ to }, 'SMS sent via Bird');
       return { ...data, usageInfo };
     } catch (err) {
       if (attempt < maxRetries) {
@@ -324,8 +326,8 @@ export function pickChannel(client, beauticianPrefs = {}) {
   // WhatsApp: client has an active WhatsApp ID, token is configured, and beautician has a registered number
   if (client?.whatsapp_id && WA_TOKEN && beauticianPrefs?.whatsapp_connected) return 'whatsapp';
 
-  // SMS: client has a phone and Twilio is configured
-  if (client?.phone && TWILIO_SID && TWILIO_TOKEN && TWILIO_FROM) return 'sms';
+  // SMS: client has a phone and Bird is configured
+  if (client?.phone && BIRD_API_KEY) return 'sms';
 
   // Email: last resort
   if (client?.email) return 'email';
