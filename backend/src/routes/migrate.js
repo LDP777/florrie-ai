@@ -94,7 +94,7 @@ router.post('/execute', requireAuth, async (req, res) => {
 
         if (error) {
           logger.error({ err: error, batch: i }, 'Client batch import failed');
-          errors.push(`Client batch ${i / BATCH + 1}: ${error.message}`);
+          errors.push(`Client batch ${i / BATCH + 1} failed to import (check logs)`);
         } else {
           imported.clients += data.length;
         }
@@ -120,7 +120,7 @@ router.post('/execute', requireAuth, async (req, res) => {
 
       if (error) {
         logger.error({ err: error }, 'Treatment import failed');
-        errors.push(`Treatments: ${error.message}`);
+        errors.push(`Treatments failed to import (check logs)`);
       } else {
         imported.treatments += (data || []).length;
       }
@@ -218,7 +218,7 @@ router.post('/execute', requireAuth, async (req, res) => {
 
         if (error) {
           logger.error({ err: error, batch: i }, 'Appointment batch import failed');
-          errors.push(`Appointments batch ${i / BATCH + 1}: ${error.message}`);
+          errors.push(`Appointments batch ${i / BATCH + 1} failed to import (check logs)`);
         } else {
           imported.appointments += (data || []).length;
         }

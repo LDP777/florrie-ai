@@ -415,7 +415,6 @@ router.post('/charge-no-show', requireAuth, requireStripe, async (req, res) => {
     if (err.type === 'StripeCardError') {
       return res.status(402).json({
         error: 'Card declined. Please try another payment method.',
-        _internal_error: err.message, // logged below
         code: err.code,
       });
     }
