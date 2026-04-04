@@ -22,6 +22,8 @@ export default function Settings({ onLogout }) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [section, setSection] = useState('profile');
+  const [connectingStripe, setConnectingStripe] = useState(false);
+  const [stripeError, setStripeError] = useState(null);
 
   async function saveProfile(updates) {
     if (!beautician) return;
@@ -42,6 +44,32 @@ export default function Settings({ onLogout }) {
   async function handleLogout() {
     if (supabase) await supabase.auth.signOut();
     if (onLogout) onLogout();
+  }
+
+  async function handleConnectStripe() {
+    setConnectingStripe(true);
+    setStripeError(null);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const response = await fetch('/api/stripe/connect/onboard', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setStripeError(data.error || 'Failed to start Stripe setup');
+      }
+    } catch (err) {
+      logger.error('Stripe connect error:', err);
+      setStripeError('Network error. Please try again.');
+    } finally {
+      setConnectingStripe(false);
+    }
   }
 
   if (loading) return <PageLoader />;
@@ -164,9 +192,20 @@ export default function Settings({ onLogout }) {
                 ? 'Card payments are live. Clients can pay online and via Tap to Pay.'
                 : 'Connect Stripe to accept card payments, deposits, and no-show fees.'}
             </p>
+            {stripeError && (
+              <p style={{ fontSize: 13, color: '#E57373', margin: '0 0 8px' }}>{stripeError}</p>
+            )}
             {!beautician.stripe_onboarding_complete && (
-              <button style={styles.connectBtn}>
-                Connect Stripe
+              <button
+                onClick={handleConnectStripe}
+                disabled={connectingStripe}
+                style={{
+                  ...styles.connectBtn,
+                  opacity: connectingStripe ? 0.6 : 1,
+                  cursor: connectingStripe ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {connectingStripe ? 'Setting up…' : 'Connect Stripe'}
               </button>
             )}
           </div>

@@ -861,13 +861,11 @@ router.post('/webhook', async (req, res) => {
         break;
     }
 
-    // Record event for idempotency
-    await supabase.from('stripe_events').insert({
-      id: event.id,
-      type: event.type,
+    // Enrich the already-inserted event record with full data
+    await supabase.from('stripe_events').update({
       beautician_id: event.data.object.metadata?.beautician_id || null,
       data: event.data.object,
-    });
+    }).eq('id', event.id);
 
     res.json({ received: true });
   } catch (err) {
