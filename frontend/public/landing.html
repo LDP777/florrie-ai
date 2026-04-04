@@ -120,6 +120,9 @@
   .agent-line-3 { animation: dash-flow 1.1s linear infinite; }
   .agent-line-4 { animation: dash-flow 1.5s linear infinite; }
   .agent-line-5 { animation: dash-flow 1.3s linear infinite; }
+  .agent-line-6 { animation: dash-flow 1.6s linear infinite; }
+  @keyframes float-f { 0%,100% { transform: translate(-50%,-50%) translateY(0px); } 50% { transform: translate(-50%,-50%) translateY(-10px); } }
+  .agent-6 { animation: float-f 5.8s ease-in-out infinite; animation-delay: 4.0s; }
 
   /* Chat bubbles */
   @keyframes slide-in-left { from { opacity:0; transform: translateX(-12px); } to { opacity:1; transform: translateX(0); } }
@@ -535,18 +538,20 @@
       <!-- Outer orbit ring (decorative, slowly spins) -->
       <div class="absolute inset-0 rounded-full border border-dashed border-white/8" style="animation: spin 80s linear infinite;"></div>
 
-      <!-- SVG connecting lines -->
+      <!-- SVG connecting lines — hexagonal 6-agent layout -->
       <svg class="absolute inset-0 w-full h-full pointer-events-none z-0" viewBox="0 0 520 520">
         <!-- Center to Booking Agent (top) -->
-        <line x1="260" y1="260" x2="260" y2="76" stroke="#C76B8A" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.4" class="agent-line"/>
+        <line x1="260" y1="260" x2="260" y2="80" stroke="#C76B8A" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.4" class="agent-line"/>
         <!-- Center to Tax Agent (upper right) -->
-        <line x1="260" y1="260" x2="441" y2="201" stroke="#C9A96E" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.4" class="agent-line-2"/>
+        <line x1="260" y1="260" x2="416" y2="170" stroke="#C9A96E" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.4" class="agent-line-2"/>
         <!-- Center to Follow-up Agent (lower right) -->
-        <line x1="260" y1="260" x2="372" y2="414" stroke="#A78BFA" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.4" class="agent-line-3"/>
-        <!-- Center to Compliance Agent (lower left) -->
-        <line x1="260" y1="260" x2="148" y2="414" stroke="#7BC8A4" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.4" class="agent-line-4"/>
-        <!-- Center to Insights Agent (upper left) -->
-        <line x1="260" y1="260" x2="79" y2="201" stroke="#67B8C5" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.4" class="agent-line-5"/>
+        <line x1="260" y1="260" x2="416" y2="350" stroke="#A78BFA" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.4" class="agent-line-3"/>
+        <!-- Center to Compliance Agent (bottom) -->
+        <line x1="260" y1="260" x2="260" y2="440" stroke="#7BC8A4" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.4" class="agent-line-4"/>
+        <!-- Center to Insights Agent (lower left) -->
+        <line x1="260" y1="260" x2="104" y2="350" stroke="#67B8C5" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.4" class="agent-line-5"/>
+        <!-- Center to Content Agent (upper left) -->
+        <line x1="260" y1="260" x2="104" y2="170" stroke="#FB923C" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.4" class="agent-line-6"/>
       </svg>
 
       <!-- Centre hub — Florrie icon -->
@@ -561,8 +566,8 @@
         </svg>
       </div>
 
-      <!-- Agent 1: Booking Agent — top (13.5%, 50%) -->
-      <div class="agent-1 absolute text-center z-10" style="top:13.5%; left:50%; transform:translate(-50%,-50%);">
+      <!-- Agent 1: Booking Agent — top -->
+      <div class="agent-1 absolute text-center z-10" style="top:15.4%; left:50%; transform:translate(-50%,-50%);">
         <div class="w-16 h-16 rounded-full bg-[#C76B8A]/20 border border-[#C76B8A]/40 flex items-center justify-center mx-auto mb-2 backdrop-blur-sm">
           <span class="material-symbols-outlined text-[#C76B8A] text-2xl">chat_bubble</span>
         </div>
@@ -573,8 +578,8 @@
         </div>
       </div>
 
-      <!-- Agent 2: Tax Agent — upper right (38.7%, 84.8%) -->
-      <div class="agent-2 absolute text-center z-10" style="top:38.7%; left:84.8%; transform:translate(-50%,-50%);">
+      <!-- Agent 2: Tax Agent — upper right -->
+      <div class="agent-2 absolute text-center z-10" style="top:32.7%; left:80%; transform:translate(-50%,-50%);">
         <div class="w-16 h-16 rounded-full bg-[#C9A96E]/20 border border-[#C9A96E]/40 flex items-center justify-center mx-auto mb-2 backdrop-blur-sm">
           <span class="material-symbols-outlined text-[#C9A96E] text-2xl">receipt_long</span>
         </div>
@@ -585,8 +590,8 @@
         </div>
       </div>
 
-      <!-- Agent 3: Follow-up Agent — lower right (79.6%, 71.5%) -->
-      <div class="agent-3 absolute text-center z-10" style="top:79.6%; left:71.5%; transform:translate(-50%,-50%);">
+      <!-- Agent 3: Follow-up Agent — lower right -->
+      <div class="agent-3 absolute text-center z-10" style="top:67.3%; left:80%; transform:translate(-50%,-50%);">
         <div class="w-16 h-16 rounded-full bg-[#A78BFA]/20 border border-[#A78BFA]/40 flex items-center justify-center mx-auto mb-2 backdrop-blur-sm">
           <span class="material-symbols-outlined text-[#A78BFA] text-2xl">send</span>
         </div>
@@ -597,8 +602,8 @@
         </div>
       </div>
 
-      <!-- Agent 4: Compliance Agent — lower left (79.6%, 28.5%) -->
-      <div class="agent-4 absolute text-center z-10" style="top:79.6%; left:28.5%; transform:translate(-50%,-50%);">
+      <!-- Agent 4: Compliance Agent — bottom -->
+      <div class="agent-4 absolute text-center z-10" style="top:84.6%; left:50%; transform:translate(-50%,-50%);">
         <div class="w-16 h-16 rounded-full bg-[#7BC8A4]/20 border border-[#7BC8A4]/40 flex items-center justify-center mx-auto mb-2 backdrop-blur-sm">
           <span class="material-symbols-outlined text-[#7BC8A4] text-2xl">verified_user</span>
         </div>
@@ -609,14 +614,26 @@
         </div>
       </div>
 
-      <!-- Agent 5: Insights Agent — upper left (38.7%, 15.2%) -->
-      <div class="agent-5 absolute text-center z-10" style="top:38.7%; left:15.2%; transform:translate(-50%,-50%);">
+      <!-- Agent 5: Insights Agent — lower left -->
+      <div class="agent-5 absolute text-center z-10" style="top:67.3%; left:20%; transform:translate(-50%,-50%);">
         <div class="w-16 h-16 rounded-full bg-[#67B8C5]/20 border border-[#67B8C5]/40 flex items-center justify-center mx-auto mb-2 backdrop-blur-sm">
           <span class="material-symbols-outlined text-[#67B8C5] text-2xl">insights</span>
         </div>
         <p class="text-white text-xs font-semibold whitespace-nowrap">Insights Agent</p>
         <div class="flex items-center justify-center gap-1 mt-1">
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 online-dot-5 inline-block"></span>
+          <span class="text-white/40 text-[10px]">active</span>
+        </div>
+      </div>
+
+      <!-- Agent 6: Content Agent — upper left -->
+      <div class="agent-6 absolute text-center z-10" style="top:32.7%; left:20%; transform:translate(-50%,-50%);">
+        <div class="w-16 h-16 rounded-full bg-[#FB923C]/20 border border-[#FB923C]/40 flex items-center justify-center mx-auto mb-2 backdrop-blur-sm">
+          <span class="material-symbols-outlined text-[#FB923C] text-2xl">auto_awesome</span>
+        </div>
+        <p class="text-white text-xs font-semibold whitespace-nowrap">Content Agent</p>
+        <div class="flex items-center justify-center gap-1 mt-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 online-dot inline-block"></span>
           <span class="text-white/40 text-[10px]">active</span>
         </div>
       </div>
@@ -903,31 +920,41 @@
 </footer>
 
 <script>
-  // Waitlist form submission
+  // Waitlist — writes directly to Supabase (anon key is public by design)
+  const _SB_URL = 'https://driyreevwogxngqyshtc.supabase.co';
+  const _SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRyaXlyZWV2d29neG5ncXlzaHRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyOTk1NzgsImV4cCI6MjA4OTg3NTU3OH0.QgaZqyedVckQTZeTvArPBJUpa8MNb-mN8kBlSVqU2hQ';
+
   async function submitWaitlist(e, formId) {
     e.preventDefault();
     const form = document.getElementById(formId);
     const emailInput = form.querySelector('input[type="email"]');
     const btn = form.querySelector('button[type="submit"]');
-    const email = emailInput.value;
+    const email = emailInput.value.toLowerCase().trim();
     const origText = btn.textContent;
     btn.textContent = 'Joining...';
     btn.disabled = true;
     try {
-      const res = await fetch('/api/waitlist', {
+      const res = await fetch(`${_SB_URL}/rest/v1/waitlist`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'apikey': _SB_KEY,
+          'Authorization': `Bearer ${_SB_KEY}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
         body: JSON.stringify({ email, source: formId })
       });
-      if (res.ok || res.status === 409) {
+      // 201 = created, 409 = already on list — both are success
+      if (res.status === 201 || res.status === 200 || res.status === 409) {
         form.innerHTML = '<p class="text-primary font-semibold py-3 text-center">You\'re on the list 🌸 We\'ll be in touch soon.</p>';
       } else {
-        throw new Error('non-ok');
+        throw new Error(`status ${res.status}`);
       }
-    } catch {
+    } catch (err) {
+      console.error('Waitlist error:', err);
       btn.textContent = origText;
       btn.disabled = false;
-      emailInput.setCustomValidity('Something went wrong — try hello@florrie.ai');
+      emailInput.setCustomValidity('Something went wrong — email us at hello@florrie.ai');
       emailInput.reportValidity();
     }
   }
