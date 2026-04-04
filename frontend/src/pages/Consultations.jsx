@@ -8,6 +8,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, insertRow, updateRow, deleteRow, isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
+import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -80,7 +81,7 @@ export default function Consultations() {
   async function handleSendReminder(consult) {
     try {
       // POST to backend to trigger reminder notification
-      const response = await fetch('/api/notifications/send-reminder', {
+      const response = await fetch(`${API_BASE}/api/notifications/send-reminder`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, supabase, isDevMode, updateRow } from '../lib/supabase.js';
+import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 
 /**
@@ -73,7 +74,7 @@ export default function ApprovalQueue() {
       // If approved, trigger the actual action via API
       if (decision === 'approve') {
         try {
-          await fetch('/api/ai-actions/' + actionId + '/execute', {
+          await fetch(`${API_BASE}/api/ai-actions/` + actionId + '/execute', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
           });

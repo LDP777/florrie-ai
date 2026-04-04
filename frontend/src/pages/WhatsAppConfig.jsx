@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
 import { supabase } from '../lib/supabase.js';
+import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 
@@ -37,7 +38,7 @@ const autoReplyDefaults = [
 async function apiFetch(path, options = {}) {
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;
-  const res = await fetch(`/api/whatsapp${path}`, {
+  const res = await fetch(`${API_BASE}/api/whatsapp${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',

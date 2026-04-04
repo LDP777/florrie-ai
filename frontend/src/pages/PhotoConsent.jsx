@@ -7,6 +7,7 @@
  */
 import { useState, useEffect } from 'react';
 import { isDevMode, DEV_CLIENTS, supabase } from '../lib/supabase.js';
+import { API_BASE } from '../lib/config.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 
@@ -96,10 +97,10 @@ export default function PhotoConsent() {
         if (!session.data.session) return;
 
         const [consentsRes, clientsRes] = await Promise.all([
-          fetch('/api/photo-consent', {
+          fetch(`${API_BASE}/api/photo-consent`, {
             headers: { 'Authorization': `Bearer ${session.data.session.access_token}` }
           }),
-          fetch('/api/clients', {
+          fetch(`${API_BASE}/api/clients`, {
             headers: { 'Authorization': `Bearer ${session.data.session.access_token}` }
           })
         ]);
@@ -173,7 +174,7 @@ export default function PhotoConsent() {
         return;
       }
 
-      const res = await fetch('/api/photo-consent', {
+      const res = await fetch(`${API_BASE}/api/photo-consent`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.data.session.access_token}`,

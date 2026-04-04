@@ -5,6 +5,7 @@ import logger from '../lib/logger.js';
 import SpotlightSearch from '../components/SpotlightSearch.jsx';
 import SetupChecklist from '../components/SetupChecklist.jsx';
 import AgentAvatars from '../components/AgentAvatars.jsx';
+import { API_BASE } from '../lib/config.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
@@ -175,7 +176,7 @@ export default function Dashboard() {
 
       // AI agent summary
       try {
-        const resp = await fetch(`/api/ai-actions/summary`, {
+        const resp = await fetch(`${API_BASE}/api/ai-actions/summary`, {
           headers: { 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` },
         });
         if (resp.ok) {

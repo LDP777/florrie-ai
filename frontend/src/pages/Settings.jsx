@@ -51,7 +51,7 @@ export default function Settings({ onLogout }) {
     setStripeError(null);
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const response = await fetch('/api/stripe/connect/onboard', {
+      const response = await fetch(`${API_BASE}/api/stripe/connect/onboard`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1041,7 +1041,7 @@ function SubscriptionManager({ beautician }) {
     setError(null);
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const response = await fetch('/api/stripe/portal', {
+      const response = await fetch(`${API_BASE}/api/stripe/portal`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

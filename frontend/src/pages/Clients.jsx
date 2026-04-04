@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, insertRow, supabase, isDevMode, DEV_CLIENTS } from '../lib/supabase.js';
+import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -130,7 +131,7 @@ export default function Clients() {
       const session = await supabase.auth.getSession();
       if (!session.data.session) return;
 
-      const res = await fetch('/api/exports/clients', {
+      const res = await fetch(`${API_BASE}/api/exports/clients`, {
         headers: { 'Authorization': `Bearer ${session.data.session.access_token}` }
       });
 

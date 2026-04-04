@@ -6,6 +6,7 @@
  */
 import { useState, useEffect } from 'react';
 import { isDevMode, DEV_TREATMENTS, supabase } from '../lib/supabase.js';
+import { API_BASE } from '../lib/config.js';
 
 const fmt = (cents) => `£${(Math.abs(cents) / 100).toFixed(2)}`;
 
@@ -54,7 +55,7 @@ export default function PromoCodes() {
         const session = await supabase.auth.getSession();
         if (!session.data.session) return;
 
-        const res = await fetch('/api/promo-codes', {
+        const res = await fetch(`${API_BASE}/api/promo-codes`, {
           headers: { 'Authorization': `Bearer ${session.data.session.access_token}` }
         });
         if (!res.ok) throw new Error('Failed to fetch codes');
@@ -117,7 +118,7 @@ export default function PromoCodes() {
       const validUntil = new Date(formData.valid_until);
       validUntil.setHours(23, 59, 59, 999);
 
-      const res = await fetch('/api/promo-codes', {
+      const res = await fetch(`${API_BASE}/api/promo-codes`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.data.session.access_token}`,
@@ -182,7 +183,7 @@ export default function PromoCodes() {
       const session = await supabase.auth.getSession();
       if (!session.data.session) return;
 
-      const res = await fetch(`/api/promo-codes/${codeId}`, {
+      const res = await fetch(`${API_BASE}/api/promo-codes/${codeId}`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${session.data.session.access_token}`,
