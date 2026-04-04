@@ -59,9 +59,9 @@ export async function sendEmail({ to, subject, html, text }) {
 // Bird replaced Twilio for SMS — no regulatory bundle required for UK,
 // and ~90% cheaper per message. Twilio vars remain for WhatsApp config.
 const BIRD_API_KEY = process.env.BIRD_API_KEY;
-const BIRD_ORIGINATOR = process.env.BIRD_ORIGINATOR || 'Florrie';
+const BIRD_ORIGINATOR_DEFAULT = process.env.BIRD_ORIGINATOR || 'Florrie';
 
-export async function sendSMS({ to, body, beauticianId }) {
+export async function sendSMS({ to, body, beauticianId, originator }) {
   if (!BIRD_API_KEY) {
     logger.debug('Bird not configured, skipping SMS');
     return null;
@@ -71,6 +71,18 @@ export async function sendSMS({ to, body, beauticianId }) {
   let usageInfo = null;
   if (beauticianId) {
     usageInfo = await trackSMSUsage(beauticianId);
+  }
+
+  // Resolve per-beautician originator: caller can pass it directly,
+  // or we look it up from the DB, falling back to the platform default.
+  let senderName = originator || BIRD_ORIGINATOR_DEFAULT;
+  if (!originator && beauticianId) {
+    const { data: b } = await supabase
+      .from('beauticians')
+      .select('sms_originator')
+      .eq('id', beauticianId)
+      .maybeSingle();
+    if (b?.sms_originator) senderName = b.sms_originator;
   }
 
   const maxRetries = 2;
@@ -85,7 +97,7 @@ export async function sendSMS({ to, body, beauticianId }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          originator: BIRD_ORIGINATOR,
+          originator: senderName,
           recipients: [to.replace(/[^0-9]/g, '')],
           body,
         }),
@@ -93,7 +105,7 @@ export async function sendSMS({ to, body, beauticianId }) {
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.errors?.[0]?.description || 'Bird error');
-      logger.info({ to }, 'SMS sent via Bird');
+      logger.info({ to, originator: senderName }, 'SMS sent via Bird');
       return { ...data, usageInfo };
     } catch (err) {
       if (attempt < maxRetries) {
@@ -458,10 +470,14 @@ export async function notifyBookingConfirmed(appointmentId) {
 
   // SMS/WhatsApp — only if beautician has opted in
   if (prefs.booking_confirmation !== false) {
-    const channel = prefs.channel || 'email';
+    const channel = prefs.channel || 'whatsapp';
     if (channel === 'whatsapp' && client.phone) {
-      await sendWhatsApp({ to: client.phone, templateName: 'booking_confirmation', templateParams: [client.first_name, treatment.name, shortDate, timeStr] });
-    } else if (channel === 'sms' && client.phone) {
+      const waResult = await sendWhatsApp({ to: client.phone, templateName: 'booking_confirmation', templateParams: [client.first_name, treatment.name, shortDate, timeStr] });
+      // Fall through to SMS if WhatsApp not available
+      if (!waResult && client.phone && BIRD_API_KEY) {
+        await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id });
+      }
+    } else if ((channel === 'sms' || !biz?.whatsapp_phone_id) && client.phone) {
       await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id });
     }
   }
@@ -527,10 +543,14 @@ export async function notifyReminder24h(appointmentId) {
 
   // SMS/WhatsApp — only if opted in
   if (prefs.reminder_24h !== false) {
-    const channel = prefs.channel || 'email';
+    const channel = prefs.channel || 'whatsapp';
     if (channel === 'whatsapp' && client.phone) {
-      await sendWhatsApp({ to: client.phone, templateName: 'reminder_24h', templateParams: [client.first_name, treatment.name, timeStr] });
-    } else if (channel === 'sms' && client.phone) {
+      const waResult = await sendWhatsApp({ to: client.phone, templateName: 'reminder_24h', templateParams: [client.first_name, treatment.name, timeStr] });
+      // Fall through to SMS if WhatsApp not available
+      if (!waResult && client.phone && BIRD_API_KEY) {
+        await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id });
+      }
+    } else if ((channel === 'sms' || !biz?.whatsapp_phone_id) && client.phone) {
       await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id });
     }
   }

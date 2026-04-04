@@ -40,7 +40,7 @@ export async function trackSMSUsage(beauticianId) {
       .select('*')
       .eq('beautician_id', beauticianId)
       .eq('week_start', weekStart)
-      .single();
+      .maybeSingle();
 
     let usage;
 

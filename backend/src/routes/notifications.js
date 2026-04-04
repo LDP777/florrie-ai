@@ -181,4 +181,118 @@ router.get('/sms/usage', requireAuth, async (req, res) => {
   }
 });
 
+/**
+ * GET /api/sms/config
+ * Get the SMS configuration for the authenticated beautician.
+ */
+router.get('/sms/config', requireAuth, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('beauticians')
+      .select('sms_originator, sms_enabled, client_reminder_prefs')
+      .eq('id', req.beautician.id)
+      .maybeSingle();
+
+    if (error) {
+      logger.error({ err: error }, 'Failed to fetch SMS config');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
+
+    res.json({
+      sms_originator: data?.sms_originator || 'Florrie',
+      sms_enabled: data?.sms_enabled || false,
+      bird_configured: !!process.env.BIRD_API_KEY,
+      channel: data?.client_reminder_prefs?.channel || 'whatsapp',
+    });
+  } catch (err) {
+    logger.error({ err }, 'SMS config fetch error');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+/**
+ * PUT /api/sms/config
+ * Update SMS configuration for the authenticated beautician.
+ * Body: { sms_originator?: string, sms_enabled?: boolean, channel?: string }
+ */
+router.put('/sms/config', requireAuth, async (req, res) => {
+  try {
+    const { sms_originator, sms_enabled, channel } = req.body;
+
+    // Validate originator — alphanumeric, max 11 chars (Bird/GSMA limit)
+    if (sms_originator !== undefined) {
+      if (typeof sms_originator !== 'string' || sms_originator.length > 11 || !/^[a-zA-Z0-9 ]+$/.test(sms_originator)) {
+        return res.status(400).json({ error: 'sms_originator must be alphanumeric, max 11 characters' });
+      }
+    }
+
+    const updates = {};
+    if (sms_originator !== undefined) updates.sms_originator = sms_originator.trim();
+    if (sms_enabled !== undefined) updates.sms_enabled = Boolean(sms_enabled);
+
+    // If channel is being set, update it inside client_reminder_prefs JSONB
+    if (channel !== undefined) {
+      const { data: current } = await supabase
+        .from('beauticians')
+        .select('client_reminder_prefs')
+        .eq('id', req.beautician.id)
+        .maybeSingle();
+
+      updates.client_reminder_prefs = {
+        ...(current?.client_reminder_prefs || {}),
+        channel,
+      };
+    }
+
+    const { data, error } = await supabase
+      .from('beauticians')
+      .update(updates)
+      .eq('id', req.beautician.id)
+      .select('sms_originator, sms_enabled, client_reminder_prefs')
+      .maybeSingle();
+
+    if (error) {
+      logger.error({ err: error }, 'Failed to update SMS config');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
+
+    logger.info({ beauticianId: req.beautician.id, updates }, 'SMS config updated');
+    res.json({ success: true, ...data });
+  } catch (err) {
+    logger.error({ err }, 'SMS config update error');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+/**
+ * POST /api/sms/test
+ * Send a test SMS to the beautician's own phone to verify Bird is working.
+ * Body: { phone: string }
+ */
+router.post('/sms/test', requireAuth, async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ error: 'phone required' });
+
+    if (!process.env.BIRD_API_KEY) {
+      return res.status(503).json({ error: 'SMS not configured on this server' });
+    }
+
+    const result = await sendSMS({
+      to: phone,
+      body: `Florrie test message — SMS is working! Sent at ${new Date().toLocaleTimeString('en-GB')}.`,
+      beauticianId: req.beautician.id,
+    });
+
+    if (!result) {
+      return res.status(500).json({ error: 'SMS failed to send — check Bird API key and originator' });
+    }
+
+    res.json({ success: true, messageId: result.id });
+  } catch (err) {
+    logger.error({ err }, 'SMS test error');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
 export default router;
