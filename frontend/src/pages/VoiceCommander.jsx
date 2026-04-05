@@ -21,8 +21,33 @@ const AGENT_ROUTES = {
   money: { label: 'Money', icon: '💰', color: '#4CAF50' },
   content: { label: 'Content', icon: '📸', color: '#F5A623' },
   settings: { label: 'Settings', icon: '⚙️', color: '#6b6560' },
-  general: { label: 'florrie.ai', icon: '✨', color: 'var(--accent, #C76B8A)' },
+  general: { label: 'florrie.ai', icon: null, color: 'var(--accent, #C76B8A)' }, // uses petal SVG
 };
+
+// ── Florrie petal SVG ────────────────────────────────────
+function FloriePetal({ size = 28, spinning = false, white = false }) {
+  const colour = white ? '#fff' : '#C76B8A';
+  const gold = white ? 'rgba(255,255,255,0.6)' : '#C9A96E';
+  return (
+    <svg
+      viewBox="0 0 100 100"
+      width={size}
+      height={size}
+      style={{
+        display: 'block',
+        flexShrink: 0,
+        animation: spinning ? 'petalSpin 4s linear infinite' : 'none',
+      }}
+    >
+      <ellipse cx="50" cy="30" rx="16" ry="24" fill={colour} opacity="0.85" transform="rotate(0 50 50)" />
+      <ellipse cx="50" cy="30" rx="16" ry="24" fill={colour} opacity="0.70" transform="rotate(72 50 50)" />
+      <ellipse cx="50" cy="30" rx="16" ry="24" fill={colour} opacity="0.60" transform="rotate(144 50 50)" />
+      <ellipse cx="50" cy="30" rx="16" ry="24" fill={colour} opacity="0.60" transform="rotate(216 50 50)" />
+      <ellipse cx="50" cy="30" rx="16" ry="24" fill={colour} opacity="0.70" transform="rotate(288 50 50)" />
+      <circle cx="50" cy="50" r="8" fill={gold} />
+    </svg>
+  );
+}
 
 const INTENT_TO_AGENT = {
   book_appointment: 'calendar',
@@ -360,9 +385,10 @@ export default function VoiceCommander() {
           >
             {msg.role === 'assistant' && (
               <div style={styles.agentAvatar}>
-                <span style={{ fontSize: 14 }}>
-                  {AGENT_ROUTES[msg.agent]?.icon || '✨'}
-                </span>
+                {msg.agent === 'general' || !AGENT_ROUTES[msg.agent]?.icon
+                  ? <FloriePetal size={18} />
+                  : <span style={{ fontSize: 14 }}>{AGENT_ROUTES[msg.agent].icon}</span>
+                }
               </div>
             )}
 
@@ -408,7 +434,7 @@ export default function VoiceCommander() {
         {isProcessing && (
           <div style={styles.msgRow}>
             <div style={styles.agentAvatar}>
-              <span style={{ fontSize: 14 }}>✨</span>
+              <FloriePetal size={18} spinning />
             </div>
             <div style={{ ...styles.bubble, ...styles.aiBubble }}>
               <div style={styles.typingDots}>
@@ -450,49 +476,50 @@ export default function VoiceCommander() {
           </div>
         )}
 
+        {/* Text input row */}
         <form onSubmit={handleTextSubmit} style={styles.inputForm}>
           <input
             ref={inputRef}
             type="text"
             value={textInput}
             onChange={e => setTextInput(e.target.value)}
-            placeholder={isRecording ? 'Listening...' : 'Type a message...'}
+            placeholder={isRecording ? 'Listening…' : 'Or type a message…'}
             style={styles.textInput}
             disabled={isProcessing || isRecording}
           />
-          {textInput.trim() ? (
+          {textInput.trim() && (
             <button type="submit" style={styles.sendBtn} disabled={isProcessing}>
               ↑
             </button>
-          ) : (
-            speechSupported ? (
-              <button
-                type="button"
-                onClick={handleRecord}
-                disabled={isProcessing}
-                style={{
-                  ...styles.micBtn,
-                  background: isRecording
-                    ? 'var(--danger, #D4605C)'
-                    : 'linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%)',
-                  animation: pulseAnim ? 'pulse 1.5s ease infinite' : 'none',
-                }}
-              >
-                {isRecording ? '⏹' : '🎙️'}
-              </button>
-            ) : (
-              <button type="submit" style={styles.sendBtn} disabled={!textInput.trim() || isProcessing}>
-                ↑
-              </button>
-            )
           )}
         </form>
 
-        {isRecording && (
-          <div style={styles.recordingBar}>
-            <div style={styles.recordingDot} />
-            <span style={styles.recordingText}>Listening...</span>
-            <span style={styles.recordingHint}>Tap to stop</span>
+        {/* Central Florrie petal button */}
+        {speechSupported && (
+          <div style={styles.petalWrap}>
+            {isRecording && (
+              <div style={styles.recordingRipple} />
+            )}
+            <button
+              type="button"
+              onClick={handleRecord}
+              disabled={isProcessing}
+              aria-label={isRecording ? 'Stop recording' : 'Start voice command'}
+              style={{
+                ...styles.petalBtn,
+                background: isRecording
+                  ? 'linear-gradient(135deg, #D4605C 0%, #c0392b 100%)'
+                  : 'linear-gradient(135deg, #C76B8A 0%, #a85070 100%)',
+                boxShadow: isRecording
+                  ? '0 0 0 8px rgba(212,96,92,0.15), 0 4px 20px rgba(212,96,92,0.4)'
+                  : '0 4px 20px rgba(199,107,138,0.35)',
+              }}
+            >
+              <FloriePetal size={38} spinning={isRecording} white />
+            </button>
+            <span style={styles.petalLabel}>
+              {isProcessing ? 'Thinking…' : isRecording ? 'Tap to stop' : 'Tap to speak'}
+            </span>
           </div>
         )}
       </div>
@@ -581,11 +608,30 @@ const styles = {
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
     flexShrink: 0,
   },
-  micBtn: {
-    width: 44, height: 44, borderRadius: 22, border: 'none',
-    color: 'var(--bg-card, #fff)', fontSize: 18,
+  // Petal button
+  petalWrap: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center',
+    gap: 8, paddingTop: 16, paddingBottom: 4, position: 'relative',
+  },
+  petalBtn: {
+    width: 76, height: 76, borderRadius: 38, border: 'none',
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    flexShrink: 0, boxShadow: '0 2px 8px rgba(199,107,138,0.3)',
+    transition: 'transform 0.15s ease, box-shadow 0.2s ease',
+    WebkitTapHighlightColor: 'transparent',
+    position: 'relative',
+    zIndex: 1,
+  },
+  recordingRipple: {
+    position: 'absolute',
+    width: 92, height: 92, borderRadius: 46,
+    border: '2px solid rgba(212,96,92,0.4)',
+    animation: 'ripple 1.4s ease-out infinite',
+    pointerEvents: 'none',
+    zIndex: 0,
+  },
+  petalLabel: {
+    fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #B5AFA8)',
+    letterSpacing: '0.02em', textTransform: 'uppercase',
   },
 
   interimBar: {
@@ -607,3 +653,28 @@ const styles = {
   recordingText: { fontSize: 12, fontWeight: 600, color: 'var(--danger)', flex: 1 },
   recordingHint: { fontSize: 11, color: 'var(--text-muted)' },
 };
+
+// Inject keyframes
+if (typeof document !== 'undefined' && !document.getElementById('voice-keyframes')) {
+  const s = document.createElement('style');
+  s.id = 'voice-keyframes';
+  s.textContent = `
+    @keyframes petalSpin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+    @keyframes ripple {
+      0%   { transform: scale(0.85); opacity: 0.6; }
+      100% { transform: scale(1.4);  opacity: 0; }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+  `;
+  document.head.appendChild(s);
+}
