@@ -223,6 +223,37 @@ export default function Settings({ onLogout }) {
         </div>
       )}
 
+      {section === 'hours' && (
+        <div style={styles.card}>
+          <h3 style={styles.cardTitle}>Block time off</h3>
+          <p style={styles.cardDesc}>Need a day off, holiday, or a quick lunch break? Block time without changing your regular schedule.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <button
+              onClick={() => { window.location.href = '/hours'; }}
+              style={styles.blockLinkBtn}
+            >
+              <span style={styles.blockLinkIcon}>📅</span>
+              <div>
+                <span style={styles.blockLinkTitle}>Full days &amp; exceptions</span>
+                <span style={styles.blockLinkDesc}>Close for a holiday, change hours for a specific date</span>
+              </div>
+              <span style={{ color: 'var(--text-muted)', fontSize: 18 }}>›</span>
+            </button>
+            <button
+              onClick={() => { window.location.href = '/calendar'; }}
+              style={styles.blockLinkBtn}
+            >
+              <span style={styles.blockLinkIcon}>🚫</span>
+              <div>
+                <span style={styles.blockLinkTitle}>Block a time slot</span>
+                <span style={styles.blockLinkDesc}>Lunch break, rest of day, or any custom window</span>
+              </div>
+              <span style={{ color: 'var(--text-muted)', fontSize: 18 }}>›</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* === PAYMENTS (STRIPE) === */}
       {section === 'payments' && (
         <div>
@@ -1072,6 +1103,17 @@ const styles = {
   channelLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' },
   channelOptions: { display: 'flex', gap: 6 },
   channelChip: { padding: '6px 12px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+
+  // Block time links
+  blockLinkBtn: {
+    display: 'flex', alignItems: 'center', gap: 12,
+    padding: '12px 14px', borderRadius: 12, border: '1px solid var(--border)',
+    background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', cursor: 'pointer',
+    fontFamily: 'inherit', textAlign: 'left', width: '100%',
+  },
+  blockLinkIcon: { fontSize: 22, flexShrink: 0 },
+  blockLinkTitle: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 },
+  blockLinkDesc: { display: 'block', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4 },
 
   // Payments
   connectionStatus: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },

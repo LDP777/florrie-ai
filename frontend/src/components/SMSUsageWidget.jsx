@@ -1,52 +1,66 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
+import { useBeautician } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 
+const MONTHLY_LIMIT = 120;
+const SURPLUS_RATE_PENCE = 6;
+
+function getMonthBounds() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const start = new Date(year, month, 1).toISOString().slice(0, 10);
+  const end = new Date(year, month + 1, 0).toISOString().slice(0, 10);
+  const name = now.toLocaleString('en-GB', { month: 'long' });
+  return { start, end, name };
+}
+
 export default function SMSUsageWidget() {
+  const { beautician } = useBeautician();
   const [usage, setUsage] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchUsage();
-    const interval = setInterval(fetchUsage, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    if (beautician?.id) {
+      fetchUsage();
+      const interval = setInterval(fetchUsage, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [beautician?.id]);
 
   async function fetchUsage() {
     try {
+      const { start, end } = getMonthBounds();
+
       const { data, error } = await supabase
         .from('sms_usage')
-        .select('*')
-        .single();
+        .select('messages_sent, surplus_count, surplus_total_pence')
+        .eq('beautician_id', beautician.id)
+        .gte('week_start', start)
+        .lte('week_start', end);
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         logger.warn({ error }, 'Failed to fetch SMS usage');
         setLoading(false);
         return;
       }
 
-      if (data) {
-        const freeRemaining = Math.max(0, data.free_limit - data.messages_sent);
-        const percentUsed = (data.messages_sent / data.free_limit) * 100;
+      const rows = data || [];
+      const messagesSent = rows.reduce((sum, r) => sum + (r.messages_sent || 0), 0);
+      const surplusCount = rows.reduce((sum, r) => sum + (r.surplus_count || 0), 0);
+      const surplusTotalPence = rows.reduce((sum, r) => sum + (r.surplus_total_pence || 0), 0);
+      const freeRemaining = Math.max(0, MONTHLY_LIMIT - messagesSent);
+      const percentUsed = Math.min(100, (messagesSent / MONTHLY_LIMIT) * 100);
 
-        setUsage({
-          messagesSent: data.messages_sent,
-          freeLimit: data.free_limit,
-          freeRemaining,
-          surplusCount: data.surplus_count,
-          surplusTotalPence: data.surplus_total_pence,
-          percentUsed: Math.min(100, percentUsed),
-        });
-      } else {
-        setUsage({
-          messagesSent: 0,
-          freeLimit: 50,
-          freeRemaining: 50,
-          surplusCount: 0,
-          surplusTotalPence: 0,
-          percentUsed: 0,
-        });
-      }
+      setUsage({
+        messagesSent,
+        freeRemaining,
+        surplusCount,
+        surplusTotalPence,
+        percentUsed,
+        isSurplus: messagesSent > MONTHLY_LIMIT,
+      });
 
       setLoading(false);
     } catch (err) {
@@ -57,7 +71,7 @@ export default function SMSUsageWidget() {
 
   if (loading) {
     return (
-      <div style={styles.skeleton}>
+      <div style={styles.widget}>
         <div style={styles.skeletonBar} />
       </div>
     );
@@ -65,7 +79,7 @@ export default function SMSUsageWidget() {
 
   if (!usage) return null;
 
-  const isSurplus = usage.messagesSent > usage.freeLimit;
+  const { name: monthName } = getMonthBounds();
   const surplusStr = usage.surplusTotalPence > 0
     ? `£${(usage.surplusTotalPence / 100).toFixed(2)}`
     : '£0.00';
@@ -73,50 +87,57 @@ export default function SMSUsageWidget() {
   return (
     <div style={styles.widget}>
       <div style={styles.header}>
-        <h3 style={styles.title}>SMS this week</h3>
-        <span style={styles.badge}>{usage.messagesSent}/{usage.freeLimit}</span>
+        <h3 style={styles.title}>SMS this month</h3>
+        <span style={{
+          ...styles.badge,
+          color: usage.isSurplus ? 'var(--danger)' : 'var(--accent)',
+          background: usage.isSurplus ? 'var(--danger-light, #fee2e2)' : 'var(--accent-light)',
+        }}>
+          {usage.messagesSent}/{MONTHLY_LIMIT}
+        </span>
       </div>
 
-      {/* Progress bar */}
       <div style={styles.progressContainer}>
         <div style={styles.progressBg}>
           <div
             style={{
               ...styles.progressFill,
               width: `${usage.percentUsed}%`,
-              backgroundColor: isSurplus ? 'var(--danger)' : 'var(--accent)',
+              backgroundColor: usage.isSurplus ? 'var(--danger)' : 'var(--accent)',
             }}
           />
         </div>
       </div>
 
-      {/* Status text */}
       <div style={styles.status}>
-        {!isSurplus ? (
+        {!usage.isSurplus ? (
           <p style={styles.goodStatus}>
-            {usage.freeRemaining} free SMS remaining
+            {usage.freeRemaining} of {MONTHLY_LIMIT} messages remaining in {monthName}
           </p>
         ) : (
           <div>
             <p style={styles.warnText}>
-              {usage.surplusCount} surplus texts
+              {usage.surplusCount} surplus messages this month
             </p>
             <p style={styles.costText}>
-              Charges: {surplusStr} this week
+              Overage charges: {surplusStr}
             </p>
           </div>
         )}
       </div>
 
-      {/* Details */}
       <div style={styles.details}>
         <div style={styles.detailRow}>
-          <span style={styles.detailLabel}>Free limit</span>
-          <span style={styles.detailValue}>50/week (resets Mon)</span>
+          <span style={styles.detailLabel}>Plan includes</span>
+          <span style={styles.detailValue}>120 SMS/month</span>
+        </div>
+        <div style={styles.detailRow}>
+          <span style={styles.detailLabel}>Resets</span>
+          <span style={styles.detailValue}>1st of each month</span>
         </div>
         <div style={styles.detailRow}>
           <span style={styles.detailLabel}>Surplus rate</span>
-          <span style={styles.detailValue}>6p per text</span>
+          <span style={styles.detailValue}>{SURPLUS_RATE_PENCE}p per message</span>
         </div>
       </div>
     </div>
@@ -147,8 +168,6 @@ const styles = {
   badge: {
     fontSize: 13,
     fontWeight: 600,
-    color: 'var(--accent)',
-    background: 'var(--accent-light)',
     padding: '4px 10px',
     borderRadius: 8,
   },
@@ -203,13 +222,6 @@ const styles = {
   detailValue: {
     color: 'var(--text-secondary)',
     fontWeight: 500,
-  },
-  skeleton: {
-    background: 'var(--bg-card)',
-    border: '1px solid var(--border)',
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
   },
   skeletonBar: {
     height: 12,
