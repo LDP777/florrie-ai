@@ -35,9 +35,18 @@ export default function CalendarView() {
   const [loading, setLoading] = useState(true);
   const detailRef = useRef(null);
 
+  // Time blocking state
+  const [timeBlocks, setTimeBlocks] = useState([]);
+  const [showBlockModal, setShowBlockModal] = useState(false);
+  const [selectedBlock, setSelectedBlock] = useState(null); // existing block tapped
+  const [savingBlock, setSavingBlock] = useState(false);
+
   useEffect(() => {
-    if (beautician) loadAppointments();
-  }, [beautician, currentDate, view]);
+    if (beautician) {
+      loadAppointments();
+      loadTimeBlocks();
+    }
+  }, [beautician, currentDate, view]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scroll to appointment detail when selected
   useEffect(() => {
@@ -74,6 +83,58 @@ export default function CalendarView() {
       logger.error('Calendar load error:', err);
     } finally {
       setLoading(false);
+    }
+  }
+
+  // ──────────────────────────────────────────────────────
+  // Time block functions
+  // ──────────────────────────────────────────────────────
+
+  async function loadTimeBlocks() {
+    if (!beautician || isDevMode) return;
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/hours-exceptions`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setTimeBlocks(data.exceptions || []);
+    } catch (err) {
+      logger.error('Load time blocks error:', err);
+    }
+  }
+
+  async function createTimeBlock({ date, type, reason, note, start_time, end_time }) {
+    setSavingBlock(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/hours-exceptions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ date, type, reason, note, start_time, end_time, notify_clients: false }),
+      });
+      if (res.ok) {
+        await loadTimeBlocks();
+        setShowBlockModal(false);
+      }
+    } catch (err) {
+      logger.error('Create time block error:', err);
+    } finally {
+      setSavingBlock(false);
+    }
+  }
+
+  async function deleteTimeBlock(blockId) {
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      await fetch(`${API_BASE}/api/hours-exceptions/${blockId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      setTimeBlocks(prev => prev.filter(b => b.id !== blockId));
+      setSelectedBlock(null);
+    } catch (err) {
+      logger.error('Delete time block error:', err);
     }
   }
 
@@ -157,9 +218,18 @@ export default function CalendarView() {
           </div>
           <button onClick={() => navigateDate(1)} style={styles.navBtn}>›</button>
         </div>
-        <div style={styles.viewToggle}>
-          <button onClick={() => setView('day')} style={{ ...styles.toggleBtn, background: view === 'day' ? COLORS.secondary : 'transparent', color: view === 'day' ? '#fff' : COLORS.stone400 }}>Day</button>
-          <button onClick={() => setView('week')} style={{ ...styles.toggleBtn, background: view === 'week' ? COLORS.secondary : 'transparent', color: view === 'week' ? '#fff' : COLORS.stone400 }}>Week</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={styles.viewToggle}>
+            <button onClick={() => setView('day')} style={{ ...styles.toggleBtn, background: view === 'day' ? COLORS.secondary : 'transparent', color: view === 'day' ? '#fff' : COLORS.stone400 }}>Day</button>
+            <button onClick={() => setView('week')} style={{ ...styles.toggleBtn, background: view === 'week' ? COLORS.secondary : 'transparent', color: view === 'week' ? '#fff' : COLORS.stone400 }}>Week</button>
+          </div>
+          <button
+            onClick={() => setShowBlockModal(true)}
+            title="Block time"
+            style={{ padding: '6px 10px', borderRadius: 8, border: 'none', background: 'rgba(146,64,94,0.1)', color: COLORS.primary, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}
+          >
+            🚫
+          </button>
         </div>
       </div>
 
@@ -249,6 +319,48 @@ export default function CalendarView() {
                 </button>
               );
             })}
+
+            {/* Time block overlays */}
+            {timeBlocks
+              .filter(b => b.date === formatDate(currentDate))
+              .map(block => {
+                let top = 0, height = (END_HOUR - START_HOUR) * HOUR_HEIGHT;
+                const isClosed = block.type === 'closed' || block.is_closed;
+                if (!isClosed) {
+                  const st = block.start_time || block.custom_start;
+                  const et = block.end_time || block.custom_end;
+                  if (st && et) {
+                    const [sh, sm] = st.split(':').map(Number);
+                    const [eh, em] = et.split(':').map(Number);
+                    top = ((sh * 60 + sm - START_HOUR * 60) / 60) * HOUR_HEIGHT;
+                    height = ((eh * 60 + em - (sh * 60 + sm)) / 60) * HOUR_HEIGHT;
+                  }
+                }
+                const label = isClosed ? 'CLOSED ALL DAY'
+                  : `🚫 ${(block.reason || block.note || 'BLOCKED').toUpperCase()}`;
+                return (
+                  <button
+                    key={block.id}
+                    onClick={() => setSelectedBlock(block)}
+                    style={{
+                      position: 'absolute', left: 0, right: 0,
+                      top: Math.max(0, top),
+                      height: Math.max(height, 36),
+                      background: 'repeating-linear-gradient(45deg, rgba(146,64,94,0.07) 0px, rgba(146,64,94,0.07) 5px, rgba(146,64,94,0.02) 5px, rgba(146,64,94,0.02) 10px)',
+                      border: 'none',
+                      borderLeft: '3px solid rgba(146,64,94,0.5)',
+                      borderRadius: 4,
+                      display: 'flex', alignItems: 'center', paddingLeft: 10,
+                      cursor: 'pointer', zIndex: 3,
+                    }}
+                  >
+                    <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.primary, letterSpacing: '0.04em' }}>
+                      {label}
+                    </span>
+                  </button>
+                );
+              })
+            }
 
             {/* Open slot placeholders */}
             {(() => {
@@ -360,6 +472,25 @@ export default function CalendarView() {
             getStatusColor={getStatusColor}
           />
         </div>
+      )}
+
+      {/* Block Time modal */}
+      {showBlockModal && (
+        <BlockTimeModal
+          defaultDate={formatDate(currentDate)}
+          onSave={createTimeBlock}
+          onClose={() => setShowBlockModal(false)}
+          saving={savingBlock}
+        />
+      )}
+
+      {/* Existing block detail (tap to remove) */}
+      {selectedBlock && (
+        <BlockDetailSheet
+          block={selectedBlock}
+          onDelete={() => deleteTimeBlock(selectedBlock.id)}
+          onClose={() => setSelectedBlock(null)}
+        />
       )}
     </div>
   );
@@ -772,3 +903,255 @@ const styles = {
   rebookSendBtn: { width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   doneCloseBtn: { width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: `${COLORS.outlineVariant}33`, color: COLORS.stone400, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
 };
+
+// ──────────────────────────────────────────────────────────────────
+// BlockTimeModal — create a new time block
+// ──────────────────────────────────────────────────────────────────
+
+const BLOCK_REASONS = [
+  { key: 'lunch', label: '🍽️ Lunch' },
+  { key: 'holiday', label: '🏖️ Holiday' },
+  { key: 'personal', label: '🏠 Personal' },
+  { key: 'sick', label: '🤒 Sick' },
+  { key: 'training', label: '📚 Training' },
+  { key: 'other', label: '✏️ Other' },
+];
+
+function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const nowTime = `${pad(now.getHours())}:${pad(Math.ceil(now.getMinutes() / 15) * 15 === 60 ? 0 : Math.ceil(now.getMinutes() / 15) * 15)}`;
+  const plusOneHour = `${pad(now.getHours() + 1)}:${pad(Math.ceil(now.getMinutes() / 15) * 15 === 60 ? 0 : Math.ceil(now.getMinutes() / 15) * 15)}`;
+
+  const [date, setDate] = useState(defaultDate);
+  const [type, setType] = useState('amended'); // 'closed' = all day, 'amended' = time range
+  const [startTime, setStartTime] = useState(nowTime);
+  const [endTime, setEndTime] = useState(plusOneHour);
+  const [reason, setReason] = useState('personal');
+  const [note, setNote] = useState('');
+
+  const PRESETS = [
+    {
+      label: 'Lunch (1hr)',
+      apply: () => {
+        setType('amended');
+        setStartTime('12:00');
+        setEndTime('13:00');
+        setReason('lunch');
+      },
+    },
+    {
+      label: 'Rest of day',
+      apply: () => {
+        setType('amended');
+        setStartTime(nowTime);
+        setEndTime('20:00');
+        setReason('personal');
+      },
+    },
+    {
+      label: 'All day',
+      apply: () => {
+        setType('closed');
+        setReason('holiday');
+      },
+    },
+    {
+      label: '1 hour',
+      apply: () => {
+        setType('amended');
+        setStartTime(nowTime);
+        setEndTime(plusOneHour);
+        setReason('personal');
+      },
+    },
+  ];
+
+  function handleSave() {
+    onSave({
+      date,
+      type,
+      reason,
+      note: note.trim() || undefined,
+      start_time: type === 'closed' ? undefined : startTime,
+      end_time: type === 'closed' ? undefined : endTime,
+    });
+  }
+
+  const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'flex-end' };
+  const sheet = { background: '#fff', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif', maxHeight: '90vh', overflowY: 'auto' };
+
+  return (
+    <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={sheet}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: COLORS.onSurface }}>Block time</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: COLORS.stone400 }}>×</button>
+        </div>
+
+        {/* Quick presets */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+          {PRESETS.map(p => (
+            <button
+              key={p.label}
+              onClick={p.apply}
+              style={{ padding: '7px 12px', borderRadius: 8, border: `1.5px solid ${COLORS.outlineVariant}`, background: '#fff', color: COLORS.onSurface, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Date */}
+        <label style={{ fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date</label>
+        <input
+          type="date"
+          value={date}
+          onChange={e => setDate(e.target.value)}
+          style={{ display: 'block', width: '100%', marginTop: 4, marginBottom: 14, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+        />
+
+        {/* All day toggle */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: COLORS.onSurface }}>All day</span>
+          <button
+            onClick={() => setType(type === 'closed' ? 'amended' : 'closed')}
+            style={{ width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', padding: 0, background: type === 'closed' ? COLORS.primary : COLORS.outlineVariant }}
+          >
+            <div style={{ width: 20, height: 20, borderRadius: 10, background: '#fff', position: 'absolute', top: 2, transition: 'transform 0.2s', transform: type === 'closed' ? 'translateX(20px)' : 'translateX(2px)' }} />
+          </button>
+        </div>
+
+        {/* Time range — only when not all day */}
+        {type !== 'closed' && (
+          <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'center' }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em' }}>From</label>
+              <input
+                type="time"
+                value={startTime}
+                onChange={e => setStartTime(e.target.value)}
+                style={{ display: 'block', width: '100%', marginTop: 4, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+              />
+            </div>
+            <span style={{ fontSize: 14, color: COLORS.stone400, marginTop: 16 }}>→</span>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em' }}>To</label>
+              <input
+                type="time"
+                value={endTime}
+                onChange={e => setEndTime(e.target.value)}
+                style={{ display: 'block', width: '100%', marginTop: 4, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Reason */}
+        <label style={{ fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 8 }}>Reason</label>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
+          {BLOCK_REASONS.map(r => (
+            <button
+              key={r.key}
+              onClick={() => setReason(r.key)}
+              style={{
+                padding: '7px 12px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                background: reason === r.key ? COLORS.primary : `${COLORS.outlineVariant}33`,
+                color: reason === r.key ? '#fff' : COLORS.onSurface,
+              }}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Note */}
+        <label style={{ fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Note (optional)</label>
+        <input
+          type="text"
+          value={note}
+          onChange={e => setNote(e.target.value)}
+          placeholder="e.g. School pickup, dentist..."
+          style={{ display: 'block', width: '100%', marginTop: 4, marginBottom: 20, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+        />
+
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          style={{ width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: saving ? COLORS.stone400 : COLORS.primary, color: '#fff', fontSize: 15, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
+        >
+          {saving ? 'Saving…' : 'Block this time'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// BlockDetailSheet — shows an existing block + remove option
+// ──────────────────────────────────────────────────────────────────
+
+function BlockDetailSheet({ block, onDelete, onClose }) {
+  const [confirming, setConfirming] = useState(false);
+
+  const isClosed = block.type === 'closed' || block.is_closed;
+  const timeRange = isClosed
+    ? 'All day'
+    : `${block.start_time || block.custom_start || '?'} → ${block.end_time || block.custom_end || '?'}`;
+
+  const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'flex-end' };
+  const sheet = { background: '#fff', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif' };
+
+  return (
+    <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={sheet}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: COLORS.onSurface }}>Time block</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: COLORS.stone400 }}>×</button>
+        </div>
+
+        <div style={{ background: `${COLORS.outlineVariant}22`, borderRadius: 12, padding: 14, marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span style={{ fontSize: 12, color: COLORS.stone400 }}>Date</span>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>{block.date}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span style={{ fontSize: 12, color: COLORS.stone400 }}>Time</span>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>{timeRange}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: block.note ? 8 : 0 }}>
+            <span style={{ fontSize: 12, color: COLORS.stone400 }}>Reason</span>
+            <span style={{ fontSize: 13, fontWeight: 600, textTransform: 'capitalize' }}>{block.reason || '—'}</span>
+          </div>
+          {block.note && (
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 12, color: COLORS.stone400 }}>Note</span>
+              <span style={{ fontSize: 13, fontWeight: 500, textAlign: 'right', maxWidth: '65%' }}>{block.note}</span>
+            </div>
+          )}
+        </div>
+
+        {confirming ? (
+          <div>
+            <p style={{ fontSize: 14, color: COLORS.onSurface, marginBottom: 12, textAlign: 'center' }}>Remove this block?</p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setConfirming(false)} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, background: '#fff', color: COLORS.onSurface, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Cancel
+              </button>
+              <button onClick={onDelete} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: 'none', background: '#E57373', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                Remove
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirming(true)}
+            style={{ width: '100%', padding: '13px 0', borderRadius: 12, border: 'none', background: '#FEE2E2', color: '#B91C1C', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            Remove this block
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
