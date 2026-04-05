@@ -85,6 +85,7 @@ const SMSConfig = lazy(() => import('./pages/SMSConfig.jsx'));
 const APISettings = lazy(() => import('./pages/APISettings.jsx'));
 const Pricing = lazy(() => import('./pages/Pricing.jsx'));
 const Hub = lazy(() => import('./pages/Hub.jsx'));
+const ClientManagePage = lazy(() => import('./pages/ClientManagePage.jsx'));
 const LandingPage = lazy(() => import('./pages/LandingPage.jsx'));
 const NotFound = lazy(() => import('./pages/NotFound.jsx'));
 
@@ -156,7 +157,7 @@ export default function App() {
     }
   }, [session, beautician]);
 
-  const isPublicRoute = location.pathname.startsWith('/book/') || location.pathname.startsWith('/form/');
+  const isPublicRoute = location.pathname.startsWith('/book/') || location.pathname.startsWith('/form/') || location.pathname.includes('/manage/');
   const isAuthRoute = location.pathname === '/login';
   const isLandingRoute = location.pathname === '/';
 
@@ -177,6 +178,7 @@ export default function App() {
         <Routes>
           <Route path="/book/:slug" element={<BookingPage />} />
           <Route path="/book/:slug/confirmed" element={<BookingPage />} />
+          <Route path="/book/:slug/manage/:token" element={<ClientManagePage />} />
           <Route path="/form/:token" element={<ConsultationFormPublic />} />
         </Routes>
       </Suspense>

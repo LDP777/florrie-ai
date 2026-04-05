@@ -142,6 +142,7 @@ export default function Settings({ onLogout }) {
         {[
           { key: 'profile', label: 'Profile' },
           { key: 'hours', label: 'Hours' },
+          { key: 'policy', label: 'Policy' },
           { key: 'payments', label: 'Payments' },
           { key: 'calendar', label: 'Calendar' },
           { key: 'notifications', label: 'Alerts' },
@@ -253,6 +254,136 @@ export default function Settings({ onLogout }) {
           </div>
         </div>
       )}
+
+      {/* === BOOKING POLICY === */}
+      {section === 'policy' && (() => {
+        const policy = beautician.booking_policy || {};
+        const minHours = policy.min_booking_hours ?? 0;
+        const bufferEnabled = policy.payment_buffer_enabled ?? false;
+        const bufferMinutes = policy.payment_buffer_minutes ?? 10;
+        const cancelHours = policy.cancellation_notice_hours ?? 48;
+        const chargePercent = policy.late_cancel_charge_percent ?? 100;
+
+        function savePolicy(updates) {
+          saveProfile({ booking_policy: { ...policy, ...updates } });
+        }
+
+        return (
+          <div>
+            {/* Advance booking */}
+            <div style={styles.card}>
+              <div style={styles.cardTitle}>Minimum notice</div>
+              <p style={styles.cardDesc}>How far in advance must clients book? Set to 0 to allow same-day bookings.</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
+                <input
+                  type="range"
+                  min={0} max={72} step={1}
+                  value={minHours}
+                  onChange={e => savePolicy({ min_booking_hours: Number(e.target.value) })}
+                  style={{ flex: 1, accentColor: 'var(--accent)' }}
+                />
+                <span style={{ minWidth: 80, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', textAlign: 'right' }}>
+                  {minHours === 0 ? 'Same day ok' : `${minHours}h notice`}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Same day</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>72h</span>
+              </div>
+            </div>
+
+            {/* Payment buffer */}
+            <div style={styles.card}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={styles.cardTitle}>Payment buffer</div>
+                <button
+                  onClick={() => savePolicy({ payment_buffer_enabled: !bufferEnabled })}
+                  style={{ ...styles.toggle, background: bufferEnabled ? 'var(--accent)' : 'var(--border)' }}
+                >
+                  <div style={{ ...styles.toggleDot, transform: bufferEnabled ? 'translateX(20px)' : 'translateX(2px)' }} />
+                </button>
+              </div>
+              <p style={styles.cardDesc}>
+                Hold the slot while the client pays. If payment isn't received within the window, the slot is released automatically.
+              </p>
+              {bufferEnabled && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10 }}>
+                  <input
+                    type="range"
+                    min={5} max={60} step={5}
+                    value={bufferMinutes}
+                    onChange={e => savePolicy({ payment_buffer_minutes: Number(e.target.value) })}
+                    style={{ flex: 1, accentColor: 'var(--accent)' }}
+                  />
+                  <span style={{ minWidth: 80, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', textAlign: 'right' }}>
+                    {bufferMinutes} min
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Cancellation policy */}
+            <div style={styles.card}>
+              <div style={styles.cardTitle}>Cancellation notice</div>
+              <p style={styles.cardDesc}>
+                How many hours' notice is required to cancel without a fee? Clients who cancel inside this window can be charged.
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
+                <input
+                  type="range"
+                  min={0} max={168} step={4}
+                  value={cancelHours}
+                  onChange={e => savePolicy({ cancellation_notice_hours: Number(e.target.value) })}
+                  style={{ flex: 1, accentColor: 'var(--accent)' }}
+                />
+                <span style={{ minWidth: 80, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', textAlign: 'right' }}>
+                  {cancelHours === 0 ? 'No policy' : cancelHours < 24 ? `${cancelHours}h` : `${cancelHours / 24}d`}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>No policy</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>7 days</span>
+              </div>
+
+              {cancelHours > 0 && (
+                <>
+                  <div style={{ height: 1, background: 'var(--border-light)', margin: '14px 0' }} />
+                  <div style={styles.cardTitle}>Late cancel charge</div>
+                  <p style={styles.cardDesc}>Percentage of the appointment value charged when a client cancels late.</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
+                    <input
+                      type="range"
+                      min={0} max={100} step={10}
+                      value={chargePercent}
+                      onChange={e => savePolicy({ late_cancel_charge_percent: Number(e.target.value) })}
+                      style={{ flex: 1, accentColor: 'var(--accent)' }}
+                    />
+                    <span style={{ minWidth: 80, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', textAlign: 'right' }}>
+                      {chargePercent === 0 ? 'No charge' : `${chargePercent}%`}
+                    </span>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Policy preview */}
+            {(minHours > 0 || cancelHours > 0) && (
+              <div style={{ ...styles.card, background: 'var(--accent-light)', border: '1.5px solid rgba(199, 107, 138, 0.2)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--accent)', fontVariationSettings: "'FILL' 1, 'wght' 300" }}>policy</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Your booking policy (as clients see it)</span>
+                </div>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55, margin: 0 }}>
+                  {minHours > 0 && `Bookings must be made at least ${minHours < 24 ? `${minHours} hours` : `${minHours / 24} day${minHours / 24 !== 1 ? 's' : ''}`} in advance. `}
+                  {cancelHours > 0 && `We require ${cancelHours < 24 ? `${cancelHours} hours` : `${cancelHours / 24} day${cancelHours / 24 !== 1 ? 's' : ''}`} notice to cancel or reschedule. `}
+                  {cancelHours > 0 && chargePercent > 0 && `Late cancellations within this window may be charged ${chargePercent}% of the appointment value.`}
+                  {cancelHours > 0 && chargePercent === 0 && `No charge applies for late cancellations.`}
+                </p>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* === PAYMENTS (STRIPE) === */}
       {section === 'payments' && (

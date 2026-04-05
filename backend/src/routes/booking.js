@@ -85,6 +85,300 @@ router.get('/:slug', async (req, res) => {
 });
 
 /**
+ * GET /api/booking/:slug/policy
+ * Public — returns the beautician's booking policy for display on the booking page.
+ * Includes: cancellation terms, min booking window, deposit rules.
+ */
+router.get('/:slug/policy', async (req, res) => {
+  try {
+    const { data: b } = await supabase
+      .from('beauticians')
+      .select('booking_policy, first_name, business_name')
+      .eq('booking_slug', req.params.slug)
+      .single();
+    if (!b) return res.status(404).json({ error: 'Not found' });
+    res.json({ policy: b.booking_policy || {}, name: b.business_name || b.first_name });
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch booking policy');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+/**
+ * POST /api/booking/:slug/lookup-client
+ * Public — recognise a returning client by email or phone.
+ * Returns pre-fill data + patch test status + pending consultation forms.
+ * Does NOT return sensitive data — only enough to personalise the booking form.
+ */
+router.post('/:slug/lookup-client', async (req, res) => {
+  try {
+    const { email, phone } = req.body;
+    if (!email && !phone) return res.json({ found: false });
+
+    // Get beautician ID
+    const { data: b } = await supabase
+      .from('beauticians')
+      .select('id')
+      .eq('booking_slug', req.params.slug)
+      .single();
+    if (!b) return res.status(404).json({ error: 'Not found' });
+
+    // Look up client by email or phone
+    let query = supabase
+      .from('clients')
+      .select('id, first_name, last_name, email, phone')
+      .eq('beautician_id', b.id);
+
+    if (email) query = query.ilike('email', email.trim());
+    else query = query.eq('phone', phone.trim());
+
+    const { data: client } = await query.maybeSingle();
+
+    if (!client) return res.json({ found: false });
+
+    // Fetch their upcoming appointment count + patch test status
+    const [{ data: upcoming }, { data: pendingTests }, { data: pendingForms }] = await Promise.all([
+      supabase
+        .from('appointments')
+        .select('id, starts_at, status')
+        .eq('client_id', client.id)
+        .in('status', ['confirmed', 'pending'])
+        .gte('starts_at', new Date().toISOString())
+        .order('starts_at', { ascending: true })
+        .limit(3),
+
+      supabase
+        .from('patch_tests')
+        .select('id, status, test_date')
+        .eq('client_id', client.id)
+        .eq('beautician_id', b.id)
+        .eq('status', 'pending')
+        .limit(1),
+
+      supabase
+        .from('consultation_responses')
+        .select('id, status, created_at')
+        .eq('client_id', client.id)
+        .eq('beautician_id', b.id)
+        .eq('status', 'pending')
+        .limit(1),
+    ]);
+
+    res.json({
+      found: true,
+      client: {
+        name: `${client.first_name} ${client.last_name || ''}`.trim(),
+        email: client.email,
+        phone: client.phone,
+        clientId: client.id,
+      },
+      upcomingAppointments: (upcoming || []).length,
+      hasPendingPatchTest: (pendingTests || []).length > 0,
+      hasPendingForm: (pendingForms || []).length > 0,
+    });
+  } catch (err) {
+    logger.error({ err }, 'Client lookup failed');
+    res.json({ found: false }); // fail silently — don't block booking
+  }
+});
+
+/**
+ * GET /api/booking/:slug/manage/:token
+ * Public — client self-service portal. Returns their booking + related data.
+ * Token = appointment.management_token (UUID generated at booking time).
+ */
+router.get('/:slug/manage/:token', async (req, res) => {
+  try {
+    const { data: appt } = await supabase
+      .from('appointments')
+      .select(`
+        id, starts_at, ends_at, status, management_token,
+        payment_expires_at, policy_snapshot, client_email,
+        treatments(id, name, duration_minutes, price_cents, category),
+        clients(id, first_name, last_name, email, phone),
+        beauticians(id, first_name, business_name, booking_policy, booking_slug, brand_color)
+      `)
+      .eq('management_token', req.params.token)
+      .single();
+
+    if (!appt || appt.beauticians?.booking_slug !== req.params.slug) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    // Fetch patch test status and pending consultation forms for this client
+    const clientId = appt.clients?.id;
+    const beauticianId = appt.beauticians?.id;
+
+    const [{ data: patchTests }, { data: pendingForms }] = await Promise.all([
+      supabase
+        .from('patch_tests')
+        .select('id, status, test_date, result, treatments(name)')
+        .eq('client_id', clientId)
+        .eq('beautician_id', beauticianId)
+        .order('test_date', { ascending: false })
+        .limit(5),
+
+      supabase
+        .from('consultation_responses')
+        .select('id, status, created_at, form_url, consultation_forms(name)')
+        .eq('client_id', clientId)
+        .eq('beautician_id', beauticianId)
+        .eq('status', 'pending')
+        .limit(5),
+    ]);
+
+    const policy = appt.policy_snapshot || appt.beauticians?.booking_policy || {};
+    const now = new Date();
+    const apptStart = new Date(appt.starts_at);
+    const hoursUntil = (apptStart - now) / (1000 * 60 * 60);
+    const withinCancellationWindow = hoursUntil < (policy.cancellation_notice_hours || 48);
+
+    res.json({
+      appointment: {
+        id: appt.id,
+        startsAt: appt.starts_at,
+        endsAt: appt.ends_at,
+        status: appt.status,
+        paymentExpiresAt: appt.payment_expires_at,
+        treatment: appt.treatments,
+        client: {
+          name: `${appt.clients?.first_name} ${appt.clients?.last_name || ''}`.trim(),
+          email: appt.clients?.email || appt.client_email,
+          phone: appt.clients?.phone,
+        },
+        beautician: {
+          name: appt.beauticians?.business_name || appt.beauticians?.first_name,
+          brandColor: appt.beauticians?.brand_color,
+        },
+      },
+      policy: {
+        ...policy,
+        withinCancellationWindow,
+        hoursUntil: Math.max(0, Math.round(hoursUntil)),
+      },
+      patchTests: patchTests || [],
+      pendingForms: pendingForms || [],
+    });
+  } catch (err) {
+    logger.error({ err }, 'Manage booking fetch failed');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+/**
+ * POST /api/booking/:slug/manage/:token/cancel
+ * Client self-cancels. Enforces cancellation policy:
+ *   - Within notice window → records late_cancel_charged flag (beautician charges separately)
+ *   - Outside window → free cancellation
+ */
+router.post('/:slug/manage/:token/cancel', async (req, res) => {
+  try {
+    const { data: appt } = await supabase
+      .from('appointments')
+      .select('id, starts_at, status, policy_snapshot, client_id, beauticians(booking_policy, booking_slug)')
+      .eq('management_token', req.params.token)
+      .single();
+
+    if (!appt || appt.beauticians?.booking_slug !== req.params.slug) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    if (!['confirmed', 'pending'].includes(appt.status)) {
+      return res.status(400).json({ error: 'This booking cannot be cancelled' });
+    }
+
+    const policy = appt.policy_snapshot || appt.beauticians?.booking_policy || {};
+    const hoursUntil = (new Date(appt.starts_at) - new Date()) / (1000 * 60 * 60);
+    const isLateCancel = hoursUntil < (policy.cancellation_notice_hours || 48);
+
+    const { error } = await supabase
+      .from('appointments')
+      .update({
+        status: 'cancelled',
+        cancelled_at: new Date().toISOString(),
+        late_cancel_charged: isLateCancel && (policy.late_cancel_charge_percent || 0) > 0,
+      })
+      .eq('id', appt.id);
+
+    if (error) {
+      logger.error({ err: error }, 'Failed to cancel appointment');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
+
+    res.json({
+      success: true,
+      isLateCancel,
+      chargePercent: isLateCancel ? (policy.late_cancel_charge_percent || 0) : 0,
+      message: isLateCancel
+        ? `Cancelled. As this is within the ${policy.cancellation_notice_hours || 48}-hour notice period, a cancellation fee may apply.`
+        : 'Your appointment has been cancelled.',
+    });
+  } catch (err) {
+    logger.error({ err }, 'Cancel booking failed');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+/**
+ * POST /api/booking/:slug/send-manage-link
+ * Resend the manage-booking link to the client's email.
+ * Looks up by email + slug — for clients who lose the original confirmation.
+ */
+router.post('/:slug/send-manage-link', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email required' });
+
+    const { data: b } = await supabase
+      .from('beauticians')
+      .select('id, business_name, first_name')
+      .eq('booking_slug', req.params.slug)
+      .single();
+    if (!b) return res.status(404).json({ error: 'Not found' });
+
+    // Find their most recent upcoming appointment with a management token
+    const { data: appt } = await supabase
+      .from('appointments')
+      .select('id, starts_at, management_token, treatments(name)')
+      .eq('beautician_id', b.id)
+      .eq('client_email', email.toLowerCase().trim())
+      .in('status', ['confirmed', 'pending'])
+      .gte('starts_at', new Date().toISOString())
+      .order('starts_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (!appt) {
+      // Return 200 regardless to avoid email enumeration
+      return res.json({ sent: true });
+    }
+
+    const manageUrl = `${FRONTEND_URL}/book/${req.params.slug}/manage/${appt.management_token}`;
+    const treatmentName = appt.treatments?.name || 'your appointment';
+    const apptDate = new Date(appt.starts_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+
+    // Send via the notifications service (Resend email)
+    const { sendEmail } = await import('../services/notifications.js');
+    await sendEmail({
+      to: email,
+      subject: `Manage your ${treatmentName} booking`,
+      html: `
+        <p>Hi there,</p>
+        <p>Here's your booking management link for your <strong>${treatmentName}</strong> on <strong>${apptDate}</strong> with ${b.business_name || b.first_name}.</p>
+        <p><a href="${manageUrl}" style="background:#C76B8A;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;">Manage my booking</a></p>
+        <p>From this page you can view your booking, complete any consultation forms, check your patch test status, or cancel.</p>
+        <p style="color:#999;font-size:12px;">If you didn't request this email, you can ignore it.</p>
+      `,
+    });
+
+    res.json({ sent: true });
+  } catch (err) {
+    logger.error({ err }, 'Send manage link failed');
+    res.json({ sent: true }); // don't leak errors
+  }
+});
+
+/**
  * PATCH /api/booking/appointments/:id/status
  * Transition appointment status with validation.
  * Only allows valid state transitions.
@@ -430,10 +724,10 @@ router.post('/:slug/validate-code', async (req, res) => {
 router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req, res) => {
   const { treatment_id, starts_at, client_name, client_email, client_phone, notes, consultation, add_ons, payment_type, discount_code, photo_consent, client_package_id } = req.body;
 
-  // Get beautician from slug (include Stripe fields for deposit flow)
+  // Get beautician from slug (include Stripe fields + booking policy)
   const { data: beautician } = await supabase
     .from('beauticians')
-    .select('id, business_name, first_name, stripe_account_id, stripe_onboarding_complete')
+    .select('id, business_name, first_name, stripe_account_id, stripe_onboarding_complete, booking_policy')
     .eq('booking_slug', req.params.slug)
     .single();
 
@@ -453,6 +747,18 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   const startsAtCheck = new Date(starts_at);
   if (startsAtCheck < new Date()) {
     return res.status(400).json({ error: 'Cannot book an appointment in the past' });
+  }
+
+  // Enforce minimum booking window
+  const bookingPolicy = beautician.booking_policy || {};
+  const minHours = bookingPolicy.min_booking_hours || 0;
+  if (minHours > 0) {
+    const hoursUntil = (startsAtCheck - new Date()) / (1000 * 60 * 60);
+    if (hoursUntil < minHours) {
+      return res.status(400).json({
+        error: `Bookings must be made at least ${minHours} hour${minHours !== 1 ? 's' : ''} in advance. Please choose a later time.`
+      });
+    }
   }
 
   // Validate appointment falls within working hours
@@ -646,6 +952,12 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     depositRequired = depositCents > 0 || isFullPayment;
   }
 
+  // Payment buffer: if enabled, set expiry timestamp
+  const bufferEnabled = bookingPolicy.payment_buffer_enabled && depositRequired;
+  const paymentExpiresAt = bufferEnabled
+    ? new Date(Date.now() + (bookingPolicy.payment_buffer_minutes || 10) * 60 * 1000).toISOString()
+    : null;
+
   // Create appointment
   const { data: appointment, error: aError } = await supabase
     .from('appointments')
@@ -663,6 +975,9 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
       client_notes: clientNotes,
       booked_via: 'booking_page',
       status: depositRequired ? 'pending' : 'confirmed',
+      client_email: client_email ? client_email.toLowerCase().trim() : null,
+      policy_snapshot: bookingPolicy,
+      ...(paymentExpiresAt && { payment_expires_at: paymentExpiresAt }),
       ...(discountMeta && { discount_meta: discountMeta, discount_cents: discountCents }),
       ...(photo_consent && { photo_consent: true }),
       ...(isPackageRedemption && { package_redemption: true, client_package_id }),
@@ -863,6 +1178,8 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
       return res.status(201).json({
         booking: {
           id: appointment.id,
+          managementToken: appointment.management_token,
+          manageUrl: `${FRONTEND_URL}/book/${req.params.slug}/manage/${appointment.management_token}`,
           treatment: treatment.name,
           date: startsDate.toLocaleDateString('en-GB'),
           time: startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
@@ -871,6 +1188,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
           payment_type: isFullPayment ? 'full' : 'deposit',
           amount_charged: `£${(checkoutTotalCents / 100).toFixed(2)}`,
           status: 'pending',
+          paymentExpiresAt: paymentExpiresAt || null,
           ...(discountMeta && { discount: { code: discountMeta.code, type: discountMeta.type, saved: `£${(discountCents / 100).toFixed(2)}` } }),
         },
         checkout_url: session.url,
@@ -906,12 +1224,15 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   res.status(201).json({
     booking: {
       id: appointment.id,
+      managementToken: appointment.management_token,
+      manageUrl: `${FRONTEND_URL}/book/${req.params.slug}/manage/${appointment.management_token}`,
       treatment: treatment.name,
       date: startsDate.toLocaleDateString('en-GB'),
       time: startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
       price: `£${(treatment.price_cents / 100).toFixed(2)}`,
       deposit: null,
-      status: appointment.status
+      status: appointment.status,
+      paymentExpiresAt: paymentExpiresAt || null,
     }
   });
 });

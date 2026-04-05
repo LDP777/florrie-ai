@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase, isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
 import { useParams, useLocation } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
@@ -17,6 +17,44 @@ import { API_BASE } from '../lib/config.js';
  */
 
 const STEPS = ['Treatment', 'Date & Time', 'Your Details', 'Confirm'];
+
+/**
+ * PaymentCountdown — shows a live countdown to the payment deadline.
+ * If the slot will be released in <10min, client sees how long they have.
+ */
+function PaymentCountdown({ expiresAt, brand, brandLight }) {
+  const [secondsLeft, setSecondsLeft] = useState(Math.max(0, Math.round((new Date(expiresAt) - Date.now()) / 1000)));
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (secondsLeft <= 0) return;
+    ref.current = setInterval(() => {
+      const s = Math.max(0, Math.round((new Date(expiresAt) - Date.now()) / 1000));
+      setSecondsLeft(s);
+      if (s === 0) clearInterval(ref.current);
+    }, 1000);
+    return () => clearInterval(ref.current);
+  }, [expiresAt]);
+
+  if (secondsLeft <= 0) return (
+    <div style={{ marginTop: 16, padding: '10px 14px', borderRadius: 10, background: '#FFF0F0', border: '1px solid #FECACA', textAlign: 'center', fontSize: 13, color: '#DC2626' }}>
+      Your slot has been released. Please book again if you still want this appointment.
+    </div>
+  );
+
+  const mins = Math.floor(secondsLeft / 60);
+  const secs = secondsLeft % 60;
+  return (
+    <div style={{ marginTop: 16, padding: '12px 14px', borderRadius: 10, background: brandLight, border: `1px solid ${brand}33`, textAlign: 'center' }}>
+      <p style={{ margin: 0, fontSize: 13, color: brand, fontWeight: 600 }}>
+        Your slot is held for {mins}:{secs.toString().padStart(2, '0')}
+      </p>
+      <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>
+        Complete payment to confirm — if the timer runs out your slot will be released so you can grab a card if needed.
+      </p>
+    </div>
+  );
+}
 
 export default function BookingPage() {
   const { slug } = useParams();
@@ -55,6 +93,10 @@ export default function BookingPage() {
 
   // Payment type: 'deposit' or 'full'
   const [paymentType, setPaymentType] = useState('deposit');
+
+  // Client recognition — returning client lookup
+  const [recognisedClient, setRecognisedClient] = useState(null); // { name, email, phone, hasPendingPatchTest, hasPendingForm }
+  const [lookingUpClient, setLookingUpClient] = useState(false);
 
   // Membership detection
   const [memberInfo, setMemberInfo] = useState(null); // { is_member, plan_name, client_name }
@@ -208,6 +250,37 @@ export default function BookingPage() {
     }, 600);
     return () => clearTimeout(timer);
   }, [clientDetails.phone, slug, selectedTreatment?.id]);
+
+  // Client recognition — trigger when email field loses focus
+  async function handleEmailBlur() {
+    const email = clientDetails.email?.trim();
+    if (!email || !email.includes('@') || isDevMode) return;
+    setLookingUpClient(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/booking/${slug}/lookup-client`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.found && data.client) {
+        setRecognisedClient(data);
+        // Pre-fill name and phone if not already entered
+        setClientDetails(prev => ({
+          ...prev,
+          name: prev.name || data.client.name,
+          phone: prev.phone || data.client.phone || '',
+        }));
+      } else {
+        setRecognisedClient(null);
+      }
+    } catch {
+      // silent — never block the booking flow
+    } finally {
+      setLookingUpClient(false);
+    }
+  }
 
   // Validate and apply a discount code
   async function validateDiscountCode() {
@@ -436,6 +509,8 @@ export default function BookingPage() {
         deposit: data.booking?.deposit || null,
         depositPending: data.booking?.deposit_pending || false,
         depositNote: data.deposit_note || null,
+        manageUrl: data.booking?.manageUrl || null,
+        paymentExpiresAt: data.booking?.paymentExpiresAt || null,
       });
     } catch (err) {
       setError(err.message || 'Booking failed');
@@ -572,6 +647,32 @@ export default function BookingPage() {
               ? "Your slot is held — we'll confirm once the deposit is received."
               : "You'll receive a confirmation message shortly."}
           </p>
+
+          {/* Payment buffer countdown */}
+          {success.paymentExpiresAt && (
+            <PaymentCountdown expiresAt={success.paymentExpiresAt} brand={brand} brandLight={brandLight} />
+          )}
+
+          {/* Manage booking portal link */}
+          {success.manageUrl && (
+            <div style={{ marginTop: 20 }}>
+              <a
+                href={success.manageUrl}
+                style={{
+                  display: 'block', width: '100%', boxSizing: 'border-box',
+                  padding: '13px 0', borderRadius: 12, textAlign: 'center',
+                  background: brandLight, color: brand,
+                  fontWeight: 600, fontSize: 15, textDecoration: 'none',
+                  border: `1.5px solid ${brand}22`,
+                }}
+              >
+                Manage my booking
+              </a>
+              <p style={{ fontSize: 12, color: '#999', textAlign: 'center', marginTop: 8 }}>
+                View, cancel or check patch test status
+              </p>
+            </div>
+          )}
         </div>
         <div style={styles.footer}>
           <span style={styles.footerText}>Powered by </span>
@@ -877,13 +978,39 @@ export default function BookingPage() {
                 <input
                   type="email" placeholder="Email (optional)"
                   value={clientDetails.email}
-                  onChange={e => setClientDetails({ ...clientDetails, email: e.target.value })}
+                  onChange={e => { setClientDetails({ ...clientDetails, email: e.target.value }); setRecognisedClient(null); }}
+                  onBlur={handleEmailBlur}
                   style={{
                     ...styles.input,
                     borderColor: fieldErrors.email ? '#DC2626' : '#E8E4DF'
                   }}
                 />
                 {fieldErrors.email && <span style={styles.fieldErrorText}>{fieldErrors.email}</span>}
+                {lookingUpClient && (
+                  <p style={{ fontSize: 12, color: '#999', marginTop: 4 }}>Checking…</p>
+                )}
+                {recognisedClient?.found && (
+                  <div style={{
+                    marginTop: 8, padding: '10px 12px', borderRadius: 10,
+                    background: `${brand}10`, border: `1px solid ${brand}30`,
+                    fontSize: 13,
+                  }}>
+                    <span style={{ fontWeight: 600, color: brand }}>
+                      Welcome back, {recognisedClient.client.name.split(' ')[0]}!
+                    </span>
+                    <span style={{ color: '#666' }}> We've filled in your details.</span>
+                    {recognisedClient.hasPendingPatchTest && (
+                      <p style={{ margin: '6px 0 0', fontSize: 12, color: '#D4943A', fontWeight: 500 }}>
+                        ⚠️ You have a patch test pending — your beautician will be in touch.
+                      </p>
+                    )}
+                    {recognisedClient.hasPendingForm && (
+                      <p style={{ margin: '4px 0 0', fontSize: 12, color: '#7B6BA8', fontWeight: 500 }}>
+                        📋 You have a consultation form to complete.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
               <textarea
                 placeholder="Any notes for your appointment? (optional)"
