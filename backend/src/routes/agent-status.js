@@ -242,4 +242,87 @@ function shortTimeAgo(date, now) {
   return `${Math.floor(hours / 24)}d`;
 }
 
+/**
+ * GET /api/agents/counts
+ * Single-call badge counter for the Hub agent grid.
+ * Returns: { inbox, content, churn, insights, compliance, total }
+ *
+ * inbox      — unresolved escalated messages (Front Desk action needed)
+ * content    — draft content posts awaiting approval
+ * churn      — clients flagged as high churn risk
+ * insights   — coaching actions in the last 7 days (Biz Coach activity)
+ * compliance — pending patch tests + pending consultation responses
+ */
+router.get('/counts', requireAuth, async (req, res) => {
+  try {
+    const beauticianId = req.beautician.id;
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const [
+      escalationsRes,
+      contentRes,
+      churnRes,
+      insightsRes,
+      patchTestsRes,
+      consultationRes,
+    ] = await Promise.all([
+      // Inbox: unresolved escalated messages
+      supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('beautician_id', beauticianId)
+        .eq('escalated', true)
+        .eq('resolved', false),
+
+      // Content: draft posts awaiting approval
+      supabase
+        .from('content_posts')
+        .select('id', { count: 'exact', head: true })
+        .eq('beautician_id', beauticianId)
+        .eq('status', 'draft'),
+
+      // Churn: clients flagged high risk
+      supabase
+        .from('clients')
+        .select('id', { count: 'exact', head: true })
+        .eq('beautician_id', beauticianId)
+        .eq('churn_risk', 'high'),
+
+      // Insights: coaching ai_actions in last 7 days
+      supabase
+        .from('ai_actions')
+        .select('id', { count: 'exact', head: true })
+        .eq('beautician_id', beauticianId)
+        .eq('action_type', 'value_coaching')
+        .gte('created_at', sevenDaysAgo),
+
+      // Compliance part 1: pending patch tests
+      supabase
+        .from('patch_tests')
+        .select('id', { count: 'exact', head: true })
+        .eq('beautician_id', beauticianId)
+        .eq('status', 'pending'),
+
+      // Compliance part 2: consultation responses awaiting signature
+      supabase
+        .from('consultation_responses')
+        .select('id', { count: 'exact', head: true })
+        .eq('beautician_id', beauticianId)
+        .eq('status', 'pending'),
+    ]);
+
+    const inbox      = escalationsRes.count  ?? 0;
+    const content    = contentRes.count      ?? 0;
+    const churn      = churnRes.count        ?? 0;
+    const insights   = insightsRes.count     ?? 0;
+    const compliance = (patchTestsRes.count ?? 0) + (consultationRes.count ?? 0);
+    const total      = inbox + content + churn + insights + compliance;
+
+    res.json({ inbox, content, churn, insights, compliance, total });
+  } catch (err) {
+    // Fail silently — badge counts are non-critical
+    res.json({ inbox: 0, content: 0, churn: 0, insights: 0, compliance: 0, total: 0 });
+  }
+});
+
 export default router;

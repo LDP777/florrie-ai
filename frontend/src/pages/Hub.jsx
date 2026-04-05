@@ -243,22 +243,9 @@ function AgentTeamSection({ beautician, onNav }) {
       try { const r = await fetch(url, { headers: h }); return r.ok ? r.json() : null; }
       catch { return null; }
     };
-    const extract = (d) =>
-      d == null ? null
-      : typeof d.count === 'number' ? d.count
-      : typeof d.total === 'number' ? d.total
-      : Array.isArray(d) ? d.length
-      : Array.isArray(d?.data) ? d.data.length
-      : null;
-
-    const [status, inbox, content, churn, insights, patchTests, consultForms] = await Promise.all([
+    const [status, countsData] = await Promise.all([
       safe(`${API_BASE}/api/agents/status`),
-      safe(`${API_BASE}/api/inbox?status=unread&count=true`),
-      safe(`${API_BASE}/api/content?status=draft&count=true`),
-      safe(`${API_BASE}/api/churn-risk?count=true`),
-      safe(`${API_BASE}/api/ai-insights?count=true`),
-      safe(`${API_BASE}/api/patch-tests?status=pending&count=true`),
-      safe(`${API_BASE}/api/consultation-forms?count=true`),
+      safe(`${API_BASE}/api/agents/counts`),
     ]);
 
     // Parse agent status
@@ -279,15 +266,13 @@ function AgentTeamSection({ beautician, onNav }) {
     }
     setAgentData(mapped);
 
-    // Compliance = patch tests pending + consultation forms total
-    const pc = extract(patchTests) || 0;
-    const fc = extract(consultForms) || 0;
+    // Badge counts from single endpoint
     setCounts({
-      inbox:      extract(inbox),
-      content:    extract(content),
-      churn:      extract(churn),
-      insights:   extract(insights),
-      compliance: (pc + fc) > 0 ? pc + fc : null,
+      inbox:      countsData?.inbox      || null,
+      content:    countsData?.content    || null,
+      churn:      countsData?.churn      || null,
+      insights:   countsData?.insights   || null,
+      compliance: countsData?.compliance || null,
     });
   }
 

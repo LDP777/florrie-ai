@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { supabase, isDevMode } from './lib/supabase.js';
 import { useTheme } from './lib/theme.jsx';
@@ -314,31 +314,55 @@ export default function App() {
         </Suspense>
       </div>
 
-      {showNav && <BottomNav current={location.pathname} />}
+      {showNav && <BottomNav current={location.pathname} session={session} />}
       </div>
     </ErrorBoundary>
   );
 }
 
 /**
- * Mobile bottom navigation — Stitch BottomNavBar reference.
- * 5 tabs: Home, Calendar, florrie.ai (raised centre), Money, Hub.
- * Uses Material Symbols Outlined. Active state = filled icon + accent color + dot.
+ * Mobile bottom navigation — 5 tabs with notification badges.
+ * Centre FAB uses the florrie petal SVG. Inbox + Hub show live badge counts.
  */
-function BottomNav({ current }) {
+function BottomNav({ current, session }) {
   const navigate = useNavigate();
+  const [navCounts, setNavCounts] = useState({ inbox: 0, hub: 0 });
+  const intervalRef = useRef(null);
 
-  // Hub "active" = any page that lives inside the Hub directory.
-  // /inbox and /money now have their own tabs so exclude them here.
+  useEffect(() => {
+    if (!session) return;
+    async function fetchCounts() {
+      try {
+        const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
+        let token = null;
+        if (key) {
+          const raw = localStorage.getItem(key);
+          try { const p = JSON.parse(raw); token = p?.access_token || p?.session?.access_token || raw; } catch { token = raw; }
+        }
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const res = await fetch('/api/agents/counts', { headers });
+        if (!res.ok) return;
+        const d = await res.json();
+        setNavCounts({
+          inbox: d.inbox || 0,
+          hub:   (d.content || 0) + (d.churn || 0) + (d.compliance || 0) + (d.insights || 0),
+        });
+      } catch { /* silent — badges are non-critical */ }
+    }
+    fetchCounts();
+    intervalRef.current = setInterval(fetchCounts, 60_000);
+    return () => clearInterval(intervalRef.current);
+  }, [session]);
+
   const hubPaths = ['/hub', '/money', '/analytics', '/clients', '/treatments', '/team', '/waitlist', '/digest', '/campaigns', '/reviews', '/loyalty', '/aftercare', '/import', '/smart-schedule', '/vouchers', '/notifications', '/hours', '/patch-tests', '/compliance', '/reports', '/policies', '/business', '/rebook', '/packages', '/templates', '/referrals', '/portfolio', '/notes', '/feedback', '/expenses', '/consultations', '/sequences', '/photo-consent', '/waitlist-pro', '/client-timeline', '/rota', '/deposits', '/addons', '/cancellations', '/tags', '/promos', '/checklist', '/inventory', '/goals', '/price-list', '/treatment-stats', '/staff-performance', '/memberships', '/comms', '/end-of-day', '/automations', '/whatsapp', '/portal', '/ai-insights', '/segments', '/churn', '/demand', '/locations', '/integrations', '/sms', '/api-settings', '/escalations', '/settings'];
   const isHubActive = hubPaths.includes(current) && current !== '/inbox';
 
   const tabs = [
-    { path: '/', label: 'Home', icon: 'home', isPetal: false },
-    { path: '/calendar', label: 'Calendar', icon: 'calendar_today', isPetal: false },
-    { path: '/voice', label: 'florrie.ai', icon: 'auto_awesome', isPetal: true },
-    { path: '/inbox', label: 'Inbox', icon: 'chat_bubble', isPetal: false },
-    { path: '/hub', label: 'Hub', icon: 'explore', isPetal: false }
+    { path: '/',        label: 'Home',      icon: 'home',         isPetal: false, badge: 0 },
+    { path: '/calendar',label: 'Calendar',  icon: 'calendar_today',isPetal: false, badge: 0 },
+    { path: '/voice',   label: 'florrie.ai',icon: null,            isPetal: true,  badge: 0 },
+    { path: '/inbox',   label: 'Inbox',     icon: 'chat_bubble',   isPetal: false, badge: navCounts.inbox },
+    { path: '/hub',     label: 'Hub',       icon: 'explore',       isPetal: false, badge: navCounts.hub },
   ];
 
   return (
@@ -346,6 +370,7 @@ function BottomNav({ current }) {
       {tabs.map(tab => {
         const active = tab.path === '/hub' ? isHubActive : current === tab.path;
         const color = active ? '#92405e' : '#867277';
+        const showBadge = tab.badge > 0;
         return (
           <button
             key={tab.path}
@@ -353,7 +378,7 @@ function BottomNav({ current }) {
             style={styles.navItem}
           >
             {tab.isPetal ? (
-              /* Raised centre button — Stitch FAB style */
+              /* Raised centre FAB — florrie petal SVG */
               <div style={{
                 width: 52, height: 52, borderRadius: '50%',
                 background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
@@ -361,18 +386,31 @@ function BottomNav({ current }) {
                 boxShadow: '0 4px 16px rgba(146, 64, 94, 0.35)',
                 marginTop: -24,
                 border: '3px solid #fef8f4',
+                overflow: 'hidden',
               }}>
-                <span className="material-symbols-outlined" style={{
-                  fontSize: 24, color: '#fff',
-                  fontVariationSettings: "'FILL' 1, 'wght' 300",
-                }}>{tab.icon}</span>
+                <img src="/florrie-petal.svg" alt="" style={{ width: 28, height: 28, filter: 'brightness(0) invert(1)' }} />
               </div>
             ) : (
-              <span className="material-symbols-outlined" style={{
-                fontSize: 22, color,
-                fontVariationSettings: active ? "'FILL' 1, 'wght' 300" : "'FILL' 0, 'wght' 300",
-                transition: 'color 0.15s ease',
-              }}>{tab.icon}</span>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span className="material-symbols-outlined" style={{
+                  fontSize: 22, color,
+                  fontVariationSettings: active ? "'FILL' 1, 'wght' 300" : "'FILL' 0, 'wght' 300",
+                  transition: 'color 0.15s ease',
+                }}>{tab.icon}</span>
+                {showBadge && (
+                  <span style={{
+                    position: 'absolute', top: -4, right: -6,
+                    minWidth: 16, height: 16, borderRadius: 8,
+                    background: '#E85D75', color: '#fff',
+                    fontSize: 9, fontWeight: 700, lineHeight: '16px',
+                    textAlign: 'center', padding: '0 3px',
+                    border: '1.5px solid #fef8f4',
+                    fontFamily: 'inherit',
+                  }}>
+                    {tab.badge > 99 ? '99+' : tab.badge}
+                  </span>
+                )}
+              </div>
             )}
             <span style={{
               fontSize: 10, lineHeight: 1, letterSpacing: '0.01em',
