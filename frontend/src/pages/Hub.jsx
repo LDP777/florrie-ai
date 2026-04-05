@@ -4,13 +4,14 @@ import { useBeautician } from '../lib/supabase.js';
 import { hasFeature, getRequiredPlan } from '../lib/subscription.js';
 import { API_BASE } from '../lib/config.js';
 
-// ─── Agent definitions ────────────────────────────────────────────────────────
+// ─── Agent definitions — must match backend agent-status.js exactly ──────────
 const AGENTS = [
-  { id: 'front_desk', name: 'Desk',    label: 'Front Desk', colour: '#C76B8A' },
-  { id: 'calendar',   name: 'Sync',    label: 'Calendar',   colour: '#7B68EE' },
-  { id: 'comeback',   name: 'Growth',  label: 'Comeback',   colour: '#F59E0B' },
-  { id: 'content',    name: 'Studio',  label: 'Content',    colour: '#10B981' },
-  { id: 'money',      name: 'Ledger',  label: 'Money',      colour: '#3B82F6' },
+  { id: 'front_desk',      name: 'Desk',    label: 'Front Desk',      colour: '#C76B8A' },
+  { id: 'content_creator', name: 'Studio',  label: 'Content',         colour: '#D4943A' },
+  { id: 'client_intel',    name: 'Intel',   label: 'Client Intel',    colour: '#7B6BA8' },
+  { id: 'business_coach',  name: 'Coach',   label: 'Biz Coach',       colour: '#5BA97B' },
+  { id: 'scheduler',       name: 'Sched',   label: 'Scheduler',       colour: '#4A90D9' },
+  { id: 'guardian',        name: 'Guard',   label: 'Guardian',        colour: '#C9A96E' },
 ];
 
 function getToken() {
@@ -24,131 +25,190 @@ function getToken() {
 }
 
 // ─── SVG Mini-character avatars ───────────────────────────────────────────────
-// Each agent gets their own illustrated character, drawn in-code.
-// No external image URLs — fully portable.
+// 6 illustrated characters, fully drawn in code. No external image URLs.
+// Each has a unique personality prop that matches their role.
 
-function AvatarDesk({ size = 56 }) {
+// 1. Front Desk — receptionist with headset + mic
+function AvatarFrontDesk({ size = 56 }) {
   return (
     <svg viewBox="0 0 56 56" width={size} height={size}>
       <circle cx="28" cy="28" r="28" fill="#C76B8A"/>
-      {/* Face */}
       <circle cx="28" cy="27" r="13" fill="#FFD5B0"/>
-      {/* Eyes */}
       <circle cx="24.5" cy="25" r="1.8" fill="#3D2B1A"/>
       <circle cx="31.5" cy="25" r="1.8" fill="#3D2B1A"/>
-      {/* Smile */}
+      <circle cx="25.2" cy="24.3" r="0.6" fill="#fff"/>
+      <circle cx="32.2" cy="24.3" r="0.6" fill="#fff"/>
       <path d="M23.5 29.5 Q28 33.5 32.5 29.5" stroke="#3D2B1A" strokeWidth="1.4" fill="none" strokeLinecap="round"/>
-      {/* Headset arc */}
-      <path d="M16.5 24 Q16 12 28 12 Q40 12 39.5 24" stroke="#fff" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
-      {/* Earpieces */}
+      {/* Headset */}
+      <path d="M16.5 24 Q16 11 28 11 Q40 11 39.5 24" stroke="#fff" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
       <rect x="13.5" y="22.5" width="4.5" height="7" rx="2.25" fill="#fff"/>
       <rect x="38" y="22.5" width="4.5" height="7" rx="2.25" fill="#fff"/>
-      {/* Mic boom */}
-      <path d="M39 27 Q43 30 40 34" stroke="#fff" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-      <circle cx="40" cy="34.5" r="1.5" fill="#fff"/>
+      <path d="M39 27 Q43 31 40.5 34.5" stroke="#fff" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+      <circle cx="40.5" cy="35" r="1.8" fill="#fff"/>
+      {/* Speech bubble */}
+      <rect x="3" y="6" width="14" height="10" rx="3" fill="#fff" opacity="0.85"/>
+      <path d="M8 16 L6 20 L12 16" fill="#fff" opacity="0.85"/>
+      <circle cx="7" cy="11" r="1" fill="#C76B8A"/>
+      <circle cx="10" cy="11" r="1" fill="#C76B8A"/>
+      <circle cx="13" cy="11" r="1" fill="#C76B8A"/>
     </svg>
   );
 }
 
-function AvatarCalendar({ size = 56 }) {
+// 2. Content Creator — creative character with palette + brush
+function AvatarContentCreator({ size = 56 }) {
   return (
     <svg viewBox="0 0 56 56" width={size} height={size}>
-      <circle cx="28" cy="28" r="28" fill="#7B68EE"/>
-      {/* Face */}
-      <circle cx="28" cy="26" r="13" fill="#FFD5B0"/>
-      {/* Eyes - focused/studious */}
-      <ellipse cx="24.5" cy="24" rx="2.2" ry="1.5" fill="#3D2B1A"/>
-      <ellipse cx="31.5" cy="24" rx="2.2" ry="1.5" fill="#3D2B1A"/>
-      {/* Smile - slight */}
+      <circle cx="28" cy="28" r="28" fill="#D4943A"/>
+      <circle cx="28" cy="27" r="13" fill="#FFD5B0"/>
+      {/* Creative eyes — one winking */}
+      <circle cx="24.5" cy="25" r="1.8" fill="#3D2B1A"/>
+      <path d="M30 24 Q31.5 22 33 24" stroke="#3D2B1A" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+      <circle cx="25.2" cy="24.3" r="0.65" fill="#fff"/>
+      {/* Big grin */}
+      <path d="M22 29.5 Q28 35 34 29.5" stroke="#3D2B1A" strokeWidth="1.4" fill="none" strokeLinecap="round"/>
+      {/* Artist palette top-right */}
+      <ellipse cx="43" cy="12" rx="8" ry="7" fill="#fff" opacity="0.9"/>
+      <circle cx="40" cy="10" r="2" fill="#C76B8A"/>
+      <circle cx="46" cy="10" r="2" fill="#4A90D9"/>
+      <circle cx="43" cy="7" r="2" fill="#5BA97B"/>
+      <circle cx="46" cy="15" r="2" fill="#F59E0B"/>
+      {/* Brush */}
+      <path d="M37 19 L31 25" stroke="#3D2B1A" strokeWidth="1.5" strokeLinecap="round"/>
+      <circle cx="30" cy="26" r="2" fill="#D4943A" opacity="0.8"/>
+      {/* Star sparkle top-left */}
+      <path d="M9 8 L9.5 11 L12 11 L10 13 L10.5 16 L9 14 L7.5 16 L8 13 L6 11 L8.5 11Z" fill="#fff" opacity="0.8"/>
+    </svg>
+  );
+}
+
+// 3. Client Intel — analyst with magnifying glass + data dots
+function AvatarClientIntel({ size = 56 }) {
+  return (
+    <svg viewBox="0 0 56 56" width={size} height={size}>
+      <circle cx="28" cy="28" r="28" fill="#7B6BA8"/>
+      <circle cx="28" cy="27.5" r="13" fill="#FFD5B0"/>
+      {/* Focused/smart eyes */}
+      <ellipse cx="24.5" cy="25" rx="2" ry="1.6" fill="#3D2B1A"/>
+      <ellipse cx="31.5" cy="25" rx="2" ry="1.6" fill="#3D2B1A"/>
+      <circle cx="25" cy="24.5" r="0.6" fill="#fff"/>
+      <circle cx="32" cy="24.5" r="0.6" fill="#fff"/>
+      {/* Slight knowing smile */}
+      <path d="M24.5 29.5 Q28 32.5 31.5 29.5" stroke="#3D2B1A" strokeWidth="1.4" fill="none" strokeLinecap="round"/>
+      {/* Magnifying glass */}
+      <circle cx="42" cy="12" r="7" fill="none" stroke="#fff" strokeWidth="2.5" opacity="0.9"/>
+      <circle cx="42" cy="12" r="4.5" fill="#fff" opacity="0.2"/>
+      <line x1="46.5" y1="16.5" x2="50" y2="20" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/>
+      {/* Data dots (clients being analysed) */}
+      <circle cx="40" cy="11" r="1.2" fill="#C76B8A" opacity="0.8"/>
+      <circle cx="43" cy="10" r="1.2" fill="#5BA97B" opacity="0.8"/>
+      <circle cx="43" cy="13.5" r="1.2" fill="#F59E0B" opacity="0.8"/>
+      {/* Mini bar chart bottom-left */}
+      <rect x="5" y="15" width="3" height="6" rx="1" fill="#fff" opacity="0.6"/>
+      <rect x="9" y="12" width="3" height="9" rx="1" fill="#fff" opacity="0.8"/>
+      <rect x="13" y="9" width="3" height="12" rx="1" fill="#fff" opacity="0.9"/>
+    </svg>
+  );
+}
+
+// 4. Business Coach — confident advisor with clipboard + upward chart
+function AvatarBusinessCoach({ size = 56 }) {
+  return (
+    <svg viewBox="0 0 56 56" width={size} height={size}>
+      <circle cx="28" cy="28" r="28" fill="#5BA97B"/>
+      <circle cx="28" cy="27" r="13" fill="#FFD5B0"/>
+      {/* Confident eyes */}
+      <circle cx="24.5" cy="24.5" r="1.8" fill="#3D2B1A"/>
+      <circle cx="31.5" cy="24.5" r="1.8" fill="#3D2B1A"/>
+      <circle cx="25.2" cy="23.8" r="0.6" fill="#fff"/>
+      <circle cx="32.2" cy="23.8" r="0.6" fill="#fff"/>
+      {/* Authoritative smile */}
+      <path d="M23.5 29 Q28 33 32.5 29" stroke="#3D2B1A" strokeWidth="1.4" fill="none" strokeLinecap="round"/>
+      {/* Clipboard top-right */}
+      <rect x="35" y="7" width="14" height="17" rx="2.5" fill="#fff" opacity="0.9"/>
+      <rect x="39" y="5" width="6" height="4" rx="2" fill="#5BA97B" opacity="0.8"/>
+      {/* Rising chart on clipboard */}
+      <polyline points="37,20 40,17 43,15 46,11" stroke="#5BA97B" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="46" cy="11" r="1.5" fill="#5BA97B"/>
+      {/* Arrow up */}
+      <path d="M44 9 L46 11 L48 9" stroke="#5BA97B" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+      {/* Lightbulb top-left */}
+      <circle cx="10" cy="11" r="5.5" fill="#fff" opacity="0.85"/>
+      <path d="M8 14 L12 14" stroke="#F59E0B" strokeWidth="1.2" strokeLinecap="round"/>
+      <path d="M9 15.5 L11 15.5" stroke="#F59E0B" strokeWidth="1.2" strokeLinecap="round"/>
+      <path d="M10 5.5 L10 6.5 M6 7.5 L7 8.5 M14 7.5 L13 8.5" stroke="#F59E0B" strokeWidth="1" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+// 5. Scheduler — organised planner with open calendar + clock
+function AvatarScheduler({ size = 56 }) {
+  return (
+    <svg viewBox="0 0 56 56" width={size} height={size}>
+      <circle cx="28" cy="28" r="28" fill="#4A90D9"/>
+      <circle cx="28" cy="27" r="13" fill="#FFD5B0"/>
+      {/* Focused eyes with raised brow (busy!) */}
+      <path d="M22 22 Q24.5 20.5 27 22" stroke="#3D2B1A" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+      <path d="M29 22 Q31.5 20.5 34 22" stroke="#3D2B1A" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+      <ellipse cx="24.5" cy="24.5" rx="2" ry="1.6" fill="#3D2B1A"/>
+      <ellipse cx="31.5" cy="24.5" rx="2" ry="1.6" fill="#3D2B1A"/>
+      <circle cx="25" cy="24" r="0.6" fill="#fff"/>
+      <circle cx="32" cy="24" r="0.6" fill="#fff"/>
       <path d="M24 29 Q28 32 32 29" stroke="#3D2B1A" strokeWidth="1.4" fill="none" strokeLinecap="round"/>
-      {/* Mini calendar floating top-right */}
-      <rect x="34" y="8" width="14" height="14" rx="2.5" fill="#fff" opacity="0.9"/>
-      <line x1="34" y1="12.5" x2="48" y2="12.5" stroke="#7B68EE" strokeWidth="1.2"/>
-      <rect x="37" y="9.5" width="1.5" height="4" rx="0.75" fill="#7B68EE"/>
-      <rect x="43.5" y="9.5" width="1.5" height="4" rx="0.75" fill="#7B68EE"/>
-      {/* Calendar dots */}
-      <circle cx="37.5" cy="16" r="1" fill="#7B68EE"/>
-      <circle cx="41" cy="16" r="1" fill="#7B68EE"/>
-      <circle cx="44.5" cy="16" r="1" fill="#C76B8A"/>
-      <circle cx="37.5" cy="19" r="1" fill="#7B68EE"/>
-      <circle cx="41" cy="19" r="1" fill="#7B68EE"/>
+      {/* Calendar open top-right */}
+      <rect x="34" y="6" width="17" height="16" rx="2.5" fill="#fff" opacity="0.9"/>
+      <rect x="34" y="6" width="17" height="5" rx="2.5" fill="#4A90D9" opacity="0.7"/>
+      <rect x="37" y="4" width="2" height="4" rx="1" fill="#fff"/>
+      <rect x="46" y="4" width="2" height="4" rx="1" fill="#fff"/>
+      {/* Calendar grid */}
+      <circle cx="37" cy="15" r="1" fill="#4A90D9"/>
+      <circle cx="40.5" cy="15" r="1" fill="#4A90D9"/>
+      <circle cx="44" cy="15" r="1.2" fill="#C76B8A"/>
+      <circle cx="47.5" cy="15" r="1" fill="#4A90D9"/>
+      <circle cx="37" cy="19" r="1" fill="#4A90D9"/>
+      <circle cx="40.5" cy="19" r="1" fill="#4A90D9"/>
+      {/* Clock bottom-left */}
+      <circle cx="10" cy="14" r="7" fill="#fff" opacity="0.85"/>
+      <circle cx="10" cy="14" r="5.5" fill="none" stroke="#4A90D9" strokeWidth="1"/>
+      <line x1="10" y1="14" x2="10" y2="10" stroke="#3D2B1A" strokeWidth="1.5" strokeLinecap="round"/>
+      <line x1="10" y1="14" x2="13" y2="15.5" stroke="#C76B8A" strokeWidth="1.5" strokeLinecap="round"/>
+      <circle cx="10" cy="14" r="1" fill="#3D2B1A"/>
     </svg>
   );
 }
 
-function AvatarComeback({ size = 56 }) {
+// 6. Guardian — protector with shield + check mark + star
+function AvatarGuardian({ size = 56 }) {
   return (
     <svg viewBox="0 0 56 56" width={size} height={size}>
-      <circle cx="28" cy="28" r="28" fill="#F59E0B"/>
-      {/* Face */}
-      <circle cx="28" cy="28" r="13" fill="#FFD5B0"/>
-      {/* Happy eyes */}
-      <path d="M23 25 Q24.5 22.5 26 25" stroke="#3D2B1A" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-      <path d="M30 25 Q31.5 22.5 33 25" stroke="#3D2B1A" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-      {/* Big smile */}
-      <path d="M22 30 Q28 36.5 34 30" stroke="#3D2B1A" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
-      {/* Floating hearts */}
-      <path d="M9 14 C9 11.5 12.5 11.5 12.5 14 C12.5 11.5 16 11.5 16 14 C16 16.5 12.5 20 12.5 20 C12.5 20 9 16.5 9 14Z" fill="#fff" opacity="0.9"/>
-      <path d="M38 7 C38 5.5 40 5.5 40 7 C40 5.5 42 5.5 42 7 C42 8.5 40 10.5 40 10.5 C40 10.5 38 8.5 38 7Z" fill="#fff" opacity="0.75"/>
-    </svg>
-  );
-}
-
-function AvatarContent({ size = 56 }) {
-  return (
-    <svg viewBox="0 0 56 56" width={size} height={size}>
-      <circle cx="28" cy="28" r="28" fill="#10B981"/>
-      {/* Face */}
+      <circle cx="28" cy="28" r="28" fill="#C9A96E"/>
       <circle cx="28" cy="27" r="13" fill="#FFD5B0"/>
-      {/* Cool/creative eyes */}
+      {/* Warm, trustworthy eyes */}
       <circle cx="24.5" cy="25" r="1.8" fill="#3D2B1A"/>
       <circle cx="31.5" cy="25" r="1.8" fill="#3D2B1A"/>
-      {/* Glint in eyes */}
-      <circle cx="25.3" cy="24.2" r="0.7" fill="#fff"/>
-      <circle cx="32.3" cy="24.2" r="0.7" fill="#fff"/>
-      {/* Smile */}
-      <path d="M23.5 29.5 Q28 33.5 32.5 29.5" stroke="#3D2B1A" strokeWidth="1.4" fill="none" strokeLinecap="round"/>
-      {/* Camera body */}
-      <rect x="34" y="8" width="16" height="12" rx="2.5" fill="#fff" opacity="0.9"/>
-      <circle cx="42" cy="14" r="3.5" fill="#10B981" opacity="0.8"/>
-      <circle cx="42" cy="14" r="2" fill="#fff" opacity="0.6"/>
-      <rect x="46" y="10" width="3" height="2.5" rx="1" fill="#10B981" opacity="0.7"/>
-      <circle cx="36.5" cy="10" r="1.2" fill="#10B981" opacity="0.7"/>
-      {/* Sparkle */}
-      <path d="M8 10 L8 16 M5 13 L11 13" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" opacity="0.7"/>
-    </svg>
-  );
-}
-
-function AvatarMoney({ size = 56 }) {
-  return (
-    <svg viewBox="0 0 56 56" width={size} height={size}>
-      <circle cx="28" cy="28" r="28" fill="#3B82F6"/>
-      {/* Face */}
-      <circle cx="28" cy="27" r="13" fill="#FFD5B0"/>
-      {/* Focused eyes */}
-      <circle cx="24.5" cy="25" r="1.8" fill="#3D2B1A"/>
-      <circle cx="31.5" cy="25" r="1.8" fill="#3D2B1A"/>
-      {/* Confident smile */}
-      <path d="M24 29.5 Q28 33 32 29.5" stroke="#3D2B1A" strokeWidth="1.4" fill="none" strokeLinecap="round"/>
-      {/* Coin */}
-      <circle cx="42" cy="13" r="8" fill="#F59E0B" opacity="0.95"/>
-      <circle cx="42" cy="13" r="6" fill="#F59E0B" stroke="#fff" strokeWidth="1"/>
-      {/* £ symbol */}
-      <text x="42" y="17" textAnchor="middle" fontSize="8" fontWeight="bold" fill="#fff" fontFamily="serif">£</text>
-      {/* Small coins */}
-      <circle cx="10" cy="12" r="5" fill="#F59E0B" opacity="0.8"/>
-      <text x="10" y="15.5" textAnchor="middle" fontSize="6" fontWeight="bold" fill="#fff" fontFamily="serif">£</text>
+      <circle cx="25.2" cy="24.2" r="0.6" fill="#fff"/>
+      <circle cx="32.2" cy="24.2" r="0.6" fill="#fff"/>
+      {/* Warm reassuring smile */}
+      <path d="M23 29 Q28 33.5 33 29" stroke="#3D2B1A" strokeWidth="1.4" fill="none" strokeLinecap="round"/>
+      {/* Shield top-right */}
+      <path d="M42 6 L50 9 L50 16 Q50 22 42 25 Q34 22 34 16 L34 9 Z" fill="#fff" opacity="0.9"/>
+      <path d="M42 8 L48 10.5 L48 16 Q48 21 42 23.5 Q36 21 36 16 L36 10.5 Z" fill="#C9A96E" opacity="0.3"/>
+      {/* Check mark on shield */}
+      <path d="M38 16 L41 19 L46 13" stroke="#5BA97B" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+      {/* Stars floating left — reputation */}
+      <path d="M9 10 L10 13 L13 13 L10.5 15 L11.5 18 L9 16 L6.5 18 L7.5 15 L5 13 L8 13Z" fill="#fff" opacity="0.9"/>
+      <path d="M6 5 L6.5 6.5 L8 6.5 L7 7.5 L7.5 9 L6 8 L4.5 9 L5 7.5 L4 6.5 L5.5 6.5Z" fill="#fff" opacity="0.7"/>
     </svg>
   );
 }
 
 const AVATAR_COMPONENTS = {
-  front_desk: AvatarDesk,
-  calendar:   AvatarCalendar,
-  comeback:   AvatarComeback,
-  content:    AvatarContent,
-  money:      AvatarMoney,
+  front_desk:      AvatarFrontDesk,
+  content_creator: AvatarContentCreator,
+  client_intel:    AvatarClientIntel,
+  business_coach:  AvatarBusinessCoach,
+  scheduler:       AvatarScheduler,
+  guardian:        AvatarGuardian,
 };
 
 // ─── Agent strip ──────────────────────────────────────────────────────────────
