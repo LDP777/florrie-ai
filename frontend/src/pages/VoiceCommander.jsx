@@ -49,22 +49,57 @@ function FloriePetal({ size = 28, spinning = false, white = false }) {
   );
 }
 
-const INTENT_TO_AGENT = {
-  book_appointment: 'calendar',
+// Map tool names → which agent "handled" it (for avatar/colour display)
+const TOOL_TO_AGENT = {
   check_schedule: 'calendar',
+  get_upcoming_appointments: 'calendar',
+  book_appointment: 'calendar',
+  reschedule_appointment: 'calendar',
+  cancel_appointment: 'calendar',
+  block_date: 'calendar',
+  block_date_range: 'calendar',
+  clear_block: 'calendar',
   send_message: 'campaigns',
+  send_bulk_message: 'campaigns',
+  send_payment_link: 'money',
+  send_rebook_reminder: 'campaigns',
+  get_revenue_summary: 'money',
+  get_outstanding_payments: 'money',
+  create_expense: 'money',
+  get_top_clients: 'clients',
+  get_client_info: 'clients',
+  get_lapsed_clients: 'clients',
+  add_client_note: 'clients',
+  get_busiest_days: 'calendar',
+  get_revenue_by_treatment: 'money',
   add_note: 'general',
-  block_time: 'calendar',
-  unknown: 'general',
+};
+
+// Map tool names → a quick-action button to show after the response
+const TOOL_TO_ACTION = {
+  book_appointment: { label: 'View Calendar', path: '/calendar' },
+  reschedule_appointment: { label: 'View Calendar', path: '/calendar' },
+  check_schedule: { label: 'Open Calendar', path: '/calendar' },
+  get_upcoming_appointments: { label: 'Open Calendar', path: '/calendar' },
+  block_date: { label: 'View Calendar', path: '/calendar' },
+  block_date_range: { label: 'View Calendar', path: '/calendar' },
+  send_message: { label: 'View Inbox', path: '/inbox' },
+  send_bulk_message: { label: 'View Inbox', path: '/inbox' },
+  get_revenue_summary: { label: 'Open Money', path: '/money' },
+  get_outstanding_payments: { label: 'Open Money', path: '/money' },
+  get_client_info: { label: 'View Clients', path: '/clients' },
+  get_lapsed_clients: { label: 'View Clients', path: '/clients' },
+  get_top_clients: { label: 'View Clients', path: '/clients' },
+  add_note: { label: 'View Checklist', path: '/checklist' },
 };
 
 const EXAMPLE_PROMPTS = [
-  "Move Shauna's appointment to Thursday",
-  "What did I earn this week?",
-  "Send a comeback message to dormant clients",
-  "Block out Friday afternoon",
-  "Draft an Instagram post about lash lifts",
   "What's my schedule today?",
+  "Block next week for a holiday",
+  "What did I earn last month?",
+  "Message everyone booked this week",
+  "Who haven't I seen in 2 months?",
+  "Move Shauna's appointment to Thursday",
 ];
 
 // Check Web Speech API support
@@ -276,15 +311,25 @@ export default function VoiceCommander() {
 
       const data = await res.json();
 
-      const agent = INTENT_TO_AGENT[data.intent] || 'general';
+      // Determine agent from which tools were called
+      const toolsUsed = (data.actions || []).map(a => a.tool);
+      const primaryTool = toolsUsed[0];
+      const agent = TOOL_TO_AGENT[primaryTool] || 'general';
+
+      // Quick-action button — use first tool that has one
+      const action = toolsUsed.reduce((found, t) => found || TOOL_TO_ACTION[t] || null, null);
+
+      // Show tool count badge for multi-step commands
+      const multiStep = toolsUsed.length > 1;
+
       const aiMsg = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        text: data.action?.message || data.transcript || "Done — but I'm not sure what to say about it.",
+        text: data.reply || "Done.",
         agent,
-        intent: data.intent,
-        confidence: data.confidence,
-        action: buildAction(data),
+        action,
+        multiStep,
+        toolCount: toolsUsed.length,
         timestamp: new Date().toISOString(),
       };
 
@@ -295,18 +340,6 @@ export default function VoiceCommander() {
     } finally {
       setIsProcessing(false);
     }
-  }
-
-  function buildAction(data) {
-    if (!data.intent || data.intent === 'unknown') return null;
-    const routes = {
-      book_appointment: { label: 'View in Calendar', path: '/calendar' },
-      check_schedule: { label: 'Open Calendar', path: '/calendar' },
-      send_message: { label: 'Review Message', path: '/inbox' },
-      add_note: { label: 'View Checklist', path: '/checklist' },
-      block_time: { label: 'View Schedule', path: '/schedule' },
-    };
-    return routes[data.intent] || null;
   }
 
   // Dev mode fallback
@@ -412,9 +445,9 @@ export default function VoiceCommander() {
                 <span style={styles.voiceBadge}>🎙️ Voice</span>
               )}
 
-              {msg.confidence != null && msg.role === 'assistant' && (
-                <span style={styles.confidenceBadge}>
-                  {Math.round(msg.confidence * 100)}% confident
+              {msg.multiStep && msg.role === 'assistant' && (
+                <span style={styles.multiStepBadge}>
+                  {msg.toolCount} actions
                 </span>
               )}
 
@@ -568,9 +601,11 @@ const styles = {
   },
   msgText: { fontSize: 14, lineHeight: 1.5, margin: 0, whiteSpace: 'pre-wrap' },
   voiceBadge: { display: 'inline-block', fontSize: 10, opacity: 0.7, marginTop: 4 },
-  confidenceBadge: {
-    display: 'inline-block', fontSize: 10, opacity: 0.5, marginTop: 4,
-    fontStyle: 'italic',
+  multiStepBadge: {
+    display: 'inline-flex', alignItems: 'center', gap: 4,
+    fontSize: 10, fontWeight: 600, opacity: 0.65, marginTop: 4,
+    padding: '2px 6px', borderRadius: 4,
+    background: 'var(--accent-light)', color: 'var(--accent)',
   },
   actionBtn: {
     display: 'block', marginTop: 8, padding: '6px 12px', borderRadius: 8,
