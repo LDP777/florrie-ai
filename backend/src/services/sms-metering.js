@@ -9,6 +9,27 @@ import logger from '../lib/logger.js';
 const FREE_SMS_LIMIT = 30;
 const SURPLUS_RATE_PENCE = 8; // 8p per surplus SMS (4p cost + 4p margin)
 
+// Credit water marks for priority enforcement
+const PAUSE_FIRST_THRESHOLD = 15;   // < 15 free → block 'pause_first' types
+const IF_AVAILABLE_THRESHOLD = 5;   // <  5 free → block 'if_available' types
+
+const DEFAULT_PRIORITY_RULES = {
+  booking_confirmation:  'always',
+  appointment_reminder:  'always',
+  payment_request:       'always',
+  cancellation:          'always',
+  patch_test:            'always',
+  consultation_form:     'always',
+  aftercare_followup:    'if_available',
+  rebook_nudge:          'if_available',
+  ai_reply:              'if_available',
+  ai_checkin:            'if_available',
+  review_request:        'pause_first',
+  marketing:             'pause_first',
+  referral:              'pause_first',
+  general:               'if_available',
+};
+
 /**
  * Get the Monday (start of week) in UTC for a given date.
  * Assumes weeks start on Monday and timestamps are in UTC.
@@ -28,9 +49,11 @@ export function getWeekStart(date = new Date()) {
  * Track SMS usage before sending.
  * Called BEFORE every SMS is sent.
  *
- * Returns: { allowed: true, isSurplus: boolean, weekUsage: number, freeRemaining: number }
+ * @param {string} beauticianId
+ * @param {string} messageType - matches keys in credit_priority_rules (default: 'general')
+ * Returns: { allowed: boolean, blockedReason?: string, isSurplus: boolean, weekUsage: number, freeRemaining: number }
  */
-export async function trackSMSUsage(beauticianId) {
+export async function trackSMSUsage(beauticianId, messageType = 'general') {
   try {
     const weekStart = getWeekStart();
 
@@ -94,12 +117,42 @@ export async function trackSMSUsage(beauticianId) {
     const isSurplus = usage.messages_sent > FREE_SMS_LIMIT;
     const freeRemaining = Math.max(0, FREE_SMS_LIMIT - usage.messages_sent);
 
+    // ── Credit priority enforcement ──
+    let allowed = true;
+    let blockedReason = null;
+
+    try {
+      const { data: b } = await supabase
+        .from('beauticians')
+        .select('credit_priority_rules')
+        .eq('id', beauticianId)
+        .maybeSingle();
+
+      const rules = { ...DEFAULT_PRIORITY_RULES, ...(b?.credit_priority_rules || {}) };
+      const priority = rules[messageType] ?? rules['general'] ?? 'if_available';
+
+      if (priority === 'pause_first' && freeRemaining < PAUSE_FIRST_THRESHOLD) {
+        allowed = false;
+        blockedReason = 'credits_low_pause_first';
+      } else if (priority === 'if_available' && freeRemaining < IF_AVAILABLE_THRESHOLD) {
+        allowed = false;
+        blockedReason = 'credits_low_if_available';
+      }
+      // 'always' → never blocked
+    } catch (priorityErr) {
+      // Fail open on priority check — don't block if rules can't be fetched
+      logger.warn({ err: priorityErr, beauticianId }, 'Credit priority check failed, failing open');
+    }
+
     logger.info(
       {
         beauticianId,
         weekStart,
+        messageType,
         messagesSent: usage.messages_sent,
         isSurplus,
+        allowed,
+        blockedReason,
         surplusCount: usage.surplus_count,
         surplusTotalPence: usage.surplus_total_pence,
       },
@@ -107,7 +160,8 @@ export async function trackSMSUsage(beauticianId) {
     );
 
     return {
-      allowed: true,
+      allowed,
+      blockedReason,
       isSurplus,
       weekUsage: usage.messages_sent,
       freeRemaining,

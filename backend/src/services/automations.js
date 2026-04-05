@@ -37,7 +37,7 @@ async function sendOnChannel({ beautician, client, body, beauticianId }) {
       templateParams: [client.first_name, message],
     }));
   } else if (client.phone) {
-    results.push(await sendSMS({ to: client.phone, body: message, beauticianId }));
+    results.push(await sendSMS({ to: client.phone, body: message, beauticianId, messageType: 'marketing' }));
   }
 
   // Email fallback (always send if client has email)

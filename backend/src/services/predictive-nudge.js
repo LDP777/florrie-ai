@@ -117,6 +117,7 @@ async function nudgeForBeautician(beautician) {
           to: client.phone,
           body: message,
           beauticianId: bid,
+          messageType: 'ai_checkin',
         });
         await logNudge(bid, 'executed', summary, confidence, ci.client_id);
         count++;

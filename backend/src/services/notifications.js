@@ -61,16 +61,23 @@ export async function sendEmail({ to, subject, html, text }) {
 const BIRD_API_KEY = process.env.BIRD_API_KEY;
 const BIRD_ORIGINATOR_DEFAULT = process.env.BIRD_ORIGINATOR || 'Florrie';
 
-export async function sendSMS({ to, body, beauticianId, originator }) {
+export async function sendSMS({ to, body, beauticianId, originator, messageType = 'general' }) {
   if (!BIRD_API_KEY) {
     logger.debug('Bird not configured, skipping SMS');
     return null;
   }
 
-  // Track SMS usage if beauticianId provided
+  // Track usage and check credit priority
   let usageInfo = null;
   if (beauticianId) {
-    usageInfo = await trackSMSUsage(beauticianId);
+    usageInfo = await trackSMSUsage(beauticianId, messageType);
+    if (usageInfo && !usageInfo.allowed) {
+      logger.info(
+        { beauticianId, messageType, reason: usageInfo.blockedReason, freeRemaining: usageInfo.freeRemaining },
+        'SMS blocked by credit priority rules'
+      );
+      return null;
+    }
   }
 
   // Resolve per-beautician originator: caller can pass it directly,
@@ -379,7 +386,7 @@ export async function sendMessage({ client, body, beauticianId, beauticianPrefs 
 
   if (channel === 'sms' || ['whatsapp', 'instagram'].includes(channel)) {
     if (client?.phone) {
-      const result = await sendSMS({ to: client.phone, body, beauticianId });
+      const result = await sendSMS({ to: client.phone, body, beauticianId, messageType: 'ai_reply' });
       if (result) {
         await logComms(beauticianId, client.id, 'sms', 'outbound', body);
         return { channel: 'sms', result };
@@ -475,10 +482,10 @@ export async function notifyBookingConfirmed(appointmentId) {
       const waResult = await sendWhatsApp({ to: client.phone, templateName: 'booking_confirmation', templateParams: [client.first_name, treatment.name, shortDate, timeStr] });
       // Fall through to SMS if WhatsApp not available
       if (!waResult && client.phone && BIRD_API_KEY) {
-        await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id });
+        await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'booking_confirmation' });
       }
     } else if ((channel === 'sms' || !biz?.whatsapp_phone_id) && client.phone) {
-      await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id });
+      await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'booking_confirmation' });
     }
   }
 
@@ -548,10 +555,10 @@ export async function notifyReminder24h(appointmentId) {
       const waResult = await sendWhatsApp({ to: client.phone, templateName: 'reminder_24h', templateParams: [client.first_name, treatment.name, timeStr] });
       // Fall through to SMS if WhatsApp not available
       if (!waResult && client.phone && BIRD_API_KEY) {
-        await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id });
+        await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'appointment_reminder' });
       }
     } else if ((channel === 'sms' || !biz?.whatsapp_phone_id) && client.phone) {
-      await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id });
+      await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'appointment_reminder' });
     }
   }
 

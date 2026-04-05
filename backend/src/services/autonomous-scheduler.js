@@ -153,6 +153,7 @@ async function checkRebookDueClients(beauticianId, threshold) {
           to: client.phone,
           body: `Hey ${client.first_name}! It's been a while since your last visit. We'd love to see you again — fancy booking in? 💕`,
           beauticianId,
+          messageType: 'rebook_nudge',
         });
         await logAction(beauticianId, 'rebook_nudge', 'executed', summary, confidence, client.id);
         actionsCount++;

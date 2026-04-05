@@ -884,6 +884,115 @@ export default function Settings({ onLogout }) {
 
           {/* SMS Usage */}
           <SMSUsageWidget />
+
+          {/* Credit priority rules */}
+          {(() => {
+            const rules = beautician.credit_priority_rules || {};
+            const CATEGORIES = [
+              {
+                group: 'Always protected',
+                hint: 'These go out regardless of your credit balance — they make you money or keep clients informed.',
+                color: '#22c55e',
+                items: [
+                  { key: 'booking_confirmation', label: 'Booking confirmations' },
+                  { key: 'appointment_reminder', label: 'Appointment reminders' },
+                  { key: 'payment_request', label: 'Payment requests & deposit reminders' },
+                  { key: 'cancellation', label: 'Cancellation notifications' },
+                  { key: 'patch_test', label: 'Patch test reminders' },
+                  { key: 'consultation_form', label: 'Consultation form requests' },
+                ],
+              },
+              {
+                group: 'Send if credits available',
+                hint: 'Paused when you have fewer than 5 credits left this week. Drag to Always or Pause First.',
+                color: '#f59e0b',
+                items: [
+                  { key: 'ai_reply', label: 'AI chat replies' },
+                  { key: 'aftercare_followup', label: 'Aftercare follow-ups' },
+                  { key: 'rebook_nudge', label: 'Smart rebook nudges' },
+                  { key: 'ai_checkin', label: 'AI proactive check-ins' },
+                  { key: 'review_request', label: 'Review requests' },
+                ],
+              },
+              {
+                group: 'Pause first',
+                hint: 'First to be paused when credits run below 15. Non-urgent, won\'t affect bookings.',
+                color: '#ef4444',
+                items: [
+                  { key: 'marketing', label: 'Marketing & promos' },
+                  { key: 'referral', label: 'Referral messages' },
+                ],
+              },
+            ];
+
+            const TIER_OPTIONS = [
+              { value: 'always', label: 'Always', color: '#22c55e' },
+              { value: 'if_available', label: 'If available', color: '#f59e0b' },
+              { value: 'pause_first', label: 'Pause first', color: '#ef4444' },
+            ];
+
+            function getEffectivePriority(key) {
+              return rules[key] ?? (
+                ['booking_confirmation','appointment_reminder','payment_request','cancellation','patch_test','consultation_form'].includes(key)
+                  ? 'always'
+                  : ['marketing','referral'].includes(key)
+                    ? 'pause_first'
+                    : 'if_available'
+              );
+            }
+
+            function setRulePriority(key, value) {
+              saveProfile({ credit_priority_rules: { ...rules, [key]: value } });
+            }
+
+            return (
+              <div style={styles.card}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--accent)', fontVariationSettings: "'FILL' 1, 'wght' 300" }}>toll</span>
+                  <h3 style={{ ...styles.cardTitle, margin: 0 }}>Credit priority</h3>
+                </div>
+                <p style={styles.cardDesc}>
+                  When credits run low, Florrie pauses lower-priority messages first — so bookings and reminders are always protected.
+                </p>
+
+                {CATEGORIES.map(group => (
+                  <div key={group.group} style={{ marginBottom: 18 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                      <div style={{ width: 8, height: 8, borderRadius: 4, background: group.color, flexShrink: 0 }} />
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        {group.group}
+                      </span>
+                    </div>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 8px 14px', lineHeight: 1.4 }}>{group.hint}</p>
+                    {group.items.map(item => {
+                      const current = getEffectivePriority(item.key);
+                      return (
+                        <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-light)' }}>
+                          <span style={{ fontSize: 13, color: 'var(--text-primary)', flex: 1 }}>{item.label}</span>
+                          <div style={{ display: 'flex', gap: 4 }}>
+                            {TIER_OPTIONS.map(opt => (
+                              <button
+                                key={opt.value}
+                                onClick={() => setRulePriority(item.key, opt.value)}
+                                style={{
+                                  padding: '3px 8px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600,
+                                  cursor: 'pointer', fontFamily: 'inherit',
+                                  background: current === opt.value ? opt.color : 'var(--border-light)',
+                                  color: current === opt.value ? '#fff' : 'var(--text-muted)',
+                                }}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
 
