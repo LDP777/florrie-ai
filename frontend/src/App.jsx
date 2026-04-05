@@ -270,7 +270,7 @@ export default function App() {
             <Route path="/consultations" element={<Consultations />} />
             <Route path="/consultation-forms" element={<ConsultationFormBuilder />} />
             <Route path="/consultation-forms/:id" element={<ConsultationFormBuilder />} />
-            <Route path="/sequences" element={<FollowUpSequences />} />
+            <Route path="/sequences" element={<Navigate to="/automations" replace />} />
             <Route path="/photo-consent" element={<PhotoConsent />} />
             <Route path="/waitlist-pro" element={<WaitlistPro />} />
             <Route path="/client-timeline" element={<ClientTimeline />} />

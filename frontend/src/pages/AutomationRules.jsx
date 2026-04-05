@@ -121,7 +121,8 @@ export default function AutomationRules() {
   const totalRuns = rules.reduce((sum, r) => sum + r.runs, 0);
 
   const tabs = [
-    { id: 'rules', label: `My Rules (${rules.length})` },
+    { id: 'rules', label: `Rules (${rules.length})` },
+    { id: 'sequences', label: 'Sequences' },
     { id: 'templates', label: 'Templates' },
     { id: 'log', label: 'Activity' },
   ];
@@ -338,6 +339,9 @@ export default function AutomationRules() {
         </div>
       )}
 
+      {/* Follow-up sequences — merged from FollowUpSequences.jsx */}
+      {activeTab === 'sequences' && <SequencesPanel beautician={beautician} />}
+
       {/* Activity log */}
       {activeTab === 'log' && (
         <div>
@@ -414,3 +418,241 @@ const styles = {
   logRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', borderBottom: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))' },
   logDot: { width: 6, height: 6, borderRadius: 3, flexShrink: 0 },
 };
+
+// ─── Sequences panel (merged from FollowUpSequences.jsx) ──────────────────────
+const SEQ_TRIGGERS = [
+  { value: 'after-appointment', label: 'After Appointment', icon: '✅' },
+  { value: 'on-birthday',       label: 'On Birthday',       icon: '🎂' },
+  { value: 'no-visit-30-days',  label: 'No Visit 30 Days',  icon: '📅' },
+  { value: 'no-visit-60-days',  label: 'No Visit 60 Days',  icon: '⏰' },
+  { value: 'manual',            label: 'Manual Start',       icon: '▶️' },
+];
+const SEQ_DELAYS  = ['0h','1h','2h','4h','12h','24h','2d','3d','5d','7d','14d','21d','30d','35d'];
+const SEQ_CHANNELS = ['whatsapp', 'sms', 'email'];
+const SEQ_VARS = ['{name}','{treatment}','{date}','{time}','{booking_link}','{aftercare_link}'];
+
+const DEV_SEQUENCES = [
+  { id:'seq1', name:'Post Semi-Permanent Care', trigger:'after-appointment', treatments:['Ombre Brows (Semi-Permanent)'], active:true,
+    steps:[
+      { delay:'0h',  channel:'whatsapp', message:"Hey {name}! Your new brows are looking gorgeous 😍 Here's your aftercare guide: {aftercare_link} xx" },
+      { delay:'24h', channel:'whatsapp', message:"Hey {name}, how are your brows feeling today? Remember — no water for 24 hours xx" },
+      { delay:'7d',  channel:'whatsapp', message:"One week in! They should be starting to peel now — don't pick! xx" },
+      { delay:'35d', channel:'whatsapp', message:"Hey {name}! Your top-up is coming up — shall I get you booked in? xx" },
+    ], stats:{ sent:45, opened:42, replied:18 } },
+  { id:'seq2', name:'Post Lamination Care', trigger:'after-appointment', treatments:['Lamination & Tint'], active:true,
+    steps:[
+      { delay:'0h',  channel:'whatsapp', message:"Hey {name}! Brows are looking fab 💕 Keep them dry for 24 hours xx" },
+      { delay:'24h', channel:'whatsapp', message:"Morning! You can get them wet now — how are they looking? xx" },
+      { delay:'21d', channel:'whatsapp', message:"Hey {name}, fancy getting booked in again before they start dropping? xx" },
+    ], stats:{ sent:72, opened:68, replied:31 } },
+  { id:'seq3', name:'Birthday Flow', trigger:'on-birthday', treatments:[], active:true,
+    steps:[
+      { delay:'0h', channel:'whatsapp', message:"Happy birthday {name}!! 🎂 Here's 15% off your next appointment — just mention this when you book xx" },
+    ], stats:{ sent:8, opened:8, replied:5 } },
+];
+
+function formatSeqDelay(d) {
+  if (!d) return 'Immediately';
+  if (d === '0h') return 'Immediately';
+  const match = d.match(/^(\d+)(h|d)$/);
+  if (!match) return d;
+  const [, n, unit] = match;
+  if (unit === 'h') return n === '1' ? '1 hour' : `${n} hours`;
+  return n === '1' ? '1 day' : `${n} days`;
+}
+
+function SequencesPanel({ beautician }) {
+  const [sequences, setSequences] = useState([]);
+  const [expanded, setExpanded]   = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [saving, setSaving]        = useState(false);
+  const [createForm, setCreateForm] = useState({
+    name: '', trigger: 'after-appointment', steps: [{ delay: '0h', channel: 'whatsapp', message: '' }],
+  });
+
+  useEffect(() => {
+    if (!beautician) return;
+    if (isDevMode) { setSequences(DEV_SEQUENCES); return; }
+    fetchRows('follow_up_sequences', beautician.id, { order: 'created_at' })
+      .then(rows => setSequences(rows?.length ? rows : DEV_SEQUENCES))
+      .catch(() => setSequences(DEV_SEQUENCES));
+  }, [beautician]);
+
+  async function handleToggle(seq) {
+    const next = !seq.active;
+    setSequences(prev => prev.map(s => s.id === seq.id ? { ...s, active: next } : s));
+    if (!isDevMode && beautician) {
+      try { await updateRow('follow_up_sequences', seq.id, { active: next }); }
+      catch (e) { logger.error(e); setSequences(prev => prev.map(s => s.id === seq.id ? { ...s, active: seq.active } : s)); }
+    }
+  }
+
+  async function handleDelete(id) {
+    setSequences(prev => prev.filter(s => s.id !== id));
+    if (!isDevMode && beautician) {
+      try { await deleteRow('follow_up_sequences', id); } catch (e) { logger.error(e); }
+    }
+  }
+
+  async function handleCreate() {
+    if (!createForm.name.trim()) return;
+    setSaving(true);
+    try {
+      if (!isDevMode && beautician) {
+        const row = await insertRow('follow_up_sequences', {
+          beautician_id: beautician.id,
+          name: createForm.name.trim(),
+          trigger: createForm.trigger,
+          steps: createForm.steps,
+          active: true,
+          stats: { sent: 0, opened: 0, replied: 0 },
+        });
+        if (row) setSequences(prev => [...prev, row]);
+      } else {
+        setSequences(prev => [...prev, { id: 'new-' + Date.now(), ...createForm, active: true, stats: { sent: 0, opened: 0, replied: 0 } }]);
+      }
+      setShowCreate(false);
+      setCreateForm({ name: '', trigger: 'after-appointment', steps: [{ delay: '0h', channel: 'whatsapp', message: '' }] });
+    } catch (e) { logger.error(e); }
+    finally { setSaving(false); }
+  }
+
+  const totalSent    = sequences.reduce((s, q) => s + (q.stats?.sent    || 0), 0);
+  const totalReplied = sequences.reduce((s, q) => s + (q.stats?.replied || 0), 0);
+  const replyRate    = totalSent > 0 ? Math.round((totalReplied / totalSent) * 100) : 0;
+
+  return (
+    <div>
+      {/* Stats strip */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        {[
+          { label: 'Active',     value: sequences.filter(s => s.active).length, color: '#5BA97B' },
+          { label: 'Msgs sent',  value: totalSent,    color: '#C76B8A' },
+          { label: 'Reply rate', value: `${replyRate}%`, color: '#7B6BA8' },
+        ].map(s => (
+          <div key={s.label} style={{ flex: 1, background: '#fff', borderRadius: 12, padding: '10px 8px', border: '1px solid #EDE9E4', textAlign: 'center' }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: s.color }}>{s.value}</div>
+            <div style={{ fontSize: 10, color: '#B5AFA8', marginTop: 2 }}>{s.label}</div>
+          </div>
+        ))}
+        <button
+          onClick={() => setShowCreate(true)}
+          style={{ padding: '10px 14px', borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
+        >+ New</button>
+      </div>
+
+      {/* Sequence cards */}
+      {sequences.map(seq => {
+        const trigger  = SEQ_TRIGGERS.find(t => t.value === seq.trigger);
+        const isOpen   = expanded === seq.id;
+        return (
+          <div key={seq.id} style={{ background: '#fff', borderRadius: 14, border: '1px solid #EDE9E4', marginBottom: 10, overflow: 'hidden' }}>
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, cursor: 'pointer' }}
+              onClick={() => setExpanded(isOpen ? null : seq.id)}
+            >
+              <div style={{ width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, background: seq.active ? '#EDF7F0' : '#F0ECE8', flexShrink: 0 }}>
+                {trigger?.icon || '📨'}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#2D2A26', marginBottom: 2 }}>{seq.name}</div>
+                <div style={{ fontSize: 12, color: '#8B8580' }}>{seq.steps.length} steps · {trigger?.label}</div>
+              </div>
+              <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 8, background: seq.active ? '#EDF7F0' : '#F0ECE8', color: seq.active ? '#5BA97B' : '#B5AFA8' }}>
+                {seq.active ? 'Active' : 'Paused'}
+              </span>
+            </div>
+
+            {isOpen && (
+              <div style={{ padding: '0 14px 14px', borderTop: '1px solid #EDE9E4' }}>
+                {/* Steps timeline */}
+                <div style={{ paddingTop: 12 }}>
+                  {seq.steps.map((step, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <div style={{ width: 8, height: 8, borderRadius: 4, background: '#C76B8A', marginTop: 4, flexShrink: 0 }} />
+                        {i < seq.steps.length - 1 && <div style={{ width: 1, flex: 1, background: '#EDE9E4', marginTop: 4 }} />}
+                      </div>
+                      <div style={{ flex: 1, paddingBottom: 4 }}>
+                        <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: '#C76B8A', background: '#FFF0F3', padding: '2px 7px', borderRadius: 6 }}>{formatSeqDelay(step.delay)}</span>
+                          <span style={{ fontSize: 10, color: '#8B8580' }}>{step.channel === 'whatsapp' ? '💬' : step.channel === 'sms' ? '📱' : '✉️'} {step.channel}</span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: 12, color: '#534247', lineHeight: 1.5 }}>{step.message}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* Stats */}
+                <div style={{ display: 'flex', gap: 16, fontSize: 12, color: '#8B8580', padding: '8px 0', borderTop: '1px solid #EDE9E4', marginTop: 4 }}>
+                  <span>{seq.stats?.sent || 0} sent</span>
+                  <span>{seq.stats?.opened || 0} opened</span>
+                  <span>{seq.stats?.replied || 0} replied</span>
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <button onClick={() => handleToggle(seq)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #EDE9E4', background: '#FAF8F5', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#6B6560' }}>{seq.active ? 'Pause' : 'Activate'}</button>
+                  <button onClick={() => handleDelete(seq.id)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #EDE9E4', background: '#FAF8F5', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#E85D75' }}>Delete</button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Create modal */}
+      {showCreate && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'flex-end', zIndex: 200 }} onClick={() => setShowCreate(false)}>
+          <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '20px 16px 40px', width: '100%', maxHeight: '85vh', overflowY: 'auto', boxSizing: 'border-box' }} onClick={e => e.stopPropagation()}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 16px' }}>New Sequence</h2>
+
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#8B8580', marginBottom: 6 }}>Name</div>
+            <input style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #EDE9E4', fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 14, boxSizing: 'border-box' }}
+              placeholder="e.g. Post Lamination Care" value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))} />
+
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#8B8580', marginBottom: 6 }}>Trigger</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+              {SEQ_TRIGGERS.map(t => (
+                <button key={t.value} onClick={() => setCreateForm(f => ({ ...f, trigger: t.value }))}
+                  style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #EDE9E4', background: createForm.trigger === t.value ? '#FFF0F3' : '#FAF8F5', color: createForm.trigger === t.value ? '#C76B8A' : '#4A4540', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {t.icon} {t.label}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#8B8580', marginBottom: 8 }}>Steps</div>
+            {createForm.steps.map((step, i) => (
+              <div key={i} style={{ background: '#FAF8F5', borderRadius: 10, padding: 10, marginBottom: 8 }}>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                  <select value={step.delay} onChange={e => setCreateForm(f => ({ ...f, steps: f.steps.map((s, j) => j === i ? { ...s, delay: e.target.value } : s) }))}
+                    style={{ flex: 1, padding: '6px 8px', borderRadius: 8, border: '1px solid #EDE9E4', fontSize: 12, fontFamily: 'inherit', background: '#fff' }}>
+                    {SEQ_DELAYS.map(d => <option key={d} value={d}>{formatSeqDelay(d)}</option>)}
+                  </select>
+                  <select value={step.channel} onChange={e => setCreateForm(f => ({ ...f, steps: f.steps.map((s, j) => j === i ? { ...s, channel: e.target.value } : s) }))}
+                    style={{ flex: 1, padding: '6px 8px', borderRadius: 8, border: '1px solid #EDE9E4', fontSize: 12, fontFamily: 'inherit', background: '#fff' }}>
+                    {SEQ_CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                  {createForm.steps.length > 1 && (
+                    <button onClick={() => setCreateForm(f => ({ ...f, steps: f.steps.filter((_, j) => j !== i) }))}
+                      style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #EDE9E4', background: '#fff', fontSize: 12, cursor: 'pointer', color: '#E85D75', fontFamily: 'inherit' }}>✕</button>
+                  )}
+                </div>
+                <textarea value={step.message} onChange={e => setCreateForm(f => ({ ...f, steps: f.steps.map((s, j) => j === i ? { ...s, message: e.target.value } : s) }))}
+                  placeholder="Message... use {name}, {booking_link} etc."
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #EDE9E4', fontSize: 12, fontFamily: 'inherit', resize: 'vertical', minHeight: 72, boxSizing: 'border-box', background: '#fff' }} />
+              </div>
+            ))}
+            <button onClick={() => setCreateForm(f => ({ ...f, steps: [...f.steps, { delay: '24h', channel: 'whatsapp', message: '' }] }))}
+              style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1px dashed #C76B8A', background: 'none', color: '#C76B8A', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 14 }}>
+              + Add step
+            </button>
+
+            <button onClick={handleCreate} disabled={saving || !createForm.name.trim()}
+              style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: saving || !createForm.name.trim() ? 0.6 : 1 }}>
+              {saving ? 'Saving…' : 'Create Sequence'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
