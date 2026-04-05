@@ -211,380 +211,263 @@ const AVATAR_COMPONENTS = {
   guardian:        AvatarGuardian,
 };
 
-// ─── Agent strip ──────────────────────────────────────────────────────────────
-function AgentStrip({ beautician }) {
-  const [agentData, setAgentData] = useState({});
-  const [tickerIdx, setTickerIdx] = useState(0);
+// ─── Agent team section ─────────────────────────────────────────────────────
+// Unified: replaces separate AgentStrip + SuperpowersSection.
+// 2-col grid of 6 agents, each with live counter + latest action + Ask Florrie.
+
+const AGENT_MAP = [
+  { id: 'front_desk',      name: 'Front Desk',     role: 'Handles client messages',  colour: '#C76B8A', path: '/inbox',          counterKey: 'inbox'      },
+  { id: 'content_creator', name: 'Content Studio', role: 'Writes captions & posts',  colour: '#D4943A', path: '/content',         counterKey: 'content'    },
+  { id: 'client_intel',    name: 'Client Intel',   role: 'Spots at-risk clients',    colour: '#7B6BA8', path: '/churn',           counterKey: 'churn'      },
+  { id: 'business_coach',  name: 'Biz Coach',      role: 'Reads your numbers',       colour: '#5BA97B', path: '/ai-insights',     counterKey: 'insights'   },
+  { id: 'scheduler',       name: 'Scheduler',      role: 'Optimises your diary',     colour: '#4A90D9', path: '/smart-schedule',  counterKey: null         },
+  { id: 'guardian',        name: 'Guardian',       role: 'Keeps you compliant',      colour: '#C9A96E', path: '/compliance',      counterKey: 'compliance' },
+];
+
+function AgentTeamSection({ beautician, onNav }) {
+  const [agentData,     setAgentData]     = useState({});
+  const [counts,        setCounts]        = useState({});
+  const [tickerIdx,     setTickerIdx]     = useState(0);
   const [tickerVisible, setTickerVisible] = useState(true);
-  const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState(null);
-  const popRef = useRef(null);
 
   useEffect(() => {
-    fetchAgents();
-    const refresh = setInterval(fetchAgents, 60_000);
-    return () => clearInterval(refresh);
+    fetchAll();
+    const iv = setInterval(fetchAll, 60_000);
+    return () => clearInterval(iv);
   }, []);
 
-  useEffect(() => {
-    function handleClick(e) {
-      if (popRef.current && !popRef.current.contains(e.target)) setSelected(null);
-    }
-    if (selected !== null) document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [selected]);
+  async function fetchAll() {
+    const token = getToken();
+    const h = token ? { Authorization: `Bearer ${token}` } : {};
+    const safe = async (url) => {
+      try { const r = await fetch(url, { headers: h }); return r.ok ? r.json() : null; }
+      catch { return null; }
+    };
+    const extract = (d) =>
+      d == null ? null
+      : typeof d.count === 'number' ? d.count
+      : typeof d.total === 'number' ? d.total
+      : Array.isArray(d) ? d.length
+      : Array.isArray(d?.data) ? d.data.length
+      : null;
 
-  const activeAgents = AGENTS.filter(a => {
+    const [status, inbox, content, churn, insights, patchTests, consultForms] = await Promise.all([
+      safe(`${API_BASE}/api/agents/status`),
+      safe(`${API_BASE}/api/inbox?status=unread&count=true`),
+      safe(`${API_BASE}/api/content?status=draft&count=true`),
+      safe(`${API_BASE}/api/churn-risk?count=true`),
+      safe(`${API_BASE}/api/ai-insights?count=true`),
+      safe(`${API_BASE}/api/patch-tests?status=pending&count=true`),
+      safe(`${API_BASE}/api/consultation-forms?count=true`),
+    ]);
+
+    // Parse agent status
+    const mapped = {};
+    if (status?.agents) status.agents.forEach(a => { mapped[a.id] = a; });
+    if (status?.countByEmployee) {
+      Object.entries(status.countByEmployee).forEach(([id, val]) => {
+        if (!mapped[id]) mapped[id] = {};
+        mapped[id].actionsToday = val?.today || 0;
+      });
+    }
+    if (status?.latestByEmployee) {
+      Object.entries(status.latestByEmployee).forEach(([id, val]) => {
+        if (!mapped[id]) mapped[id] = {};
+        mapped[id].latest   = val?.summary || val?.action_type || null;
+        mapped[id].isActive = true;
+      });
+    }
+    setAgentData(mapped);
+
+    // Compliance = patch tests pending + consultation forms total
+    const pc = extract(patchTests) || 0;
+    const fc = extract(consultForms) || 0;
+    setCounts({
+      inbox:      extract(inbox),
+      content:    extract(content),
+      churn:      extract(churn),
+      insights:   extract(insights),
+      compliance: (pc + fc) > 0 ? pc + fc : null,
+    });
+  }
+
+  const activeAgents = AGENT_MAP.filter(a => {
     const d = agentData[a.id] || {};
-    return (d.actionsToday || 0) > 0 || d.isActive;
+    return d.isActive || (d.actionsToday || 0) > 0;
   });
 
   useEffect(() => {
     if (activeAgents.length < 2) return;
     const cycle = setInterval(() => {
       setTickerVisible(false);
-      setTimeout(() => {
-        setTickerIdx(i => (i + 1) % activeAgents.length);
-        setTickerVisible(true);
-      }, 350);
-    }, 4000);
+      setTimeout(() => { setTickerIdx(i => (i + 1) % activeAgents.length); setTickerVisible(true); }, 350);
+    }, 3500);
     return () => clearInterval(cycle);
   }, [activeAgents.length]);
 
-  async function fetchAgents() {
-    try {
-      const token = getToken();
-      const res = await fetch(`${API_BASE}/api/agents/status`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      const mapped = {};
-      if (data.agents) {
-        data.agents.forEach(a => { mapped[a.id] = a; });
-      }
-      if (data.countByEmployee) {
-        Object.entries(data.countByEmployee).forEach(([id, val]) => {
-          if (!mapped[id]) mapped[id] = {};
-          mapped[id].actionsToday = val?.today || 0;
-        });
-      }
-      if (data.latestByEmployee) {
-        Object.entries(data.latestByEmployee).forEach(([id, val]) => {
-          if (!mapped[id]) mapped[id] = {};
-          mapped[id].latest = val?.summary || val?.action_type || null;
-          mapped[id].isActive = true;
-        });
-      }
-      setAgentData(mapped);
-    } catch {
-      // silent
-    }
-    setLoading(false);
-  }
-
-  const tickerAgent = activeAgents[tickerIdx % Math.max(1, activeAgents.length)];
-
-  // Beautician avatar (profile pic or initials)
-  const bzInitials = beautician
-    ? `${beautician.first_name?.[0] || ''}${beautician.last_name?.[0] || ''}`.toUpperCase()
-    : '?';
-  const bzPhoto = beautician?.avatar_url || beautician?.photo_url || null;
+  const tickerAgent  = activeAgents[tickerIdx % Math.max(1, activeAgents.length)];
+  const activeCount  = activeAgents.length;
+  const bzInitials   = beautician ? `${beautician.first_name?.[0] || ''}${beautician.last_name?.[0] || ''}`.toUpperCase() : '?';
+  const bzPhoto      = beautician?.avatar_url || beautician?.photo_url || null;
 
   return (
-    <div style={SS.wrap}>
-      {/* Card header */}
-      <div style={SS.header}>
-        <div style={SS.headerLeft}>
-          {/* Beautician avatar */}
-          <div style={SS.bzAvatar}>
+    <div style={AT.wrap}>
+      {/* Header */}
+      <div style={AT.header}>
+        <div style={AT.headerLeft}>
+          <div style={AT.bzAvatar}>
             {bzPhoto
-              ? <img src={bzPhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              : <span style={SS.bzInitials}>{bzInitials}</span>
+              ? <img src={bzPhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : <span style={AT.bzInitials}>{bzInitials}</span>
             }
           </div>
-          <h2 style={SS.title}>✦ Your AI Team</h2>
+          <span style={AT.title}>Your AI team</span>
         </div>
-        {!loading && (
-          <span style={SS.activeBadge}>
-            {activeAgents.length} ACTIVE
-          </span>
+        {activeCount > 0 && (
+          <span style={AT.activeBadge}>{activeCount} active</span>
         )}
       </div>
 
-      {/* Agent avatars */}
-      <div style={SS.avatarRow}>
-        {AGENTS.map((agent, i) => {
-          const d = agentData[agent.id] || {};
-          const isActive = !loading && ((d.actionsToday || 0) > 0 || d.isActive);
-          const count = d.actionsToday || 0;
+      {/* 2-col agent grid */}
+      <div style={AT.grid}>
+        {AGENT_MAP.map(agent => {
+          const d        = agentData[agent.id] || {};
+          const isActive = d.isActive || (d.actionsToday || 0) > 0;
+          const count    = agent.counterKey ? counts[agent.counterKey] : null;
           const AvatarComp = AVATAR_COMPONENTS[agent.id];
 
           return (
             <button
               key={agent.id}
-              style={SS.agentBtn}
-              onClick={() => setSelected(selected === i ? null : i)}
+              onClick={() => onNav(agent.path, agent.name, 'smart_toy')}
+              style={{
+                ...AT.card,
+                ...(isActive
+                  ? { borderColor: `${agent.colour}45`, boxShadow: `0 3px 14px ${agent.colour}1A` }
+                  : { opacity: 0.65 }
+                ),
+              }}
             >
-              <div style={{
-                ...SS.avatarRing,
-                borderColor: isActive ? agent.colour : 'transparent',
-                boxShadow: isActive ? `0 0 14px ${agent.colour}35` : 'none',
-                opacity: isActive ? 1 : 0.45,
-                filter: isActive ? 'none' : 'grayscale(100%)',
-              }}>
-                {/* Pulse ring — only when active */}
-                {isActive && (
-                  <span style={{ ...SS.pulseRing, borderColor: agent.colour }} />
-                )}
-                <div style={SS.avatarInner}>
-                  {AvatarComp ? <AvatarComp size={50} /> : null}
+              {/* Avatar row */}
+              <div style={AT.cardTop}>
+                <div style={{ position: 'relative', width: 44, height: 44, filter: isActive ? 'none' : 'grayscale(70%)' }}>
+                  {isActive && (
+                    <div style={{ position: 'absolute', inset: -3, borderRadius: '50%', border: `2px solid ${agent.colour}`, opacity: 0.6, animation: 'pulse 2.2s ease infinite' }} />
+                  )}
+                  {AvatarComp && <AvatarComp size={44} />}
                 </div>
+                {count != null && count > 0 && (
+                  <span style={{ ...AT.countBadge, background: agent.colour }}>
+                    {count > 99 ? '99+' : count}
+                  </span>
+                )}
               </div>
-              {/* Action count badge */}
-              {count > 0 && (
-                <span style={{ ...SS.badge, background: agent.colour }}>{count}</span>
+
+              {/* Text */}
+              <div style={AT.agentName}>{agent.name}</div>
+              <div style={AT.agentRole}>{agent.role}</div>
+              {d.latest && (
+                <div style={AT.agentLatest}>
+                  {d.latest.length > 36 ? d.latest.slice(0, 36) + '…' : d.latest}
+                </div>
               )}
-              <span style={{
-                ...SS.agentName,
-                color: isActive ? '#1d1b19' : '#B5AFA8',
-              }}>
-                {agent.name}
-              </span>
             </button>
           );
         })}
       </div>
 
       {/* Ticker */}
-      <div style={SS.ticker}>
-        <span className="material-symbols-outlined" style={{ fontSize: 14, color: '#92405e', flexShrink: 0 }}>auto_awesome</span>
-        <p style={{
-          ...SS.tickerText,
-          opacity: tickerVisible ? 1 : 0,
-          transition: 'opacity 0.35s ease',
-        }}>
-          {tickerAgent
-            ? <>{AGENTS.find(a => a.id === tickerAgent.id)?.label || 'Agent'} → {agentData[tickerAgent.id]?.latest || 'Working…'}</>
-            : 'Your AI team is standing by…'
-          }
-        </p>
-      </div>
-
-      {/* Tap popover */}
-      {selected !== null && (
-        <div ref={popRef} style={SS.popover}>
-          <div style={SS.popRow}>
-            <div style={{ width: 44, height: 44, borderRadius: 22, overflow: 'hidden', flexShrink: 0 }}>
-              {AVATAR_COMPONENTS[AGENTS[selected].id]
-                ? (() => { const C = AVATAR_COMPONENTS[AGENTS[selected].id]; return <C size={44} />; })()
-                : null
-              }
-            </div>
-            <div>
-              <div style={SS.popName}>{AGENTS[selected].label}</div>
-              <div style={SS.popStatus}>
-                {agentData[AGENTS[selected].id]?.latest || 'No recent activity'}
-              </div>
-            </div>
-          </div>
-          <div style={SS.popStats}>
-            <div style={SS.popStat}>
-              <span style={SS.popNum}>{agentData[AGENTS[selected].id]?.actionsToday || 0}</span>
-              <span style={SS.popLabel}>today</span>
-            </div>
-            <div style={SS.popDivider} />
-            <div style={SS.popStat}>
-              <span style={SS.popNum}>{agentData[AGENTS[selected].id]?.actionsThisWeek || 0}</span>
-              <span style={SS.popLabel}>this week</span>
-            </div>
-          </div>
+      {tickerAgent && (
+        <div style={AT.ticker}>
+          <span className="material-symbols-outlined" style={{ fontSize: 12, color: '#92405e', flexShrink: 0 }}>auto_awesome</span>
+          <span style={{ ...AT.tickerText, opacity: tickerVisible ? 1 : 0, transition: 'opacity 0.3s ease' }}>
+            {AGENT_MAP.find(a => a.id === tickerAgent.id)?.name} → {agentData[tickerAgent.id]?.latest || 'Working…'}
+          </span>
         </div>
       )}
+
+      {/* Ask Florrie pill */}
+      <button onClick={() => onNav('/voice', 'Voice', 'mic')} style={AT.askPill}>
+        <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#92405e' }}>mic</span>
+        <span style={AT.askText}>Ask Florrie anything…</span>
+        <span className="material-symbols-outlined" style={{ fontSize: 14, color: '#C5B8B2' }}>chevron_right</span>
+      </button>
     </div>
   );
 }
 
-// ─── Superpowers section ──────────────────────────────────────────────────────
-// 5 live-counter cards for Florrie's highest-value features.
-// Fetches counts in parallel; fails silently so UI never breaks.
-function SuperpowersSection({ onNav }) {
-  const [counts, setCounts] = useState({
-    inbox: null,
-    insights: null,
-    compliance: null,
-    content: null,
-    churn: null,
-  });
-
-  useEffect(() => {
-    async function fetchCounts() {
-      const token = getToken();
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-
-      const safe = async (url) => {
-        try {
-          const r = await fetch(url, { headers });
-          if (!r.ok) return null;
-          return await r.json();
-        } catch { return null; }
-      };
-
-      const [inbox, insights, compliance, content, churn] = await Promise.all([
-        safe(`${API_BASE}/api/inbox?status=unread&count=true`),
-        safe(`${API_BASE}/api/ai-insights?count=true`),
-        safe(`${API_BASE}/api/patch-tests?status=pending&count=true`),
-        safe(`${API_BASE}/api/content?status=draft&count=true`),
-        safe(`${API_BASE}/api/churn-risk?count=true`),
-      ]);
-
-      const extract = (d) =>
-        d == null ? null
-          : typeof d.count === 'number' ? d.count
-          : typeof d.total === 'number' ? d.total
-          : Array.isArray(d) ? d.length
-          : Array.isArray(d?.data) ? d.data.length
-          : null;
-
-      setCounts({
-        inbox:      extract(inbox),
-        insights:   extract(insights),
-        compliance: extract(compliance),
-        content:    extract(content),
-        churn:      extract(churn),
-      });
-    }
-    fetchCounts();
-  }, []);
-
-  const powers = [
-    {
-      path:      '/inbox',
-      label:     'Inbox',
-      sublabel:  'AI receptionist',
-      icon:      'chat_bubble',
-      colour:    '#C76B8A',
-      count:     counts.inbox,
-      countLabel:'unread',
-    },
-    {
-      path:      '/ai-insights',
-      label:     'AI Insights',
-      sublabel:  'Business intel',
-      icon:      'psychology',
-      colour:    '#7B6BA8',
-      count:     counts.insights,
-      countLabel:'new',
-    },
-    {
-      path:      '/patch-tests',
-      label:     'Compliance',
-      sublabel:  'Patch tests',
-      icon:      'verified_user',
-      colour:    '#5BA97B',
-      count:     counts.compliance,
-      countLabel:'pending',
-    },
-    {
-      path:      '/content',
-      label:     'Content',
-      sublabel:  'Autopilot',
-      icon:      'auto_fix_high',
-      colour:    '#D4943A',
-      count:     counts.content,
-      countLabel:'ready',
-    },
-    {
-      path:      '/churn',
-      label:     'At Risk',
-      sublabel:  'Churn clients',
-      icon:      'shield_person',
-      colour:    '#4A90D9',
-      count:     counts.churn,
-      countLabel:'clients',
-    },
-  ];
-
-  return (
-    <div style={SP.wrap}>
-      <div style={SP.header}>
-        <span style={SP.title}>Florrie's superpowers</span>
-        <MIcon name="auto_awesome" size={13} color="rgba(146,64,94,0.45)" />
-      </div>
-      <div style={SP.grid}>
-        {powers.map(p => (
-          <button key={p.path} onClick={() => onNav(p.path, p.label, p.icon)} style={SP.card}>
-            <div style={SP.cardTop}>
-              <div style={{ ...SP.iconWrap, background: `${p.colour}18` }}>
-                <MIcon name={p.icon} size={17} color={p.colour} />
-              </div>
-              {p.count !== null && p.count > 0 && (
-                <span style={{ ...SP.countBadge, background: p.colour }}>
-                  {p.count > 99 ? '99+' : p.count}
-                </span>
-              )}
-            </div>
-            <div style={SP.cardLabel}>{p.label}</div>
-            <div style={SP.cardSub}>{p.sublabel}</div>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-const SP = {
-  wrap: { marginBottom: 20 },
+const AT = {
+  wrap: {
+    background: 'linear-gradient(150deg, #fff5f8 0%, #fff 65%)',
+    borderRadius: 24,
+    border: '1px solid rgba(199,107,138,0.13)',
+    padding: '16px 14px 14px',
+    marginBottom: 20,
+    boxShadow: '0 2px 20px rgba(199,107,138,0.07)',
+  },
   header: {
     display: 'flex', alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10, padding: '0 2px',
+    justifyContent: 'space-between', marginBottom: 14,
   },
+  headerLeft: { display: 'flex', alignItems: 'center', gap: 10 },
+  bzAvatar: {
+    width: 30, height: 30, borderRadius: 15,
+    background: '#ffd9e2', border: '1.5px solid rgba(199,107,138,0.25)',
+    overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  bzInitials: { fontSize: 11, fontWeight: 700, color: '#92405e' },
   title: {
-    fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
-    textTransform: 'uppercase', color: 'rgba(146,64,94,0.6)',
+    fontSize: 14, fontWeight: 700, color: '#92405e',
+    fontFamily: "'Noto Serif', Georgia, serif", fontStyle: 'italic',
   },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(5, 1fr)',
-    gap: 7,
+  activeBadge: {
+    fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
+    color: '#92405e', background: '#ffd9e2', padding: '3px 9px', borderRadius: 20,
   },
+  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 },
   card: {
     background: '#fff',
-    border: '1px solid rgba(199,107,138,0.1)',
-    borderRadius: 14,
-    padding: '9px 7px 10px',
+    border: '1.5px solid rgba(199,107,138,0.1)',
+    borderRadius: 16,
+    padding: '11px 10px 10px',
     textAlign: 'left',
     cursor: 'pointer',
     fontFamily: 'inherit',
     WebkitTapHighlightColor: 'transparent',
     display: 'flex',
     flexDirection: 'column',
-    minHeight: 86,
-    boxShadow: '0 1px 6px rgba(199,107,138,0.05)',
-    transition: 'border-color 0.15s ease',
+    transition: 'border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease',
   },
   cardTop: {
     display: 'flex', alignItems: 'flex-start',
     justifyContent: 'space-between', marginBottom: 8,
   },
-  iconWrap: {
-    width: 30, height: 30, borderRadius: 8,
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-  },
   countBadge: {
-    fontSize: 10, fontWeight: 700, color: '#fff',
-    padding: '2px 5px', borderRadius: 10,
-    minWidth: 17, textAlign: 'center', lineHeight: '15px',
-    flexShrink: 0,
+    fontSize: 11, fontWeight: 700, color: '#fff',
+    padding: '3px 7px', borderRadius: 10,
+    minWidth: 18, textAlign: 'center', lineHeight: '15px', flexShrink: 0,
   },
-  cardLabel: {
-    fontSize: 11, fontWeight: 700, color: '#1d1b19',
-    lineHeight: 1.2, marginBottom: 2,
+  agentName:  { fontSize: 12, fontWeight: 700, color: '#1d1b19', marginBottom: 1 },
+  agentRole:  { fontSize: 10, color: '#B5AFA8', lineHeight: 1.35, marginBottom: 3 },
+  agentLatest:{ fontSize: 10, color: '#a06070', lineHeight: 1.35, fontStyle: 'italic' },
+  ticker: {
+    display: 'flex', alignItems: 'center', gap: 7,
+    background: 'rgba(199,107,138,0.06)', borderRadius: 10,
+    padding: '7px 10px', marginBottom: 9,
   },
-  cardSub: {
-    fontSize: 10, color: '#B5AFA8', lineHeight: 1.3,
+  tickerText: {
+    fontSize: 11, color: '#534247', flex: 1,
+    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
   },
+  askPill: {
+    width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+    background: '#fff', border: '1.5px solid rgba(199,107,138,0.18)',
+    borderRadius: 13, padding: '10px 14px',
+    cursor: 'pointer', fontFamily: 'inherit',
+    WebkitTapHighlightColor: 'transparent',
+    boxSizing: 'border-box',
+  },
+  askText: { flex: 1, fontSize: 13, color: '#C5B8B2', textAlign: 'left' },
 };
 
 // ─── Navigation categories ────────────────────────────────────────────────────
@@ -624,6 +507,7 @@ const CATEGORIES = [
     label: 'Treatments & Compliance',
     matIcon: 'content_cut',
     items: [
+      { path: '/compliance',         label: 'Compliance',     matIcon: 'verified_user',    desc: 'Patch tests & consent forms' },
       { path: '/patch-tests',        label: 'Patch Tests',    matIcon: 'vaccines',         desc: 'UK compliance tracking'    },
       { path: '/consultation-forms', label: 'Form Builder',   matIcon: 'assignment',       desc: 'Consent & intake forms'    },
       { path: '/consultations',      label: 'Consultations',  matIcon: 'medical_services', desc: 'Pre-treatment bookings'    },
@@ -756,8 +640,8 @@ export default function Hub() {
 
   return (
     <div style={S.page}>
-      {/* ── Agent strip ── */}
-      <AgentStrip beautician={beautician} />
+      {/* ── Agent team section ── */}
+      <AgentTeamSection beautician={beautician} onNav={handleNav} />
 
       {/* ── Search ── */}
       <div style={S.searchWrap}>
@@ -823,11 +707,6 @@ export default function Hub() {
             ))
           )}
         </div>
-      )}
-
-      {/* ── Superpowers ── */}
-      {!search && (
-        <SuperpowersSection onNav={handleNav} />
       )}
 
       {/* ── Category accordions ── */}
@@ -905,176 +784,6 @@ function ItemCard({ item, locked, isActive, plan, onNav }) {
     </button>
   );
 }
-
-// ─── Agent strip styles ───────────────────────────────────────────────────────
-const SS = {
-  wrap: {
-    position: 'relative',
-    background: 'linear-gradient(135deg, #fff5f7 0%, #fff 70%)',
-    borderRadius: 24,
-    border: '1px solid rgba(199,107,138,0.12)',
-    padding: '16px 16px 14px',
-    marginBottom: 20,
-    boxShadow: '0 2px 16px rgba(199,107,138,0.07)',
-  },
-  header: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  headerLeft: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-  },
-  bzAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    background: '#ffd9e2',
-    border: '1.5px solid rgba(199,107,138,0.25)',
-    overflow: 'hidden',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  bzInitials: {
-    fontSize: 12,
-    fontWeight: 700,
-    color: '#92405e',
-    letterSpacing: '-0.02em',
-  },
-  title: {
-    fontSize: 14,
-    fontWeight: 700,
-    color: '#92405e',
-    fontFamily: "'Noto Serif', Georgia, serif",
-    fontStyle: 'italic',
-  },
-  activeBadge: {
-    fontSize: 10,
-    fontWeight: 700,
-    letterSpacing: '0.08em',
-    color: '#92405e',
-    background: '#ffd9e2',
-    padding: '3px 8px',
-    borderRadius: 20,
-  },
-  avatarRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    gap: 4,
-    marginBottom: 14,
-  },
-  agentBtn: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 6,
-    border: 'none',
-    background: 'none',
-    cursor: 'pointer',
-    position: 'relative',
-    borderRadius: 12,
-    padding: '4px 4px',
-    flexShrink: 0,
-    fontFamily: 'inherit',
-    WebkitTapHighlightColor: 'transparent',
-    flex: 1,
-  },
-  avatarRing: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    border: '2px solid',
-    overflow: 'hidden',
-    position: 'relative',
-    transition: 'all 0.2s',
-  },
-  pulseRing: {
-    position: 'absolute',
-    inset: -5,
-    borderRadius: '50%',
-    border: '2px solid',
-    opacity: 0.3,
-    animation: 'agentPulse 2.2s ease-in-out infinite',
-    pointerEvents: 'none',
-    zIndex: 0,
-  },
-  avatarInner: {
-    width: '100%',
-    height: '100%',
-    borderRadius: '50%',
-    overflow: 'hidden',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    fontSize: 10,
-    fontWeight: 700,
-    color: '#fff',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '0 4px',
-    border: '2px solid #fff5f7',
-  },
-  agentName: {
-    fontSize: 10,
-    fontWeight: 600,
-    textAlign: 'center',
-    lineHeight: 1,
-    transition: 'color 0.2s',
-  },
-  ticker: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    background: 'rgba(199,107,138,0.06)',
-    borderRadius: 99,
-    padding: '8px 12px',
-  },
-  tickerText: {
-    fontSize: 11,
-    color: '#534247',
-    lineHeight: 1,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-    flex: 1,
-    fontWeight: 500,
-  },
-  popover: {
-    position: 'absolute',
-    left: 12,
-    right: 12,
-    top: 'calc(100% + 8px)',
-    background: '#fff',
-    borderRadius: 18,
-    border: '1px solid rgba(199,107,138,0.15)',
-    boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
-    padding: 16,
-    zIndex: 30,
-    animation: 'fadeIn 0.15s ease-out',
-  },
-  popRow: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 },
-  popName: { fontSize: 15, fontWeight: 700, color: '#1d1b19', fontFamily: "'Noto Serif', serif", fontStyle: 'italic' },
-  popStatus: { fontSize: 12, color: '#867277', marginTop: 2, lineHeight: 1.4 },
-  popStats: { display: 'flex', alignItems: 'center', gap: 16, paddingTop: 12, borderTop: '1px solid #F3EDE9' },
-  popStat: { display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 },
-  popNum: { fontSize: 22, fontWeight: 700, color: '#1d1b19' },
-  popLabel: { fontSize: 11, color: '#B5AFA8', marginTop: 2 },
-  popDivider: { width: 1, height: 32, background: '#EDE9E4' },
-};
 
 // ─── Hub page styles ──────────────────────────────────────────────────────────
 const S = {
