@@ -226,9 +226,9 @@ export default function CalendarView() {
           <button
             onClick={() => setShowBlockModal(true)}
             title="Block time"
-            style={{ padding: '6px 10px', borderRadius: 8, border: 'none', background: 'rgba(146,64,94,0.1)', color: COLORS.primary, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}
+            style={{ width: 36, height: 36, borderRadius: 10, border: 'none', background: 'rgba(146,64,94,0.08)', color: COLORS.primary, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
           >
-            🚫
+            <span className="material-symbols-outlined" style={{ fontSize: 18, fontVariationSettings: "'FILL' 0, 'wght' 300" }}>block</span>
           </button>
         </div>
       </div>
@@ -434,16 +434,26 @@ export default function CalendarView() {
             const dayAppts = getAppointmentsForDate(day);
             return (
               <div key={day.toISOString()} style={styles.weekDayColumn}>
-                {dayAppts.map(appt => (
-                  <button
-                    key={appt.id}
-                    onClick={() => setSelectedAppointment(selectedAppointment?.id === appt.id ? null : appt)}
-                    style={{ ...styles.weekApptChip, borderLeftColor: getStatusColor(appt.status) }}
-                  >
-                    <span style={styles.weekApptTime}>{new Date(appt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
-                    <span style={styles.weekApptName}>{appt.clients?.first_name?.charAt(0)}.</span>
-                  </button>
-                ))}
+                {dayAppts.map(appt => {
+                  const statusCol = getStatusColor(appt.status);
+                  const firstName = appt.clients?.first_name || '';
+                  const lastInitial = appt.clients?.last_name ? appt.clients.last_name.charAt(0) + '.' : '';
+                  const clientLabel = firstName ? `${firstName}${lastInitial ? ' ' + lastInitial : ''}` : '—';
+                  return (
+                    <button
+                      key={appt.id}
+                      onClick={() => setSelectedAppointment(selectedAppointment?.id === appt.id ? null : appt)}
+                      style={{
+                        ...styles.weekApptChip,
+                        borderLeftColor: statusCol,
+                        background: statusCol + '18',
+                      }}
+                    >
+                      <span style={styles.weekApptTime}>{new Date(appt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span style={styles.weekApptName}>{clientLabel}</span>
+                    </button>
+                  );
+                })}
                 {dayAppts.length === 0 && <div style={styles.weekEmpty} />}
               </div>
             );
@@ -863,9 +873,9 @@ const styles = {
   // Week Body
   weekBody: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, background: '#fff', borderRadius: 16, padding: 8, boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)' },
   weekDayColumn: { display: 'flex', flexDirection: 'column', gap: 3, minHeight: 80 },
-  weekApptChip: { padding: '4px 4px', borderRadius: 8, borderLeft: '2px solid', background: COLORS.surfaceContainerLow, display: 'flex', flexDirection: 'column', gap: 0, cursor: 'pointer' },
-  weekApptTime: { fontSize: 9, fontWeight: 600, color: COLORS.stone400 },
-  weekApptName: { fontSize: 10, color: COLORS.onSurface, fontWeight: 600 },
+  weekApptChip: { padding: '5px 6px', borderRadius: 8, borderLeft: '3px solid', display: 'flex', flexDirection: 'column', gap: 1, cursor: 'pointer', border: 'none', textAlign: 'left', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' },
+  weekApptTime: { fontSize: 9, fontWeight: 700, color: COLORS.stone400, lineHeight: 1 },
+  weekApptName: { fontSize: 10, color: COLORS.onSurface, fontWeight: 600, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   weekEmpty: { height: 40, borderRadius: 8, background: COLORS.surfaceContainerLow },
 
   // Floating Insights Pill
