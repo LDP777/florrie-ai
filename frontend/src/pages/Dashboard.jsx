@@ -110,6 +110,7 @@ export default function Dashboard() {
   const [agentSummary, setAgentSummary] = useState(isDevMode ? DEV_AGENT_SUMMARY : {});
   const [shiftReport, setShiftReport] = useState(isDevMode ? DEV_SHIFT_REPORT : []);
   const [shiftExpanded, setShiftExpanded] = useState(false);
+  const [notifCount, setNotifCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -198,6 +199,18 @@ export default function Dashboard() {
       } catch (e) {
         logger.error('Agent summary fetch failed:', e);
       }
+
+      // Notification count
+      try {
+        const token = (await supabase.auth.getSession()).data.session?.access_token;
+        const nr = await fetch(`${API_BASE}/api/agents/counts`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (nr.ok) {
+          const nd = await nr.json();
+          setNotifCount(nd.total || 0);
+        }
+      } catch { /* non-critical */ }
 
       // Generate insights from data
       const realInsights = [];
@@ -324,11 +337,44 @@ export default function Dashboard() {
       {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
 
       {/* ─── Greeting ─── */}
-      <section style={S.greetingSection}>
-        <p style={S.dateLabel}>{dateStr}</p>
-        <h1 style={S.greeting}>
-          {getGreeting()}, {beautician?.first_name || 'there'}
-        </h1>
+      <section style={{ ...S.greetingSection, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <p style={S.dateLabel}>{dateStr}</p>
+          <h1 style={S.greeting}>
+            {getGreeting()}, {beautician?.first_name || 'there'}
+          </h1>
+        </div>
+        {/* Notification bell — taps to inbox */}
+        <button
+          onClick={() => navigate('/inbox')}
+          style={{
+            position: 'relative', background: 'none', border: 'none', cursor: 'pointer',
+            padding: 6, marginTop: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+          aria-label={`${notifCount} notification${notifCount !== 1 ? 's' : ''}`}
+        >
+          <span
+            className="material-symbols-outlined"
+            style={{
+              fontSize: 26, color: notifCount > 0 ? '#92405e' : 'rgba(83,66,71,0.4)',
+              fontVariationSettings: notifCount > 0 ? "'FILL' 1, 'wght' 300" : "'FILL' 0, 'wght' 300",
+              transition: 'color 0.2s ease',
+            }}
+          >notifications</span>
+          {notifCount > 0 && (
+            <span style={{
+              position: 'absolute', top: 2, right: 2,
+              minWidth: 17, height: 17, borderRadius: 9,
+              background: '#E85D75', color: '#fff',
+              fontSize: 9, fontWeight: 700, lineHeight: '17px',
+              textAlign: 'center', padding: '0 3px',
+              border: '2px solid #fef8f4',
+              fontFamily: 'inherit',
+            }}>
+              {notifCount > 99 ? '99+' : notifCount}
+            </span>
+          )}
+        </button>
       </section>
 
       {/* ─── Setup Checklist (shown until fully onboarded) ─── */}
