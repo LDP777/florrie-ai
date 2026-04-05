@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useBeautician, updateRow, supabase } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
 import { API_BASE } from '../lib/config.js';
@@ -24,6 +24,20 @@ export default function Settings({ onLogout }) {
   const [section, setSection] = useState('profile');
   const [connectingStripe, setConnectingStripe] = useState(false);
   const [stripeError, setStripeError] = useState(null);
+  const [gcalConnecting, setGcalConnecting] = useState(false);
+  const [gcalBanner, setGcalBanner] = useState(null); // 'success' | 'error' | null
+
+  // Detect Google Calendar OAuth callback redirect (?gcal=success|error)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const gcalStatus = params.get('gcal');
+    if (gcalStatus === 'success' || gcalStatus === 'error') {
+      setGcalBanner(gcalStatus);
+      setSection('calendar');
+      window.history.replaceState({}, '', window.location.pathname);
+      if (gcalStatus === 'success') refresh();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function saveProfile(updates) {
     if (!beautician) return;
@@ -44,6 +58,41 @@ export default function Settings({ onLogout }) {
   async function handleLogout() {
     if (supabase) await supabase.auth.signOut();
     if (onLogout) onLogout();
+  }
+
+  async function handleConnectGoogleCal() {
+    setGcalConnecting(true);
+    setGcalBanner(null);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/gcal/connect`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setGcalBanner('error');
+        setGcalConnecting(false);
+      }
+    } catch (err) {
+      logger.error('Google Cal connect error:', err);
+      setGcalBanner('error');
+      setGcalConnecting(false);
+    }
+  }
+
+  async function handleDisconnectGoogleCal() {
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      await fetch(`${API_BASE}/api/gcal/disconnect`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      await refresh();
+    } catch (err) {
+      logger.error('Google Cal disconnect error:', err);
+    }
   }
 
   async function handleConnectStripe() {
@@ -78,6 +127,8 @@ export default function Settings({ onLogout }) {
   const hours = beautician.working_hours || {};
   const tone = beautician.tone_model || {};
   const confidence = beautician.confidence_threshold || 0.85;
+  const calSettings = beautician.calendar_settings || { buffer_minutes: 10, block_personal: false, push_bookings: true, two_way_sync: false };
+  const paySettings = beautician.payment_settings || { require_deposit: false, deposit_amount: '£10', no_show_fee: false, accepted_methods: ['cash'] };
 
   return (
     <div style={{ ...styles.page, animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' }}>
@@ -219,30 +270,41 @@ export default function Settings({ onLogout }) {
           <div style={styles.card}>
             <div style={styles.cardTitle}>Accepted payment methods</div>
             {[
-              { key: 'card_online', label: 'Card online', desc: 'Clients pay when booking', icon: '💳' },
-              { key: 'tap_to_pay', label: 'Tap to Pay', desc: 'Use your phone as a card terminal', icon: '📱' },
-              { key: 'cash', label: 'Cash', desc: 'Record cash payments manually', icon: '💵' },
-              { key: 'bank_transfer', label: 'Bank transfer', desc: 'BACS or faster payment', icon: '🏦' },
-            ].map(method => (
-              <div key={method.key} style={styles.paymentMethodRow}>
-                <span style={{ fontSize: 18 }}>{method.icon}</span>
-                <div style={{ flex: 1 }}>
-                  <span style={styles.methodLabel}>{method.label}</span>
-                  <span style={styles.methodDesc}>{method.desc}</span>
+              { key: 'card_online', label: 'Card online', desc: 'Clients pay when booking', icon: '💳', requiresStripe: true },
+              { key: 'tap_to_pay', label: 'Tap to Pay', desc: 'Use your phone as a card terminal', icon: '📱', requiresStripe: true },
+              { key: 'cash', label: 'Cash', desc: 'Record cash payments manually', icon: '💵', requiresStripe: false },
+              { key: 'bank_transfer', label: 'Bank transfer', desc: 'BACS or faster payment', icon: '🏦', requiresStripe: false },
+            ].map(method => {
+              const isEnabled = (paySettings.accepted_methods || ['cash']).includes(method.key);
+              const canToggle = !method.requiresStripe || beautician.stripe_onboarding_complete;
+              return (
+                <div key={method.key} style={styles.paymentMethodRow}>
+                  <span style={{ fontSize: 18 }}>{method.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <span style={styles.methodLabel}>{method.label}</span>
+                    <span style={styles.methodDesc}>
+                      {method.desc}{method.requiresStripe && !beautician.stripe_onboarding_complete ? ' · Requires Stripe' : ''}
+                    </span>
+                  </div>
+                  <button
+                    disabled={!canToggle}
+                    onClick={() => {
+                      const methods = paySettings.accepted_methods || ['cash'];
+                      const updated = isEnabled ? methods.filter(m => m !== method.key) : [...methods, method.key];
+                      saveProfile({ payment_settings: { ...paySettings, accepted_methods: updated } });
+                    }}
+                    style={{
+                      ...styles.toggle,
+                      background: isEnabled && canToggle ? '#C76B8A' : '#E0DBD5',
+                      opacity: canToggle ? 1 : 0.5,
+                      cursor: canToggle ? 'pointer' : 'not-allowed',
+                    }}
+                  >
+                    <div style={{ ...styles.toggleDot, transform: isEnabled && canToggle ? 'translateX(16px)' : 'translateX(0)' }} />
+                  </button>
                 </div>
-                <div
-                  style={{
-                    ...styles.toggle,
-                    background: method.key === 'cash' || beautician.stripe_onboarding_complete ? '#C76B8A' : '#E0DBD5',
-                  }}
-                >
-                  <div style={{
-                    ...styles.toggleDot,
-                    transform: method.key === 'cash' || beautician.stripe_onboarding_complete ? 'translateX(16px)' : 'translateX(0)',
-                  }} />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Deposits & no-show fees */}
@@ -254,37 +316,46 @@ export default function Settings({ onLogout }) {
                 <span style={styles.depositLabel}>Require deposit</span>
                 <span style={styles.depositHint}>Clients pay upfront when booking</span>
               </div>
-              <div style={{ ...styles.toggle, background: 'var(--accent)' }}>
-                <div style={{ ...styles.toggleDot, transform: 'translateX(16px)' }} />
-              </div>
+              <button
+                onClick={() => saveProfile({ payment_settings: { ...paySettings, require_deposit: !paySettings.require_deposit } })}
+                style={{ ...styles.toggle, background: paySettings.require_deposit ? 'var(--accent)' : 'var(--border)' }}
+              >
+                <div style={{ ...styles.toggleDot, transform: paySettings.require_deposit ? 'translateX(20px)' : 'translateX(2px)' }} />
+              </button>
             </div>
 
-            <div style={styles.depositAmountRow}>
-              <span style={styles.depositAmountLabel}>Deposit amount</span>
-              <div style={styles.depositOptions}>
-                {['£5', '£10', '£15', '50%'].map(opt => (
-                  <button
-                    key={opt}
-                    style={{
-                      ...styles.depositChip,
-                      background: opt === '£10' ? '#C76B8A' : '#F5F2EF',
-                      color: opt === '£10' ? '#fff' : '#8A8580',
-                    }}
-                  >
-                    {opt}
-                  </button>
-                ))}
+            {paySettings.require_deposit && (
+              <div style={styles.depositAmountRow}>
+                <span style={styles.depositAmountLabel}>Deposit amount</span>
+                <div style={styles.depositOptions}>
+                  {['£5', '£10', '£15', '50%'].map(opt => (
+                    <button
+                      key={opt}
+                      onClick={() => saveProfile({ payment_settings: { ...paySettings, deposit_amount: opt } })}
+                      style={{
+                        ...styles.depositChip,
+                        background: (paySettings.deposit_amount || '£10') === opt ? '#C76B8A' : '#F5F2EF',
+                        color: (paySettings.deposit_amount || '£10') === opt ? '#fff' : '#8A8580',
+                      }}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <div style={styles.depositRow}>
               <div style={{ flex: 1 }}>
                 <span style={styles.depositLabel}>No-show fee</span>
                 <span style={styles.depositHint}>Charge clients who don't show up</span>
               </div>
-              <div style={{ ...styles.toggle, background: 'var(--accent)' }}>
-                <div style={{ ...styles.toggleDot, transform: 'translateX(16px)' }} />
-              </div>
+              <button
+                onClick={() => saveProfile({ payment_settings: { ...paySettings, no_show_fee: !paySettings.no_show_fee } })}
+                style={{ ...styles.toggle, background: paySettings.no_show_fee ? 'var(--accent)' : 'var(--border)' }}
+              >
+                <div style={{ ...styles.toggleDot, transform: paySettings.no_show_fee ? 'translateX(20px)' : 'translateX(2px)' }} />
+              </button>
             </div>
 
             <p style={styles.depositFooter}>
@@ -309,7 +380,7 @@ export default function Settings({ onLogout }) {
             </div>
             <div style={styles.payoutRow}>
               <span style={styles.payoutLabel}>Account</span>
-              <span style={styles.payoutValue}>{beautician.stripe_onboarding_complete ? '••••6742' : 'Not linked'}</span>
+              <span style={styles.payoutValue}>{beautician.stripe_onboarding_complete ? 'Connected via Stripe' : 'Not linked'}</span>
             </div>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, marginBottom: 0 }}>
               On a £10 deposit: ~34p to Stripe + ~15p to Florrie = you keep £9.51.
@@ -335,21 +406,49 @@ export default function Settings({ onLogout }) {
               <span style={{ fontSize: 22 }}>📅</span>
               <div style={{ flex: 1 }}>
                 <span style={styles.calProviderLabel}>Google Calendar</span>
-                <span style={styles.calProviderStatus}>Not connected</span>
+                <span style={{
+                  ...styles.calProviderStatus,
+                  color: beautician.google_calendar_connected ? 'var(--success)' : 'var(--text-muted)',
+                }}>
+                  {beautician.google_calendar_connected ? '● Connected' : 'Not connected'}
+                </span>
               </div>
-              <button style={styles.connectBtn}>Connect</button>
+              {beautician.google_calendar_connected ? (
+                <button
+                  onClick={handleDisconnectGoogleCal}
+                  style={{ ...styles.connectBtn, background: 'var(--bg-hover)', color: 'var(--text-secondary)', border: '1.5px solid var(--border)' }}
+                >
+                  Disconnect
+                </button>
+              ) : (
+                <button
+                  onClick={handleConnectGoogleCal}
+                  disabled={gcalConnecting}
+                  style={{ ...styles.connectBtn, opacity: gcalConnecting ? 0.6 : 1, cursor: gcalConnecting ? 'not-allowed' : 'pointer' }}
+                >
+                  {gcalConnecting ? 'Connecting…' : 'Connect'}
+                </button>
+              )}
             </div>
+            {gcalBanner === 'success' && (
+              <p style={{ fontSize: 12, color: 'var(--success)', marginTop: 8, marginBottom: 0 }}>✓ Google Calendar connected</p>
+            )}
+            {gcalBanner === 'error' && (
+              <p style={{ fontSize: 12, color: 'var(--danger, #E57373)', marginTop: 8, marginBottom: 0 }}>Connection failed — check your Google credentials and try again</p>
+            )}
           </div>
 
-          {/* Apple Calendar */}
+          {/* Apple / iPhone — use ICS feed */}
           <div style={styles.card}>
             <div style={styles.calendarProviderRow}>
               <span style={{ fontSize: 22 }}>🍎</span>
               <div style={{ flex: 1 }}>
                 <span style={styles.calProviderLabel}>Apple Calendar</span>
-                <span style={styles.calProviderStatus}>Not connected</span>
+                <span style={styles.calProviderStatus}>Subscribe using the ICS feed below</span>
               </div>
-              <button style={styles.connectBtn}>Connect</button>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--border-light)', padding: '4px 8px', borderRadius: 6 }}>
+                ICS
+              </span>
             </div>
           </div>
 
@@ -402,35 +501,24 @@ export default function Settings({ onLogout }) {
           <div style={styles.card}>
             <div style={styles.cardTitle}>Sync behaviour</div>
 
-            <div style={styles.syncRow}>
-              <div style={{ flex: 1 }}>
-                <span style={styles.syncLabel}>Block personal events</span>
-                <span style={styles.syncHint}>Personal calendar events block booking slots</span>
+            {[
+              { key: 'block_personal', label: 'Block personal events', hint: 'Personal calendar events block booking slots' },
+              { key: 'push_bookings', label: 'Push bookings to calendar', hint: 'New bookings appear in your connected calendar' },
+              { key: 'two_way_sync', label: 'Two-way sync', hint: 'Changes in either calendar stay in sync' },
+            ].map(toggle => (
+              <div key={toggle.key} style={styles.syncRow}>
+                <div style={{ flex: 1 }}>
+                  <span style={styles.syncLabel}>{toggle.label}</span>
+                  <span style={styles.syncHint}>{toggle.hint}</span>
+                </div>
+                <button
+                  onClick={() => saveProfile({ calendar_settings: { ...calSettings, [toggle.key]: !calSettings[toggle.key] } })}
+                  style={{ ...styles.toggle, background: calSettings[toggle.key] ? 'var(--accent)' : 'var(--border)' }}
+                >
+                  <div style={{ ...styles.toggleDot, transform: calSettings[toggle.key] ? 'translateX(20px)' : 'translateX(2px)' }} />
+                </button>
               </div>
-              <div style={{ ...styles.toggle, background: 'var(--accent)' }}>
-                <div style={{ ...styles.toggleDot, transform: 'translateX(16px)' }} />
-              </div>
-            </div>
-
-            <div style={styles.syncRow}>
-              <div style={{ flex: 1 }}>
-                <span style={styles.syncLabel}>Push bookings to calendar</span>
-                <span style={styles.syncHint}>New bookings appear in your connected calendar</span>
-              </div>
-              <div style={{ ...styles.toggle, background: 'var(--accent)' }}>
-                <div style={{ ...styles.toggleDot, transform: 'translateX(16px)' }} />
-              </div>
-            </div>
-
-            <div style={styles.syncRow}>
-              <div style={{ flex: 1 }}>
-                <span style={styles.syncLabel}>Two-way sync</span>
-                <span style={styles.syncHint}>Changes in either calendar stay in sync</span>
-              </div>
-              <div style={{ ...styles.toggle, background: 'var(--border)' }}>
-                <div style={{ ...styles.toggleDot, transform: 'translateX(0)' }} />
-              </div>
-            </div>
+            ))}
           </div>
 
           {/* Buffer time */}
@@ -438,16 +526,17 @@ export default function Settings({ onLogout }) {
             <div style={styles.cardTitle}>Buffer time</div>
             <p style={styles.cardHint}>Gap between appointments for cleanup and prep.</p>
             <div style={styles.bufferOptions}>
-              {['None', '5 min', '10 min', '15 min', '30 min'].map(opt => (
+              {[{ label: 'None', mins: 0 }, { label: '5 min', mins: 5 }, { label: '10 min', mins: 10 }, { label: '15 min', mins: 15 }, { label: '30 min', mins: 30 }].map(opt => (
                 <button
-                  key={opt}
+                  key={opt.label}
+                  onClick={() => saveProfile({ calendar_settings: { ...calSettings, buffer_minutes: opt.mins } })}
                   style={{
                     ...styles.bufferChip,
-                    background: opt === '10 min' ? '#C76B8A' : '#F5F2EF',
-                    color: opt === '10 min' ? '#fff' : '#8A8580',
+                    background: (calSettings.buffer_minutes ?? 10) === opt.mins ? '#C76B8A' : '#F5F2EF',
+                    color: (calSettings.buffer_minutes ?? 10) === opt.mins ? '#fff' : '#8A8580',
                   }}
                 >
-                  {opt}
+                  {opt.label}
                 </button>
               ))}
             </div>
