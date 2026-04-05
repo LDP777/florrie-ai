@@ -38,7 +38,7 @@ const Notifications = lazy(() => import('./pages/Notifications.jsx'));
 const HoursExceptions = lazy(() => import('./pages/HoursExceptions.jsx'));
 const PatchTests = lazy(() => import('./pages/PatchTests.jsx'));
 // IntakeForms removed — duplicate of ConsultationFormBuilder (/consultation-forms)
-const Reports = lazy(() => import('./pages/Reports.jsx'));
+// Reports removed — merged into Analytics (/analytics → Export tab)
 const Policies = lazy(() => import('./pages/Policies.jsx'));
 const BusinessProfile = lazy(() => import('./pages/BusinessProfile.jsx'));
 const RebookReminders = lazy(() => import('./pages/RebookReminders.jsx'));
@@ -65,7 +65,7 @@ const DailyChecklist = lazy(() => import('./pages/DailyChecklist.jsx'));
 const ProductInventory = lazy(() => import('./pages/ProductInventory.jsx'));
 const RevenueGoals = lazy(() => import('./pages/RevenueGoals.jsx'));
 const PriceList = lazy(() => import('./pages/PriceList.jsx'));
-const TreatmentStats = lazy(() => import('./pages/TreatmentStats.jsx'));
+// TreatmentStats removed — merged into Analytics (/analytics → Treatments tab)
 const StaffPerformance = lazy(() => import('./pages/StaffPerformance.jsx'));
 
 const ClientMemberships = lazy(() => import('./pages/ClientMemberships.jsx'));
@@ -255,7 +255,7 @@ export default function App() {
             <Route path="/hours" element={<HoursExceptions />} />
             <Route path="/patch-tests" element={<PatchTests />} />
             {/* /forms removed — use /consultation-forms instead */}
-            <Route path="/reports" element={<PlanGate feature="reports"><Reports /></PlanGate>} />
+            <Route path="/reports" element={<Navigate to="/analytics" replace />} />
             <Route path="/policies" element={<Policies />} />
             <Route path="/business" element={<BusinessProfile />} />
             <Route path="/rebook" element={<RebookReminders />} />
@@ -284,7 +284,7 @@ export default function App() {
             <Route path="/inventory" element={<ProductInventory />} />
             <Route path="/goals" element={<RevenueGoals />} />
             <Route path="/price-list" element={<PriceList />} />
-            <Route path="/treatment-stats" element={<TreatmentStats />} />
+            <Route path="/treatment-stats" element={<Navigate to="/analytics" replace />} />
             <Route path="/staff-performance" element={<PlanGate feature="staff_performance"><StaffPerformance /></PlanGate>} />
 
             <Route path="/memberships" element={<ClientMemberships />} />
