@@ -146,9 +146,71 @@ async function handleInstagramMessage(event, pageId) {
 }
 
 /**
+ * Build the WhatsApp redirect message for a beautician.
+ * Uses their custom message if set, otherwise generates a sensible default.
+ */
+function buildRedirectMessage(beautician) {
+  if (beautician.instagram_redirect_message) {
+    return beautician.instagram_redirect_message;
+  }
+
+  // Build wa.me link from phone number
+  const phone = beautician.phone || '';
+  const digits = phone.replace(/\D/g, '');
+  // UK numbers: strip leading 0, prefix 44
+  const waNumber = digits.startsWith('44') ? digits : digits.startsWith('0') ? `44${digits.slice(1)}` : digits;
+  const waLink = waNumber ? `https://wa.me/${waNumber}` : null;
+
+  const name = beautician.first_name || 'I';
+  if (waLink) {
+    return `Hey! ${name} replies much faster on WhatsApp 💬 Message me here: ${waLink}`;
+  }
+  return `Hey! I reply much faster on WhatsApp — please message me there instead 💬`;
+}
+
+/**
+ * Send a reply to an Instagram DM via the Instagram Messaging API.
+ */
+async function sendInstagramReply(recipientId, text) {
+  const token = process.env.INSTAGRAM_PAGE_TOKEN;
+  if (!token) {
+    logger.warn('INSTAGRAM_PAGE_TOKEN not set — cannot send Instagram reply');
+    return false;
+  }
+
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/v21.0/me/messages?access_token=${token}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recipient: { id: recipientId },
+          message: { text },
+          messaging_type: 'RESPONSE',
+        }),
+      }
+    );
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      logger.warn({ err, recipientId }, 'Instagram reply send failed');
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    logger.error({ err, recipientId }, 'Instagram reply network error');
+    return false;
+  }
+}
+
+/**
  * Find or create client, store message, and pass to AI Front Desk.
  */
 async function processInstagramDM(beautician, senderId, messageText, messageId) {
+  const dmMode = beautician.instagram_dm_mode || 'ai';
+
   // Find client by Instagram sender ID
   let { data: client } = await supabase
     .from('clients')
@@ -196,7 +258,53 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
     .select()
     .single();
 
-  // Pass to AI Front Desk
+  // ── Mode: off — just store, no reply ──
+  if (dmMode === 'off') {
+    logger.info({ senderId, mode: 'off' }, 'Instagram DM stored, no reply (mode=off)');
+    return;
+  }
+
+  // ── Mode: redirect — send WhatsApp link once per client (max once per 7 days) ──
+  if (dmMode === 'redirect') {
+    const lastSent = client?.instagram_redirect_sent_at
+      ? new Date(client.instagram_redirect_sent_at)
+      : null;
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const alreadySent = lastSent && lastSent > sevenDaysAgo;
+
+    if (!alreadySent) {
+      const redirectMsg = buildRedirectMessage(beautician);
+      const sent = await sendInstagramReply(senderId, redirectMsg);
+
+      if (sent) {
+        // Record redirect sent time on client
+        if (client?.id) {
+          await supabase
+            .from('clients')
+            .update({ instagram_redirect_sent_at: new Date().toISOString() })
+            .eq('id', client.id);
+        }
+
+        // Store outbound redirect message for the inbox
+        await supabase.from('messages').insert({
+          beautician_id: beautician.id,
+          client_id: client?.id,
+          channel: 'instagram',
+          direction: 'outbound',
+          content: redirectMsg,
+          ai_handled: true,
+          escalated: false,
+        });
+
+        logger.info({ senderId, clientName: client?.first_name }, 'Sent WhatsApp redirect via Instagram DM');
+      }
+    } else {
+      logger.info({ senderId }, 'Instagram redirect already sent recently, skipping');
+    }
+    return;
+  }
+
+  // ── Mode: ai (default) — pass to AI Front Desk ──
   if (beautician.auto_reply_enabled && messageText) {
     try {
       const result = await processInboundMessage(

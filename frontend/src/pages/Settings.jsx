@@ -979,6 +979,88 @@ export default function Settings({ onLogout }) {
               onSave={examples => saveProfile({ tone_model: { ...tone, few_shot_examples: examples } })}
             />
           </div>
+
+          {/* Instagram DM control */}
+          <div style={styles.card}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 18 }}>📸</span>
+              <h3 style={{ ...styles.cardTitle, margin: 0 }}>Instagram DMs</h3>
+            </div>
+            <p style={styles.cardDesc}>Control what happens when clients message you on Instagram.</p>
+
+            {/* Mode selector */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+              {[
+                { key: 'ai', label: 'AI handles it', desc: 'Florrie replies on Instagram just like WhatsApp', icon: '🤖' },
+                { key: 'redirect', label: 'Redirect to WhatsApp', desc: 'Send one auto-reply pointing them to WhatsApp, then stop', icon: '💬' },
+                { key: 'off', label: 'Store only', desc: 'Log the message but don\'t reply at all', icon: '🔕' },
+              ].map(opt => {
+                const active = (beautician.instagram_dm_mode || 'ai') === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    onClick={() => saveProfile({ instagram_dm_mode: opt.key })}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px',
+                      borderRadius: 10, border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border-light)'}`,
+                      background: active ? 'var(--accent-light)' : 'var(--bg-hover, var(--bg))',
+                      cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%',
+                    }}
+                  >
+                    <span style={{ fontSize: 20, flexShrink: 0 }}>{opt.icon}</span>
+                    <div style={{ flex: 1 }}>
+                      <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: active ? 'var(--accent)' : 'var(--text-primary)' }}>{opt.label}</span>
+                      <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{opt.desc}</span>
+                    </div>
+                    {active && (
+                      <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--accent)', fontVariationSettings: "'FILL' 1, 'wght' 300", flexShrink: 0 }}>check_circle</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Redirect message editor — only shown in redirect mode */}
+            {(beautician.instagram_dm_mode || 'ai') === 'redirect' && (() => {
+              const phone = beautician.phone || '';
+              const digits = phone.replace(/\D/g, '');
+              const waNumber = digits.startsWith('44') ? digits : digits.startsWith('0') ? `44${digits.slice(1)}` : digits;
+              const waLink = waNumber ? `https://wa.me/${waNumber}` : null;
+              const defaultMsg = waLink
+                ? `Hey! ${beautician.first_name || 'I'} replies much faster on WhatsApp 💬 Message me here: ${waLink}`
+                : `Hey! I reply much faster on WhatsApp — please message me there instead 💬`;
+
+              return (
+                <div>
+                  <div style={{ height: 1, background: 'var(--border-light)', marginBottom: 14 }} />
+                  <span style={styles.fieldLabel}>Redirect message</span>
+                  <textarea
+                    value={beautician.instagram_redirect_message || ''}
+                    onChange={e => saveProfile({ instagram_redirect_message: e.target.value })}
+                    placeholder={defaultMsg}
+                    rows={3}
+                    style={{
+                      width: '100%', marginTop: 6, padding: '10px 12px', borderRadius: 8,
+                      border: '1.5px solid var(--border)', background: 'var(--bg)', color: 'var(--text-primary)',
+                      fontSize: 13, fontFamily: 'inherit', resize: 'none', outline: 'none', boxSizing: 'border-box',
+                      lineHeight: 1.5,
+                    }}
+                  />
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                    Leave blank to use the default. Sent once per client, then not again for 7 days.
+                    {!waLink && <span style={{ color: 'var(--warning, #d97706)', fontWeight: 500 }}> · Add your phone number in Profile to auto-include your WhatsApp link.</span>}
+                  </p>
+                  {/* Preview */}
+                  <div style={{ marginTop: 12, background: 'var(--border-light)', borderRadius: 10, padding: '10px 12px' }}>
+                    <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Preview</span>
+                    <p style={{ fontSize: 13, color: 'var(--text-primary)', margin: '4px 0 0', lineHeight: 1.5 }}>
+                      {beautician.instagram_redirect_message || defaultMsg}
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
         </div>
       )}
 
