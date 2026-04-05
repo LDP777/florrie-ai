@@ -244,30 +244,74 @@ export default function MoneyTracker() {
     const taxableProfit = totalIncome - totalExpenses;
     const profitPounds = taxableProfit / 100;
 
-    // UK Income Tax 2025/26 bands
+    const businessType = beautician?.business_type || 'sole_trader';
     const personalAllowance = 12_570;
     const basicBand = 50_270;
-    let incomeTax = 0;
-    if (profitPounds > personalAllowance) {
-      const taxable = profitPounds - personalAllowance;
-      const basicPortion = Math.min(taxable, basicBand - personalAllowance);
-      const higherPortion = Math.max(0, taxable - basicPortion);
-      incomeTax = basicPortion * 0.20 + higherPortion * 0.40;
+
+    let incomeTax = 0, niClass2 = 0, niClass4 = 0;
+    let corpTax = 0, dividendTax = 0;
+    let taxBreakdown = [];
+
+    if (businessType === 'sole_trader') {
+      // UK Income Tax 2025/26 bands
+      if (profitPounds > personalAllowance) {
+        const taxable = profitPounds - personalAllowance;
+        const basicPortion = Math.min(taxable, basicBand - personalAllowance);
+        const higherPortion = Math.max(0, taxable - basicPortion);
+        incomeTax = basicPortion * 0.20 + higherPortion * 0.40;
+      }
+      // NI Class 2 (£3.45/week if profit > £12,570)
+      niClass2 = profitPounds > personalAllowance ? 3.45 * 52 : 0;
+      // NI Class 4 (6% on £12,570–£50,270, 2% above)
+      if (profitPounds > personalAllowance) {
+        const band1 = Math.min(profitPounds, basicBand) - personalAllowance;
+        const band2 = Math.max(0, profitPounds - basicBand);
+        niClass4 = band1 * 0.06 + band2 * 0.02;
+      }
+      taxBreakdown = [
+        { label: 'Income Tax', hint: '20% basic rate (over £12,570)', value: Math.round(incomeTax * 100) },
+        { label: 'NI Class 2', hint: '£3.45/week if profit over threshold', value: Math.round(niClass2 * 100) },
+        { label: 'NI Class 4', hint: '6% on £12,570–£50,270', value: Math.round(niClass4 * 100) },
+      ];
+    } else {
+      // Limited company: corporation tax + dividend extraction model
+      // Corp tax: 19% (≤£50k), marginal relief £50k–£250k, 25% above
+      if (profitPounds <= 50_000) {
+        corpTax = profitPounds * 0.19;
+      } else if (profitPounds <= 250_000) {
+        // Marginal relief: effective rate rises from 19% to 25%
+        // Marginal relief fraction = (250,000 - profit) / 200,000 * 3/200
+        const marginalRelief = (250_000 - profitPounds) * (3 / 200);
+        corpTax = profitPounds * 0.25 - marginalRelief;
+      } else {
+        corpTax = profitPounds * 0.25;
+      }
+      // Director salary: £9,100 (NI threshold, tax-free under personal allowance)
+      // Post-tax profit extracted as dividends
+      const afterTax = profitPounds - corpTax;
+      const dividendAllowance = 500;
+      const taxableDividends = Math.max(0, afterTax - dividendAllowance);
+      dividendTax = taxableDividends * 0.0875; // 8.75% basic rate
+      taxBreakdown = [
+        { label: 'Corporation Tax', hint: `${profitPounds <= 50_000 ? '19%' : 'marginal rate'} on company profit`, value: Math.round(corpTax * 100) },
+        { label: 'Dividend Tax', hint: '8.75% basic rate (over £500 allowance)', value: Math.round(dividendTax * 100) },
+        { label: 'Director salary', hint: '£9,100 — within personal allowance, no tax', value: 0 },
+      ];
     }
 
-    // NI Class 2 (£3.45/week if profit > £12,570)
-    const niClass2 = profitPounds > personalAllowance ? 3.45 * 52 : 0;
-
-    // NI Class 4 (6% on £12,570-£50,270, 2% above)
-    let niClass4 = 0;
-    if (profitPounds > personalAllowance) {
-      const band1 = Math.min(profitPounds, basicBand) - personalAllowance;
-      const band2 = Math.max(0, profitPounds - basicBand);
-      niClass4 = band1 * 0.06 + band2 * 0.02;
-    }
-
-    const totalTaxLiability = incomeTax + niClass2 + niClass4;
+    const totalTaxLiability = businessType === 'sole_trader'
+      ? incomeTax + niClass2 + niClass4
+      : corpTax + dividendTax;
     const quarterlySetAside = totalTaxLiability / 4;
+
+    // VAT threshold tracking — rolling 12 months of gross income
+    const twelveMonthsAgo = new Date();
+    twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
+    const rolling12Revenue = transactions
+      .filter(t => new Date(t.created_at || t.date) >= twelveMonthsAgo)
+      .reduce((sum, t) => sum + (t.amount_cents || 0), 0);
+    const vatThreshold = 90_000 * 100; // in cents
+    const vatPct = Math.min(100, Math.round((rolling12Revenue / vatThreshold) * 100));
 
     // Days until next payment deadline
     const now2 = new Date();
@@ -295,13 +339,13 @@ export default function MoneyTracker() {
       expenseCount: yearExp.length,
       expensesByCategory,
       monthlyIncome,
-      incomeTax: Math.round(incomeTax * 100),
-      niClass2: Math.round(niClass2 * 100),
-      niClass4: Math.round(niClass4 * 100),
+      taxBreakdown,
+      businessType,
       totalTaxLiability: Math.round(totalTaxLiability * 100),
       quarterlySetAside: Math.round(quarterlySetAside * 100),
       nextDeadline: { label: nextDeadline.label, daysLeft: daysUntilDeadline },
       yearProgress,
+      vat: { rolling12Revenue, vatThreshold, vatPct, registered: beautician?.vat_registered, vatNumber: beautician?.vat_number },
     };
   }
 
@@ -1026,10 +1070,15 @@ export default function MoneyTracker() {
 
                 {/* Set aside hero card */}
                 <div style={S.setAsideCard}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Set aside this quarter</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    {t.businessType === 'limited_co' ? 'Set aside (corp tax + dividends)' : 'Set aside this quarter'}
+                  </span>
                   <span style={{ fontSize: 32, fontWeight: 700, color: '#fff', margin: '6px 0' }}>{fmt(t.quarterlySetAside)}</span>
                   <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>
-                    {t.nextDeadline.label} — {t.nextDeadline.daysLeft} days away
+                    {t.businessType === 'limited_co'
+                      ? 'Corp tax due 9 months after year end'
+                      : `${t.nextDeadline.label} — ${t.nextDeadline.daysLeft} days away`
+                    }
                   </span>
                 </div>
 
@@ -1051,30 +1100,64 @@ export default function MoneyTracker() {
                   </div>
                 </div>
 
+                {/* VAT threshold tracker */}
+                <div style={S.breakdownCard}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <h4 style={{ ...S.breakdownTitle, margin: 0 }}>VAT Threshold</h4>
+                    {t.vat.registered
+                      ? <span style={{ fontSize: 11, fontWeight: 600, color: '#22c55e', background: '#f0fdf4', padding: '2px 8px', borderRadius: 10 }}>Registered · {t.vat.vatNumber || 'No number set'}</span>
+                      : <span style={{ fontSize: 11, color: '#867277' }}>Not registered</span>
+                    }
+                  </div>
+                  <div style={{ background: 'var(--border, #EDE9E4)', borderRadius: 4, height: 8, overflow: 'hidden', marginBottom: 6 }}>
+                    <div style={{
+                      width: `${t.vat.vatPct}%`, height: '100%', borderRadius: 4, transition: 'width 0.4s ease',
+                      background: t.vat.vatPct >= 90 ? '#ef4444' : t.vat.vatPct >= 75 ? '#f59e0b' : '#22c55e',
+                    }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                    <div>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: '#534247' }}>{fmt(t.vat.rolling12Revenue)}</span>
+                      <span style={{ fontSize: 11, color: '#867277' }}> of £90,000 threshold (rolling 12 months)</span>
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: t.vat.vatPct >= 75 ? '#ef4444' : '#867277' }}>{t.vat.vatPct}%</span>
+                  </div>
+                  {!t.vat.registered && t.vat.vatPct >= 75 && (
+                    <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 8, background: '#fef3c7', border: '1px solid #fcd34d' }}>
+                      <span style={{ fontSize: 12, color: '#92400e', fontWeight: 500 }}>
+                        ⚠️ You're {t.vat.vatPct}% of the way to the VAT threshold. Consider registering before you breach — HMRC requires registration within 30 days of exceeding £90,000.
+                      </span>
+                    </div>
+                  )}
+                  {!t.vat.registered && (
+                    <button
+                      onClick={() => { window.location.href = '/settings'; }}
+                      style={{ marginTop: 8, padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'none', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' }}
+                    >
+                      Update VAT status in Settings →
+                    </button>
+                  )}
+                </div>
+
                 {/* Tax breakdown */}
                 <div style={S.breakdownCard}>
-                  <h4 style={S.breakdownTitle}>Tax Breakdown</h4>
-                  <div style={S.breakdownRow}>
-                    <div>
-                      <span style={{ fontSize: 13, color: '#534247' }}>Income Tax</span>
-                      <span style={{ fontSize: 11, color: '#867277', display: 'block' }}>20% basic rate (over £12,570)</span>
-                    </div>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#1d1b19' }}>{fmt(t.incomeTax)}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <h4 style={{ ...S.breakdownTitle, margin: 0 }}>Tax Breakdown</h4>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--border-light)', padding: '2px 8px', borderRadius: 10 }}>
+                      {t.businessType === 'limited_co' ? 'Ltd company' : 'Sole trader'}
+                    </span>
                   </div>
-                  <div style={S.breakdownRow}>
-                    <div>
-                      <span style={{ fontSize: 13, color: '#534247' }}>NI Class 2</span>
-                      <span style={{ fontSize: 11, color: '#867277', display: 'block' }}>£3.45/week if profit over threshold</span>
+                  {t.taxBreakdown.map((row, i) => (
+                    <div key={i} style={S.breakdownRow}>
+                      <div>
+                        <span style={{ fontSize: 13, color: '#534247' }}>{row.label}</span>
+                        <span style={{ fontSize: 11, color: '#867277', display: 'block' }}>{row.hint}</span>
+                      </div>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: row.value === 0 ? '#867277' : '#1d1b19' }}>
+                        {row.value === 0 ? '—' : fmt(row.value)}
+                      </span>
                     </div>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#1d1b19' }}>{fmt(t.niClass2)}</span>
-                  </div>
-                  <div style={S.breakdownRow}>
-                    <div>
-                      <span style={{ fontSize: 13, color: '#534247' }}>NI Class 4</span>
-                      <span style={{ fontSize: 11, color: '#867277', display: 'block' }}>6% on £12,570–£50,270</span>
-                    </div>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#1d1b19' }}>{fmt(t.niClass4)}</span>
-                  </div>
+                  ))}
                   <div style={{ ...S.breakdownRow, borderBottom: 'none', paddingTop: 12 }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: '#92405e' }}>Total estimated liability</span>
                     <span style={{ fontSize: 14, fontWeight: 700, color: '#92405e' }}>{fmt(t.totalTaxLiability)}</span>

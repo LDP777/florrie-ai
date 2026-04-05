@@ -188,6 +188,63 @@ export default function Settings({ onLogout }) {
         </div>
       )}
 
+      {section === 'profile' && (
+        <div style={styles.card}>
+          <div style={styles.cardTitle}>Tax profile</div>
+          <p style={{ ...styles.cardDesc, marginBottom: 8 }}>Used to calculate your estimated liability correctly on the Tax tab.</p>
+
+          {/* Business type */}
+          <div style={{ ...styles.fieldRow, alignItems: 'flex-start', paddingTop: 12 }}>
+            <span style={styles.fieldLabel}>Business type</span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[
+                { key: 'sole_trader', label: 'Sole trader' },
+                { key: 'limited_co', label: 'Ltd company' },
+              ].map(opt => {
+                const active = (beautician.business_type || 'sole_trader') === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    onClick={() => saveProfile({ business_type: opt.key })}
+                    style={{
+                      padding: '6px 12px', borderRadius: 8, border: 'none',
+                      fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                      background: active ? 'var(--accent)' : 'var(--border-light)',
+                      color: active ? 'var(--bg-card)' : 'var(--text-secondary)',
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* VAT registered */}
+          <div style={styles.fieldRow}>
+            <div>
+              <span style={styles.fieldLabel}>VAT registered</span>
+              <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>UK threshold: £90,000 rolling 12 months</span>
+            </div>
+            <button
+              onClick={() => saveProfile({ vat_registered: !beautician.vat_registered })}
+              style={{ ...styles.toggle, background: beautician.vat_registered ? 'var(--accent)' : 'var(--border)' }}
+            >
+              <div style={{ ...styles.toggleDot, transform: beautician.vat_registered ? 'translateX(20px)' : 'translateX(2px)' }} />
+            </button>
+          </div>
+
+          {/* VAT number — only shown if registered */}
+          {beautician.vat_registered && (
+            <FieldEditor
+              label="VAT number"
+              value={beautician.vat_number || ''}
+              onSave={v => saveProfile({ vat_number: v.toUpperCase().replace(/\s/g, '') })}
+            />
+          )}
+        </div>
+      )}
+
       {/* === WORKING HOURS === */}
       {section === 'hours' && (
         <div style={styles.card}>
