@@ -4,14 +4,13 @@ import { useBeautician } from '../lib/supabase.js';
 import { hasFeature, getRequiredPlan } from '../lib/subscription.js';
 import { API_BASE } from '../lib/config.js';
 
-// ─── Agent definitions ────────────────────────────────────
+// ─── Agent definitions ────────────────────────────────────────────────────────
 const AGENTS = [
-  { id: 'front_desk', name: 'Front Desk', avatar: '💬', colour: '#C76B8A' },
-  { id: 'calendar',   name: 'Calendar',   avatar: '📅', colour: '#7B68EE' },
-  { id: 'comeback',   name: 'Comeback',   avatar: '🔄', colour: '#F59E0B' },
-  { id: 'content',    name: 'Content',    avatar: '📸', colour: '#10B981' },
-  { id: 'money',      name: 'Money',      avatar: '💰', colour: '#3B82F6' },
-  { id: 'scout',      name: 'Scout',      avatar: '🔍', colour: '#8B5CF6' },
+  { id: 'front_desk', name: 'Desk',    label: 'Front Desk', colour: '#C76B8A' },
+  { id: 'calendar',   name: 'Sync',    label: 'Calendar',   colour: '#7B68EE' },
+  { id: 'comeback',   name: 'Growth',  label: 'Comeback',   colour: '#F59E0B' },
+  { id: 'content',    name: 'Studio',  label: 'Content',    colour: '#10B981' },
+  { id: 'money',      name: 'Ledger',  label: 'Money',      colour: '#3B82F6' },
 ];
 
 function getToken() {
@@ -24,8 +23,136 @@ function getToken() {
   } catch { return null; }
 }
 
-// ─── Agent strip — compact horizontal bar with cycling ticker ────
-function AgentStrip() {
+// ─── SVG Mini-character avatars ───────────────────────────────────────────────
+// Each agent gets their own illustrated character, drawn in-code.
+// No external image URLs — fully portable.
+
+function AvatarDesk({ size = 56 }) {
+  return (
+    <svg viewBox="0 0 56 56" width={size} height={size}>
+      <circle cx="28" cy="28" r="28" fill="#C76B8A"/>
+      {/* Face */}
+      <circle cx="28" cy="27" r="13" fill="#FFD5B0"/>
+      {/* Eyes */}
+      <circle cx="24.5" cy="25" r="1.8" fill="#3D2B1A"/>
+      <circle cx="31.5" cy="25" r="1.8" fill="#3D2B1A"/>
+      {/* Smile */}
+      <path d="M23.5 29.5 Q28 33.5 32.5 29.5" stroke="#3D2B1A" strokeWidth="1.4" fill="none" strokeLinecap="round"/>
+      {/* Headset arc */}
+      <path d="M16.5 24 Q16 12 28 12 Q40 12 39.5 24" stroke="#fff" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+      {/* Earpieces */}
+      <rect x="13.5" y="22.5" width="4.5" height="7" rx="2.25" fill="#fff"/>
+      <rect x="38" y="22.5" width="4.5" height="7" rx="2.25" fill="#fff"/>
+      {/* Mic boom */}
+      <path d="M39 27 Q43 30 40 34" stroke="#fff" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+      <circle cx="40" cy="34.5" r="1.5" fill="#fff"/>
+    </svg>
+  );
+}
+
+function AvatarCalendar({ size = 56 }) {
+  return (
+    <svg viewBox="0 0 56 56" width={size} height={size}>
+      <circle cx="28" cy="28" r="28" fill="#7B68EE"/>
+      {/* Face */}
+      <circle cx="28" cy="26" r="13" fill="#FFD5B0"/>
+      {/* Eyes - focused/studious */}
+      <ellipse cx="24.5" cy="24" rx="2.2" ry="1.5" fill="#3D2B1A"/>
+      <ellipse cx="31.5" cy="24" rx="2.2" ry="1.5" fill="#3D2B1A"/>
+      {/* Smile - slight */}
+      <path d="M24 29 Q28 32 32 29" stroke="#3D2B1A" strokeWidth="1.4" fill="none" strokeLinecap="round"/>
+      {/* Mini calendar floating top-right */}
+      <rect x="34" y="8" width="14" height="14" rx="2.5" fill="#fff" opacity="0.9"/>
+      <line x1="34" y1="12.5" x2="48" y2="12.5" stroke="#7B68EE" strokeWidth="1.2"/>
+      <rect x="37" y="9.5" width="1.5" height="4" rx="0.75" fill="#7B68EE"/>
+      <rect x="43.5" y="9.5" width="1.5" height="4" rx="0.75" fill="#7B68EE"/>
+      {/* Calendar dots */}
+      <circle cx="37.5" cy="16" r="1" fill="#7B68EE"/>
+      <circle cx="41" cy="16" r="1" fill="#7B68EE"/>
+      <circle cx="44.5" cy="16" r="1" fill="#C76B8A"/>
+      <circle cx="37.5" cy="19" r="1" fill="#7B68EE"/>
+      <circle cx="41" cy="19" r="1" fill="#7B68EE"/>
+    </svg>
+  );
+}
+
+function AvatarComeback({ size = 56 }) {
+  return (
+    <svg viewBox="0 0 56 56" width={size} height={size}>
+      <circle cx="28" cy="28" r="28" fill="#F59E0B"/>
+      {/* Face */}
+      <circle cx="28" cy="28" r="13" fill="#FFD5B0"/>
+      {/* Happy eyes */}
+      <path d="M23 25 Q24.5 22.5 26 25" stroke="#3D2B1A" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+      <path d="M30 25 Q31.5 22.5 33 25" stroke="#3D2B1A" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+      {/* Big smile */}
+      <path d="M22 30 Q28 36.5 34 30" stroke="#3D2B1A" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+      {/* Floating hearts */}
+      <path d="M9 14 C9 11.5 12.5 11.5 12.5 14 C12.5 11.5 16 11.5 16 14 C16 16.5 12.5 20 12.5 20 C12.5 20 9 16.5 9 14Z" fill="#fff" opacity="0.9"/>
+      <path d="M38 7 C38 5.5 40 5.5 40 7 C40 5.5 42 5.5 42 7 C42 8.5 40 10.5 40 10.5 C40 10.5 38 8.5 38 7Z" fill="#fff" opacity="0.75"/>
+    </svg>
+  );
+}
+
+function AvatarContent({ size = 56 }) {
+  return (
+    <svg viewBox="0 0 56 56" width={size} height={size}>
+      <circle cx="28" cy="28" r="28" fill="#10B981"/>
+      {/* Face */}
+      <circle cx="28" cy="27" r="13" fill="#FFD5B0"/>
+      {/* Cool/creative eyes */}
+      <circle cx="24.5" cy="25" r="1.8" fill="#3D2B1A"/>
+      <circle cx="31.5" cy="25" r="1.8" fill="#3D2B1A"/>
+      {/* Glint in eyes */}
+      <circle cx="25.3" cy="24.2" r="0.7" fill="#fff"/>
+      <circle cx="32.3" cy="24.2" r="0.7" fill="#fff"/>
+      {/* Smile */}
+      <path d="M23.5 29.5 Q28 33.5 32.5 29.5" stroke="#3D2B1A" strokeWidth="1.4" fill="none" strokeLinecap="round"/>
+      {/* Camera body */}
+      <rect x="34" y="8" width="16" height="12" rx="2.5" fill="#fff" opacity="0.9"/>
+      <circle cx="42" cy="14" r="3.5" fill="#10B981" opacity="0.8"/>
+      <circle cx="42" cy="14" r="2" fill="#fff" opacity="0.6"/>
+      <rect x="46" y="10" width="3" height="2.5" rx="1" fill="#10B981" opacity="0.7"/>
+      <circle cx="36.5" cy="10" r="1.2" fill="#10B981" opacity="0.7"/>
+      {/* Sparkle */}
+      <path d="M8 10 L8 16 M5 13 L11 13" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" opacity="0.7"/>
+    </svg>
+  );
+}
+
+function AvatarMoney({ size = 56 }) {
+  return (
+    <svg viewBox="0 0 56 56" width={size} height={size}>
+      <circle cx="28" cy="28" r="28" fill="#3B82F6"/>
+      {/* Face */}
+      <circle cx="28" cy="27" r="13" fill="#FFD5B0"/>
+      {/* Focused eyes */}
+      <circle cx="24.5" cy="25" r="1.8" fill="#3D2B1A"/>
+      <circle cx="31.5" cy="25" r="1.8" fill="#3D2B1A"/>
+      {/* Confident smile */}
+      <path d="M24 29.5 Q28 33 32 29.5" stroke="#3D2B1A" strokeWidth="1.4" fill="none" strokeLinecap="round"/>
+      {/* Coin */}
+      <circle cx="42" cy="13" r="8" fill="#F59E0B" opacity="0.95"/>
+      <circle cx="42" cy="13" r="6" fill="#F59E0B" stroke="#fff" strokeWidth="1"/>
+      {/* £ symbol */}
+      <text x="42" y="17" textAnchor="middle" fontSize="8" fontWeight="bold" fill="#fff" fontFamily="serif">£</text>
+      {/* Small coins */}
+      <circle cx="10" cy="12" r="5" fill="#F59E0B" opacity="0.8"/>
+      <text x="10" y="15.5" textAnchor="middle" fontSize="6" fontWeight="bold" fill="#fff" fontFamily="serif">£</text>
+    </svg>
+  );
+}
+
+const AVATAR_COMPONENTS = {
+  front_desk: AvatarDesk,
+  calendar:   AvatarCalendar,
+  comeback:   AvatarComeback,
+  content:    AvatarContent,
+  money:      AvatarMoney,
+};
+
+// ─── Agent strip ──────────────────────────────────────────────────────────────
+function AgentStrip({ beautician }) {
   const [agentData, setAgentData] = useState({});
   const [tickerIdx, setTickerIdx] = useState(0);
   const [tickerVisible, setTickerVisible] = useState(true);
@@ -39,7 +166,6 @@ function AgentStrip() {
     return () => clearInterval(refresh);
   }, []);
 
-  // Close popover on outside tap
   useEffect(() => {
     function handleClick(e) {
       if (popRef.current && !popRef.current.contains(e.target)) setSelected(null);
@@ -48,8 +174,11 @@ function AgentStrip() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [selected]);
 
-  // Cycle ticker through agents that have recent actions
-  const activeAgents = AGENTS.filter(a => agentData[a.id]?.latest);
+  const activeAgents = AGENTS.filter(a => {
+    const d = agentData[a.id] || {};
+    return (d.actionsToday || 0) > 0 || d.isActive;
+  });
+
   useEffect(() => {
     if (activeAgents.length < 2) return;
     const cycle = setInterval(() => {
@@ -70,12 +199,10 @@ function AgentStrip() {
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      // Map response into agentData by id
       const mapped = {};
       if (data.agents) {
         data.agents.forEach(a => { mapped[a.id] = a; });
       }
-      // Fallback: if API returns countByEmployee shape
       if (data.countByEmployee) {
         Object.entries(data.countByEmployee).forEach(([id, val]) => {
           if (!mapped[id]) mapped[id] = {};
@@ -91,29 +218,47 @@ function AgentStrip() {
       }
       setAgentData(mapped);
     } catch {
-      // silent — not critical
+      // silent
     }
     setLoading(false);
   }
 
   const tickerAgent = activeAgents[tickerIdx % Math.max(1, activeAgents.length)];
 
+  // Beautician avatar (profile pic or initials)
+  const bzInitials = beautician
+    ? `${beautician.first_name?.[0] || ''}${beautician.last_name?.[0] || ''}`.toUpperCase()
+    : '?';
+  const bzPhoto = beautician?.avatar_url || beautician?.photo_url || null;
+
   return (
-    <div style={SS.strip}>
-      {/* Header row */}
-      <div style={SS.stripHeader}>
-        <span style={SS.stripTitle}>✦ Your AI Team</span>
-        <span style={SS.stripMeta}>
-          {loading ? '…' : `${activeAgents.length}/${AGENTS.length} active`}
-        </span>
+    <div style={SS.wrap}>
+      {/* Card header */}
+      <div style={SS.header}>
+        <div style={SS.headerLeft}>
+          {/* Beautician avatar */}
+          <div style={SS.bzAvatar}>
+            {bzPhoto
+              ? <img src={bzPhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : <span style={SS.bzInitials}>{bzInitials}</span>
+            }
+          </div>
+          <h2 style={SS.title}>✦ Your AI Team</h2>
+        </div>
+        {!loading && (
+          <span style={SS.activeBadge}>
+            {activeAgents.length} ACTIVE
+          </span>
+        )}
       </div>
 
-      {/* Agent avatars — horizontal scroll */}
+      {/* Agent avatars */}
       <div style={SS.avatarRow}>
         {AGENTS.map((agent, i) => {
           const d = agentData[agent.id] || {};
-          const isActive = !loading && (d.isActive || (d.actionsToday || 0) > 0);
+          const isActive = !loading && ((d.actionsToday || 0) > 0 || d.isActive);
           const count = d.actionsToday || 0;
+          const AvatarComp = AVATAR_COMPONENTS[agent.id];
 
           return (
             <button
@@ -121,26 +266,28 @@ function AgentStrip() {
               style={SS.agentBtn}
               onClick={() => setSelected(selected === i ? null : i)}
             >
-              {/* Pulse ring */}
-              {isActive && (
-                <span style={{ ...SS.pulse, borderColor: agent.colour }} />
-              )}
-              {/* Avatar */}
-              <span style={{
-                ...SS.avatar,
-                background: isActive ? `${agent.colour}18` : '#F5F2EF',
+              <div style={{
+                ...SS.avatarRing,
                 borderColor: isActive ? agent.colour : 'transparent',
+                boxShadow: isActive ? `0 0 14px ${agent.colour}35` : 'none',
+                opacity: isActive ? 1 : 0.45,
+                filter: isActive ? 'none' : 'grayscale(100%)',
               }}>
-                {agent.avatar}
-              </span>
-              {/* Count badge */}
+                {/* Pulse ring — only when active */}
+                {isActive && (
+                  <span style={{ ...SS.pulseRing, borderColor: agent.colour }} />
+                )}
+                <div style={SS.avatarInner}>
+                  {AvatarComp ? <AvatarComp size={50} /> : null}
+                </div>
+              </div>
+              {/* Action count badge */}
               {count > 0 && (
                 <span style={{ ...SS.badge, background: agent.colour }}>{count}</span>
               )}
-              {/* Name */}
               <span style={{
                 ...SS.agentName,
-                color: isActive ? '#2D2A26' : '#B5AFA8',
+                color: isActive ? '#1d1b19' : '#B5AFA8',
               }}>
                 {agent.name}
               </span>
@@ -149,33 +296,33 @@ function AgentStrip() {
         })}
       </div>
 
-      {/* Cycling action ticker */}
-      {tickerAgent && (
-        <div style={SS.ticker}>
-          <span
-            style={{
-              ...SS.tickerText,
-              opacity: tickerVisible ? 1 : 0,
-              transition: 'opacity 0.35s ease',
-            }}
-          >
-            {tickerAgent.avatar}{' '}
-            <span style={{ fontWeight: 600, color: AGENTS.find(a => a.id === tickerAgent.id)?.colour || 'var(--accent)' }}>
-              {tickerAgent.name}
-            </span>
-            {' → '}
-            {agentData[tickerAgent.id]?.latest || 'Working…'}
-          </span>
-        </div>
-      )}
+      {/* Ticker */}
+      <div style={SS.ticker}>
+        <span className="material-symbols-outlined" style={{ fontSize: 14, color: '#92405e', flexShrink: 0 }}>auto_awesome</span>
+        <p style={{
+          ...SS.tickerText,
+          opacity: tickerVisible ? 1 : 0,
+          transition: 'opacity 0.35s ease',
+        }}>
+          {tickerAgent
+            ? <>{AGENTS.find(a => a.id === tickerAgent.id)?.label || 'Agent'} → {agentData[tickerAgent.id]?.latest || 'Working…'}</>
+            : 'Your AI team is standing by…'
+          }
+        </p>
+      </div>
 
-      {/* Popover */}
+      {/* Tap popover */}
       {selected !== null && (
         <div ref={popRef} style={SS.popover}>
           <div style={SS.popRow}>
-            <span style={{ fontSize: 28 }}>{AGENTS[selected].avatar}</span>
+            <div style={{ width: 44, height: 44, borderRadius: 22, overflow: 'hidden', flexShrink: 0 }}>
+              {AVATAR_COMPONENTS[AGENTS[selected].id]
+                ? (() => { const C = AVATAR_COMPONENTS[AGENTS[selected].id]; return <C size={44} />; })()
+                : null
+              }
+            </div>
             <div>
-              <div style={SS.popName}>{AGENTS[selected].name}</div>
+              <div style={SS.popName}>{AGENTS[selected].label}</div>
               <div style={SS.popStatus}>
                 {agentData[AGENTS[selected].id]?.latest || 'No recent activity'}
               </div>
@@ -198,150 +345,143 @@ function AgentStrip() {
   );
 }
 
-// ─── Navigation categories (6, from 10) ──────────────────
+// ─── Navigation categories ────────────────────────────────────────────────────
 const CATEGORIES = [
   {
     id: 'daily',
     label: 'Your Day',
-    icon: '☀️',
+    matIcon: 'wb_sunny',
     items: [
-      { path: '/calendar',      label: 'Calendar',        desc: 'Appointments & schedule', icon: '📅' },
-      { path: '/smart-schedule',label: "Florrie's Schedule", desc: 'AI-optimised slots',   icon: '🧠' },
-      { path: '/checklist',     label: 'Daily Checklist', desc: 'Opening & closing tasks',  icon: '☑️' },
-      { path: '/end-of-day',    label: 'End of Day',      desc: 'Cash-up and close',        icon: '🌙' },
-      { path: '/notifications', label: 'Notifications',   desc: 'Alerts & reminders',       icon: '🔔' },
-      { path: '/hours',         label: 'Hours & Closures',desc: 'Time off & exceptions',    icon: '🏖️' },
+      { path: '/calendar',       label: "Today's List",   matIcon: 'event_note',    desc: 'Appointments & schedule'  },
+      { path: '/waitlist-pro',   label: 'Waitlist',       matIcon: 'history',       desc: 'Manage waiting clients'   },
+      { path: '/checklist',      label: 'Checklist',      matIcon: 'checklist',     desc: 'Daily opening & closing'  },
+      { path: '/end-of-day',     label: 'End of Day',     matIcon: 'nightlight',    desc: 'Cash-up and close'        },
+      { path: '/notifications',  label: 'Notifications',  matIcon: 'notifications', desc: 'Alerts & reminders'       },
+      { path: '/hours',          label: 'Hours & Time Off',matIcon: 'beach_access',desc: 'Exceptions & closures'    },
     ],
   },
   {
     id: 'clients',
     label: 'Clients',
-    icon: '👥',
+    matIcon: 'face_3',
     items: [
-      { path: '/clients',        label: 'All Clients',      desc: 'Client list & profiles',    icon: '👤' },
-      { path: '/client-timeline',label: 'Client Timeline',  desc: 'Full history per client',   icon: '📜' },
-      { path: '/comms',          label: 'Comms Log',        desc: 'Message history',            icon: '📨' },
-      { path: '/tags',           label: 'Tags & Groups',    desc: 'Organise & segment',         icon: '🏷️' },
-      { path: '/waitlist-pro',   label: 'Waitlist',         desc: 'Manage waiting clients',     icon: '📋' },
-      { path: '/segments',       label: 'Client Segments',  desc: 'Smart RFM grouping',         icon: '🎯' },
-      { path: '/churn',          label: 'Client Retention', desc: 'At-risk clients',            icon: '🛡️' },
-      { path: '/memberships',    label: 'Memberships',      desc: 'Recurring packages',         icon: '💎' },
-      { path: '/photo-consent',  label: 'Photo Consent',    desc: 'Before/after consent',       icon: '📷' },
-      { path: '/import',         label: 'Import Clients',   desc: 'CSV & bulk import',          icon: '📥' },
+      { path: '/clients',        label: 'Directory',      matIcon: 'face_3',          desc: 'All client profiles'       },
+      { path: '/inbox',          label: 'Inbox',          matIcon: 'chat_bubble',     desc: 'All messages'              },
+      { path: '/loyalty',        label: 'Loyalty',        matIcon: 'loyalty',         desc: 'Points & rewards'          },
+      { path: '/reviews',        label: 'Feedback',       matIcon: 'reviews',         desc: 'Reviews & responses'       },
+      { path: '/tags',           label: 'Tags & Groups',  matIcon: 'label',           desc: 'Organise & segment'        },
+      { path: '/segments',       label: 'Segments',       matIcon: 'group_work',      desc: 'Smart RFM grouping'        },
+      { path: '/churn',          label: 'Retention',      matIcon: 'shield',          desc: 'At-risk clients'           },
+      { path: '/memberships',    label: 'Memberships',    matIcon: 'card_membership', desc: 'Recurring packages'        },
+      { path: '/photo-consent',  label: 'Photo Consent',  matIcon: 'photo_camera',    desc: 'Before/after consent'      },
+      { path: '/import',         label: 'Import',         matIcon: 'upload',          desc: 'CSV & bulk import'         },
     ],
   },
   {
     id: 'treatments',
     label: 'Treatments',
-    icon: '💅',
+    matIcon: 'content_cut',
     items: [
-      { path: '/treatments',          label: 'Treatments',     desc: 'Manage your services',           icon: '💅' },
-      { path: '/consultations',       label: 'Consultations',  desc: 'Pre-treatment bookings',         icon: '🩺' },
-      { path: '/consultation-forms',  label: 'Form Builder',   desc: 'Consultation & consent forms',   icon: '📋' },
-      { path: '/patch-tests',         label: 'Patch Tests',    desc: 'Allergy test tracking',          icon: '🩹' },
-      { path: '/aftercare',           label: 'Aftercare',      desc: 'Post-treatment messages',        icon: '💆' },
-      { path: '/packages',            label: 'Packages',       desc: 'Bundle deals & courses',         icon: '📦' },
-      { path: '/addons',              label: 'Add-ons',        desc: 'Bolt-on extras',                 icon: '✨' },
-      { path: '/price-list',          label: 'Price List',     desc: 'Public pricing page',            icon: '💲' },
-      { path: '/notes',               label: 'Appt Notes',     desc: 'Notes per appointment',          icon: '📝' },
+      { path: '/treatments',         label: 'Treatments',     matIcon: 'spa',           desc: 'Manage services'           },
+      { path: '/consultations',      label: 'Consultations',  matIcon: 'medical_services',desc: 'Pre-treatment bookings' },
+      { path: '/consultation-forms', label: 'Form Builder',   matIcon: 'assignment',    desc: 'Consent forms'             },
+      { path: '/patch-tests',        label: 'Patch Tests',    matIcon: 'vaccines',      desc: 'Allergy test tracking'     },
+      { path: '/aftercare',          label: 'Aftercare',      matIcon: 'self_care',     desc: 'Post-treatment messages'   },
+      { path: '/packages',           label: 'Packages',       matIcon: 'inventory_2',   desc: 'Bundle deals & courses'    },
+      { path: '/addons',             label: 'Add-ons',        matIcon: 'add_circle',    desc: 'Bolt-on extras'            },
+      { path: '/price-list',         label: 'Price List',     matIcon: 'price_list',    desc: 'Public pricing page'       },
+      { path: '/notes',              label: 'Appt Notes',     matIcon: 'sticky_note_2', desc: 'Notes per appointment'     },
     ],
   },
   {
     id: 'money',
     label: 'Money',
-    icon: '💰',
+    matIcon: 'payments',
     items: [
-      { path: '/money',        label: 'Money Tracker',   desc: 'Revenue dashboard',         icon: '💰' },
-      { path: '/analytics',    label: 'Analytics',       desc: 'Performance & reports',      icon: '📈' },
-      { path: '/expenses',     label: 'Expenses',        desc: 'Track outgoings',            icon: '💳' },
-      { path: '/deposits',     label: 'Deposits',        desc: 'Held payments',              icon: '🔒' },
-      { path: '/goals',        label: 'Revenue Goals',   desc: 'Targets & progress',         icon: '🎯' },
-      { path: '/cancellations',label: 'Cancellations',   desc: 'No-shows & late cancels',    icon: '❌' },
-      { path: '/vouchers',     label: 'Gift Vouchers',   desc: 'Create & track',             icon: '🎁' },
-      { path: '/promos',       label: 'Promo Codes',     desc: 'Discount codes',             icon: '🏷️' },
-      { path: '/inventory',    label: 'Inventory',       desc: 'Product stock',              icon: '📦' },
+      { path: '/money',         label: 'Money Tracker',  matIcon: 'account_balance_wallet', desc: 'Revenue dashboard'   },
+      { path: '/analytics',     label: 'Analytics',      matIcon: 'analytics',         desc: 'Performance & reports'     },
+      { path: '/expenses',      label: 'Expenses',       matIcon: 'receipt_long',      desc: 'Track outgoings'           },
+      { path: '/deposits',      label: 'Deposits',       matIcon: 'savings',           desc: 'Held payments'             },
+      { path: '/goals',         label: 'Goals',          matIcon: 'flag',              desc: 'Revenue targets'           },
+      { path: '/vouchers',      label: 'Vouchers',       matIcon: 'card_giftcard',     desc: 'Gift vouchers'             },
+      { path: '/promos',        label: 'Promo Codes',    matIcon: 'discount',          desc: 'Discount codes'            },
+      { path: '/inventory',     label: 'Inventory',      matIcon: 'inventory',         desc: 'Product stock'             },
+      { path: '/cancellations', label: 'Cancellations',  matIcon: 'event_busy',        desc: 'No-shows & late cancels'   },
     ],
   },
   {
     id: 'marketing',
-    label: 'Marketing & Comms',
-    icon: '📣',
+    label: 'Marketing',
+    matIcon: 'campaign',
     items: [
-      { path: '/inbox',      label: 'Inbox',            desc: 'All messages in one place',  icon: '💬' },
-      { path: '/content',    label: 'Florrie Content',  desc: 'AI-written captions',        icon: '📸' },
-      { path: '/campaigns',  label: 'Campaigns',        desc: 'Email & SMS blasts',         icon: '💌' },
-      { path: '/reviews',    label: 'Reviews',          desc: 'Collect & respond',          icon: '⭐' },
-      { path: '/referrals',  label: 'Referrals',        desc: 'Word-of-mouth tracking',     icon: '🤝' },
-      { path: '/loyalty',    label: 'Loyalty',          desc: 'Points & rewards',           icon: '🏆' },
-      { path: '/rebook',     label: 'Rebook Reminders', desc: 'Bring clients back',         icon: '🔄' },
-      { path: '/automations',label: 'Automations',      desc: 'If-this-then-that rules',    icon: '⚡' },
-      { path: '/templates',  label: 'Templates',        desc: 'Reusable messages',          icon: '📝' },
-      { path: '/sequences',  label: 'Follow-up Flows',  desc: 'Automated follow-ups',       icon: '🔁' },
-      { path: '/portfolio',  label: 'Portfolio',        desc: 'Showcase your work',         icon: '🖼️' },
-      { path: '/whatsapp',   label: 'WhatsApp',         desc: 'Business messaging',         icon: '📱' },
-      { path: '/digest',     label: 'Weekly Digest',    desc: 'Weekly summary',             icon: '📧' },
+      { path: '/campaigns',   label: 'Campaigns',    matIcon: 'mail',          desc: 'Email & SMS blasts'        },
+      { path: '/content',     label: 'Content',      matIcon: 'image',         desc: 'AI-written captions'       },
+      { path: '/referrals',   label: 'Referrals',    matIcon: 'diversity_3',   desc: 'Word-of-mouth tracking'    },
+      { path: '/rebook',      label: 'Rebook',       matIcon: 'replay',        desc: 'Bring clients back'        },
+      { path: '/automations', label: 'Automations',  matIcon: 'bolt',          desc: 'If-this-then-that rules'   },
+      { path: '/templates',   label: 'Templates',    matIcon: 'description',   desc: 'Reusable messages'         },
+      { path: '/whatsapp',    label: 'WhatsApp',     matIcon: 'smartphone',    desc: 'Business messaging'        },
+      { path: '/digest',      label: 'Weekly Digest',matIcon: 'newspaper',     desc: 'Weekly summary email'      },
+      { path: '/portfolio',   label: 'Portfolio',    matIcon: 'photo_library', desc: 'Showcase your work'        },
     ],
   },
   {
     id: 'settings',
     label: 'Settings & Team',
-    icon: '⚙️',
+    matIcon: 'settings',
     items: [
-      { path: '/settings',      label: 'Settings',        desc: 'Account preferences',          icon: '⚙️' },
-      { path: '/business',      label: 'Business Profile', desc: 'Name, logo & details',        icon: '🏪' },
-      { path: '/integrations',  label: 'Integrations',    desc: 'Connected apps',               icon: '🔌' },
-      { path: '/pricing',       label: 'Plans & Billing', desc: 'Subscription & payments',      icon: '💳' },
-      { path: '/policies',      label: 'Policies',        desc: 'Cancellation & terms',         icon: '📜' },
-      { path: '/portal',        label: 'Client Portal',   desc: 'Self-service settings',        icon: '🌐' },
-      { path: '/sms',           label: 'SMS Config',      desc: 'SMS settings',                 icon: '📲' },
-      { path: '/api-settings',  label: 'API & Webhooks',  desc: 'Developer tools',              icon: '⚡' },
-      { path: '/team',          label: 'Team',            desc: 'Staff profiles', gate: 'team_management', icon: '👥' },
-      { path: '/rota',          label: 'Staff Rota',      desc: 'Weekly schedule', gate: 'staff_rota', icon: '🗓️' },
-      { path: '/staff-performance', label: 'Performance', desc: 'Team analytics', gate: 'staff_performance', icon: '📈' },
-      { path: '/locations',     label: 'Multi-Location',  desc: 'Branch management', gate: 'multi_location', icon: '🏢' },
+      { path: '/settings',     label: 'Settings',      matIcon: 'settings',       desc: 'Account preferences'       },
+      { path: '/business',     label: 'Business',      matIcon: 'storefront',     desc: 'Name, logo & details'      },
+      { path: '/integrations', label: 'Integrations',  matIcon: 'extension',      desc: 'Connected apps'            },
+      { path: '/pricing',      label: 'Plans',         matIcon: 'workspace_premium',desc: 'Subscription & billing'  },
+      { path: '/policies',     label: 'Policies',      matIcon: 'policy',         desc: 'Cancellation & terms'      },
+      { path: '/portal',       label: 'Client Portal', matIcon: 'open_in_browser',desc: 'Self-service settings'    },
+      { path: '/team',         label: 'Team',          matIcon: 'group',          desc: 'Staff profiles',           gate: 'team_management' },
+      { path: '/rota',         label: 'Staff Rota',    matIcon: 'calendar_view_week',desc: 'Weekly schedule',       gate: 'staff_rota' },
+      { path: '/staff-performance',label:'Performance',matIcon: 'trending_up',    desc: 'Team analytics',           gate: 'staff_performance' },
+      { path: '/locations',    label: 'Multi-Location',matIcon: 'location_city',  desc: 'Branch management',        gate: 'multi_location' },
     ],
   },
 ];
 
-// Track recent pages in sessionStorage
+// ─── Recents tracking ─────────────────────────────────────────────────────────
 const RECENT_KEY = 'florrie_recent_pages';
 const RECENT_MAX = 6;
 
 function getRecents() {
-  try {
-    return JSON.parse(sessionStorage.getItem(RECENT_KEY) || '[]');
-  } catch { return []; }
+  try { return JSON.parse(sessionStorage.getItem(RECENT_KEY) || '[]'); }
+  catch { return []; }
 }
 
-function recordVisit(path, label, icon) {
+function recordVisit(path, label, matIcon) {
   try {
     const recents = getRecents().filter(r => r.path !== path);
-    recents.unshift({ path, label, icon });
+    recents.unshift({ path, label, matIcon });
     sessionStorage.setItem(RECENT_KEY, JSON.stringify(recents.slice(0, RECENT_MAX)));
   } catch {}
 }
 
-function MIcon({ name, size, style }) {
+function MIcon({ name, size = 24, color, style }) {
   return (
-    <span className="material-symbols-outlined" style={{ fontSize: size || 24, ...style }}>
+    <span
+      className="material-symbols-outlined"
+      style={{ fontSize: size, color, ...style }}
+    >
       {name}
     </span>
   );
 }
 
+// ─── Hub page ─────────────────────────────────────────────────────────────────
 export default function Hub() {
   const [search, setSearch] = useState('');
-  const [expandedCat, setExpandedCat] = useState(null);
+  // First two categories expanded by default (Your Day + Clients)
+  const [expandedCats, setExpandedCats] = useState(new Set(['daily', 'clients']));
   const [recents, setRecents] = useState(getRecents);
   const navigate = useNavigate();
   const location = useLocation();
   const { beautician } = useBeautician();
   const plan = beautician?.subscription_plan || 'trial';
-
-  const allItems = useMemo(() =>
-    CATEGORIES.flatMap(c => c.items.map(i => ({ ...i, category: c.label }))),
-    []
-  );
 
   const filtered = useMemo(() => {
     if (!search.trim()) return CATEGORIES;
@@ -350,28 +490,33 @@ export default function Hub() {
       ...cat,
       items: cat.items.filter(i =>
         i.label.toLowerCase().includes(q) ||
-        i.desc.toLowerCase().includes(q) ||
+        (i.desc || '').toLowerCase().includes(q) ||
         cat.label.toLowerCase().includes(q)
       ),
     })).filter(cat => cat.items.length > 0);
   }, [search]);
 
-  function handleNav(path, label, icon) {
-    recordVisit(path, label, icon);
+  function toggleCat(id) {
+    setExpandedCats(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function handleNav(path, label, matIcon) {
+    recordVisit(path, label, matIcon);
     setRecents(getRecents());
     navigate(path);
   }
 
   return (
     <div style={S.page}>
-      {/* ─── Agent strip ─── */}
-      <AgentStrip />
+      {/* ── Agent strip ── */}
+      <AgentStrip beautician={beautician} />
 
-      {/* ─── Title ─── */}
-      <h1 style={S.title}>Hub</h1>
-      <p style={S.subtitle}>Find anything, fast</p>
-
-      {/* ─── Search ─── */}
+      {/* ── Search ── */}
       <div style={S.searchWrap}>
         <MIcon name="search" size={18} style={S.searchIcon} />
         <input
@@ -388,18 +533,18 @@ export default function Hub() {
         )}
       </div>
 
-      {/* ─── Recents ─── */}
+      {/* ── Recents row ── */}
       {!search && recents.length > 0 && (
-        <div>
+        <div style={{ marginBottom: 20 }}>
           <div style={S.sectionLabel}>Recently visited</div>
           <div style={S.recentRow}>
             {recents.map(r => (
               <button
                 key={r.path}
-                onClick={() => handleNav(r.path, r.label, r.icon)}
+                onClick={() => handleNav(r.path, r.label, r.matIcon)}
                 style={S.recentChip}
               >
-                <span style={{ fontSize: 14 }}>{r.icon}</span>
+                <MIcon name={r.matIcon || 'star'} size={14} color="#92405e" />
                 <span style={S.recentLabel}>{r.label}</span>
               </button>
             ))}
@@ -407,7 +552,7 @@ export default function Hub() {
         </div>
       )}
 
-      {/* ─── Search results: flat list ─── */}
+      {/* ── Search results ── */}
       {search && (
         <div style={{ marginBottom: 8 }}>
           {filtered.length === 0 ? (
@@ -420,19 +565,16 @@ export default function Hub() {
               <div key={cat.id} style={{ marginBottom: 16 }}>
                 <div style={S.sectionLabel}>{cat.label}</div>
                 <div style={S.itemGrid}>
-                  {cat.items.map(item => {
-                    const locked = item.gate && !hasFeature(plan, item.gate);
-                    return (
-                      <ItemCard
-                        key={item.path}
-                        item={item}
-                        locked={locked}
-                        isActive={location.pathname === item.path}
-                        plan={plan}
-                        onNav={() => handleNav(item.path, item.label, item.icon)}
-                      />
-                    );
-                  })}
+                  {cat.items.map(item => (
+                    <ItemCard
+                      key={item.path}
+                      item={item}
+                      locked={item.gate && !hasFeature(plan, item.gate)}
+                      isActive={location.pathname === item.path}
+                      plan={plan}
+                      onNav={() => handleNav(item.path, item.label, item.matIcon)}
+                    />
+                  ))}
                 </div>
               </div>
             ))
@@ -440,65 +582,48 @@ export default function Hub() {
         </div>
       )}
 
-      {/* ─── Category cards ─── */}
+      {/* ── Category accordions ── */}
       {!search && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {CATEGORIES.map(cat => {
-            const isExpanded = expandedCat === cat.id;
-            const visibleItems = isExpanded ? cat.items : cat.items.slice(0, 4);
-            const hasMore = cat.items.length > 4;
+            const isExpanded = expandedCats.has(cat.id);
+            // When collapsed, just show the header row
+            // When expanded, show 2-col grid of square item cards
 
             return (
               <div key={cat.id} style={S.catCard}>
+                {/* Header */}
                 <button
-                  onClick={() => setExpandedCat(isExpanded ? null : cat.id)}
+                  onClick={() => toggleCat(cat.id)}
                   style={S.catHeader}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={S.catIcon}>{cat.icon}</span>
-                    <div>
-                      <div style={S.catLabel}>{cat.label}</div>
-                      <div style={S.catMeta}>{cat.items.length} features</div>
-                    </div>
+                    <MIcon name={cat.matIcon} size={20} color="rgba(146,64,94,0.65)" />
+                    <span style={S.catLabel}>{cat.label}</span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <MIcon
-                      name="expand_more"
-                      size={20}
-                      style={{
-                        color: '#867277',
-                        transition: 'transform 0.22s ease',
-                        transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)',
-                      }}
-                    />
-                  </div>
+                  <MIcon
+                    name={isExpanded ? 'expand_less' : 'expand_more'}
+                    size={20}
+                    color="#B5AFA8"
+                  />
                 </button>
 
-                <div style={S.itemGrid}>
-                  {visibleItems.map(item => {
-                    const locked = item.gate && !hasFeature(plan, item.gate);
-                    return (
-                      <ItemCard
-                        key={item.path}
-                        item={item}
-                        locked={locked}
-                        isActive={location.pathname === item.path}
-                        plan={plan}
-                        onNav={() => handleNav(item.path, item.label, item.icon)}
-                      />
-                    );
-                  })}
-                </div>
-
-                {hasMore && (
-                  <button
-                    onClick={() => setExpandedCat(isExpanded ? null : cat.id)}
-                    style={S.showMore}
-                  >
-                    {isExpanded
-                      ? 'Show less'
-                      : `${cat.items.length - 4} more`}
-                  </button>
+                {/* Expanded grid */}
+                {isExpanded && (
+                  <div style={S.expandedBody}>
+                    <div style={S.itemGrid}>
+                      {cat.items.map(item => (
+                        <ItemCard
+                          key={item.path}
+                          item={item}
+                          locked={item.gate && !hasFeature(plan, item.gate)}
+                          isActive={location.pathname === item.path}
+                          plan={plan}
+                          onNav={() => handleNav(item.path, item.label, item.matIcon)}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             );
@@ -509,6 +634,7 @@ export default function Hub() {
   );
 }
 
+// ─── Item card ────────────────────────────────────────────────────────────────
 function ItemCard({ item, locked, isActive, plan, onNav }) {
   return (
     <button
@@ -516,11 +642,11 @@ function ItemCard({ item, locked, isActive, plan, onNav }) {
       style={{
         ...S.item,
         ...(isActive ? S.itemActive : {}),
-        ...(locked ? { opacity: 0.6 } : {}),
+        ...(locked ? { opacity: 0.55 } : {}),
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: 6 }}>
-        <span style={{ fontSize: 20, lineHeight: 1 }}>{item.icon}</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: 10 }}>
+        <MIcon name={item.matIcon} size={22} color={isActive ? '#92405e' : '#92405e'} style={{ opacity: isActive ? 1 : 0.75 }} />
         {locked && (
           <span style={S.lockBadge}>
             {(getRequiredPlan(item.gate) || 'PRO').toUpperCase()}
@@ -528,103 +654,131 @@ function ItemCard({ item, locked, isActive, plan, onNav }) {
         )}
       </div>
       <span style={S.itemLabel}>{item.label}</span>
-      <span style={S.itemDesc}>{item.desc}</span>
     </button>
   );
 }
 
-// ─── Agent strip styles ───────────────────────────────────
+// ─── Agent strip styles ───────────────────────────────────────────────────────
 const SS = {
-  strip: {
+  wrap: {
     position: 'relative',
-    background: 'linear-gradient(135deg, #fff5f7 0%, #fff 60%)',
-    borderRadius: 20,
+    background: 'linear-gradient(135deg, #fff5f7 0%, #fff 70%)',
+    borderRadius: 24,
     border: '1px solid rgba(199,107,138,0.12)',
-    padding: '14px 14px 12px',
+    padding: '16px 16px 14px',
     marginBottom: 20,
-    boxShadow: '0 2px 12px rgba(199,107,138,0.06)',
+    boxShadow: '0 2px 16px rgba(199,107,138,0.07)',
   },
-  stripHeader: {
+  header: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  stripTitle: {
-    fontSize: 13,
+  headerLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+  },
+  bzAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    background: '#ffd9e2',
+    border: '1.5px solid rgba(199,107,138,0.25)',
+    overflow: 'hidden',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  bzInitials: {
+    fontSize: 12,
     fontWeight: 700,
     color: '#92405e',
-    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
-    fontStyle: 'italic',
-    letterSpacing: '-0.01em',
+    letterSpacing: '-0.02em',
   },
-  stripMeta: {
-    fontSize: 11,
-    color: '#B5AFA8',
-    fontWeight: 500,
+  title: {
+    fontSize: 14,
+    fontWeight: 700,
+    color: '#92405e',
+    fontFamily: "'Noto Serif', Georgia, serif",
+    fontStyle: 'italic',
+  },
+  activeBadge: {
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: '0.08em',
+    color: '#92405e',
+    background: '#ffd9e2',
+    padding: '3px 8px',
+    borderRadius: 20,
   },
   avatarRow: {
     display: 'flex',
+    justifyContent: 'space-between',
     gap: 4,
-    overflowX: 'auto',
-    scrollbarWidth: 'none',
-    paddingBottom: 2,
+    marginBottom: 14,
   },
   agentBtn: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: 5,
-    padding: '6px 8px',
+    gap: 6,
     border: 'none',
     background: 'none',
     cursor: 'pointer',
     position: 'relative',
     borderRadius: 12,
+    padding: '4px 4px',
     flexShrink: 0,
     fontFamily: 'inherit',
     WebkitTapHighlightColor: 'transparent',
-    minWidth: 52,
+    flex: 1,
   },
-  pulse: {
+  avatarRing: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    border: '2px solid',
+    overflow: 'hidden',
+    position: 'relative',
+    transition: 'all 0.2s',
+  },
+  pulseRing: {
     position: 'absolute',
-    top: 4,
-    left: '50%',
-    transform: 'translateX(-50%)',
-    width: 38,
-    height: 38,
+    inset: -5,
     borderRadius: '50%',
     border: '2px solid',
-    opacity: 0.35,
+    opacity: 0.3,
     animation: 'agentPulse 2.2s ease-in-out infinite',
     pointerEvents: 'none',
+    zIndex: 0,
   },
-  avatar: {
-    width: 34,
-    height: 34,
+  avatarInner: {
+    width: '100%',
+    height: '100%',
     borderRadius: '50%',
+    overflow: 'hidden',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: 16,
-    border: '2px solid',
-    transition: 'all 0.2s',
-    flexShrink: 0,
   },
   badge: {
     position: 'absolute',
-    top: 2,
-    right: 4,
-    minWidth: 15,
-    height: 15,
-    borderRadius: 8,
-    fontSize: 9,
+    top: 0,
+    right: 0,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    fontSize: 10,
     fontWeight: 700,
     color: '#fff',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: '0 3px',
+    padding: '0 4px',
+    border: '2px solid #fff5f7',
   },
   agentName: {
     fontSize: 10,
@@ -634,90 +788,75 @@ const SS = {
     transition: 'color 0.2s',
   },
   ticker: {
-    marginTop: 10,
-    padding: '7px 10px',
-    borderRadius: 10,
-    background: 'rgba(199,107,138,0.05)',
-    minHeight: 28,
     display: 'flex',
     alignItems: 'center',
+    gap: 8,
+    background: 'rgba(199,107,138,0.06)',
+    borderRadius: 99,
+    padding: '8px 12px',
   },
   tickerText: {
-    fontSize: 11.5,
+    fontSize: 11,
     color: '#534247',
-    lineHeight: 1.4,
+    lineHeight: 1,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-    width: '100%',
+    flex: 1,
+    fontWeight: 500,
   },
   popover: {
     position: 'absolute',
     left: 12,
     right: 12,
-    top: '100%',
-    marginTop: 8,
+    top: 'calc(100% + 8px)',
     background: '#fff',
-    borderRadius: 16,
+    borderRadius: 18,
     border: '1px solid rgba(199,107,138,0.15)',
-    boxShadow: '0 8px 28px rgba(0,0,0,0.1)',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
     padding: 16,
-    zIndex: 20,
+    zIndex: 30,
     animation: 'fadeIn 0.15s ease-out',
   },
-  popRow: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 },
-  popName: { fontSize: 15, fontWeight: 700, color: '#1d1b19', fontFamily: "var(--font-display, 'Playfair Display', serif)" },
+  popRow: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 },
+  popName: { fontSize: 15, fontWeight: 700, color: '#1d1b19', fontFamily: "'Noto Serif', serif", fontStyle: 'italic' },
   popStatus: { fontSize: 12, color: '#867277', marginTop: 2, lineHeight: 1.4 },
   popStats: { display: 'flex', alignItems: 'center', gap: 16, paddingTop: 12, borderTop: '1px solid #F3EDE9' },
   popStat: { display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 },
-  popNum: { fontSize: 20, fontWeight: 700, color: '#1d1b19' },
+  popNum: { fontSize: 22, fontWeight: 700, color: '#1d1b19' },
   popLabel: { fontSize: 11, color: '#B5AFA8', marginTop: 2 },
   popDivider: { width: 1, height: 32, background: '#EDE9E4' },
 };
 
-// ─── Hub page styles ──────────────────────────────────────
+// ─── Hub page styles ──────────────────────────────────────────────────────────
 const S = {
   page: {
     minHeight: '100vh',
     background: '#fef8f4',
-    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+    fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
     padding: '16px 16px 120px',
     maxWidth: 480,
     margin: '0 auto',
     color: '#1d1b19',
   },
-  title: {
-    fontFamily: "var(--font-display, 'Playfair Display', serif)",
-    fontSize: 26,
-    fontStyle: 'italic',
-    fontWeight: 700,
-    letterSpacing: '-0.02em',
-    color: '#92405e',
-    margin: '0 0 2px',
-  },
-  subtitle: {
-    fontSize: 13,
-    color: '#867277',
-    margin: '0 0 18px',
-  },
 
-  // Search
   searchWrap: { position: 'relative', marginBottom: 20 },
   searchIcon: {
-    position: 'absolute', left: 13, top: '50%',
-    transform: 'translateY(-50%)', color: '#867277', pointerEvents: 'none',
+    position: 'absolute', left: 14, top: '50%',
+    transform: 'translateY(-50%)', color: '#B5AFA8', pointerEvents: 'none',
   },
   searchInput: {
     width: '100%',
-    padding: '11px 36px 11px 40px',
-    borderRadius: 14,
-    border: '1px solid #d8c1c6',
+    padding: '11px 36px 11px 42px',
+    borderRadius: 99,
+    border: 'none',
     background: '#fff',
     fontSize: 14,
     fontFamily: 'inherit',
     color: '#1d1b19',
     outline: 'none',
     boxSizing: 'border-box',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
   },
   searchClear: {
     position: 'absolute', right: 10, top: '50%',
@@ -727,94 +866,103 @@ const S = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
 
-  // Recents
   sectionLabel: {
-    fontSize: 11, fontWeight: 700, color: '#B5AFA8',
-    textTransform: 'uppercase', letterSpacing: '0.06em',
+    fontSize: 10, fontWeight: 700, color: '#B5AFA8',
+    textTransform: 'uppercase', letterSpacing: '0.08em',
     marginBottom: 8,
   },
   recentRow: {
     display: 'flex', gap: 8, overflowX: 'auto',
-    scrollbarWidth: 'none', marginBottom: 20, paddingBottom: 2,
+    scrollbarWidth: 'none', paddingBottom: 2,
   },
   recentChip: {
     display: 'flex', alignItems: 'center', gap: 6,
-    padding: '7px 12px', borderRadius: 10,
-    border: '1px solid #EDE9E4', background: '#fff',
+    padding: '7px 13px', borderRadius: 99,
+    border: '1px solid rgba(146,64,94,0.1)', background: '#fff',
     cursor: 'pointer', fontFamily: 'inherit',
     flexShrink: 0, whiteSpace: 'nowrap',
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
   },
-  recentLabel: {
-    fontSize: 12, fontWeight: 600, color: '#534247',
+  recentLabel: { fontSize: 12, fontWeight: 600, color: '#534247' },
+
+  emptySearch: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center',
+    padding: '40px 16px', textAlign: 'center',
   },
 
-  // Categories
+  // Category cards
   catCard: {
-    background: '#fff', borderRadius: 18,
-    border: '1px solid rgba(146,64,94,0.06)',
-    padding: '14px 12px 10px',
-    boxShadow: '0 1px 4px rgba(146,64,94,0.04)',
+    background: '#fff',
+    borderRadius: 20,
+    border: '1px solid rgba(146,64,94,0.07)',
+    overflow: 'hidden',
+    boxShadow: '0 1px 4px rgba(146,64,94,0.05)',
   },
   catHeader: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     width: '100%', background: 'none', border: 'none',
-    cursor: 'pointer', padding: '0 0 12px',
+    cursor: 'pointer', padding: '14px 16px',
     fontFamily: 'inherit', textAlign: 'left',
     WebkitTapHighlightColor: 'transparent',
   },
-  catIcon: { fontSize: 22, lineHeight: 1 },
-  catLabel: { fontSize: 14, fontWeight: 700, color: '#92405e', letterSpacing: '-0.01em' },
-  catMeta: { fontSize: 11, color: '#B5AFA8', marginTop: 1 },
+  catLabel: {
+    fontSize: 14, fontWeight: 700, color: '#1d1b19',
+  },
+  expandedBody: {
+    background: '#f8f2ef',
+    padding: '12px 12px 14px',
+    borderTop: '1px solid rgba(146,64,94,0.06)',
+  },
 
-  // Item grid
-  itemGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 },
+  // Item grid — 2 columns of square cards
+  itemGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: 8,
+  },
   item: {
-    display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
-    padding: '11px 11px 9px', borderRadius: 13,
-    border: 'none', background: '#f8f2ef',
-    cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    padding: '14px 12px 12px',
+    borderRadius: 14,
+    border: 'none',
+    background: '#fff',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    textAlign: 'left',
     transition: 'background 0.12s, transform 0.1s',
     WebkitTapHighlightColor: 'transparent',
-    minHeight: 72,
+    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
   },
   itemActive: {
     background: '#ffd9e2',
     boxShadow: 'inset 0 0 0 1.5px #92405e',
   },
-  itemLabel: { fontSize: 12, fontWeight: 700, color: '#1d1b19', lineHeight: 1.2 },
-  itemDesc:  { fontSize: 10, color: '#867277', lineHeight: 1.3, marginTop: 3 },
+  itemLabel: {
+    fontSize: 11, fontWeight: 700, color: '#1d1b19', lineHeight: 1.3,
+  },
   lockBadge: {
     fontSize: 8, fontWeight: 700,
     background: 'linear-gradient(135deg, #745a27, #fedb9b)',
     color: '#fff', padding: '2px 5px', borderRadius: 5,
     letterSpacing: '0.05em',
   },
-
-  showMore: {
-    width: '100%', padding: '10px 0 2px',
-    background: 'none', border: 'none',
-    fontSize: 12, fontWeight: 600, color: '#92405e',
-    cursor: 'pointer', fontFamily: 'inherit',
-    WebkitTapHighlightColor: 'transparent',
-  },
-
-  emptySearch: { textAlign: 'center', padding: '48px 0' },
 };
 
 // Inject keyframes
 if (typeof document !== 'undefined' && !document.getElementById('hub-keyframes')) {
-  const style = document.createElement('style');
-  style.id = 'hub-keyframes';
-  style.textContent = `
+  const s = document.createElement('style');
+  s.id = 'hub-keyframes';
+  s.textContent = `
     @keyframes agentPulse {
-      0%, 100% { transform: translateX(-50%) scale(1); opacity: 0.35; }
-      50% { transform: translateX(-50%) scale(1.18); opacity: 0.08; }
+      0%, 100% { transform: scale(1);   opacity: 0.3; }
+      50%       { transform: scale(1.2); opacity: 0.12; }
     }
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(4px); }
-      to { opacity: 1; transform: translateY(0); }
+      to   { opacity: 1; transform: translateY(0); }
     }
   `;
-  document.head.appendChild(style);
+  document.head.appendChild(s);
 }
