@@ -405,6 +405,188 @@ function AgentStrip({ beautician }) {
   );
 }
 
+// ─── Superpowers section ──────────────────────────────────────────────────────
+// 5 live-counter cards for Florrie's highest-value features.
+// Fetches counts in parallel; fails silently so UI never breaks.
+function SuperpowersSection({ onNav }) {
+  const [counts, setCounts] = useState({
+    inbox: null,
+    insights: null,
+    compliance: null,
+    content: null,
+    churn: null,
+  });
+
+  useEffect(() => {
+    async function fetchCounts() {
+      const token = getToken();
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+      const safe = async (url) => {
+        try {
+          const r = await fetch(url, { headers });
+          if (!r.ok) return null;
+          return await r.json();
+        } catch { return null; }
+      };
+
+      const [inbox, insights, compliance, content, churn] = await Promise.all([
+        safe(`${API_BASE}/api/inbox?status=unread&count=true`),
+        safe(`${API_BASE}/api/ai-insights?count=true`),
+        safe(`${API_BASE}/api/patch-tests?status=pending&count=true`),
+        safe(`${API_BASE}/api/content?status=draft&count=true`),
+        safe(`${API_BASE}/api/churn-risk?count=true`),
+      ]);
+
+      const extract = (d) =>
+        d == null ? null
+          : typeof d.count === 'number' ? d.count
+          : typeof d.total === 'number' ? d.total
+          : Array.isArray(d) ? d.length
+          : Array.isArray(d?.data) ? d.data.length
+          : null;
+
+      setCounts({
+        inbox:      extract(inbox),
+        insights:   extract(insights),
+        compliance: extract(compliance),
+        content:    extract(content),
+        churn:      extract(churn),
+      });
+    }
+    fetchCounts();
+  }, []);
+
+  const powers = [
+    {
+      path:      '/inbox',
+      label:     'Inbox',
+      sublabel:  'AI receptionist',
+      icon:      'chat_bubble',
+      colour:    '#C76B8A',
+      count:     counts.inbox,
+      countLabel:'unread',
+    },
+    {
+      path:      '/ai-insights',
+      label:     'AI Insights',
+      sublabel:  'Business intel',
+      icon:      'psychology',
+      colour:    '#7B6BA8',
+      count:     counts.insights,
+      countLabel:'new',
+    },
+    {
+      path:      '/patch-tests',
+      label:     'Compliance',
+      sublabel:  'Patch tests',
+      icon:      'verified_user',
+      colour:    '#5BA97B',
+      count:     counts.compliance,
+      countLabel:'pending',
+    },
+    {
+      path:      '/content',
+      label:     'Content',
+      sublabel:  'Autopilot',
+      icon:      'auto_fix_high',
+      colour:    '#D4943A',
+      count:     counts.content,
+      countLabel:'ready',
+    },
+    {
+      path:      '/churn',
+      label:     'At Risk',
+      sublabel:  'Churn clients',
+      icon:      'shield_person',
+      colour:    '#4A90D9',
+      count:     counts.churn,
+      countLabel:'clients',
+    },
+  ];
+
+  return (
+    <div style={SP.wrap}>
+      <div style={SP.header}>
+        <span style={SP.title}>Florrie's superpowers</span>
+        <MIcon name="auto_awesome" size={13} color="rgba(146,64,94,0.45)" />
+      </div>
+      <div style={SP.grid}>
+        {powers.map(p => (
+          <button key={p.path} onClick={() => onNav(p.path, p.label, p.icon)} style={SP.card}>
+            <div style={SP.cardTop}>
+              <div style={{ ...SP.iconWrap, background: `${p.colour}18` }}>
+                <MIcon name={p.icon} size={17} color={p.colour} />
+              </div>
+              {p.count !== null && p.count > 0 && (
+                <span style={{ ...SP.countBadge, background: p.colour }}>
+                  {p.count > 99 ? '99+' : p.count}
+                </span>
+              )}
+            </div>
+            <div style={SP.cardLabel}>{p.label}</div>
+            <div style={SP.cardSub}>{p.sublabel}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const SP = {
+  wrap: { marginBottom: 20 },
+  header: {
+    display: 'flex', alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10, padding: '0 2px',
+  },
+  title: {
+    fontSize: 10, fontWeight: 700, letterSpacing: '0.08em',
+    textTransform: 'uppercase', color: 'rgba(146,64,94,0.6)',
+  },
+  grid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(5, 1fr)',
+    gap: 7,
+  },
+  card: {
+    background: '#fff',
+    border: '1px solid rgba(199,107,138,0.1)',
+    borderRadius: 14,
+    padding: '9px 7px 10px',
+    textAlign: 'left',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    WebkitTapHighlightColor: 'transparent',
+    display: 'flex',
+    flexDirection: 'column',
+    minHeight: 86,
+    boxShadow: '0 1px 6px rgba(199,107,138,0.05)',
+    transition: 'border-color 0.15s ease',
+  },
+  cardTop: {
+    display: 'flex', alignItems: 'flex-start',
+    justifyContent: 'space-between', marginBottom: 8,
+  },
+  iconWrap: {
+    width: 30, height: 30, borderRadius: 8,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  countBadge: {
+    fontSize: 10, fontWeight: 700, color: '#fff',
+    padding: '2px 5px', borderRadius: 10,
+    minWidth: 17, textAlign: 'center', lineHeight: '15px',
+    flexShrink: 0,
+  },
+  cardLabel: {
+    fontSize: 11, fontWeight: 700, color: '#1d1b19',
+    lineHeight: 1.2, marginBottom: 2,
+  },
+  cardSub: {
+    fontSize: 10, color: '#B5AFA8', lineHeight: 1.3,
+  },
+};
+
 // ─── Navigation categories ────────────────────────────────────────────────────
 const CATEGORIES = [
   {
@@ -412,12 +594,13 @@ const CATEGORIES = [
     label: 'Your Day',
     matIcon: 'wb_sunny',
     items: [
-      { path: '/calendar',       label: "Today's List",   matIcon: 'event_note',    desc: 'Appointments & schedule'  },
-      { path: '/waitlist-pro',   label: 'Waitlist',       matIcon: 'history',       desc: 'Manage waiting clients'   },
-      { path: '/checklist',      label: 'Checklist',      matIcon: 'checklist',     desc: 'Daily opening & closing'  },
-      { path: '/end-of-day',     label: 'End of Day',     matIcon: 'nightlight',    desc: 'Cash-up and close'        },
-      { path: '/notifications',  label: 'Notifications',  matIcon: 'notifications', desc: 'Alerts & reminders'       },
-      { path: '/hours',          label: 'Hours & Time Off',matIcon: 'beach_access',desc: 'Exceptions & closures'    },
+      { path: '/calendar',       label: "Today's List",   matIcon: 'event_note',       desc: 'Appointments & schedule'  },
+      { path: '/smart-schedule', label: 'Smart Schedule', matIcon: 'auto_schedule',    desc: 'AI-optimised slots',        gate: 'smart_schedule' },
+      { path: '/waitlist-pro',   label: 'Waitlist',       matIcon: 'history',          desc: 'Manage waiting clients'   },
+      { path: '/checklist',      label: 'Checklist',      matIcon: 'checklist',        desc: 'Daily opening & closing'  },
+      { path: '/end-of-day',     label: 'End of Day',     matIcon: 'nightlight',       desc: 'Cash-up and close'        },
+      { path: '/notifications',  label: 'Notifications',  matIcon: 'notifications',    desc: 'Alerts & reminders'       },
+      { path: '/hours',          label: 'Hours & Time Off',matIcon: 'beach_access',    desc: 'Exceptions & closures'    },
     ],
   },
   {
@@ -426,39 +609,40 @@ const CATEGORIES = [
     matIcon: 'face_3',
     items: [
       { path: '/clients',        label: 'Directory',      matIcon: 'face_3',          desc: 'All client profiles'       },
-      { path: '/inbox',          label: 'Inbox',          matIcon: 'chat_bubble',     desc: 'All messages'              },
-      { path: '/loyalty',        label: 'Loyalty',        matIcon: 'loyalty',         desc: 'Points & rewards'          },
+      { path: '/churn',          label: 'Churn Risk',     matIcon: 'shield_person',   desc: 'At-risk clients',           gate: 'churn_prevention' },
+      { path: '/segments',       label: 'Segments',       matIcon: 'group_work',      desc: 'Smart RFM grouping',        gate: 'client_segments' },
+      { path: '/loyalty',        label: 'Loyalty',        matIcon: 'loyalty',         desc: 'Points & rewards',          gate: 'loyalty' },
       { path: '/reviews',        label: 'Feedback',       matIcon: 'reviews',         desc: 'Reviews & responses'       },
-      { path: '/tags',           label: 'Tags & Groups',  matIcon: 'label',           desc: 'Organise & segment'        },
-      { path: '/segments',       label: 'Segments',       matIcon: 'group_work',      desc: 'Smart RFM grouping'        },
-      { path: '/churn',          label: 'Retention',      matIcon: 'shield',          desc: 'At-risk clients'           },
       { path: '/memberships',    label: 'Memberships',    matIcon: 'card_membership', desc: 'Recurring packages'        },
+      { path: '/tags',           label: 'Tags & Groups',  matIcon: 'label',           desc: 'Organise & segment'        },
       { path: '/photo-consent',  label: 'Photo Consent',  matIcon: 'photo_camera',    desc: 'Before/after consent'      },
       { path: '/import',         label: 'Import',         matIcon: 'upload',          desc: 'CSV & bulk import'         },
     ],
   },
   {
     id: 'treatments',
-    label: 'Treatments',
+    label: 'Treatments & Compliance',
     matIcon: 'content_cut',
     items: [
-      { path: '/treatments',         label: 'Treatments',     matIcon: 'spa',           desc: 'Manage services'           },
-      { path: '/consultations',      label: 'Consultations',  matIcon: 'medical_services',desc: 'Pre-treatment bookings' },
-      { path: '/consultation-forms', label: 'Form Builder',   matIcon: 'assignment',    desc: 'Consent forms'             },
-      { path: '/patch-tests',        label: 'Patch Tests',    matIcon: 'vaccines',      desc: 'Allergy test tracking'     },
-      { path: '/aftercare',          label: 'Aftercare',      matIcon: 'self_care',     desc: 'Post-treatment messages'   },
-      { path: '/packages',           label: 'Packages',       matIcon: 'inventory_2',   desc: 'Bundle deals & courses'    },
-      { path: '/addons',             label: 'Add-ons',        matIcon: 'add_circle',    desc: 'Bolt-on extras'            },
-      { path: '/price-list',         label: 'Price List',     matIcon: 'price_list',    desc: 'Public pricing page'       },
-      { path: '/notes',              label: 'Appt Notes',     matIcon: 'sticky_note_2', desc: 'Notes per appointment'     },
+      { path: '/patch-tests',        label: 'Patch Tests',    matIcon: 'vaccines',         desc: 'UK compliance tracking'    },
+      { path: '/consultation-forms', label: 'Form Builder',   matIcon: 'assignment',       desc: 'Consent & intake forms'    },
+      { path: '/consultations',      label: 'Consultations',  matIcon: 'medical_services', desc: 'Pre-treatment bookings'    },
+      { path: '/treatments',         label: 'Treatments',     matIcon: 'spa',              desc: 'Manage services'           },
+      { path: '/aftercare',          label: 'Aftercare',      matIcon: 'self_care',        desc: 'Post-treatment messages',   gate: 'aftercare' },
+      { path: '/packages',           label: 'Packages',       matIcon: 'inventory_2',      desc: 'Bundle deals & courses'    },
+      { path: '/addons',             label: 'Add-ons',        matIcon: 'add_circle',       desc: 'Bolt-on extras'            },
+      { path: '/price-list',         label: 'Price List',     matIcon: 'price_list',       desc: 'Public pricing page'       },
+      { path: '/notes',              label: 'Appt Notes',     matIcon: 'sticky_note_2',    desc: 'Notes per appointment'     },
     ],
   },
   {
     id: 'money',
-    label: 'Money',
+    label: 'Money & Intelligence',
     matIcon: 'payments',
     items: [
-      { path: '/money',         label: 'Money Tracker',  matIcon: 'account_balance_wallet', desc: 'Revenue dashboard'   },
+      { path: '/money',         label: 'Money Tracker',  matIcon: 'account_balance_wallet', desc: 'Revenue dashboard'         },
+      { path: '/ai-insights',   label: 'AI Insights',    matIcon: 'psychology',        desc: 'AI business analysis',      gate: 'ai_insights' },
+      { path: '/demand',        label: 'Demand Forecast',matIcon: 'trending_up',       desc: 'Predict busy periods',      gate: 'demand_forecast' },
       { path: '/analytics',     label: 'Analytics',      matIcon: 'analytics',         desc: 'Performance & reports'     },
       { path: '/expenses',      label: 'Expenses',       matIcon: 'receipt_long',      desc: 'Track outgoings'           },
       { path: '/deposits',      label: 'Deposits',       matIcon: 'savings',           desc: 'Held payments'             },
@@ -474,14 +658,14 @@ const CATEGORIES = [
     label: 'Marketing',
     matIcon: 'campaign',
     items: [
-      { path: '/campaigns',   label: 'Campaigns',    matIcon: 'mail',          desc: 'Email & SMS blasts'        },
-      { path: '/content',     label: 'Content',      matIcon: 'image',         desc: 'AI-written captions'       },
-      { path: '/referrals',   label: 'Referrals',    matIcon: 'diversity_3',   desc: 'Word-of-mouth tracking'    },
-      { path: '/rebook',      label: 'Rebook',       matIcon: 'replay',        desc: 'Bring clients back'        },
-      { path: '/automations', label: 'Automations',  matIcon: 'bolt',          desc: 'If-this-then-that rules'   },
-      { path: '/templates',   label: 'Templates',    matIcon: 'description',   desc: 'Reusable messages'         },
-      { path: '/whatsapp',    label: 'WhatsApp',     matIcon: 'smartphone',    desc: 'Business messaging'        },
-      { path: '/portfolio',   label: 'Portfolio',    matIcon: 'photo_library', desc: 'Showcase your work'        },
+      { path: '/content',     label: 'Content Autopilot',matIcon: 'auto_fix_high',  desc: 'AI-written captions',       gate: 'content_autopilot' },
+      { path: '/campaigns',   label: 'Campaigns',        matIcon: 'mail',           desc: 'Email & SMS blasts',        gate: 'campaigns' },
+      { path: '/rebook',      label: 'Rebook',           matIcon: 'replay',         desc: 'Bring clients back'        },
+      { path: '/referrals',   label: 'Referrals',        matIcon: 'diversity_3',    desc: 'Word-of-mouth tracking'    },
+      { path: '/automations', label: 'Automations',      matIcon: 'bolt',           desc: 'If-this-then-that rules'   },
+      { path: '/templates',   label: 'Templates',        matIcon: 'description',    desc: 'Reusable messages'         },
+      { path: '/whatsapp',    label: 'WhatsApp',         matIcon: 'smartphone',     desc: 'Business messaging',        gate: 'whatsapp' },
+      { path: '/portfolio',   label: 'Portfolio',        matIcon: 'photo_library',  desc: 'Showcase your work'        },
     ],
   },
   {
@@ -639,6 +823,11 @@ export default function Hub() {
             ))
           )}
         </div>
+      )}
+
+      {/* ── Superpowers ── */}
+      {!search && (
+        <SuperpowersSection onNav={handleNav} />
       )}
 
       {/* ── Category accordions ── */}

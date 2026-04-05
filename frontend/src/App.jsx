@@ -242,7 +242,7 @@ export default function App() {
             <Route path="/team" element={<PlanGate feature="team_management"><Team /></PlanGate>} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/waitlist" element={<Navigate to="/waitlist-pro" replace />} />
-            <Route path="/digest" element={<WeeklyDigest />} />
+            <Route path="/digest" element={<Navigate to="/analytics" replace />} />
             <Route path="/campaigns" element={<PlanGate feature="campaigns"><Campaigns /></PlanGate>} />
             <Route path="/voice" element={<VoiceCommander />} />
             <Route path="/reviews" element={<Reviews />} />
@@ -288,7 +288,7 @@ export default function App() {
             <Route path="/staff-performance" element={<PlanGate feature="staff_performance"><StaffPerformance /></PlanGate>} />
 
             <Route path="/memberships" element={<ClientMemberships />} />
-            <Route path="/comms" element={<CommsLog />} />
+            <Route path="/comms" element={<Navigate to="/inbox" replace />} />
             <Route path="/end-of-day" element={<EndOfDay />} />
             <Route path="/automations" element={<AutomationRules />} />
             <Route path="/whatsapp" element={<PlanGate feature="whatsapp"><WhatsAppConfig /></PlanGate>} />
@@ -326,14 +326,16 @@ export default function App() {
 function BottomNav({ current }) {
   const navigate = useNavigate();
 
-  const hubPaths = ['/hub', '/money', '/analytics', '/clients', '/treatments', '/team', '/waitlist', '/digest', '/campaigns', '/reviews', '/loyalty', '/aftercare', '/import', '/smart-schedule', '/vouchers', '/notifications', '/hours', '/patch-tests', '/reports', '/policies', '/business', '/rebook', '/inbox', '/packages', '/templates', '/referrals', '/portfolio', '/notes', '/feedback', '/expenses', '/consultations', '/sequences', '/photo-consent', '/waitlist-pro', '/client-timeline', '/rota', '/deposits', '/addons', '/cancellations', '/tags', '/promos', '/checklist', '/inventory', '/goals', '/price-list', '/treatment-stats', '/staff-performance', '/memberships', '/comms', '/end-of-day', '/automations', '/whatsapp', '/portal', '/ai-insights', '/segments', '/churn', '/demand', '/locations', '/integrations', '/sms', '/api-settings', '/escalations', '/settings'];
-  const isHubActive = hubPaths.includes(current);
+  // Hub "active" = any page that lives inside the Hub directory.
+  // /inbox and /money now have their own tabs so exclude them here.
+  const hubPaths = ['/hub', '/money', '/analytics', '/clients', '/treatments', '/team', '/waitlist', '/digest', '/campaigns', '/reviews', '/loyalty', '/aftercare', '/import', '/smart-schedule', '/vouchers', '/notifications', '/hours', '/patch-tests', '/reports', '/policies', '/business', '/rebook', '/packages', '/templates', '/referrals', '/portfolio', '/notes', '/feedback', '/expenses', '/consultations', '/sequences', '/photo-consent', '/waitlist-pro', '/client-timeline', '/rota', '/deposits', '/addons', '/cancellations', '/tags', '/promos', '/checklist', '/inventory', '/goals', '/price-list', '/treatment-stats', '/staff-performance', '/memberships', '/comms', '/end-of-day', '/automations', '/whatsapp', '/portal', '/ai-insights', '/segments', '/churn', '/demand', '/locations', '/integrations', '/sms', '/api-settings', '/escalations', '/settings'];
+  const isHubActive = hubPaths.includes(current) && current !== '/inbox';
 
   const tabs = [
     { path: '/', label: 'Home', icon: 'home', isPetal: false },
     { path: '/calendar', label: 'Calendar', icon: 'calendar_today', isPetal: false },
     { path: '/voice', label: 'florrie.ai', icon: 'auto_awesome', isPetal: true },
-    { path: '/money', label: 'Money', icon: 'payments', isPetal: false },
+    { path: '/inbox', label: 'Inbox', icon: 'chat_bubble', isPetal: false },
     { path: '/hub', label: 'Hub', icon: 'explore', isPetal: false }
   ];
 
