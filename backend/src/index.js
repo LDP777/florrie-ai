@@ -1,9 +1,26 @@
+import * as Sentry from '@sentry/node';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import { createClient } from '@supabase/supabase-js';
 import logger from './lib/logger.js';
+
+// Initialise Sentry before anything else so it captures startup errors too.
+// If SENTRY_DSN is not set the SDK is a no-op — safe in all environments.
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || 'development',
+    integrations: [
+      Sentry.httpIntegration(),
+      Sentry.expressIntegration(),
+    ],
+    // Capture 10% of transactions for performance monitoring
+    tracesSampleRate: 0.1,
+  });
+  logger.info('Sentry initialised');
+}
 import { apiLimiter, authLimiter, bookingLimiter } from './middleware/rate-limit.js';
 import { securityHeaders, paymentLimiter, sanitiseBody, idempotencyGuard } from './middleware/security.js';
 import { locationScope } from './middleware/location.js';
@@ -170,7 +187,12 @@ app.use('/api/whatsapp', apiLimiter, whatsappConfigRoutes);
 app.use('/api/widget-state', apiLimiter, widgetRoutes);
 app.use('/api/webhooks/instagram', webhookLimiter, instagramWebhookRoutes);
 
-// Error handler
+// Sentry error handler — must come after all routes, before the generic handler
+if (process.env.SENTRY_DSN) {
+  Sentry.setupExpressErrorHandler(app);
+}
+
+// Generic error handler
 app.use((err, req, res, next) => {
   logger.error({ err }, 'Unhandled error');
   res.status(500).json({ error: 'Internal server error' });
