@@ -12,10 +12,20 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, supabase, isDevMode, fetchRows, updateRow } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
+import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+
+function getToken() {
+  const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
+  if (!key) return null;
+  const raw = localStorage.getItem(key);
+  if (!raw) return null;
+  try { const p = JSON.parse(raw); return p?.access_token || p?.session?.access_token || raw; }
+  catch { return raw; }
+}
 
 const DEV_REFERRALS = [
   { id: 'ref-1', referrer: 'Shauna', friend: 'Amy', code: 'SHAUNA10', status: 'converted', reward: 'both_claimed', date: '2026-03-12' },
@@ -45,22 +55,77 @@ export default function Referrals() {
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('overview');
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   // Data
   const [referrals, setReferrals] = useState(isDevMode ? DEV_REFERRALS : []);
   const [leaderboard, setLeaderboard] = useState(isDevMode ? DEV_LEADERBOARD : []);
 
-  // Settings
+  // Config from backend
+  const [referralLink, setReferralLink] = useState('florrie.ai/ref/...');
+  const [programEnabled, setProgramEnabled] = useState(true);
   const [referrerReward, setReferrerReward] = useState(10);
   const [friendReward, setFriendReward] = useState(10);
   const [rewardType, setRewardType] = useState('discount');
   const [expiryDays, setExpiryDays] = useState(30);
   const [autoReward, setAutoReward] = useState(true);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [msgCopied, setMsgCopied] = useState(false);
 
   useEffect(() => {
-    if (beautician && !bLoading) loadReferrals();
+    if (beautician && !bLoading) {
+      loadReferrals();
+      loadConfig();
+    }
   }, [beautician, bLoading]);
+
+  async function loadConfig() {
+    if (isDevMode) return;
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE}/api/referrals/config`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const cfg = data.config || {};
+      if (data.shareLink) setReferralLink(data.shareLink.replace('https://', ''));
+      if (cfg.referral_enabled !== undefined) setProgramEnabled(cfg.referral_enabled);
+      if (cfg.referral_reward_type) setRewardType(cfg.referral_reward_type);
+      if (cfg.referral_reward_value_cents) {
+        // Backend stores cents — split between referrer/friend (same value for now)
+        const pounds = Math.round(cfg.referral_reward_value_cents / 100);
+        setReferrerReward(pounds);
+        setFriendReward(pounds);
+      }
+    } catch (err) {
+      logger.warn('Load referral config failed:', err);
+    }
+  }
+
+  async function saveConfig() {
+    if (isDevMode) return;
+    setSaving(true);
+    try {
+      const token = getToken();
+      await fetch(`${API_BASE}/api/referrals/config`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          referral_enabled: programEnabled,
+          referral_reward_type: rewardType,
+          referral_reward_value_cents: referrerReward * 100,
+        }),
+      });
+    } catch (err) {
+      logger.error('Save referral config failed:', err);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function loadReferrals() {
     setLoading(true);
@@ -69,45 +134,58 @@ export default function Referrals() {
         setReferrals(DEV_REFERRALS);
         setLeaderboard(DEV_LEADERBOARD);
       } else {
-        const data = await fetchRows('referrals', beautician.id, { order: 'created_at', ascending: false });
-        setReferrals(data || []);
-        // Compute leaderboard from data
-        if (data && data.length > 0) {
-          const grouped = {};
-          data.forEach(r => {
-            if (!grouped[r.referrer_id]) {
-              grouped[r.referrer_id] = { name: r.referrer_name || 'Unknown', referrals: 0, converted: 0 };
-            }
-            grouped[r.referrer_id].referrals++;
-            if (r.status === 'converted') grouped[r.referrer_id].converted++;
-          });
-          setLeaderboard(Object.values(grouped).sort((a, b) => b.converted - a.converted));
-        }
+        const token = getToken();
+        const res = await fetch(`${API_BASE}/api/referrals`, {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        });
+        if (!res.ok) throw new Error('Failed to load');
+        const data = await res.json();
+        const rows = data.referrals || [];
+        setReferrals(rows);
+        // Compute leaderboard client-side
+        const grouped = {};
+        rows.forEach(r => {
+          const key = r.referrer_id || r.referred_name || 'Unknown';
+          if (!grouped[key]) grouped[key] = { name: r.referrer_name || 'Client', referrals: 0, converted: 0 };
+          grouped[key].referrals++;
+          if (['rewarded', 'completed', 'converted'].includes(r.status)) grouped[key].converted++;
+        });
+        setLeaderboard(Object.values(grouped).sort((a, b) => b.converted - a.converted).slice(0, 5));
       }
     } catch (err) {
       logger.error('Load referrals error:', err);
-      setReferrals(DEV_REFERRALS);
-      setLeaderboard(DEV_LEADERBOARD);
+      setReferrals(isDevMode ? DEV_REFERRALS : []);
+      setLeaderboard(isDevMode ? DEV_LEADERBOARD : []);
     } finally {
       setLoading(false);
     }
   }
 
   const totalReferrals = referrals.length;
-  const converted = referrals.filter(r => r.status === 'converted').length;
+  const converted = referrals.filter(r => ['converted', 'rewarded', 'completed'].includes(r.status)).length;
   const conversionRate = totalReferrals ? Math.round((converted / totalReferrals) * 100) : 0;
 
   if (loading) {
     return <PageLoader />;
   }
 
-  const referralLink = 'florrie.ai/ref/ellindigo';
-  const shareMessage = `Hey! I love my brow girl Ellie at Ellindigo — you should book in! Use my code for £${friendReward} off your first appointment: https://${referralLink}`;
+  const fullLink = `https://${referralLink}`;
+  const shareMessage = `Hey! I wanted to share my beautician with you — she's brilliant. Use this link for £${friendReward} off your first appointment: ${fullLink}`;
 
   function handleCopyLink() {
-    navigator.clipboard?.writeText(`https://${referralLink}`);
+    navigator.clipboard?.writeText(fullLink);
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);
+  }
+
+  function handleWhatsAppShare() {
+    window.open(`https://wa.me/?text=${encodeURIComponent(shareMessage)}`, '_blank');
+  }
+
+  function handleCopyMessage() {
+    navigator.clipboard?.writeText(shareMessage);
+    setMsgCopied(true);
+    setTimeout(() => setMsgCopied(false), 2000);
   }
 
   const tabs = [
@@ -139,19 +217,35 @@ export default function Referrals() {
         </div>
       </div>
 
+      {/* Enable/disable row */}
+      <div style={s.enableRow}>
+        <div>
+          <span style={s.enableLabel}>Referral programme</span>
+          <span style={s.enableDesc}>{programEnabled ? 'Active — clients can share and earn' : 'Paused — link won\'t work'}</span>
+        </div>
+        <button
+          onClick={() => setProgramEnabled(v => !v)}
+          style={{ ...s.toggle, background: programEnabled ? 'var(--accent, #C76B8A)' : 'var(--border, #EDE9E4)' }}
+        >
+          <div style={{ ...s.toggleThumb, transform: programEnabled ? 'translateX(18px)' : 'translateX(2px)' }} />
+        </button>
+      </div>
+
       {/* Share card */}
-      <div style={s.shareCard}>
-        <span style={s.shareTitle}>Share your referral programme</span>
+      <div style={{ ...s.shareCard, opacity: programEnabled ? 1 : 0.55 }}>
+        <span style={s.shareTitle}>Your referral link</span>
         <div style={s.urlRow}>
           <span style={s.urlText}>{referralLink}</span>
           <button onClick={handleCopyLink} style={s.copyBtn}>
-            {linkCopied ? '✓' : 'Copy'}
+            {linkCopied ? '✓ Copied' : 'Copy'}
           </button>
         </div>
         <div style={s.shareActions}>
-          <button style={s.shareBtn}>📱 WhatsApp</button>
-          <button style={s.shareBtn}>📷 Instagram</button>
-          <button style={s.shareBtn}>🔗 Link</button>
+          <button onClick={handleWhatsAppShare} style={s.shareBtn} disabled={!programEnabled}>📱 WhatsApp</button>
+          <button onClick={handleCopyMessage} style={s.shareBtn} disabled={!programEnabled}>
+            {msgCopied ? '✓ Copied' : '💬 Copy message'}
+          </button>
+          <button onClick={handleCopyLink} style={s.shareBtn} disabled={!programEnabled}>🔗 Link</button>
         </div>
       </div>
 
@@ -191,7 +285,13 @@ export default function Referrals() {
           </div>
 
           <span style={s.sectionTitle}>Top referrers</span>
-          {DEV_LEADERBOARD.map((l, i) => (
+          {leaderboard.length === 0 && (
+            <div style={s.tipCard}>
+              <span style={s.tipIcon}>🌱</span>
+              <span style={s.tipText}>No referrals yet. Share your link and get your regulars to spread the word.</span>
+            </div>
+          )}
+          {leaderboard.map((l, i) => (
             <div key={l.name} style={s.leaderRow}>
               <span style={{
                 ...s.rank,
@@ -205,7 +305,7 @@ export default function Referrals() {
               <div style={s.leaderBar}>
                 <div style={{
                   ...s.leaderFill,
-                  width: `${(l.converted / (DEV_LEADERBOARD[0]?.converted || 1)) * 100}%`,
+                  width: `${(l.converted / (leaderboard[0]?.converted || 1)) * 100}%`,
                 }} />
               </div>
             </div>
@@ -221,21 +321,29 @@ export default function Referrals() {
       {/* Referrals list */}
       {tab === 'referrals' && (
         <div style={s.section}>
-          {DEV_REFERRALS.map(r => {
-            const st = STATUS_CONFIG[r.status];
+          {referrals.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted, #B5AFA8)', fontSize: 13 }}>
+              No referrals yet — share your link to get started.
+            </div>
+          )}
+          {referrals.map(r => {
+            const statusKey = r.status === 'rewarded' ? 'converted' : (r.status || 'shared');
+            const st = STATUS_CONFIG[statusKey] || STATUS_CONFIG.shared;
+            const referrerName = r.referrer_name || r.referrer || 'Client';
+            const friendName = r.referred_name || r.friend || 'Awaiting...';
             return (
               <div key={r.id} style={s.refCard}>
                 <div style={s.refTop}>
                   <div style={s.refInfo}>
-                    <span style={s.refFrom}>{r.referrer}</span>
+                    <span style={s.refFrom}>{referrerName}</span>
                     <span style={s.refArrow}>→</span>
-                    <span style={s.refTo}>{r.friend || 'Awaiting...'}</span>
+                    <span style={s.refTo}>{friendName}</span>
                   </div>
                   <span style={{ ...s.statusBadge, background: st.bg, color: st.color }}>{st.label}</span>
                 </div>
                 <div style={s.refBottom}>
-                  <span style={s.refCode}>{r.code}</span>
-                  <span style={s.refDate}>{new Date(r.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+                  <span style={s.refCode}>{r.referral_code || r.code || '—'}</span>
+                  <span style={s.refDate}>{new Date(r.created_at || r.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
                 </div>
               </div>
             );
@@ -342,6 +450,10 @@ export default function Referrals() {
               <div style={{ ...s.toggleThumb, transform: autoReward ? 'translateX(18px)' : 'translateX(2px)' }} />
             </button>
           </div>
+
+          <button onClick={saveConfig} disabled={saving} style={s.saveBtn}>
+            {saving ? 'Saving…' : 'Save settings'}
+          </button>
         </div>
       )}
     </div>
@@ -403,4 +515,8 @@ const s = {
   toggleSettingRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', background: 'var(--card-bg, #fff)', borderRadius: 14, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))' },
   toggle: { width: 44, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s' },
   toggleThumb: { width: 22, height: 22, borderRadius: 11, background: '#fff', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
+  enableRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: 'var(--card-bg, #fff)', borderRadius: 14, border: '1px solid var(--border, #EDE9E4)', marginBottom: 14 },
+  enableLabel: { display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
+  enableDesc: { display: 'block', fontSize: 12, color: 'var(--text-muted, #B5AFA8)', marginTop: 2 },
+  saveBtn: { width: '100%', padding: '13px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 4 },
 };

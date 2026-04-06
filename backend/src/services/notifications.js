@@ -67,17 +67,10 @@ export async function sendSMS({ to, body, beauticianId, originator, messageType 
     return null;
   }
 
-  // Track usage and check credit priority
+  // Track usage — always sends, surcharge applies if over free limit
   let usageInfo = null;
   if (beauticianId) {
-    usageInfo = await trackSMSUsage(beauticianId, messageType);
-    if (usageInfo && !usageInfo.allowed) {
-      logger.info(
-        { beauticianId, messageType, reason: usageInfo.blockedReason, freeRemaining: usageInfo.freeRemaining },
-        'SMS blocked by credit priority rules'
-      );
-      return null;
-    }
+    usageInfo = await trackSMSUsage(beauticianId);
   }
 
   // Resolve per-beautician originator: caller can pass it directly,

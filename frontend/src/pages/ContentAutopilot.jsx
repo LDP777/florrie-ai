@@ -106,6 +106,13 @@ export default function ContentAutopilot() {
   const [editingId, setEditingId] = useState(null);
   const [editCaption, setEditCaption] = useState('');
 
+  // AI suggestions (from recent appointments)
+  const [suggestions, setSuggestions] = useState([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+
+  // AI caption generation in compose
+  const [generatingAI, setGeneratingAI] = useState(false);
+
   // Gallery (before/after)
   const [gallery, setGallery] = useState([]);
   const [showGalleryAdd, setShowGalleryAdd] = useState(false);
@@ -136,6 +143,7 @@ export default function ContentAutopilot() {
       loadAll();
       loadTreatments();
       loadGallery();
+      loadSuggestions();
     }
   }, [beautician]);
 
@@ -167,6 +175,53 @@ export default function ContentAutopilot() {
     if (isDevMode) { setTreatments(DEV_TREATMENTS); return; }
     const data = await fetchRows('treatments', beautician.id, { eq: { is_active: true } });
     setTreatments(data);
+  }
+
+  async function loadSuggestions() {
+    if (isDevMode) return;
+    setLoadingSuggestions(true);
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE}/api/content/suggestions`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setSuggestions(data.suggestions || []);
+    } catch (err) {
+      logger.warn('Suggestions load failed:', err);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  }
+
+  async function handleAIWrite() {
+    if (!beautician || generatingAI) return;
+    setGeneratingAI(true);
+    try {
+      const token = getToken();
+      const treatmentName = treatments.length > 0 ? pickRandom(treatments).name : null;
+      const res = await fetch(`${API_BASE}/api/content/caption`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          post_type: composeType,
+          treatment_type: treatmentName,
+        }),
+      });
+      if (!res.ok) throw new Error('AI write failed');
+      const data = await res.json();
+      if (data.caption) setComposeCaption(data.caption);
+      if (data.hashtags?.length) setComposeHashtags(data.hashtags.join(' '));
+    } catch (err) {
+      logger.warn('AI write failed, falling back to template:', err);
+      setComposeCaption(getFilledTemplate(composeType));
+    } finally {
+      setGeneratingAI(false);
+    }
   }
 
   // ── Gallery helpers ──
@@ -433,6 +488,29 @@ export default function ContentAutopilot() {
       {/* ═══ IDEAS TAB ═══ */}
       {tab === 'ideas' && (
         <div style={styles.postList}>
+          {/* AI suggestions — from recent appointments */}
+          {(loadingSuggestions || suggestions.length > 0) && (
+            <div style={styles.aiSuggestionsSection}>
+              <div style={styles.aiSuggestionsHeader}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent, #C76B8A)' }}>✨ From your recent clients</span>
+                <button onClick={loadSuggestions} style={styles.refreshBtn} disabled={loadingSuggestions}>
+                  {loadingSuggestions ? '...' : '↻'}
+                </button>
+              </div>
+              {loadingSuggestions ? (
+                <div style={styles.aiLoadingCard}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted, #7a7470)' }}>Florrie is writing ideas from your recent appointments...</span>
+                </div>
+              ) : suggestions.map(s => (
+                <div key={s.id} style={styles.aiSuggestionCard} onClick={() => startCompose(s.treatment_type?.includes('avail') ? 'last_minute_availability' : 'before_after', s.caption)}>
+                  <span style={styles.aiSuggestionTreatment}>{s.treatment_type}</span>
+                  <p style={styles.aiSuggestionCaption}>{s.caption}</p>
+                  <span style={styles.ideaTap}>Tap to use</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           <p style={styles.ideaIntro}>
             Tap any idea to customise and save as a draft. Fresh templates every time.
           </p>
@@ -502,13 +580,29 @@ export default function ContentAutopilot() {
             rows={4}
           />
 
-          {/* Shuffle button */}
-          <button
-            onClick={() => setComposeCaption(getFilledTemplate(composeType))}
-            style={styles.shuffleBtn}
-          >
-            Shuffle caption
-          </button>
+          {/* Caption tools row */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => setComposeCaption(getFilledTemplate(composeType))}
+              style={{ ...styles.shuffleBtn, flex: 1 }}
+            >
+              Shuffle
+            </button>
+            <button
+              onClick={handleAIWrite}
+              disabled={generatingAI}
+              style={{
+                ...styles.shuffleBtn,
+                flex: 2,
+                background: 'linear-gradient(135deg, #FBF0F3, #F3EEFF)',
+                color: 'var(--accent, #C76B8A)',
+                fontWeight: 600,
+                opacity: generatingAI ? 0.7 : 1,
+              }}
+            >
+              {generatingAI ? 'Writing...' : '✨ Write with AI'}
+            </button>
+          </div>
 
           {/* Hashtags */}
           <input
@@ -1117,4 +1211,20 @@ const styles = {
   galleryTreatmentName: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
   galleryCaption: { display: 'block', fontSize: 12, color: 'var(--text-secondary, #7A756F)', marginTop: 2 },
   galleryDate: { display: 'block', fontSize: 10, color: 'var(--text-muted, #7a7470)', marginTop: 4 },
+
+  // AI suggestions
+  aiSuggestionsSection: { marginBottom: 4 },
+  aiSuggestionsHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  refreshBtn: { padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border, #EDE9E4)', background: 'transparent', cursor: 'pointer', fontSize: 14, color: 'var(--text-muted, #7a7470)', fontFamily: 'inherit' },
+  aiLoadingCard: { padding: 14, borderRadius: 12, background: 'linear-gradient(135deg, #FBF0F3, #F3EEFF)', textAlign: 'center' },
+  aiSuggestionCard: {
+    background: 'linear-gradient(135deg, #FBF0F3, #F3EEFF)',
+    borderRadius: 12,
+    padding: '12px 14px',
+    marginBottom: 8,
+    cursor: 'pointer',
+    border: '1px solid rgba(199,107,138,0.15)',
+  },
+  aiSuggestionTreatment: { display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--accent, #C76B8A)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 },
+  aiSuggestionCaption: { margin: '0 0 6px', fontSize: 13, lineHeight: 1.55, color: 'var(--text-primary, #2D2A26)' },
 };

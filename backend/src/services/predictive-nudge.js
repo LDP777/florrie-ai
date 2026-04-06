@@ -12,6 +12,7 @@
  */
 import { supabase } from '../index.js';
 import { sendSMS } from './notifications.js';
+import { shouldAutoSend } from './sms-metering.js';
 import logger from '../lib/logger.js';
 
 /**
@@ -112,6 +113,11 @@ async function nudgeForBeautician(beautician) {
       : `Hey ${client.first_name}! You're usually due around now. Fancy booking in? I'd love to see you! 💕`;
 
     if (confidence >= threshold && client.phone) {
+      const { shouldSend, reason } = await shouldAutoSend(bid, 'ai_checkin');
+      if (!shouldSend) {
+        logger.info({ beauticianId: bid, clientId: ci.client_id, reason }, 'AI checkin skipped by autopilot rules');
+        continue;
+      }
       try {
         await sendSMS({
           to: client.phone,

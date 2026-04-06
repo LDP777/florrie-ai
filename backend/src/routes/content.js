@@ -145,6 +145,39 @@ router.get('/suggestions', requireAuth, async (req, res) => {
 });
 
 /**
+ * POST /api/content/caption
+ * Text-only caption generation — no image required.
+ * Used by the compose flow when Florrie writes a caption from scratch.
+ * Body: { post_type, treatment_type?, context? }
+ */
+router.post('/caption', requireAuth, async (req, res) => {
+  const { post_type, treatment_type, context } = req.body;
+
+  if (!post_type) {
+    return res.status(400).json({ error: 'post_type is required' });
+  }
+
+  try {
+    const additionalContext = [
+      post_type !== 'before_after' ? `Post type: ${post_type}` : null,
+      context || null,
+    ].filter(Boolean).join('. ');
+
+    const { caption, hashtags } = await generateCaption(
+      req.beautician.id,
+      null, // no image
+      treatment_type || null,
+      additionalContext || null,
+    );
+
+    res.json({ caption, hashtags });
+  } catch (err) {
+    logger.error({ err }, 'Caption generation failed');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+/**
  * PATCH /api/content/:id
  * Edit a draft post's caption or hashtags before publishing.
  */

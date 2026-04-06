@@ -15,6 +15,7 @@ import { refreshAllIntelligence } from './client-intelligence.js';
 import { draftAvailabilityPost } from './content-autopilot.js';
 import { processInboundMessage } from './ai-front-desk.js';
 import { sendSMS } from './notifications.js';
+import { shouldAutoSend } from './sms-metering.js';
 import { runValueCoaching } from './value-coaching.js';
 import { processReviewRequests } from './review-requests.js';
 import { pushTeamUpdate } from './push-notifications.js';
@@ -147,6 +148,11 @@ async function checkRebookDueClients(beauticianId, threshold) {
     const summary = `${client.first_name} is overdue for a rebook. Send nudge?`;
 
     if (confidence >= threshold && client.phone) {
+      const { shouldSend, reason } = await shouldAutoSend(beauticianId, 'rebook_nudge');
+      if (!shouldSend) {
+        logger.info({ beauticianId, clientId: client.id, reason }, 'Rebook nudge skipped by autopilot rules');
+        continue;
+      }
       // Auto-execute: send SMS nudge
       try {
         await sendSMS({
