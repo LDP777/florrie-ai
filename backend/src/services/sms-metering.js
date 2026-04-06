@@ -1,6 +1,6 @@
 /**
  * SMS Metering Service
- * Tracks SMS usage and charges for surplus messages above the 50/week free limit.
+ * Tracks SMS usage and charges for surplus messages above the 30/week free limit.
  */
 
 import { supabase } from '../index.js';
@@ -9,9 +9,9 @@ import logger from '../lib/logger.js';
 const FREE_SMS_LIMIT = 30;
 const SURPLUS_RATE_PENCE = 8; // 8p per surplus SMS (4p cost + 4p margin)
 
-// Credit water marks for priority enforcement
-const PAUSE_FIRST_THRESHOLD = 15;   // < 15 free → block 'pause_first' types
-const IF_AVAILABLE_THRESHOLD = 5;   // <  5 free → block 'if_available' types
+// Water marks for AI autopilot decisions (not hard blocks — surcharge applies for overages)
+const PAUSE_FIRST_THRESHOLD = 15;   // < 15 free → AI skips 'pause_first' auto-sends
+const IF_AVAILABLE_THRESHOLD = 5;   // <  5 free → AI skips 'if_available' auto-sends
 
 const DEFAULT_PRIORITY_RULES = {
   booking_confirmation:  'always',
@@ -47,13 +47,12 @@ export function getWeekStart(date = new Date()) {
 
 /**
  * Track SMS usage before sending.
- * Called BEFORE every SMS is sent.
+ * Always allows the send — surcharge applies if over the free limit.
+ * Use shouldAutoSend() to check if the AI should initiate a proactive send.
  *
- * @param {string} beauticianId
- * @param {string} messageType - matches keys in credit_priority_rules (default: 'general')
- * Returns: { allowed: boolean, blockedReason?: string, isSurplus: boolean, weekUsage: number, freeRemaining: number }
+ * Returns: { allowed: true, isSurplus: boolean, weekUsage: number, freeRemaining: number }
  */
-export async function trackSMSUsage(beauticianId, messageType = 'general') {
+export async function trackSMSUsage(beauticianId) {
   try {
     const weekStart = getWeekStart();
 
@@ -117,42 +116,12 @@ export async function trackSMSUsage(beauticianId, messageType = 'general') {
     const isSurplus = usage.messages_sent > FREE_SMS_LIMIT;
     const freeRemaining = Math.max(0, FREE_SMS_LIMIT - usage.messages_sent);
 
-    // ── Credit priority enforcement ──
-    let allowed = true;
-    let blockedReason = null;
-
-    try {
-      const { data: b } = await supabase
-        .from('beauticians')
-        .select('credit_priority_rules')
-        .eq('id', beauticianId)
-        .maybeSingle();
-
-      const rules = { ...DEFAULT_PRIORITY_RULES, ...(b?.credit_priority_rules || {}) };
-      const priority = rules[messageType] ?? rules['general'] ?? 'if_available';
-
-      if (priority === 'pause_first' && freeRemaining < PAUSE_FIRST_THRESHOLD) {
-        allowed = false;
-        blockedReason = 'credits_low_pause_first';
-      } else if (priority === 'if_available' && freeRemaining < IF_AVAILABLE_THRESHOLD) {
-        allowed = false;
-        blockedReason = 'credits_low_if_available';
-      }
-      // 'always' → never blocked
-    } catch (priorityErr) {
-      // Fail open on priority check — don't block if rules can't be fetched
-      logger.warn({ err: priorityErr, beauticianId }, 'Credit priority check failed, failing open');
-    }
-
     logger.info(
       {
         beauticianId,
         weekStart,
-        messageType,
         messagesSent: usage.messages_sent,
         isSurplus,
-        allowed,
-        blockedReason,
         surplusCount: usage.surplus_count,
         surplusTotalPence: usage.surplus_total_pence,
       },
@@ -160,8 +129,7 @@ export async function trackSMSUsage(beauticianId, messageType = 'general') {
     );
 
     return {
-      allowed,
-      blockedReason,
+      allowed: true,
       isSurplus,
       weekUsage: usage.messages_sent,
       freeRemaining,
@@ -170,8 +138,61 @@ export async function trackSMSUsage(beauticianId, messageType = 'general') {
     };
   } catch (err) {
     logger.error({ err, beauticianId }, 'SMS tracking error');
-    // Fail open: allow the SMS to send even if tracking fails
     return { allowed: true, isSurplus: false, weekUsage: 0, freeRemaining: FREE_SMS_LIMIT };
+  }
+}
+
+/**
+ * Check whether Florrie should autonomously initiate a proactive send.
+ * This is NOT a hard gate — it's a check for AI-initiated outreach only
+ * (rebook nudges, check-ins, marketing campaigns, review requests).
+ *
+ * Triggered messages (booking confirmations, chat replies, reminders) should
+ * NEVER call this — they always go out and surplus is charged if over limit.
+ *
+ * @param {string} beauticianId
+ * @param {string} messageType - must match a key in credit_priority_rules
+ * Returns: { shouldSend: boolean, reason?: string }
+ */
+export async function shouldAutoSend(beauticianId, messageType) {
+  try {
+    const weekStart = getWeekStart();
+
+    // Get current usage
+    const { data: usage } = await supabase
+      .from('sms_usage')
+      .select('messages_sent')
+      .eq('beautician_id', beauticianId)
+      .eq('week_start', weekStart)
+      .maybeSingle();
+
+    const sent = usage?.messages_sent || 0;
+    const freeRemaining = Math.max(0, FREE_SMS_LIMIT - sent);
+
+    // Get priority rules
+    const { data: b } = await supabase
+      .from('beauticians')
+      .select('credit_priority_rules')
+      .eq('id', beauticianId)
+      .maybeSingle();
+
+    const rules = { ...DEFAULT_PRIORITY_RULES, ...(b?.credit_priority_rules || {}) };
+    const priority = rules[messageType] ?? 'if_available';
+
+    if (priority === 'always') {
+      return { shouldSend: true };
+    }
+    if (priority === 'pause_first' && freeRemaining < PAUSE_FIRST_THRESHOLD) {
+      return { shouldSend: false, reason: `credits_low (${freeRemaining} left, pause_first threshold is ${PAUSE_FIRST_THRESHOLD})` };
+    }
+    if (priority === 'if_available' && freeRemaining < IF_AVAILABLE_THRESHOLD) {
+      return { shouldSend: false, reason: `credits_low (${freeRemaining} left, if_available threshold is ${IF_AVAILABLE_THRESHOLD})` };
+    }
+
+    return { shouldSend: true };
+  } catch (err) {
+    logger.warn({ err, beauticianId, messageType }, 'shouldAutoSend check failed, defaulting to send');
+    return { shouldSend: true };
   }
 }
 
@@ -210,8 +231,8 @@ export async function getSMSUsage(beauticianId) {
     return {
       weekStart: usage.week_start,
       messagesSent: usage.messages_sent,
-      freeLimit: usage.free_limit,
-      freeRemaining: Math.max(0, usage.free_limit - usage.messages_sent),
+      freeLimit: FREE_SMS_LIMIT,
+      freeRemaining: Math.max(0, FREE_SMS_LIMIT - usage.messages_sent),
       surplusCount: usage.surplus_count,
       surplusTotalPence: usage.surplus_total_pence,
       surplusTotalFormatted: `£${(usage.surplus_total_pence / 100).toFixed(2)}`,

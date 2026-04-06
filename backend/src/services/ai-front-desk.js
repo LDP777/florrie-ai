@@ -701,7 +701,7 @@ async function sendResponse(beautician, client, responseText, originalMessage) {
     }
   } else if (client?.phone) {
     try {
-      const result = await sendSMS({ to: client.phone, body: responseText, beauticianId: beautician.id });
+      const result = await sendSMS({ to: client.phone, body: responseText, beauticianId: beautician.id, messageType: 'ai_reply' });
       if (result) sent = true;
     } catch (err) {
       logger.error({ err }, 'SMS send error in Front Desk');

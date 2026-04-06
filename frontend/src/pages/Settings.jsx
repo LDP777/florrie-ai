@@ -890,8 +890,8 @@ export default function Settings({ onLogout }) {
             const rules = beautician.credit_priority_rules || {};
             const CATEGORIES = [
               {
-                group: 'Always protected',
-                hint: 'These go out regardless of your credit balance — they make you money or keep clients informed.',
+                group: 'Always',
+                hint: 'Florrie always sends these on your behalf — they\'re time-sensitive or directly tied to a booking.',
                 color: '#22c55e',
                 items: [
                   { key: 'booking_confirmation', label: 'Booking confirmations' },
@@ -903,8 +903,8 @@ export default function Settings({ onLogout }) {
                 ],
               },
               {
-                group: 'Send if credits available',
-                hint: 'Paused when you have fewer than 5 credits left this week. Drag to Always or Pause First.',
+                group: 'When there\'s room',
+                hint: 'Florrie sends these proactively when she has capacity. She\'ll hold off if the week is getting busy.',
                 color: '#f59e0b',
                 items: [
                   { key: 'ai_reply', label: 'AI chat replies' },
@@ -915,8 +915,8 @@ export default function Settings({ onLogout }) {
                 ],
               },
               {
-                group: 'Pause first',
-                hint: 'First to be paused when credits run below 15. Non-urgent, won\'t affect bookings.',
+                group: 'Low priority',
+                hint: 'Florrie queues these until she\'s confident there\'s room. Never affects replies, confirmations, or reminders.',
                 color: '#ef4444',
                 items: [
                   { key: 'marketing', label: 'Marketing & promos' },
@@ -948,11 +948,11 @@ export default function Settings({ onLogout }) {
             return (
               <div style={styles.card}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--accent)', fontVariationSettings: "'FILL' 1, 'wght' 300" }}>toll</span>
-                  <h3 style={{ ...styles.cardTitle, margin: 0 }}>Credit priority</h3>
+                  <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--accent)', fontVariationSettings: "'FILL' 1, 'wght' 300" }}>smart_toy</span>
+                  <h3 style={{ ...styles.cardTitle, margin: 0 }}>Florrie's autopilot</h3>
                 </div>
                 <p style={styles.cardDesc}>
-                  When credits run low, Florrie pauses lower-priority messages first — so bookings and reminders are always protected.
+                  Control what Florrie decides to send on her own — rebook nudges, check-ins, marketing. Booking confirmations and reminders always go out regardless. Anything you send manually is never affected.
                 </p>
 
                 {CATEGORIES.map(group => (

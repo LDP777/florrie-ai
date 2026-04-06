@@ -15,9 +15,12 @@
 import { supabase } from '../index.js';
 import logger from '../lib/logger.js';
 import { sendEmail, sendSMS, sendWhatsApp } from './notifications.js';
+import { shouldAutoSend } from './sms-metering.js';
 
 // ── Shared: send a message on the beautician's preferred channel ────────
-async function sendOnChannel({ beautician, client, body, beauticianId }) {
+// messageType must match a key in DEFAULT_PRIORITY_RULES (e.g. 'aftercare_followup', 'rebook_nudge', 'review_request', 'marketing').
+// shouldAutoSend() is checked before any AI-initiated SMS to respect autopilot credit rules.
+async function sendOnChannel({ beautician, client, body, beauticianId, messageType = 'general' }) {
   const prefs = beautician.client_reminder_prefs || {};
   const channel = prefs.channel || 'sms';
   const bizName = beautician.business_name || beautician.first_name;
@@ -37,7 +40,14 @@ async function sendOnChannel({ beautician, client, body, beauticianId }) {
       templateParams: [client.first_name, message],
     }));
   } else if (client.phone) {
-    results.push(await sendSMS({ to: client.phone, body: message, beauticianId, messageType: 'marketing' }));
+    // Respect autopilot credit rules for AI-initiated sends
+    const { shouldSend, reason } = await shouldAutoSend(beauticianId, messageType);
+    if (!shouldSend) {
+      logger.info({ beauticianId, messageType, reason }, 'Autopilot SMS skipped — credit headroom below threshold');
+      results.push(null);
+    } else {
+      results.push(await sendSMS({ to: client.phone, body: message, beauticianId, messageType }));
+    }
   }
 
   // Email fallback (always send if client has email)
@@ -112,6 +122,7 @@ export async function processAftercareFollowups() {
           client: appt.clients,
           body: tpl.message_text,
           beauticianId: appt.beautician_id,
+          messageType: 'aftercare_followup',
         });
 
         // Record send
@@ -160,6 +171,7 @@ export async function processRebookNudges() {
         client: reminder.clients,
         body,
         beauticianId: reminder.beautician_id,
+        messageType: 'rebook_nudge',
       });
 
       // Mark as sent
@@ -226,6 +238,7 @@ export async function processReviewRequests() {
         client: appt.clients,
         body,
         beauticianId: appt.beautician_id,
+        messageType: 'review_request',
       });
 
       await supabase.from('review_requests_sent').insert({
@@ -395,6 +408,7 @@ async function executeRuleAction(rule, target) {
         client,
         body: config.message || 'Hey {name}, just a quick message from {business}!',
         beauticianId: rule.beautician_id,
+        messageType: 'marketing',
       });
       break;
     }
@@ -546,6 +560,7 @@ export async function processFollowUpSequences() {
           client: enrollment.clients,
           body: step.message,
           beauticianId: enrollment.beautician_id,
+          messageType: 'marketing',
         });
 
         // Advance to next step
