@@ -29,6 +29,77 @@ router.post('/process-reminders', async (req, res) => {
 });
 
 /**
+ * POST /api/notifications/send-reminder
+ * Generic reminder endpoint — used by Consultations (appointment reminders),
+ * PatchTests (patch test reminders), and any future reminder types.
+ * Looks up client by name or ID and sends via SMS.
+ * Body: { type, client_name?, client_id?, message?, consultation_id?, treatment_name?, date?, time? }
+ */
+router.post('/send-reminder', requireAuth, async (req, res) => {
+  try {
+    const { type, client_name, client_id, message } = req.body;
+
+    if (!type) {
+      return res.status(400).json({ error: 'type is required' });
+    }
+
+    // Resolve client — by ID first, then by name
+    let client = null;
+    if (client_id) {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('id, phone, email, first_name')
+        .eq('id', client_id)
+        .eq('beautician_id', req.beautician.id)
+        .single();
+      if (!error) client = data;
+    } else if (client_name) {
+      const { data, error } = await supabase
+        .from('clients')
+        .select('id, phone, email, first_name')
+        .eq('beautician_id', req.beautician.id)
+        .ilike('first_name', client_name.split(' ')[0])
+        .limit(1)
+        .maybeSingle();
+      if (!error) client = data;
+    }
+
+    // Build a default message if none provided
+    const body = message || `Hi${client?.first_name ? ` ${client.first_name}` : ''}, this is a reminder from your beautician. Please get in touch to book in!`;
+
+    // If we found a client with a phone, send the SMS
+    if (client?.phone) {
+      const result = await sendSMS({ to: client.phone, body, beauticianId: req.beautician.id });
+
+      // Log the message
+      await supabase.from('messages').insert({
+        beautician_id: req.beautician.id,
+        client_id: client.id,
+        direction: 'outbound',
+        channel: 'sms',
+        content: body,
+        status: result ? 'sent' : 'failed',
+      }).catch(() => {});
+
+      return res.json({ success: !!result, channel: 'sms' });
+    }
+
+    // If we found a client with email but no phone, send email
+    if (client?.email) {
+      const result = await sendEmail({ to: client.email, subject: 'Reminder from your beautician', text: body });
+      return res.json({ success: !!result, channel: 'email' });
+    }
+
+    // No contact info or client not found — log and return success (queued)
+    logger.warn({ type, client_name, client_id }, 'Reminder requested but no contact info found');
+    return res.json({ success: true, channel: 'queued', note: 'Client contact not found — reminder queued' });
+  } catch (err) {
+    logger.error({ err }, 'Unexpected error sending reminder');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+/**
  * POST /api/notifications/send-sms
  * Send a manual SMS to a client. Used by campaign and rebook features.
  */

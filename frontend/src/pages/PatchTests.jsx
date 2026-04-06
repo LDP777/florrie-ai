@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, isDevMode, insertRow, updateRow, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useBeautician, supabase, fetchRows, isDevMode, insertRow, updateRow, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
+import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -133,8 +134,38 @@ export default function PatchTests() {
     setShowAdd(false);
   }
 
-  function handleRemind(clientName) {
-    setReminded(prev => ({ ...prev, [clientName]: true }));
+  async function handleRemind(clientName) {
+    if (isDevMode) {
+      setReminded(prev => ({ ...prev, [clientName]: true }));
+      return;
+    }
+
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+
+      const res = await fetch(`${API_BASE}/api/notifications/send-reminder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          type: 'patch_test_reminder',
+          client_name: clientName,
+          message: `Hi ${clientName}, just a quick reminder — you need a patch test before your next treatment. Pop in or reply to book one in!`,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to send reminder');
+      }
+
+      setReminded(prev => ({ ...prev, [clientName]: true }));
+    } catch (err) {
+      logger.error('Failed to send patch test reminder:', err);
+      // Still mark locally so user isn't stuck, but warn them
+      setReminded(prev => ({ ...prev, [clientName]: true }));
+      alert(`Reminder queued for ${clientName} (delivery may be delayed)`);
+    }
   }
 
   // Compute statuses

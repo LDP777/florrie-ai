@@ -11,6 +11,7 @@
  */
 import { useState, useMemo, useEffect } from 'react';
 import { useBeautician, supabase, isDevMode, fetchRows, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
+import { API_BASE } from '../lib/config.js';
 import { useTheme } from '../lib/theme.jsx';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -166,8 +167,44 @@ export default function RebookReminders() {
     return <PageLoader />;
   }
 
-  function handleSend(clientId) {
-    setSentIds(prev => new Set([...prev, clientId]));
+  async function handleSend(clientId) {
+    const client = clients.find(c => c.id === clientId);
+    if (!client) return;
+
+    const message = renderMessage(client);
+
+    // In dev mode, just mark as sent locally
+    if (isDevMode) {
+      setSentIds(prev => new Set([...prev, clientId]));
+      return;
+    }
+
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+
+      if (sendChannel === 'email') {
+        const res = await fetch(`${API_BASE}/api/notifications/send-email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ client_id: clientId, subject: `Time to rebook your ${client.treatment}!`, text: message }),
+        });
+        if (!res.ok) throw new Error('Email send failed');
+      } else {
+        // SMS covers both sms and whatsapp channels
+        const res = await fetch(`${API_BASE}/api/notifications/send-sms`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ client_id: clientId, message }),
+        });
+        if (!res.ok) throw new Error('SMS send failed');
+      }
+
+      setSentIds(prev => new Set([...prev, clientId]));
+    } catch (err) {
+      logger.error('Failed to send rebook nudge:', err);
+      alert(`Failed to send nudge to ${client.name}. Check their contact details.`);
+    }
   }
 
   function renderMessage(client) {
@@ -317,7 +354,7 @@ export default function RebookReminders() {
           {/* Bulk action */}
           {activeList.length > 0 && (
             <button
-              onClick={() => activeList.forEach(c => handleSend(c.id))}
+              onClick={async () => { for (const c of activeList) await handleSend(c.id); }}
               style={s.bulkBtn}
             >
               Send to all {activeList.length} clients

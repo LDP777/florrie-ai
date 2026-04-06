@@ -57,8 +57,8 @@ export default function SMSConfig() {
       const headers = { Authorization: `Bearer ${token}` };
 
       const [cfgRes, usageRes] = await Promise.all([
-        fetch(`${API}/api/sms/config`, { headers }),
-        fetch(`${API}/api/sms/usage`, { headers }),
+        fetch(`${API}/api/notifications/sms/config`, { headers }),
+        fetch(`${API}/api/notifications/sms/usage`, { headers }),
       ]);
 
       if (!cfgRes.ok) throw new Error('Failed to load SMS config');
@@ -93,7 +93,7 @@ export default function SMSConfig() {
     setSaveMsg('');
     try {
       const token = await getToken();
-      const res = await fetch(`${API}/api/sms/config`, {
+      const res = await fetch(`${API}/api/notifications/sms/config`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -120,7 +120,7 @@ export default function SMSConfig() {
     setTestMsg('');
     try {
       const token = await getToken();
-      const res = await fetch(`${API}/api/sms/test`, {
+      const res = await fetch(`${API}/api/notifications/sms/test`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: testPhone }),

@@ -179,7 +179,7 @@ export default function Integrations() {
       const parsed = raw ? JSON.parse(raw) : null;
       const jwt = parsed?.access_token || parsed?.session?.access_token;
 
-      const res = await fetch('/api/sms/config', {
+      const res = await fetch('/api/notifications/sms/config', {
         headers: jwt ? { Authorization: `Bearer ${jwt}` } : {},
       });
       if (res.ok) setSmsConfig(await res.json());

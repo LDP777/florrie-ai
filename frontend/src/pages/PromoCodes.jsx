@@ -309,7 +309,15 @@ export default function PromoCodes() {
                   {code.status === 'active' && (
                     <div style={S.actionRow}>
                       <button style={S.actionBtn} onClick={() => navigator.clipboard.writeText(code.code)}>Copy Code</button>
-                      <button style={S.actionBtn} onClick={() => alert('Share functionality coming soon')}>Share</button>
+                      <button style={S.actionBtn} onClick={async () => {
+                        const shareText = `Use code ${code.code} to get ${code.discount_type === 'percent' ? `${code.discount_value}% off` : `£${code.discount_value} off`}! Book now.`;
+                        if (navigator.share) {
+                          try { await navigator.share({ title: 'Promo Code', text: shareText }); } catch {}
+                        } else {
+                          await navigator.clipboard.writeText(shareText);
+                          alert('Share text copied to clipboard!');
+                        }
+                      }}>Share</button>
                       <button
                         style={{ ...S.actionBtn, color: 'var(--danger, #D4605C)' }}
                         onClick={() => handleToggleActive(code.id, true)}
