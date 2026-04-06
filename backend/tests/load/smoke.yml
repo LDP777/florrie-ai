@@ -17,7 +17,7 @@ config:
   target: "http://localhost:3001"
   environments:
     production:
-      target: "https://florrie-api.up.railway.app"   # update with real Railway URL
+      target: "https://api.florrie.ai"
   phases:
     - name: "Warm up"
       duration: 30
@@ -69,4 +69,4 @@ scenarios:
       - loop:
           - get:
               url: "/api/booking/ellie"
-          count: 5
+        count: 5
