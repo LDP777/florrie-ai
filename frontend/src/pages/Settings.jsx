@@ -21,6 +21,7 @@ export default function Settings({ onLogout }) {
   const { isDark, toggle: toggleDark } = useTheme();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState(null);
   const [section, setSection] = useState('profile');
   const [connectingStripe, setConnectingStripe] = useState(false);
   const [stripeError, setStripeError] = useState(null);
@@ -43,6 +44,7 @@ export default function Settings({ onLogout }) {
     if (!beautician) return;
     setSaving(true);
     setSaved(false);
+    setSaveError(null);
     try {
       await updateRow('beauticians', beautician.id, updates);
       await refresh();
@@ -50,6 +52,8 @@ export default function Settings({ onLogout }) {
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
       logger.error('Save error:', err);
+      setSaveError(err?.message || 'Save failed — please try again');
+      setTimeout(() => setSaveError(null), 4000);
     } finally {
       setSaving(false);
     }
@@ -134,7 +138,8 @@ export default function Settings({ onLogout }) {
     <div style={{ ...styles.page, animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' }}>
       <div style={styles.header}>
         <h1 style={styles.title}>Settings</h1>
-        {saved && <span style={styles.savedBadge}>Saved</span>}
+        {saved && <span style={styles.savedBadge}>Saved ✓</span>}
+        {saveError && <span style={{ ...styles.savedBadge, background: 'var(--danger, #E57373)', color: '#fff' }}>{saveError}</span>}
       </div>
 
       {/* Section nav */}
