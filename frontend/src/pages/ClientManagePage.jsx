@@ -21,6 +21,18 @@ export default function ClientManagePage() {
   const [cancelConfirm, setCancelConfirm] = useState(false);
   const [cancelResult, setCancelResult] = useState(null);
 
+  // Reschedule state
+  const [showReschedule, setShowReschedule] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('');
+  const [rescheduling, setRescheduling] = useState(false);
+  const [rescheduleResult, setRescheduleResult] = useState(null);
+  const [rescheduleError, setRescheduleError] = useState(null);
+
+  // Resend payment state
+  const [resendingPayment, setResendingPayment] = useState(false);
+  const [paymentResent, setPaymentResent] = useState(false);
+
   const brand = data?.appointment?.beautician?.brandColor || '#C76B8A';
   const brandLight = brand + '15';
 
@@ -55,13 +67,50 @@ export default function ClientManagePage() {
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Cancellation failed');
       setCancelResult(result);
-      // Reload to show cancelled state
       await load();
     } catch (err) {
       setError(err.message);
     } finally {
       setCancelling(false);
       setCancelConfirm(false);
+    }
+  }
+
+  async function handleReschedule() {
+    if (!rescheduleDate || !rescheduleTime) return;
+    setRescheduling(true);
+    setRescheduleError(null);
+    try {
+      const new_starts_at = new Date(`${rescheduleDate}T${rescheduleTime}:00`).toISOString();
+      const res = await fetch(`${API_BASE}/api/booking/${slug}/manage/${token}/reschedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_starts_at }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Reschedule failed');
+      setRescheduleResult(result);
+      setShowReschedule(false);
+      await load();
+    } catch (err) {
+      setRescheduleError(err.message);
+    } finally {
+      setRescheduling(false);
+    }
+  }
+
+  async function handleResendPayment() {
+    setResendingPayment(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/booking/${slug}/manage/${token}/resend-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (res.ok) setPaymentResent(true);
+    } catch {
+      // non-fatal
+    } finally {
+      setResendingPayment(false);
     }
   }
 
@@ -121,6 +170,42 @@ export default function ClientManagePage() {
             fontSize: 14, color: cancelResult.isLateCancel ? '#92400E' : '#166534',
           }}>
             {cancelResult.message}
+          </div>
+        )}
+
+        {/* Reschedule result banner */}
+        {rescheduleResult && (
+          <div style={{
+            padding: '12px 16px', borderRadius: 12, marginBottom: 16,
+            background: rescheduleResult.isLateReschedule ? '#FFF7ED' : '#F0FFF4',
+            border: `1px solid ${rescheduleResult.isLateReschedule ? '#F59E0B' : '#86EFAC'}`,
+            fontSize: 14, color: rescheduleResult.isLateReschedule ? '#92400E' : '#166534',
+            lineHeight: 1.5,
+          }}>
+            ✓ {rescheduleResult.message}
+          </div>
+        )}
+
+        {/* Pending payment banner */}
+        {appointment.status === 'pending' && !appointment.depositPaid && (
+          <div style={{
+            padding: '12px 16px', borderRadius: 12, marginBottom: 4,
+            background: '#FFF7ED', border: '1px solid #F59E0B',
+            fontSize: 13, color: '#92400E',
+          }}>
+            <strong>Payment required</strong> — your slot is held but not confirmed until payment is received.
+            {' '}
+            {paymentResent ? (
+              <span style={{ color: '#166534', fontWeight: 600 }}>✓ Payment link sent to your email.</span>
+            ) : (
+              <button
+                onClick={handleResendPayment}
+                disabled={resendingPayment}
+                style={{ background: 'none', border: 'none', color: '#92400E', fontWeight: 700, fontSize: 13, cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: 'inherit' }}
+              >
+                {resendingPayment ? 'Sending…' : 'Resend payment link →'}
+              </button>
+            )}
           </div>
         )}
 
@@ -233,6 +318,58 @@ export default function ClientManagePage() {
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Reschedule section */}
+        {!isCancelled && !isCompleted && !isPast && (
+          <div>
+            {!showReschedule ? (
+              <button onClick={() => setShowReschedule(true)} style={S.rescheduleBtn}>
+                Reschedule appointment
+              </button>
+            ) : (
+              <div style={S.rescheduleCard}>
+                <p style={{ fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: '#1a1a1a' }}>
+                  Choose a new date and time
+                </p>
+                {policy.withinCancellationWindow && policy.late_cancel_charge_percent > 0 && (
+                  <div style={{ ...S.warningBanner, marginBottom: 12 }}>
+                    ⚠️ You're within the {policy.cancellation_notice_hours}-hour window. Rescheduling now may result in a {policy.late_cancel_charge_percent}% charge for this appointment — plus you'll need to pay for your new booking.
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                  <input
+                    type="date"
+                    value={rescheduleDate}
+                    min={new Date().toISOString().split('T')[0]}
+                    onChange={e => setRescheduleDate(e.target.value)}
+                    style={{ ...S.dateInput, flex: 1 }}
+                  />
+                  <input
+                    type="time"
+                    value={rescheduleTime}
+                    onChange={e => setRescheduleTime(e.target.value)}
+                    style={{ ...S.dateInput, flex: '0 0 auto', width: 120 }}
+                  />
+                </div>
+                {rescheduleError && (
+                  <p style={{ fontSize: 13, color: '#DC2626', margin: '0 0 10px' }}>{rescheduleError}</p>
+                )}
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button onClick={() => { setShowReschedule(false); setRescheduleError(null); }} style={S.keepBtn}>
+                    Back
+                  </button>
+                  <button
+                    onClick={handleReschedule}
+                    disabled={rescheduling || !rescheduleDate || !rescheduleTime}
+                    style={{ ...S.confirmCancelBtn, background: brand, opacity: (!rescheduleDate || !rescheduleTime) ? 0.5 : 1 }}
+                  >
+                    {rescheduling ? 'Moving…' : 'Confirm reschedule'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -407,5 +544,19 @@ const S = {
   footer: {
     textAlign: 'center', padding: '20px 16px',
     borderTop: '1px solid #F0EBE6',
+  },
+  rescheduleBtn: {
+    width: '100%', padding: '13px 0', borderRadius: 12,
+    border: '1.5px solid #C76B8A33', background: '#FFF0F4',
+    color: '#C76B8A', fontSize: 14, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'inherit',
+  },
+  rescheduleCard: {
+    background: '#fff', borderRadius: 16, padding: '18px 18px',
+    boxShadow: '0 2px 12px rgba(0,0,0,0.05)', border: '1px solid #E8E4DF',
+  },
+  dateInput: {
+    padding: '10px 12px', borderRadius: 10, border: '1.5px solid #E8E4DF',
+    fontSize: 14, fontFamily: 'inherit', background: '#fff', color: '#2D1B1B',
   },
 };

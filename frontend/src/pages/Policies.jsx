@@ -62,6 +62,13 @@ export default function Policies() {
   // Preview
   const [showPreview, setShowPreview] = useState(false);
 
+  // AI wizard
+  const [wizStep, setWizStep] = useState(0);
+  const [wizPath, setWizPath] = useState(null);
+  const [wizAnswers, setWizAnswers] = useState({});
+  const [wizResult, setWizResult] = useState(null);
+  const [wizApplied, setWizApplied] = useState(false);
+
   const [tab, setTab] = useState('deposits');
   const [saved, setSaved] = useState(false);
 
@@ -141,7 +148,201 @@ export default function Policies() {
     { key: 'deposits', label: 'Deposits' },
     { key: 'cancellation', label: 'Cancellation' },
     { key: 'noshow', label: 'No-shows' },
+    { key: 'builder', label: '✦ AI Builder' },
   ];
+
+  // ── Wizard helpers ─────────────────────────────────────────────────
+  function wizAnswer(key, value) {
+    const next = { ...wizAnswers, [key]: value };
+    setWizAnswers(next);
+
+    if (wizStep === 0) {
+      setWizPath(value);
+      setWizStep(1);
+    } else if (wizStep === 1) {
+      setWizStep(2);
+    } else if (wizStep === 2) {
+      const result = buildWizResult(wizPath, next);
+      setWizResult(result);
+      setWizStep('result');
+    }
+  }
+
+  function buildWizResult(path, ans) {
+    const base = {
+      depositEnabled,
+      depositType,
+      depositAmount,
+      depositPercent,
+      depositMinPrice,
+      depositRefundable,
+      cancelWindow,
+      cancelFeeEnabled,
+      cancelFeeType,
+      cancelFeeFixed,
+      cancelFeePercent,
+      noshowAction,
+      noshowFee,
+      noshowStrikesMax,
+      noshowBlockEnabled,
+      noshowBlockAfter,
+    };
+
+    if (path === 'late_cancel') {
+      const freq = ans.freq; // rarely | sometimes | constantly
+      const notice = ans.notice; // 24h | 48h | 72h
+      const windowHours = notice === '24h' ? 24 : notice === '48h' ? 48 : 72;
+      const feeType = freq === 'rarely' ? 'deposit' : 'percent';
+      const feePercent = freq === 'constantly' ? 75 : 50;
+      const summary = freq === 'rarely'
+        ? `Keep things light — just hold the deposit if someone cancels late. Your ${windowHours}h window means they have fair warning.`
+        : freq === 'sometimes'
+          ? `A deposit plus a ${feePercent}% late fee sends a clear message without feeling harsh. Clients who book properly won't even notice.`
+          : `You need proper protection. ${windowHours}h window, ${feePercent}% late cancel fee, and deposit required. Once clients know you mean it, it usually stops.`;
+      return {
+        changes: {
+          depositEnabled: true,
+          depositType: 'fixed',
+          depositAmount: 10,
+          depositMinPrice: 25,
+          depositRefundable: true,
+          cancelWindow: windowHours,
+          cancelFeeEnabled: true,
+          cancelFeeType: feeType,
+          cancelFeePercent: feePercent,
+          cancelFeeFixed: 15,
+        },
+        summary,
+        highlights: [
+          `£10 deposit required on bookings over £25`,
+          `${windowHours}h cancellation window`,
+          freq === 'rarely' ? 'Late cancel: keep deposit' : `Late cancel: ${feePercent}% of treatment price`,
+          'Deposit fully refundable if cancelled in time',
+        ],
+      };
+    }
+
+    if (path === 'noshow') {
+      const severity = ans.severity; // mild | moderate | serious
+      const blockWanted = ans.block; // yes | no
+      const strikesMax = severity === 'mild' ? 3 : severity === 'moderate' ? 2 : 1;
+      const summary = severity === 'serious'
+        ? `One strike and they're on notice. After ${strikesMax} no-show${strikesMax !== 1 ? 's' : ''} they can't book online — that's the line.`
+        : `A strike system with ${blockWanted === 'yes' ? 'auto-blocking' : 'manual follow-up'} gives repeat offenders fair warning. Most will shape up fast.`;
+      return {
+        changes: {
+          depositEnabled: true,
+          depositType: 'fixed',
+          depositAmount: 15,
+          depositMinPrice: 0,
+          depositRefundable: false,
+          noshowAction: 'strike',
+          noshowStrikesMax: strikesMax,
+          noshowBlockEnabled: blockWanted === 'yes',
+          noshowBlockAfter: strikesMax + 1,
+        },
+        summary,
+        highlights: [
+          '£15 non-refundable deposit on all bookings',
+          `${strikesMax} strike${strikesMax !== 1 ? 's' : ''} before action`,
+          blockWanted === 'yes' ? `Auto-blocked after ${strikesMax + 1} no-shows` : 'Manual review after max strikes',
+        ],
+      };
+    }
+
+    if (path === 'income') {
+      const margin = ans.margin; // tight | moderate | comfortable
+      const clientType = ans.clients; // regulars | mixed | new
+      const depositPct = margin === 'tight' ? 50 : 25;
+      const refundable = clientType !== 'new';
+      const summary = margin === 'tight'
+        ? `You need a proper cushion. ${depositPct}% deposit on everything, non-refundable on late cancels. Your time is worth protecting.`
+        : `A ${depositPct}% deposit for bigger treatments${refundable ? ', refundable if they cancel properly,' : ''} keeps things fair without scaring off regulars.`;
+      return {
+        changes: {
+          depositEnabled: true,
+          depositType: 'percent',
+          depositPercent: depositPct,
+          depositMinPrice: margin === 'comfortable' ? 40 : 0,
+          depositRefundable: refundable,
+          cancelWindow: 48,
+          cancelFeeEnabled: true,
+          cancelFeeType: 'deposit',
+        },
+        summary,
+        highlights: [
+          `${depositPct}% deposit${margin === 'comfortable' ? ' for treatments over £40' : ' on all bookings'}`,
+          refundable ? 'Refundable with 48h+ notice' : 'Non-refundable',
+          'Late cancel: keep deposit',
+          '48h cancellation window',
+        ],
+      };
+    }
+
+    if (path === 'fresh') {
+      const volume = ans.volume; // low | medium | high
+      const trust = ans.trust; // mostly regular | lots of new
+      const depositAmt = volume === 'high' ? 15 : 10;
+      const cancelWindowHrs = trust === 'mostly regular' ? 24 : 48;
+      const summary = `A solid starter set — nothing aggressive, but enough to protect yourself. You can always tighten things up later once you see how clients respond.`;
+      return {
+        changes: {
+          depositEnabled: true,
+          depositType: 'fixed',
+          depositAmount: depositAmt,
+          depositMinPrice: 20,
+          depositRefundable: true,
+          cancelWindow: cancelWindowHrs,
+          cancelFeeEnabled: true,
+          cancelFeeType: 'deposit',
+          noshowAction: 'strike',
+          noshowStrikesMax: 2,
+          noshowBlockEnabled: true,
+          noshowBlockAfter: 3,
+        },
+        summary,
+        highlights: [
+          `£${depositAmt} deposit on bookings over £20`,
+          `${cancelWindowHrs}h cancellation window`,
+          'Late cancel: keep deposit',
+          '2-strike no-show system, auto-block at 3',
+        ],
+      };
+    }
+
+    return { changes: {}, summary: '', highlights: [] };
+  }
+
+  async function applyWizResult() {
+    if (!wizResult) return;
+    const c = wizResult.changes;
+    if (c.depositEnabled !== undefined) setDepositEnabled(c.depositEnabled);
+    if (c.depositType !== undefined) setDepositType(c.depositType);
+    if (c.depositAmount !== undefined) setDepositAmount(c.depositAmount);
+    if (c.depositPercent !== undefined) setDepositPercent(c.depositPercent);
+    if (c.depositMinPrice !== undefined) setDepositMinPrice(c.depositMinPrice);
+    if (c.depositRefundable !== undefined) setDepositRefundable(c.depositRefundable);
+    if (c.cancelWindow !== undefined) setCancelWindow(c.cancelWindow);
+    if (c.cancelFeeEnabled !== undefined) setCancelFeeEnabled(c.cancelFeeEnabled);
+    if (c.cancelFeeType !== undefined) setCancelFeeType(c.cancelFeeType);
+    if (c.cancelFeeFixed !== undefined) setCancelFeeFixed(c.cancelFeeFixed);
+    if (c.cancelFeePercent !== undefined) setCancelFeePercent(c.cancelFeePercent);
+    if (c.noshowAction !== undefined) setNoshowAction(c.noshowAction);
+    if (c.noshowFee !== undefined) setNoshowFee(c.noshowFee);
+    if (c.noshowStrikesMax !== undefined) setNoshowStrikesMax(c.noshowStrikesMax);
+    if (c.noshowBlockEnabled !== undefined) setNoshowBlockEnabled(c.noshowBlockEnabled);
+    if (c.noshowBlockAfter !== undefined) setNoshowBlockAfter(c.noshowBlockAfter);
+    setWizApplied(true);
+    await handleSave();
+  }
+
+  function resetWizard() {
+    setWizStep(0);
+    setWizPath(null);
+    setWizAnswers({});
+    setWizResult(null);
+    setWizApplied(false);
+  }
 
   return (
     <div style={s.page}>
@@ -522,6 +723,201 @@ export default function Policies() {
         </div>
       )}
 
+      {/* AI Builder tab */}
+      {tab === 'builder' && (
+        <div style={s.section}>
+          {/* Florrie intro bubble */}
+          <div style={s.wizIntro}>
+            <div style={s.wizAvatar}>✦</div>
+            <div style={s.wizBubble}>
+              {wizStep === 0 && "Hey! Let me help you set up policies that actually fit how you work. What's your biggest headache right now?"}
+              {wizStep === 1 && wizPath === 'late_cancel' && "Ugh, the worst. How often would you say it happens?"}
+              {wizStep === 1 && wizPath === 'noshow' && "That's proper disrespectful of people's time. How bad has it got?"}
+              {wizStep === 1 && wizPath === 'income' && "Smart thinking — let me understand your situation a bit more. How's your margin holding up?"}
+              {wizStep === 1 && wizPath === 'fresh' && "Love it — clean slate. How busy are you on average?"}
+              {wizStep === 2 && wizPath === 'late_cancel' && "Got it. And how much notice do you realistically need to fill a slot?"}
+              {wizStep === 2 && wizPath === 'noshow' && "Would you want to automatically block them from booking online after too many?"}
+              {wizStep === 2 && wizPath === 'income' && "Makes sense. What does your client mix look like?"}
+              {wizStep === 2 && wizPath === 'fresh' && "And are most of your clients regulars, or do you get a lot of new people?"}
+              {wizStep === 'result' && (wizApplied
+                ? "Done — settings applied. You can fine-tune anything in the other tabs."
+                : `Here's what I'd suggest based on what you told me.`)}
+            </div>
+          </div>
+
+          {/* Step 0: main pain point */}
+          {wizStep === 0 && (
+            <div style={s.wizOptions}>
+              {[
+                { key: 'late_cancel', label: '😤 Last-minute cancellations', sub: 'Clients pull out too close to the appointment' },
+                { key: 'noshow', label: '👻 No-shows', sub: 'They just don\'t turn up with no warning' },
+                { key: 'income', label: '💷 Protecting my income', sub: 'I want better coverage on deposits & fees' },
+                { key: 'fresh', label: '✨ Starting from scratch', sub: 'Help me set everything up sensibly' },
+              ].map(opt => (
+                <button key={opt.key} onClick={() => wizAnswer('path', opt.key)} style={s.wizOpt}>
+                  <span style={s.wizOptLabel}>{opt.label}</span>
+                  <span style={s.wizOptSub}>{opt.sub}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Step 1 options */}
+          {wizStep === 1 && wizPath === 'late_cancel' && (
+            <div style={s.wizOptions}>
+              {[
+                { key: 'rarely', label: 'Once in a while', sub: '1–2 times a month' },
+                { key: 'sometimes', label: 'Fairly regularly', sub: '3–5 times a month' },
+                { key: 'constantly', label: 'All the time', sub: 'It\'s a genuine problem' },
+              ].map(opt => (
+                <button key={opt.key} onClick={() => wizAnswer('freq', opt.key)} style={s.wizOpt}>
+                  <span style={s.wizOptLabel}>{opt.label}</span>
+                  <span style={s.wizOptSub}>{opt.sub}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {wizStep === 1 && wizPath === 'noshow' && (
+            <div style={s.wizOptions}>
+              {[
+                { key: 'mild', label: 'Happened a handful of times', sub: 'Annoying but not chronic' },
+                { key: 'moderate', label: 'Happens regularly', sub: 'A few a month' },
+                { key: 'serious', label: 'It\'s a constant problem', sub: 'I\'m losing real income' },
+              ].map(opt => (
+                <button key={opt.key} onClick={() => wizAnswer('severity', opt.key)} style={s.wizOpt}>
+                  <span style={s.wizOptLabel}>{opt.label}</span>
+                  <span style={s.wizOptSub}>{opt.sub}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {wizStep === 1 && wizPath === 'income' && (
+            <div style={s.wizOptions}>
+              {[
+                { key: 'tight', label: 'Pretty tight', sub: 'Every gap or no-show stings' },
+                { key: 'moderate', label: 'Manageable', sub: 'Could be better though' },
+                { key: 'comfortable', label: 'Generally fine', sub: 'Just want better safeguards' },
+              ].map(opt => (
+                <button key={opt.key} onClick={() => wizAnswer('margin', opt.key)} style={s.wizOpt}>
+                  <span style={s.wizOptLabel}>{opt.label}</span>
+                  <span style={s.wizOptSub}>{opt.sub}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {wizStep === 1 && wizPath === 'fresh' && (
+            <div style={s.wizOptions}>
+              {[
+                { key: 'low', label: 'Quieter — building up', sub: 'Under 10 appointments a week' },
+                { key: 'medium', label: 'Steady', sub: '10–20 a week' },
+                { key: 'high', label: 'Fully booked most weeks', sub: '20+ appointments' },
+              ].map(opt => (
+                <button key={opt.key} onClick={() => wizAnswer('volume', opt.key)} style={s.wizOpt}>
+                  <span style={s.wizOptLabel}>{opt.label}</span>
+                  <span style={s.wizOptSub}>{opt.sub}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Step 2 options */}
+          {wizStep === 2 && wizPath === 'late_cancel' && (
+            <div style={s.wizOptions}>
+              {[
+                { key: '24h', label: '24 hours', sub: 'I can usually fill a slot with a day\'s notice' },
+                { key: '48h', label: '48 hours', sub: 'Two days is more realistic for me' },
+                { key: '72h', label: '72+ hours', sub: 'My diary needs longer notice to rebook' },
+              ].map(opt => (
+                <button key={opt.key} onClick={() => wizAnswer('notice', opt.key)} style={s.wizOpt}>
+                  <span style={s.wizOptLabel}>{opt.label}</span>
+                  <span style={s.wizOptSub}>{opt.sub}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {wizStep === 2 && wizPath === 'noshow' && (
+            <div style={s.wizOptions}>
+              {[
+                { key: 'yes', label: 'Yes — block them automatically', sub: 'After enough strikes they can\'t book online' },
+                { key: 'no', label: 'No — I\'ll handle it manually', sub: 'Florrie flags it, I decide what to do' },
+              ].map(opt => (
+                <button key={opt.key} onClick={() => wizAnswer('block', opt.key)} style={s.wizOpt}>
+                  <span style={s.wizOptLabel}>{opt.label}</span>
+                  <span style={s.wizOptSub}>{opt.sub}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {wizStep === 2 && wizPath === 'income' && (
+            <div style={s.wizOptions}>
+              {[
+                { key: 'mostly regular', label: 'Mostly regulars', sub: 'Familiar faces who know the drill' },
+                { key: 'mixed', label: 'Mix of old and new', sub: 'Regulars plus a steady flow of new clients' },
+                { key: 'new', label: 'Lots of new people', sub: 'Building a client base, see different faces regularly' },
+              ].map(opt => (
+                <button key={opt.key} onClick={() => wizAnswer('clients', opt.key)} style={s.wizOpt}>
+                  <span style={s.wizOptLabel}>{opt.label}</span>
+                  <span style={s.wizOptSub}>{opt.sub}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {wizStep === 2 && wizPath === 'fresh' && (
+            <div style={s.wizOptions}>
+              {[
+                { key: 'mostly regular', label: 'Mostly regulars', sub: 'People who keep coming back' },
+                { key: 'lots of new', label: 'Lots of new faces', sub: 'Growing and bringing in new people' },
+              ].map(opt => (
+                <button key={opt.key} onClick={() => wizAnswer('trust', opt.key)} style={s.wizOpt}>
+                  <span style={s.wizOptLabel}>{opt.label}</span>
+                  <span style={s.wizOptSub}>{opt.sub}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Result */}
+          {wizStep === 'result' && wizResult && (
+            <div>
+              <div style={s.wizResultCard}>
+                <p style={s.wizResultSummary}>{wizResult.summary}</p>
+                <div style={s.wizHighlights}>
+                  {wizResult.highlights.map((h, i) => (
+                    <div key={i} style={s.wizHighlight}>
+                      <span style={s.wizHighlightDot}>✓</span>
+                      <span style={s.wizHighlightText}>{h}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {!wizApplied ? (
+                <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+                  <button onClick={applyWizResult} style={s.wizApplyBtn}>
+                    Apply these settings
+                  </button>
+                  <button onClick={resetWizard} style={s.wizResetBtn}>
+                    Start over
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+                  <button
+                    onClick={() => setTab('deposits')}
+                    style={s.wizApplyBtn}
+                  >
+                    Review in Deposits tab
+                  </button>
+                  <button onClick={resetWizard} style={s.wizResetBtn}>
+                    Run again
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Preview button */}
       <button onClick={() => setShowPreview(!showPreview)} style={s.previewBtn}>
         {showPreview ? 'Hide' : 'Preview'} client-facing policy
@@ -784,5 +1180,122 @@ const s = {
     cursor: 'pointer',
     fontFamily: 'inherit',
     boxShadow: '0 4px 14px rgba(199,107,138,0.3)',
+  },
+
+  // ── Wizard styles ──────────────────────────────────────────────────
+  wizIntro: {
+    display: 'flex',
+    gap: 10,
+    alignItems: 'flex-start',
+    marginBottom: 14,
+  },
+  wizAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: '50%',
+    background: 'linear-gradient(135deg, var(--accent, #C76B8A), #B55A79)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 14,
+    color: '#fff',
+    flexShrink: 0,
+    fontWeight: 700,
+  },
+  wizBubble: {
+    background: 'var(--card-bg, #fff)',
+    border: '1px solid var(--border, #EDE9E4)',
+    borderRadius: '0 14px 14px 14px',
+    padding: '12px 14px',
+    fontSize: 14,
+    color: 'var(--text-primary, #2D2A26)',
+    lineHeight: 1.5,
+    flex: 1,
+  },
+  wizOptions: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  wizOpt: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    width: '100%',
+    padding: '12px 14px',
+    borderRadius: 12,
+    border: '1.5px solid var(--border, #EDE9E4)',
+    background: 'var(--card-bg, #fff)',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    textAlign: 'left',
+    transition: 'border-color 0.15s',
+  },
+  wizOptLabel: {
+    fontSize: 14,
+    fontWeight: 600,
+    color: 'var(--text-primary, #2D2A26)',
+  },
+  wizOptSub: {
+    fontSize: 12,
+    color: 'var(--text-muted, #B5AFA8)',
+    marginTop: 2,
+  },
+  wizResultCard: {
+    background: 'var(--card-bg, #fff)',
+    border: '1.5px solid var(--accent, #C76B8A)',
+    borderRadius: 14,
+    padding: 16,
+  },
+  wizResultSummary: {
+    fontSize: 13,
+    color: 'var(--text-primary, #2D2A26)',
+    lineHeight: 1.6,
+    margin: '0 0 14px',
+  },
+  wizHighlights: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 7,
+  },
+  wizHighlight: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  wizHighlightDot: {
+    fontSize: 12,
+    color: 'var(--accent, #C76B8A)',
+    fontWeight: 700,
+    flexShrink: 0,
+    marginTop: 1,
+  },
+  wizHighlightText: {
+    fontSize: 13,
+    color: 'var(--text-secondary, #5A5550)',
+    lineHeight: 1.4,
+  },
+  wizApplyBtn: {
+    flex: 1,
+    padding: '12px 0',
+    borderRadius: 10,
+    border: 'none',
+    background: 'linear-gradient(135deg, var(--accent, #C76B8A), #B55A79)',
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  },
+  wizResetBtn: {
+    padding: '12px 16px',
+    borderRadius: 10,
+    border: '1.5px solid var(--border, #EDE9E4)',
+    background: 'var(--card-bg, #fff)',
+    color: 'var(--text-muted, #B5AFA8)',
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
   },
 };

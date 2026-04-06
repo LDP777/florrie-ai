@@ -1100,44 +1100,103 @@ export default function MoneyTracker() {
                   </div>
                 </div>
 
-                {/* VAT threshold tracker */}
-                <div style={S.breakdownCard}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <h4 style={{ ...S.breakdownTitle, margin: 0 }}>VAT Threshold</h4>
-                    {t.vat.registered
-                      ? <span style={{ fontSize: 11, fontWeight: 600, color: '#22c55e', background: '#f0fdf4', padding: '2px 8px', borderRadius: 10 }}>Registered · {t.vat.vatNumber || 'No number set'}</span>
-                      : <span style={{ fontSize: 11, color: '#867277' }}>Not registered</span>
-                    }
-                  </div>
-                  <div style={{ background: 'var(--border, #EDE9E4)', borderRadius: 4, height: 8, overflow: 'hidden', marginBottom: 6 }}>
-                    <div style={{
-                      width: `${t.vat.vatPct}%`, height: '100%', borderRadius: 4, transition: 'width 0.4s ease',
-                      background: t.vat.vatPct >= 90 ? '#ef4444' : t.vat.vatPct >= 75 ? '#f59e0b' : '#22c55e',
-                    }} />
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                    <div>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: '#534247' }}>{fmt(t.vat.rolling12Revenue)}</span>
-                      <span style={{ fontSize: 11, color: '#867277' }}> of £90,000 threshold (rolling 12 months)</span>
+                {/* VAT section — registered users get full quarterly view, unregistered get threshold tracker */}
+                {t.vat.registered ? (() => {
+                  // VAT-registered: standard rate 20% on taxable supplies
+                  // Beauty treatments are generally standard-rated (cosmetic) unless medical
+                  const vatRate = 0.20;
+                  const vatCollected = Math.round(t.totalIncome * vatRate); // output tax
+                  const vatOnExpenses = Math.round(t.totalExpenses * vatRate * 0.5); // rough input tax (not all expenses have VAT)
+                  const vatOwed = Math.max(0, vatCollected - vatOnExpenses);
+                  const vatOwedPerQuarter = Math.round(vatOwed / 4);
+
+                  // MTD quarterly return deadlines (1 month + 7 days after quarter end)
+                  const now3 = new Date();
+                  const vatDeadlines = [
+                    { label: 'Q1 Apr–Jun', due: new Date(now3.getFullYear(), 7, 7) },   // 7 Aug
+                    { label: 'Q2 Jul–Sep', due: new Date(now3.getFullYear(), 10, 7) },  // 7 Nov
+                    { label: 'Q3 Oct–Dec', due: new Date(now3.getFullYear() + 1, 1, 7) }, // 7 Feb
+                    { label: 'Q4 Jan–Mar', due: new Date(now3.getFullYear() + 1, 4, 7) }, // 7 May
+                  ];
+                  const nextVatDeadline = vatDeadlines.find(d => d.due > now3) || vatDeadlines[vatDeadlines.length - 1];
+                  const daysToVat = Math.max(0, Math.ceil((nextVatDeadline.due - now3) / 86400000));
+
+                  return (
+                    <div style={{ ...S.breakdownCard, border: '1.5px solid #22c55e30' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                        <h4 style={{ ...S.breakdownTitle, margin: 0 }}>VAT (registered)</h4>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: '#22c55e', background: '#f0fdf4', padding: '2px 8px', borderRadius: 10 }}>
+                          {t.vat.vatNumber || 'No VAT number set'}
+                        </span>
+                      </div>
+                      <div style={S.breakdownRow}>
+                        <div>
+                          <span style={{ fontSize: 13, color: '#534247' }}>Output tax (VAT collected)</span>
+                          <span style={{ fontSize: 11, color: '#867277', display: 'block' }}>20% on your income</span>
+                        </div>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1d1b19' }}>{fmt(vatCollected)}</span>
+                      </div>
+                      <div style={S.breakdownRow}>
+                        <div>
+                          <span style={{ fontSize: 13, color: '#534247' }}>Input tax (VAT on expenses)</span>
+                          <span style={{ fontSize: 11, color: '#867277', display: 'block' }}>Estimated — confirm with receipts</span>
+                        </div>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#534247' }}>−{fmt(vatOnExpenses)}</span>
+                      </div>
+                      <div style={{ ...S.breakdownRow, borderBottom: 'none', paddingTop: 12 }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: '#92405e' }}>VAT owed to HMRC</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: '#92405e' }}>{fmt(vatOwed)}</span>
+                      </div>
+                      <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 10, background: daysToVat <= 30 ? '#fef3c7' : '#f0fdf4', border: `1px solid ${daysToVat <= 30 ? '#fcd34d' : '#86efac'}` }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: daysToVat <= 30 ? '#92400e' : '#166534' }}>
+                          📅 {nextVatDeadline.label} return due in {daysToVat} days ({nextVatDeadline.due.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })})
+                        </span>
+                        <span style={{ display: 'block', fontSize: 11, color: '#534247', marginTop: 2 }}>
+                          Set aside ~{fmt(vatOwedPerQuarter)} per quarter for VAT
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => { window.location.href = '/settings?section=tax'; }}
+                        style={{ marginTop: 8, padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'none', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' }}
+                      >
+                        Update VAT number in Settings →
+                      </button>
                     </div>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: t.vat.vatPct >= 75 ? '#ef4444' : '#867277' }}>{t.vat.vatPct}%</span>
-                  </div>
-                  {!t.vat.registered && t.vat.vatPct >= 75 && (
-                    <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 8, background: '#fef3c7', border: '1px solid #fcd34d' }}>
-                      <span style={{ fontSize: 12, color: '#92400e', fontWeight: 500 }}>
-                        ⚠️ You're {t.vat.vatPct}% of the way to the VAT threshold. Consider registering before you breach — HMRC requires registration within 30 days of exceeding £90,000.
-                      </span>
+                  );
+                })() : (
+                  <div style={S.breakdownCard}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <h4 style={{ ...S.breakdownTitle, margin: 0 }}>VAT Threshold</h4>
+                      <span style={{ fontSize: 11, color: '#867277' }}>Not registered</span>
                     </div>
-                  )}
-                  {!t.vat.registered && (
+                    <div style={{ background: 'var(--border, #EDE9E4)', borderRadius: 4, height: 8, overflow: 'hidden', marginBottom: 6 }}>
+                      <div style={{
+                        width: `${t.vat.vatPct}%`, height: '100%', borderRadius: 4, transition: 'width 0.4s ease',
+                        background: t.vat.vatPct >= 90 ? '#ef4444' : t.vat.vatPct >= 75 ? '#f59e0b' : '#22c55e',
+                      }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                      <div>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#534247' }}>{fmt(t.vat.rolling12Revenue)}</span>
+                        <span style={{ fontSize: 11, color: '#867277' }}> of £90,000 threshold (rolling 12 months)</span>
+                      </div>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: t.vat.vatPct >= 75 ? '#ef4444' : '#867277' }}>{t.vat.vatPct}%</span>
+                    </div>
+                    {t.vat.vatPct >= 75 && (
+                      <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 8, background: '#fef3c7', border: '1px solid #fcd34d' }}>
+                        <span style={{ fontSize: 12, color: '#92400e', fontWeight: 500 }}>
+                          ⚠️ You're {t.vat.vatPct}% of the way to the VAT threshold. HMRC requires registration within 30 days of exceeding £90,000.
+                        </span>
+                      </div>
+                    )}
                     <button
                       onClick={() => { window.location.href = '/settings'; }}
                       style={{ marginTop: 8, padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'none', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' }}
                     >
                       Update VAT status in Settings →
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 {/* Tax breakdown */}
                 <div style={S.breakdownCard}>

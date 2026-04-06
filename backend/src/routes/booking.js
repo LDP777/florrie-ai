@@ -320,6 +320,288 @@ router.post('/:slug/manage/:token/cancel', async (req, res) => {
 });
 
 /**
+ * POST /api/booking/:slug/manage/:token/reschedule
+ * Client self-reschedules to a new time.
+ *
+ * Policy enforcement:
+ *   - If within the beautician's cancellation_notice_hours window → late_reschedule_charged = true
+ *     (beautician's policy may require client to pay for both appointments)
+ *   - Conflict-checks the new slot before confirming
+ *   - After moving, notifies the waitlist about the freed slot (non-blocking)
+ */
+router.post('/:slug/manage/:token/reschedule', async (req, res) => {
+  try {
+    const { new_starts_at } = req.body;
+    if (!new_starts_at) return res.status(400).json({ error: 'new_starts_at is required' });
+
+    const newStart = new Date(new_starts_at);
+    if (isNaN(newStart.getTime())) return res.status(400).json({ error: 'Invalid date format' });
+    if (newStart <= new Date()) return res.status(400).json({ error: 'New time must be in the future' });
+
+    // Load current appointment
+    const { data: appt } = await supabase
+      .from('appointments')
+      .select(`
+        id, starts_at, ends_at, status, duration_minutes, buffer_minutes, extra_padding_minutes,
+        policy_snapshot, client_email, client_id, beautician_id, treatment_id,
+        beauticians(id, booking_slug, booking_policy, business_name, first_name),
+        treatments(name),
+        clients(first_name, email)
+      `)
+      .eq('management_token', req.params.token)
+      .single();
+
+    if (!appt || appt.beauticians?.booking_slug !== req.params.slug) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    if (!['confirmed', 'pending'].includes(appt.status)) {
+      return res.status(400).json({ error: 'This booking cannot be rescheduled' });
+    }
+
+    const policy = appt.policy_snapshot || appt.beauticians?.booking_policy || {};
+    const noticeHours = policy.cancellation_notice_hours || 48;
+    const hoursUntilCurrent = (new Date(appt.starts_at) - new Date()) / (1000 * 60 * 60);
+    const isLateReschedule = hoursUntilCurrent < noticeHours;
+
+    // Min booking hours check for the new time
+    const minHours = policy.min_booking_hours || 0;
+    const hoursUntilNew = (newStart - new Date()) / (1000 * 60 * 60);
+    if (minHours > 0 && hoursUntilNew < minHours) {
+      return res.status(400).json({
+        error: `Bookings must be made at least ${minHours} hour${minHours !== 1 ? 's' : ''} in advance`,
+      });
+    }
+
+    // Conflict check for new slot
+    const totalMinutes = (appt.duration_minutes || 60) + (appt.buffer_minutes || 0) + (appt.extra_padding_minutes || 0);
+    const newEnd = new Date(newStart.getTime() + totalMinutes * 60 * 1000);
+
+    const { data: conflicts } = await supabase
+      .from('appointments')
+      .select('id')
+      .eq('beautician_id', appt.beautician_id)
+      .in('status', ['confirmed', 'pending', 'in_progress'])
+      .neq('id', appt.id)
+      .lt('starts_at', newEnd.toISOString())
+      .gt('ends_at', newStart.toISOString());
+
+    if (conflicts && conflicts.length > 0) {
+      return res.status(409).json({ error: 'That time slot is not available. Please choose another time.' });
+    }
+
+    // Save old slot info for gap-filling
+    const oldStartsAt = appt.starts_at;
+    const oldEndsAt = appt.ends_at;
+
+    // Update appointment to new time
+    const { error: updateErr } = await supabase
+      .from('appointments')
+      .update({
+        starts_at: newStart.toISOString(),
+        ends_at: newEnd.toISOString(),
+        ...(isLateReschedule && { late_reschedule_charged: true }),
+        rescheduled_at: new Date().toISOString(),
+        rescheduled_from: oldStartsAt,
+      })
+      .eq('id', appt.id);
+
+    if (updateErr) {
+      logger.error({ err: updateErr }, 'Reschedule update failed');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
+
+    // Log AI action
+    await supabase.from('ai_actions').insert({
+      beautician_id: appt.beautician_id,
+      action_type: 'booking_rescheduled',
+      digital_employee: 'front_desk',
+      summary: `${appt.clients?.first_name || 'Client'} rescheduled ${appt.treatments?.name} from ${new Date(oldStartsAt).toLocaleDateString('en-GB')} to ${newStart.toLocaleDateString('en-GB')}`,
+      details: {
+        appointment_id: appt.id,
+        from: oldStartsAt,
+        to: newStart.toISOString(),
+        isLateReschedule,
+        chargePercent: isLateReschedule ? (policy.late_cancel_charge_percent || 0) : 0,
+      },
+      client_id: appt.client_id,
+      appointment_id: appt.id,
+      confidence: 1.0,
+      autonomous: false,
+      outcome: 'success',
+    }).catch(() => {});
+
+    // Smart gap-filling: check waitlist for the freed slot (non-blocking)
+    notifyWaitlistAboutFreedSlot({
+      beauticianId: appt.beautician_id,
+      treatmentId: appt.treatment_id,
+      freedStart: oldStartsAt,
+      freedEnd: oldEndsAt,
+    }).catch(err => logger.warn({ err }, 'Waitlist gap-fill notification failed (non-fatal)'));
+
+    const beauticianName = appt.beauticians?.business_name || appt.beauticians?.first_name;
+    const chargePercent = isLateReschedule ? (policy.late_cancel_charge_percent || 0) : 0;
+
+    res.json({
+      success: true,
+      newStartsAt: newStart.toISOString(),
+      newEndsAt: newEnd.toISOString(),
+      isLateReschedule,
+      chargePercent,
+      message: isLateReschedule && chargePercent > 0
+        ? `Rescheduled to ${newStart.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at ${newStart.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}. As this is within the ${noticeHours}-hour window, ${beauticianName} may charge ${chargePercent}% for the original appointment.`
+        : `Rescheduled to ${newStart.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at ${newStart.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}.`,
+    });
+  } catch (err) {
+    logger.error({ err }, 'Reschedule failed');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+/**
+ * POST /api/booking/:slug/manage/:token/resend-payment
+ * Resend the Stripe payment link for an unpaid pending booking.
+ * Called from the manage page when client still hasn't paid.
+ */
+router.post('/:slug/manage/:token/resend-payment', async (req, res) => {
+  try {
+    const { data: appt } = await supabase
+      .from('appointments')
+      .select(`
+        id, status, deposit_paid, stripe_payment_intent_id, client_email,
+        starts_at, treatment_id, beautician_id,
+        beauticians(id, booking_slug, booking_policy, business_name, first_name, stripe_account_id, stripe_onboarding_complete, brand_color),
+        treatments(name, price_cents),
+        clients(first_name, email, stripe_customer_id)
+      `)
+      .eq('management_token', req.params.token)
+      .single();
+
+    if (!appt || appt.beauticians?.booking_slug !== req.params.slug) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    if (appt.status !== 'pending' || appt.deposit_paid) {
+      return res.status(400).json({ error: 'No payment required for this booking' });
+    }
+
+    const clientEmail = appt.clients?.email || appt.client_email;
+    if (!clientEmail) return res.status(400).json({ error: 'No email on record for this booking' });
+
+    const b = appt.beauticians;
+    if (!stripe || !b?.stripe_account_id || !b?.stripe_onboarding_complete) {
+      return res.status(400).json({ error: 'Payment not available — contact your beautician directly' });
+    }
+
+    // Create a fresh Stripe checkout session for the outstanding deposit
+    const { data: depositData } = await supabase
+      .from('appointments')
+      .select('deposit_cents, payment_type')
+      .eq('id', appt.id)
+      .single();
+
+    const depositCents = depositData?.deposit_cents || 0;
+    if (!depositCents) return res.status(400).json({ error: 'No deposit amount set' });
+
+    const startsDate = new Date(appt.starts_at);
+    const dateLabel = startsDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    const timeLabel = startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    const beauticianName = b.business_name || b.first_name;
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      ...(appt.clients?.stripe_customer_id ? { customer: appt.clients.stripe_customer_id } : {}),
+      line_items: [{
+        price_data: {
+          currency: 'gbp',
+          product_data: {
+            name: `${appt.treatments?.name || 'Appointment'} — deposit`,
+            description: `${dateLabel} at ${timeLabel} with ${beauticianName}`,
+          },
+          unit_amount: depositCents,
+        },
+        quantity: 1,
+      }],
+      payment_intent_data: {
+        application_fee_amount: Math.round(depositCents * 0.015),
+        transfer_data: { destination: b.stripe_account_id },
+        metadata: {
+          appointment_id: appt.id,
+          beautician_id: appt.beautician_id,
+          payment_type: 'deposit_resend',
+        },
+      },
+      success_url: `${FRONTEND_URL}/book/${req.params.slug}/confirmed?resent=true`,
+      cancel_url: `${FRONTEND_URL}/book/${req.params.slug}/manage/${req.params.token}`,
+      metadata: { appointment_id: appt.id, payment_type: 'deposit_resend' },
+    });
+
+    // Email the link to the client
+    const { sendEmail } = await import('../services/notifications.js');
+    await sendEmail({
+      to: clientEmail,
+      subject: `Complete your booking with ${beauticianName} — payment link`,
+      html: `
+        <p>Hi ${appt.clients?.first_name || 'there'},</p>
+        <p>Your booking for <strong>${appt.treatments?.name || 'your appointment'}</strong> on <strong>${dateLabel} at ${timeLabel}</strong> with ${beauticianName} is still waiting for payment.</p>
+        <p>Click below to secure your spot — this link is active for 24 hours:</p>
+        <p><a href="${session.url}" style="background:#C76B8A;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600;">Pay deposit — £${(depositCents / 100).toFixed(2)}</a></p>
+        <p style="color:#999;font-size:12px;">If your slot isn't paid for, it may be released to another client.</p>
+      `,
+    });
+
+    res.json({ sent: true, checkoutUrl: session.url });
+  } catch (err) {
+    logger.error({ err }, 'Resend payment failed');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+/**
+ * Helper: notify waitlist clients when a slot is freed up by a reschedule.
+ * Looks for waitlist entries that match the treatment and freed time window.
+ */
+async function notifyWaitlistAboutFreedSlot({ beauticianId, treatmentId, freedStart, freedEnd }) {
+  const freedDate = new Date(freedStart);
+
+  // Find waitlist entries for this beautician + treatment (or any treatment)
+  const { data: waiters } = await supabase
+    .from('waitlist')
+    .select('id, client_id, phone, email, first_name, preferred_days, preferred_times')
+    .eq('beautician_id', beauticianId)
+    .or(`treatment_id.eq.${treatmentId},treatment_id.is.null`)
+    .eq('status', 'waiting')
+    .order('created_at', { ascending: true })
+    .limit(3); // notify top 3
+
+  if (!waiters?.length) return;
+
+  const { sendSMS } = await import('./notifications.js');
+  const { sendEmail } = await import('../services/notifications.js');
+
+  const dayName = freedDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  const timeStr = freedDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+  for (const waiter of waiters) {
+    const msg = `Hi ${waiter.first_name || 'there'}! A slot has just opened up: ${dayName} at ${timeStr}. Reply YES to claim it or book at your link.`;
+
+    if (waiter.phone) {
+      sendSMS({ to: waiter.phone, body: msg, beauticianId, messageType: 'waitlist_alert' }).catch(() => {});
+    }
+    if (waiter.email) {
+      sendEmail({
+        to: waiter.email,
+        subject: `A slot just opened up — ${dayName} at ${timeStr}`,
+        html: `<p>${msg}</p>`,
+      }).catch(() => {});
+    }
+
+    // Mark as notified (don't spam them)
+    await supabase.from('waitlist').update({ notified_at: new Date().toISOString() }).eq('id', waiter.id);
+  }
+}
+
+/**
  * POST /api/booking/:slug/send-manage-link
  * Resend the manage-booking link to the client's email.
  * Looks up by email + slug — for clients who lose the original confirmation.
