@@ -892,7 +892,9 @@ export default function Settings({ onLogout }) {
 
           {/* Credit priority rules */}
           {(() => {
-            const rules = beautician.credit_priority_rules || {};
+            // pendingRules gives instant visual feedback; resets to beautician data after refresh
+            const [pendingRules, setPendingRules] = useState(null);
+            const rules = pendingRules ?? beautician.credit_priority_rules ?? {};
             const CATEGORIES = [
               {
                 group: 'Always',
@@ -947,7 +949,9 @@ export default function Settings({ onLogout }) {
             }
 
             function setRulePriority(key, value) {
-              saveProfile({ credit_priority_rules: { ...rules, [key]: value } });
+              const next = { ...rules, [key]: value };
+              setPendingRules(next);   // optimistic — instant visual response
+              saveProfile({ credit_priority_rules: next }).finally(() => setPendingRules(null));
             }
 
             return (
@@ -1328,6 +1332,16 @@ function FieldEditor({ label, value, onSave, placeholder }) {
 }
 
 function NotificationToggle({ label, desc, prefs, onChange }) {
+  const [local, setLocal] = useState(prefs);
+  // Sync from parent after a successful save/refresh
+  useEffect(() => { setLocal(prefs); }, [prefs.email, prefs.push]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function toggle(key) {
+    const next = { ...local, [key]: !local[key] };
+    setLocal(next);   // optimistic — instant visual response
+    onChange(next);   // async save
+  }
+
   return (
     <div style={styles.notifRow}>
       <div style={styles.notifInfo}>
@@ -1336,21 +1350,23 @@ function NotificationToggle({ label, desc, prefs, onChange }) {
       </div>
       <div style={styles.notifChannels}>
         <button
-          onClick={() => onChange({ ...prefs, email: !prefs.email })}
+          onClick={() => toggle('email')}
+          title={local.email ? 'Email on' : 'Email off'}
           style={{
             ...styles.notifChip,
-            background: prefs.email ? 'var(--success-bg)' : 'var(--border-light)',
-            color: prefs.email ? 'var(--success)' : 'var(--text-muted)'
+            background: local.email ? 'var(--success-bg)' : 'var(--border-light)',
+            color: local.email ? 'var(--success)' : 'var(--text-muted)'
           }}
         >
           📧
         </button>
         <button
-          onClick={() => onChange({ ...prefs, push: !prefs.push })}
+          onClick={() => toggle('push')}
+          title={local.push ? 'Push on' : 'Push off'}
           style={{
             ...styles.notifChip,
-            background: prefs.push ? 'var(--success-bg)' : 'var(--border-light)',
-            color: prefs.push ? 'var(--success)' : 'var(--text-muted)'
+            background: local.push ? 'var(--success-bg)' : 'var(--border-light)',
+            color: local.push ? 'var(--success)' : 'var(--text-muted)'
           }}
         >
           🔔
@@ -1361,14 +1377,23 @@ function NotificationToggle({ label, desc, prefs, onChange }) {
 }
 
 function ClientReminderRow({ label, enabled, onChange }) {
+  const [local, setLocal] = useState(enabled);
+  useEffect(() => { setLocal(enabled); }, [enabled]);
+
+  function handleToggle() {
+    const next = !local;
+    setLocal(next);   // optimistic
+    onChange(next);
+  }
+
   return (
     <div style={styles.reminderRow}>
       <span style={styles.reminderLabel}>{label}</span>
       <button
-        onClick={() => onChange(!enabled)}
-        style={{ ...styles.toggle, background: enabled ? 'var(--accent)' : 'var(--border)', width: 44, height: 24 }}
+        onClick={handleToggle}
+        style={{ ...styles.toggle, background: local ? 'var(--accent)' : 'var(--border)', width: 44, height: 24 }}
       >
-        <div style={{ ...styles.toggleDot, transform: enabled ? 'translateX(20px)' : 'translateX(2px)' }} />
+        <div style={{ ...styles.toggleDot, transform: local ? 'translateX(20px)' : 'translateX(2px)' }} />
       </button>
     </div>
   );
