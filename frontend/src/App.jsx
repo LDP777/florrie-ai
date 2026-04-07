@@ -315,6 +315,7 @@ export default function App() {
       </div>
 
       {showNav && <BottomNav current={location.pathname} session={session} />}
+      {showNav && <FloatingInbox current={location.pathname} session={session} />}
       </div>
     </ErrorBoundary>
   );
@@ -358,11 +359,11 @@ function BottomNav({ current, session }) {
   const isHubActive = hubPaths.includes(current) && current !== '/inbox';
 
   const tabs = [
-    { path: '/',        label: 'Home',      icon: 'home',         isPetal: false, badge: 0 },
-    { path: '/calendar',label: 'Calendar',  icon: 'calendar_today',isPetal: false, badge: 0 },
-    { path: '/voice',   label: 'florrie.ai',icon: null,            isPetal: true,  badge: 0 },
-    { path: '/inbox',   label: 'Inbox',     icon: 'chat_bubble',   isPetal: false, badge: navCounts.inbox },
-    { path: '/hub',     label: 'Hub',       icon: 'explore',       isPetal: false, badge: navCounts.hub },
+    { path: '/',        label: 'Home',      icon: 'home',           isPetal: false, badge: 0 },
+    { path: '/calendar',label: 'Calendar',  icon: 'calendar_today', isPetal: false, badge: 0 },
+    { path: '/voice',   label: 'florrie.ai',icon: null,             isPetal: true,  badge: 0 },
+    { path: '/money',   label: 'Money',     icon: 'payments',       isPetal: false, badge: 0 },
+    { path: '/hub',     label: 'Hub',       icon: 'explore',        isPetal: false, badge: navCounts.hub },
   ];
 
   return (
@@ -426,6 +427,88 @@ function BottomNav({ current, session }) {
         );
       })}
     </nav>
+  );
+}
+
+/**
+ * FloatingInbox — persistent floating chat bubble above the nav.
+ * Always accessible, shows unread badge, taps to /inbox.
+ * Hidden when already on /inbox.
+ */
+function FloatingInbox({ current, session }) {
+  const navigate = useNavigate();
+  const [unread, setUnread] = useState(0);
+
+  useEffect(() => {
+    if (!session) return;
+    async function fetchUnread() {
+      try {
+        const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
+        let token = null;
+        if (key) {
+          const raw = localStorage.getItem(key);
+          try { const p = JSON.parse(raw); token = p?.access_token || p?.session?.access_token || raw; } catch { token = raw; }
+        }
+        const headers = token ? { Authorization: `Bearer ${token}` } : {};
+        const res = await fetch('/api/agents/counts', { headers });
+        if (!res.ok) return;
+        const d = await res.json();
+        setUnread(d.inbox || 0);
+      } catch { /* silent */ }
+    }
+    fetchUnread();
+    const id = setInterval(fetchUnread, 60_000);
+    return () => clearInterval(id);
+  }, [session]);
+
+  if (current === '/inbox') return null;
+
+  return (
+    <button
+      onClick={() => navigate('/inbox')}
+      style={{
+        position: 'fixed',
+        bottom: 80,
+        right: 16,
+        width: 48,
+        height: 48,
+        borderRadius: '50%',
+        background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
+        border: '2.5px solid #fef8f4',
+        boxShadow: '0 4px 16px rgba(146, 64, 94, 0.3)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        zIndex: 900,
+        transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.08)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(146, 64, 94, 0.4)'; }}
+      onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(146, 64, 94, 0.3)'; }}
+    >
+      <span className="material-symbols-outlined" style={{ fontSize: 22, color: '#fff', fontVariationSettings: "'FILL' 1, 'wght' 300" }}>chat_bubble</span>
+      {unread > 0 && (
+        <span style={{
+          position: 'absolute',
+          top: -2,
+          right: -2,
+          minWidth: 17,
+          height: 17,
+          borderRadius: 9,
+          background: '#E85D75',
+          color: '#fff',
+          fontSize: 9,
+          fontWeight: 700,
+          lineHeight: '17px',
+          textAlign: 'center',
+          padding: '0 3px',
+          border: '1.5px solid #fef8f4',
+          fontFamily: 'inherit',
+        }}>
+          {unread > 99 ? '99+' : unread}
+        </span>
+      )}
+    </button>
   );
 }
 
