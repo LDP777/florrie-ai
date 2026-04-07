@@ -344,9 +344,9 @@ export default function Dashboard() {
             {getGreeting()}, {beautician?.first_name || 'there'}
           </h1>
         </div>
-        {/* Notification bell — taps to inbox */}
+        {/* Notification bell — taps to notifications (not inbox — floating bubble handles that) */}
         <button
-          onClick={() => navigate('/inbox')}
+          onClick={() => navigate('/notifications')}
           style={{
             position: 'relative', background: 'none', border: 'none', cursor: 'pointer',
             padding: 6, marginTop: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -377,11 +377,89 @@ export default function Dashboard() {
         </button>
       </section>
 
+      {/* ─── Booking link chip — right under greeting ─── */}
+      {beautician?.booking_slug && (
+        <button onClick={() => {
+          const url = `${window.location.origin}/book/${beautician.booking_slug}`;
+          if (navigator.share) {
+            navigator.share({ title: 'Book an appointment', url });
+          } else {
+            navigator.clipboard.writeText(url);
+          }
+        }} style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          background: 'rgba(146,64,94,0.07)', border: '1px solid rgba(146,64,94,0.15)',
+          borderRadius: 20, padding: '6px 14px', cursor: 'pointer',
+          fontSize: 12, fontWeight: 600, color: '#92405e',
+          fontFamily: 'inherit', marginBottom: 20, width: 'fit-content',
+        }}>
+          <MIcon name="link" size={14} style={{ color: '#92405e' }} />
+          Share booking link
+        </button>
+      )}
+
       {/* ─── Setup Checklist (shown until fully onboarded) ─── */}
       <SetupChecklist />
 
       {/* ─── AI Agent Avatars — live team status ─── */}
       <AgentAvatars />
+
+      {/* ─── AI Shift Report — first thing after greeting so Florrie's work is front and centre ─── */}
+      {shiftStats && shiftStats.totalActions > 0 && (
+        <section style={S.shiftReport}>
+          <div onClick={() => setShiftExpanded(e => !e)} style={S.shiftHeader}>
+            <div style={S.shiftPulse}>
+              <MIcon name="auto_awesome" fill size={18} style={{ color: '#fff' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <p style={S.shiftTitle}>
+                Florrie handled {shiftStats.totalActions} task{shiftStats.totalActions !== 1 ? 's' : ''} today
+              </p>
+              <p style={S.shiftSub}>
+                {shiftStats.timeMins} min saved
+                {shiftStats.totalValue > 0 && ` · £${(shiftStats.totalValue / 100).toFixed(0)} secured`}
+              </p>
+            </div>
+            <MIcon name={shiftExpanded ? 'expand_less' : 'expand_more'} size={20} style={{ color: '#867277' }} />
+          </div>
+
+          {shiftExpanded && (
+            <div style={S.shiftBody}>
+              <div style={S.shiftPills}>
+                {Object.entries(shiftStats.byCategory).map(([cat, data]) => {
+                  const meta = SHIFT_CATEGORIES[cat] || SHIFT_CATEGORIES.other;
+                  return (
+                    <div key={cat} style={{ ...S.shiftPill, background: meta.bg }}>
+                      <MIcon name={meta.icon} fill size={14} style={{ color: meta.color }} />
+                      <span style={{ fontSize: 11, fontWeight: 600, color: meta.color }}>{data.count} {meta.label}</span>
+                      {data.value > 0 && <span style={{ fontSize: 10, color: meta.color, opacity: 0.7 }}>£{(data.value / 100).toFixed(0)}</span>}
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={S.shiftList}>
+                {shiftReport.slice(0, 6).map(item => {
+                  const meta = SHIFT_CATEGORIES[item.category] || SHIFT_CATEGORIES.other;
+                  const agentConfig = AGENTS.find(a => a.key === item.agent);
+                  return (
+                    <div key={item.id} style={S.shiftItem}>
+                      <div style={{ ...S.shiftDot, background: meta.color }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={S.shiftItemText}>{item.summary}</p>
+                        <p style={S.shiftItemMeta}>{agentConfig?.name || item.agent}{item.value_cents > 0 && ` · £${(item.value_cents / 100).toFixed(0)}`}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <button onClick={() => navigate('/florrie')} style={S.shiftViewAll}>
+                View full activity log
+                <MIcon name="arrow_forward" size={14} style={{ color: '#92405e' }} />
+              </button>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* ─── Hero Stats Card ─── */}
       <section style={S.heroCard}>
@@ -412,115 +490,25 @@ export default function Dashboard() {
         </div>
       </section>
 
-      {/* ─── AI Shift Report ─── */}
-      {shiftStats && shiftStats.totalActions > 0 && (
-        <section style={S.shiftReport}>
-          {/* Collapsed summary — always visible */}
-          <div
-            onClick={() => setShiftExpanded(e => !e)}
-            style={S.shiftHeader}
-          >
-            <div style={S.shiftPulse}>
-              <MIcon name="auto_awesome" fill size={18} style={{ color: '#fff' }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <p style={S.shiftTitle}>
-                Florrie handled {shiftStats.totalActions} task{shiftStats.totalActions !== 1 ? 's' : ''} today
-              </p>
-              <p style={S.shiftSub}>
-                {shiftStats.timeMins} min saved
-                {shiftStats.totalValue > 0 && ` · £${(shiftStats.totalValue / 100).toFixed(0)} secured`}
-              </p>
-            </div>
-            <MIcon
-              name={shiftExpanded ? 'expand_less' : 'expand_more'}
-              size={20} style={{ color: '#867277' }}
-            />
-          </div>
-
-          {/* Expanded detail */}
-          {shiftExpanded && (
-            <div style={S.shiftBody}>
-              {/* Category pills */}
-              <div style={S.shiftPills}>
-                {Object.entries(shiftStats.byCategory).map(([cat, data]) => {
-                  const meta = SHIFT_CATEGORIES[cat] || SHIFT_CATEGORIES.other;
-                  return (
-                    <div key={cat} style={{ ...S.shiftPill, background: meta.bg }}>
-                      <MIcon name={meta.icon} fill size={14} style={{ color: meta.color }} />
-                      <span style={{ fontSize: 11, fontWeight: 600, color: meta.color }}>
-                        {data.count} {meta.label}
-                      </span>
-                      {data.value > 0 && (
-                        <span style={{ fontSize: 10, color: meta.color, opacity: 0.7 }}>
-                          £{(data.value / 100).toFixed(0)}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Action list */}
-              <div style={S.shiftList}>
-                {shiftReport.slice(0, 6).map(item => {
-                  const meta = SHIFT_CATEGORIES[item.category] || SHIFT_CATEGORIES.other;
-                  const agentConfig = AGENTS.find(a => a.key === item.agent);
-                  return (
-                    <div key={item.id} style={S.shiftItem}>
-                      <div style={{ ...S.shiftDot, background: meta.color }} />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={S.shiftItemText}>{item.summary}</p>
-                        <p style={S.shiftItemMeta}>
-                          {agentConfig?.name || item.agent}
-                          {item.value_cents > 0 && ` · £${(item.value_cents / 100).toFixed(0)}`}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* View full log link */}
-              <button
-                onClick={() => navigate('/florrie')}
-                style={S.shiftViewAll}
-              >
-                View full activity log
-                <MIcon name="arrow_forward" size={14} style={{ color: '#92405e' }} />
-              </button>
-            </div>
-          )}
-        </section>
-      )}
-
       {/* ─── Insight Cards ─── */}
       <section style={S.alertGrid}>
-        {/* Card 1: Schedule status — gaps or next appointment */}
         <button onClick={() => navigate('/calendar')} style={S.alertCard('#fedb9b', '#745a27', '#795f2b')}>
           <div style={S.alertTop}>
             <MIcon name={remainingCount > 0 ? 'schedule' : 'check_circle'} size={14} style={{ color: '#795f2b' }} />
-            <span style={S.alertBadge('#795f2b')}>
-              {remainingCount > 0 ? 'Next Up' : 'Done'}
-            </span>
+            <span style={S.alertBadge('#795f2b')}>{remainingCount > 0 ? 'Next Up' : 'Done'}</span>
           </div>
           <p style={{ fontSize: 14, fontWeight: 600, color: '#745a27', margin: 0, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" }}>
-            {remainingCount > 0
-              ? (today.find(a => a.status !== 'completed')?.time || 'All clear')
-              : 'All done for today'}
+            {remainingCount > 0 ? (today.find(a => a.status !== 'completed')?.time || 'All clear') : 'All done for today'}
           </p>
         </button>
 
-        {/* Card 2: Revenue context or retention nudge */}
         {insights.some(i => i.type === 'action' && i.actionPath === '/clients') ? (
           <button onClick={() => navigate('/clients')} style={S.alertCard('#ffd9e2', '#92405e', '#782b49')}>
             <div style={S.alertTop}>
               <MIcon name="history" size={14} style={{ color: '#92405e' }} />
               <span style={S.alertBadge('#92405e')}>Retain</span>
             </div>
-            <p style={{ fontSize: 14, fontWeight: 500, color: '#782b49', margin: 0 }}>
-              Overdue rebookings
-            </p>
+            <p style={{ fontSize: 14, fontWeight: 500, color: '#782b49', margin: 0 }}>Overdue rebookings</p>
           </button>
         ) : (
           <button onClick={() => navigate('/money')} style={S.alertCard('#ffd9e2', '#92405e', '#782b49')}>
@@ -550,7 +538,7 @@ export default function Dashboard() {
         </section>
       )}
 
-      {/* ─── Today's Schedule ─── */}
+      {/* ─── Today's Schedule — rows tap through to calendar ─── */}
       <section style={S.scheduleSection}>
         <div style={S.scheduleHeader}>
           <h3 style={S.sectionHeading}>Today's Schedule</h3>
@@ -564,11 +552,13 @@ export default function Dashboard() {
             {today.map((appt, i) => {
               const isPast = appt.status === 'completed';
               const isActive = i === activeIdx;
-              const isNow = isActive;
 
               return (
-                <div key={appt.id} style={{ display: 'flex', alignItems: 'center', gap: 12, opacity: isPast ? 0.4 : 1 }}>
-                  {/* Time */}
+                <div
+                  key={appt.id}
+                  onClick={() => navigate('/calendar')}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, opacity: isPast ? 0.4 : 1, cursor: 'pointer' }}
+                >
                   <span style={{
                     width: 48, fontSize: 12, fontWeight: isActive ? 700 : 400,
                     color: isActive ? '#92405e' : '#867277',
@@ -576,13 +566,10 @@ export default function Dashboard() {
                   }}>
                     {appt.time}
                   </span>
-
-                  {/* Card */}
                   <div style={{
                     flex: 1,
                     background: isActive ? '#FFFFFF' : isPast ? '#ede7e3' : '#f8f2ef',
-                    padding: '14px 16px',
-                    borderRadius: 16,
+                    padding: '14px 16px', borderRadius: 16,
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     borderLeft: isActive ? '4px solid #745a27' : '4px solid transparent',
                     boxShadow: isActive ? '0 4px 20px rgba(146, 64, 94, 0.08)' : 'none',
@@ -590,7 +577,7 @@ export default function Dashboard() {
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
                         <p style={{ fontSize: 14, fontWeight: 700, margin: 0, color: '#1d1b19' }}>{appt.client}</p>
-                        {isNow && (
+                        {isActive && (
                           <span style={{
                             background: '#745a27', color: '#fff', fontSize: 8, fontWeight: 700,
                             padding: '2px 6px', borderRadius: 999, textTransform: 'uppercase', letterSpacing: '0.05em',
@@ -599,10 +586,7 @@ export default function Dashboard() {
                       </div>
                       <p style={{ fontSize: 12, color: '#534247', margin: 0 }}>{appt.treatment}</p>
                     </div>
-                    <span style={{
-                      fontSize: 14, fontWeight: isActive ? 700 : 500,
-                      color: isActive ? '#92405e' : '#1d1b19',
-                    }}>
+                    <span style={{ fontSize: 14, fontWeight: isActive ? 700 : 500, color: isActive ? '#92405e' : '#1d1b19' }}>
                       {fmt(appt.price_cents)}
                     </span>
                   </div>
@@ -612,39 +596,6 @@ export default function Dashboard() {
           </div>
         )}
       </section>
-
-      {/* ─── Activity Feed ─── */}
-      {activity.length > 0 && (
-        <section style={{ paddingTop: 8 }}>
-          <h3 style={S.activityLabel}>Recent Activity</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {activity.map(act => (
-              <div key={act.id} style={S.activityRow}>
-                <span style={{ fontSize: 18 }}>{act.icon}</span>
-                <div style={{ flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <p style={{ fontSize: 12, color: '#1d1b19', margin: 0 }}>{act.text}</p>
-                  <span style={{ fontSize: 10, color: '#534247', whiteSpace: 'nowrap', marginLeft: 8 }}>{act.time}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* ─── Booking Link ─── */}
-      {beautician?.booking_slug && (
-        <button onClick={() => {
-          const url = `${window.location.origin}/book/${beautician.booking_slug}`;
-          if (navigator.share) {
-            navigator.share({ title: 'Book an appointment', url });
-          } else {
-            navigator.clipboard.writeText(url);
-          }
-        }} style={S.shareBtn}>
-          <MIcon name="link" size={16} style={{ color: '#92405e' }} />
-          Share your booking link
-        </button>
-      )}
     </div>
   );
 }
