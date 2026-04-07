@@ -1025,7 +1025,7 @@ export default function BookingPage() {
               <button
                 onClick={() => {
                   if (validateStep(2)) {
-                    setStep(needsConsultation ? 2.5 : 3);
+                    setStep(needsConsultation && !recognisedClient?.found ? 2.5 : 3);
                   }
                 }}
                 disabled={!clientDetails.name || !clientDetails.phone}
@@ -1035,7 +1035,7 @@ export default function BookingPage() {
                   cursor: (!clientDetails.name || !clientDetails.phone) ? 'not-allowed' : 'pointer'
                 }}
               >
-                {needsConsultation ? 'Next: Consultation form' : 'Review booking'}
+                {needsConsultation && !recognisedClient?.found ? 'Next: Consultation form' : 'Review booking'}
               </button>
             </div>
           </div>
