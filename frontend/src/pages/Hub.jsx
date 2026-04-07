@@ -495,7 +495,6 @@ const CATEGORIES = [
       { path: '/compliance',         label: 'Compliance',     matIcon: 'verified_user',    desc: 'Patch tests & consent forms' },
       { path: '/patch-tests',        label: 'Patch Tests',    matIcon: 'vaccines',         desc: 'UK compliance tracking'    },
       { path: '/consultation-forms', label: 'Form Builder',   matIcon: 'assignment',       desc: 'Consent & intake forms'    },
-      { path: '/consultations',      label: 'Consultations',  matIcon: 'medical_services', desc: 'Pre-treatment bookings'    },
       { path: '/treatments',         label: 'Treatments',     matIcon: 'spa',              desc: 'Manage services'           },
       { path: '/aftercare',          label: 'Aftercare',      matIcon: 'self_care',        desc: 'Post-treatment messages',   gate: 'aftercare' },
       { path: '/packages',           label: 'Packages',       matIcon: 'inventory_2',      desc: 'Bundle deals & courses'    },

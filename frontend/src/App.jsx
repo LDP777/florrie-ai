@@ -50,7 +50,6 @@ const Portfolio = lazy(() => import('./pages/Portfolio.jsx'));
 const AppointmentNotes = lazy(() => import('./pages/AppointmentNotes.jsx'));
 const Feedback = lazy(() => import('./pages/Feedback.jsx'));
 const ExpensesPage = lazy(() => import('./pages/Expenses.jsx'));
-const Consultations = lazy(() => import('./pages/Consultations.jsx'));
 const FollowUpSequences = lazy(() => import('./pages/FollowUpSequences.jsx'));
 const PhotoConsent = lazy(() => import('./pages/PhotoConsent.jsx'));
 const WaitlistPro = lazy(() => import('./pages/WaitlistPro.jsx'));
@@ -271,7 +270,6 @@ export default function App() {
             <Route path="/notes" element={<AppointmentNotes />} />
             <Route path="/feedback" element={<Feedback />} />
             <Route path="/expenses" element={<ExpensesPage />} />
-            <Route path="/consultations" element={<Consultations />} />
             <Route path="/consultation-forms" element={<ConsultationFormBuilder />} />
             <Route path="/consultation-forms/:id" element={<ConsultationFormBuilder />} />
             <Route path="/sequences" element={<Navigate to="/automations" replace />} />
@@ -356,7 +354,7 @@ function BottomNav({ current, session }) {
     return () => clearInterval(intervalRef.current);
   }, [session]);
 
-  const hubPaths = ['/hub', '/money', '/analytics', '/clients', '/treatments', '/team', '/waitlist', '/digest', '/campaigns', '/reviews', '/loyalty', '/aftercare', '/import', '/smart-schedule', '/vouchers', '/notifications', '/hours', '/patch-tests', '/compliance', '/reports', '/policies', '/business', '/rebook', '/packages', '/templates', '/referrals', '/portfolio', '/notes', '/feedback', '/expenses', '/consultations', '/sequences', '/photo-consent', '/waitlist-pro', '/client-timeline', '/rota', '/deposits', '/addons', '/cancellations', '/tags', '/promos', '/checklist', '/inventory', '/goals', '/price-list', '/treatment-stats', '/staff-performance', '/memberships', '/comms', '/end-of-day', '/automations', '/whatsapp', '/portal', '/ai-insights', '/segments', '/churn', '/demand', '/locations', '/integrations', '/sms', '/api-settings', '/escalations', '/settings'];
+  const hubPaths = ['/hub', '/money', '/analytics', '/clients', '/treatments', '/team', '/waitlist', '/digest', '/campaigns', '/reviews', '/loyalty', '/aftercare', '/import', '/smart-schedule', '/vouchers', '/notifications', '/hours', '/patch-tests', '/compliance', '/reports', '/policies', '/business', '/rebook', '/packages', '/templates', '/referrals', '/portfolio', '/notes', '/feedback', '/expenses', '/sequences', '/photo-consent', '/waitlist-pro', '/client-timeline', '/rota', '/deposits', '/addons', '/cancellations', '/tags', '/promos', '/checklist', '/inventory', '/goals', '/price-list', '/treatment-stats', '/staff-performance', '/memberships', '/comms', '/end-of-day', '/automations', '/whatsapp', '/portal', '/ai-insights', '/segments', '/churn', '/demand', '/locations', '/integrations', '/sms', '/api-settings', '/escalations', '/settings'];
   const isHubActive = hubPaths.includes(current) && current !== '/inbox';
 
   const tabs = [

@@ -24,7 +24,6 @@ const FEATURES = [
 
   // Treatments
   { path: '/treatments', name: 'Treatments', desc: 'Manage your services', icon: '💅', cat: 'Treatments' },
-  { path: '/consultations', name: 'Consultations', desc: 'Pre-treatment bookings', icon: '🩺', cat: 'Treatments' },
   { path: '/consultation-forms', name: 'Form Builder', desc: 'Build custom consultation and consent forms', icon: '📋', cat: 'Treatments' },
   { path: '/patch-tests', name: 'Patch Tests', desc: 'Allergy test tracking', icon: '🩹', cat: 'Treatments' },
   { path: '/aftercare', name: 'Aftercare', desc: 'Post-treatment messages', icon: '💆', cat: 'Treatments' },

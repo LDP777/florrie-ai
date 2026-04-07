@@ -521,6 +521,18 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
   const [noShowCharging, setNoShowCharging] = useState(false);
   const [paymentLinkUrl, setPaymentLinkUrl] = useState(null);
   const [linkLoading, setLinkLoading] = useState(false);
+  const [noteSaved, setNoteSaved] = useState(false);
+
+  async function handleSaveNote() {
+    if (isDevMode) { setNoteSaved(true); setTimeout(() => setNoteSaved(false), 1500); return; }
+    try {
+      await updateRow('appointments', appointment.id, { beautician_notes: notes || null });
+      setNoteSaved(true);
+      setTimeout(() => setNoteSaved(false), 1500);
+    } catch (err) {
+      logger.error('Save note error:', err);
+    }
+  }
 
   async function handleMarkNoShow() {
     if (!confirm('Mark this appointment as a no-show?')) return;
@@ -678,6 +690,32 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
             )}
             {appointment.ai_booked && <div style={styles.detailRow}><span style={styles.detailLabel}>Booked by</span><span style={styles.aiTag}>Florrie</span></div>}
           </div>
+
+          {/* Persistent notes — always visible, save without completing */}
+          <div style={{ marginTop: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #888)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Notes</span>
+              {notes !== (appointment.beautician_notes || '') && (
+                <button onClick={handleSaveNote}
+                  style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: noteSaved ? 'var(--success-bg, #E8F5E9)' : 'var(--accent)', color: noteSaved ? 'var(--success, #5BA97B)' : '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'all 0.15s' }}>
+                  {noteSaved ? '✓ Saved' : 'Save'}
+                </button>
+              )}
+              {noteSaved && notes === (appointment.beautician_notes || '') && (
+                <span style={{ fontSize: 11, color: 'var(--success, #5BA97B)', fontWeight: 600 }}>✓ Saved</span>
+              )}
+            </div>
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Colour mix, skin notes, preferences, anything worth remembering..."
+              rows={3}
+              style={{ width: '100%', padding: '9px 11px', borderRadius: 8, border: '1.5px solid var(--border, #E5E5E5)', fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', color: 'var(--text, #333)', background: 'var(--bg-input, #FAFAFA)' }}
+              onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); handleSaveNote(); } }}
+            />
+            <p style={{ fontSize: 11, color: 'var(--text-muted, #aaa)', margin: '4px 0 0' }}>⌘S to save · notes shown next time this client books</p>
+          </div>
+
           {canComplete && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
               <button onClick={() => setMode('completing')} style={styles.completeBtn}>
