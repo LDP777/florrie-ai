@@ -64,12 +64,15 @@ export default function SetupChecklist() {
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
-    if (beautician) loadProgress();
+    if (!beautician) return;
+    loadProgress();
+    // Re-check whenever the user returns to the page (e.g. after setting hours in Settings)
+    window.addEventListener('focus', loadProgress);
+    return () => window.removeEventListener('focus', loadProgress);
   }, [beautician]);
 
   async function loadProgress() {
     if (isDevMode) {
-      // In dev, show partial progress for demo
       setData({
         treatmentCount: 3,
         hasHours: true,
@@ -82,18 +85,26 @@ export default function SetupChecklist() {
     }
 
     try {
-      const [treatments, clients, appointments] = await Promise.all([
+      // Fetch fresh beautician data — don't rely on the cached hook value,
+      // which won't reflect hours/slug/stripe changes made in Settings
+      const [treatments, clients, appointments, freshB] = await Promise.all([
         fetchRows('treatments', beautician.id, {}),
         fetchRows('clients', beautician.id, {}),
         fetchRows('appointments', beautician.id, {}),
+        supabase
+          .from('beauticians')
+          .select('working_hours, booking_slug, stripe_account_id')
+          .eq('id', beautician.id)
+          .single()
+          .then(r => r.data || {}),
       ]);
 
       setData({
         treatmentCount: treatments?.length || 0,
-        hasHours: !!beautician.working_hours && Object.values(beautician.working_hours).some(d => d?.enabled),
-        bookingSlug: beautician.booking_slug || null,
+        hasHours: !!freshB.working_hours && Object.values(freshB.working_hours).some(d => d?.enabled),
+        bookingSlug: freshB.booking_slug || null,
         clientCount: clients?.length || 0,
-        stripeConnected: !!beautician.stripe_account_id,
+        stripeConnected: !!freshB.stripe_account_id,
         appointmentCount: appointments?.length || 0,
       });
     } catch {
