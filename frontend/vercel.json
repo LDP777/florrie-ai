@@ -3,7 +3,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/((?!landing\\.html|assets/|favicon|apple-touch|manifest|og-image|sw-push|florrie-).*)", "destination": "/index.html" }
+    { "source": "/((?!landing\\.html|assets/|favicon|apple-touch|manifest|og-image|sw|workbox|florrie-).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
