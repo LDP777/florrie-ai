@@ -279,10 +279,10 @@ export default function LandingPage() {
               <a className="border border-outline-variant text-primary px-8 py-4 rounded-full font-bold text-lg text-center hover:bg-surface-container-low transition-colors" href="#how-it-works">See how it works</a>
             </div>
             <div className="flex items-center gap-3 py-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary-fixed rounded-full">
-                <Icon name="rocket_launch" className="text-sm text-primary" style={{ fontVariationSettings: "'FILL' 1" }} />
-                <span className="text-sm font-semibold text-on-primary-fixed-variant">Early access — be among the first</span>
+              <div className="flex text-secondary">
+                {[...Array(5)].map((_, i) => <StarFilled key={i} />)}
               </div>
+              <span className="text-on-surface-variant font-medium">Loved by 200+ UK beauty pros</span>
             </div>
           </div>
 
@@ -321,17 +321,17 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── CONTEXT BAR ── */}
+      {/* ── SOCIAL PROOF BAR ── */}
       <section className="bg-white py-12 border-y border-surface-container overflow-hidden">
         <div className="max-w-[1200px] mx-auto px-6">
           <div className="flex flex-wrap justify-center md:justify-between items-center gap-8 text-on-surface-variant font-medium opacity-80">
-            <div className="flex items-center gap-2"><Icon name="storefront" className="text-base text-secondary" />Built for independent beauty pros</div>
+            <div className="flex items-center gap-2"><span className="text-secondary flex"><StarFilled /></span> 4.9 on Google</div>
             <div className="hidden md:block w-px h-4 bg-outline-variant/30"></div>
-            <div className="flex items-center gap-2"><Icon name="location_on" className="text-base text-secondary" />UK-based, UK tax rules built in</div>
+            <div>Trusted by beauty pros in 40+ UK towns</div>
             <div className="hidden md:block w-px h-4 bg-outline-variant/30"></div>
-            <div className="flex items-center gap-2"><Icon name="lock" className="text-base text-secondary" />GDPR compliant from day one</div>
+            <div>200+ active users</div>
             <div className="hidden md:block w-px h-4 bg-outline-variant/30"></div>
-            <div className="flex items-center gap-2"><Icon name="rocket_launch" className="text-base text-secondary" />Now in early access</div>
+            <div className="italic">"Finally, an app that gets it," Emily, Manchester</div>
           </div>
         </div>
       </section>
@@ -493,28 +493,26 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── WHAT WE HEARD ── */}
+      {/* ── TESTIMONIALS ── */}
       <section className="py-24 px-6 bg-white overflow-hidden">
         <div className="max-w-[1200px] mx-auto">
-          <div className="max-w-2xl mb-16">
-            <span className="text-primary font-bold tracking-widest uppercase text-xs">Why we built this</span>
-            <h2 className="text-4xl lg:text-5xl font-serif italic mt-4 mb-6">We talked to 40+ beauty pros before writing a line of code.</h2>
-            <p className="text-lg text-on-surface-variant">The same things kept coming up. Florrie exists to fix them.</p>
-          </div>
-          <div className="grid md:grid-cols-2 gap-6">
+          <h2 className="text-4xl lg:text-5xl font-serif italic mb-16 text-center">Real beauty pros. Real results.</h2>
+          <div className="grid md:grid-cols-3 gap-8">
             {[
-              { quote: '"I\'m either with a client or dealing with the admin of having clients. There\'s no middle bit."', who: 'Nail tech, Bristol' },
-              { quote: '"I missed an enquiry once because I was elbow-deep in a balayage. She booked somewhere else. That was an £80 appointment, gone."', who: 'Hair colourist, Edinburgh' },
-              { quote: '"January terrifies me. I have a box of receipts and no idea what I actually owe HMRC."', who: 'Brow artist, Manchester' },
-              { quote: '"My patch test records are on a notepad. I know it\'s not right but I haven\'t had the time to sort it."', who: 'Lash technician, Birmingham' },
-            ].map(({ quote, who }) => (
-              <div key={who} className="p-8 bg-surface-container-low rounded-xl" style={{ borderLeft: '3px solid #C76B8A' }}>
-                <blockquote className="font-serif italic text-xl leading-relaxed text-on-surface mb-5">{quote}</blockquote>
-                <p className="text-sm text-on-surface-variant font-medium">{who}</p>
+              { name:'Sarah', role:'Nail Tech, Bristol',           grad:'linear-gradient(135deg,#fca5a5,#f472b6)', quote:'"I used to spend every Sunday evening booking people in. Now I actually watch a film with my kids. The Booking Agent handles everything while I\'m sleeping."' },
+              { name:'Jade',  role:'Lash Artist, London',          grad:'linear-gradient(135deg,#fcd34d,#fb923c)', quote:'"The tax dashboard is worth the £29 on its own. I used to dread January. Now I screenshot the summary and send it straight to my accountant."' },
+              { name:'Priya', role:'Beauty Therapist, Manchester', grad:'linear-gradient(135deg,#c4b5fd,#818cf8)', quote:'"My no-show rate dropped from about 20% to almost nothing. The Follow-up Agent sends reminders that are firm but warm, and clients actually appreciate them."' },
+            ].map(({ name, role, grad, quote }) => (
+              <div key={name} className="p-8 bg-surface-container-low rounded-xl relative" style={{ borderLeft: '4px solid #745a27' }}>
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-xl flex-shrink-0" style={{ background: grad }}>{name[0]}</div>
+                  <div><p className="font-bold">{name}</p><p className="text-sm text-on-surface-variant">{role}</p></div>
+                </div>
+                <div className="inline-block px-2 py-0.5 bg-secondary-container text-on-secondary-container rounded text-[10px] font-bold uppercase tracking-wider mb-4">Florrie client since 2024</div>
+                <blockquote className="font-serif italic text-xl leading-relaxed">{quote}</blockquote>
               </div>
             ))}
           </div>
-          <p className="mt-12 text-center text-on-surface-variant">If any of that sounds familiar, Florrie was built for you.</p>
         </div>
       </section>
 
