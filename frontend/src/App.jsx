@@ -86,6 +86,8 @@ const Pricing = lazy(() => import('./pages/Pricing.jsx'));
 const Hub = lazy(() => import('./pages/Hub.jsx'));
 const ClientManagePage = lazy(() => import('./pages/ClientManagePage.jsx'));
 const LandingPage = lazy(() => import('./pages/LandingPage.jsx'));
+const TermsPage = lazy(() => import('./pages/TermsPage.jsx'));
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage.jsx'));
 const NotFound = lazy(() => import('./pages/NotFound.jsx'));
 
 function PageLoader() {
@@ -196,6 +198,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login supabase={supabase} />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Suspense>
@@ -309,6 +313,8 @@ export default function App() {
               <Onboarding onComplete={() => navigate('/')} />
             } />
             <Route path="/login" element={<Navigate to="/" replace />} />
+            <Route path="/terms" element={<TermsPage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>

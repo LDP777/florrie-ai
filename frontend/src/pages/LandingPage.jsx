@@ -257,7 +257,7 @@ export default function LandingPage() {
               While you're doing lashes, Florrie's taking bookings.
             </h1>
             <p className="text-xl text-on-surface-variant max-w-lg">
-              Five AI agents run behind the scenes — one handles WhatsApp bookings, one tracks your taxes, one keeps your records clean. They work around the clock so you don't have to.
+              Five AI agents run behind the scenes. One handles WhatsApp bookings, one tracks your taxes, one keeps your records clean. They work around the clock so you don't have to.
             </p>
             {/* Agent status bar */}
             <div className="flex flex-wrap gap-3 pt-1">
@@ -331,7 +331,7 @@ export default function LandingPage() {
             <div className="hidden md:block w-px h-4 bg-outline-variant/30"></div>
             <div>200+ active users</div>
             <div className="hidden md:block w-px h-4 bg-outline-variant/30"></div>
-            <div className="italic">"Finally, an app that gets it" — Emily, Manchester</div>
+            <div className="italic">"Finally, an app that gets it," Emily, Manchester</div>
           </div>
         </div>
       </section>
@@ -341,7 +341,7 @@ export default function LandingPage() {
         <div className="max-w-[1000px] mx-auto text-center mb-16">
           <h2 className="text-4xl lg:text-5xl font-serif italic mb-6">Running a beauty business is a full-time job. Running it solo is two.</h2>
           <p className="text-lg text-on-surface-variant max-w-2xl mx-auto">
-            You trained to do hair, nails, lashes — not to spend your evenings replying to enquiries, chasing receipts and trying to remember who needs a patch test retake. Florrie handles the admin layer so you can get back to the work you're good at.
+            You trained to do hair, nails, and lashes, not to spend your evenings replying to enquiries, chasing receipts and trying to remember who needs a patch test retake. Florrie handles the admin layer so you can get back to the work you're good at.
           </p>
         </div>
         <div className="max-w-[1200px] mx-auto grid md:grid-cols-2 gap-8">
@@ -378,12 +378,12 @@ export default function LandingPage() {
           </div>
           <div className="grid md:grid-cols-3 gap-8 lg:gap-12">
             {[
-              { icon: 'chat_bubble',    title: 'AI Receptionist',       desc: 'Reads every WhatsApp message and replies in seconds — booking appointments, answering FAQs and handling reschedules while you work.' },
-              { icon: 'calendar_month', title: 'Smart Booking',          desc: 'Clients book via your link or WhatsApp. Florrie checks availability, confirms appointments and sends reminders — no double-bookings, no gaps left open.' },
-              { icon: 'payments',       title: 'Tax Dashboard',          desc: 'Built for UK sole traders. Log income, track expenses and see your HMRC estimate in real time — no spreadsheets, no boxes of receipts.' },
+              { icon: 'chat_bubble',    title: 'AI Receptionist',       desc: 'Reads every WhatsApp message and replies in seconds, booking appointments, answering FAQs and handling reschedules while you work.' },
+              { icon: 'calendar_month', title: 'Smart Booking',          desc: 'Clients book via your link or WhatsApp. Florrie checks availability, confirms appointments and sends reminders. No double-bookings, no gaps left open.' },
+              { icon: 'payments',       title: 'Tax Dashboard',          desc: 'Built for UK sole traders. Log income, track expenses and see your HMRC estimate in real time. No spreadsheets, no boxes of receipts.' },
               { icon: 'verified_user',  title: 'Compliance Tracking',    desc: 'Patch test records, allergy histories and consultation forms in one place. Florrie flags when a patch test is due before an appointment.' },
               { icon: 'groups',         title: 'Client Profiles',        desc: 'Every client\'s booking history, notes, preferences and records in one card. Know exactly who\'s coming in before they walk through the door.' },
-              { icon: 'send',           title: 'Automated Follow-ups',   desc: 'Thank-you messages, review requests and rebooking nudges go out after every appointment — without you touching your phone.' },
+              { icon: 'send',           title: 'Automated Follow-ups',   desc: 'Thank-you messages, review requests and rebooking nudges go out after every appointment, without you touching your phone.' },
             ].map(({ icon, title, desc }) => (
               <div key={title} className="group">
                 <div className="w-14 h-14 bg-primary-fixed rounded-full flex items-center justify-center mb-6 transition-transform group-hover:scale-110">
@@ -405,7 +405,7 @@ export default function LandingPage() {
             <span className="font-bold tracking-widest uppercase text-xs" style={{ color: '#C76B8A' }}>Your AI team</span>
             <h2 className="text-4xl lg:text-5xl font-serif italic mt-4 text-white">Five AI employees.<br/>Zero extra desks.</h2>
             <p className="mt-6 max-w-2xl mx-auto text-lg" style={{ color: 'rgba(255,255,255,0.6)' }}>
-              Florrie isn't one AI. It's five specialised agents running in parallel — each handling a different part of your business, sharing context, handing off to each other when needed.
+              Florrie isn't one AI. It's five specialised agents running in parallel, each handling a different part of your business, sharing context, handing off to each other when needed.
             </p>
           </div>
 
@@ -501,7 +501,7 @@ export default function LandingPage() {
             {[
               { name:'Sarah', role:'Nail Tech, Bristol',           grad:'linear-gradient(135deg,#fca5a5,#f472b6)', quote:'"I used to spend every Sunday evening booking people in. Now I actually watch a film with my kids. The Booking Agent handles everything while I\'m sleeping."' },
               { name:'Jade',  role:'Lash Artist, London',          grad:'linear-gradient(135deg,#fcd34d,#fb923c)', quote:'"The tax dashboard is worth the £29 on its own. I used to dread January. Now I screenshot the summary and send it straight to my accountant."' },
-              { name:'Priya', role:'Beauty Therapist, Manchester', grad:'linear-gradient(135deg,#c4b5fd,#818cf8)', quote:'"My no-show rate dropped from about 20% to almost nothing. The Follow-up Agent sends reminders that are firm but warm — clients actually appreciate them."' },
+              { name:'Priya', role:'Beauty Therapist, Manchester', grad:'linear-gradient(135deg,#c4b5fd,#818cf8)', quote:'"My no-show rate dropped from about 20% to almost nothing. The Follow-up Agent sends reminders that are firm but warm, and clients actually appreciate them."' },
             ].map(({ name, role, grad, quote }) => (
               <div key={name} className="p-8 bg-surface-container-low rounded-xl relative" style={{ borderLeft: '4px solid #745a27' }}>
                 <div className="flex items-center gap-4 mb-6">
@@ -589,7 +589,7 @@ export default function LandingPage() {
           <div>
             <h4 className="font-bold mb-6 text-sm uppercase tracking-widest text-primary">Company</h4>
             <ul className="space-y-4 text-sm text-on-surface-variant">
-              {[['About','#'],['Privacy policy','#'],['Terms of service','#']].map(([l,h]) => (
+              {[['About','#'],['Privacy policy','/privacy'],['Terms of service','/terms']].map(([l,h]) => (
                 <li key={l}><a className="hover:text-primary transition-colors" href={h}>{l}</a></li>
               ))}
             </ul>
@@ -597,14 +597,14 @@ export default function LandingPage() {
           <div>
             <h4 className="font-bold mb-6 text-sm uppercase tracking-widest text-primary">Connect</h4>
             <ul className="space-y-4 text-sm text-on-surface-variant">
-              {[['Instagram','#'],['TikTok','#'],['hello@florrie.ai','mailto:hello@florrie.ai']].map(([l,h]) => (
+              {[['Instagram','https://instagram.com/getflorrie.ai'],['hello@florrie.ai','mailto:hello@florrie.ai']].map(([l,h]) => (
                 <li key={l}><a className="hover:text-primary transition-colors" href={h}>{l}</a></li>
               ))}
             </ul>
           </div>
         </div>
         <div className="max-w-[1200px] mx-auto px-10 pt-10 flex flex-col md:flex-row justify-between items-center gap-6" style={{ borderTop: '1px solid rgba(134,114,119,0.2)' }}>
-          <p className="text-sm text-on-surface-variant/70">© 2025 Florrie Ltd. All rights reserved.</p>
+          <p className="text-sm text-on-surface-variant/70">© 2026 Florrie Ltd. All rights reserved.</p>
           <div className="flex gap-6">
             <a className="text-on-surface-variant hover:text-primary transition-colors" href="#"><Icon name="public" /></a>
             <a className="text-on-surface-variant hover:text-primary transition-colors" href="mailto:hello@florrie.ai"><Icon name="mail" /></a>
