@@ -38,7 +38,7 @@ export default function Treatments() {
   const blank = {
     name: '', duration_minutes: 60, price_cents: '', deposit_cents: '', deposit_percent: '',
     category: 'brows', description: '', buffer_minutes: 0,
-    requires_consultation: false, no_show_fee: '', booking_enabled: true
+    requires_consultation: false, requires_patch_test: false, no_show_fee: '', booking_enabled: true
   };
   const [form, setForm] = useState(blank);
 
@@ -75,6 +75,7 @@ export default function Treatments() {
       description: form.description,
       buffer_minutes: parseInt(form.buffer_minutes) || 0,
       requires_consultation: form.requires_consultation || false,
+      requires_patch_test: form.requires_patch_test || false,
       booking_enabled: form.booking_enabled !== false,
     };
 
@@ -117,6 +118,7 @@ export default function Treatments() {
       description: t.description || '',
       buffer_minutes: t.buffer_minutes || 0,
       requires_consultation: t.requires_consultation || false,
+      requires_patch_test: t.requires_patch_test || false,
       no_show_fee: t.no_show_fee_cents ? (t.no_show_fee_cents / 100).toFixed(2) : '',
       booking_enabled: t.booking_enabled !== false
     });
@@ -259,6 +261,21 @@ export default function Treatments() {
               </button>
               <span style={styles.formHint}>Send questions before appointment</span>
             </div>
+            <div style={styles.formGroup}>
+              <label style={styles.formLabel}>Patch test</label>
+              <button
+                type="button"
+                onClick={() => setForm(p => ({ ...p, requires_patch_test: !p.requires_patch_test }))}
+                style={{
+                  ...styles.toggleBtn,
+                  background: form.requires_patch_test ? 'var(--accent)' : 'var(--border)',
+                  color: form.requires_patch_test ? '#fff' : '#888'
+                }}
+              >
+                {form.requires_patch_test ? 'Required' : 'Not needed'}
+              </button>
+              <span style={styles.formHint}>For dye treatments — client must patch test 48h before</span>
+            </div>
           </div>
 
           <div style={styles.formGroup}>
@@ -336,6 +353,9 @@ export default function Treatments() {
                     </span>
                     {t.requires_consultation && (
                       <span style={styles.consultBadge}>📋 Consultation required</span>
+                    )}
+                    {t.requires_patch_test && (
+                      <span style={{ ...styles.consultBadge, background: 'rgba(201,169,110,0.12)', color: 'var(--gold, #C9A96E)' }}>⚗️ Patch test required</span>
                     )}
                     {t.description && (
                       <span style={styles.treatmentDesc}>{t.description}</span>

@@ -94,6 +94,9 @@ export default function BookingPage() {
   // Payment type: 'deposit' or 'full'
   const [paymentType, setPaymentType] = useState('deposit');
 
+  // Payment method: 'card', 'cash', 'bank_transfer'
+  const [paymentMethod, setPaymentMethod] = useState('card');
+
   // Client recognition — returning client lookup
   const [recognisedClient, setRecognisedClient] = useState(null); // { name, email, phone, hasPendingPatchTest, hasPendingForm }
   const [lookingUpClient, setLookingUpClient] = useState(false);
@@ -127,8 +130,10 @@ export default function BookingPage() {
   ];
 
   const needsConsultation = selectedTreatment?.requires_consultation;
+  const needsPatchTest = selectedTreatment?.requires_patch_test;
 
   // The questions to render — dynamic form fields if available, else defaults
+  // Filter out the patch_test question for treatments that don't require it (wax, microblading, etc.)
   const consultationQuestions = consultationForm?.consultation_form_fields?.length
     ? consultationForm.consultation_form_fields.map(f => ({
         key: f.id,
@@ -137,7 +142,7 @@ export default function BookingPage() {
         options: f.options || [],
         required: f.required,
       }))
-    : DEFAULT_CONSULTATION_QUESTIONS;
+    : DEFAULT_CONSULTATION_QUESTIONS.filter(q => q.key !== 'patch_test' || needsPatchTest);
 
   // Compute deposit amount (percentage overrides flat)
   function getDepositCents(treatment) {
@@ -331,7 +336,7 @@ export default function BookingPage() {
         // Look up beautician by booking slug
         const { data: b, error: bErr } = await supabase
           .from('beauticians')
-          .select('id, first_name, business_name, booking_slug, brand_color, working_hours')
+          .select('id, first_name, business_name, booking_slug, brand_color, working_hours, payment_settings, stripe_onboarding_complete')
           .eq('booking_slug', slug)
           .maybeSingle();
 
@@ -363,17 +368,22 @@ export default function BookingPage() {
 
         setAddOns(ao || []);
 
-        // Fetch retail products for this beautician
+        // Unblock the page now — products are optional retail items, never block booking
+        setLoading(false);
+
+        // Fetch retail products in the background with a hard timeout
         try {
-          const res = await fetch(`${API_BASE}/api/products/public/${b.id}`);
+          const res = await fetch(`${API_BASE}/api/products/public/${b.id}`, {
+            signal: AbortSignal.timeout(4000),
+          });
           if (res.ok) {
             const products = await res.json();
             setRetailProducts(products);
           }
         } catch { /* products are optional — fail silently */ }
+
       } catch (err) {
         setError("Something went wrong loading this page.");
-      } finally {
         setLoading(false);
       }
     }
@@ -473,6 +483,7 @@ export default function BookingPage() {
           add_ons: selectedAddOns.map(ao => ({ id: ao.id, price_cents: ao.price_cents })),
           products: cartItems.map(item => ({ id: item.id, quantity: item.qty, price_cents: item.price_cents })),
           payment_type: paymentType,
+          payment_method: paymentMethod,
           discount_code: appliedDiscount?.code || null,
           is_member: memberInfo?.is_member || false,
           photo_consent: photoConsent,
@@ -999,7 +1010,7 @@ export default function BookingPage() {
                       Welcome back, {recognisedClient.client.name.split(' ')[0]}!
                     </span>
                     <span style={{ color: '#666' }}> We've filled in your details.</span>
-                    {recognisedClient.hasPendingPatchTest && (
+                    {recognisedClient.hasPendingPatchTest && needsPatchTest && (
                       <p style={{ margin: '6px 0 0', fontSize: 12, color: '#D4943A', fontWeight: 500 }}>
                         ⚠️ You have a patch test pending — your beautician will be in touch.
                       </p>
@@ -1265,6 +1276,51 @@ export default function BookingPage() {
                 </div>
               )}
             </div>
+
+            {/* Payment method picker — shown when multiple methods are accepted */}
+            {(() => {
+              const paySettings = beautician?.payment_settings || {};
+              const accepted = paySettings.accepted_methods || ['cash'];
+              const stripeActive = beautician?.stripe_onboarding_complete === true;
+              const available = [
+                stripeActive && accepted.includes('card_online') && { key: 'card', label: 'Card online', icon: '💳' },
+                accepted.includes('cash') && { key: 'cash', label: 'Cash on the day', icon: '💵' },
+                accepted.includes('bank_transfer') && { key: 'bank_transfer', label: 'Bank transfer', icon: '🏦' },
+              ].filter(Boolean);
+              if (available.length <= 1) return null;
+              return (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #1a0a0f)', marginBottom: 8 }}>
+                    How would you like to pay?
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {available.map(m => (
+                      <button
+                        key={m.key}
+                        onClick={() => setPaymentMethod(m.key)}
+                        style={{
+                          flex: 1, minWidth: 100, padding: '10px 12px', borderRadius: 8,
+                          fontSize: 13, fontWeight: 500, cursor: 'pointer',
+                          fontFamily: 'inherit', border: 'none',
+                          background: paymentMethod === m.key ? brand : '#F0ECE8',
+                          color: paymentMethod === m.key ? '#fff' : '#666',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        }}
+                      >
+                        <span>{m.icon}</span> {m.label}
+                      </button>
+                    ))}
+                  </div>
+                  {(paymentMethod === 'cash' || paymentMethod === 'bank_transfer') && (
+                    <p style={{ fontSize: 12, color: 'var(--text-muted, #999)', margin: '8px 0 0' }}>
+                      {paymentMethod === 'bank_transfer'
+                        ? 'Your beautician will send bank details after booking.'
+                        : 'Payment collected at your appointment.'}
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Membership badge */}
             {memberInfo && (
