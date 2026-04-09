@@ -27,7 +27,7 @@ const FEATURES = [
   { path: '/consultation-forms', name: 'Form Builder', desc: 'Build custom consultation and consent forms', icon: '📋', cat: 'Treatments' },
   { path: '/patch-tests', name: 'Patch Tests', desc: 'Allergy test tracking', icon: '🩹', cat: 'Treatments' },
   { path: '/aftercare', name: 'Aftercare', desc: 'Post-treatment messages', icon: '💆', cat: 'Treatments' },
-  { path: '/packages', name: 'Packages', desc: 'Bundle deals and courses', icon: '📦', cat: 'Treatments' },
+  { path: '/packages', name: 'Courses', desc: 'Training & masterclasses', icon: '🎓', cat: 'Treatments' },
   { path: '/addons', name: 'Add-ons', desc: 'Bolt-on extras', icon: '✨', cat: 'Treatments' },
   { path: '/price-list', name: 'Price List', desc: 'Public pricing page', icon: '💲', cat: 'Treatments' },
   { path: '/notes', name: 'Appointment Notes', desc: 'Notes per appointment', icon: '📝', cat: 'Treatments' },
