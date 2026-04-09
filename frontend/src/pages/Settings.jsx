@@ -606,10 +606,30 @@ export default function Settings({ onLogout }) {
               <span style={styles.payoutLabel}>Account</span>
               <span style={styles.payoutValue}>{beautician.stripe_onboarding_complete ? 'Connected via Stripe' : 'Not linked'}</span>
             </div>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, marginBottom: 0 }}>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, marginBottom: 8 }}>
               On a £10 deposit: ~34p to Stripe + ~15p to Florrie = you keep £9.51.
               Florrie's fee covers payment processing, booking management, and client communications.
             </p>
+            {beautician.stripe_onboarding_complete && (
+              <a
+                href="https://dashboard.stripe.com/express/login"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-block', padding: '8px 16px', borderRadius: 8,
+                  background: 'var(--bg-secondary, #f5f2ef)', border: '1px solid var(--border)',
+                  fontSize: 13, fontWeight: 500, color: 'var(--text-primary)',
+                  textDecoration: 'none',
+                }}
+              >
+                View Stripe dashboard →
+              </a>
+            )}
+            {!beautician.stripe_onboarding_complete && (
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
+                Connect Stripe above to start receiving card payments and deposits.
+              </p>
+            )}
           </div>
         </div>
       )}
