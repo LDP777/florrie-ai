@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useBeautician, supabase, isDevMode, updateRow, insertRow } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
@@ -27,9 +28,15 @@ const COLORS = {
 };
 
 export default function CalendarView() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { beautician, loading: bLoading } = useBeautician();
   const [view, setView] = useState('day');
-  const [currentDate, setCurrentDate] = useState(new Date());
+  // Accept a date from location.state so other pages can deep-link to a specific day
+  const [currentDate, setCurrentDate] = useState(() => {
+    const d = location.state?.date;
+    return d ? new Date(d) : new Date();
+  });
   const [appointments, setAppointments] = useState([]);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -480,6 +487,7 @@ export default function CalendarView() {
             onClose={() => setSelectedAppointment(null)}
             onUpdate={() => { loadAppointments(); setSelectedAppointment(null); }}
             getStatusColor={getStatusColor}
+            onViewClient={(clientId) => navigate('/clients', { state: { clientId } })}
           />
         </div>
       )}
@@ -510,7 +518,7 @@ export default function CalendarView() {
  * AppointmentDetail — detail panel with completion flow.
  * Mark done → log payment → add notes → rebook prompt → before/after photo.
  */
-function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStatusColor }) {
+function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStatusColor, onViewClient }) {
   const [mode, setMode] = useState('detail'); // detail | completing | done
   const [notes, setNotes] = useState(appointment.beautician_notes || '');
   const [paymentMethod, setPaymentMethod] = useState('card');
@@ -671,7 +679,17 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
   return (
     <div style={styles.detailPanel}>
       <div style={styles.detailHeader}>
-        <h3 style={styles.detailTitle}>{appointment.clients?.first_name} {appointment.clients?.last_name || ''}</h3>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h3 style={styles.detailTitle}>{appointment.clients?.first_name} {appointment.clients?.last_name || ''}</h3>
+          {appointment.client_id && onViewClient && (
+            <button
+              onClick={() => { onClose(); onViewClient(appointment.client_id); }}
+              style={{ fontSize: 11, color: 'var(--accent, #92405e)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, opacity: 0.8 }}
+            >
+              View profile →
+            </button>
+          )}
+        </div>
         <button onClick={onClose} style={styles.detailClose}>×</button>
       </div>
 

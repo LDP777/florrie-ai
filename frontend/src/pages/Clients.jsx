@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useBeautician, insertRow, supabase, isDevMode, DEV_CLIENTS } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
@@ -12,6 +13,8 @@ import ErrorCard from '../components/ErrorCard.jsx';
  */
 
 export default function Clients() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { beautician, loading: bLoading } = useBeautician();
   const [clients, setClients] = useState([]);
   const [search, setSearch] = useState('');
@@ -28,6 +31,13 @@ export default function Clients() {
   useEffect(() => {
     if (beautician) loadClients();
   }, [beautician]);
+
+  // Auto-open client panel when navigated here with { state: { clientId } }
+  useEffect(() => {
+    if (location.state?.clientId) {
+      loadClientDetail(location.state.clientId);
+    }
+  }, [location.state?.clientId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounced search
   useEffect(() => {
@@ -267,6 +277,7 @@ export default function Clients() {
         <ClientDetailPanel
           detail={clientDetail}
           onClose={() => { setSelected(null); setClientDetail(null); }}
+          onNavigate={navigate}
         />
       )}
     </div>
@@ -279,7 +290,7 @@ export default function Clients() {
  * History  — appointment timeline
  * Notes    — client notes + preferences
  */
-function ClientDetailPanel({ detail, onClose }) {
+function ClientDetailPanel({ detail, onClose, onNavigate }) {
   const [detailTab, setDetailTab] = useState('overview');
   const client = detail.client;
   const appointments = detail.appointments || [];
@@ -346,7 +357,7 @@ function ClientDetailPanel({ detail, onClose }) {
             <span style={{ fontSize: 16 }}>💬</span>
             <span>Message</span>
           </button>
-          <button style={styles.quickActionBtn}>
+          <button style={styles.quickActionBtn} onClick={() => { onClose(); onNavigate && onNavigate('/calendar'); }}>
             <span style={{ fontSize: 16 }}>📅</span>
             <span>Rebook</span>
           </button>

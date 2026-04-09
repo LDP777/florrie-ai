@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useBeautician, supabase, isDevMode, insertRow } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
@@ -80,6 +81,7 @@ function MIcon({ name, fill, size, style }) {
 }
 
 export default function MoneyTracker() {
+  const navigate = useNavigate();
   const { beautician, loading: bLoading } = useBeautician();
   const [expenses, setExpenses] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -126,7 +128,7 @@ export default function MoneyTracker() {
           .order('date', { ascending: false })
           .limit(200),
         supabase.from('transactions')
-          .select('*, appointments(starts_at, clients(first_name, last_name), treatments(name))')
+          .select('*, appointments(id, starts_at, client_id, clients(first_name, last_name), treatments(name))')
           .eq('beautician_id', beautician.id)
           .order('created_at', { ascending: false })
           .limit(200),
@@ -782,6 +784,8 @@ export default function MoneyTracker() {
                       const initial = isTipOrSale ? (tx.type === 'tip' ? '♥' : '🛍') : name.charAt(0).toUpperCase();
                       const time = new Date(tx.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
                       const isIncome = tx.amount_cents >= 0;
+                      const clientId = tx.appointments?.client_id;
+                      const apptDate = tx.appointments?.starts_at?.slice(0, 10);
                       return (
                         <div key={tx.id} style={S.txRow}>
                           <div style={{
@@ -790,9 +794,26 @@ export default function MoneyTracker() {
                                 tx.type === 'product_sale' ? { background: 'linear-gradient(135deg, #fedb9b 0%, #f5c563 100%)' } : {}),
                           }}>{initial}</div>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontSize: 14, fontWeight: 600, color: '#1d1b19', margin: 0 }}>{name}</p>
+                            <p style={{ fontSize: 14, fontWeight: 600, color: '#1d1b19', margin: 0 }}>
+                              {clientId ? (
+                                <button
+                                  onClick={() => navigate('/clients', { state: { clientId } })}
+                                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit', fontWeight: 'inherit', color: 'inherit', textDecoration: 'underline', textDecorationColor: 'rgba(146,64,94,0.25)', textUnderlineOffset: 2 }}
+                                >
+                                  {name}
+                                </button>
+                              ) : name}
+                            </p>
                             <p style={{ fontSize: 11, color: '#867277', margin: 0 }}>
-                              {treatment}{treatment ? ' · ' : ''}{time}
+                              {treatment}{treatment ? ' · ' : ''}
+                              {apptDate ? (
+                                <button
+                                  onClick={() => navigate('/calendar', { state: { date: apptDate } })}
+                                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 'inherit', color: 'var(--accent, #92405e)', fontWeight: 600 }}
+                                >
+                                  {time}
+                                </button>
+                              ) : time}
                             </p>
                           </div>
                           <span style={{

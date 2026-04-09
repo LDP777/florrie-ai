@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -54,6 +55,7 @@ function MIcon({ name, fill, size, style }) {
 }
 
 export default function AIInsights() {
+  const navigate = useNavigate();
   const { beautician, loading: bLoading } = useBeautician();
   const [appointments, setAppointments] = useState([]);
   const [activity, setActivity] = useState([]);
@@ -204,7 +206,7 @@ export default function AIInsights() {
       <section style={{ marginBottom: 32 }}>
         <div style={S.sectionHeader}>
           <h3 style={S.sectionHeading}>Next Appointments</h3>
-          <span style={S.seeAll}>See All</span>
+          <button onClick={() => navigate('/calendar')} style={{ ...S.seeAll, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>See All</button>
         </div>
         {upcoming.length === 0 ? (
           <EmptyState message="No upcoming appointments" icon="📅" />
@@ -213,8 +215,13 @@ export default function AIInsights() {
             {upcoming.map((apt, i) => {
               const time = new Date(apt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
               const isFirst = i === 0;
+              const apptDate = apt.starts_at?.slice(0, 10);
               return (
-                <div key={apt.id} style={S.apptRow}>
+                <button
+                  key={apt.id}
+                  onClick={() => navigate('/calendar', { state: { date: apptDate } })}
+                  style={{ ...S.apptRow, cursor: 'pointer', background: 'none', border: 'none', fontFamily: 'inherit', textAlign: 'left', padding: 0, width: '100%' }}
+                >
                   <div style={{ textAlign: 'center', flexShrink: 0 }}>
                     <p style={{ fontSize: 10, fontWeight: 700, color: '#867277', margin: 0 }}>{time}</p>
                     <p style={{ fontSize: 10, fontWeight: 700, color: '#867277', margin: 0 }}>
@@ -231,7 +238,7 @@ export default function AIInsights() {
                   ) : (
                     <MIcon name="chevron_right" size={18} style={{ color: '#d8c1c6' }} />
                   )}
-                </div>
+                </button>
               );
             })}
           </div>
