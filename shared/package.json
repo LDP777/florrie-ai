@@ -1,9 +1,0 @@
-{
-  "name": "@florrie/shared",
-  "version": "0.1.0",
-  "private": true,
-  "main": "index.js",
-  "scripts": {
-    "build": "echo 'shared build'"
-  }
-}
