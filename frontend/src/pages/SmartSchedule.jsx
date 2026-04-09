@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, isDevMode, supabase, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
+import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -100,7 +101,7 @@ function computeSuggestions(clients, treatments) {
 
     const lastTreatment = appts[0]?.treatment || 'Treatment';
     const matchingTreatment = (treatments || []).find(t => t.name === lastTreatment) || { name: lastTreatment, duration_minutes: 45, price_cents: appts[0]?.price || 3000 };
-    const clientObj = { first_name: c.first_name || '', last_name: c.last_name || '' };
+    const clientObj = { id: c.id, first_name: c.first_name || '', last_name: c.last_name || '' };
 
     if (daysSince >= 60) {
       dormant_rescue.push({
@@ -252,8 +253,51 @@ export default function SmartSchedule() {
     return gaps;
   }
 
-  function handleSendOffer(clientName, gapId) {
-    setMessageSent(prev => ({ ...prev, [`${clientName}-${gapId}`]: true }));
+  async function handleSendOffer(suggestion, context) {
+    // context is either a gap object (has .start, .end, .date, .id) or a string ('sugg' | 'dormant')
+    const isGapContext = context && typeof context === 'object';
+    const key = `${suggestion.client.first_name}-${isGapContext ? context.id : context}`;
+
+    // Optimistically mark sent so button doesn't double-fire
+    setMessageSent(prev => ({ ...prev, [key]: true }));
+
+    if (!suggestion.client.id) {
+      // Dev mode or waitlist entry with no real ID — nothing to send
+      return;
+    }
+
+    try {
+      let message;
+      if (isGapContext) {
+        // Slot offer — "I have a slot free on X at Y, want it?"
+        const day = context.dayLabel || context.date;
+        message = `Hi ${suggestion.client.first_name}! I have a ${context.duration_minutes}-min slot free on ${day} at ${context.start}${suggestion.treatment?.name ? ` — perfect for your ${suggestion.treatment.name}` : ''}. Want to grab it? Just reply YES and I'll book you in 💕`;
+      } else if (context === 'dormant') {
+        message = `Hi ${suggestion.client.first_name}! It's been a while and we miss you 💕 We have some slots coming up — want to come back in for your ${suggestion.treatment?.name || 'treatment'}?`;
+      } else {
+        // 'sugg' — rebook nudge
+        message = `Hi ${suggestion.client.first_name}! Just a little nudge — your ${suggestion.treatment?.name || 'appointment'} is due! Would you like to book in? Just reply and I'll sort a time for you 🌸`;
+      }
+
+      const token = (await supabase?.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/notifications/send-sms`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ client_id: suggestion.client.id, message }),
+      });
+
+      if (!res.ok) {
+        logger.error('send-sms failed', await res.text());
+        // Revert optimistic update on failure
+        setMessageSent(prev => ({ ...prev, [key]: false }));
+      }
+    } catch (err) {
+      logger.error('handleSendOffer error:', err);
+      setMessageSent(prev => ({ ...prev, [key]: false }));
+    }
   }
 
   // Utilisation stats
@@ -358,7 +402,7 @@ export default function SmartSchedule() {
                               <span style={styles.sentBadge}>Sent ✓</span>
                             ) : (
                               <button
-                                onClick={e => { e.stopPropagation(); handleSendOffer(s.client.first_name, gap.id); }}
+                                onClick={e => { e.stopPropagation(); handleSendOffer(s, gap); }}
                                 style={styles.offerBtn}
                               >
                                 Offer this slot
@@ -379,11 +423,11 @@ export default function SmartSchedule() {
                                 <span style={styles.suggReason}>On waitlist — wants {suggestions.waitlist_match[0].preferred_day} {suggestions.waitlist_match[0].preferred_time}</span>
                               </div>
                             </div>
-                            {messageSent[`waitlist-${gap.id}`] ? (
+                            {messageSent[`${suggestions.waitlist_match[0].client.first_name}-${gap.id}`] ? (
                               <span style={styles.sentBadge}>Sent ✓</span>
                             ) : (
                               <button
-                                onClick={e => { e.stopPropagation(); handleSendOffer('waitlist', gap.id); }}
+                                onClick={e => { e.stopPropagation(); handleSendOffer(suggestions.waitlist_match[0], gap); }}
                                 style={styles.offerBtn}
                               >
                                 Offer this slot
@@ -419,7 +463,7 @@ export default function SmartSchedule() {
                 </div>
                 <p style={styles.suggReasonText}>{s.reason}</p>
                 <button
-                  onClick={() => handleSendOffer(s.client.first_name, 'sugg')}
+                  onClick={() => handleSendOffer(s, 'sugg')}
                   style={styles.offerBtn}
                 >
                   {messageSent[`${s.client.first_name}-sugg`] ? 'Sent ✓' : 'Send rebook nudge'}
@@ -445,7 +489,7 @@ export default function SmartSchedule() {
                 </div>
                 <p style={styles.suggReasonText}>{s.reason}</p>
                 <button
-                  onClick={() => handleSendOffer(s.client.first_name, 'dormant')}
+                  onClick={() => handleSendOffer(s, 'dormant')}
                   style={styles.offerBtn}
                 >
                   {messageSent[`${s.client.first_name}-dormant`] ? 'Sent ✓' : 'Send rescue offer'}
