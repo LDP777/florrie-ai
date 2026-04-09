@@ -359,12 +359,19 @@ function AgentTeamSection({ beautician, onNav }) {
         })}
       </div>
 
-      {/* Ticker */}
-      {tickerAgent && (
+      {/* Ticker — or day-1 empty state */}
+      {tickerAgent ? (
         <div style={AT.ticker}>
           <span className="material-symbols-outlined" style={{ fontSize: 12, color: '#92405e', flexShrink: 0 }}>auto_awesome</span>
           <span style={{ ...AT.tickerText, opacity: tickerVisible ? 1 : 0, transition: 'opacity 0.3s ease' }}>
             {AGENT_MAP.find(a => a.id === tickerAgent.id)?.name} → {agentData[tickerAgent.id]?.latest || 'Working…'}
+          </span>
+        </div>
+      ) : (
+        <div style={AT.emptyState}>
+          <span className="material-symbols-outlined" style={{ fontSize: 14, color: '#C76B8A', flexShrink: 0 }}>schedule</span>
+          <span style={AT.emptyText}>
+            Your team is watching — first actions fire after your next appointment
           </span>
         </div>
       )}
@@ -441,6 +448,15 @@ const AT = {
   tickerText: {
     fontSize: 11, color: '#534247', flex: 1,
     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+  },
+  emptyState: {
+    display: 'flex', alignItems: 'center', gap: 7,
+    background: 'rgba(199,107,138,0.04)', borderRadius: 10,
+    padding: '7px 10px', marginBottom: 9,
+    border: '1px dashed rgba(199,107,138,0.2)',
+  },
+  emptyText: {
+    fontSize: 11, color: '#9B8A8E', flex: 1, lineHeight: 1.4,
   },
   askPill: {
     width: '100%', display: 'flex', alignItems: 'center', gap: 10,

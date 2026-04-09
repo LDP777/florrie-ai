@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useBeautician, updateRow, insertRow, isDevMode } from '../lib/supabase.js';
 import { PLAN } from '../lib/subscription.js';
+import { registerPush, getPushStatus } from '../lib/push.js';
 import logger from '../lib/logger.js';
 
 /**
@@ -54,6 +55,10 @@ export default function Onboarding({ onComplete }) {
   // Step 5: Client import
   const [importFile, setImportFile] = useState(null);
   const [importStatus, setImportStatus] = useState(null);
+
+  // Step 6: Push notifications
+  const [pushGranted, setPushGranted] = useState(false);
+  const [pushLoading, setPushLoading] = useState(false);
 
   const totalSteps = 6;
   const progress = (step / totalSteps) * 100;
@@ -220,6 +225,18 @@ export default function Onboarding({ onComplete }) {
 
   function finishOnboarding() {
     if (onComplete) onComplete();
+  }
+
+  async function enableNotifications() {
+    setPushLoading(true);
+    try {
+      const granted = await registerPush();
+      setPushGranted(!!granted);
+    } catch (err) {
+      logger.warn('Push enable failed:', err);
+    } finally {
+      setPushLoading(false);
+    }
   }
 
   function skipStep() {
@@ -629,12 +646,49 @@ export default function Onboarding({ onComplete }) {
             After your trial, it's {PLAN.monthlyLabel} — or save with annual billing at {PLAN.annualLabel}.
           </p>
 
+          {/* Push notification opt-in */}
+          <div style={styles.pushCard}>
+            <div style={styles.pushCardTop}>
+              <span style={styles.pushIcon}>🔔</span>
+              <div>
+                <div style={styles.pushTitle}>
+                  {pushGranted ? 'Notifications active' : 'Get notified when your AI acts'}
+                </div>
+                <div style={styles.pushDesc}>
+                  {pushGranted
+                    ? 'You\'ll hear from Florrie when something happens — review requests sent, nudges fired, messages handled.'
+                    : 'Know the moment Florrie sends a review request, spots a lapsed client, or handles a message — without opening the app.'}
+                </div>
+              </div>
+            </div>
+            {pushGranted ? (
+              <div style={styles.pushGrantedRow}>
+                <span style={{ color: 'var(--success, #5BA97B)', fontSize: 16 }}>✓</span>
+                <span style={{ fontSize: 13, color: 'var(--success, #5BA97B)', fontWeight: 600 }}>Notifications on</span>
+              </div>
+            ) : (
+              <button
+                onClick={enableNotifications}
+                disabled={pushLoading}
+                style={styles.pushBtn}
+              >
+                {pushLoading ? 'Enabling…' : 'Turn on notifications'}
+              </button>
+            )}
+          </div>
+
           <button
             onClick={finishOnboarding}
             style={styles.primaryBtn}
           >
             Go to Dashboard
           </button>
+
+          {!pushGranted && (
+            <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
+              You can enable this later in Settings
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -925,5 +979,56 @@ const styles = {
     textAlign: 'center',
     margin: '0 0 16px',
     fontWeight: 500,
+  },
+
+  // Push notification card (step 6)
+  pushCard: {
+    background: 'var(--bg-card, #fff)',
+    border: '1.5px solid var(--border)',
+    borderRadius: 14,
+    padding: '16px 18px',
+    marginBottom: 16,
+    marginTop: 4,
+  },
+  pushCardTop: {
+    display: 'flex',
+    gap: 12,
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  pushIcon: {
+    fontSize: 22,
+    lineHeight: 1,
+    flexShrink: 0,
+    marginTop: 2,
+  },
+  pushTitle: {
+    fontSize: 14,
+    fontWeight: 700,
+    color: 'var(--text-primary)',
+    marginBottom: 3,
+  },
+  pushDesc: {
+    fontSize: 12,
+    color: 'var(--text-secondary)',
+    lineHeight: 1.5,
+  },
+  pushBtn: {
+    width: '100%',
+    padding: '11px 0',
+    borderRadius: 10,
+    border: '1.5px solid var(--accent, #C76B8A)',
+    background: 'transparent',
+    color: 'var(--accent, #C76B8A)',
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  },
+  pushGrantedRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    justifyContent: 'center',
   },
 };
