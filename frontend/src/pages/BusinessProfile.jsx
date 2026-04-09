@@ -9,8 +9,8 @@
  *
  * Dev-mode mock data from DEV_BEAUTICIAN.
  */
-import { useState, useEffect } from 'react';
-import { useBeautician, updateRow, isDevMode } from '../lib/supabase.js';
+import { useState, useEffect, useRef } from 'react';
+import { useBeautician, updateRow, isDevMode, supabase } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -45,6 +45,9 @@ export default function BusinessProfile() {
   // Branding
   const [brandColor, setBrandColor] = useState('#C4A882');
   const [logoPreview, setLogoPreview] = useState(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoError, setLogoError] = useState(null);
+  const logoInputRef = useRef(null);
 
   // Socials
   const [socials, setSocials] = useState({ instagram: '', tiktok: '', facebook: '', website: '' });
@@ -74,6 +77,31 @@ export default function BusinessProfile() {
     navigator.clipboard?.writeText(`https://${bookingUrl}`);
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);
+  }
+
+  async function handleLogoUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { setLogoError('Image must be under 2MB'); return; }
+    setLogoUploading(true);
+    setLogoError(null);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `${beautician.id}/logo.${ext}`;
+      const { error: upErr } = await supabase.storage.from('logos').upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) throw upErr;
+      const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(path);
+      // Bust cache by appending timestamp
+      const url = `${publicUrl}?t=${Date.now()}`;
+      setLogoPreview(url);
+      await updateRow('beauticians', beautician.id, { logo_url: url });
+      await refresh();
+    } catch (err) {
+      logger.error('Logo upload error:', err);
+      setLogoError('Upload failed — please try again');
+    } finally {
+      setLogoUploading(false);
+    }
   }
 
   async function handleSave() {
@@ -201,7 +229,21 @@ export default function BusinessProfile() {
                   <span style={s.logoIcon}>📷</span>
                 )}
               </div>
-              <button style={s.uploadBtn}>Upload logo</button>
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                style={{ display: 'none' }}
+                onChange={handleLogoUpload}
+              />
+              <button
+                style={{ ...s.uploadBtn, opacity: logoUploading ? 0.6 : 1, cursor: logoUploading ? 'not-allowed' : 'pointer' }}
+                onClick={() => logoInputRef.current?.click()}
+                disabled={logoUploading}
+              >
+                {logoUploading ? 'Uploading…' : 'Upload logo'}
+              </button>
+              {logoError && <span style={{ fontSize: 11, color: '#E57373' }}>{logoError}</span>}
               <span style={s.uploadHint}>PNG or JPG, 512×512 recommended</span>
             </div>
           </div>
