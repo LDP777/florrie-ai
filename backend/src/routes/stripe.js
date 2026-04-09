@@ -41,39 +41,17 @@ router.post('/connect/onboard', requireAuth, requireStripe, async (req, res) => 
 
     // Create account if not exists
     if (!accountId) {
-      const account = await stripe.v2.core.accounts.create({
-        // Recipient config: allows Florrie to push funds to this account via transfers
-        configuration: {
-          recipient: {
-            capabilities: {
-              stripe_balance: {
-                stripe_transfers: { requested: true },
-              },
-            },
-          },
-          // Merchant config: allows the account to accept card payments
-          merchant: {
-            capabilities: {
-              card_payments: { requested: true },
-            },
-          },
+      const account = await stripe.accounts.create({
+        type: 'express',
+        country: 'GB',
+        email: req.beautician.email,
+        capabilities: {
+          card_payments: { requested: true },
+          transfers: { requested: true },
         },
-        // Express dashboard — Stripe hosts KYC, Florrie stays PCI-safe
-        dashboard: 'express',
-        defaults: {
-          responsibilities: {
-            // Florrie (application) takes on loss/fee responsibility, not the beautician
-            losses_collector: 'application',
-            fees_collector: 'application',
-          },
-        },
-        identity: {
-          country: 'GB',
-          email: req.beautician.email,
-          business_details: {
-            name: req.beautician.business_name || `${req.beautician.first_name}'s Beauty`,
-            mcc: '7230', // Barber and beauty shops
-          },
+        business_profile: {
+          name: req.beautician.business_name || `${req.beautician.first_name}'s Beauty`,
+          mcc: '7230', // Barber and beauty shops
         },
         metadata: {
           beautician_id: req.beautician.id,
@@ -88,18 +66,12 @@ router.post('/connect/onboard', requireAuth, requireStripe, async (req, res) => 
         .eq('id', req.beautician.id);
     }
 
-    // Generate onboarding link via v2 account links endpoint
-    const accountLink = await stripe.v2.core.accountLinks.create({
+    // Generate onboarding link
+    const accountLink = await stripe.accountLinks.create({
       account: accountId,
-      use_case: {
-        type: 'account_onboarding',
-        account_onboarding: {
-          // Onboard both recipient (payouts) and merchant (card acceptance) in one flow
-          configurations: ['recipient', 'merchant'],
-          refresh_url: `${FRONTEND_URL}/settings?stripe=refresh`,
-          return_url: `${FRONTEND_URL}/settings?stripe=success`,
-        },
-      },
+      refresh_url: `${FRONTEND_URL}/settings?stripe=refresh`,
+      return_url: `${FRONTEND_URL}/settings?stripe=success`,
+      type: 'account_onboarding',
     });
 
     res.json({ url: accountLink.url });
@@ -112,12 +84,7 @@ router.post('/connect/onboard', requireAuth, requireStripe, async (req, res) => 
 /**
  * GET /api/stripe/connect/status
  * Check if the beautician's Stripe account is fully onboarded.
- *
- * Tries the Accounts v2 API first (new accounts created via /connect/onboard).
- * Falls back to v1 retrieve for legacy Express accounts that predate the v2 migration.
- * An account is considered complete when:
- *   v2 — stripe_balance.stripe_transfers capability status === 'active'
- *   v1 — charges_enabled && payouts_enabled (legacy Express model)
+ * Account is complete when charges_enabled && payouts_enabled.
  */
 router.get('/connect/status', requireAuth, requireStripe, async (req, res) => {
   const accountId = req.beautician.stripe_account_id;
@@ -132,25 +99,11 @@ router.get('/connect/status', requireAuth, requireStripe, async (req, res) => {
     let payoutsEnabled = false;
     let currency = 'gbp';
 
-    try {
-      // v2 path — Accounts v2 recipient capability
-      const account = await stripe.v2.core.accounts.retrieve(accountId);
-      const transfersCap = account.configuration?.recipient?.capabilities?.stripe_balance?.stripe_transfers;
-      const cardCap = account.configuration?.merchant?.capabilities?.card_payments;
-
-      payoutsEnabled = transfersCap?.status === 'active';
-      chargesEnabled = cardCap?.status === 'active';
-      complete = payoutsEnabled; // transfers capability is the gate for receiving payouts
-      currency = account.defaults?.currency || 'gbp';
-    } catch (v2err) {
-      // v1 fallback — legacy Express account created before v2 migration
-      logger.info({ accountId }, 'v2 account retrieve failed, falling back to v1');
-      const account = await stripe.accounts.retrieve(accountId);
+    const account = await stripe.accounts.retrieve(accountId);
       complete = account.charges_enabled && account.payouts_enabled;
       chargesEnabled = account.charges_enabled;
       payoutsEnabled = account.payouts_enabled;
       currency = account.default_currency || 'gbp';
-    }
 
     // Sync our DB if the status has changed
     if (complete !== req.beautician.stripe_onboarding_complete) {
