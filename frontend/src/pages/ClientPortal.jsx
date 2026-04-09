@@ -1,165 +1,183 @@
-import { useState, useEffect } from 'react';
-import { useBeautician, supabase, fetchRows, updateRow, isDevMode } from '../lib/supabase.js';
+import { useState, useEffect, useRef } from 'react';
+import { useBeautician, supabase, fetchRows, updateRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
-import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
-const mockPortalConfig = {
+/**
+ * ClientPortal — Booking page settings + share tools.
+ *
+ * Tabs: Overview (real stats), Branding (saves to booking_policy.portal), Features (saves too)
+ * URL is florrie.ai/book/{slug} — the actual public booking page.
+ * Config is persisted in beautician.booking_policy.portal JSONB key.
+ */
+
+const FEATURE_LIST = [
+  { key: 'bookOnline', label: 'Online booking', icon: '🗓️', desc: 'Clients can book appointments from your page' },
+  { key: 'cancelReschedule', label: 'Cancel / reschedule', icon: '🔄', desc: 'Clients can manage bookings via their confirmation link' },
+  { key: 'viewLoyalty', label: 'Loyalty & rewards', icon: '🏆', desc: 'Loyalty points and tier shown on booking confirmation' },
+  { key: 'referFriend', label: 'Refer a friend', icon: '🤝', desc: 'Clients can share your referral link to earn rewards' },
+  { key: 'leaveReview', label: 'Leave a review', icon: '⭐', desc: 'Post-appointment review request sent automatically' },
+  { key: 'viewAftercare', label: 'Aftercare instructions', icon: '💆', desc: 'Aftercare docs sent after treatment' },
+];
+
+const ACCENT_COLOURS = [
+  '#C76B8A', '#6B8AC7', '#8AC76B', '#C7A86B', '#8B6BC7', '#2D2A26',
+];
+
+const DEFAULT_PORTAL = {
   enabled: true,
-  url: 'https://app.florrie.ai/portal/ellies-brows',
+  welcomeMessage: 'Book your next appointment',
+  accentColour: '#C76B8A',
+  showLogo: true,
   features: {
-    viewBookings: true,
     bookOnline: true,
     cancelReschedule: true,
-    viewHistory: true,
     viewLoyalty: true,
-    downloadReceipts: true,
-    updateProfile: true,
     referFriend: true,
     leaveReview: true,
     viewAftercare: true,
-    messageTherapist: false,
-    viewPhotos: false,
   },
-  branding: {
-    welcomeMessage: "Welcome back, gorgeous! 💕",
-    accentColour: 'var(--accent, #C76B8A)',
-    showLogo: true,
-    showTestimonials: true,
-  },
-  clientStats: {
-    totalRegistered: 142,
-    activeThisMonth: 67,
-    usedBooking: 89,
-    usedLoyalty: 34,
-    usedReferral: 12,
-  }
 };
-
-const mockRecentActivity = [
-  { client: 'Sarah M.', action: 'Booked online', detail: 'Brow Lamination — Fri 28 Mar, 10:00', time: '2 hours ago' },
-  { client: 'Katie L.', action: 'Checked loyalty', detail: 'Viewed points balance (Silver tier)', time: '4 hours ago' },
-  { client: 'Jess P.', action: 'Downloaded receipt', detail: 'Invoice #FL-0456 — £28.00', time: '5 hours ago' },
-  { client: 'Lauren T.', action: 'Updated profile', detail: 'Changed phone number', time: 'Yesterday' },
-  { client: 'Amy R.', action: 'Left review', detail: '⭐⭐⭐⭐⭐ "Absolutely love my brows!"', time: 'Yesterday' },
-  { client: 'Megan K.', action: 'Referred friend', detail: 'Shared referral link via WhatsApp', time: '2 days ago' },
-  { client: 'Rachel S.', action: 'Cancelled appointment', detail: 'Lash Lift — Mon 24 Mar (within policy)', time: '3 days ago' },
-];
 
 export default function ClientPortal() {
   const [activeTab, setActiveTab] = useState('overview');
-  const [config, setConfig] = useState(mockPortalConfig);
   const { beautician, loading: bLoading, refresh } = useBeautician();
-  const [activity, setActivity] = useState(mockRecentActivity);
+
+  const [portal, setPortal] = useState(DEFAULT_PORTAL);
+  const [clientCount, setClientCount] = useState(null);
+  const [apptCount, setApptCount] = useState(null);
+  const [recentAppts, setRecentAppts] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (bLoading || !beautician) return;
-    loadPortalData();
-  }, [beautician, bLoading]);
+    // Hydrate portal config from booking_policy.portal
+    const saved = beautician.booking_policy?.portal;
+    if (saved) setPortal(p => ({ ...DEFAULT_PORTAL, ...saved, features: { ...DEFAULT_PORTAL.features, ...saved.features } }));
+    loadStats();
+  }, [beautician, bLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function loadPortalData() {
+  async function loadStats() {
     setLoading(true);
     try {
-      if (isDevMode) {
-        setConfig(mockPortalConfig);
-        setActivity(mockRecentActivity);
-      } else {
-        if (beautician.portal_config) {
-          setConfig(prev => ({ ...prev, ...beautician.portal_config }));
-        }
-        if (beautician.booking_slug) {
-          setConfig(prev => ({ ...prev, url: `https://app.florrie.ai/portal/${beautician.booking_slug}` }));
-        }
-        const rows = await fetchRows('portal_activity', beautician.id, { order: 'created_at', ascending: false, limit: 10 });
-        if (rows.length) setActivity(rows);
-      }
+      const { data: clients } = await supabase
+        .from('clients')
+        .select('id', { count: 'exact', head: true })
+        .eq('beautician_id', beautician.id);
+      setClientCount(clients ?? 0);
+
+      const { data: appts, count } = await supabase
+        .from('appointments')
+        .select('id, starts_at, status, treatments(name), clients(first_name, last_name)', { count: 'exact' })
+        .eq('beautician_id', beautician.id)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      setApptCount(count ?? 0);
+      setRecentAppts(appts || []);
     } catch (err) {
-      logger.error('Load portal data error:', err);
+      logger.error('Portal stats error:', err);
     } finally {
       setLoading(false);
     }
   }
 
+  async function savePortal(updates) {
+    if (!beautician) return;
+    const next = { ...portal, ...updates };
+    setPortal(next);
+    setSaving(true);
+    try {
+      await updateRow('beauticians', beautician.id, {
+        booking_policy: { ...(beautician.booking_policy || {}), portal: next },
+      });
+      await refresh();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      logger.error('Save portal error:', err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function toggleFeature(key) {
+    savePortal({ features: { ...portal.features, [key]: !portal.features[key] } });
+  }
+
+  const bookingUrl = `https://florrie.ai/book/${beautician?.booking_slug || ''}`;
+
+  function handleCopy() {
+    navigator.clipboard?.writeText(bookingUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function handleWhatsApp() {
+    const msg = encodeURIComponent(`Book your next appointment with me here: ${bookingUrl}`);
+    window.open(`https://wa.me/?text=${msg}`, '_blank');
+  }
+
+  function handleEmail() {
+    const subject = encodeURIComponent('Book an appointment');
+    const body = encodeURIComponent(`Hi,\n\nYou can book your next appointment here:\n${bookingUrl}\n\nLooking forward to seeing you!`);
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  }
+
+  function handleQR() {
+    window.open(`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(bookingUrl)}&size=300x300`, '_blank');
+  }
+
   if (bLoading || loading) return <PageLoader />;
-
-  const c = config;
-  const features = c.features;
-
-  const toggleFeature = (key) => {
-    setConfig({
-      ...c,
-      features: { ...features, [key]: !features[key] }
-    });
-  };
-
-  const featureList = [
-    { key: 'viewBookings', label: 'View upcoming bookings', icon: '📅', desc: 'Clients see their confirmed appointments' },
-    { key: 'bookOnline', label: 'Book online', icon: '🗓️', desc: 'Self-service booking through your portal' },
-    { key: 'cancelReschedule', label: 'Cancel / reschedule', icon: '🔄', desc: 'Clients can change bookings within your policy' },
-    { key: 'viewHistory', label: 'Appointment history', icon: '📋', desc: 'See past visits, treatments, and notes' },
-    { key: 'viewLoyalty', label: 'Loyalty & rewards', icon: '🏆', desc: 'Check points balance, tier, and rewards' },
-    { key: 'downloadReceipts', label: 'Download receipts', icon: '🧾', desc: 'Access and download payment receipts' },
-    { key: 'updateProfile', label: 'Update profile', icon: '👤', desc: 'Edit contact details and preferences' },
-    { key: 'referFriend', label: 'Refer a friend', icon: '🤝', desc: 'Share referral link to earn rewards' },
-    { key: 'leaveReview', label: 'Leave review', icon: '⭐', desc: 'Submit feedback after appointments' },
-    { key: 'viewAftercare', label: 'View aftercare', icon: '💆', desc: 'Access aftercare instructions anytime' },
-    { key: 'messageTherapist', label: 'Message therapist', icon: '💬', desc: 'Send messages directly through the portal' },
-    { key: 'viewPhotos', label: 'View before/after photos', icon: '📸', desc: 'See their treatment photo history' },
-  ];
+  if (!beautician) return <ErrorCard message="Could not load profile." onDismiss={() => {}} />;
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
-    { id: 'features', label: 'Features' },
     { id: 'branding', label: 'Branding' },
-    { id: 'activity', label: 'Activity' },
+    { id: 'features', label: 'Features' },
   ];
 
   return (
-    <div style={styles.page}>
-      <div style={styles.header}>
+    <div style={s.page}>
+      <div style={s.header}>
         <div>
-          <h1 style={styles.title}>Client Portal</h1>
-          <div style={styles.subtitle}>Self-service for your clients</div>
+          <h1 style={s.title}>Client Portal</h1>
+          <div style={s.subtitle}>Your public booking page</div>
         </div>
         <button
-          onClick={() => setConfig({ ...c, enabled: !c.enabled })}
-          style={{
-            ...styles.toggle,
-            background: c.enabled ? 'var(--accent, #C76B8A)' : '#E8E4E0'
-          }}
+          onClick={() => savePortal({ enabled: !portal.enabled })}
+          style={{ ...s.toggle, background: portal.enabled ? 'var(--accent, #C76B8A)' : '#E8E4E0' }}
         >
-          <div style={{
-            ...styles.toggleDot,
-            transform: c.enabled ? 'translateX(18px)' : 'translateX(0)'
-          }} />
+          <div style={{ ...s.toggleDot, transform: portal.enabled ? 'translateX(18px)' : 'translateX(0)' }} />
         </button>
       </div>
 
-      {/* Portal link */}
-      {c.enabled && (
-        <div style={styles.linkCard}>
-          <div style={styles.linkLabel}>Your portal URL</div>
-          <div style={styles.linkRow}>
-            <div style={styles.linkUrl}>{c.url}</div>
-            <button style={styles.copyBtn}>📋 Copy</button>
-          </div>
-          <div style={styles.shareRow}>
-            <button style={styles.shareBtn}>💬 WhatsApp</button>
-            <button style={styles.shareBtn}>📧 Email</button>
-            <button style={styles.shareBtn}>🔗 QR Code</button>
-          </div>
+      {saved && <div style={s.savedBanner}>Saved ✓</div>}
+
+      {/* Booking link card */}
+      <div style={s.linkCard}>
+        <div style={s.linkLabel}>Your booking page</div>
+        <div style={s.linkRow}>
+          <div style={s.linkUrl}>{bookingUrl}</div>
+          <button onClick={handleCopy} style={s.copyBtn}>{copied ? '✓ Copied' : '📋 Copy'}</button>
         </div>
-      )}
+        <div style={s.shareRow}>
+          <button onClick={handleWhatsApp} style={s.shareBtn}>💬 WhatsApp</button>
+          <button onClick={handleEmail} style={s.shareBtn}>📧 Email</button>
+          <button onClick={handleQR} style={s.shareBtn}>🔗 QR Code</button>
+        </div>
+      </div>
 
       {/* Tabs */}
-      <div style={styles.tabs}>
+      <div style={s.tabs}>
         {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            style={{ ...styles.tab, ...(activeTab === tab.id ? styles.tabActive : {}) }}
+            style={{ ...s.tab, ...(activeTab === tab.id ? s.tabActive : {}) }}
           >{tab.label}</button>
         ))}
       </div>
@@ -167,56 +185,98 @@ export default function ClientPortal() {
       {/* Overview */}
       {activeTab === 'overview' && (
         <div>
-          <div style={styles.statsGrid}>
-            <div style={styles.statCard}>
-              <div style={styles.statValue}>{c.clientStats.totalRegistered}</div>
-              <div style={styles.statLabel}>Registered</div>
+          <div style={s.statsGrid}>
+            <div style={s.statCard}>
+              <div style={s.statValue}>{clientCount ?? '—'}</div>
+              <div style={s.statLabel}>Total clients</div>
             </div>
-            <div style={styles.statCard}>
-              <div style={styles.statValue}>{c.clientStats.activeThisMonth}</div>
-              <div style={styles.statLabel}>Active this month</div>
-            </div>
-            <div style={styles.statCard}>
-              <div style={styles.statValue}>{c.clientStats.usedBooking}</div>
-              <div style={styles.statLabel}>Booked online</div>
-            </div>
-            <div style={styles.statCard}>
-              <div style={styles.statValue}>{c.clientStats.usedReferral}</div>
-              <div style={styles.statLabel}>Referred</div>
+            <div style={s.statCard}>
+              <div style={s.statValue}>{apptCount ?? '—'}</div>
+              <div style={s.statLabel}>Appointments</div>
             </div>
           </div>
 
-          <div style={styles.adoptionCard}>
-            <div style={styles.adoptionTitle}>Adoption rate</div>
-            <div style={styles.adoptionRow}>
-              <div style={styles.adoptionLabel}>Online booking</div>
-              <div style={styles.adoptionBarBg}>
-                <div style={{ ...styles.adoptionBarFill, width: `${(c.clientStats.usedBooking / c.clientStats.totalRegistered * 100).toFixed(0)}%` }} />
-              </div>
-              <div style={styles.adoptionPct}>{(c.clientStats.usedBooking / c.clientStats.totalRegistered * 100).toFixed(0)}%</div>
-            </div>
-            <div style={styles.adoptionRow}>
-              <div style={styles.adoptionLabel}>Loyalty</div>
-              <div style={styles.adoptionBarBg}>
-                <div style={{ ...styles.adoptionBarFill, width: `${(c.clientStats.usedLoyalty / c.clientStats.totalRegistered * 100).toFixed(0)}%` }} />
-              </div>
-              <div style={styles.adoptionPct}>{(c.clientStats.usedLoyalty / c.clientStats.totalRegistered * 100).toFixed(0)}%</div>
-            </div>
-            <div style={styles.adoptionRow}>
-              <div style={styles.adoptionLabel}>Referrals</div>
-              <div style={styles.adoptionBarBg}>
-                <div style={{ ...styles.adoptionBarFill, width: `${(c.clientStats.usedReferral / c.clientStats.totalRegistered * 100).toFixed(0)}%` }} />
-              </div>
-              <div style={styles.adoptionPct}>{(c.clientStats.usedReferral / c.clientStats.totalRegistered * 100).toFixed(0)}%</div>
+          <div style={s.card}>
+            <div style={s.cardTitle}>Recent bookings</div>
+            {recentAppts.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '8px 0 0' }}>
+                No bookings yet. Share your link to get your first one.
+              </p>
+            ) : (
+              recentAppts.map((a, i) => (
+                <div key={i} style={s.apptRow}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {a.clients?.first_name} {a.clients?.last_name}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                      {a.treatments?.name} · {new Date(a.starts_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                  <div style={{ ...s.statusChip, background: a.status === 'confirmed' ? '#E8F5E9' : '#FFF8E1', color: a.status === 'confirmed' ? '#388E3C' : '#F57C00' }}>
+                    {a.status}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Branding */}
+      {activeTab === 'branding' && (
+        <div>
+          <div style={s.card}>
+            <div style={s.cardTitle}>Welcome message</div>
+            <input
+              type="text"
+              value={portal.welcomeMessage}
+              onChange={e => setPortal(p => ({ ...p, welcomeMessage: e.target.value }))}
+              onBlur={() => savePortal({})}
+              style={s.textInput}
+              placeholder="Book your next appointment"
+            />
+          </div>
+
+          <div style={s.card}>
+            <div style={s.cardTitle}>Accent colour</div>
+            <div style={s.colourRow}>
+              {ACCENT_COLOURS.map(col => (
+                <button
+                  key={col}
+                  onClick={() => savePortal({ accentColour: col })}
+                  style={{ ...s.colourChip, background: col, border: portal.accentColour === col ? '3px solid var(--text-primary)' : '3px solid transparent' }}
+                />
+              ))}
             </div>
           </div>
 
-          <div style={styles.insightCard}>
-            <span style={{ fontSize: 16 }}>🧠</span>
-            <div style={{ fontSize: 13, color: '#6B6560', lineHeight: 1.5 }}>
-              63% of clients have booked online — that's saving you roughly 4 hours a week in
-              back-and-forth messages. Consider enabling the message feature for VIP clients to
-              boost engagement further.
+          <div style={s.card}>
+            <div style={s.toggleRow}>
+              <span style={{ fontSize: 14, color: 'var(--text-primary)' }}>Show logo on booking page</span>
+              <button
+                onClick={() => savePortal({ showLogo: !portal.showLogo })}
+                style={{ ...s.toggle, background: portal.showLogo ? 'var(--accent, #C76B8A)' : '#E8E4E0' }}
+              >
+                <div style={{ ...s.toggleDot, transform: portal.showLogo ? 'translateX(18px)' : 'translateX(0)' }} />
+              </button>
+            </div>
+          </div>
+
+          {/* Live preview */}
+          <div style={s.previewLabel}>Preview</div>
+          <div style={s.phoneFrame}>
+            <div style={s.phoneScreen}>
+              <div style={{ textAlign: 'center', padding: '20px 16px' }}>
+                {portal.showLogo && beautician.logo_url && (
+                  <img src={beautician.logo_url} alt="Logo" style={{ width: 48, height: 48, borderRadius: 10, objectFit: 'cover', marginBottom: 8 }} />
+                )}
+                {portal.showLogo && !beautician.logo_url && (
+                  <div style={{ fontSize: 20, fontWeight: 700, color: portal.accentColour, marginBottom: 8 }}>{beautician.business_name || 'florrie'}</div>
+                )}
+                <div style={{ fontSize: 13, color: 'var(--text-primary, #2D2A26)', marginBottom: 16 }}>{portal.welcomeMessage}</div>
+                <div style={{ background: portal.accentColour, color: '#fff', padding: '12px 24px', borderRadius: 10, fontSize: 13, fontWeight: 600 }}>Book Now</div>
+              </div>
             </div>
           </div>
         </div>
@@ -225,129 +285,22 @@ export default function ClientPortal() {
       {/* Features */}
       {activeTab === 'features' && (
         <div>
-          <div style={styles.featuresHint}>Toggle what clients can do in their portal</div>
-          {featureList.map(f => (
-            <div key={f.key} style={styles.featureRow}>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 12, marginTop: 0 }}>
+            Control what clients can do from your booking page and confirmation links.
+          </p>
+          {FEATURE_LIST.map(f => (
+            <div key={f.key} style={s.featureRow}>
               <span style={{ fontSize: 18 }}>{f.icon}</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary, #2D2A26)' }}>{f.label}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)' }}>{f.desc}</div>
+                <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>{f.label}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{f.desc}</div>
               </div>
               <button
                 onClick={() => toggleFeature(f.key)}
-                style={{
-                  ...styles.toggle,
-                  background: features[f.key] ? 'var(--accent, #C76B8A)' : '#E8E4E0'
-                }}
+                style={{ ...s.toggle, background: portal.features[f.key] ? 'var(--accent, #C76B8A)' : '#E8E4E0' }}
               >
-                <div style={{
-                  ...styles.toggleDot,
-                  transform: features[f.key] ? 'translateX(18px)' : 'translateX(0)'
-                }} />
+                <div style={{ ...s.toggleDot, transform: portal.features[f.key] ? 'translateX(18px)' : 'translateX(0)' }} />
               </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Branding */}
-      {activeTab === 'branding' && (
-        <div>
-          <div style={styles.brandingCard}>
-            <div style={styles.inputGroup}>
-              <label style={styles.inputLabel}>Welcome message</label>
-              <input
-                type="text"
-                value={c.branding.welcomeMessage}
-                onChange={e => setConfig({ ...c, branding: { ...c.branding, welcomeMessage: e.target.value } })}
-                style={styles.textInput}
-              />
-            </div>
-
-            <div style={styles.inputGroup}>
-              <label style={styles.inputLabel}>Accent colour</label>
-              <div style={styles.colourRow}>
-                {['var(--accent, #C76B8A)', '#6B8AC7', '#8AC76B', '#C7A86B', '#8B6BC7', 'var(--text-primary, #2D2A26)'].map(col => (
-                  <button
-                    key={col}
-                    onClick={() => setConfig({ ...c, branding: { ...c.branding, accentColour: col } })}
-                    style={{
-                      ...styles.colourChip,
-                      background: col,
-                      border: c.branding.accentColour === col ? '3px solid #2D2A26' : '3px solid transparent'
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div style={styles.toggleRow}>
-              <span style={{ fontSize: 14, color: 'var(--text-primary, #2D2A26)' }}>Show logo</span>
-              <button
-                onClick={() => setConfig({ ...c, branding: { ...c.branding, showLogo: !c.branding.showLogo } })}
-                style={{ ...styles.toggle, background: c.branding.showLogo ? 'var(--accent, #C76B8A)' : '#E8E4E0' }}
-              >
-                <div style={{ ...styles.toggleDot, transform: c.branding.showLogo ? 'translateX(18px)' : 'translateX(0)' }} />
-              </button>
-            </div>
-
-            <div style={styles.toggleRow}>
-              <span style={{ fontSize: 14, color: 'var(--text-primary, #2D2A26)' }}>Show testimonials</span>
-              <button
-                onClick={() => setConfig({ ...c, branding: { ...c.branding, showTestimonials: !c.branding.showTestimonials } })}
-                style={{ ...styles.toggle, background: c.branding.showTestimonials ? 'var(--accent, #C76B8A)' : '#E8E4E0' }}
-              >
-                <div style={{ ...styles.toggleDot, transform: c.branding.showTestimonials ? 'translateX(18px)' : 'translateX(0)' }} />
-              </button>
-            </div>
-          </div>
-
-          {/* Live preview */}
-          <div style={styles.previewSection}>
-            <div style={styles.previewTitle}>Portal preview</div>
-            <div style={styles.phoneFrame}>
-              <div style={styles.phoneScreen}>
-                <div style={{ textAlign: 'center', padding: '20px 16px' }}>
-                  {c.branding.showLogo && (
-                    <div style={{ fontSize: 22, fontWeight: 700, color: c.branding.accentColour, marginBottom: 4 }}>florrie</div>
-                  )}
-                  <div style={{ fontSize: 14, color: 'var(--text-primary, #2D2A26)', marginBottom: 16 }}>{c.branding.welcomeMessage}</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginBottom: 16 }}>
-                    {[
-                      { icon: '📅', label: 'My Bookings' },
-                      { icon: '🗓️', label: 'Book Now' },
-                      { icon: '🏆', label: 'Loyalty' },
-                      { icon: '🤝', label: 'Refer' },
-                    ].map((item, i) => (
-                      <div key={i} style={{ background: 'var(--bg-card, #fff)', borderRadius: 10, padding: '14px 8px', border: '1px solid #F0ECE8', textAlign: 'center' }}>
-                        <div style={{ fontSize: 20, marginBottom: 4 }}>{item.icon}</div>
-                        <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-primary, #2D2A26)' }}>{item.label}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ background: 'var(--bg-card, #fff)', borderRadius: 10, padding: 12, border: '1px solid #F0ECE8', textAlign: 'left' }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary, #2D2A26)', marginBottom: 6 }}>Next appointment</div>
-                    <div style={{ fontSize: 13, color: '#6B6560' }}>Brow Lamination</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)' }}>Fri 28 Mar · 10:00</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Activity */}
-      {activeTab === 'activity' && (
-        <div>
-          <div style={styles.activityHint}>Recent client portal activity</div>
-          {activity.map((item, i) => (
-            <div key={i} style={styles.activityRow}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' }}>{item.client} <span style={{ fontWeight: 400, color: '#6B6560' }}>{item.action}</span></div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)', marginTop: 2 }}>{item.detail}</div>
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted, #AAA5A0)', flexShrink: 0 }}>{item.time}</div>
             </div>
           ))}
         </div>
@@ -356,58 +309,46 @@ export default function ClientPortal() {
   );
 }
 
-const styles = {
+const s = {
   page: { padding: '16px 16px 100px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: 0 },
-  subtitle: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', marginTop: 2 },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', margin: 0 },
+  subtitle: { fontSize: 13, color: 'var(--text-muted)', marginTop: 2 },
+  savedBanner: { background: 'var(--success, #4CAF50)', color: '#fff', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 600, marginBottom: 12, textAlign: 'center' },
 
-  linkCard: { background: 'linear-gradient(135deg, #C76B8A 0%, #A85575 100%)', borderRadius: 14, padding: 16, marginBottom: 16, color: 'var(--bg-card, #fff)' },
+  linkCard: { background: 'linear-gradient(135deg, #C76B8A 0%, #A85575 100%)', borderRadius: 14, padding: 16, marginBottom: 16, color: '#fff' },
   linkLabel: { fontSize: 11, opacity: 0.8, marginBottom: 6 },
   linkRow: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 },
   linkUrl: { flex: 1, fontSize: 12, background: 'rgba(255,255,255,0.15)', borderRadius: 8, padding: '8px 10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  copyBtn: { padding: '8px 12px', borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.2)', color: 'var(--bg-card, #fff)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
+  copyBtn: { padding: '8px 12px', borderRadius: 8, border: 'none', background: 'rgba(255,255,255,0.25)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
   shareRow: { display: 'flex', gap: 8 },
-  shareBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.1)', color: 'var(--bg-card, #fff)', fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
+  shareBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
 
   tabs: { display: 'flex', gap: 4, marginBottom: 16, background: '#F0ECE8', borderRadius: 12, padding: 4 },
   tab: { flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 500, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', background: 'none', color: '#6B6560' },
-  tabActive: { background: 'var(--bg-card, #fff)', color: 'var(--text-primary, #2D2A26)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' },
+  tabActive: { background: 'var(--bg-card, #fff)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' },
 
   statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 },
-  statCard: { background: 'var(--bg-card, #fff)', borderRadius: 12, padding: 14, border: '1px solid #F0ECE8', textAlign: 'center' },
-  statValue: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #2D2A26)' },
-  statLabel: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)', marginTop: 2 },
+  statCard: { background: 'var(--bg-card, #fff)', borderRadius: 12, padding: 16, border: '1px solid var(--border, #F0ECE8)', textAlign: 'center' },
+  statValue: { fontSize: 28, fontWeight: 700, color: 'var(--text-primary)' },
+  statLabel: { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 },
 
-  adoptionCard: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16, border: '1px solid #F0ECE8', marginBottom: 16 },
-  adoptionTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)', marginBottom: 12 },
-  adoptionRow: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },
-  adoptionLabel: { fontSize: 12, color: '#6B6560', width: 90 },
-  adoptionBarBg: { flex: 1, height: 8, background: '#F0ECE8', borderRadius: 4 },
-  adoptionBarFill: { height: '100%', background: 'var(--accent, #C76B8A)', borderRadius: 4, transition: 'width 0.5s' },
-  adoptionPct: { fontSize: 12, fontWeight: 600, color: 'var(--text-primary, #2D2A26)', width: 32, textAlign: 'right' },
+  card: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16, border: '1px solid var(--border, #F0ECE8)', marginBottom: 12 },
+  cardTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 10 },
+  apptRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border-light, #F5F2EF)' },
+  statusChip: { fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 6, textTransform: 'capitalize' },
 
-  insightCard: { display: 'flex', gap: 10, background: '#FFF8F0', border: '1px solid #FFE8CC', borderRadius: 12, padding: 14, marginBottom: 16 },
-
-  featuresHint: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', marginBottom: 12 },
-  featureRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid #F0ECE8' },
+  textInput: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border, #E8E4E0)', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: 'var(--bg, #FAF8F5)', color: 'var(--text-primary)' },
+  colourRow: { display: 'flex', gap: 8 },
+  colourChip: { width: 32, height: 32, borderRadius: 8, cursor: 'pointer', flexShrink: 0 },
+  toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
 
   toggle: { width: 42, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s' },
-  toggleDot: { width: 20, height: 20, borderRadius: 10, background: 'var(--bg-card, #fff)', position: 'absolute', top: 2, left: 2, transition: 'transform 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.15)' },
+  toggleDot: { width: 20, height: 20, borderRadius: 10, background: '#fff', position: 'absolute', top: 2, left: 2, transition: 'transform 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.15)' },
 
-  brandingCard: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16, border: '1px solid #F0ECE8', marginBottom: 16 },
-  inputGroup: { marginBottom: 16 },
-  inputLabel: { fontSize: 12, fontWeight: 600, color: '#6B6560', display: 'block', marginBottom: 6 },
-  textInput: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #E8E4E0', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: 'var(--bg, var(--bg, #FAF8F5))', color: 'var(--text-primary, #2D2A26)' },
-  colourRow: { display: 'flex', gap: 8 },
-  colourChip: { width: 32, height: 32, borderRadius: 8, cursor: 'pointer' },
-  toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #F0ECE8' },
+  previewLabel: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 10, marginTop: 4 },
+  phoneFrame: { background: 'var(--text-primary, #2D2A26)', borderRadius: 24, padding: 8, maxWidth: 240, margin: '0 auto 16px' },
+  phoneScreen: { background: 'var(--bg, #FAF8F5)', borderRadius: 18, minHeight: 220, overflow: 'hidden' },
 
-  previewSection: { marginTop: 16 },
-  previewTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)', marginBottom: 10 },
-  phoneFrame: { background: 'var(--text-primary, #2D2A26)', borderRadius: 24, padding: '8px', maxWidth: 280, margin: '0 auto' },
-  phoneScreen: { background: 'var(--bg, var(--bg, #FAF8F5))', borderRadius: 18, minHeight: 340, overflow: 'hidden' },
-
-  activityHint: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', marginBottom: 12 },
-  activityRow: { display: 'flex', gap: 10, padding: '12px 0', borderBottom: '1px solid #F0ECE8' },
+  featureRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border-light, #F0ECE8)' },
 };
