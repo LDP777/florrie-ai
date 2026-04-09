@@ -583,61 +583,6 @@ export default function Settings({ onLogout }) {
             })}
           </div>
 
-          {/* Deposits & no-show fees */}
-          <div style={styles.card}>
-            <div style={styles.cardTitle}>Deposits & no-show fees</div>
-
-            <div style={styles.depositRow}>
-              <div style={{ flex: 1 }}>
-                <span style={styles.depositLabel}>Require deposit</span>
-                <span style={styles.depositHint}>Fallback deposit for treatments with no amount set</span>
-              </div>
-              <button
-                onClick={() => saveProfile({ payment_settings: { ...paySettings, require_deposit: !paySettings.require_deposit } })}
-                style={{ ...styles.toggle, background: paySettings.require_deposit ? 'var(--accent)' : 'var(--border)' }}
-              >
-                <div style={{ ...styles.toggleDot, transform: paySettings.require_deposit ? 'translateX(20px)' : 'translateX(2px)' }} />
-              </button>
-            </div>
-
-            {paySettings.require_deposit && (
-              <div style={styles.depositAmountRow}>
-                <span style={styles.depositAmountLabel}>Default deposit amount</span>
-                <div style={styles.depositOptions}>
-                  {['£5', '£10', '£15', '50%'].map(opt => (
-                    <button
-                      key={opt}
-                      onClick={() => saveProfile({ payment_settings: { ...paySettings, deposit_amount: opt } })}
-                      style={{
-                        ...styles.depositChip,
-                        background: (paySettings.deposit_amount || '£10') === opt ? '#C76B8A' : '#F5F2EF',
-                        color: (paySettings.deposit_amount || '£10') === opt ? '#fff' : '#8A8580',
-                      }}
-                    >
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div style={styles.depositRow}>
-              <div style={{ flex: 1 }}>
-                <span style={styles.depositLabel}>No-show fee</span>
-                <span style={styles.depositHint}>Charge clients who don't show up</span>
-              </div>
-              <button
-                onClick={() => saveProfile({ payment_settings: { ...paySettings, no_show_fee: !paySettings.no_show_fee } })}
-                style={{ ...styles.toggle, background: paySettings.no_show_fee ? 'var(--accent)' : 'var(--border)' }}
-              >
-                <div style={{ ...styles.toggleDot, transform: paySettings.no_show_fee ? 'translateX(20px)' : 'translateX(2px)' }} />
-              </button>
-            </div>
-
-            <p style={styles.depositFooter}>
-              Deposit amounts set per treatment in your Treatments page take priority. The default above applies to any treatment with no deposit configured. No-show fees are also set per treatment.
-            </p>
-          </div>
 
           {/* Payout info */}
           <div style={styles.card}>
