@@ -558,6 +558,258 @@ router.post('/:slug/manage/:token/resend-payment', async (req, res) => {
 });
 
 /**
+ * GET /api/booking/:slug/manage/:token/patch-test/slots
+ * Return available 10-minute slots for a patch test appointment.
+ * Must be at least 24 hours before the main appointment, within working hours.
+ * Checks for conflicts with existing appointments.
+ */
+router.get('/:slug/manage/:token/patch-test/slots', async (req, res) => {
+  try {
+    const { data: appt } = await supabase
+      .from('appointments')
+      .select(`
+        id, starts_at, client_id, client_email, client_name, client_phone,
+        beauticians(id, booking_slug, working_hours, timezone)
+      `)
+      .eq('management_token', req.params.token)
+      .single();
+
+    if (!appt || appt.beauticians?.booking_slug !== req.params.slug) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const mainApptStart = new Date(appt.starts_at);
+    const deadline = new Date(mainApptStart.getTime() - 24 * 60 * 60 * 1000);
+    const now = new Date();
+
+    if (deadline <= now) {
+      return res.status(400).json({ error: 'Too late to book patch test — must be 24+ hours before appointment' });
+    }
+
+    const beautician = appt.beauticians;
+    const beauticianId = beautician.id;
+    const timezone = beautician.timezone || 'Europe/London';
+
+    // Get working hours; fallback to 9:00–17:00
+    const workingHours = beautician.working_hours || {
+      'Mon': { start: '09:00', end: '17:00' },
+      'Tue': { start: '09:00', end: '17:00' },
+      'Wed': { start: '09:00', end: '17:00' },
+      'Thu': { start: '09:00', end: '17:00' },
+      'Fri': { start: '09:00', end: '17:00' },
+      'Sat': { start: '09:00', end: '17:00' },
+    };
+
+    // Get existing appointments in next 14 days to find conflicts
+    const searchEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+    const { data: existing } = await supabase
+      .from('appointments')
+      .select('id, starts_at, ends_at')
+      .eq('beautician_id', beauticianId)
+      .in('status', ['confirmed', 'pending', 'in_progress'])
+      .gte('starts_at', now.toISOString())
+      .lte('ends_at', searchEnd.toISOString())
+      .order('starts_at', { ascending: true });
+
+    const existingSlots = (existing || []).map(a => ({
+      start: new Date(a.starts_at),
+      end: new Date(a.ends_at),
+    }));
+
+    // Generate candidate 10-minute slots
+    const candidates = [];
+    let slotTime = new Date(now);
+
+    // Round up to next 15-min interval
+    const mins = slotTime.getMinutes();
+    if (mins % 15 !== 0) {
+      slotTime.setMinutes(Math.ceil(mins / 15) * 15, 0, 0);
+    }
+
+    // Generate slots up to deadline
+    while (slotTime < deadline) {
+      const slotEnd = new Date(slotTime.getTime() + 10 * 60 * 1000);
+
+      // Check working hours for this day
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const dayName = dayNames[slotTime.getDay()];
+      const dayHours = workingHours[dayName];
+
+      if (dayHours) {
+        const [startHour, startMin] = dayHours.start.split(':').map(Number);
+        const [endHour, endMin] = dayHours.end.split(':').map(Number);
+        const dayStart = new Date(slotTime);
+        dayStart.setHours(startHour, startMin, 0, 0);
+        const dayEnd = new Date(slotTime);
+        dayEnd.setHours(endHour, endMin, 0, 0);
+
+        // Slot must be within working hours
+        if (slotTime >= dayStart && slotEnd <= dayEnd) {
+          // Check for conflicts
+          let hasConflict = false;
+          for (const existing of existingSlots) {
+            if (slotTime < existing.end && slotEnd > existing.start) {
+              hasConflict = true;
+              break;
+            }
+          }
+
+          if (!hasConflict) {
+            candidates.push(slotTime.toISOString());
+            if (candidates.length >= 4) break; // Get 3-4 slots
+          }
+        }
+      }
+
+      slotTime = new Date(slotTime.getTime() + 15 * 60 * 1000); // Next 15-min slot
+    }
+
+    if (candidates.length === 0) {
+      return res.status(400).json({ error: 'No available slots for patch test' });
+    }
+
+    res.json({
+      success: true,
+      slots: candidates,
+      suggested: candidates[0],
+      deadline: deadline.toISOString(),
+    });
+  } catch (err) {
+    logger.error({ err }, 'Patch test slots fetch failed');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+/**
+ * POST /api/booking/:slug/manage/:token/patch-test/confirm
+ * Client confirms a patch test appointment slot.
+ * Creates a new appointment record for the patch test.
+ */
+router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
+  try {
+    const { slot } = req.body;
+    if (!slot) return res.status(400).json({ error: 'Slot is required' });
+
+    const slotTime = new Date(slot);
+    if (isNaN(slotTime.getTime())) {
+      return res.status(400).json({ error: 'Invalid slot format' });
+    }
+
+    const { data: appt } = await supabase
+      .from('appointments')
+      .select(`
+        id, starts_at, client_id, client_email, client_name, client_phone,
+        beauticians(id, booking_slug, working_hours, timezone)
+      `)
+      .eq('management_token', req.params.token)
+      .single();
+
+    if (!appt || appt.beauticians?.booking_slug !== req.params.slug) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const mainApptStart = new Date(appt.starts_at);
+    const deadline = new Date(mainApptStart.getTime() - 24 * 60 * 60 * 1000);
+    const now = new Date();
+
+    // Validate slot timing
+    if (slotTime >= deadline) {
+      return res.status(400).json({ error: 'Slot must be at least 24 hours before main appointment' });
+    }
+
+    if (slotTime < now) {
+      return res.status(400).json({ error: 'Slot must be in the future' });
+    }
+
+    const beautician = appt.beauticians;
+    const workingHours = beautician.working_hours || {};
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dayName = dayNames[slotTime.getDay()];
+    const dayHours = workingHours[dayName] || { start: '09:00', end: '17:00' };
+
+    const [startHour, startMin] = dayHours.start.split(':').map(Number);
+    const [endHour, endMin] = dayHours.end.split(':').map(Number);
+    const dayStart = new Date(slotTime);
+    dayStart.setHours(startHour, startMin, 0, 0);
+    const dayEnd = new Date(slotTime);
+    dayEnd.setHours(endHour, endMin, 0, 0);
+
+    if (slotTime < dayStart || slotTime >= dayEnd) {
+      return res.status(400).json({ error: 'Slot is outside working hours' });
+    }
+
+    // Check for conflicts
+    const slotEnd = new Date(slotTime.getTime() + 10 * 60 * 1000);
+    const { data: conflicts } = await supabase
+      .from('appointments')
+      .select('id')
+      .eq('beautician_id', beautician.id)
+      .in('status', ['confirmed', 'pending', 'in_progress'])
+      .lt('starts_at', slotEnd.toISOString())
+      .gt('ends_at', slotTime.toISOString());
+
+    if (conflicts && conflicts.length > 0) {
+      return res.status(409).json({ error: 'This slot is no longer available' });
+    }
+
+    // Create patch test appointment
+    const { data: patchTestAppt, error: insertErr } = await supabase
+      .from('appointments')
+      .insert({
+        beautician_id: beautician.id,
+        client_id: appt.client_id,
+        client_email: appt.client_email,
+        client_name: appt.client_name,
+        client_phone: appt.client_phone,
+        treatment_id: null,
+        starts_at: slotTime.toISOString(),
+        ends_at: slotEnd.toISOString(),
+        duration_minutes: 10,
+        status: 'confirmed',
+        notes: 'Patch test (auto-booked)',
+        booked_via: 'booking_page',
+        price_cents: 0,
+      })
+      .select('id, starts_at, ends_at')
+      .single();
+
+    if (insertErr) {
+      logger.error({ err: insertErr }, 'Patch test appointment creation failed');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
+
+    // Update patch_tests table with confirmation
+    const { error: patchErr } = await supabase
+      .from('patch_tests')
+      .update({
+        appointment_id: patchTestAppt.id,
+        suggested_slot: slotTime.toISOString(),
+        confirmed_at: new Date().toISOString(),
+        auto_booked: true,
+      })
+      .eq('client_id', appt.client_id)
+      .eq('beautician_id', beautician.id)
+      .is('confirmed_at', null); // Only update if not already confirmed
+
+    if (patchErr) {
+      logger.error({ err: patchErr }, 'Patch test update failed');
+      // Still return success since appointment was created
+    }
+
+    res.json({
+      success: true,
+      appointment: {
+        starts_at: patchTestAppt.starts_at,
+        ends_at: patchTestAppt.ends_at,
+      },
+    });
+  } catch (err) {
+    logger.error({ err }, 'Patch test confirmation failed');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+/**
  * Helper: notify waitlist clients when a slot is freed up by a reschedule.
  * Looks for waitlist entries that match the treatment and freed time window.
  */
