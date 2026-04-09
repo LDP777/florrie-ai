@@ -88,6 +88,8 @@ const ClientManagePage = lazy(() => import('./pages/ClientManagePage.jsx'));
 const LandingPage = lazy(() => import('./pages/LandingPage.jsx'));
 const TermsPage = lazy(() => import('./pages/TermsPage.jsx'));
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage.jsx'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy.jsx'));
+const Support = lazy(() => import('./pages/Support.jsx'));
 const NotFound = lazy(() => import('./pages/NotFound.jsx'));
 
 function PageLoader() {
@@ -158,7 +160,7 @@ export default function App() {
     }
   }, [session, beautician]);
 
-  const isPublicRoute = location.pathname.startsWith('/book/') || location.pathname.startsWith('/form/') || location.pathname.includes('/manage/');
+  const isPublicRoute = location.pathname.startsWith('/book/') || location.pathname.startsWith('/form/') || location.pathname.includes('/manage/') || location.pathname === '/privacy' || location.pathname === '/support';
   const isAuthRoute = location.pathname === '/login';
   const isLandingRoute = location.pathname === '/';
 
@@ -181,6 +183,8 @@ export default function App() {
           <Route path="/book/:slug/confirmed" element={<BookingPage />} />
           <Route path="/book/:slug/manage/:token" element={<ClientManagePage />} />
           <Route path="/form/:token" element={<ConsultationFormPublic />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/support" element={<Support />} />
         </Routes>
       </Suspense>
     );
@@ -223,6 +227,44 @@ export default function App() {
   // Authenticated app
   const showNav = !isAuthRoute && !location.pathname.startsWith('/onboarding');
 
+  // ── Trial / subscription state ─────────────────────────────
+  const trialEndsAt = beautician?.trial_ends_at ? new Date(beautician.trial_ends_at) : null;
+  const now = new Date();
+  const daysLeft = trialEndsAt ? Math.ceil((trialEndsAt - now) / (1000 * 60 * 60 * 24)) : null;
+  const trialExpired = trialEndsAt ? now > trialEndsAt : false;
+  const subActive = beautician?.subscription_status === 'active';
+  const showTrialWarning = !isDevMode && !subActive && daysLeft !== null && daysLeft <= 5 && daysLeft > 0;
+  const showTrialExpired = !isDevMode && !subActive && trialExpired;
+
+  // Soft paywall — expired trial and no active subscription
+  if (showTrialExpired) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--bg, #FAF8F6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <div style={{ maxWidth: 440, width: '100%', background: '#fff', borderRadius: 20, padding: '48px 40px', textAlign: 'center', boxShadow: '0 4px 32px rgba(0,0,0,0.08)' }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🌸</div>
+          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, fontWeight: 700, color: 'var(--text-primary, #2C2825)', marginBottom: 8 }}>
+            Your free trial has ended
+          </h1>
+          <p style={{ color: 'var(--text-secondary, #6B6460)', fontSize: 15, lineHeight: 1.6, marginBottom: 32 }}>
+            Thanks for trying Florrie! We're still in early access — drop us a message and we'll get you set up on a plan.
+          </p>
+          <a
+            href="mailto:hello@florrie.ai?subject=I want to continue using Florrie"
+            style={{ display: 'block', background: 'var(--accent, #C76B8A)', color: '#fff', borderRadius: 12, padding: '14px 24px', fontSize: 15, fontWeight: 600, textDecoration: 'none', marginBottom: 12 }}
+          >
+            Get in touch to continue →
+          </a>
+          <button
+            onClick={async () => { if (supabase) await supabase.auth.signOut(); setSession(null); }}
+            style={{ background: 'none', border: 'none', color: 'var(--text-muted, #9E9790)', fontSize: 13, cursor: 'pointer', padding: 8 }}
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <ErrorBoundary>
       <div style={styles.appShell}>
@@ -230,6 +272,14 @@ export default function App() {
           <div style={styles.devModeBanner}>
             <span style={{ fontSize: 12, fontWeight: 600 }}>🔧 Running in demo mode</span>
             <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)' }}>— Connect Supabase to see real data</span>
+          </div>
+        )}
+        {showTrialWarning && (
+          <div style={{ background: 'var(--gold, #C9A96E)', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 13, fontWeight: 500 }}>
+            ⏳ Your free trial ends in {daysLeft} day{daysLeft === 1 ? '' : 's'} —{' '}
+            <a href="mailto:hello@florrie.ai?subject=Florrie plan" style={{ color: '#fff', fontWeight: 700, textDecoration: 'underline' }}>
+              get in touch to keep going
+            </a>
           </div>
         )}
         <InstallPrompt />
