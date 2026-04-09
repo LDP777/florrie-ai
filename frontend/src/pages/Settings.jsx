@@ -606,10 +606,30 @@ export default function Settings({ onLogout }) {
               <span style={styles.payoutLabel}>Account</span>
               <span style={styles.payoutValue}>{beautician.stripe_onboarding_complete ? 'Connected via Stripe' : 'Not linked'}</span>
             </div>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, marginBottom: 0 }}>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, marginBottom: 8 }}>
               On a £10 deposit: ~34p to Stripe + ~15p to Florrie = you keep £9.51.
               Florrie's fee covers payment processing, booking management, and client communications.
             </p>
+            {beautician.stripe_onboarding_complete && (
+              <a
+                href="https://dashboard.stripe.com/express/login"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-block', padding: '8px 16px', borderRadius: 8,
+                  background: 'var(--bg-secondary, #f5f2ef)', border: '1px solid var(--border)',
+                  fontSize: 13, fontWeight: 500, color: 'var(--text-primary)',
+                  textDecoration: 'none',
+                }}
+              >
+                View Stripe dashboard →
+              </a>
+            )}
+            {!beautician.stripe_onboarding_complete && (
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
+                Connect Stripe above to start receiving card payments and deposits.
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -1109,11 +1129,12 @@ export default function Settings({ onLogout }) {
             {/* Mode selector */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
               {[
-                { key: 'ai', label: 'AI handles it', desc: 'Florrie replies on Instagram just like WhatsApp', icon: '🤖' },
-                { key: 'redirect', label: 'Redirect to WhatsApp', desc: 'Send one auto-reply pointing them to WhatsApp, then stop', icon: '💬' },
+                { key: 'redirect', label: 'Redirect to WhatsApp', desc: 'Send one auto-reply with your WhatsApp link, then stop', icon: '💬' },
                 { key: 'off', label: 'Store only', desc: 'Log the message but don\'t reply at all', icon: '🔕' },
               ].map(opt => {
-                const active = (beautician.instagram_dm_mode || 'ai') === opt.key;
+                // treat legacy 'ai' setting as 'redirect' since Instagram DM replies aren't supported
+                const mode = ['ai', 'redirect'].includes(beautician.instagram_dm_mode) ? 'redirect' : (beautician.instagram_dm_mode || 'redirect');
+                const active = mode === opt.key;
                 return (
                   <button
                     key={opt.key}
@@ -1139,7 +1160,7 @@ export default function Settings({ onLogout }) {
             </div>
 
             {/* Redirect message editor — only shown in redirect mode */}
-            {(beautician.instagram_dm_mode || 'ai') === 'redirect' && (() => {
+            {(['redirect', 'ai'].includes(beautician.instagram_dm_mode || 'redirect')) && (() => {
               const phone = beautician.phone || '';
               const digits = phone.replace(/\D/g, '');
               const waNumber = digits.startsWith('44') ? digits : digits.startsWith('0') ? `44${digits.slice(1)}` : digits;
