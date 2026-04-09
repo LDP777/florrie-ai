@@ -88,8 +88,6 @@ const ClientManagePage = lazy(() => import('./pages/ClientManagePage.jsx'));
 const LandingPage = lazy(() => import('./pages/LandingPage.jsx'));
 const TermsPage = lazy(() => import('./pages/TermsPage.jsx'));
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage.jsx'));
-const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy.jsx'));
-const Support = lazy(() => import('./pages/Support.jsx'));
 const NotFound = lazy(() => import('./pages/NotFound.jsx'));
 
 function PageLoader() {
@@ -160,7 +158,7 @@ export default function App() {
     }
   }, [session, beautician]);
 
-  const isPublicRoute = location.pathname.startsWith('/book/') || location.pathname.startsWith('/form/') || location.pathname.includes('/manage/') || location.pathname === '/privacy' || location.pathname === '/support';
+  const isPublicRoute = location.pathname.startsWith('/book/') || location.pathname.startsWith('/form/') || location.pathname.includes('/manage/');
   const isAuthRoute = location.pathname === '/login';
   const isLandingRoute = location.pathname === '/';
 
@@ -183,8 +181,6 @@ export default function App() {
           <Route path="/book/:slug/confirmed" element={<BookingPage />} />
           <Route path="/book/:slug/manage/:token" element={<ClientManagePage />} />
           <Route path="/form/:token" element={<ConsultationFormPublic />} />
-          <Route path="/privacy" element={<PrivacyPolicy />} />
-          <Route path="/support" element={<Support />} />
         </Routes>
       </Suspense>
     );

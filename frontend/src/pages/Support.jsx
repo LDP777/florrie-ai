@@ -33,7 +33,7 @@ export default function Support() {
     {
       id: 'forms',
       q: 'Do I need to fill out forms before my appointment?',
-      a: 'Some appointments require intake forms (for new clients) or patch tests (for certain brow treatments). You'll see a link in your confirmation — fill it out at your convenience, ideally before arriving.',
+      a: 'Some appointments require intake forms (for new clients) or patch tests (for certain brow treatments). You\'ll see a link in your confirmation — fill it out at your convenience, ideally before arriving.',
     },
     {
       id: 'deposit',
