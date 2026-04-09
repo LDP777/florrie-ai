@@ -39,7 +39,7 @@ router.post('/command', requireAuth, async (req, res) => {
     return res.json(result);
   } catch (err) {
     logger.error({ err }, 'Voice command route failed');
-    return res.status(500).json({ error: 'Something went wrong' });
+    return res.status(500).json({ error: err.message || 'Something went wrong' });
   }
 });
 
