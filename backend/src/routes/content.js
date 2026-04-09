@@ -8,7 +8,7 @@ const router = Router();
 
 /**
  * GET /api/content
- * List content posts. ?status=draft for the approval queue.
+ * List content posts. ?status=draft for the approval queue. ?stream_id=uuid to filter by stream.
  */
 router.get('/', requireAuth, async (req, res) => {
   let query = supabase
@@ -23,6 +23,10 @@ router.get('/', requireAuth, async (req, res) => {
     if (validStatuses.includes(req.query.status)) {
       query = query.eq('status', req.query.status);
     }
+  }
+
+  if (req.query.stream_id) {
+    query = query.eq('stream_id', req.query.stream_id);
   }
 
   const { data, error } = await query;
@@ -176,6 +180,174 @@ router.post('/caption', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
+
+/**
+ * ─────────────────────────────────────────────────────────────────
+ * STREAM ROUTES (must come before wildcard /:id routes)
+ * ─────────────────────────────────────────────────────────────────
+ */
+
+/**
+ * GET /api/content/streams
+ * List all content streams for the authenticated beautician.
+ */
+router.get('/streams', requireAuth, async (req, res) => {
+  const { data, error } = await supabase
+    .from('content_streams')
+    .select('*')
+    .eq('beautician_id', req.beautician.id)
+    .eq('active', true)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    logger.error({ err: error }, 'Failed to fetch content streams');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+  res.json({ streams: data });
+});
+
+/**
+ * POST /api/content/streams
+ * Create a new content stream.
+ * Body: { name, type, monthly_target?, brand_notes? }
+ */
+router.post('/streams', requireAuth, async (req, res) => {
+  const { name, type, monthly_target, brand_notes } = req.body;
+
+  if (!name || !type) {
+    return res.status(400).json({ error: 'name and type are required' });
+  }
+
+  const validTypes = ['personal', 'sponsor', 'campaign'];
+  if (!validTypes.includes(type)) {
+    return res.status(400).json({ error: 'type must be personal, sponsor, or campaign' });
+  }
+
+  const { data, error } = await supabase
+    .from('content_streams')
+    .insert({
+      beautician_id: req.beautician.id,
+      name,
+      type,
+      monthly_target: monthly_target || null,
+      brand_notes: brand_notes || {},
+    })
+    .select()
+    .single();
+
+  if (error) {
+    logger.error({ err: error }, 'Failed to create content stream');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+  res.status(201).json({ stream: data });
+});
+
+/**
+ * GET /api/content/streams/:id/progress
+ * Get monthly progress for a sponsored stream.
+ * Returns: { stream_id, monthly_target, posted_this_month, remaining, posts_this_month }
+ */
+router.get('/streams/:id/progress', requireAuth, async (req, res) => {
+  // Fetch the stream
+  const { data: stream, error: streamErr } = await supabase
+    .from('content_streams')
+    .select('*')
+    .eq('id', req.params.id)
+    .eq('beautician_id', req.beautician.id)
+    .single();
+
+  if (streamErr || !stream) {
+    logger.error({ err: streamErr }, 'Failed to fetch content stream');
+    return res.status(404).json({ error: 'Stream not found' });
+  }
+
+  // Get current month boundaries
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const monthStart = new Date(currentYear, currentMonth, 1).toISOString();
+  const monthEnd = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59).toISOString();
+
+  // Fetch posts published/scheduled this month
+  const { data: posts, error: postsErr } = await supabase
+    .from('content_posts')
+    .select('*')
+    .eq('stream_id', req.params.id)
+    .eq('beautician_id', req.beautician.id)
+    .in('status', ['scheduled', 'posted'])
+    .gte('created_at', monthStart)
+    .lte('created_at', monthEnd)
+    .order('created_at', { ascending: false });
+
+  if (postsErr) {
+    logger.error({ err: postsErr }, 'Failed to fetch stream posts');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+
+  const postedThisMonth = posts?.length || 0;
+  const remaining = stream.monthly_target ? Math.max(0, stream.monthly_target - postedThisMonth) : null;
+
+  res.json({
+    stream_id: stream.id,
+    monthly_target: stream.monthly_target,
+    posted_this_month: postedThisMonth,
+    remaining,
+    posts_this_month: posts || [],
+  });
+});
+
+/**
+ * PUT /api/content/streams/:id
+ * Update a content stream.
+ */
+router.put('/streams/:id', requireAuth, async (req, res) => {
+  const { name, type, monthly_target, brand_notes, active } = req.body;
+  const updates = {};
+
+  if (name !== undefined) updates.name = name;
+  if (type !== undefined) updates.type = type;
+  if (monthly_target !== undefined) updates.monthly_target = monthly_target;
+  if (brand_notes !== undefined) updates.brand_notes = brand_notes;
+  if (active !== undefined) updates.active = active;
+
+  const { data, error } = await supabase
+    .from('content_streams')
+    .update(updates)
+    .eq('id', req.params.id)
+    .eq('beautician_id', req.beautician.id)
+    .select()
+    .single();
+
+  if (error) {
+    logger.error({ err: error }, 'Failed to update content stream');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+  res.json({ stream: data });
+});
+
+/**
+ * DELETE /api/content/streams/:id
+ * Delete a content stream (soft delete: set active = false).
+ */
+router.delete('/streams/:id', requireAuth, async (req, res) => {
+  const { error } = await supabase
+    .from('content_streams')
+    .update({ active: false })
+    .eq('id', req.params.id)
+    .eq('beautician_id', req.beautician.id);
+
+  if (error) {
+    logger.error({ err: error }, 'Failed to delete content stream');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+  res.json({ success: true });
+});
+
+/**
+ * ─────────────────────────────────────────────────────────────────
+ * POST ROUTES (wildcard routes come after specific stream routes)
+ * ─────────────────────────────────────────────────────────────────
+ */
 
 /**
  * PATCH /api/content/:id

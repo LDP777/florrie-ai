@@ -138,14 +138,40 @@ export default function ContentAutopilot() {
   // Treatments for template fill
   const [treatments, setTreatments] = useState([]);
 
+  // Content streams
+  const [streams, setStreams] = useState([]);
+  const [selectedStreamId, setSelectedStreamId] = useState(null);
+  const [streamProgress, setStreamProgress] = useState(null);
+  const [loadingStreams, setLoadingStreams] = useState(false);
+
+  // New stream form
+  const [showStreamForm, setShowStreamForm] = useState(false);
+  const [newStreamForm, setNewStreamForm] = useState({ name: '', type: 'personal', monthly_target: '', brand_notes: '' });
+  const [savingStream, setSavingStream] = useState(false);
+
+  // Calendar view
+  const [calendarDate, setCalendarDate] = useState(new Date());
+
+  // Cancelled appointment prompt
+  const [cancelledPrompt, setCancelledPrompt] = useState(null);
+
   useEffect(() => {
     if (beautician) {
       loadAll();
       loadTreatments();
       loadGallery();
       loadSuggestions();
+      loadStreams();
+      loadCancelledAppointments();
     }
   }, [beautician]);
+
+  useEffect(() => {
+    if (beautician && selectedStreamId) {
+      loadAll();
+      loadStreamProgress();
+    }
+  }, [selectedStreamId]);
 
   async function loadAll() {
     setLoading(true);
@@ -157,12 +183,19 @@ export default function ContentAutopilot() {
         setLoading(false);
         return;
       }
-      const [d, p] = await Promise.all([
-        fetchRows('content_posts', beautician.id, { eq: { status: 'draft' }, order: 'created_at', ascending: false }),
-        fetchRows('content_posts', beautician.id, { eq: { status: 'posted' }, order: 'posted_at', ascending: false }),
-      ]);
-      setDrafts(d);
-      setPosted(p);
+
+      // Fetch from API to support stream_id filtering
+      const token = getToken();
+      const streamParam = selectedStreamId ? `?stream_id=${selectedStreamId}` : '';
+      const res = await fetch(`${API_BASE}/api/content${streamParam}`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error('Failed to fetch posts');
+      const data = await res.json();
+
+      const allPosts = data.posts || [];
+      setDrafts(allPosts.filter(p => p.status === 'draft').sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+      setPosted(allPosts.filter(p => p.status === 'posted').sort((a, b) => new Date(b.posted_at) - new Date(a.posted_at)));
     } catch (err) {
       logger.error('Load content error:', err);
       setError(err.message || 'Failed to load content');
@@ -195,6 +228,131 @@ export default function ContentAutopilot() {
     }
   }
 
+  async function loadStreams() {
+    if (isDevMode) {
+      setStreams([
+        { id: 'stream-personal', beautician_id: beautician?.id, name: 'Personal', type: 'personal', monthly_target: null, brand_notes: {}, active: true },
+        { id: 'stream-buffbrows', beautician_id: beautician?.id, name: 'BuffBrows', type: 'sponsor', monthly_target: 8, brand_notes: {}, active: true },
+      ]);
+      return;
+    }
+    setLoadingStreams(true);
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE}/api/content/streams`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setStreams(data.streams || []);
+    } catch (err) {
+      logger.warn('Streams load failed:', err);
+    } finally {
+      setLoadingStreams(false);
+    }
+  }
+
+  async function loadStreamProgress() {
+    if (!selectedStreamId) return;
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE}/api/content/streams/${selectedStreamId}/progress`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setStreamProgress(data);
+    } catch (err) {
+      logger.warn('Stream progress load failed:', err);
+    }
+  }
+
+  async function handleCreateStream() {
+    if (!newStreamForm.name.trim()) return;
+    setSavingStream(true);
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE}/api/content/streams`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          name: newStreamForm.name.trim(),
+          type: newStreamForm.type,
+          monthly_target: newStreamForm.monthly_target ? parseInt(newStreamForm.monthly_target) : null,
+          brand_notes: newStreamForm.brand_notes.trim() ? { notes: newStreamForm.brand_notes.trim() } : {},
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to create stream');
+      const data = await res.json();
+      setStreams(prev => [data.stream, ...prev]);
+      setNewStreamForm({ name: '', type: 'personal', monthly_target: '', brand_notes: '' });
+      setShowStreamForm(false);
+    } catch (err) {
+      logger.error('Create stream error:', err);
+    } finally {
+      setSavingStream(false);
+    }
+  }
+
+  async function loadCancelledAppointments() {
+    if (isDevMode) return;
+    try {
+      const token = getToken();
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const res = await fetch(`${API_BASE}/api/appointments?status=cancelled&since=7days`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.appointments && data.appointments.length > 0) {
+        setCancelledPrompt(data.appointments[0]);
+      }
+    } catch (err) {
+      logger.warn('Cancelled appointments load failed:', err);
+    }
+  }
+
+  async function handleGenerateAvailabilityPost() {
+    if (!cancelledPrompt) return;
+    setGeneratingAI(true);
+    try {
+      const token = getToken();
+      const treatmentName = cancelledPrompt.treatments?.name || 'appointment';
+      const appointmentDate = new Date(cancelledPrompt.starts_at).toLocaleDateString('en-GB', {
+        weekday: 'short',
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      const res = await fetch(`${API_BASE}/api/content/caption`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          post_type: 'last_minute_availability',
+          treatment_type: treatmentName,
+          context: `Cancelled slot: ${appointmentDate}`,
+        }),
+      });
+      if (!res.ok) throw new Error('Caption generation failed');
+      const data = await res.json();
+      startCompose('last_minute_availability', data.caption);
+      setCancelledPrompt(null);
+    } catch (err) {
+      logger.warn('Availability post generation failed:', err);
+      startCompose('last_minute_availability', getFilledTemplate('last_minute_availability'));
+    } finally {
+      setGeneratingAI(false);
+    }
+  }
+
   async function handleAIWrite() {
     if (!beautician || generatingAI) return;
     setGeneratingAI(true);
@@ -222,6 +380,39 @@ export default function ContentAutopilot() {
     } finally {
       setGeneratingAI(false);
     }
+  }
+
+  // ── Calendar helpers ──
+
+  function getCalendarDays() {
+    const year = calendarDate.getFullYear();
+    const month = calendarDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startDate = new Date(firstDay);
+    startDate.setDate(startDate.getDate() - firstDay.getDay());
+    const daysArray = [];
+    const current = new Date(startDate);
+    while (current <= lastDay || current.getDay() !== 0) {
+      daysArray.push(new Date(current));
+      current.setDate(current.getDate() + 1);
+    }
+    return daysArray;
+  }
+
+  function getPostsForDate(date) {
+    const dateStr = date.toISOString().split('T')[0];
+    return (selectedStreamId ? drafts.concat(posted) : drafts.concat(posted)).filter(post => {
+      const postDate = (post.scheduled_for || post.posted_at || post.created_at).split('T')[0];
+      return postDate === dateStr;
+    });
+  }
+
+  function getChipColor(status) {
+    if (status === 'draft') return '#D1D5DB';
+    if (status === 'scheduled') return '#60A5FA';
+    if (status === 'posted') return '#34D399';
+    return '#D1D5DB';
   }
 
   // ── Gallery helpers ──
@@ -468,9 +659,125 @@ export default function ContentAutopilot() {
         </button>
       </div>
 
+      {/* Stream selector pills */}
+      <div style={styles.streamSelector}>
+        <button
+          onClick={() => setSelectedStreamId(null)}
+          style={{
+            ...styles.streamPill,
+            background: selectedStreamId === null ? 'var(--accent, #C76B8A)' : 'var(--bg-subtle, #F5F2EF)',
+            color: selectedStreamId === null ? 'white' : 'var(--text-secondary, #7A756F)',
+          }}
+        >
+          All
+        </button>
+        {streams.map(s => (
+          <button
+            key={s.id}
+            onClick={() => setSelectedStreamId(s.id)}
+            style={{
+              ...styles.streamPill,
+              background: selectedStreamId === s.id ? 'var(--accent, #C76B8A)' : 'var(--bg-subtle, #F5F2EF)',
+              color: selectedStreamId === s.id ? 'white' : 'var(--text-secondary, #7A756F)',
+            }}
+          >
+            {s.name} {s.monthly_target ? `●${s.monthly_target}/mo` : ''}
+          </button>
+        ))}
+        <button
+          onClick={() => setShowStreamForm(!showStreamForm)}
+          style={{
+            ...styles.streamPill,
+            background: 'transparent',
+            color: 'var(--accent, #C76B8A)',
+            border: '1px solid var(--accent, #C76B8A)',
+          }}
+        >
+          + Add stream
+        </button>
+      </div>
+
+      {/* New stream form */}
+      {showStreamForm && (
+        <div style={styles.streamFormCard}>
+          <input
+            type="text"
+            placeholder="Stream name (e.g. BuffBrows)"
+            value={newStreamForm.name}
+            onChange={e => setNewStreamForm(f => ({ ...f, name: e.target.value }))}
+            style={styles.streamFormInput}
+          />
+          <select
+            value={newStreamForm.type}
+            onChange={e => setNewStreamForm(f => ({ ...f, type: e.target.value }))}
+            style={styles.streamFormInput}
+          >
+            <option value="personal">Personal</option>
+            <option value="sponsor">Sponsor</option>
+            <option value="campaign">Campaign</option>
+          </select>
+          <input
+            type="number"
+            placeholder="Monthly target (optional)"
+            value={newStreamForm.monthly_target}
+            onChange={e => setNewStreamForm(f => ({ ...f, monthly_target: e.target.value }))}
+            style={styles.streamFormInput}
+          />
+          <textarea
+            placeholder="Brand notes (optional)"
+            value={newStreamForm.brand_notes}
+            onChange={e => setNewStreamForm(f => ({ ...f, brand_notes: e.target.value }))}
+            style={{ ...styles.streamFormInput, minHeight: 60, resize: 'vertical' }}
+          />
+          <div style={styles.streamFormActions}>
+            <button onClick={handleCreateStream} disabled={savingStream} style={styles.primaryBtn}>
+              {savingStream ? 'Creating...' : 'Create'}
+            </button>
+            <button onClick={() => setShowStreamForm(false)} style={styles.cancelBtn}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Stream progress bar (for sponsored streams) */}
+      {selectedStreamId && streamProgress && streamProgress.monthly_target && (
+        <div style={styles.progressSection}>
+          <div style={styles.progressLabel}>
+            <span style={{ fontWeight: 600 }}>{streams.find(s => s.id === selectedStreamId)?.name}</span>
+            <span style={{ color: 'var(--text-muted, #7a7470)', fontSize: 12 }}>
+              {streamProgress.posted_this_month} / {streamProgress.monthly_target} posts · {streamProgress.remaining} remaining
+            </span>
+          </div>
+          <div style={styles.progressBar}>
+            <div
+              style={{
+                ...styles.progressFill,
+                width: `${Math.min(100, (streamProgress.posted_this_month / streamProgress.monthly_target) * 100)}%`,
+                background: streamProgress.remaining < 3 ? '#DC2626' : streamProgress.remaining <= 3 ? '#F59E0B' : 'var(--accent, #C76B8A)',
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Cancelled appointment prompt */}
+      {cancelledPrompt && (
+        <div style={styles.cancelledPromptBanner}>
+          <span style={{ fontSize: 16 }}>📅</span>
+          <div style={{ flex: 1 }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>A slot opened up</span>
+            <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-secondary, #7A756F)' }}>
+              {new Date(cancelledPrompt.starts_at).toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} was cancelled
+            </p>
+          </div>
+          <button onClick={handleGenerateAvailabilityPost} disabled={generatingAI} style={styles.promptActionBtn}>
+            {generatingAI ? 'Generating...' : '✨ Generate post'}
+          </button>
+        </div>
+      )}
+
       {/* Tabs */}
       <div style={styles.tabs}>
-        {['ideas', 'drafts', 'posted', 'gallery'].map(t => (
+        {['ideas', 'drafts', 'posted', 'calendar', 'gallery'].map(t => (
           <button
             key={t}
             onClick={() => { setTab(t); setComposing(false); }}
@@ -480,7 +787,7 @@ export default function ContentAutopilot() {
               color: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #7a7470)'
             }}
           >
-            {t === 'ideas' ? 'Ideas' : t === 'drafts' ? `Drafts${drafts.length ? ` (${drafts.length})` : ''}` : t === 'posted' ? 'Posted' : 'Gallery'}
+            {t === 'ideas' ? 'Ideas' : t === 'drafts' ? `Drafts${drafts.length ? ` (${drafts.length})` : ''}` : t === 'posted' ? 'Posted' : t === 'calendar' ? 'Calendar' : 'Gallery'}
           </button>
         ))}
       </div>
@@ -758,6 +1065,59 @@ export default function ContentAutopilot() {
               </span>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* ═══ CALENDAR TAB ═══ */}
+      {tab === 'calendar' && (
+        <div style={styles.postList}>
+          <div style={styles.calendarHeader}>
+            <button onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1))} style={styles.calendarNav}>←</button>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>
+              {calendarDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
+            </span>
+            <button onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1))} style={styles.calendarNav}>→</button>
+          </div>
+          <div style={styles.calendarGrid}>
+            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+              <div key={day} style={styles.calendarDayHeader}>{day}</div>
+            ))}
+            {getCalendarDays().map((date, idx) => {
+              const postsOnDay = getPostsForDate(date);
+              const isCurrentMonth = date.getMonth() === calendarDate.getMonth();
+              return (
+                <div
+                  key={idx}
+                  onClick={() => isCurrentMonth && startCompose('before_after', '')}
+                  style={{
+                    ...styles.calendarCell,
+                    background: isCurrentMonth ? 'var(--bg-card, #FFFFFF)' : 'var(--bg-subtle, #F5F2EF)',
+                    opacity: isCurrentMonth ? 1 : 0.5,
+                    cursor: isCurrentMonth ? 'pointer' : 'default',
+                  }}
+                >
+                  <div style={styles.calendarCellDate}>{date.getDate()}</div>
+                  {postsOnDay.length > 0 && (
+                    <div style={styles.calendarChips}>
+                      {postsOnDay.slice(0, 2).map(post => (
+                        <div
+                          key={post.id}
+                          onClick={(e) => { e.stopPropagation(); setEditingId(post.id); setEditCaption(post.caption); }}
+                          style={{
+                            ...styles.calendarChip,
+                            background: getChipColor(post.status),
+                            opacity: post.stream_id === selectedStreamId || selectedStreamId === null ? 1 : 0.5,
+                          }}
+                          title={post.caption}
+                        />
+                      ))}
+                      {postsOnDay.length > 2 && <span style={styles.calendarMore}>+{postsOnDay.length - 2}</span>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -1227,4 +1587,148 @@ const styles = {
   },
   aiSuggestionTreatment: { display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--accent, #C76B8A)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 },
   aiSuggestionCaption: { margin: '0 0 6px', fontSize: 13, lineHeight: 1.55, color: 'var(--text-primary, #2D2A26)' },
+
+  // Streams
+  streamSelector: { display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 12, marginBottom: 8, scrollBehavior: 'smooth' },
+  streamPill: {
+    padding: '6px 12px',
+    borderRadius: 16,
+    border: 'none',
+    fontSize: 12,
+    fontWeight: 500,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
+  },
+  streamFormCard: {
+    background: 'var(--bg-card, #FFFFFF)',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  streamFormInput: {
+    width: '100%',
+    padding: '10px 12px',
+    borderRadius: 10,
+    border: '1.5px solid var(--border, #EDE9E4)',
+    fontSize: 13,
+    fontFamily: 'inherit',
+    outline: 'none',
+    boxSizing: 'border-box',
+  },
+  streamFormActions: { display: 'flex', gap: 8 },
+
+  // Progress
+  progressSection: { marginBottom: 12, padding: '12px 0' },
+  progressLabel: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+    fontSize: 12,
+  },
+  progressBar: {
+    height: 8,
+    background: 'var(--bg-subtle, #F5F2EF)',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    transition: 'width 0.3s ease',
+    borderRadius: 4,
+  },
+
+  // Cancelled prompt
+  cancelledPromptBanner: {
+    display: 'flex',
+    gap: 10,
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 12,
+    background: 'linear-gradient(135deg, #FEF3C7, #FEF9E7)',
+    border: '1px solid #FCD34D',
+    marginBottom: 12,
+  },
+  promptActionBtn: {
+    padding: '6px 12px',
+    borderRadius: 8,
+    border: 'none',
+    background: '#F59E0B',
+    color: 'white',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
+  },
+
+  // Calendar
+  calendarHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    padding: '0 0 8px',
+  },
+  calendarNav: {
+    background: 'transparent',
+    border: 'none',
+    fontSize: 16,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    color: 'var(--text-secondary, #7A756F)',
+  },
+  calendarGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(7, 1fr)',
+    gap: 2,
+    marginBottom: 12,
+  },
+  calendarDayHeader: {
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: 600,
+    color: 'var(--text-muted, #7a7470)',
+    padding: '6px 0',
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+  },
+  calendarCell: {
+    minHeight: 80,
+    padding: 6,
+    borderRadius: 8,
+    border: '1px solid var(--border, #EDE9E4)',
+    position: 'relative',
+    cursor: 'pointer',
+    transition: 'background 0.1s',
+  },
+  calendarCellDate: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: 'var(--text-secondary, #7A756F)',
+    marginBottom: 4,
+  },
+  calendarChips: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 2,
+  },
+  calendarChip: {
+    width: 6,
+    height: 6,
+    borderRadius: 2,
+    cursor: 'pointer',
+  },
+  calendarMore: {
+    fontSize: 9,
+    color: 'var(--text-muted, #7a7470)',
+    marginLeft: 2,
+  },
 };
