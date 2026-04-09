@@ -363,22 +363,17 @@ export default function BookingPage() {
 
         setAddOns(ao || []);
 
-        // Unblock the page now — products are optional retail items, never block booking
-        setLoading(false);
-
-        // Fetch retail products in the background with a hard timeout
+        // Fetch retail products for this beautician
         try {
-          const res = await fetch(`${API_BASE}/api/products/public/${b.id}`, {
-            signal: AbortSignal.timeout(4000),
-          });
+          const res = await fetch(`${API_BASE}/api/products/public/${b.id}`);
           if (res.ok) {
             const products = await res.json();
             setRetailProducts(products);
           }
         } catch { /* products are optional — fail silently */ }
-
       } catch (err) {
         setError("Something went wrong loading this page.");
+      } finally {
         setLoading(false);
       }
     }

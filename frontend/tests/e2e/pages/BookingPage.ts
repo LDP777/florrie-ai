@@ -113,7 +113,9 @@ export class BookingFlowPage {
   // ── Step 3: Confirm ──────────────────────────────────────────────
 
   get confirmBookingButton() {
-    return this.page.getByRole('button', { name: /Confirm booking/i });
+    // Text is dynamic: "Confirm booking" (no deposit), "Pay £X.XX deposit",
+    // "Pay £X.XX" (full payment), or "Use session & book" (package redemption)
+    return this.page.getByRole('button', { name: /Confirm booking|Pay £|Use session & book/i });
   }
 
   get promoCodeInput() {
