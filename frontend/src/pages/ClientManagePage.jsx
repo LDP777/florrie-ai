@@ -33,6 +33,13 @@ export default function ClientManagePage() {
   const [resendingPayment, setResendingPayment] = useState(false);
   const [paymentResent, setPaymentResent] = useState(false);
 
+  // Patch test booking state
+  const [patchTestSlots, setPatchTestSlots] = useState(null);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [slotsError, setSlotsError] = useState(null);
+  const [confirmingSlot, setConfirmingSlot] = useState(false);
+  const [showSlotPicker, setShowSlotPicker] = useState(false);
+
   const brand = data?.appointment?.beautician?.brandColor || '#C76B8A';
   const brandLight = brand + '15';
 
@@ -114,6 +121,47 @@ export default function ClientManagePage() {
     }
   }
 
+  async function loadPatchTestSlots() {
+    setLoadingSlots(true);
+    setSlotsError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/booking/${slug}/manage/${token}/patch-test/slots`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to load slots');
+      }
+      const result = await res.json();
+      setPatchTestSlots(result.slots);
+      setShowSlotPicker(true);
+    } catch (err) {
+      setSlotsError(err.message);
+    } finally {
+      setLoadingSlots(false);
+    }
+  }
+
+  async function confirmPatchTestSlot(slot) {
+    setConfirmingSlot(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/booking/${slug}/manage/${token}/patch-test/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slot }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Confirmation failed');
+      }
+      await load();
+      setShowSlotPicker(false);
+      setPatchTestSlots(null);
+    } catch (err) {
+      setSlotsError(err.message);
+    } finally {
+      setConfirmingSlot(false);
+    }
+  }
+
   if (loading) return (
     <div style={S.page}>
       <div style={S.loadingWrap}>
@@ -137,7 +185,7 @@ export default function ClientManagePage() {
     </div>
   );
 
-  const { appointment, policy, patchTests, pendingForms } = data;
+  const { appointment, policy, patchTests, needsPatchTest, pendingForms } = data;
   const apptDate = new Date(appointment.startsAt);
   const isCancelled = appointment.status === 'cancelled';
   const isCompleted = appointment.status === 'completed';
@@ -272,31 +320,200 @@ export default function ClientManagePage() {
           </div>
         )}
 
-        {/* Patch tests section */}
-        {patchTests && patchTests.length > 0 && (
+        {/* Patch tests section — shown when treatment requires it OR existing patch test records exist */}
+        {(needsPatchTest || (patchTests && patchTests.length > 0)) && (
           <div style={S.card}>
             <p style={S.sectionLabel}>Patch tests</p>
-            {patchTests.map(pt => (
-              <div key={pt.id} style={S.patchTestRow}>
-                <div style={{
-                  width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
-                  background: pt.status === 'passed' ? '#5BA67F' : pt.status === 'failed' ? '#DC2626' : '#D4943A',
-                }} />
-                <div style={{ flex: 1 }}>
-                  <p style={S.patchTestName}>{pt.treatments?.name || 'Patch test'}</p>
-                  <p style={S.patchTestMeta}>
-                    {pt.test_date ? new Date(pt.test_date).toLocaleDateString('en-GB') : 'Date TBC'}
-                    {' · '}
-                    <span style={{ textTransform: 'capitalize' }}>{pt.status}</span>
-                  </p>
+
+            {/* No existing patch test row but treatment requires one */}
+            {needsPatchTest && (
+              <div style={S.patchTestBooking}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <span style={{ fontSize: 20 }}>🩺</span>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 600, color: '#2D1B1B' }}>
+                      Patch test required
+                    </p>
+                    <p style={{ margin: 0, fontSize: 13, color: '#888' }}>
+                      Before your {appointment.treatment?.name} on {apptDate.toLocaleDateString('en-GB')} — must be done at least 48 hours before
+                    </p>
+                  </div>
                 </div>
+                {!showSlotPicker ? (
+                  <>
+                    <button
+                      onClick={loadPatchTestSlots}
+                      disabled={loadingSlots}
+                      style={{ ...S.confirmSlotBtn, background: brand, width: '100%' }}
+                    >
+                      {loadingSlots ? 'Loading slots…' : 'Book your patch test'}
+                    </button>
+                    {slotsError && <p style={{ fontSize: 13, color: '#DC2626', marginTop: 8 }}>{slotsError}</p>}
+                  </>
+                ) : (
+                  <div style={S.slotPickerCard}>
+                    <p style={{ fontSize: 13, fontWeight: 600, margin: '0 0 12px', color: '#1a1a1a' }}>
+                      Choose a time for your 10-min patch test
+                    </p>
+                    {patchTestSlots && patchTestSlots.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                        {patchTestSlots.map((slot, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => confirmPatchTestSlot(slot)}
+                            disabled={confirmingSlot}
+                            style={{
+                              padding: '12px 14px', borderRadius: 10, border: '1.5px solid #E8E4DF',
+                              background: '#fff', fontSize: 13, fontWeight: 600, color: '#2D1B1B',
+                              cursor: confirmingSlot ? 'not-allowed' : 'pointer',
+                              opacity: confirmingSlot ? 0.5 : 1, textAlign: 'left',
+                              fontFamily: 'inherit', transition: 'all 0.2s',
+                            }}
+                            onMouseEnter={(e) => e.target.style.borderColor = brand}
+                            onMouseLeave={(e) => e.target.style.borderColor = '#E8E4DF'}
+                          >
+                            {new Date(slot).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} · {new Date(slot).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p style={{ fontSize: 13, color: '#888', marginBottom: 12 }}>No available slots — contact your beautician directly</p>
+                    )}
+                    <button onClick={() => { setShowSlotPicker(false); setSlotsError(null); }} style={S.keepBtn}>Back</button>
+                  </div>
+                )}
               </div>
-            ))}
-            {patchTests.some(pt => pt.status === 'pending') && (
-              <p style={{ fontSize: 13, color: '#D4943A', marginTop: 8 }}>
-                You have a pending patch test. Your beautician will contact you to arrange this before your appointment.
-              </p>
             )}
+
+            {patchTests && patchTests.map(pt => {
+              // Check if this patch test needs auto-booking (pending, not confirmed)
+              const needsBooking = pt.status === 'pending' && !pt.confirmed_at;
+              const isSuggested = pt.suggested_slot && !pt.confirmed_at;
+
+              if (needsBooking) {
+                return (
+                  <div key={pt.id}>
+                    {!showSlotPicker ? (
+                      <div style={S.patchTestBooking}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                          <span style={{ fontSize: 20 }}>🩺</span>
+                          <div style={{ flex: 1 }}>
+                            <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 600, color: '#2D1B1B' }}>
+                              Patch test required
+                            </p>
+                            <p style={{ margin: 0, fontSize: 13, color: '#888' }}>
+                              Before your {appointment.treatment?.name} on {apptDate.toLocaleDateString('en-GB')}
+                            </p>
+                          </div>
+                        </div>
+
+                        {isSuggested ? (
+                          <>
+                            <p style={{ margin: '0 0 12px', fontSize: 13, color: '#555', lineHeight: 1.5 }}>
+                              We've pencilled in <strong>{new Date(pt.suggested_slot).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} at {new Date(pt.suggested_slot).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</strong> — does this work?
+                            </p>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button
+                                onClick={() => confirmPatchTestSlot(pt.suggested_slot)}
+                                disabled={confirmingSlot}
+                                style={{ ...S.confirmSlotBtn, background: brand, flex: 1 }}
+                              >
+                                {confirmingSlot ? '✓ Confirming…' : '✓ Confirm'}
+                              </button>
+                              <button
+                                onClick={loadPatchTestSlots}
+                                disabled={loadingSlots}
+                                style={{ ...S.altSlotBtn, flex: 1 }}
+                              >
+                                {loadingSlots ? 'Loading…' : 'Pick different time'}
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <button
+                            onClick={loadPatchTestSlots}
+                            disabled={loadingSlots}
+                            style={{ ...S.confirmSlotBtn, background: brand, width: '100%' }}
+                          >
+                            {loadingSlots ? 'Loading slots…' : 'Find available slots'}
+                          </button>
+                        )}
+
+                        {slotsError && (
+                          <p style={{ fontSize: 13, color: '#DC2626', marginTop: 8 }}>{slotsError}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={S.slotPickerCard}>
+                        <p style={{ fontSize: 13, fontWeight: 600, margin: '0 0 12px', color: '#1a1a1a' }}>
+                          Choose a time for your 10-min patch test
+                        </p>
+                        {patchTestSlots && patchTestSlots.length > 0 ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                            {patchTestSlots.map((slot, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => confirmPatchTestSlot(slot)}
+                                disabled={confirmingSlot}
+                                style={{
+                                  padding: '12px 14px',
+                                  borderRadius: 10,
+                                  border: '1.5px solid #E8E4DF',
+                                  background: '#fff',
+                                  fontSize: 13,
+                                  fontWeight: 600,
+                                  color: '#2D1B1B',
+                                  cursor: confirmingSlot ? 'not-allowed' : 'pointer',
+                                  opacity: confirmingSlot ? 0.5 : 1,
+                                  textAlign: 'left',
+                                  fontFamily: 'inherit',
+                                  transition: 'all 0.2s',
+                                }}
+                                onMouseEnter={(e) => e.target.style.borderColor = brand}
+                                onMouseLeave={(e) => e.target.style.borderColor = '#E8E4DF'}
+                              >
+                                {new Date(slot).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} · {new Date(slot).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <p style={{ fontSize: 13, color: '#888', marginBottom: 12 }}>No slots available</p>
+                        )}
+                        <button
+                          onClick={() => { setShowSlotPicker(false); setSlotsError(null); }}
+                          style={S.keepBtn}
+                        >
+                          Back
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
+              // Display past/confirmed patch tests
+              return (
+                <div key={pt.id} style={S.patchTestRow}>
+                  <div style={{
+                    width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+                    background: pt.status === 'passed' ? '#5BA67F' : pt.status === 'failed' ? '#DC2626' : '#D4943A',
+                  }} />
+                  <div style={{ flex: 1 }}>
+                    <p style={S.patchTestName}>
+                      {pt.status === 'passed' ? '✓ ' : ''}
+                      {pt.treatments?.name || 'Patch test'}
+                    </p>
+                    <p style={S.patchTestMeta}>
+                      {pt.test_date ? new Date(pt.test_date).toLocaleDateString('en-GB') : pt.suggested_slot ? new Date(pt.suggested_slot).toLocaleDateString('en-GB') : 'Date TBC'}
+                      {' · '}
+                      <span style={{ textTransform: 'capitalize' }}>
+                        {pt.confirmed_at ? 'Booked' : pt.status}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -507,6 +724,24 @@ const S = {
   },
   patchTestName: { margin: 0, fontSize: 14, fontWeight: 600, color: '#2D1B1B' },
   patchTestMeta: { margin: '2px 0 0', fontSize: 12, color: '#888' },
+  patchTestBooking: {
+    padding: '14px', borderRadius: 12, background: '#FFFBF0',
+    border: '1.5px solid #F5E6D3',
+  },
+  confirmSlotBtn: {
+    padding: '12px 14px', borderRadius: 10, border: 'none',
+    color: '#fff', fontSize: 13, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'inherit',
+  },
+  altSlotBtn: {
+    padding: '12px 14px', borderRadius: 10, border: '1.5px solid #E8E4DF',
+    background: '#fff', color: '#555', fontSize: 13, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'inherit',
+  },
+  slotPickerCard: {
+    background: '#fff', borderRadius: 16, padding: '18px 18px',
+    boxShadow: '0 2px 12px rgba(0,0,0,0.05)', border: '1px solid #E8E4DF',
+  },
   formRow: {
     display: 'flex', alignItems: 'center', gap: 10,
     padding: '8px 0', borderBottom: '1px solid #F5F0EB',

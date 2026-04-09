@@ -211,7 +211,7 @@ router.get('/:slug/manage/:token', async (req, res) => {
       .select(`
         id, starts_at, ends_at, status, management_token,
         payment_expires_at, policy_snapshot, client_email,
-        treatments(id, name, duration_minutes, price_cents, category),
+        treatments(id, name, duration_minutes, price_cents, category, requires_patch_test),
         clients(id, first_name, last_name, email, phone),
         beauticians(id, first_name, business_name, booking_policy, booking_slug, brand_color)
       `)
@@ -226,10 +226,13 @@ router.get('/:slug/manage/:token', async (req, res) => {
     const clientId = appt.clients?.id;
     const beauticianId = appt.beauticians?.id;
 
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
     const [{ data: patchTests }, { data: pendingForms }] = await Promise.all([
       supabase
         .from('patch_tests')
-        .select('id, status, test_date, result, treatments(name)')
+        .select('id, status, test_date, result, suggested_slot, confirmed_at, treatments(name)')
         .eq('client_id', clientId)
         .eq('beautician_id', beauticianId)
         .order('test_date', { ascending: false })
@@ -237,12 +240,24 @@ router.get('/:slug/manage/:token', async (req, res) => {
 
       supabase
         .from('consultation_responses')
-        .select('id, status, created_at, form_url, consultation_forms(name)')
+        .select('id, status, created_at, token, form_url, consultation_forms(name)')
         .eq('client_id', clientId)
         .eq('beautician_id', beauticianId)
         .eq('status', 'pending')
         .limit(5),
     ]);
+
+    // Determine if a patch test is needed:
+    // Treatment requires one AND client has no passed patch test in the last 6 months
+    // AND no pending/confirmed patch test already exists for this appointment
+    const treatmentRequiresPatchTest = appt.treatments?.requires_patch_test === true;
+    const hasValidPatchTest = (patchTests || []).some(pt =>
+      pt.status === 'passed' && pt.test_date && new Date(pt.test_date) > sixMonthsAgo
+    );
+    const hasPendingPatchTest = (patchTests || []).some(pt =>
+      pt.status === 'pending' || pt.confirmed_at
+    );
+    const needsPatchTest = treatmentRequiresPatchTest && !hasValidPatchTest && !hasPendingPatchTest;
 
     const policy = appt.policy_snapshot || appt.beauticians?.booking_policy || {};
     const now = new Date();
@@ -274,7 +289,12 @@ router.get('/:slug/manage/:token', async (req, res) => {
         hoursUntil: Math.max(0, Math.round(hoursUntil)),
       },
       patchTests: patchTests || [],
-      pendingForms: pendingForms || [],
+      needsPatchTest,
+      pendingForms: (pendingForms || []).map(f => ({
+        ...f,
+        // Compute form_url from token if not stored in DB
+        form_url: f.form_url || (f.token ? `${FRONTEND_URL}/form/${f.token}` : null),
+      })),
     });
   } catch (err) {
     logger.error({ err }, 'Manage booking fetch failed');
@@ -795,22 +815,40 @@ router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
       return res.status(500).json({ error: 'Something went wrong' });
     }
 
-    // Update patch_tests table with confirmation
-    const { error: patchErr } = await supabase
+    // Upsert patch_tests row — update if one exists (unconfirmed), otherwise create
+    const { data: existingPT } = await supabase
       .from('patch_tests')
-      .update({
-        appointment_id: patchTestAppt.id,
-        suggested_slot: slotTime.toISOString(),
-        confirmed_at: new Date().toISOString(),
-        auto_booked: true,
-      })
+      .select('id')
       .eq('client_id', appt.client_id)
       .eq('beautician_id', beautician.id)
-      .is('confirmed_at', null); // Only update if not already confirmed
+      .is('confirmed_at', null)
+      .maybeSingle();
 
-    if (patchErr) {
-      logger.error({ err: patchErr }, 'Patch test update failed');
-      // Still return success since appointment was created
+    if (existingPT) {
+      const { error: patchErr } = await supabase
+        .from('patch_tests')
+        .update({
+          appointment_id: patchTestAppt.id,
+          suggested_slot: slotTime.toISOString(),
+          confirmed_at: new Date().toISOString(),
+          auto_booked: true,
+        })
+        .eq('id', existingPT.id);
+      if (patchErr) logger.error({ err: patchErr }, 'Patch test update failed (non-fatal)');
+    } else {
+      // No existing row — create one so manage page reflects the confirmed booking
+      const { error: patchErr } = await supabase
+        .from('patch_tests')
+        .insert({
+          client_id: appt.client_id,
+          beautician_id: beautician.id,
+          appointment_id: patchTestAppt.id,
+          suggested_slot: slotTime.toISOString(),
+          confirmed_at: new Date().toISOString(),
+          auto_booked: true,
+          status: 'pending', // awaiting result
+        });
+      if (patchErr) logger.error({ err: patchErr }, 'Patch test insert failed (non-fatal)');
     }
 
     res.json({
