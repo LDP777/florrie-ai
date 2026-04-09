@@ -36,8 +36,8 @@ export default function Pricing() {
         return;
       }
 
-      // If Stripe publishable key is available, open embedded checkout modal.
-      // Otherwise fall back to redirect flow.
+      // If Stripe publishable key is available, open Payment Element modal.
+      // Otherwise fall back to Stripe Checkout redirect.
       if (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY) {
         setModal({ plan: planId, token });
       } else {

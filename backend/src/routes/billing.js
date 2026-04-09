@@ -102,6 +102,79 @@ router.post('/create-checkout', requireAuth, async (req, res) => {
 });
 
 /**
+ * POST /api/billing/create-subscription-intent
+ * Creates a Stripe Subscription in incomplete state and returns the
+ * PaymentIntent clientSecret for use with Stripe Payment Element.
+ *
+ * Flow:
+ *   1. Create/get Stripe customer
+ *   2. Create subscription with payment_behavior='default_incomplete'
+ *   3. Return clientSecret from latest_invoice.payment_intent
+ *   4. Frontend confirms payment via stripe.confirmPayment()
+ *   5. On success, subscription becomes active (webhook updates DB)
+ */
+router.post('/create-subscription-intent', requireAuth, async (req, res) => {
+  try {
+    if (!stripe) {
+      return res.status(503).json({ error: 'Billing is not configured yet. Please contact support.' });
+    }
+
+    const { plan, interval } = req.body;
+    const priceKey = interval === 'annual' ? `${plan}_annual` : plan;
+    if (!plan || !PRICE_IDS[priceKey]) {
+      return res.status(400).json({ error: 'Invalid plan selected' });
+    }
+
+    const beautician = req.beautician;
+    let stripeCustomerId = beautician.stripe_customer_id;
+
+    // Create Stripe customer if needed
+    if (!stripeCustomerId) {
+      const customer = await stripe.customers.create({
+        email: beautician.email,
+        metadata: {
+          beautician_id: beautician.id,
+          business_name: beautician.business_name || '',
+        },
+      });
+      stripeCustomerId = customer.id;
+
+      await supabase
+        .from('beauticians')
+        .update({ stripe_customer_id: stripeCustomerId })
+        .eq('id', beautician.id);
+    }
+
+    // Create subscription in incomplete state — payment collected via Payment Element
+    const subscription = await stripe.subscriptions.create({
+      customer: stripeCustomerId,
+      items: [{ price: PRICE_IDS[priceKey] }],
+      payment_behavior: 'default_incomplete',
+      payment_settings: {
+        payment_method_types: ['card'],
+        save_default_payment_method: 'on_subscription',
+      },
+      expand: ['latest_invoice.payment_intent'],
+      metadata: {
+        beautician_id: beautician.id,
+        plan,
+        interval: interval || 'monthly',
+      },
+    });
+
+    const paymentIntent = subscription.latest_invoice.payment_intent;
+
+    res.json({
+      clientSecret: paymentIntent.client_secret,
+      subscriptionId: subscription.id,
+    });
+  } catch (error) {
+    logger.error({ err: error }, 'Failed to create subscription intent');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+/**
  * POST /api/billing/portal
  * Creates a Stripe Customer Portal session for managing subscription.
  */
