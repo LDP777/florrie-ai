@@ -90,12 +90,11 @@ test.describe('Booking page — public access', () => {
     const booking = new BookingFlowPage(page);
     await booking.goto(SLUG);
 
-    // Walk to step 2
+    // Walk to step 2 — note: slot click auto-advances to details, no continue() needed
     await booking.selectFirstTreatment();
     await booking.continue();
     await booking.selectFirstAvailableDate();
-    await booking.selectFirstAvailableSlot();
-    await booking.continue();
+    await booking.selectFirstAvailableSlot(); // auto-advances to 'Your Details'
 
     await booking.expectStep('Your Details');
     await expect(booking.nameInput).toBeVisible();
@@ -110,11 +109,10 @@ test.describe('Booking page — public access', () => {
     await booking.selectFirstTreatment();
     await booking.continue();
     await booking.selectFirstAvailableDate();
-    await booking.selectFirstAvailableSlot();
-    await booking.continue();
+    await booking.selectFirstAvailableSlot(); // auto-advances to 'Your Details'
 
-    // Try to advance without filling required fields
-    await booking.continue();
+    // Button should be disabled until required fields are filled
+    await expect(booking.continueButton).toBeDisabled();
 
     // Should still be on step 2
     await booking.expectStep('Your Details');
@@ -127,8 +125,7 @@ test.describe('Booking page — public access', () => {
     await booking.selectFirstTreatment();
     await booking.continue();
     await booking.selectFirstAvailableDate();
-    await booking.selectFirstAvailableSlot();
-    await booking.continue();
+    await booking.selectFirstAvailableSlot(); // auto-advances to 'Your Details'
 
     await booking.fillClientDetails({
       name: 'E2E Test Client',
@@ -147,8 +144,7 @@ test.describe('Booking page — public access', () => {
     await booking.selectFirstTreatment();
     await booking.continue();
     await booking.selectFirstAvailableDate();
-    await booking.selectFirstAvailableSlot();
-    await booking.continue();
+    await booking.selectFirstAvailableSlot(); // auto-advances to 'Your Details'
 
     await booking.fillClientDetails({
       name: 'E2E Test Client',
