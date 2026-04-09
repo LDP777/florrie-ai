@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { supabase } from '../index.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, sanitizeBeautician } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { triggerSequence } from '../services/email-sequences.js';
 import logger from '../lib/logger.js';
@@ -76,7 +76,7 @@ router.post('/signup', validate(signupSchema), async (req, res) => {
     logger.warn({ err, beauticianId: beautician.id }, 'Welcome sequence trigger failed')
   );
 
-  res.status(201).json({ user: authData.user, beautician });
+  res.status(201).json({ user: authData.user, beautician: sanitizeBeautician(beautician) });
 });
 
 /**
@@ -84,7 +84,7 @@ router.post('/signup', validate(signupSchema), async (req, res) => {
  * Returns the current beautician's profile.
  */
 router.get('/me', requireAuth, (req, res) => {
-  res.json({ beautician: req.beautician });
+  res.json({ beautician: sanitizeBeautician(req.beautician) });
 });
 
 /**
@@ -106,7 +106,7 @@ router.patch('/me', requireAuth, validate(profileUpdateSchema), async (req, res)
     return res.status(500).json({ error: 'Something went wrong' });
   }
 
-  res.json({ beautician: data });
+  res.json({ beautician: sanitizeBeautician(data) });
 });
 
 export default router;

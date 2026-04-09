@@ -60,6 +60,11 @@ router.post('/execute', requireAuth, async (req, res) => {
     treatments = req.body.treatments || [];
     appointments = req.body.appointments || [];
     platform = req.body.platform || 'csv';
+
+    // Hard limits — prevent a bad actor hammering the DB via pre-parsed payloads
+    if (clients.length > 5000) return res.status(400).json({ error: 'Too many clients (max 5,000 per import)' });
+    if (treatments.length > 500) return res.status(400).json({ error: 'Too many treatments (max 500 per import)' });
+    if (appointments.length > 50000) return res.status(400).json({ error: 'Too many appointments (max 50,000 per import)' });
   } else {
     return res.status(400).json({ error: 'Provide csv text or pre-parsed data' });
   }

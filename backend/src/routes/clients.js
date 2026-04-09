@@ -118,19 +118,20 @@ router.get('/:id', requireAuth, async (req, res) => {
 
   if (error) return res.status(404).json({ error: 'Client not found' });
 
-  // Get recent appointments
+  // Use verified client.id (not raw URL param) and scope to beautician for both sub-queries
   const { data: appointments } = await supabase
     .from('appointments')
     .select('*, treatments(name)')
-    .eq('client_id', req.params.id)
+    .eq('client_id', client.id)
+    .eq('beautician_id', req.beautician.id)
     .order('starts_at', { ascending: false })
     .limit(10);
 
-  // Get recent messages
   const { data: messages } = await supabase
     .from('messages')
     .select('*')
-    .eq('client_id', req.params.id)
+    .eq('client_id', client.id)
+    .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false })
     .limit(20);
 
