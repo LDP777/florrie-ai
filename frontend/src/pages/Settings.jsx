@@ -27,6 +27,7 @@ export default function Settings({ onLogout }) {
   const [stripeError, setStripeError] = useState(null);
   const [gcalConnecting, setGcalConnecting] = useState(false);
   const [gcalBanner, setGcalBanner] = useState(null); // 'success' | 'error' | null
+  const [stripeBanner, setStripeBanner] = useState(null); // 'success' | 'refresh' | 'pending' | null
 
   // Detect Google Calendar OAuth callback redirect (?gcal=success|error)
   useEffect(() => {
@@ -37,6 +38,41 @@ export default function Settings({ onLogout }) {
       setSection('calendar');
       window.history.replaceState({}, '', window.location.pathname);
       if (gcalStatus === 'success') refresh();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Detect Stripe Connect return (?stripe=success|refresh)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const stripeParam = params.get('stripe');
+    if (stripeParam === 'success' || stripeParam === 'refresh') {
+      setSection('payments');
+      window.history.replaceState({}, '', window.location.pathname);
+      if (stripeParam === 'success') {
+        // Call status endpoint to sync charges_enabled / payouts_enabled into DB
+        (async () => {
+          try {
+            const token = (await supabase.auth.getSession()).data.session?.access_token;
+            const res = await fetch(`${API_BASE}/api/stripe/connect/status`, {
+              headers: { 'Authorization': `Bearer ${token}` },
+            });
+            const data = await res.json();
+            await refresh();
+            if (data.onboarding_complete) {
+              setStripeBanner('success');
+            } else {
+              // Stripe connected but not fully verified yet (can take a moment)
+              setStripeBanner('pending');
+            }
+          } catch (err) {
+            logger.error('Stripe status check on return:', err);
+            await refresh();
+            setStripeBanner('pending');
+          }
+        })();
+      } else {
+        setStripeBanner('refresh');
+      }
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -450,6 +486,22 @@ export default function Settings({ onLogout }) {
       {/* === PAYMENTS (STRIPE) === */}
       {section === 'payments' && (
         <div>
+          {/* Stripe return banners */}
+          {stripeBanner === 'success' && (
+            <div style={{ background: 'var(--success)', color: '#fff', borderRadius: 12, padding: '12px 16px', marginBottom: 12, fontSize: 13, fontWeight: 500 }}>
+              ✓ Stripe connected — you can now accept card payments and deposits.
+            </div>
+          )}
+          {stripeBanner === 'pending' && (
+            <div style={{ background: 'var(--warning)', color: '#fff', borderRadius: 12, padding: '12px 16px', marginBottom: 12, fontSize: 13, fontWeight: 500 }}>
+              Stripe setup received — it may take a few minutes for your account to be fully verified. Refresh this page shortly.
+            </div>
+          )}
+          {stripeBanner === 'refresh' && (
+            <div style={{ background: 'var(--border)', color: 'var(--text-primary)', borderRadius: 12, padding: '12px 16px', marginBottom: 12, fontSize: 13 }}>
+              Stripe setup wasn't completed. Click Connect Stripe to try again.
+            </div>
+          )}
           {/* Connection status */}
           <div style={styles.card}>
             <div style={styles.cardTitle}>Stripe Connect</div>

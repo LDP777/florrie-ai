@@ -39,6 +39,24 @@ router.post('/connect/onboard', requireAuth, requireStripe, async (req, res) => 
   try {
     let accountId = req.beautician.stripe_account_id;
 
+    // Verify existing account ID is valid with current key — clears stale test-mode IDs
+    if (accountId) {
+      try {
+        await stripe.accounts.retrieve(accountId);
+      } catch (verifyErr) {
+        if (verifyErr?.statusCode === 404 || verifyErr?.message?.includes('No such account')) {
+          logger.warn({ accountId }, 'Stale Stripe account ID — clearing and creating fresh');
+          accountId = null;
+          await supabase
+            .from('beauticians')
+            .update({ stripe_account_id: null, stripe_onboarding_complete: false })
+            .eq('id', req.beautician.id);
+        } else {
+          throw verifyErr;
+        }
+      }
+    }
+
     // Create account if not exists
     if (!accountId) {
       const account = await stripe.accounts.create({
@@ -100,10 +118,10 @@ router.get('/connect/status', requireAuth, requireStripe, async (req, res) => {
     let currency = 'gbp';
 
     const account = await stripe.accounts.retrieve(accountId);
-      complete = account.charges_enabled && account.payouts_enabled;
-      chargesEnabled = account.charges_enabled;
-      payoutsEnabled = account.payouts_enabled;
-      currency = account.default_currency || 'gbp';
+    complete = account.charges_enabled && account.payouts_enabled;
+    chargesEnabled = account.charges_enabled;
+    payoutsEnabled = account.payouts_enabled;
+    currency = account.default_currency || 'gbp';
 
     // Sync our DB if the status has changed
     if (complete !== req.beautician.stripe_onboarding_complete) {
@@ -121,6 +139,15 @@ router.get('/connect/status', requireAuth, requireStripe, async (req, res) => {
       default_currency: currency,
     });
   } catch (err) {
+    // Stale or test-mode account ID — clear it so they can re-onboard with the live key
+    if (err?.raw?.code === 'account_invalid' || err?.statusCode === 404 || err?.message?.includes('No such account')) {
+      logger.warn({ accountId }, 'Stripe account not found — clearing stale account ID');
+      await supabase
+        .from('beauticians')
+        .update({ stripe_account_id: null, stripe_onboarding_complete: false })
+        .eq('id', req.beautician.id);
+      return res.json({ connected: false, onboarding_complete: false, stale: true });
+    }
     logger.error({ err }, 'Stripe status error');
     res.status(500).json({ error: 'Something went wrong' });
   }
