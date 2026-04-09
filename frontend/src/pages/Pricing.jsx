@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { useBeautician, supabase } from '../lib/supabase.js';
 import { PLAN, TEAM_ADDON, getPlanName, isPaidPlan } from '../lib/subscription.js';
 import { ds, type } from '../lib/designSystem.js';
+import CheckoutModal from '../components/CheckoutModal.jsx';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -19,6 +20,7 @@ export default function Pricing() {
   const [loading, setLoading] = useState(null);
   const [error, setError] = useState(null);
   const [interval, setInterval] = useState('monthly');
+  const [modal, setModal] = useState(null); // { plan, token } | null
 
   const daysLeft = trialEnd ? Math.max(0, Math.ceil((trialEnd - Date.now()) / 86400000)) : 0;
   const trialExpired = currentPlan === 'trial' && trialEnd && daysLeft === 0;
@@ -29,19 +31,30 @@ export default function Pricing() {
     setError(null);
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const res = await fetch(`${API}/api/billing/create-checkout`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ plan: planId, interval }),
-      });
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
+      if (!token) {
+        setError('Session expired. Please refresh and try again.');
+        return;
+      }
+
+      // If Stripe publishable key is available, open embedded checkout modal.
+      // Otherwise fall back to redirect flow.
+      if (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY) {
+        setModal({ plan: planId, token });
       } else {
-        setError(data.error || 'Failed to start checkout');
+        const res = await fetch(`${API}/api/billing/create-checkout`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ plan: planId, interval }),
+        });
+        const data = await res.json();
+        if (data.url) {
+          window.location.href = data.url;
+        } else {
+          setError(data.error || 'Failed to start checkout');
+        }
       }
     } catch {
       setError('Could not connect to billing. Try again shortly.');
@@ -80,6 +93,12 @@ export default function Pricing() {
 
   const showPrice = interval === 'annual' ? PLAN.annualLabel : PLAN.monthlyLabel;
   const seatPrice = interval === 'annual' ? TEAM_ADDON.seatAnnualLabel : TEAM_ADDON.seatMonthlyLabel;
+
+  function handleCheckoutSuccess() {
+    setModal(null);
+    // Reload so the current-plan banner reflects the new subscription
+    window.location.reload();
+  }
 
   return (
     <div style={S.page}>
@@ -190,6 +209,17 @@ export default function Pricing() {
         <div style={S.urgency}>
           Your trial ends in {daysLeft} day{daysLeft !== 1 ? 's' : ''}. Subscribe to keep everything — your data, clients, and settings stay exactly as they are.
         </div>
+      )}
+
+      {/* Embedded Stripe Checkout Modal */}
+      {modal && (
+        <CheckoutModal
+          plan={modal.plan}
+          interval={interval}
+          authToken={modal.token}
+          onClose={() => setModal(null)}
+          onSuccess={handleCheckoutSuccess}
+        />
       )}
 
       {/* FAQ */}

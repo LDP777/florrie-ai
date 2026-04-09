@@ -564,6 +564,29 @@
       transform: translateY(-2px);
     }
 
+    .pricing-trial-btn {
+      display: block;
+      width: 100%;
+      padding: 15px 24px;
+      border-radius: 12px;
+      background: #92405e;
+      color: #ffffff;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 700;
+      text-align: center;
+      text-decoration: none;
+      letter-spacing: -0.01em;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 16px rgba(146, 64, 94, 0.28);
+    }
+
+    .pricing-trial-btn:hover {
+      background: #782b49;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(146, 64, 94, 0.36);
+    }
+
     /* ===== TESTIMONIAL ===== */
     .testimonial-section {
       padding: 100px 24px;
@@ -1539,14 +1562,12 @@
           <div class="pricing-feature">Analytics & reports</div>
           <div class="pricing-feature">120 messages/month included</div>
         </div>
-        <form class="waitlist-form" id="pricingForm" style="margin: 0;">
-          <div class="waitlist-input-row" style="flex-direction: column; gap: 8px;">
-            <input type="email" class="waitlist-input" placeholder="your@email.com" required>
-            <button type="submit" class="waitlist-btn" style="width: 100%; padding: 14px;">Join waitlist</button>
-          </div>
-          <div class="error-message" id="pricingError"></div>
-          <div class="success-message" id="pricingSuccess"></div>
-        </form>
+        <div style="margin-top: 8px;">
+          <a href="https://app.florrie.ai/signup" class="pricing-trial-btn">
+            Start your 14-day free trial
+          </a>
+          <p style="font-size: 12px; color: var(--text-muted, #867277); text-align: center; margin-top: 10px;">No card required. Cancel anytime.</p>
+        </div>
       </div>
     </div>
 
@@ -1589,18 +1610,22 @@
   <!-- Final CTA -->
   <section class="final-cta" id="start">
     <div class="container-narrow">
-      <h2 class="display-italic">Be the first salon on the list</h2>
-      <p class="final-cta-subtext" style="margin-bottom: 32px;">We're opening doors to a small group of early salons. Join the waitlist and you'll hear from us first.</p>
+      <h2 class="display-italic">Ready to run your business differently?</h2>
+      <p class="final-cta-subtext" style="margin-bottom: 32px;">Start a free 14-day trial — no card needed. Or drop your email and we'll send you a walkthrough.</p>
 
-      <form class="waitlist-form" id="finalForm" style="max-width: 420px;">
+      <a href="https://app.florrie.ai/signup" class="pricing-trial-btn" style="max-width: 380px; margin: 0 auto 20px; background: #fff; color: #92405e; box-shadow: 0 4px 16px rgba(0,0,0,0.14);">
+        Start free trial
+      </a>
+
+      <form class="waitlist-form" id="finalForm" style="max-width: 380px; margin: 0 auto;">
         <div class="waitlist-input-row">
-          <input type="email" class="waitlist-input" placeholder="your@email.com" required style="background: rgba(255,255,255,0.97);">
-          <button type="submit" class="waitlist-btn" style="background: #ffffff; color: #92405e; box-shadow: 0 2px 8px rgba(0,0,0,0.12);">Join waitlist</button>
+          <input type="email" class="waitlist-input" placeholder="Prefer a walkthrough? Enter your email" required style="background: rgba(255,255,255,0.97);">
+          <button type="submit" class="waitlist-btn" style="background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.4);">Send</button>
         </div>
         <div class="error-message" id="finalError" style="background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.4); color: #fff;"></div>
         <div class="success-message" id="finalSuccess" style="background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.4); color: #fff;"></div>
       </form>
-      <p class="form-note" style="margin-top: 14px;">No spam. Just early access and launch updates.</p>
+      <p class="form-note" style="margin-top: 14px;">No spam. We'll set up a quick call to show you around.</p>
     </div>
   </section>
 

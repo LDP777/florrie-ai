@@ -204,6 +204,10 @@
         50% { transform: translateY(-4px); }
       }
 
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+
       @keyframes gradientShift {
         0% { background-position: 0% 50%; }
         50% { background-position: 100% 50%; }
@@ -305,6 +309,8 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Stripe.js — loaded async, available as window.Stripe -->
+    <script src="https://js.stripe.com/v3/" async></script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

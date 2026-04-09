@@ -32,7 +32,7 @@ router.post('/create-checkout', requireAuth, async (req, res) => {
       return res.status(503).json({ error: 'Billing is not configured yet. Please contact support.' });
     }
 
-    const { plan, interval } = req.body;
+    const { plan, interval, embedded } = req.body;
     // Support both monthly and annual: plan='florrie', interval='annual' → key='florrie_annual'
     const priceKey = interval === 'annual' ? `${plan}_annual` : plan;
     if (!plan || !PRICE_IDS[priceKey]) {
@@ -59,12 +59,12 @@ router.post('/create-checkout', requireAuth, async (req, res) => {
         .eq('id', beautician.id);
     }
 
-    const session = await stripe.checkout.sessions.create({
+    // Build session params — embedded mode uses client_secret + return_url,
+    // redirect mode uses success_url + cancel_url
+    const sessionParams = {
       customer: stripeCustomerId,
       mode: 'subscription',
       line_items: [{ price: PRICE_IDS[priceKey], quantity: 1 }],
-      success_url: `${APP_URL}/pricing?session_id={CHECKOUT_SESSION_ID}&success=1`,
-      cancel_url: `${APP_URL}/pricing?cancelled=1`,
       metadata: {
         beautician_id: beautician.id,
         plan,
@@ -78,9 +78,23 @@ router.post('/create-checkout', requireAuth, async (req, res) => {
         },
       },
       allow_promotion_codes: true,
-    });
+    };
 
-    res.json({ url: session.url });
+    if (embedded) {
+      sessionParams.ui_mode = 'embedded';
+      sessionParams.return_url = `${APP_URL}/pricing?session_id={CHECKOUT_SESSION_ID}&success=1`;
+    } else {
+      sessionParams.success_url = `${APP_URL}/pricing?session_id={CHECKOUT_SESSION_ID}&success=1`;
+      sessionParams.cancel_url = `${APP_URL}/pricing?cancelled=1`;
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
+
+    if (embedded) {
+      res.json({ clientSecret: session.client_secret });
+    } else {
+      res.json({ url: session.url });
+    }
   } catch (error) {
     logger.error({ err: error }, 'Failed to create checkout session');
     res.status(500).json({ error: 'Something went wrong' });
