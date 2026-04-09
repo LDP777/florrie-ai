@@ -296,7 +296,7 @@ router.post('/subscribe', requireAuth, requireStripe, async (req, res) => {
 router.post('/portal', requireAuth, requireStripe, async (req, res) => {
   const customerId = req.beautician.stripe_customer_id;
   if (!customerId) {
-    return res.status(400).json({ error: 'No Stripe customer found' });
+    return res.status(400).json({ error: 'No active Florrie subscription found.' });
   }
 
   try {
@@ -306,8 +306,16 @@ router.post('/portal', requireAuth, requireStripe, async (req, res) => {
     });
     res.json({ url: session.url });
   } catch (err) {
+    // Stale test-mode customer ID — clear it and return a clean error
+    if (err?.statusCode === 404 || err?.message?.includes('No such customer')) {
+      logger.warn({ customerId }, 'Stale Stripe customer ID — clearing from DB');
+      await supabase
+        .from('beauticians')
+        .update({ stripe_customer_id: null })
+        .eq('id', req.beautician.id);
+      return res.status(400).json({ error: 'No active Florrie subscription found.' });
+    }
     logger.error({ err }, 'Portal error');
-    logger.error({ err }, 'Stripe operation failed');
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
