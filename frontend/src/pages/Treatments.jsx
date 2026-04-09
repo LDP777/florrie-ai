@@ -219,6 +219,7 @@ export default function Treatments() {
               />
             </div>
           </div>
+          <span style={{ ...styles.formHint, display: 'block', marginTop: -8, marginBottom: 8 }}>Overrides the default deposit set in Settings → Payments</span>
           <div style={styles.formRow}>
             <div style={styles.formGroup}>
               <label style={styles.formLabel}>Category</label>
