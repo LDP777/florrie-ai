@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+.next/
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Misc
+.vercel
+*.tgz
+coverage/
+
+# Accidentally nested project copies (Cowork artefact)
+frontend/src/pages/backend/
+frontend/src/pages/frontend/
+frontend/src/pages/docs/
+frontend/src/pages/shared/
+frontend/src/pages/supabase/
+frontend/src/pages/package.json
+frontend/src/pages/package-lock.json
+frontend/src/pages/DEPLOY.md
+frontend/src/pages/.gitignore
+
+# Audit/doc files (generated, not source)
+backend/AUDIT_*.md
+frontend/FLORRIE_HUB_AUDIT_*.md

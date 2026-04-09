@@ -1,0 +1,72 @@
+# Florrie API — smoke load test
+#
+# Run locally against a live API:
+#   npx artillery run smoke.yml
+#
+# Run against production (use sparingly — real traffic):
+#   npx artillery run smoke.yml --environment production
+#
+# What to look for in results:
+#   - p95 response time < 500ms on /health and /api/booking/:slug
+#   - p95 < 2000ms on AI routes (/api/ai-actions)
+#   - 0 errors at the ramp-up phase (20 req/sec)
+#   - Error rate spikes under sustained load = connection pool exhaustion
+#     (fix: upgrade Supabase plan or add pgBouncer connection pooling)
+
+config:
+  target: "http://localhost:3001"
+  environments:
+    production:
+      target: "https://api.florrie.ai"
+  phases:
+    - name: "Warm up"
+      duration: 30
+      arrivalRate: 2
+    - name: "Ramp"
+      duration: 60
+      arrivalRate: 10
+    - name: "Sustained"
+      duration: 120
+      arrivalRate: 20
+  defaults:
+    headers:
+      Accept: "application/json"
+
+scenarios:
+  # Health check — should always be <50ms, never fail
+  - name: "Health"
+    weight: 25
+    flow:
+      - get:
+          url: "/health"
+          expect:
+            - statusCode: 200
+            - contentType: json
+            - hasProperty: status
+
+  # Public booking page — highest real-world traffic, no auth
+  - name: "Booking page"
+    weight: 40
+    flow:
+      - get:
+          url: "/api/booking/ellie"    # replace 'ellie' with real beautician slug
+          expect:
+            - statusCode: 200
+
+  # Unauthenticated API hit — should return 401, not 500
+  - name: "Auth boundary"
+    weight: 20
+    flow:
+      - get:
+          url: "/api/appointments"
+          expect:
+            - statusCode: 401
+
+  # Rate limiter check — 30 rapid booking requests should start returning 429
+  - name: "Rate limit probe"
+    weight: 15
+    flow:
+      - loop:
+          - get:
+              url: "/api/booking/ellie"
+        count: 5

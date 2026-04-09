@@ -1,0 +1,323 @@
+/**
+ * Pricing — Plans & Billing page.
+ *
+ * Single plan (Florrie £29/mo), with team add-on option.
+ * Monthly/annual toggle. Stripe Checkout for upgrades, portal for management.
+ */
+import { useState } from 'react';
+import { useBeautician, supabase } from '../lib/supabase.js';
+import { PLAN, TEAM_ADDON, getPlanName, isPaidPlan } from '../lib/subscription.js';
+import { ds, type } from '../lib/designSystem.js';
+
+const API = import.meta.env.VITE_API_URL || '';
+
+export default function Pricing() {
+  const { beautician } = useBeautician();
+  const currentPlan = beautician?.subscription_plan || 'trial';
+  const status = beautician?.subscription_status || 'trial';
+  const trialEnd = beautician?.trial_ends_at ? new Date(beautician.trial_ends_at) : null;
+  const [loading, setLoading] = useState(null);
+  const [error, setError] = useState(null);
+  const [interval, setInterval] = useState('monthly');
+
+  const daysLeft = trialEnd ? Math.max(0, Math.ceil((trialEnd - Date.now()) / 86400000)) : 0;
+  const trialExpired = currentPlan === 'trial' && trialEnd && daysLeft === 0;
+  const isActive = status === 'active' && isPaidPlan(currentPlan);
+
+  async function handleUpgrade(planId) {
+    setLoading(planId);
+    setError(null);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const res = await fetch(`${API}/api/billing/create-checkout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ plan: planId, interval }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setError(data.error || 'Failed to start checkout');
+      }
+    } catch {
+      setError('Could not connect to billing. Try again shortly.');
+    } finally {
+      setLoading(null);
+    }
+  }
+
+  async function handleManage() {
+    setError(null);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const res = await fetch(`${API}/api/billing/portal`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.url) {
+        try {
+          const redirectUrl = new URL(data.url);
+          if (redirectUrl.hostname.endsWith('stripe.com')) {
+            window.location.href = data.url;
+          } else {
+            setError('Invalid portal redirect');
+          }
+        } catch {
+          setError('Invalid portal URL');
+        }
+      } else {
+        setError(data.error || 'Failed to open billing portal');
+      }
+    } catch {
+      setError('Could not connect to billing. Try again shortly.');
+    }
+  }
+
+  const showPrice = interval === 'annual' ? PLAN.annualLabel : PLAN.monthlyLabel;
+  const seatPrice = interval === 'annual' ? TEAM_ADDON.seatAnnualLabel : TEAM_ADDON.seatMonthlyLabel;
+
+  return (
+    <div style={S.page}>
+      <h1 style={S.title}>Plans & Billing</h1>
+      <p style={S.subtitle}>One plan. Everything included.</p>
+
+      {/* Current plan banner */}
+      <div style={S.banner}>
+        <div>
+          <div style={S.bannerLabel}>CURRENT PLAN</div>
+          <div style={S.bannerPlan}>{getPlanName(currentPlan)}</div>
+          {currentPlan === 'trial' && trialEnd && (
+            <div style={S.bannerTrial}>
+              {daysLeft > 0
+                ? `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left on trial`
+                : 'Trial expired — subscribe to keep your data'}
+            </div>
+          )}
+          {isActive && (
+            <div style={S.bannerActive}>Active subscription</div>
+          )}
+        </div>
+        {isActive && (
+          <button onClick={handleManage} style={S.manageBtn}>Manage</button>
+        )}
+      </div>
+
+      {error && <div style={S.error}>{error}</div>}
+
+      {/* Monthly / Annual toggle */}
+      <div style={S.toggleWrap}>
+        <button
+          onClick={() => setInterval('monthly')}
+          style={{ ...S.toggleBtn, ...(interval === 'monthly' ? S.toggleActive : {}) }}
+        >Monthly</button>
+        <button
+          onClick={() => setInterval('annual')}
+          style={{ ...S.toggleBtn, ...(interval === 'annual' ? S.toggleActive : {}) }}
+        >Annual <span style={S.saveBadge}>{PLAN.annualSaving}</span></button>
+      </div>
+
+      {/* Main plan card */}
+      <div style={S.card}>
+        <div style={S.cardHeader}>
+          <div style={S.planName}>{PLAN.name}</div>
+          <div style={S.planPrice}>{showPrice}</div>
+        </div>
+        {interval === 'annual' && (
+          <div style={S.annualNote}>Billed annually at £290</div>
+        )}
+        <div style={S.featureList}>
+          {PLAN.features.map(f => (
+            <div key={f} style={S.feature}>
+              <span style={S.featureCheck}>✓</span>
+              <span style={S.featureText}>{f}</span>
+            </div>
+          ))}
+        </div>
+        {currentPlan === 'florrie' || currentPlan === 'florrie_team' ? (
+          <div style={S.currentLabel}>
+            {currentPlan === 'florrie' ? 'Current Plan' : 'Included in your plan'}
+          </div>
+        ) : (
+          <button
+            onClick={() => handleUpgrade('florrie')}
+            disabled={loading === 'florrie'}
+            style={{ ...S.upgradeBtn, opacity: loading === 'florrie' ? 0.6 : 1 }}
+          >
+            {loading === 'florrie' ? 'Loading...' : trialExpired ? 'Subscribe now' : 'Start subscription'}
+          </button>
+        )}
+      </div>
+
+      {/* Team add-on card */}
+      <div style={S.teamCard}>
+        <div style={S.teamHeader}>
+          <div style={S.teamTitle}>Got a team?</div>
+          <div style={S.teamPrice}>{seatPrice}</div>
+        </div>
+        <div style={S.teamDesc}>
+          Everything in Florrie, plus tools for managing multiple staff and locations.
+        </div>
+        <div style={S.featureList}>
+          {TEAM_ADDON.extras.map(f => (
+            <div key={f} style={S.feature}>
+              <span style={S.featureCheck}>✓</span>
+              <span style={S.featureText}>{f}</span>
+            </div>
+          ))}
+        </div>
+        {currentPlan === 'florrie_team' ? (
+          <div style={S.currentLabel}>Current Plan</div>
+        ) : isPaidPlan(currentPlan) ? (
+          <button
+            onClick={() => handleUpgrade('florrie_team')}
+            disabled={loading === 'florrie_team'}
+            style={{ ...S.upgradeBtn, ...S.teamBtn, opacity: loading === 'florrie_team' ? 0.6 : 1 }}
+          >
+            {loading === 'florrie_team' ? 'Loading...' : 'Add team features'}
+          </button>
+        ) : (
+          <div style={S.teamNote}>Available after subscribing to Florrie</div>
+        )}
+      </div>
+
+      {/* Trial urgency nudge */}
+      {currentPlan === 'trial' && daysLeft > 0 && daysLeft <= 3 && (
+        <div style={S.urgency}>
+          Your trial ends in {daysLeft} day{daysLeft !== 1 ? 's' : ''}. Subscribe to keep everything — your data, clients, and settings stay exactly as they are.
+        </div>
+      )}
+
+      {/* FAQ */}
+      <div style={S.faq}>
+        <div style={S.faqItem}>
+          <div style={S.faqQ}>What happens when my trial ends?</div>
+          <div style={S.faqA}>Your account goes read-only. All your data is safe — subscribe any time to pick up where you left off.</div>
+        </div>
+        <div style={S.faqItem}>
+          <div style={S.faqQ}>What about messages over 120/month?</div>
+          <div style={S.faqA}>SMS overages are 6p each, WhatsApp is 5p per conversation. Most solo beauticians stay well within the limit.</div>
+        </div>
+        <div style={S.faqItem}>
+          <div style={S.faqQ}>Can I cancel any time?</div>
+          <div style={S.faqA}>Yes, no lock-in. Monthly plans cancel instantly. Annual plans run to the end of the billing period.</div>
+        </div>
+        <div style={S.faqItem}>
+          <div style={S.faqQ}>What payment methods do you accept?</div>
+          <div style={S.faqA}>All major cards via Stripe. Direct debit available on annual plans.</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const S = {
+  page: { padding: '20px 16px 100px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 4px' },
+  subtitle: { fontSize: 13, color: 'var(--text-muted, #B5AFA8)', margin: '0 0 20px' },
+
+  banner: {
+    background: 'linear-gradient(135deg, #2D2D3F 0%, #1A1A2E 40%, #C76B8A 100%)',
+    borderRadius: 16, padding: '18px 16px', marginBottom: 20, color: '#fff',
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+  },
+  bannerLabel: { fontSize: 10, letterSpacing: '0.08em', opacity: 0.8, marginBottom: 4 },
+  bannerPlan: { fontSize: 24, fontWeight: 700 },
+  bannerTrial: { fontSize: 12, opacity: 0.9, marginTop: 4 },
+  bannerActive: { fontSize: 12, opacity: 0.9, marginTop: 4 },
+  manageBtn: {
+    padding: '10px 20px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.3)',
+    background: 'rgba(255,255,255,0.1)', color: '#fff', fontSize: 13, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'inherit',
+  },
+
+  error: {
+    background: 'var(--danger-bg, #FDF0EF)', color: 'var(--danger, #D4605C)',
+    padding: '10px 14px', borderRadius: 10, fontSize: 13, marginBottom: 16,
+  },
+
+  toggleWrap: {
+    display: 'flex', gap: 0, marginBottom: 16,
+    background: 'var(--bg-subtle, #F5F2EF)', borderRadius: 12, padding: 3,
+  },
+  toggleBtn: {
+    flex: 1, padding: '10px 0', borderRadius: 10, border: 'none',
+    background: 'transparent', color: 'var(--text-muted, #B5AFA8)',
+    fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+  },
+  toggleActive: {
+    background: 'var(--card, #fff)', color: 'var(--text, #2D2A26)',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+  },
+  saveBadge: {
+    background: 'var(--success, #5BA97B)', color: '#fff',
+    fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 6,
+  },
+
+  card: {
+    background: 'var(--card, #fff)', borderRadius: 16, padding: 18,
+    border: '2px solid var(--accent, #C76B8A)', marginBottom: 12,
+    boxShadow: '0 4px 16px rgba(199,107,138,0.12)',
+  },
+  cardHeader: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4,
+  },
+  planName: { fontSize: 20, fontWeight: 700, color: 'var(--text, #2D2A26)' },
+  planPrice: { fontSize: 20, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
+  annualNote: {
+    fontSize: 11, color: 'var(--text-muted, #B5AFA8)', marginBottom: 14,
+  },
+
+  featureList: { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16, marginTop: 14 },
+  feature: { display: 'flex', alignItems: 'center', gap: 8 },
+  featureCheck: { color: 'var(--success, #5BA97B)', fontSize: 13, fontWeight: 700, flexShrink: 0 },
+  featureText: { fontSize: 13, color: 'var(--text-secondary, #7A756F)' },
+
+  currentLabel: {
+    textAlign: 'center', padding: '10px 0', fontSize: 13, fontWeight: 600,
+    color: 'var(--text-muted, #B5AFA8)', borderTop: '1px solid var(--border, #EDE9E4)',
+  },
+  upgradeBtn: {
+    width: '100%', padding: '12px 0', borderRadius: 12, border: 'none',
+    background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 14, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'inherit',
+  },
+
+  teamCard: {
+    background: 'var(--card, #fff)', borderRadius: 16, padding: 18,
+    border: '1px solid var(--border, #EDE9E4)', marginBottom: 20,
+  },
+  teamHeader: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6,
+  },
+  teamTitle: { fontSize: 16, fontWeight: 700, color: 'var(--text, #2D2A26)' },
+  teamPrice: { fontSize: 13, fontWeight: 600, color: 'var(--accent, #C76B8A)' },
+  teamDesc: {
+    fontSize: 13, color: 'var(--text-secondary, #7A756F)', lineHeight: 1.4, marginBottom: 4,
+  },
+  teamBtn: {
+    background: 'var(--bg-subtle, #F5F2EF)', color: 'var(--text, #2D2A26)',
+    border: '1px solid var(--border, #EDE9E4)',
+  },
+  teamNote: {
+    textAlign: 'center', padding: '10px 0', fontSize: 12,
+    color: 'var(--text-muted, #B5AFA8)', fontStyle: 'italic',
+  },
+
+  urgency: {
+    background: 'linear-gradient(135deg, rgba(199,107,138,0.08), rgba(199,107,138,0.15))',
+    borderRadius: 12, padding: 14, marginBottom: 20,
+    fontSize: 13, color: 'var(--text, #2D2A26)', lineHeight: 1.4,
+    border: '1px solid rgba(199,107,138,0.2)',
+  },
+
+  faq: { display: 'flex', flexDirection: 'column', gap: 12 },
+  faqItem: { background: 'var(--card, #fff)', borderRadius: 12, padding: 14 },
+  faqQ: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)', marginBottom: 4 },
+  faqA: { fontSize: 13, color: 'var(--text-secondary, #7A756F)', lineHeight: 1.4 },
+};

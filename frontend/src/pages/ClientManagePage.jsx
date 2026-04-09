@@ -1,0 +1,562 @@
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { API_BASE } from '../lib/config.js';
+
+/**
+ * ClientManagePage — public client self-service portal.
+ * URL: /book/:slug/manage/:token
+ *
+ * Lets clients view, cancel, and check related requirements for their booking.
+ * No login required — accessed via the management_token UUID from their confirmation.
+ */
+
+export default function ClientManagePage() {
+  const { slug, token } = useParams();
+  const navigate = useNavigate();
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [data, setData] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelConfirm, setCancelConfirm] = useState(false);
+  const [cancelResult, setCancelResult] = useState(null);
+
+  // Reschedule state
+  const [showReschedule, setShowReschedule] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleTime, setRescheduleTime] = useState('');
+  const [rescheduling, setRescheduling] = useState(false);
+  const [rescheduleResult, setRescheduleResult] = useState(null);
+  const [rescheduleError, setRescheduleError] = useState(null);
+
+  // Resend payment state
+  const [resendingPayment, setResendingPayment] = useState(false);
+  const [paymentResent, setPaymentResent] = useState(false);
+
+  const brand = data?.appointment?.beautician?.brandColor || '#C76B8A';
+  const brandLight = brand + '15';
+
+  useEffect(() => {
+    load();
+  }, [slug, token]);
+
+  async function load() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/booking/${slug}/manage/${token}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Booking not found');
+      }
+      setData(await res.json());
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCancel() {
+    setCancelling(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/booking/${slug}/manage/${token}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Cancellation failed');
+      setCancelResult(result);
+      await load();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCancelling(false);
+      setCancelConfirm(false);
+    }
+  }
+
+  async function handleReschedule() {
+    if (!rescheduleDate || !rescheduleTime) return;
+    setRescheduling(true);
+    setRescheduleError(null);
+    try {
+      const new_starts_at = new Date(`${rescheduleDate}T${rescheduleTime}:00`).toISOString();
+      const res = await fetch(`${API_BASE}/api/booking/${slug}/manage/${token}/reschedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_starts_at }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Reschedule failed');
+      setRescheduleResult(result);
+      setShowReschedule(false);
+      await load();
+    } catch (err) {
+      setRescheduleError(err.message);
+    } finally {
+      setRescheduling(false);
+    }
+  }
+
+  async function handleResendPayment() {
+    setResendingPayment(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/booking/${slug}/manage/${token}/resend-payment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (res.ok) setPaymentResent(true);
+    } catch {
+      // non-fatal
+    } finally {
+      setResendingPayment(false);
+    }
+  }
+
+  if (loading) return (
+    <div style={S.page}>
+      <div style={S.loadingWrap}>
+        <div style={S.spinner} />
+        <p style={S.loadingText}>Loading your booking…</p>
+      </div>
+    </div>
+  );
+
+  if (error) return (
+    <div style={S.page}>
+      <div style={S.card}>
+        <div style={{ fontSize: 40, textAlign: 'center', marginBottom: 12 }}>🔍</div>
+        <h2 style={S.cardTitle}>Booking not found</h2>
+        <p style={S.cardBody}>
+          {error === 'Booking not found'
+            ? "We couldn't find this booking. The link may have expired or been used already."
+            : error}
+        </p>
+      </div>
+    </div>
+  );
+
+  const { appointment, policy, patchTests, pendingForms } = data;
+  const apptDate = new Date(appointment.startsAt);
+  const isCancelled = appointment.status === 'cancelled';
+  const isCompleted = appointment.status === 'completed';
+  const isPast = apptDate < new Date() && !isCancelled;
+
+  const statusColour = {
+    confirmed: '#5BA67F', pending: '#D4943A', cancelled: '#DC2626',
+    completed: '#8A8580', no_show: '#EF4444',
+  }[appointment.status] || '#8A8580';
+
+  return (
+    <div style={S.page}>
+      {/* Header */}
+      <div style={{ ...S.header, borderBottom: `3px solid ${brand}` }}>
+        <div style={S.headerInner}>
+          <h1 style={{ ...S.businessName, color: brand }}>
+            {appointment.beautician.name}
+          </h1>
+          <p style={S.headerSub}>Your booking</p>
+        </div>
+      </div>
+
+      <div style={S.content}>
+        {/* Cancellation result banner */}
+        {cancelResult && (
+          <div style={{
+            padding: '12px 16px', borderRadius: 12, marginBottom: 16,
+            background: cancelResult.isLateCancel ? '#FFF7ED' : '#F0FFF4',
+            border: `1px solid ${cancelResult.isLateCancel ? '#F59E0B' : '#86EFAC'}`,
+            fontSize: 14, color: cancelResult.isLateCancel ? '#92400E' : '#166534',
+          }}>
+            {cancelResult.message}
+          </div>
+        )}
+
+        {/* Reschedule result banner */}
+        {rescheduleResult && (
+          <div style={{
+            padding: '12px 16px', borderRadius: 12, marginBottom: 16,
+            background: rescheduleResult.isLateReschedule ? '#FFF7ED' : '#F0FFF4',
+            border: `1px solid ${rescheduleResult.isLateReschedule ? '#F59E0B' : '#86EFAC'}`,
+            fontSize: 14, color: rescheduleResult.isLateReschedule ? '#92400E' : '#166534',
+            lineHeight: 1.5,
+          }}>
+            ✓ {rescheduleResult.message}
+          </div>
+        )}
+
+        {/* Pending payment banner */}
+        {appointment.status === 'pending' && !appointment.depositPaid && (
+          <div style={{
+            padding: '12px 16px', borderRadius: 12, marginBottom: 4,
+            background: '#FFF7ED', border: '1px solid #F59E0B',
+            fontSize: 13, color: '#92400E',
+          }}>
+            <strong>Payment required</strong> — your slot is held but not confirmed until payment is received.
+            {' '}
+            {paymentResent ? (
+              <span style={{ color: '#166534', fontWeight: 600 }}>✓ Payment link sent to your email.</span>
+            ) : (
+              <button
+                onClick={handleResendPayment}
+                disabled={resendingPayment}
+                style={{ background: 'none', border: 'none', color: '#92400E', fontWeight: 700, fontSize: 13, cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: 'inherit' }}
+              >
+                {resendingPayment ? 'Sending…' : 'Resend payment link →'}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Booking card */}
+        <div style={S.card}>
+          <div style={S.bookingStatus}>
+            <span style={{ ...S.statusChip, background: statusColour + '20', color: statusColour }}>
+              {appointment.status.replace(/_/g, ' ')}
+            </span>
+          </div>
+
+          <h2 style={S.treatmentName}>{appointment.treatment?.name}</h2>
+
+          <div style={S.metaGrid}>
+            <MetaRow icon="calendar_today" label="Date"
+              value={apptDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} />
+            <MetaRow icon="schedule" label="Time"
+              value={apptDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} />
+            <MetaRow icon="timer" label="Duration"
+              value={`${appointment.treatment?.duration_minutes} min`} />
+            <MetaRow icon="payments" label="Price"
+              value={`£${((appointment.treatment?.price_cents || 0) / 100).toFixed(2)}`} />
+          </div>
+
+          {/* Client info */}
+          <div style={S.clientSection}>
+            <p style={S.sectionLabel}>Your details</p>
+            <p style={S.clientName}>{appointment.client.name}</p>
+            {appointment.client.email && <p style={S.clientMeta}>{appointment.client.email}</p>}
+            {appointment.client.phone && <p style={S.clientMeta}>{appointment.client.phone}</p>}
+          </div>
+        </div>
+
+        {/* Cancellation policy info */}
+        {!isCancelled && !isCompleted && (
+          <div style={S.policyCard}>
+            <p style={S.sectionLabel}>Cancellation policy</p>
+            {policy.cancellation_notice_hours > 0 ? (
+              <>
+                <p style={S.policyText}>
+                  Free cancellation up to <strong>{policy.cancellation_notice_hours} hours</strong> before your appointment.
+                </p>
+                {policy.late_cancel_charge_percent > 0 && (
+                  <p style={S.policyText}>
+                    Cancellations within {policy.cancellation_notice_hours} hours may incur a charge of{' '}
+                    <strong>{policy.late_cancel_charge_percent}%</strong> of the treatment price.
+                  </p>
+                )}
+                {policy.withinCancellationWindow && (
+                  <div style={S.warningBanner}>
+                    ⚠️ You are within the {policy.cancellation_notice_hours}-hour notice period.
+                    A fee may apply if you cancel now.
+                  </div>
+                )}
+              </>
+            ) : (
+              <p style={S.policyText}>Free cancellation at any time before your appointment.</p>
+            )}
+            <p style={{ ...S.policyText, color: '#999', marginTop: 8 }}>
+              {policy.hoursUntil > 0
+                ? `Your appointment is in ${policy.hoursUntil} hour${policy.hoursUntil !== 1 ? 's' : ''}.`
+                : 'Your appointment is very soon.'}
+            </p>
+          </div>
+        )}
+
+        {/* Patch tests section */}
+        {patchTests && patchTests.length > 0 && (
+          <div style={S.card}>
+            <p style={S.sectionLabel}>Patch tests</p>
+            {patchTests.map(pt => (
+              <div key={pt.id} style={S.patchTestRow}>
+                <div style={{
+                  width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+                  background: pt.status === 'passed' ? '#5BA67F' : pt.status === 'failed' ? '#DC2626' : '#D4943A',
+                }} />
+                <div style={{ flex: 1 }}>
+                  <p style={S.patchTestName}>{pt.treatments?.name || 'Patch test'}</p>
+                  <p style={S.patchTestMeta}>
+                    {pt.test_date ? new Date(pt.test_date).toLocaleDateString('en-GB') : 'Date TBC'}
+                    {' · '}
+                    <span style={{ textTransform: 'capitalize' }}>{pt.status}</span>
+                  </p>
+                </div>
+              </div>
+            ))}
+            {patchTests.some(pt => pt.status === 'pending') && (
+              <p style={{ fontSize: 13, color: '#D4943A', marginTop: 8 }}>
+                You have a pending patch test. Your beautician will contact you to arrange this before your appointment.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Pending consultation forms */}
+        {pendingForms && pendingForms.length > 0 && (
+          <div style={{ ...S.card, borderLeft: `3px solid #7B6BA8` }}>
+            <p style={S.sectionLabel}>Consultation forms</p>
+            {pendingForms.map(form => (
+              <div key={form.id} style={S.formRow}>
+                <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#7B6BA8' }}>assignment</span>
+                <div style={{ flex: 1 }}>
+                  <p style={S.formName}>{form.consultation_forms?.name || 'Consultation form'}</p>
+                  <p style={S.formMeta}>Please complete this before your appointment</p>
+                </div>
+                {form.form_url && (
+                  <a href={form.form_url} style={{ ...S.formLink, color: '#7B6BA8', borderColor: '#7B6BA830', background: '#7B6BA810' }}>
+                    Complete
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Reschedule section */}
+        {!isCancelled && !isCompleted && !isPast && (
+          <div>
+            {!showReschedule ? (
+              <button onClick={() => setShowReschedule(true)} style={S.rescheduleBtn}>
+                Reschedule appointment
+              </button>
+            ) : (
+              <div style={S.rescheduleCard}>
+                <p style={{ fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: '#1a1a1a' }}>
+                  Choose a new date and time
+                </p>
+                {policy.withinCancellationWindow && policy.late_cancel_charge_percent > 0 && (
+                  <div style={{ ...S.warningBanner, marginBottom: 12 }}>
+                    ⚠️ You're within the {policy.cancellation_notice_hours}-hour window. Rescheduling now may result in a {policy.late_cancel_charge_percent}% charge for this appointment — plus you'll need to pay for your new booking.
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                  <input
+                    type="date"
+                    value={rescheduleDate}
+                    min={new Date().toISOString().split('T')[0]}
+                    onChange={e => setRescheduleDate(e.target.value)}
+                    style={{ ...S.dateInput, flex: 1 }}
+                  />
+                  <input
+                    type="time"
+                    value={rescheduleTime}
+                    onChange={e => setRescheduleTime(e.target.value)}
+                    style={{ ...S.dateInput, flex: '0 0 auto', width: 120 }}
+                  />
+                </div>
+                {rescheduleError && (
+                  <p style={{ fontSize: 13, color: '#DC2626', margin: '0 0 10px' }}>{rescheduleError}</p>
+                )}
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button onClick={() => { setShowReschedule(false); setRescheduleError(null); }} style={S.keepBtn}>
+                    Back
+                  </button>
+                  <button
+                    onClick={handleReschedule}
+                    disabled={rescheduling || !rescheduleDate || !rescheduleTime}
+                    style={{ ...S.confirmCancelBtn, background: brand, opacity: (!rescheduleDate || !rescheduleTime) ? 0.5 : 1 }}
+                  >
+                    {rescheduling ? 'Moving…' : 'Confirm reschedule'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Cancel button */}
+        {!isCancelled && !isCompleted && !isPast && (
+          <div style={{ marginTop: 8 }}>
+            {!cancelConfirm ? (
+              <button onClick={() => setCancelConfirm(true)} style={S.cancelBtn}>
+                Cancel appointment
+              </button>
+            ) : (
+              <div style={S.confirmCancel}>
+                <p style={{ fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: '#1a1a1a' }}>
+                  Are you sure you want to cancel?
+                </p>
+                {policy.withinCancellationWindow && policy.late_cancel_charge_percent > 0 && (
+                  <p style={{ fontSize: 13, color: '#DC2626', margin: '0 0 12px' }}>
+                    A {policy.late_cancel_charge_percent}% cancellation fee may be charged as you are within the notice period.
+                  </p>
+                )}
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button onClick={() => setCancelConfirm(false)} style={S.keepBtn}>
+                    Keep booking
+                  </button>
+                  <button onClick={handleCancel} disabled={cancelling} style={S.confirmCancelBtn}>
+                    {cancelling ? 'Cancelling…' : 'Yes, cancel'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {isCancelled && (
+          <div style={S.cancelledBanner}>
+            This appointment has been cancelled.{' '}
+            <a href={`/book/${slug}`} style={{ color: brand, fontWeight: 600 }}>Book again →</a>
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div style={S.footer}>
+        <span style={{ color: '#999', fontSize: 13 }}>Powered by </span>
+        <span style={{ color: brand, fontSize: 13, fontWeight: 700, fontFamily: "'Playfair Display', Georgia, serif", fontStyle: 'italic' }}>florrie.ai</span>
+      </div>
+    </div>
+  );
+}
+
+function MetaRow({ icon, label, value }) {
+  return (
+    <div style={S.metaRow}>
+      <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#B5AFA8' }}>{icon}</span>
+      <span style={S.metaLabel}>{label}</span>
+      <span style={S.metaValue}>{value}</span>
+    </div>
+  );
+}
+
+const S = {
+  page: {
+    minHeight: '100vh',
+    background: '#FEF8F4',
+    fontFamily: "'DM Sans', system-ui, sans-serif",
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  loadingWrap: {
+    flex: 1, display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center', gap: 16, padding: 40,
+  },
+  spinner: {
+    width: 32, height: 32, borderRadius: '50%',
+    border: '3px solid #EDE9E4', borderTopColor: '#C76B8A',
+    animation: 'spin 0.8s linear infinite',
+  },
+  loadingText: { fontSize: 14, color: '#B5AFA8', margin: 0 },
+  header: {
+    background: '#fff',
+    padding: '20px 20px 16px',
+    boxShadow: '0 1px 0 rgba(0,0,0,0.06)',
+  },
+  headerInner: { maxWidth: 480, margin: '0 auto' },
+  businessName: {
+    margin: 0, fontSize: 22, fontWeight: 700,
+    fontFamily: "'Playfair Display', Georgia, serif",
+    fontStyle: 'italic',
+  },
+  headerSub: { margin: '2px 0 0', fontSize: 13, color: '#B5AFA8' },
+  content: { flex: 1, maxWidth: 480, margin: '0 auto', width: '100%', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 12 },
+  card: {
+    background: '#fff', borderRadius: 16,
+    padding: '18px 18px', boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
+  },
+  cardTitle: {
+    textAlign: 'center', fontSize: 18, fontWeight: 700, margin: '0 0 8px',
+    fontFamily: "'Playfair Display', Georgia, serif",
+  },
+  cardBody: { textAlign: 'center', fontSize: 14, color: '#666', margin: 0 },
+  bookingStatus: { display: 'flex', justifyContent: 'flex-end', marginBottom: 8 },
+  statusChip: {
+    padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+    textTransform: 'capitalize', letterSpacing: '0.02em',
+  },
+  treatmentName: {
+    margin: '0 0 14px', fontSize: 20, fontWeight: 700,
+    fontFamily: "'Playfair Display', Georgia, serif",
+    color: '#2D1B1B',
+  },
+  metaGrid: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 },
+  metaRow: { display: 'flex', alignItems: 'center', gap: 8 },
+  metaLabel: { fontSize: 13, color: '#B5AFA8', width: 60, flexShrink: 0 },
+  metaValue: { fontSize: 13, fontWeight: 600, color: '#2D1B1B', flex: 1 },
+  clientSection: { borderTop: '1px solid #F0EBE6', paddingTop: 14 },
+  sectionLabel: {
+    margin: '0 0 8px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+    letterSpacing: '0.08em', color: '#B5AFA8',
+  },
+  clientName: { margin: '0 0 2px', fontWeight: 600, fontSize: 15, color: '#2D1B1B' },
+  clientMeta: { margin: '0 0 2px', fontSize: 13, color: '#888' },
+  policyCard: {
+    background: '#fff', borderRadius: 16,
+    padding: '16px 18px', boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
+  },
+  policyText: { margin: '0 0 4px', fontSize: 13, color: '#555', lineHeight: 1.5 },
+  warningBanner: {
+    marginTop: 10, padding: '10px 12px', borderRadius: 10,
+    background: '#FFFBEB', border: '1px solid #F59E0B',
+    fontSize: 13, color: '#92400E', fontWeight: 500,
+  },
+  patchTestRow: {
+    display: 'flex', alignItems: 'center', gap: 10,
+    padding: '8px 0', borderBottom: '1px solid #F5F0EB',
+  },
+  patchTestName: { margin: 0, fontSize: 14, fontWeight: 600, color: '#2D1B1B' },
+  patchTestMeta: { margin: '2px 0 0', fontSize: 12, color: '#888' },
+  formRow: {
+    display: 'flex', alignItems: 'center', gap: 10,
+    padding: '8px 0', borderBottom: '1px solid #F5F0EB',
+  },
+  formName: { margin: 0, fontSize: 14, fontWeight: 600, color: '#2D1B1B' },
+  formMeta: { margin: '2px 0 0', fontSize: 12, color: '#888' },
+  formLink: {
+    padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+    border: '1.5px solid', textDecoration: 'none', flexShrink: 0,
+  },
+  cancelBtn: {
+    width: '100%', padding: '13px 0', borderRadius: 12, border: '1.5px solid #FECACA',
+    background: '#FFF5F5', color: '#DC2626', fontSize: 14, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'inherit',
+  },
+  confirmCancel: {
+    background: '#fff', borderRadius: 16, padding: '18px 18px',
+    boxShadow: '0 2px 12px rgba(0,0,0,0.05)', border: '1px solid #FECACA',
+  },
+  keepBtn: {
+    flex: 1, padding: '12px 0', borderRadius: 10, border: '1.5px solid #E8E4DF',
+    background: '#fff', color: '#555', fontSize: 14, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'inherit',
+  },
+  confirmCancelBtn: {
+    flex: 1, padding: '12px 0', borderRadius: 10, border: 'none',
+    background: '#DC2626', color: '#fff', fontSize: 14, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'inherit',
+  },
+  cancelledBanner: {
+    textAlign: 'center', padding: '16px', borderRadius: 12,
+    background: '#F9F9F9', fontSize: 14, color: '#666',
+    border: '1px solid #E8E4DF',
+  },
+  footer: {
+    textAlign: 'center', padding: '20px 16px',
+    borderTop: '1px solid #F0EBE6',
+  },
+  rescheduleBtn: {
+    width: '100%', padding: '13px 0', borderRadius: 12,
+    border: '1.5px solid #C76B8A33', background: '#FFF0F4',
+    color: '#C76B8A', fontSize: 14, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'inherit',
+  },
+  rescheduleCard: {
+    background: '#fff', borderRadius: 16, padding: '18px 18px',
+    boxShadow: '0 2px 12px rgba(0,0,0,0.05)', border: '1px solid #E8E4DF',
+  },
+  dateInput: {
+    padding: '10px 12px', borderRadius: 10, border: '1.5px solid #E8E4DF',
+    fontSize: 14, fontFamily: 'inherit', background: '#fff', color: '#2D1B1B',
+  },
+};

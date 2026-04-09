@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#fef8f4" />
+    <title>florrie.ai — Your AI Team</title>
+    <meta name="description" content="florrie.ai is your AI-powered beauty business assistant. Manage bookings, clients, payments, and marketing from one place." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="florrie.ai — Your AI Beauty Business Team" />
+    <meta property="og:description" content="Manage bookings, clients, payments, and marketing from one place. Built for independent beauty professionals." />
+    <meta property="og:image" content="https://florrie.ai/og-image.png" />
+    <meta property="og:url" content="https://florrie.ai" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="florrie.ai — Your AI Beauty Business Team" />
+    <meta name="twitter:description" content="Manage bookings, clients, payments, and marketing from one place." />
+    <meta name="twitter:image" content="https://florrie.ai/og-image.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <style>
+      /* ═══════════════════════════════════════════════
+         FLORRIE DESIGN SYSTEM — Global Styles
+         Soft Luxury: warm, feminine, premium
+         ═══════════════════════════════════════════════ */
+
+      :root {
+        /* Core palette — Stitch Material Design 3 */
+        --bg: #fef8f4;
+        --bg-card: #FFFFFF;
+        --bg-elevated: #FFFFFF;
+        --bg-hover: #f3ede9;
+        --bg-input: #f8f2ef;
+        --bg-warm: #f8f2ef;
+        --bg-subtle: #ede7e3;
+
+        /* Stitch surface scale */
+        --surface: #fef8f4;
+        --surface-container-lowest: #FFFFFF;
+        --surface-container-low: #f8f2ef;
+        --surface-container: #f3ede9;
+        --surface-container-high: #ede7e3;
+        --surface-container-highest: #e7e1de;
+
+        /* Text — Stitch on-surface */
+        --text-primary: #1d1b19;
+        --text-secondary: #534247;
+        --text-muted: #867277;
+        --text-inverse: #FFFFFF;
+
+        /* Brand accent — Stitch primary rose */
+        --accent: #92405e;
+        --accent-hover: #782b49;
+        --accent-light: #ffd9e2;
+        --accent-bg: rgba(146, 64, 94, 0.08);
+        --accent-text: #3e001d;
+
+        /* Primary container (lighter accent for cards/backgrounds) */
+        --primary-container: #b05877;
+        --primary-fixed: #ffd9e2;
+        --primary-fixed-dim: #ffb1c8;
+
+        /* Gold — Stitch secondary */
+        --gold: #745a27;
+        --gold-hover: #5a4312;
+        --gold-light: #ffdea4;
+        --gold-bg: rgba(116, 90, 39, 0.1);
+        --gold-text: #795f2b;
+
+        /* Secondary container */
+        --secondary-container: #fedb9b;
+
+        /* Tertiary */
+        --tertiary: #685950;
+        --tertiary-container: #817268;
+        --tertiary-fixed: #f3dfd3;
+
+        /* Semantic */
+        --success: #5BA97B;
+        --success-bg: #EDF7F0;
+        --warning: #D4943A;
+        --warning-bg: #FEF5E7;
+        --danger: #ba1a1a;
+        --danger-bg: #ffdad6;
+        --info: #6B9BC7;
+        --info-bg: #E3F2FD;
+
+        /* Borders & dividers — Stitch outline */
+        --border: #d8c1c6;
+        --border-light: #ede7e3;
+        --border-focus: rgba(146, 64, 94, 0.4);
+        --outline: #867277;
+        --outline-variant: #d8c1c6;
+
+        /* Shadows — rose-tinted editorial */
+        --shadow-xs: 0 1px 2px rgba(146, 64, 94, 0.04);
+        --shadow-sm: 0 1px 3px rgba(146, 64, 94, 0.06), 0 1px 2px rgba(146, 64, 94, 0.04);
+        --shadow-md: 0 4px 12px rgba(146, 64, 94, 0.06), 0 1px 3px rgba(146, 64, 94, 0.04);
+        --shadow-lg: 0 8px 24px rgba(146, 64, 94, 0.08), 0 2px 6px rgba(146, 64, 94, 0.04);
+        --shadow-glow: 0 0 0 3px rgba(146, 64, 94, 0.1);
+        --shadow-gold: 0 0 0 3px rgba(116, 90, 39, 0.1);
+        --shadow-editorial: 0 10px 30px rgba(146, 64, 94, 0.06);
+
+        /* Radius */
+        --radius-sm: 8px;
+        --radius-md: 12px;
+        --radius-lg: 16px;
+        --radius-xl: 24px;
+        --radius-2xl: 32px;
+        --radius-full: 9999px;
+
+        /* Typography — Stitch font stack */
+        --font-display: 'Playfair Display', Georgia, serif;
+        --font-headline: 'Noto Serif', Georgia, serif;
+        --font-body: 'Plus Jakarta Sans', 'DM Sans', -apple-system, sans-serif;
+        --font-label: 'Plus Jakarta Sans', 'DM Sans', sans-serif;
+        --font-sans: 'DM Sans', sans-serif;
+        --font-mono: 'DM Mono', 'SF Mono', monospace;
+
+        /* Nav */
+        --nav-bg: rgba(254, 248, 244, 0.9);
+        --nav-border: rgba(146, 64, 94, 0.1);
+        --overlay: rgba(29, 27, 25, 0.18);
+
+        /* Transitions */
+        --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+        --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+        --duration-fast: 0.15s;
+        --duration-normal: 0.25s;
+        --duration-slow: 0.4s;
+      }
+
+      /* Material Symbols configuration */
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        vertical-align: middle;
+      }
+
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+
+      body {
+        font-family: var(--font-body);
+        background: var(--bg);
+        color: var(--text-primary);
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        transition: background var(--duration-slow) var(--ease-out),
+                    color var(--duration-slow) var(--ease-out);
+        line-height: 1.5;
+        letter-spacing: -0.01em;
+      }
+
+      /* Display headings use Playfair */
+      h1, .display-heading {
+        font-family: var(--font-display);
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+      }
+
+      /* ─── Animations ─── */
+
+      @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+      }
+
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      @keyframes slideUp {
+        from { opacity: 0; transform: translateY(32px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      @keyframes slideDown {
+        from { opacity: 0; transform: translateY(-16px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      @keyframes scaleIn {
+        from { opacity: 0; transform: scale(0.95); }
+        to { opacity: 1; transform: scale(1); }
+      }
+
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+
+      @keyframes float {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-4px); }
+      }
+
+      @keyframes gradientShift {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+
+      /* Page-level fade-in */
+      .page-enter {
+        animation: fadeIn var(--duration-normal) var(--ease-out);
+      }
+
+      /* ─── Interactive elements ─── */
+
+      button {
+        transition: transform var(--duration-fast) var(--ease-spring),
+                    opacity var(--duration-fast) ease,
+                    box-shadow var(--duration-normal) ease;
+        -webkit-tap-highlight-color: transparent;
+      }
+      button:active { transform: scale(0.97); }
+
+      input, textarea, select {
+        transition: border-color var(--duration-normal) ease,
+                    box-shadow var(--duration-normal) ease;
+      }
+      input:focus, textarea:focus, select:focus {
+        border-color: var(--accent) !important;
+        box-shadow: var(--shadow-glow);
+        outline: none;
+      }
+
+      /* Toggle dot transitions */
+      [style*="translateX"] {
+        transition: transform 0.2s var(--ease-spring) !important;
+      }
+
+      /* ─── Custom controls ─── */
+
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--accent);
+        cursor: pointer;
+        border: 2.5px solid #fff;
+        box-shadow: var(--shadow-sm);
+      }
+
+      ::-webkit-scrollbar { width: 4px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: var(--border); border-radius: var(--radius-full); }
+      ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+      /* ─── Card style (applies via data attribute or class) ─── */
+
+      .florrie-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-xs);
+        transition: box-shadow var(--duration-normal) ease,
+                    transform var(--duration-normal) var(--ease-out);
+      }
+
+      .florrie-card:hover {
+        box-shadow: var(--shadow-sm);
+      }
+
+      .florrie-card-elevated {
+        background: var(--bg-card);
+        border: 1px solid var(--border-light);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-md);
+      }
+
+      /* ─── Gradient accents ─── */
+
+      .gradient-rose {
+        background: linear-gradient(135deg, #c76b8a 0%, #92405e 100%);
+      }
+
+      .gradient-gold {
+        background: linear-gradient(135deg, #745a27 0%, #fedb9b 100%);
+      }
+
+      .gradient-warm {
+        background: linear-gradient(135deg, #fef8f4 0%, #ffd9e2 50%, #ffdea4 100%);
+      }
+
+      /* ─── Utility ─── */
+
+      .text-display { font-family: var(--font-display); }
+      .text-body { font-family: var(--font-body); }
+      .text-mono { font-family: var(--font-mono); }
+      .text-accent { color: var(--accent); }
+      .text-gold { color: var(--gold); }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

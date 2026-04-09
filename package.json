@@ -1,0 +1,25 @@
+{
+  "name": "florrie-ai",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI-first salon operating system",
+  "workspaces": [
+    "frontend",
+    "backend",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "build": "npm run build:shared && npm run build:frontend && npm run build:backend",
+    "build:frontend": "cd frontend && npm run build",
+    "build:backend": "cd backend && npm run build",
+    "build:shared": "cd shared && npm run build",
+    "db:migrate": "cd supabase && npx supabase db push",
+    "db:reset": "cd supabase && npx supabase db reset"
+  },
+  "devDependencies": {
+    "pg": "^8.20.0"
+  }
+}
