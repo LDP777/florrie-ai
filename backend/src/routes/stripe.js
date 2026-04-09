@@ -28,8 +28,12 @@ function requireStripe(req, res, next) {
 
 /**
  * POST /api/stripe/connect/onboard
- * Creates a Stripe Connect Express account and returns the onboarding link.
- * The beautician completes KYC on Stripe's hosted page (not ours — PCI safe).
+ * Creates a Stripe Connect account (Accounts v2) and returns the onboarding link.
+ * Uses recipient + merchant configurations for the marketplace model:
+ *   - recipient: enables stripe_balance.stripe_transfers (beautician receives payouts)
+ *   - merchant: enables card_payments (beautician can accept payments via Florrie)
+ * Florrie is the losses_collector and fees_collector (application model).
+ * The beautician completes KYC on Stripe's hosted Express dashboard.
  */
 router.post('/connect/onboard', requireAuth, requireStripe, async (req, res) => {
   try {
@@ -37,17 +41,39 @@ router.post('/connect/onboard', requireAuth, requireStripe, async (req, res) => 
 
     // Create account if not exists
     if (!accountId) {
-      const account = await stripe.accounts.create({
-        type: 'express',
-        country: 'GB',
-        email: req.beautician.email,
-        capabilities: {
-          card_payments: { requested: true },
-          transfers: { requested: true },
+      const account = await stripe.v2.core.accounts.create({
+        // Recipient config: allows Florrie to push funds to this account via transfers
+        configuration: {
+          recipient: {
+            capabilities: {
+              stripe_balance: {
+                stripe_transfers: { requested: true },
+              },
+            },
+          },
+          // Merchant config: allows the account to accept card payments
+          merchant: {
+            capabilities: {
+              card_payments: { requested: true },
+            },
+          },
         },
-        business_profile: {
-          name: req.beautician.business_name || `${req.beautician.first_name}'s Beauty`,
-          mcc: '7230', // Barber and beauty shops
+        // Express dashboard — Stripe hosts KYC, Florrie stays PCI-safe
+        dashboard: 'express',
+        defaults: {
+          responsibilities: {
+            // Florrie (application) takes on loss/fee responsibility, not the beautician
+            losses_collector: 'application',
+            fees_collector: 'application',
+          },
+        },
+        identity: {
+          country: 'GB',
+          email: req.beautician.email,
+          business_details: {
+            name: req.beautician.business_name || `${req.beautician.first_name}'s Beauty`,
+            mcc: '7230', // Barber and beauty shops
+          },
         },
         metadata: {
           beautician_id: req.beautician.id,
@@ -62,18 +88,23 @@ router.post('/connect/onboard', requireAuth, requireStripe, async (req, res) => 
         .eq('id', req.beautician.id);
     }
 
-    // Generate onboarding link
-    const accountLink = await stripe.accountLinks.create({
+    // Generate onboarding link via v2 account links endpoint
+    const accountLink = await stripe.v2.core.accountLinks.create({
       account: accountId,
-      refresh_url: `${FRONTEND_URL}/settings?stripe=refresh`,
-      return_url: `${FRONTEND_URL}/settings?stripe=success`,
-      type: 'account_onboarding',
+      use_case: {
+        type: 'account_onboarding',
+        account_onboarding: {
+          // Onboard both recipient (payouts) and merchant (card acceptance) in one flow
+          configurations: ['recipient', 'merchant'],
+          refresh_url: `${FRONTEND_URL}/settings?stripe=refresh`,
+          return_url: `${FRONTEND_URL}/settings?stripe=success`,
+        },
+      },
     });
 
     res.json({ url: accountLink.url });
   } catch (err) {
     logger.error({ err }, 'Stripe Connect onboard error');
-    logger.error({ err }, 'Stripe operation failed');
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
@@ -81,6 +112,12 @@ router.post('/connect/onboard', requireAuth, requireStripe, async (req, res) => 
 /**
  * GET /api/stripe/connect/status
  * Check if the beautician's Stripe account is fully onboarded.
+ *
+ * Tries the Accounts v2 API first (new accounts created via /connect/onboard).
+ * Falls back to v1 retrieve for legacy Express accounts that predate the v2 migration.
+ * An account is considered complete when:
+ *   v2 — stripe_balance.stripe_transfers capability status === 'active'
+ *   v1 — charges_enabled && payouts_enabled (legacy Express model)
  */
 router.get('/connect/status', requireAuth, requireStripe, async (req, res) => {
   const accountId = req.beautician.stripe_account_id;
@@ -90,10 +127,32 @@ router.get('/connect/status', requireAuth, requireStripe, async (req, res) => {
   }
 
   try {
-    const account = await stripe.accounts.retrieve(accountId);
-    const complete = account.charges_enabled && account.payouts_enabled;
+    let complete = false;
+    let chargesEnabled = false;
+    let payoutsEnabled = false;
+    let currency = 'gbp';
 
-    // Update our record if status changed
+    try {
+      // v2 path — Accounts v2 recipient capability
+      const account = await stripe.v2.core.accounts.retrieve(accountId);
+      const transfersCap = account.configuration?.recipient?.capabilities?.stripe_balance?.stripe_transfers;
+      const cardCap = account.configuration?.merchant?.capabilities?.card_payments;
+
+      payoutsEnabled = transfersCap?.status === 'active';
+      chargesEnabled = cardCap?.status === 'active';
+      complete = payoutsEnabled; // transfers capability is the gate for receiving payouts
+      currency = account.defaults?.currency || 'gbp';
+    } catch (v2err) {
+      // v1 fallback — legacy Express account created before v2 migration
+      logger.info({ accountId }, 'v2 account retrieve failed, falling back to v1');
+      const account = await stripe.accounts.retrieve(accountId);
+      complete = account.charges_enabled && account.payouts_enabled;
+      chargesEnabled = account.charges_enabled;
+      payoutsEnabled = account.payouts_enabled;
+      currency = account.default_currency || 'gbp';
+    }
+
+    // Sync our DB if the status has changed
     if (complete !== req.beautician.stripe_onboarding_complete) {
       await supabase
         .from('beauticians')
@@ -104,13 +163,12 @@ router.get('/connect/status', requireAuth, requireStripe, async (req, res) => {
     res.json({
       connected: true,
       onboarding_complete: complete,
-      charges_enabled: account.charges_enabled,
-      payouts_enabled: account.payouts_enabled,
-      default_currency: account.default_currency,
+      charges_enabled: chargesEnabled,
+      payouts_enabled: payoutsEnabled,
+      default_currency: currency,
     });
   } catch (err) {
     logger.error({ err }, 'Stripe status error');
-    logger.error({ err }, 'Stripe operation failed');
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
@@ -842,7 +900,7 @@ router.post('/webhook', async (req, res) => {
         break;
       }
 
-      // ── Connect account updated ──
+      // ── Connect account updated (v1 Express — legacy) ──
       case 'account.updated': {
         const account = event.data.object;
         if (account.metadata?.beautician_id) {
@@ -851,6 +909,34 @@ router.post('/webhook', async (req, res) => {
             .from('beauticians')
             .update({ stripe_onboarding_complete: complete })
             .eq('id', account.metadata.beautician_id);
+        }
+        break;
+      }
+
+      // ── Connect recipient capability updated (v2 Accounts) ──
+      // Fired when stripe_balance.stripe_transfers capability status changes
+      // (e.g. pending → active after KYC, or active → restricted after a review).
+      // The thin event carries the account ID in related_object and the capability
+      // details in data.capability — no need to re-fetch the full account.
+      case 'v2.core.account[configuration.recipient].capability_status_updated': {
+        const accountId = event.related_object?.id;
+        const capability = event.data?.capability;
+        const capabilityName = capability?.name;   // e.g. 'stripe_balance.stripe_transfers'
+        const capabilityStatus = capability?.status; // 'active' | 'pending' | 'restricted'
+
+        if (!accountId) break;
+
+        // Only flip onboarding_complete on the transfers capability
+        // (other capabilities may fire too — ignore them here)
+        if (capabilityName === 'stripe_balance.stripe_transfers') {
+          const complete = capabilityStatus === 'active';
+
+          await supabase
+            .from('beauticians')
+            .update({ stripe_onboarding_complete: complete })
+            .eq('stripe_account_id', accountId);
+
+          logger.info({ accountId, capabilityStatus }, 'v2 Connect recipient capability updated');
         }
         break;
       }
