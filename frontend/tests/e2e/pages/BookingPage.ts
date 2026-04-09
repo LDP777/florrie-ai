@@ -38,7 +38,8 @@ export class BookingFlowPage {
   }
 
   get timeSlotButtons() {
-    return this.page.locator('button').filter({ hasText: /AM|PM/ });
+    // Slots display in 24hr format: "09:00", "10:30", etc.
+    return this.page.locator('button').filter({ hasText: /^\d{1,2}:\d{2}$/ });
   }
 
   async selectFirstAvailableDate() {
