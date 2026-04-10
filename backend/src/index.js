@@ -59,6 +59,7 @@ import billingRoutes from './routes/billing.js';
 import waitlistRoutes from './routes/waitlist.js';
 import widgetRoutes from './routes/widget.js';
 import instagramWebhookRoutes from './routes/instagram-webhooks.js';
+import instagramRoutes from './routes/instagram.js';
 import referralRoutes from './routes/referrals.js';
 import pushRoutes from './routes/push.js';
 import agentStatusRoutes from './routes/agent-status.js';
@@ -187,6 +188,7 @@ app.use('/api/migrate', apiLimiter, migrateRoutes);
 app.use('/api/whatsapp', apiLimiter, whatsappConfigRoutes);
 app.use('/api/widget-state', apiLimiter, widgetRoutes);
 app.use('/api/webhooks/instagram', webhookLimiter, instagramWebhookRoutes);
+app.use('/api/instagram', apiLimiter, instagramRoutes);
 
 // Sentry error handler — must come after all routes, before the generic handler
 if (process.env.SENTRY_DSN) {

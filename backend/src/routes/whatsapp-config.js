@@ -75,7 +75,7 @@ router.post('/register', async (req, res) => {
   const { phone } = req.body;
   if (!phone) return res.status(400).json({ error: 'phone is required' });
 
-  const beauticianId = req.user.id;
+  const beauticianId = req.beautician.id;
 
   try {
     const e164 = normalisePhone(phone);
@@ -143,7 +143,7 @@ router.post('/verify', async (req, res) => {
   const { code } = req.body;
   if (!code) return res.status(400).json({ error: 'code is required' });
 
-  const beauticianId = req.user.id;
+  const beauticianId = req.beautician.id;
 
   try {
     // Get the pending phone_number_id for this beautician
@@ -202,7 +202,7 @@ router.post('/verify', async (req, res) => {
  * Returns connection status + monthly usage for the dashboard.
  */
 router.get('/status', async (req, res) => {
-  const beauticianId = req.user.id;
+  const beauticianId = req.beautician.id;
 
   try {
     const { data: b, error: bErr } = await supabase
@@ -245,7 +245,7 @@ router.get('/status', async (req, res) => {
  * Disconnect WhatsApp — removes the number from Meta's WABA and clears credentials.
  */
 router.delete('/disconnect', async (req, res) => {
-  const beauticianId = req.user.id;
+  const beauticianId = req.beautician.id;
 
   try {
     const { data: b } = await supabase

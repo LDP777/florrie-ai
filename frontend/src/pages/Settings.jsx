@@ -28,6 +28,8 @@ export default function Settings({ onLogout }) {
   const [gcalConnecting, setGcalConnecting] = useState(false);
   const [gcalBanner, setGcalBanner] = useState(null); // 'success' | 'error' | null
   const [stripeBanner, setStripeBanner] = useState(null); // 'success' | 'refresh' | 'pending' | null
+  const [igConnecting, setIgConnecting] = useState(false);
+  const [igBanner, setIgBanner] = useState(null); // 'success' | 'error' | 'no_page' | 'no_ig_account' | null
 
   // Detect Google Calendar OAuth callback redirect (?gcal=success|error)
   useEffect(() => {
@@ -38,6 +40,20 @@ export default function Settings({ onLogout }) {
       setSection('calendar');
       window.history.replaceState({}, '', window.location.pathname);
       if (gcalStatus === 'success') refresh();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Detect Instagram OAuth callback (?ig=success|error|no_page|no_ig_account)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const igStatus = params.get('ig');
+    const sectionParam = params.get('section');
+    if (sectionParam === 'ai') setSection('ai');
+    if (igStatus) {
+      setIgBanner(igStatus);
+      setSection('ai');
+      window.history.replaceState({}, '', window.location.pathname);
+      if (igStatus === 'success') refresh();
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -132,6 +148,40 @@ export default function Settings({ onLogout }) {
       await refresh();
     } catch (err) {
       logger.error('Google Cal disconnect error:', err);
+    }
+  }
+
+  async function handleConnectInstagram() {
+    setIgConnecting(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/instagram/connect`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setIgBanner('error');
+        setIgConnecting(false);
+      }
+    } catch (err) {
+      logger.error('Instagram connect error:', err);
+      setIgBanner('error');
+      setIgConnecting(false);
+    }
+  }
+
+  async function handleDisconnectInstagram() {
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      await fetch(`${API_BASE}/api/instagram/disconnect`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      await refresh();
+    } catch (err) {
+      logger.error('Instagram disconnect error:', err);
     }
   }
 
@@ -1025,6 +1075,58 @@ export default function Settings({ onLogout }) {
       {/* === AI SETTINGS === */}
       {section === 'ai' && (
         <div>
+
+          {/* ── Instagram Connect ── */}
+          <div style={styles.card}>
+            <div style={styles.calendarProviderRow}>
+              <span style={{ fontSize: 22 }}>📸</span>
+              <div style={{ flex: 1 }}>
+                <span style={styles.calProviderLabel}>Instagram</span>
+                <span style={{
+                  ...styles.calProviderStatus,
+                  color: beautician.instagram_page_id ? 'var(--success)' : 'var(--text-muted)',
+                }}>
+                  {beautician.instagram_page_id
+                    ? `● Connected${beautician.instagram_page_name ? ` — ${beautician.instagram_page_name}` : ''}`
+                    : 'Not connected'}
+                </span>
+              </div>
+              {beautician.instagram_page_id ? (
+                <button
+                  onClick={handleDisconnectInstagram}
+                  style={{ ...styles.connectBtn, background: 'var(--bg-hover)', color: 'var(--text-secondary)', border: '1.5px solid var(--border)' }}
+                >
+                  Disconnect
+                </button>
+              ) : (
+                <button
+                  onClick={handleConnectInstagram}
+                  disabled={igConnecting}
+                  style={{ ...styles.connectBtn, opacity: igConnecting ? 0.6 : 1, cursor: igConnecting ? 'not-allowed' : 'pointer' }}
+                >
+                  {igConnecting ? 'Connecting…' : 'Connect'}
+                </button>
+              )}
+            </div>
+            <p style={{ ...styles.cardHint, marginTop: 8, marginBottom: 0 }}>
+              {beautician.instagram_page_id
+                ? 'Content Studio can post directly to your Instagram. Requires an Instagram Business account linked to a Facebook Page.'
+                : 'Connect your Instagram Business account so Content Studio can publish posts without you copying and pasting.'}
+            </p>
+            {igBanner === 'success' && (
+              <p style={{ fontSize: 12, color: 'var(--success)', marginTop: 8, marginBottom: 0 }}>✓ Instagram connected — Content Studio can now post directly</p>
+            )}
+            {igBanner === 'error' && (
+              <p style={{ fontSize: 12, color: 'var(--danger, #E57373)', marginTop: 8, marginBottom: 0 }}>Connection failed — try again or contact support</p>
+            )}
+            {igBanner === 'no_page' && (
+              <p style={{ fontSize: 12, color: 'var(--warning, #F59E0B)', marginTop: 8, marginBottom: 0 }}>No Facebook Page found. You need a Facebook Page with an Instagram Business account connected.</p>
+            )}
+            {igBanner === 'no_ig_account' && (
+              <p style={{ fontSize: 12, color: 'var(--warning, #F59E0B)', marginTop: 8, marginBottom: 0 }}>Instagram Business account not found. Make sure your Instagram account is set to Business and linked to your Facebook Page.</p>
+            )}
+          </div>
+
           <div style={styles.card}>
             <h3 style={styles.cardTitle}>Auto-reply</h3>
             <p style={styles.cardDesc}>
