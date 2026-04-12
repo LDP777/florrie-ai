@@ -24,6 +24,14 @@ if (import.meta.env.VITE_SENTRY_DSN) {
     tracesSampleRate: 0.1,
     replaysOnErrorSampleRate: 1.0,  // always replay on error
     replaysSessionSampleRate: 0.05, // 5% of normal sessions
+    // Filter out noise — user-cancelled share dialogs, aborted fetches, etc.
+    beforeSend(event, hint) {
+      const error = hint?.originalException;
+      if (error instanceof DOMException && error.name === 'AbortError') return null;
+      // Browser extensions and network blips
+      if (error?.message?.match(/ResizeObserver loop|Loading chunk|Failed to fetch/)) return null;
+      return event;
+    },
   });
 }
 

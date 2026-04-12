@@ -382,7 +382,7 @@ export default function Dashboard() {
         <button onClick={() => {
           const url = `${window.location.origin}/book/${beautician.booking_slug}`;
           if (navigator.share) {
-            navigator.share({ title: 'Book an appointment', url });
+            navigator.share({ title: 'Book an appointment', url }).catch(() => {});
           } else {
             navigator.clipboard.writeText(url);
           }

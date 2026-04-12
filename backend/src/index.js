@@ -158,7 +158,16 @@ app.use('/api/webhooks', webhookLimiter, webhookRoutes); // WhatsApp + Stripe we
 app.use('/api/escalations', apiLimiter, escalationRoutes);
 app.use('/api/content', apiLimiter, contentRoutes);
 app.use('/api/money', apiLimiter, moneyRoutes);
-app.use('/api/stripe', paymentLimiter, idempotencyGuard, stripeRoutes);
+// Stripe webhook must bypass rate limiter + idempotency guard — Stripe retries
+// from many IPs and doesn't send Idempotency-Key headers. The webhook handler
+// does its own idempotency check via the stripe_events table.
+app.use('/api/stripe', (req, res, next) => {
+  if (req.path === '/webhook') return next();
+  paymentLimiter(req, res, next);
+}, (req, res, next) => {
+  if (req.path === '/webhook') return next();
+  idempotencyGuard(req, res, next);
+}, stripeRoutes);
 app.use('/api/notifications', apiLimiter, notificationRoutes);
 app.use('/api/gcal', apiLimiter, gcalRoutes);
 app.use('/api/features', apiLimiter, featureRoutes);
