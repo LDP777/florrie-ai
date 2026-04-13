@@ -62,18 +62,18 @@ export default function RevenueGoals() {
     // Fetch revenue_goals table for current month
     const now = new Date();
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    fetchRows('revenue_goals', beautician.id, { order: 'month', ascending: false })
+    fetchRows('revenue_goals', beautician.id, { order: 'target_month', ascending: false })
       .then(goals => {
         if (goals.length === 0) return;
-        const currentGoal = goals.find(g => g.month?.startsWith(currentMonth));
+        const currentGoal = goals.find(g => g.target_month?.startsWith(currentMonth));
         if (!currentGoal) return;
         // Fetch transactions to calculate earned revenue
         // This would typically be a sum query or done server-side
         setGoals(prev => ({
           ...prev,
           current: {
-            target: currentGoal.target_cents || prev.current.target,
-            earned: currentGoal.earned_cents || 0,
+            target: currentGoal.target_amount || prev.current.target,
+            earned: currentGoal.earned_amount || 0,
             booked: 0,
             daysTotal: 31,
             daysPassed: Math.floor((now - new Date(now.getFullYear(), now.getMonth(), 1)) / 86400000),

@@ -118,7 +118,8 @@ export default function Notifications() {
     }
     try {
       const rows = await fetchRows('notifications', beautician?.id, {
-        order: { column: 'created_at', ascending: false },
+        order: 'created_at',
+        ascending: false,
         limit: 100,
       });
       setNotifications((rows || []).map(r => ({
