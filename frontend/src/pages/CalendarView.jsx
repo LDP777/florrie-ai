@@ -597,9 +597,8 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
       if (!error) {
         const { data } = supabase.storage.from('content-images').getPublicUrl(path);
         setBeforeAfterUrl(data?.publicUrl);
-      }
       } else {
-      setBeforeAfterUrl(URL.createObjectURL(file));
+        setBeforeAfterUrl(URL.createObjectURL(file));
     } catch (err) {
       logger.error('Upload error:', err);
     } finally {
