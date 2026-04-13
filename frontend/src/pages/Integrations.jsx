@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useBeautician, supabase, isDevMode } from '../lib/supabase.js';
+import { useBeautician, supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import { ds, type } from '../lib/designSystem.js';
 
@@ -177,8 +177,7 @@ export default function Integrations() {
   const [smsConfig, setSmsConfig] = useState(null);
 
   useEffect(() => {
-    if (!isDevMode && beautician) fetchSmsConfig();
-    else if (isDevMode) setSmsConfig({ bird_configured: true, sms_originator: 'Florrie' });
+    if (beautician) fetchSmsConfig();
   }, [beautician]);
 
   async function fetchSmsConfig() {

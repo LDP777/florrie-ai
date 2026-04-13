@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useBeautician, supabase, isDevMode, DEV_CLIENTS } from '../lib/supabase.js';
+import { useBeautician, supabase } from '../lib/supabase.js';
 import { ds, type } from '../lib/designSystem.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -202,21 +202,15 @@ export default function ClientSegments() {
   async function loadSegments() {
     setLoading(true);
     try {
-      if (isDevMode) {
-        // Compute segments from synthetic dev data so the engine is exercised
-        const devClients = generateDevClients();
-        setSegments(computeRFMSegments(devClients));
-      } else {
-        const { data: clients } = await supabase
-          .from('clients')
-          .select('*, appointments(created_at, treatment_name, price_cents, starts_at)')
-          .eq('beautician_id', beautician.id);
+      const { data: clients } = await supabase
+        .from('clients')
+        .select('*, appointments(created_at, treatment_name, price_cents, starts_at)')
+        .eq('beautician_id', beautician.id);
 
-        if (clients && clients.length > 0) {
-          setSegments(computeRFMSegments(clients));
-        } else {
-          setSegments([]);
-        }
+      if (clients && clients.length > 0) {
+        setSegments(computeRFMSegments(clients));
+      } else {
+        setSegments([]);
       }
     } catch (err) {
       logger.error('Load segments error:', err);

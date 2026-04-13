@@ -6,7 +6,7 @@
  * permission, what type, and when it expires.
  */
 import { useState, useEffect } from 'react';
-import { isDevMode, DEV_CLIENTS, supabase } from '../lib/supabase.js';
+import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -85,13 +85,6 @@ export default function PhotoConsent() {
   // Fetch consents and clients
   useEffect(() => {
     const fetchData = async () => {
-      if (isDevMode) {
-        setConsents(DEV_CONSENTS);
-        setClients(DEV_CLIENTS);
-        setLoading(false);
-        return;
-      }
-
       try {
         const session = await supabase.auth.getSession();
         if (!session.data.session) return;
@@ -127,7 +120,7 @@ export default function PhotoConsent() {
         }
       } catch (err) {
         console.error('Fetch error:', err);
-        setConsents(DEV_CONSENTS);
+        setConsents([]);
         setClients(DEV_CLIENTS);
       } finally {
         setLoading(false);
@@ -156,11 +149,6 @@ export default function PhotoConsent() {
   const handleSendRequest = async () => {
     if (!requestForm.client || requestForm.scope.length === 0) {
       alert('Please select a client and at least one scope');
-      return;
-    }
-
-    if (isDevMode) {
-      alert('Cannot send requests in dev mode');
       return;
     }
 

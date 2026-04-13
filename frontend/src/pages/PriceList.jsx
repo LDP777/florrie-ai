@@ -5,7 +5,7 @@
  * the look (theme, descriptions, visibility), and generates share options.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { useBeautician, supabase, isDevMode } from '../lib/supabase.js';
+import { useBeautician, supabase } from '../lib/supabase.js';
 import PageLoader from '../components/PageLoader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
@@ -67,11 +67,6 @@ export default function PriceList() {
   }, [beautician]);
 
   async function loadTreatments() {
-    if (isDevMode) {
-      setItems(DEV_PRICE_LIST);
-      setLoading(false);
-      return;
-    }
     if (!beautician) return;
     setLoading(true);
     try {

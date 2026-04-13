@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useBeautician, supabase, isDevMode } from '../lib/supabase.js';
+import { useBeautician, supabase } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import SpotlightSearch from '../components/SpotlightSearch.jsx';
 import SetupChecklist from '../components/SetupChecklist.jsx';
@@ -105,10 +105,10 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [today, setToday] = useState([]);
   const [weeklyPulse, setWeeklyPulse] = useState({ income: 0, expenses: 0, profit: 0, incomeChange: null });
-  const [insights, setInsights] = useState(isDevMode ? DEV_INSIGHTS : []);
-  const [activity, setActivity] = useState(isDevMode ? DEV_ACTIVITY : []);
-  const [agentSummary, setAgentSummary] = useState(isDevMode ? DEV_AGENT_SUMMARY : {});
-  const [shiftReport, setShiftReport] = useState(isDevMode ? DEV_SHIFT_REPORT : []);
+  const [insights, setInsights] = useState([]);
+  const [activity, setActivity] = useState([]);
+  const [agentSummary, setAgentSummary] = useState({});
+  const [shiftReport, setShiftReport] = useState([]);
   const [shiftExpanded, setShiftExpanded] = useState(false);
   const [notifCount, setNotifCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -121,12 +121,6 @@ export default function Dashboard() {
   async function loadData() {
     setLoading(true);
     setError(null);
-    if (isDevMode) {
-      setToday(DEV_TODAY);
-      setWeeklyPulse({ income: 142000, expenses: 12000, profit: 130000, incomeChange: 14 });
-      setLoading(false);
-      return;
-    }
     try {
       const nowDate = new Date().toISOString().split('T')[0];
 

@@ -5,7 +5,7 @@
  * every code is tracked here with usage stats and revenue impact.
  */
 import { useState, useEffect } from 'react';
-import { isDevMode, DEV_TREATMENTS, supabase } from '../lib/supabase.js';
+import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 
 const fmt = (cents) => `£${(Math.abs(cents) / 100).toFixed(2)}`;
@@ -45,12 +45,6 @@ export default function PromoCodes() {
   // Fetch promo codes
   useEffect(() => {
     const fetchCodes = async () => {
-      if (isDevMode) {
-        setCodes(DEV_CODES);
-        setLoading(false);
-        return;
-      }
-
       try {
         const session = await supabase.auth.getSession();
         if (!session.data.session) return;
@@ -78,7 +72,7 @@ export default function PromoCodes() {
         setCodes(transformed);
       } catch (err) {
         console.error('Fetch error:', err);
-        setCodes(DEV_CODES);
+        setCodes([]);
       } finally {
         setLoading(false);
       }
@@ -103,10 +97,6 @@ export default function PromoCodes() {
       return;
     }
 
-    if (isDevMode) {
-      alert('Cannot create codes in dev mode');
-      return;
-    }
 
     setCreating(true);
     try {
@@ -174,11 +164,6 @@ export default function PromoCodes() {
   };
 
   const handleToggleActive = async (codeId, currentStatus) => {
-    if (isDevMode) {
-      alert('Cannot update codes in dev mode');
-      return;
-    }
-
     try {
       const session = await supabase.auth.getSession();
       if (!session.data.session) return;

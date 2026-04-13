@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, supabase, isDevMode } from '../lib/supabase.js';
+import { useBeautician, supabase } from '../lib/supabase.js';
 import { ds, type } from '../lib/designSystem.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -50,9 +50,7 @@ export default function MultiLocation() {
     setLoading(true);
     setError(null);
     try {
-      if (isDevMode) {
-        setLocs(locations);
-      } else {
+      {
         const { data, error: err } = await supabase
           .from('locations')
           .select('*')
@@ -63,8 +61,8 @@ export default function MultiLocation() {
       }
     } catch (err) {
       logger.error('Load locations error:', err);
-      setError(err.message || 'Failed to load locations');
-      setLocs(isDevMode ? locations : []);
+      setError('Failed to load locations');
+      setLocs([]);
     } finally {
       setLoading(false);
     }

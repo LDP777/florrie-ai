@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, supabase, isDevMode } from '../lib/supabase.js';
+import { useBeautician, supabase } from '../lib/supabase.js';
 import { ds, type } from '../lib/designSystem.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -171,8 +171,8 @@ export default function DemandForecast() {
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [forecast, setForecast] = useState(isDevMode ? DEV_FORECAST : []);
-  const [heatmap, setHeatmap] = useState(isDevMode ? DEV_HEATMAP : []);
+  const [forecast, setForecast] = useState([]);
+  const [heatmap, setHeatmap] = useState([]);
 
   useEffect(() => {
     if (beautician && !bLoading) loadForecast();
@@ -182,31 +182,25 @@ export default function DemandForecast() {
     setLoading(true);
     try {
       const wh = beautician.working_hours || {};
-      if (isDevMode) {
-        const devAppts = generateDevAppointments(wh);
-        setForecast(computeForecast(devAppts, wh));
-        setHeatmap(computeHeatmap(devAppts, wh));
+      // Fetch appointments from 4 weeks ago to 2 weeks ahead
+      const fourWeeksAgo = new Date();
+      fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
+      const twoWeeksAhead = new Date();
+      twoWeeksAhead.setDate(twoWeeksAhead.getDate() + 14);
+
+      const { data: appointments } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('beautician_id', beautician.id)
+        .gte('starts_at', fourWeeksAgo.toISOString())
+        .lte('starts_at', twoWeeksAhead.toISOString());
+
+      if (appointments && appointments.length > 0) {
+        setForecast(computeForecast(appointments, wh));
+        setHeatmap(computeHeatmap(appointments, wh));
       } else {
-        // Fetch appointments from 4 weeks ago to 2 weeks ahead
-        const fourWeeksAgo = new Date();
-        fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
-        const twoWeeksAhead = new Date();
-        twoWeeksAhead.setDate(twoWeeksAhead.getDate() + 14);
-
-        const { data: appointments } = await supabase
-          .from('appointments')
-          .select('*')
-          .eq('beautician_id', beautician.id)
-          .gte('starts_at', fourWeeksAgo.toISOString())
-          .lte('starts_at', twoWeeksAhead.toISOString());
-
-        if (appointments && appointments.length > 0) {
-          setForecast(computeForecast(appointments, wh));
-          setHeatmap(computeHeatmap(appointments, wh));
-        } else {
-          setForecast([]);
-          setHeatmap([]);
-        }
+        setForecast([]);
+        setHeatmap([]);
       }
     } catch (err) {
       logger.error('Load forecast error:', err);

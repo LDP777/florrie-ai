@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, supabase, isDevMode, fetchRows, DEV_CLIENTS } from '../lib/supabase.js';
+import { useBeautician, supabase } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -66,16 +66,7 @@ export default function Loyalty() {
     setLoading(true);
     setError(null);
     try {
-      if (isDevMode) {
-        setLoyaltyConfig({ enabled: true, points_per_dollar: 1, reset_interval_days: 365 });
-        const pts = DEV_CLIENTS.map(c => ({
-          id: c.id,
-          client_name: c.first_name,
-          points: Math.round((c.total_spend_cents || 0) / 100),
-        }));
-        setPointsHistory(pts);
-      } else {
-        // Fetch config
+      {
         const { data: config, error: configErr } = await supabase
           .from('loyalty_config')
           .select('*')
@@ -95,7 +86,7 @@ export default function Loyalty() {
       }
     } catch (err) {
       logger.error('Load loyalty error:', err);
-      setError(err.message || 'Failed to load loyalty data');
+      setError('Failed to load loyalty data');
     } finally {
       setLoading(false);
     }
