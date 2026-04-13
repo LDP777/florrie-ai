@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { useBeautician, updateRow, insertRow, isDevMode } from '../lib/supabase.js';
+import { useBeautician, updateRow, insertRow } from '../lib/supabase.js'
 import { PLAN } from '../lib/subscription.js';
 import { registerPush, getPushStatus } from '../lib/push.js';
 import logger from '../lib/logger.js';
-
 /**
  * Onboarding — first-run wizard after signup.
  *
@@ -17,10 +16,8 @@ import logger from '../lib/logger.js';
  * Wired to Supabase via useBeautician + shared helpers.
  * Target: under 3 minutes to a working booking page.
  */
-
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
-
 const DEFAULT_HOURS = {
   mon: { enabled: true, start: '09:00', end: '17:00' },
   tue: { enabled: true, start: '09:00', end: '17:00' },
@@ -30,45 +27,34 @@ const DEFAULT_HOURS = {
   sat: { enabled: false, start: '10:00', end: '16:00' },
   sun: { enabled: false, start: '', end: '' }
 };
-
 export default function Onboarding({ onComplete }) {
   const { beautician, loading: bLoading, refresh } = useBeautician();
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-
   // Step 1: Business info
   const [businessName, setBusinessName] = useState('');
   const [firstName, setFirstName] = useState('');
-
   // Step 2: Treatments
   const [treatments, setTreatments] = useState([
     { name: '', duration_minutes: 60, price_cents: 0, category: 'brows' }
   ]);
-
   // Step 3: Working hours
   const [hours, setHours] = useState(DEFAULT_HOURS);
-
   // Step 4: Booking slug
   const [slug, setSlug] = useState('');
-
   // Step 5: Client import
   const [importFile, setImportFile] = useState(null);
   const [importStatus, setImportStatus] = useState(null);
-
   // Step 6: Push notifications
   const [pushGranted, setPushGranted] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
-
   const totalSteps = 6;
   const progress = (step / totalSteps) * 100;
-
   if (bLoading) {
     return <p style={styles.loadingText}>Setting up your account...</p>;
   }
-
   // === Step handlers ===
-
   async function saveBusinessInfo() {
     if (!beautician) return;
     setSaving(true);
@@ -92,7 +78,6 @@ export default function Onboarding({ onComplete }) {
       setSaving(false);
     }
   }
-
   async function saveTreatments() {
     if (!beautician) return;
     setSaving(true);
@@ -122,7 +107,6 @@ export default function Onboarding({ onComplete }) {
       setSaving(false);
     }
   }
-
   async function saveHours() {
     if (!beautician) return;
     setSaving(true);
@@ -146,7 +130,6 @@ export default function Onboarding({ onComplete }) {
       setSaving(false);
     }
   }
-
   async function saveSlug() {
     if (!beautician) return;
     setSaving(true);
@@ -171,13 +154,11 @@ export default function Onboarding({ onComplete }) {
       setSaving(false);
     }
   }
-
   async function handleImport() {
     if (!importFile || !beautician) return;
     setSaving(true);
     setImportStatus(null);
     setError(null);
-
     try {
       const text = await importFile.text();
       const lines = text.trim().split('\n');
@@ -186,7 +167,6 @@ export default function Onboarding({ onComplete }) {
         setSaving(false);
         return;
       }
-
       // Simple CSV parsing — expects header row with first_name, last_name, email, phone
       const headerRow = lines[0].toLowerCase();
       const headers = headerRow.split(',').map(h => h.trim());
@@ -194,13 +174,11 @@ export default function Onboarding({ onComplete }) {
       const lastIdx = headers.findIndex(h => h.includes('last') || h.includes('surname'));
       const emailIdx = headers.findIndex(h => h.includes('email'));
       const phoneIdx = headers.findIndex(h => h.includes('phone') || h.includes('mobile'));
-
       let imported = 0;
       for (let i = 1; i < lines.length; i++) {
         const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
         const fName = firstIdx >= 0 ? cols[firstIdx] : cols[0];
         if (!fName) continue;
-
         try {
           await insertRow('clients', {
             beautician_id: beautician.id,
@@ -222,11 +200,9 @@ export default function Onboarding({ onComplete }) {
       setSaving(false);
     }
   }
-
   function finishOnboarding() {
     if (onComplete) onComplete();
   }
-
   async function enableNotifications() {
     setPushLoading(true);
     try {
@@ -238,28 +214,23 @@ export default function Onboarding({ onComplete }) {
       setPushLoading(false);
     }
   }
-
   function skipStep() {
     setError(null);
     if (step < totalSteps) {
       setStep(step + 1);
     }
   }
-
   // Treatment helpers
   function addTreatment() {
     setTreatments(prev => [...prev, { name: '', duration_minutes: 60, price_cents: 0, category: 'brows' }]);
   }
-
   function updateTreatment(idx, field, value) {
     setTreatments(prev => prev.map((t, i) => i === idx ? { ...t, [field]: value } : t));
   }
-
   function removeTreatment(idx) {
     if (treatments.length <= 1) return;
     setTreatments(prev => prev.filter((_, i) => i !== idx));
   }
-
   // Hours helper
   function toggleDay(day) {
     setHours(prev => ({
@@ -267,23 +238,19 @@ export default function Onboarding({ onComplete }) {
       [day]: { ...prev[day], enabled: !prev[day].enabled }
     }));
   }
-
   function updateHour(day, field, value) {
     setHours(prev => ({
       ...prev,
       [day]: { ...prev[day], [field]: value }
     }));
   }
-
   return (
     <div style={styles.page}>
       {/* Progress bar */}
       <div style={styles.progressBar}>
         <div style={{ ...styles.progressFill, width: `${progress}%` }} />
       </div>
-
       <div style={styles.stepIndicator}>Step {step} of {totalSteps}</div>
-
       {/* === STEP 1: Welcome === */}
       {step === 1 && (
         <div style={styles.stepContent}>
@@ -291,13 +258,11 @@ export default function Onboarding({ onComplete }) {
           <p style={styles.stepDesc}>
             Let's get your business set up. This takes about 2 minutes.
           </p>
-
           {error && (
             <div style={styles.errorBanner}>
               <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>⚠ {error}</span>
             </div>
           )}
-
           <div style={styles.formGroup}>
             <label style={styles.formLabel}>Your first name</label>
             <input
@@ -309,7 +274,6 @@ export default function Onboarding({ onComplete }) {
               autoFocus
             />
           </div>
-
           <div style={styles.formGroup}>
             <label style={styles.formLabel}>Business name</label>
             <input
@@ -325,7 +289,6 @@ export default function Onboarding({ onComplete }) {
               style={styles.formInput}
             />
           </div>
-
           <button
             onClick={saveBusinessInfo}
             disabled={!firstName.trim() || saving}
@@ -338,7 +301,6 @@ export default function Onboarding({ onComplete }) {
           </button>
         </div>
       )}
-
       {/* === STEP 2: Treatments === */}
       {step === 2 && (
         <div style={styles.stepContent}>
@@ -346,13 +308,11 @@ export default function Onboarding({ onComplete }) {
           <p style={styles.stepDesc}>
             Add the services you offer. You can always add more later.
           </p>
-
           {error && (
             <div style={styles.errorBanner}>
               <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>⚠ {error}</span>
             </div>
           )}
-
           {treatments.map((t, idx) => (
             <div key={idx} style={styles.treatmentCard}>
               <div style={styles.treatmentHeader}>
@@ -361,7 +321,6 @@ export default function Onboarding({ onComplete }) {
                   <button onClick={() => removeTreatment(idx)} style={styles.removeBtn}>Remove</button>
                 )}
               </div>
-
               <div style={styles.formGroup}>
                 <label style={styles.formLabel}>Name</label>
                 <input
@@ -372,7 +331,6 @@ export default function Onboarding({ onComplete }) {
                   style={styles.formInput}
                 />
               </div>
-
               <div style={styles.formRow}>
                 <div style={styles.formGroup}>
                   <label style={styles.formLabel}>Duration (mins)</label>
@@ -395,7 +353,6 @@ export default function Onboarding({ onComplete }) {
                   />
                 </div>
               </div>
-
               <div style={styles.formGroup}>
                 <label style={styles.formLabel}>Category</label>
                 <select
@@ -415,11 +372,9 @@ export default function Onboarding({ onComplete }) {
               </div>
             </div>
           ))}
-
           <button onClick={addTreatment} style={styles.secondaryBtn}>
             + Add another treatment
           </button>
-
           <button
             onClick={saveTreatments}
             disabled={!treatments.some(t => t.name.trim()) || saving}
@@ -436,7 +391,6 @@ export default function Onboarding({ onComplete }) {
           </button>
         </div>
       )}
-
       {/* === STEP 3: Working Hours === */}
       {step === 3 && (
         <div style={styles.stepContent}>
@@ -444,13 +398,11 @@ export default function Onboarding({ onComplete }) {
           <p style={styles.stepDesc}>
             When are you available for bookings?
           </p>
-
           {error && (
             <div style={styles.errorBanner}>
               <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>⚠ {error}</span>
             </div>
           )}
-
           {DAY_KEYS.map((day, idx) => (
             <div key={day} style={styles.dayRow}>
               <label style={styles.dayToggle}>
@@ -466,7 +418,6 @@ export default function Onboarding({ onComplete }) {
                   {DAYS[idx]}
                 </span>
               </label>
-
               {hours[day].enabled && (
                 <div style={styles.timeInputs}>
                   <input
@@ -486,7 +437,6 @@ export default function Onboarding({ onComplete }) {
               )}
             </div>
           ))}
-
           <button
             onClick={saveHours}
             disabled={saving}
@@ -499,7 +449,6 @@ export default function Onboarding({ onComplete }) {
           </button>
         </div>
       )}
-
       {/* === STEP 4: Booking Link === */}
       {step === 4 && (
         <div style={styles.stepContent}>
@@ -507,13 +456,11 @@ export default function Onboarding({ onComplete }) {
           <p style={styles.stepDesc}>
             Clients will use this link to book with you.
           </p>
-
           {error && (
             <div style={styles.errorBanner}>
               <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>⚠ {error}</span>
             </div>
           )}
-
           <div style={styles.slugPreview}>
             <span style={styles.slugPrefix}>florrie.ai/book/</span>
             <input
@@ -524,7 +471,6 @@ export default function Onboarding({ onComplete }) {
               style={styles.slugInput}
             />
           </div>
-
           <button
             onClick={saveSlug}
             disabled={!slug.trim() || saving}
@@ -537,7 +483,6 @@ export default function Onboarding({ onComplete }) {
           </button>
         </div>
       )}
-
       {/* === STEP 5: Import Clients === */}
       {step === 5 && (
         <div style={styles.stepContent}>
@@ -545,13 +490,11 @@ export default function Onboarding({ onComplete }) {
           <p style={styles.stepDesc}>
             Switching takes 2 minutes. Export your client list and upload it here.
           </p>
-
           {error && (
             <div style={styles.errorBanner}>
               <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>⚠ {error}</span>
             </div>
           )}
-
           {/* Import from Timely — branded */}
           <div style={styles.importGuide}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
@@ -564,7 +507,6 @@ export default function Onboarding({ onComplete }) {
               <li>Upload it below — we'll match the columns automatically</li>
             </ol>
           </div>
-
           {/* Import from Fresha */}
           <div style={{ ...styles.importGuide, borderColor: '#E8E4E0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
@@ -576,11 +518,9 @@ export default function Onboarding({ onComplete }) {
               <li>Upload it here — same thing, we sort the columns</li>
             </ol>
           </div>
-
           <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', margin: '8px 0 12px' }}>
             Works with any CSV that has name, email, or phone columns
           </p>
-
           <div style={styles.importArea}>
             <input
               type="file"
@@ -601,7 +541,6 @@ export default function Onboarding({ onComplete }) {
               <p style={styles.importResult}>{importStatus}</p>
             )}
           </div>
-
           <button
             onClick={() => setStep(6)}
             style={styles.primaryBtn}
@@ -615,7 +554,6 @@ export default function Onboarding({ onComplete }) {
           )}
         </div>
       )}
-
       {/* === STEP 6: You're All Set === */}
       {step === 6 && (
         <div style={styles.stepContent}>
@@ -623,7 +561,6 @@ export default function Onboarding({ onComplete }) {
           <p style={styles.stepDesc}>
             Your 14-day free trial is active. Full access to everything — no card needed.
           </p>
-
           <div style={{
             ...styles.planCard,
             border: '1.5px solid var(--accent, #C76B8A)',
@@ -641,11 +578,9 @@ export default function Onboarding({ onComplete }) {
               ))}
             </ul>
           </div>
-
           <p style={styles.trialNote}>
             After your trial, it's {PLAN.monthlyLabel} — or save with annual billing at {PLAN.annualLabel}.
           </p>
-
           {/* Push notification opt-in */}
           <div style={styles.pushCard}>
             <div style={styles.pushCardTop}>
@@ -676,14 +611,12 @@ export default function Onboarding({ onComplete }) {
               </button>
             )}
           </div>
-
           <button
             onClick={finishOnboarding}
             style={styles.primaryBtn}
           >
             Go to Dashboard
           </button>
-
           {!pushGranted && (
             <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
               You can enable this later in Settings
@@ -694,7 +627,6 @@ export default function Onboarding({ onComplete }) {
     </div>
   );
 }
-
 const styles = {
   page: {
     minHeight: '100vh',
@@ -746,7 +678,6 @@ const styles = {
     margin: '0 0 20px',
     lineHeight: 1.5
   },
-
   // Forms
   formGroup: { marginBottom: 14 },
   formRow: { display: 'flex', gap: 10 },
@@ -773,7 +704,6 @@ const styles = {
     background: 'var(--bg-card)',
     boxSizing: 'border-box'
   },
-
   // Buttons
   primaryBtn: {
     width: '100%',
@@ -800,7 +730,6 @@ const styles = {
     cursor: 'pointer',
     fontFamily: 'inherit'
   },
-
   // Treatments
   treatmentCard: {
     background: 'var(--bg-card)',
@@ -826,7 +755,6 @@ const styles = {
     cursor: 'pointer',
     fontFamily: 'inherit'
   },
-
   // Hours
   dayRow: {
     display: 'flex',
@@ -853,7 +781,6 @@ const styles = {
     width: 90
   },
   timeSep: { fontSize: 12, color: 'var(--text-muted)' },
-
   // Slug
   slugPreview: {
     display: 'flex',
@@ -874,7 +801,6 @@ const styles = {
     padding: '10px 10px',
     color: 'var(--text-primary)'
   },
-
   // Import
   importGuide: {
     background: 'var(--bg-card)',
@@ -893,7 +819,6 @@ const styles = {
   },
   fileInput: { marginBottom: 12, fontSize: 13 },
   importResult: { fontSize: 13, color: 'var(--success)', marginTop: 10, fontWeight: 500 },
-
   // Error and skip
   errorBanner: {
     background: 'var(--danger-bg)',
@@ -916,7 +841,6 @@ const styles = {
     marginTop: 8,
     textDecoration: 'underline',
   },
-
   // Plan selection (step 6)
   planGrid: {
     display: 'flex',
@@ -980,7 +904,6 @@ const styles = {
     margin: '0 0 16px',
     fontWeight: 500,
   },
-
   // Push notification card (step 6)
   pushCard: {
     background: 'var(--bg-card, #fff)',

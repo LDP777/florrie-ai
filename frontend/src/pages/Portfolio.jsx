@@ -6,7 +6,7 @@
  * she can share to Instagram or embed on her booking page.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { isDevMode, useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 
 // ── Dev mock data ─────────────────────────────────────────
@@ -80,7 +80,6 @@ export default function Portfolio() {
 
   useEffect(() => {
     if (bLoading || !beautician) return;
-    if (isDevMode) { setPhotos(DEV_PHOTOS); return; }
     fetchRows('portfolio_photos', beautician.id, { order: 'date', ascending: false })
       .then(rows => setPhotos(rows))
       .catch(err => logger.error('Failed to load portfolio:', err));

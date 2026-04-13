@@ -7,10 +7,10 @@
  *   Dormant     — haven't been in 60+ days
  *   Settings    — rebook intervals, message templates, auto-send
  *
- * Uses DEV_CLIENTS + synthetic appointment data in dev mode.
+ * Uses synthetic appointment data to load real rebook clients.
  */
 import { useState, useMemo, useEffect } from 'react';
-import { useBeautician, supabase, isDevMode, fetchRows, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useBeautician, supabase, fetchRows } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import { useTheme } from '../lib/theme.jsx';
 import logger from '../lib/logger.js';
@@ -22,19 +22,6 @@ import ErrorCard from '../components/ErrorCard.jsx';
 
 const today = new Date();
 const daysAgo = d => Math.floor((today - new Date(d)) / 86400000);
-
-const DEV_REBOOK_CLIENTS = [
-  { id: 'rb-1', name: 'Shauna', lastVisit: '2026-03-10', treatment: 'Lamination & Hybrid Dye', avgInterval: 28, phone: true, status: 'due' },
-  { id: 'rb-2', name: 'Daisy S', lastVisit: '2026-02-17', treatment: 'Lamination & Tint', avgInterval: 35, phone: true, status: 'overdue' },
-  { id: 'rb-3', name: 'Jasmin', lastVisit: '2026-03-02', treatment: 'HD Brows', avgInterval: 21, phone: true, status: 'overdue' },
-  { id: 'rb-4', name: 'Sophie', lastVisit: '2026-01-15', treatment: 'Lash Lift & Tint', avgInterval: 42, phone: true, status: 'dormant' },
-  { id: 'rb-5', name: 'Grace', lastVisit: '2025-12-20', treatment: 'Lamination & Hybrid Dye', avgInterval: 30, phone: true, status: 'dormant' },
-  { id: 'rb-6', name: 'Beth', lastVisit: '2026-03-18', treatment: 'Hybrid Brows', avgInterval: 28, phone: false, status: 'due' },
-  { id: 'rb-7', name: 'Amy', lastVisit: '2026-02-28', treatment: 'Lamination Maintenance / Tint', avgInterval: 28, phone: true, status: 'due' },
-  { id: 'rb-8', name: 'Chloe', lastVisit: '2025-11-10', treatment: 'Ombre Brows (Semi-Permanent)', avgInterval: 90, phone: true, status: 'dormant' },
-  { id: 'rb-9', name: 'Laura', lastVisit: '2026-03-05', treatment: 'Brow Jelly Mask', avgInterval: 14, phone: true, status: 'overdue' },
-  { id: 'rb-10', name: 'Megan', lastVisit: '2026-02-10', treatment: 'HD Brows', avgInterval: 28, phone: true, status: 'overdue' },
-];
 
 const MESSAGE_TEMPLATES = [
   {
@@ -83,7 +70,7 @@ export default function RebookReminders() {
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('due');
   const [loading, setLoading] = useState(true);
-  const [clients, setClients] = useState(isDevMode ? DEV_REBOOK_CLIENTS : []);
+  const [clients, setClients] = useState([]);
   const [sentIds, setSentIds] = useState(new Set());
   const [selectedTemplate, setSelectedTemplate] = useState('gentle');
 
@@ -94,57 +81,53 @@ export default function RebookReminders() {
   async function loadRebookData() {
     setLoading(true);
     try {
-      if (isDevMode) {
-        setClients(DEV_REBOOK_CLIENTS);
-      } else {
-        // Fetch clients with last appointment date
-        const { data } = await supabase
-          .from('clients')
-          .select('*, appointments(created_at, treatment_name)')
-          .eq('beautician_id', beautician.id)
-          .order('created_at', { ascending: false });
+      // Fetch clients with last appointment date
+      const { data } = await supabase
+        .from('clients')
+        .select('*, appointments(created_at, treatment_name)')
+        .eq('beautician_id', beautician.id)
+        .order('created_at', { ascending: false });
 
-        const now = new Date();
-        const processedClients = (data || []).map(c => {
-          const appts = (c.appointments || [])
-            .map(a => new Date(a.created_at))
-            .filter(d => !isNaN(d))
-            .sort((a, b) => b - a);
-          const lastVisit = appts[0] || new Date(c.created_at);
-          const daysSince = Math.floor((now - lastVisit) / 86400000);
+      const now = new Date();
+      const processedClients = (data || []).map(c => {
+        const appts = (c.appointments || [])
+          .map(a => new Date(a.created_at))
+          .filter(d => !isNaN(d))
+          .sort((a, b) => b - a);
+        const lastVisit = appts[0] || new Date(c.created_at);
+        const daysSince = Math.floor((now - lastVisit) / 86400000);
 
-          // Compute real average interval from history
-          let avgInterval = 28;
-          if (appts.length >= 2) {
-            const intervals = [];
-            for (let i = 0; i < appts.length - 1; i++) {
-              intervals.push(Math.floor((appts[i] - appts[i + 1]) / 86400000));
-            }
-            avgInterval = Math.round(intervals.reduce((s, v) => s + v, 0) / intervals.length) || 28;
+        // Compute real average interval from history
+        let avgInterval = 28;
+        if (appts.length >= 2) {
+          const intervals = [];
+          for (let i = 0; i < appts.length - 1; i++) {
+            intervals.push(Math.floor((appts[i] - appts[i + 1]) / 86400000));
           }
+          avgInterval = Math.round(intervals.reduce((s, v) => s + v, 0) / intervals.length) || 28;
+        }
 
-          // Determine status from actual visit pattern
-          let status = 'due';
-          if (daysSince >= 60) status = 'dormant';
-          else if (daysSince > avgInterval) status = 'overdue';
-          else if (daysSince >= avgInterval - 7) status = 'due';
-          else return null; // Not due yet
+        // Determine status from actual visit pattern
+        let status = 'due';
+        if (daysSince >= 60) status = 'dormant';
+        else if (daysSince > avgInterval) status = 'overdue';
+        else if (daysSince >= avgInterval - 7) status = 'due';
+        else return null; // Not due yet
 
-          return {
-            id: c.id,
-            name: `${c.first_name || ''} ${c.last_name || ''}`.trim(),
-            lastVisit: lastVisit.toISOString().slice(0, 10),
-            treatment: c.appointments?.[0]?.treatment_name || 'Treatment',
-            avgInterval,
-            phone: !!c.phone_number,
-            status,
-          };
-        }).filter(Boolean);
-        setClients(processedClients);
-      }
+        return {
+          id: c.id,
+          name: `${c.first_name || ''} ${c.last_name || ''}`.trim(),
+          lastVisit: lastVisit.toISOString().slice(0, 10),
+          treatment: c.appointments?.[0]?.treatment_name || 'Treatment',
+          avgInterval,
+          phone: !!c.phone_number,
+          status,
+        };
+      }).filter(Boolean);
+      setClients(processedClients);
     } catch (err) {
-      logger.error('Load rebook data error:', err);
-      setClients(DEV_REBOOK_CLIENTS);
+      logger.error({ err }, 'Load rebook data error');
+      setClients([]);
     } finally {
       setLoading(false);
     }
@@ -173,12 +156,6 @@ export default function RebookReminders() {
 
     const message = renderMessage(client);
 
-    // In dev mode, just mark as sent locally
-    if (isDevMode) {
-      setSentIds(prev => new Set([...prev, clientId]));
-      return;
-    }
-
     try {
       const session = await supabase.auth.getSession();
       const token = session.data.session?.access_token;
@@ -202,7 +179,7 @@ export default function RebookReminders() {
 
       setSentIds(prev => new Set([...prev, clientId]));
     } catch (err) {
-      logger.error('Failed to send rebook nudge:', err);
+      logger.error({ err }, 'Failed to send rebook nudge');
       alert(`Failed to send nudge to ${client.name}. Check their contact details.`);
     }
   }

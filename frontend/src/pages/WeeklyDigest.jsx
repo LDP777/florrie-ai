@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
+import { useBeautician, fetchRows } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -23,12 +23,6 @@ export default function WeeklyDigest() {
 
   async function loadDigest() {
     setLoading(true);
-    if (isDevMode) {
-      setDigest(getDevDigest());
-      setLoading(false);
-      return;
-    }
-
     try {
       const now = new Date();
       const weekStart = new Date(now);
@@ -85,6 +79,7 @@ export default function WeeklyDigest() {
       });
     } catch (err) {
       logger.error('Digest load error:', err);
+      setDigest(getDevDigest());
     }
     setLoading(false);
   }

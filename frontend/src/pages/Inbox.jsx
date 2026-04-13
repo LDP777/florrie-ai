@@ -12,7 +12,7 @@
  * Dev-mode mock conversations from Ellie's typical DM patterns.
  */
 import { useState, useRef, useEffect } from 'react';
-import { useBeautician, supabase, isDevMode, fetchRows } from '../lib/supabase.js';
+import { useBeautician, supabase, fetchRows } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -29,43 +29,12 @@ const QUICK_REPLIES = [
 const CHANNEL_ICONS = { whatsapp: '💬', sms: '📱', email: '✉️', instagram: '📸' };
 const CHANNEL_FILTERS = ['all', 'whatsapp', 'sms', 'email', 'instagram'];
 
-// ── Dev mock data (fallback) ──────────────────────────────────────────────
-const DEV_CONVERSATIONS = [
-  {
-    id: 'conv-1', client: 'Shauna', channel: 'whatsapp', unread: 2,
-    lastMessage: 'Can I move my appointment to Friday instead?', lastTime: '10:32',
-    messages: [
-      { id: 'm1', dir: 'in', text: 'Hey Ellie! Hope you\'re well xx', time: '10:28', read: true },
-      { id: 'm2', dir: 'out', text: 'Hey lovely! I\'m great thanks, how are you? xx', time: '10:29', read: true },
-      { id: 'm3', dir: 'in', text: 'Good thanks! Quick one — can I move my appointment to Friday instead?', time: '10:32', read: false },
-    ],
-    aiDraft: "No worries at all lovely! I've got 2pm or 3:30pm free on Friday — which works best for you? xx",
-  },
-  {
-    id: 'conv-2', client: 'Jess', channel: 'instagram', unread: 1,
-    lastMessage: 'Hiya! Saw your lash set post — do you have any slots this week?', lastTime: '11:45',
-    messages: [
-      { id: 'm4', dir: 'in', text: 'Hiya! Saw your lash set post — do you have any slots this week?', time: '11:45', read: false },
-    ],
-    aiDraft: "Hey Jess! Thank you so much 🥰 I've got Thursday 1pm or Saturday 10am free — want me to pencil you in? xx",
-  },
-  {
-    id: 'conv-3', client: 'Megan', channel: 'sms', unread: 0,
-    lastMessage: 'Thanks babe, see you Saturday! x', lastTime: 'Yesterday',
-    messages: [
-      { id: 'm5', dir: 'out', text: 'Hey Megan! Just a reminder you\'re booked in Saturday at 11am for brows xx', time: '14:00', read: true },
-      { id: 'm6', dir: 'in', text: 'Thanks babe, see you Saturday! x', time: '14:12', read: true },
-    ],
-    aiDraft: null,
-  },
-];
-
-// ── Component ──────────────────────────────────────────────
+// ── Component ──────────────────────────────────────────
 
 export default function Inbox() {
   const { dark } = useTheme();
   const { beautician, loading: bLoading } = useBeautician();
-  const [conversations, setConversations] = useState(isDevMode ? DEV_CONVERSATIONS : []);
+  const [conversations, setConversations] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [compose, setCompose] = useState('');
   const [showAiDraft, setShowAiDraft] = useState(true);
@@ -82,12 +51,6 @@ export default function Inbox() {
     setLoading(true);
     setError(null);
     try {
-      if (isDevMode) {
-        setConversations(DEV_CONVERSATIONS);
-        setLoading(false);
-        return;
-      }
-
       const { data, error } = await supabase
         .from('messages')
         .select('*, clients(first_name, last_name)')
@@ -96,9 +59,9 @@ export default function Inbox() {
         .order('created_at', { ascending: false });
 
       if (error) {
-        logger.error('Load conversations error:', error);
-        setError(error.message || 'Failed to load conversations');
-        setConversations(DEV_CONVERSATIONS);
+        logger.error({ err: error }, 'Load conversations error');
+        setError('Something went wrong');
+        setConversations([]);
       } else {
         // Group messages by client_id to create conversation list
         const grouped = {};
@@ -128,9 +91,9 @@ export default function Inbox() {
         setConversations(Object.values(grouped));
       }
     } catch (err) {
-      logger.error('Failed to load conversations:', err);
-      setError(err.message || 'Failed to load conversations');
-      setConversations(DEV_CONVERSATIONS);
+      logger.error({ err }, 'Failed to load conversations');
+      setError('Something went wrong');
+      setConversations([]);
     } finally {
       setLoading(false);
     }

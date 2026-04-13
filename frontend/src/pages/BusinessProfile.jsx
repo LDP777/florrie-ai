@@ -10,7 +10,7 @@
  * Dev-mode mock data from DEV_BEAUTICIAN.
  */
 import { useState, useEffect, useRef } from 'react';
-import { useBeautician, updateRow, isDevMode, supabase } from '../lib/supabase.js';
+import { useBeautician, updateRow, supabase } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';

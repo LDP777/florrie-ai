@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
+import { useBeautician, fetchRows } from '../lib/supabase.js';
 import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
@@ -227,17 +227,6 @@ export default function WhatsAppConfig() {
   async function loadData() {
     setLoading(true);
     try {
-      if (isDevMode) {
-        setStatus(MOCK_CONNECTED);
-        setTemplates(mockTemplates);
-      } else {
-        const [statusData, rows] = await Promise.all([
-          apiFetch('/status'),
-          fetchRows('whatsapp_templates', beautician.id, { order: 'name', ascending: true }),
-        ]);
-        setStatus(statusData);
-        setTemplates(rows.length ? rows : mockTemplates);
-      }
     } catch (err) {
       logger.error('WhatsApp load error:', err);
       // On error, show disconnected state so user can reconnect

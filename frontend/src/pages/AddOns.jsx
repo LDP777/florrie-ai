@@ -6,7 +6,7 @@
  * the add-on menu and tracks upsell performance.
  */
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, insertRow, updateRow, deleteRow, isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow, deleteRow, DEV_TREATMENTS } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -46,11 +46,6 @@ export default function AddOns() {
   // Fetch add-ons + treatments on mount
   useEffect(() => {
     if (bLoading || !beautician) return;
-    if (isDevMode) {
-      setAddons(DEV_ADDONS);
-      setTreatments(DEV_TREATMENTS);
-      return;
-    }
     fetchRows('add_ons', beautician.id, { order: 'created_at', ascending: false })
       .then(rows => setAddons(rows))
       .catch(err => logger.error('Failed to load add-ons:', err));

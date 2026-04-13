@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useBeautician, insertRow, supabase, isDevMode, DEV_CLIENTS } from '../lib/supabase.js';
+import { useBeautician, insertRow, supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -9,7 +9,7 @@ import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
  * Clients — view, search, add, and manage the client list.
- * Wired to Supabase. Dev mode shows mock clients from Ellie's DMs.
+ * Wired to Supabase.
  */
 
 export default function Clients() {
@@ -50,21 +50,6 @@ export default function Clients() {
     try {
       setError(null);
 
-      if (isDevMode) {
-        let filtered = DEV_CLIENTS;
-        if (search) {
-          const s = search.toLowerCase();
-          filtered = DEV_CLIENTS.filter(c =>
-            c.first_name.toLowerCase().includes(s) ||
-            (c.last_name || '').toLowerCase().includes(s) ||
-            (c.email || '').toLowerCase().includes(s)
-          );
-        }
-        setClients(filtered);
-        setLoading(false);
-        return;
-      }
-
       let q = supabase
         .from('clients')
         .select('*')
@@ -92,13 +77,6 @@ export default function Clients() {
 
   async function loadClientDetail(id) {
     try {
-      if (isDevMode) {
-        const client = DEV_CLIENTS.find(c => c.id === id);
-        setClientDetail({ client, appointments: [], messages: [] });
-        setSelected(id);
-        return;
-      }
-
       const [clientRes, apptsRes, msgsRes] = await Promise.all([
         supabase.from('clients').select('*').eq('id', id).maybeSingle(),
         supabase.from('appointments').select('*, treatments(name)').eq('client_id', id).order('starts_at', { ascending: false }).limit(10),
@@ -136,11 +114,6 @@ export default function Clients() {
   }
 
   async function handleExportCSV() {
-    if (isDevMode) {
-      alert('Export not available in dev mode');
-      return;
-    }
-
     try {
       const session = await supabase.auth.getSession();
       if (!session.data.session) return;

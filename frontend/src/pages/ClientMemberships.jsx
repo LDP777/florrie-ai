@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
+import { useBeautician, fetchRows } from '../lib/supabase.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
@@ -37,7 +37,7 @@ export default function ClientMemberships() {
 
   useEffect(() => {
     if (bLoading) return;
-    if (isDevMode || !beautician) { setPlans(DEV_PLANS); setMembers(DEV_MEMBERS); return; }
+    if (!beautician) { setPlans(DEV_PLANS); setMembers(DEV_MEMBERS); return; }
     Promise.all([
       fetchRows('membership_plans', beautician.id, { order: 'price', ascending: true }),
       fetchRows('memberships', beautician.id, { order: 'created_at', ascending: false }),

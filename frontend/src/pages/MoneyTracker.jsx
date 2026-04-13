@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useBeautician, supabase, isDevMode, insertRow } from '../lib/supabase.js';
+import { useBeautician, supabase, insertRow } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -114,12 +114,7 @@ export default function MoneyTracker() {
     setLoading(true);
     setError(null);
     try {
-      if (isDevMode) {
-        setExpenses(DEV_EXPENSES);
-        setTransactions(DEV_TRANSACTIONS);
-        setLoading(false);
-        return;
-      }
+
 
       const [expRes, txRes] = await Promise.all([
         supabase.from('expenses')
@@ -140,7 +135,7 @@ export default function MoneyTracker() {
       setExpenses(expRes.data || []);
       setTransactions(txRes.data || []);
     } catch (err) {
-      logger.error('Money load error:', err);
+      logger.error({ err }, 'Money load error');
       setError('Something went wrong loading your money data');
     } finally {
       setLoading(false);
@@ -363,20 +358,7 @@ export default function MoneyTracker() {
       reader.onload = async () => {
         const base64 = reader.result.split(',')[1];
 
-        if (isDevMode) {
-          setNewExpense({
-            amount: '23.50',
-            vendor: 'Sally Beauty',
-            description: 'Brow tint x2, wax strips',
-            category: 'products',
-            date: new Date().toISOString().split('T')[0],
-            tax_deductible: true
-          });
-          setReceiptPreview(reader.result);
-          setShowAddExpense(true);
-          setScanning(false);
-          return;
-        }
+
 
         // 1. Upload receipt image to Supabase Storage
         const path = `${beautician.id}/receipts/${Date.now()}-${file.name}`;
@@ -445,7 +427,7 @@ export default function MoneyTracker() {
       };
       reader.readAsDataURL(file);
     } catch (err) {
-      logger.error('Receipt scan error:', err);
+      logger.error({ err }, 'Receipt scan error');
       setScanning(false);
     }
   }
@@ -474,7 +456,7 @@ export default function MoneyTracker() {
       setReceiptPreview(null);
       setShowAddExpense(false);
     } catch (err) {
-      logger.error('Add expense error:', err);
+      logger.error({ err }, 'Add expense error');
     }
   }
 
@@ -497,7 +479,7 @@ export default function MoneyTracker() {
       setTipAmount('');
       setShowLogTip(false);
     } catch (err) {
-      logger.error('Log tip error:', err);
+      logger.error({ err }, 'Log tip error');
     }
   }
 
@@ -520,7 +502,7 @@ export default function MoneyTracker() {
       setSaleDesc('');
       setShowLogSale(false);
     } catch (err) {
-      logger.error('Log product sale error:', err);
+      logger.error({ err }, 'Log product sale error');
     }
   }
 
@@ -1318,19 +1300,6 @@ export default function MoneyTracker() {
 }
 
 // ── Dev mode mock data ──
-const DEV_EXPENSES = [
-  { id: 'dev-e1', vendor: 'Sally Beauty', description: 'Brow tint x3, wax strips', category: 'products', amount_cents: 3450, date: '2026-03-24', tax_deductible: true },
-  { id: 'dev-e2', vendor: 'Salon Rent', description: 'March chair rental', category: 'rent', amount_cents: 40000, date: '2026-03-01', tax_deductible: true },
-  { id: 'dev-e3', vendor: 'Timely', description: 'Monthly subscription', category: 'software', amount_cents: 2500, date: '2026-03-15', tax_deductible: true },
-];
-
-const DEV_TRANSACTIONS = [
-  { id: 'dev-tx1', type: 'payment', amount_cents: 4500, created_at: '2026-03-24T14:00:00Z', appointments: { clients: { first_name: 'Shauna' }, treatments: { name: 'Lamination & Hybrid Dye' } } },
-  { id: 'dev-tx2', type: 'payment', amount_cents: 4000, created_at: '2026-03-24T11:00:00Z', appointments: { clients: { first_name: 'Daisy' }, treatments: { name: 'Lamination & Tint' } } },
-  { id: 'dev-tx3', type: 'payment', amount_cents: 2500, created_at: '2026-03-23T15:00:00Z', appointments: { clients: { first_name: 'Jasmin' }, treatments: { name: 'HD Brows' } } },
-  { id: 'dev-tx4', type: 'tip', amount_cents: 500, created_at: '2026-03-24T14:15:00Z', description: 'Tip' },
-  { id: 'dev-tx5', type: 'product_sale', amount_cents: 1200, created_at: '2026-03-24T14:10:00Z', description: 'Velvet Shine Serum' },
-];
 
 // ─── Styles — Stitch "Money & Revenue" reference ───
 const S = {

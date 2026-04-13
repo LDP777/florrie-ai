@@ -6,25 +6,13 @@
  * when it was taken, and what happened to it.
  */
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, isDevMode, supabase, updateRow } from '../lib/supabase.js';
+import { useBeautician, fetchRows, supabase, updateRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 const fmt = (cents) => `£${(Math.abs(cents) / 100).toFixed(2)}`;
-
-// Dev mode data (only shown if isDevMode is true)
-const DEV_DEPOSITS = [
-  { id: 'd1', client: 'Holly B', treatment: 'Ombre Brows (Semi-Permanent)', amount: 5000, takenDate: '2026-03-10', status: 'held', method: 'card', appointmentDate: '2026-04-05', notes: 'Waitlist deposit — slot confirmed' },
-  { id: 'd2', client: 'Megan S', treatment: 'HD Brows', amount: 2500, takenDate: '2026-03-15', status: 'held', method: 'card', appointmentDate: '2026-03-29', notes: 'Standard booking deposit' },
-  { id: 'd3', client: 'Amy R', treatment: 'Ombre Brows (Semi-Permanent)', amount: 5000, takenDate: '2026-03-20', status: 'held', method: 'card', appointmentDate: '2026-04-10', notes: 'Post-consultation deposit' },
-  { id: 'd4', client: 'Beth K', treatment: 'Combination Brows', amount: 5000, takenDate: '2026-03-18', status: 'held', method: 'bank-transfer', appointmentDate: null, notes: 'Awaiting GP clearance — deposit held' },
-  { id: 'd5', client: 'Daisy S', treatment: 'Ombre Brows (Semi-Permanent)', amount: 12500, takenDate: '2026-02-25', status: 'applied', method: 'card', appointmentDate: '2026-03-12', appliedDate: '2026-03-12', notes: '50% deposit deducted from final bill' },
-  { id: 'd6', client: 'Chloe M', treatment: 'Ombre Brows (Semi-Permanent)', amount: 5000, takenDate: '2026-03-01', status: 'applied', method: 'card', appointmentDate: '2026-03-22', appliedDate: '2026-03-22', notes: 'Consultation deposit applied to treatment' },
-  { id: 'd7', client: 'Lucy P', treatment: 'Lash Lift & Tint', amount: 1000, takenDate: '2026-02-20', status: 'refunded', method: 'card', appointmentDate: '2026-03-01', refundDate: '2026-02-28', notes: 'Client cancelled within 48h window — full refund' },
-  { id: 'd8', client: 'Natalie W', treatment: 'Colour Boost', amount: 2500, takenDate: '2026-02-10', status: 'forfeited', method: 'card', appointmentDate: '2026-02-25', notes: 'No-show — deposit kept per policy' },
-];
 
 const STATUS_CONFIG = {
   held: { label: 'Held', bg: '#FFF5E6', color: 'var(--gold, #C9A96E)', icon: '⏳' },
@@ -44,10 +32,6 @@ export default function DepositTracker() {
   // Fetch deposits (query appointments where deposit_cents > 0)
   useEffect(() => {
     if (bLoading || !beautician) return;
-    if (isDevMode) {
-      setDeposits(DEV_DEPOSITS);
-      return;
-    }
 
     const loadDeposits = async () => {
       try {
@@ -98,17 +82,6 @@ export default function DepositTracker() {
 
   // Handle deposit status changes
   const handleDepositAction = async (depositId, newStatus) => {
-    if (isDevMode) {
-      // In dev mode, just update local state
-      setDeposits(prev =>
-        prev.map(d =>
-          d.id === depositId ? { ...d, status: newStatus } : d
-        )
-      );
-      setExpanded(null);
-      return;
-    }
-
     try {
       setLoading(true);
       const updates = { deposit_status: newStatus };

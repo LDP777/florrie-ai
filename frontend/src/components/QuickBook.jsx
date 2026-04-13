@@ -6,14 +6,11 @@
  * In dev mode, uses mock data. Supabase wiring later.
  */
 import { useState, useMemo } from 'react';
-import { isDevMode, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
-
 const HOURS = [];
 for (let h = 9; h <= 19; h++) {
   HOURS.push(`${String(h).padStart(2, '0')}:00`);
   if (h < 19) HOURS.push(`${String(h).padStart(2, '0')}:30`);
 }
-
 function getNextDays(count) {
   const days = [];
   const now = new Date();
@@ -24,7 +21,6 @@ function getNextDays(count) {
   }
   return days;
 }
-
 const dayLabel = d => {
   const today = new Date();
   const diff = Math.floor((d - today) / 86400000);
@@ -32,7 +28,6 @@ const dayLabel = d => {
   if (diff === 1) return 'Tomorrow';
   return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 };
-
 export default function QuickBook() {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(0); // 0=client, 1=treatment, 2=datetime, 3=confirm
@@ -42,18 +37,15 @@ export default function QuickBook() {
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTime, setSelectedTime] = useState(null);
   const [booked, setBooked] = useState(false);
-
   const clients = useMemo(() => {
-    if (!clientSearch) return DEV_CLIENTS;
+    if (!clientSearch) return [];
     const s = clientSearch.toLowerCase();
-    return DEV_CLIENTS.filter(c =>
+    return clients.filter(c =>
       c.first_name.toLowerCase().includes(s) || (c.last_name || '').toLowerCase().includes(s)
     );
   }, [clientSearch]);
-
-  const treatments = DEV_TREATMENTS.filter(t => t.is_active);
+  const treatments = (loadedTreatments || []).filter(t => t.is_active);
   const days = useMemo(() => getNextDays(14), []);
-
   function reset() {
     setStep(0);
     setClientSearch('');
@@ -63,16 +55,13 @@ export default function QuickBook() {
     setSelectedTime(null);
     setBooked(false);
   }
-
   function handleOpen() {
     reset();
     setOpen(true);
   }
-
   function handleClose() {
     setOpen(false);
   }
-
   function handleConfirm() {
     setBooked(true);
     setTimeout(() => {
@@ -80,9 +69,7 @@ export default function QuickBook() {
       reset();
     }, 1800);
   }
-
   const pence = v => `£${(v / 100).toFixed(2)}`;
-
   return (
     <>
       {/* Floating action button */}
@@ -91,7 +78,6 @@ export default function QuickBook() {
           <span style={s.fabIcon}>+</span>
         </button>
       )}
-
       {/* Modal overlay */}
       {open && (
         <div style={s.overlay} onClick={handleClose}>
@@ -109,7 +95,6 @@ export default function QuickBook() {
               </span>
               <span style={s.stepIndicator}>{!booked && `${step + 1}/4`}</span>
             </div>
-
             {/* Booked confirmation */}
             {booked && (
               <div style={s.bookedView}>
@@ -122,7 +107,6 @@ export default function QuickBook() {
                 </p>
               </div>
             )}
-
             {/* Step 0: Client */}
             {!booked && step === 0 && (
               <div style={s.stepContent}>
@@ -165,7 +149,6 @@ export default function QuickBook() {
                 </div>
               </div>
             )}
-
             {/* Step 1: Treatment */}
             {!booked && step === 1 && (
               <div style={s.stepContent}>
@@ -186,7 +169,6 @@ export default function QuickBook() {
                 </div>
               </div>
             )}
-
             {/* Step 2: Date & Time */}
             {!booked && step === 2 && (
               <div style={s.stepContent}>
@@ -217,7 +199,6 @@ export default function QuickBook() {
                     );
                   })}
                 </div>
-
                 {selectedDate && (
                   <>
                     <span style={{ ...s.sectionLabel, marginTop: 14 }}>Time</span>
@@ -242,7 +223,6 @@ export default function QuickBook() {
                     </div>
                   </>
                 )}
-
                 {selectedDate && selectedTime && (
                   <button onClick={() => setStep(3)} style={s.nextBtn}>
                     Continue
@@ -250,7 +230,6 @@ export default function QuickBook() {
                 )}
               </div>
             )}
-
             {/* Step 3: Confirm */}
             {!booked && step === 3 && (
               <div style={s.stepContent}>
@@ -282,7 +261,6 @@ export default function QuickBook() {
                     </span>
                   </div>
                 </div>
-
                 <button onClick={handleConfirm} style={s.confirmBtn}>
                   Confirm Booking
                 </button>
@@ -294,7 +272,6 @@ export default function QuickBook() {
     </>
   );
 }
-
 const s = {
   fab: {
     position: 'fixed',

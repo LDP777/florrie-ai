@@ -6,25 +6,11 @@
  * feedback settings. Happy clients get nudged to leave a Google review.
  */
 import { useState, useEffect } from 'react';
-import { isDevMode, useBeautician, fetchRows, updateRow } from '../lib/supabase.js';
+import { useBeautician, fetchRows, updateRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
-
-// ── Dev mock data ─────────────────────────────────────────
-const DEV_RESPONSES = [
-  { id: 'f1', client_name: 'Shauna', treatment_name: 'Lamination & Hybrid Dye', date: '2026-03-18', rating: 5, comment: 'Absolutely love my brows! Ellie always gets them perfect.', nps: 10, reviewed: true },
-  { id: 'f2', client_name: 'Daisy S', treatment_name: 'Ombre Brows (Semi-Permanent)', date: '2026-03-12', rating: 5, comment: 'So happy with the shape. Can\'t wait for the top-up!', nps: 10, reviewed: false },
-  { id: 'f3', client_name: 'Jasmin', treatment_name: 'Lash Lift & Tint', date: '2026-03-08', rating: 4, comment: 'Great result, lasted really well this time.', nps: 8, reviewed: false },
-  { id: 'f4', client_name: 'Shauna', treatment_name: 'HD Brows', date: '2026-02-28', rating: 5, comment: '', nps: 9, reviewed: true },
-  { id: 'f5', client_name: 'Daisy S', treatment_name: 'Combination Brows', date: '2026-02-20', rating: 5, comment: 'Ellie is the best. Felt so comfortable the whole time.', nps: 10, reviewed: true },
-  { id: 'f6', client_name: 'Jasmin', treatment_name: 'Lamination Maintenance', date: '2026-02-14', rating: 4, comment: 'Quick and easy, looks fab.', nps: 8, reviewed: false },
-  { id: 'f7', client_name: 'Shauna', treatment_name: 'Lamination & Tint', date: '2026-02-01', rating: 5, comment: 'Always a 10. Love coming here.', nps: 10, reviewed: true },
-  { id: 'f8', client_name: 'Daisy S', treatment_name: 'HD Brows', date: '2026-01-25', rating: 4, comment: 'Really good as always.', nps: 9, reviewed: false },
-  { id: 'f9', client_name: 'Jasmin', treatment_name: 'Lash Lift & Tint', date: '2026-01-18', rating: 3, comment: 'Lift was a bit too strong for my liking this time. Mentioned it to Ellie and she noted for next time.', nps: 7, reviewed: false },
-  { id: 'f10', client_name: 'Shauna', treatment_name: 'HD Brows', date: '2026-01-10', rating: 5, comment: '', nps: 10, reviewed: true },
-];
 
 const QUESTIONS_PREVIEW = [
   'How would you rate your experience? (1-5 stars)',
@@ -56,16 +42,13 @@ export default function Feedback() {
       .then(rows => {
         if (rows && rows.length > 0) {
           setResponses(rows);
-        } else if (isDevMode) {
-          setResponses(DEV_RESPONSES);
         } else {
           setResponses([]);
         }
       })
       .catch(err => {
-        logger.error('Failed to load feedback:', err);
-        if (isDevMode) setResponses(DEV_RESPONSES);
-        else setError('Failed to load feedback data');
+        logger.error({ err }, 'Failed to load feedback');
+        setError('Failed to load feedback data');
       })
       .finally(() => setLoading(false));
   }, [beautician, bLoading]);
@@ -80,12 +63,12 @@ export default function Feedback() {
 
   // Save settings when changed
   async function saveSettings() {
-    if (!beautician || isDevMode) { setSettingsDirty(false); return; }
+    if (!beautician) { setSettingsDirty(false); return; }
     try {
       await updateRow('beauticians', beautician.id, { feedback_settings: settings });
       setSettingsDirty(false);
     } catch (err) {
-      logger.error('Failed to save feedback settings:', err);
+      logger.error({ err }, 'Failed to save feedback settings');
     }
   }
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, supabase, fetchRows, isDevMode, insertRow, updateRow, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useBeautician, supabase, fetchRows, insertRow, updateRow } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -51,12 +51,6 @@ function daysUntilExpiry(testDate, expiryMonths) {
 // Treatments that require patch tests
 const REQUIRES_TEST = ['dev-t1', 'dev-t2', 'dev-t3', 'dev-t4', 'dev-t5', 'dev-t6', 'dev-t13'];
 
-const DEV_PATCH_TESTS = [
-  { id: 'pt1', client_id: 'dev-c1', client_name: 'Shauna', test_date: '2026-03-01', result: 'pass', notes: 'No reaction', treatment_id: 'dev-t1' },
-  { id: 'pt2', client_id: 'dev-c2', client_name: 'Daisy S', test_date: '2025-11-15', result: 'pass', notes: '', treatment_id: 'dev-t2' },
-  { id: 'pt3', client_id: 'dev-c3', client_name: 'Jasmin', test_date: '2026-02-10', result: 'pass', notes: 'Slight redness at 24h, gone by 48h — OK to proceed', treatment_id: 'dev-t13' },
-];
-
 const DEV_UPCOMING_NEEDING_TEST = [
   { client_name: 'Emma', appointment_date: '2026-03-28', treatment: 'Lamination & Hybrid Dye', status: 'none' },
   { client_name: 'Daisy S', appointment_date: '2026-03-29', treatment: 'Lamination & Tint', status: 'expired' },
@@ -64,7 +58,7 @@ const DEV_UPCOMING_NEEDING_TEST = [
 
 export default function PatchTests() {
   const { beautician, loading: bLoading } = useBeautician();
-  const [tests, setTests] = useState(DEV_PATCH_TESTS);
+  const [tests, setTests] = useState([]);
   const [tab, setTab] = useState('alerts');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -95,17 +89,12 @@ export default function PatchTests() {
       setLoading(false);
       return;
     }
-    if (isDevMode) {
-      setTests(DEV_PATCH_TESTS);
-      setLoading(false);
-      return;
-    }
     try {
       const rows = await fetchRows('patch_tests', beautician.id, { order: 'test_date', ascending: false });
       setTests(rows);
     } catch (err) {
-      logger.error('Failed to load patch tests:', err);
-      setError(err.message || 'Failed to load patch tests');
+      logger.error({ err }, 'Failed to load patch tests');
+      setError('Something went wrong');
     }
     setLoading(false);
   }
@@ -122,7 +111,7 @@ export default function PatchTests() {
       treatment_id: form.treatment_id || null,
     };
 
-    if (!isDevMode && beautician) {
+    if (beautician) {
       try {
         const saved = await insertRow('patch_tests', { beautician_id: beautician.id, ...test });
         test.id = saved.id;
@@ -135,11 +124,6 @@ export default function PatchTests() {
   }
 
   async function handleRemind(clientName) {
-    if (isDevMode) {
-      setReminded(prev => ({ ...prev, [clientName]: true }));
-      return;
-    }
-
     try {
       const session = await supabase.auth.getSession();
       const token = session.data.session?.access_token;
@@ -161,7 +145,7 @@ export default function PatchTests() {
 
       setReminded(prev => ({ ...prev, [clientName]: true }));
     } catch (err) {
-      logger.error('Failed to send patch test reminder:', err);
+      logger.error({ err }, 'Failed to send patch test reminder');
       // Still mark locally so user isn't stuck, but warn them
       setReminded(prev => ({ ...prev, [clientName]: true }));
       alert(`Reminder queued for ${clientName} (delivery may be delayed)`);
@@ -482,27 +466,7 @@ export default function PatchTests() {
 
           <div style={styles.settingsCard}>
             <h3 style={styles.settingsSectionTitle}>Treatments requiring patch test</h3>
-            {DEV_TREATMENTS.filter(t => ['brows', 'lashes'].includes(t.category)).map(t => {
-              const isRequired = settings.require_for.includes(t.id);
-              return (
-                <div key={t.id} style={styles.treatmentRow}>
-                  <span style={styles.treatmentName}>{t.name}</span>
-                  <button
-                    onClick={() => {
-                      setSettings(p => ({
-                        ...p,
-                        require_for: isRequired
-                          ? p.require_for.filter(id => id !== t.id)
-                          : [...p.require_for, t.id],
-                      }));
-                    }}
-                    style={{ ...styles.toggle, background: isRequired ? 'var(--accent)' : 'var(--border)', width: 38, height: 22 }}
-                  >
-                    <div style={{ ...styles.toggleDot, width: 18, height: 18, borderRadius: 9, transform: isRequired ? 'translateX(16px)' : 'translateX(2px)' }} />
-                  </button>
-                </div>
-              );
-            })}
+            <div style={styles.treatmentNote}>Select which treatments require a patch test before booking.</div>
           </div>
         </div>
       )}
@@ -603,8 +567,7 @@ const styles = {
   settingsSelect: { padding: '6px 10px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 12, fontFamily: 'inherit', background: 'var(--bg-card)', color: 'var(--text-secondary)' },
   toggle: { width: 44, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s' },
   toggleDot: { width: 22, height: 22, borderRadius: 11, background: '#fff', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
-  treatmentRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border-light)' },
-  treatmentName: { fontSize: 13, color: 'var(--text-secondary)' },
+  treatmentNote: { fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' },
 
   // Empty
   loadingText: { textAlign: 'center', color: 'var(--text-muted)', padding: 40, fontSize: 14 },

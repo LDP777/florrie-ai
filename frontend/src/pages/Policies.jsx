@@ -8,7 +8,7 @@
  *   Client-facing — preview of the policy clients see at booking
  */
 import { useState, useEffect } from 'react';
-import { useBeautician, supabase, isDevMode, updateRow } from '../lib/supabase.js';
+import { useBeautician, supabase, updateRow } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
 import logger from '../lib/logger.js';
 
@@ -77,7 +77,7 @@ export default function Policies() {
   async function loadPolicies() {
     setLoading(true);
     try {
-      if (!isDevMode && beautician) {
+      if (beautician) {
         const { data } = await supabase
           .from('policies')
           .select('*')
@@ -111,7 +111,7 @@ export default function Policies() {
   }
 
   async function handleSave() {
-    if (!beautician || isDevMode) {
+    if (!beautician) {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
       return;

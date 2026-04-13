@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { useBeautician, supabase, isDevMode, fetchRows } from '../lib/supabase.js';
+import { useBeautician, supabase, fetchRows } from '../lib/supabase.js'
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
-
 /**
  * Voice Commander — Talk to florrie.ai.
  *
@@ -13,7 +12,6 @@ import logger from '../lib/logger.js';
  *
  * Falls back to text-only input when Speech API is unavailable.
  */
-
 const AGENT_ROUTES = {
   calendar: { label: 'Calendar', icon: '📅', color: '#4A90D9' },
   clients: { label: 'Clients', icon: '👤', color: 'var(--accent, #C76B8A)' },
@@ -23,7 +21,6 @@ const AGENT_ROUTES = {
   settings: { label: 'Settings', icon: '⚙️', color: '#6b6560' },
   general: { label: 'florrie.ai', icon: null, color: 'var(--accent, #C76B8A)' }, // uses petal SVG
 };
-
 // ── Florrie petal SVG ────────────────────────────────────
 function FloriePetal({ size = 28, spinning = false, white = false }) {
   const colour = white ? '#fff' : '#C76B8A';
@@ -48,7 +45,6 @@ function FloriePetal({ size = 28, spinning = false, white = false }) {
     </svg>
   );
 }
-
 // Map tool names → which agent "handled" it (for avatar/colour display)
 const TOOL_TO_AGENT = {
   check_schedule: 'calendar',
@@ -74,7 +70,6 @@ const TOOL_TO_AGENT = {
   get_revenue_by_treatment: 'money',
   add_note: 'general',
 };
-
 // Map tool names → a quick-action button to show after the response
 const TOOL_TO_ACTION = {
   book_appointment: { label: 'View Calendar', path: '/calendar' },
@@ -92,7 +87,6 @@ const TOOL_TO_ACTION = {
   get_top_clients: { label: 'View Clients', path: '/clients' },
   add_note: { label: 'View Checklist', path: '/checklist' },
 };
-
 const EXAMPLE_PROMPTS = [
   "What's my schedule today?",
   "Block next week for a holiday",
@@ -101,12 +95,10 @@ const EXAMPLE_PROMPTS = [
   "Who haven't I seen in 2 months?",
   "Move Shauna's appointment to Thursday",
 ];
-
 // Check Web Speech API support
 const SpeechRecognition = typeof window !== 'undefined'
   ? (window.SpeechRecognition || window.webkitSpeechRecognition)
   : null;
-
 export default function VoiceCommander() {
   const { beautician, loading: bLoading } = useBeautician();
   const [messages, setMessages] = useState([]);
@@ -120,12 +112,10 @@ export default function VoiceCommander() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const recognitionRef = useRef(null);
-
   // Init greeting + load history
   useEffect(() => {
     if (!bLoading) loadHistory();
   }, [beautician, bLoading]);
-
   async function loadHistory() {
     setLoading(true);
     try {
@@ -137,8 +127,7 @@ export default function VoiceCommander() {
         agent: 'general',
         timestamp: new Date().toISOString(),
       };
-
-      if (isDevMode || !beautician) {
+      if (!beautician) {
         setMessages([greeting]);
       } else {
         const todayStr = new Date().toISOString().slice(0, 10);
@@ -171,31 +160,26 @@ export default function VoiceCommander() {
       setLoading(false);
     }
   }
-
   // Auto-scroll on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
   // ── Web Speech API ──────────────────────────────────────
   function startRecording() {
     if (!SpeechRecognition) {
       inputRef.current?.focus();
       return;
     }
-
     const recognition = new SpeechRecognition();
     recognition.lang = 'en-GB';
     recognition.interimResults = true;
     recognition.continuous = false;
     recognition.maxAlternatives = 1;
-
     recognition.onstart = () => {
       setIsRecording(true);
       setPulseAnim(true);
       setInterimTranscript('');
     };
-
     recognition.onresult = (event) => {
       let interim = '';
       let final = '';
@@ -214,13 +198,11 @@ export default function VoiceCommander() {
         setInterimTranscript(interim);
       }
     };
-
     recognition.onerror = (event) => {
       logger.error('Speech recognition error:', event.error);
       setIsRecording(false);
       setPulseAnim(false);
       setInterimTranscript('');
-
       if (event.error === 'not-allowed') {
         addSystemMessage("Microphone access denied. Check your browser settings, or type your message instead.");
         setSpeechSupported(false);
@@ -228,17 +210,14 @@ export default function VoiceCommander() {
         addSystemMessage("I didn't catch that. Try again or type your message.");
       }
     };
-
     recognition.onend = () => {
       setIsRecording(false);
       setPulseAnim(false);
       setInterimTranscript('');
     };
-
     recognitionRef.current = recognition;
     recognition.start();
   }
-
   function stopRecording() {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
@@ -248,7 +227,6 @@ export default function VoiceCommander() {
     setPulseAnim(false);
     setInterimTranscript('');
   }
-
   function handleRecord() {
     if (isRecording) {
       stopRecording();
@@ -256,7 +234,6 @@ export default function VoiceCommander() {
       startRecording();
     }
   }
-
   function addSystemMessage(text) {
     setMessages(prev => [...prev, {
       id: crypto.randomUUID(),
@@ -266,11 +243,9 @@ export default function VoiceCommander() {
       timestamp: new Date().toISOString(),
     }]);
   }
-
   // ── Message Processing ──────────────────────────────────
   async function processMessage(text, isVoice = false) {
     if (!text.trim()) return;
-
     const userMsg = {
       id: crypto.randomUUID(),
       role: 'user',
@@ -281,11 +256,9 @@ export default function VoiceCommander() {
     setMessages(prev => [...prev, userMsg]);
     setTextInput('');
     setIsProcessing(true);
-
     try {
       const token = (await supabase?.auth.getSession())?.data?.session?.access_token;
-
-      if (!token || isDevMode) {
+      if (!token) {
         // Dev mode fallback — local keyword matching
         await new Promise(r => setTimeout(r, 800));
         const response = generateDevResponse(text.trim());
@@ -293,7 +266,6 @@ export default function VoiceCommander() {
         setIsProcessing(false);
         return;
       }
-
       // Real backend call
       const res = await fetch(`${API_BASE}/api/voice/command`, {
         method: 'POST',
@@ -303,25 +275,19 @@ export default function VoiceCommander() {
         },
         body: JSON.stringify({ text: text.trim() }),
       });
-
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || `Server error ${res.status}`);
       }
-
       const data = await res.json();
-
       // Determine agent from which tools were called
       const toolsUsed = (data.actions || []).map(a => a.tool);
       const primaryTool = toolsUsed[0];
       const agent = TOOL_TO_AGENT[primaryTool] || 'general';
-
       // Quick-action button — use first tool that has one
       const action = toolsUsed.reduce((found, t) => found || TOOL_TO_ACTION[t] || null, null);
-
       // Show tool count badge for multi-step commands
       const multiStep = toolsUsed.length > 1;
-
       const aiMsg = {
         id: crypto.randomUUID(),
         role: 'assistant',
@@ -332,7 +298,6 @@ export default function VoiceCommander() {
         toolCount: toolsUsed.length,
         timestamp: new Date().toISOString(),
       };
-
       setMessages(prev => [...prev, aiMsg]);
     } catch (err) {
       logger.error('Voice command failed:', err);
@@ -345,14 +310,12 @@ export default function VoiceCommander() {
       setIsProcessing(false);
     }
   }
-
   // Dev mode fallback
   function generateDevResponse(input) {
     const lower = input.toLowerCase();
     let agent = 'general';
     let text = '';
     let action = null;
-
     if (lower.includes('move') || lower.includes('reschedule') || lower.includes('appointment') || lower.includes('block') || lower.includes('book')) {
       agent = 'calendar';
       text = "I'd move that for you but I'm in demo mode right now. Once you're logged in, voice commands hit the real backend and I'll handle bookings, rescheduling, and time blocks.";
@@ -380,7 +343,6 @@ export default function VoiceCommander() {
     } else {
       text = "I'm in demo mode so I can't take real actions yet. Once you're logged in, I handle bookings, schedule, messages, notes, and more — just speak naturally.";
     }
-
     return {
       id: crypto.randomUUID(),
       role: 'assistant',
@@ -390,16 +352,13 @@ export default function VoiceCommander() {
       timestamp: new Date().toISOString(),
     };
   }
-
   function handleTextSubmit(e) {
     e.preventDefault();
     if (textInput.trim()) processMessage(textInput, false);
   }
-
   function handleActionClick(path) {
     if (path) window.location.href = path;
   }
-
   return (
     <div style={styles.page}>
       {/* Header */}
@@ -409,7 +368,6 @@ export default function VoiceCommander() {
           {speechSupported ? 'Tap the mic or type — I handle everything.' : 'Type anything — I handle everything.'}
         </p>
       </div>
-
       {/* Messages */}
       <div style={styles.messagesContainer}>
         {messages.map(msg => (
@@ -428,7 +386,6 @@ export default function VoiceCommander() {
                 }
               </div>
             )}
-
             <div style={{
               ...styles.bubble,
               ...(msg.role === 'user' ? styles.userBubble : styles.aiBubble),
@@ -442,19 +399,15 @@ export default function VoiceCommander() {
                   {AGENT_ROUTES[msg.agent]?.label}
                 </span>
               )}
-
               <p style={styles.msgText}>{msg.text}</p>
-
               {msg.isVoice && msg.role === 'user' && (
                 <span style={styles.voiceBadge}>🎙️ Voice</span>
               )}
-
               {msg.multiStep && msg.role === 'assistant' && (
                 <span style={styles.multiStepBadge}>
                   {msg.toolCount} actions
                 </span>
               )}
-
               {msg.action && (
                 <button
                   style={styles.actionBtn}
@@ -466,7 +419,6 @@ export default function VoiceCommander() {
             </div>
           </div>
         ))}
-
         {/* Processing indicator */}
         {isProcessing && (
           <div style={styles.msgRow}>
@@ -482,10 +434,8 @@ export default function VoiceCommander() {
             </div>
           </div>
         )}
-
         <div ref={messagesEndRef} />
       </div>
-
       {/* Example prompts */}
       {messages.length <= 2 && !isProcessing && (
         <div style={styles.promptsSection}>
@@ -503,7 +453,6 @@ export default function VoiceCommander() {
           </div>
         </div>
       )}
-
       {/* Input area */}
       <div style={styles.inputArea}>
         {/* Live transcript preview */}
@@ -512,7 +461,6 @@ export default function VoiceCommander() {
             <span style={styles.interimText}>{interimTranscript}</span>
           </div>
         )}
-
         {/* Text input row */}
         <form onSubmit={handleTextSubmit} style={styles.inputForm}>
           <input
@@ -530,7 +478,6 @@ export default function VoiceCommander() {
             </button>
           )}
         </form>
-
         {/* Central Florrie petal button */}
         {speechSupported && (
           <div style={styles.petalWrap}>
@@ -563,7 +510,6 @@ export default function VoiceCommander() {
     </div>
   );
 }
-
 const styles = {
   page: {
     display: 'flex', flexDirection: 'column', minHeight: '100vh',
@@ -574,7 +520,6 @@ const styles = {
   header: { padding: '28px 16px 12px', flexShrink: 0 },
   title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
   subtitle: { fontSize: 13, color: 'var(--accent)', margin: 0, fontWeight: 500 },
-
   messagesContainer: {
     flex: 1, overflowY: 'auto', padding: '8px 16px 16px',
     display: 'flex', flexDirection: 'column', gap: 12,
@@ -617,13 +562,11 @@ const styles = {
     color: 'var(--accent)', fontSize: 12, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
-
   typingDots: { display: 'flex', gap: 2, padding: '4px 0' },
   typingDot: {
     fontSize: 28, lineHeight: '16px', color: 'var(--text-muted)',
     animation: 'pulse 1.2s ease infinite',
   },
-
   promptsSection: { padding: '0 16px 12px', flexShrink: 0 },
   promptsLabel: { display: 'block', fontSize: 11, color: 'var(--text-muted)', marginBottom: 8, fontWeight: 500 },
   promptsGrid: { display: 'flex', flexWrap: 'wrap', gap: 6 },
@@ -633,7 +576,6 @@ const styles = {
     color: 'var(--text-secondary)', fontSize: 12, lineHeight: 1.3,
     cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
   },
-
   inputArea: { flexShrink: 0, padding: '8px 16px 24px', background: 'var(--bg)' },
   inputForm: { display: 'flex', gap: 8, alignItems: 'center' },
   textInput: {
@@ -672,14 +614,12 @@ const styles = {
     fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #B5AFA8)',
     letterSpacing: '0.02em', textTransform: 'uppercase',
   },
-
   interimBar: {
     padding: '6px 12px', marginBottom: 8, borderRadius: 10,
     background: 'var(--accent-light)', fontSize: 13,
     color: 'var(--text-secondary)', fontStyle: 'italic',
   },
   interimText: { opacity: 0.8 },
-
   recordingBar: {
     display: 'flex', alignItems: 'center', gap: 8,
     padding: '8px 12px', marginTop: 8, borderRadius: 10,
@@ -692,7 +632,6 @@ const styles = {
   recordingText: { fontSize: 12, fontWeight: 600, color: 'var(--danger)', flex: 1 },
   recordingHint: { fontSize: 11, color: 'var(--text-muted)' },
 };
-
 // Inject keyframes
 if (typeof document !== 'undefined' && !document.getElementById('voice-keyframes')) {
   const s = document.createElement('style');

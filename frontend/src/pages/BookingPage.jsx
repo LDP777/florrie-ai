@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase, isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
+import { supabase } from '../lib/supabase.js'
 import { useParams, useLocation } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
-
 /**
  * BookingPage — the public-facing branded booking link.
  * URL: florrie.ai/book/{slug}
@@ -15,9 +14,7 @@ import { API_BASE } from '../lib/config.js';
  * Flow: Select treatment → Pick date → Pick time slot → Enter details → Confirm
  * Target: Complete booking in under 90 seconds.
  */
-
 const STEPS = ['Treatment', 'Date & Time', 'Your Details', 'Confirm'];
-
 /**
  * PaymentCountdown — shows a live countdown to the payment deadline.
  * If the slot will be released in <10min, client sees how long they have.
@@ -25,7 +22,6 @@ const STEPS = ['Treatment', 'Date & Time', 'Your Details', 'Confirm'];
 function PaymentCountdown({ expiresAt, brand, brandLight }) {
   const [secondsLeft, setSecondsLeft] = useState(Math.max(0, Math.round((new Date(expiresAt) - Date.now()) / 1000)));
   const ref = useRef(null);
-
   useEffect(() => {
     if (secondsLeft <= 0) return;
     ref.current = setInterval(() => {
@@ -35,13 +31,11 @@ function PaymentCountdown({ expiresAt, brand, brandLight }) {
     }, 1000);
     return () => clearInterval(ref.current);
   }, [expiresAt]);
-
   if (secondsLeft <= 0) return (
     <div style={{ marginTop: 16, padding: '10px 14px', borderRadius: 10, background: '#FFF0F0', border: '1px solid #FECACA', textAlign: 'center', fontSize: 13, color: '#DC2626' }}>
       Your slot has been released. Please book again if you still want this appointment.
     </div>
   );
-
   const mins = Math.floor(secondsLeft / 60);
   const secs = secondsLeft % 60;
   return (
@@ -55,25 +49,21 @@ function PaymentCountdown({ expiresAt, brand, brandLight }) {
     </div>
   );
 }
-
 export default function BookingPage() {
   const { slug } = useParams();
   const location = useLocation();
   const isConfirmedReturn = location.pathname.endsWith('/confirmed');
   const isCancelled = new URLSearchParams(location.search).get('cancelled') === 'true';
-
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(isCancelled ? 'Payment was cancelled. Your booking slot is held for 15 minutes — you can try again.' : null);
   const [success, setSuccess] = useState(isConfirmedReturn ? { depositPaid: true } : null);
   const [fieldErrors, setFieldErrors] = useState({});
-
   // Data
   const [beautician, setBeautician] = useState(null);
   const [treatments, setTreatments] = useState([]);
   const [slots, setSlots] = useState([]);
-
   // User selections
   const [selectedTreatment, setSelectedTreatment] = useState(null);
   const [selectedDate, setSelectedDate] = useState('');
@@ -82,45 +72,34 @@ export default function BookingPage() {
     name: '', email: '', phone: '', notes: ''
   });
   const [consultationAnswers, setConsultationAnswers] = useState({});
-
   // Add-ons
   const [addOns, setAddOns] = useState([]);
   const [selectedAddOns, setSelectedAddOns] = useState([]);
-
   // Retail products (booking page shop)
   const [retailProducts, setRetailProducts] = useState([]);
   const [cart, setCart] = useState({}); // { productId: quantity }
-
   // Payment type: 'deposit' or 'full'
   const [paymentType, setPaymentType] = useState('deposit');
-
   // Payment method: 'card', 'cash', 'bank_transfer'
   const [paymentMethod, setPaymentMethod] = useState('card');
-
   // Client recognition — returning client lookup
   const [recognisedClient, setRecognisedClient] = useState(null); // { name, email, phone, hasPendingPatchTest, hasPendingForm }
   const [lookingUpClient, setLookingUpClient] = useState(false);
-
   // Membership detection
   const [memberInfo, setMemberInfo] = useState(null); // { is_member, plan_name, client_name }
-
   // Package redemption
   const [availablePackages, setAvailablePackages] = useState([]); // { client_package_id, package_name, sessions_remaining, sessions_total }
   const [selectedPackage, setSelectedPackage] = useState(null);
-
   // Photo consent
   const [photoConsent, setPhotoConsent] = useState(false);
-
   // Discount code
   const [discountOpen, setDiscountOpen] = useState(false);
   const [discountInput, setDiscountInput] = useState('');
   const [discountLoading, setDiscountLoading] = useState(false);
   const [discountError, setDiscountError] = useState(null);
   const [appliedDiscount, setAppliedDiscount] = useState(null); // { code, type, discount_type, discount_value, promo_id?, voucher_id? }
-
   // Dynamic consultation form (loaded from form builder, falls back to defaults)
   const [consultationForm, setConsultationForm] = useState(null);
-
   const DEFAULT_CONSULTATION_QUESTIONS = [
     { key: 'allergies', label: 'Do you have any known allergies? (e.g. latex, adhesive, tint)', type: 'text' },
     { key: 'patch_test', label: 'Have you had a patch test in the last 6 months?', type: 'yes_no' },
@@ -128,10 +107,8 @@ export default function BookingPage() {
     { key: 'pregnant', label: 'Are you pregnant or breastfeeding?', type: 'yes_no' },
     { key: 'previous_reactions', label: 'Have you had any adverse reactions to beauty treatments before?', type: 'text' },
   ];
-
   const needsConsultation = selectedTreatment?.requires_consultation;
   const needsPatchTest = selectedTreatment?.requires_patch_test;
-
   // The questions to render — dynamic form fields if available, else defaults
   // Filter out the patch_test question for treatments that don't require it (wax, microblading, etc.)
   const consultationQuestions = consultationForm?.consultation_form_fields?.length
@@ -143,7 +120,6 @@ export default function BookingPage() {
         required: f.required,
       }))
     : DEFAULT_CONSULTATION_QUESTIONS.filter(q => q.key !== 'patch_test' || needsPatchTest);
-
   // Compute deposit amount (percentage overrides flat)
   function getDepositCents(treatment) {
     if (!treatment) return 0;
@@ -154,7 +130,6 @@ export default function BookingPage() {
   }
   const depositCents = getDepositCents(selectedTreatment);
   const hasDeposit = depositCents > 0;
-
   // Add-on totals
   const addOnTotal = selectedAddOns.reduce((sum, ao) => sum + (ao.price_cents || 0), 0);
   const addOnDuration = selectedAddOns.reduce((sum, ao) => sum + (ao.duration_minutes || 0), 0);
@@ -165,7 +140,6 @@ export default function BookingPage() {
       : Math.min(appliedDiscount.discount_value, (selectedTreatment?.price_cents || 0) + addOnTotal)
     : 0;
   const grandTotalCents = Math.max(0, (selectedTreatment?.price_cents || 0) + addOnTotal - discountCents);
-
   // Smart add-on suggestions: filter to add-ons that suggest_with includes selected treatment
   const suggestedAddOns = selectedTreatment
     ? addOns.filter(ao => {
@@ -173,7 +147,6 @@ export default function BookingPage() {
         return ao.suggest_with.includes(selectedTreatment.id) || ao.auto_suggest;
       })
     : addOns;
-
   function toggleAddOn(addOn) {
     setSelectedAddOns(prev => {
       const exists = prev.find(a => a.id === addOn.id);
@@ -181,7 +154,6 @@ export default function BookingPage() {
       return [...prev, addOn];
     });
   }
-
   // Cart helpers for retail products
   const cartItems = Object.entries(cart)
     .filter(([, qty]) => qty > 0)
@@ -191,7 +163,6 @@ export default function BookingPage() {
     })
     .filter(Boolean);
   const cartTotalCents = cartItems.reduce((sum, item) => sum + item.lineTotal, 0);
-
   function updateCart(productId, delta) {
     setCart(prev => {
       const product = retailProducts.find(p => p.id === productId);
@@ -201,10 +172,9 @@ export default function BookingPage() {
       return { ...prev, [productId]: next };
     });
   }
-
   // Load consultation form when treatment with a form is selected
   useEffect(() => {
-    if (!selectedTreatment?.consultation_form_id || isDevMode) {
+    if (!selectedTreatment?.consultation_form_id) {
       setConsultationForm(null);
       return;
     }
@@ -219,17 +189,15 @@ export default function BookingPage() {
     }
     loadForm();
   }, [selectedTreatment?.consultation_form_id, slug]);
-
   // Check membership + packages when phone number looks complete
   useEffect(() => {
     const cleaned = clientDetails.phone.replace(/[^\d]/g, '');
-    if (cleaned.length < 10 || isDevMode) {
+    if (cleaned.length < 10) {
       setMemberInfo(null);
       setAvailablePackages([]);
       setSelectedPackage(null);
       return;
     }
-
     const timer = setTimeout(async () => {
       try {
         // Check membership and packages in parallel
@@ -255,11 +223,9 @@ export default function BookingPage() {
     }, 600);
     return () => clearTimeout(timer);
   }, [clientDetails.phone, slug, selectedTreatment?.id]);
-
   // Client recognition — trigger when email field loses focus
   async function handleEmailBlur() {
     const email = clientDetails.email?.trim();
-    if (!email || !email.includes('@') || isDevMode) return;
     setLookingUpClient(true);
     try {
       const res = await fetch(`${API_BASE}/api/booking/${slug}/lookup-client`, {
@@ -286,13 +252,11 @@ export default function BookingPage() {
       setLookingUpClient(false);
     }
   }
-
   // Validate and apply a discount code
   async function validateDiscountCode() {
     if (!discountInput.trim()) return;
     setDiscountLoading(true);
     setDiscountError(null);
-
     try {
       const res = await fetch(`${API_BASE}/api/booking/${slug}/validate-code`, {
         method: 'POST',
@@ -300,12 +264,10 @@ export default function BookingPage() {
         body: JSON.stringify({ code: discountInput.trim() }),
       });
       const data = await res.json();
-
       if (!res.ok || !data.valid) {
         setDiscountError(data.error || 'Invalid code');
         return;
       }
-
       setAppliedDiscount(data);
       setDiscountError(null);
     } catch {
@@ -314,40 +276,28 @@ export default function BookingPage() {
       setDiscountLoading(false);
     }
   }
-
   function removeDiscount() {
     setAppliedDiscount(null);
     setDiscountInput('');
     setDiscountError(null);
     setDiscountOpen(false);
   }
-
   // Fetch beautician + treatments by slug
   useEffect(() => {
     async function load() {
       try {
-        if (isDevMode) {
-          setBeautician(DEV_BOOKING_BEAUTICIAN);
-          setTreatments(DEV_TREATMENTS.filter(t => t.is_active));
-          setLoading(false);
-          return;
-        }
-
         // Look up beautician by booking slug
         const { data: b, error: bErr } = await supabase
           .from('beauticians')
           .select('id, first_name, business_name, booking_slug, brand_color, working_hours, payment_settings, stripe_onboarding_complete')
           .eq('booking_slug', slug)
           .maybeSingle();
-
         if (bErr || !b) {
           setError("This booking page doesn't exist yet.");
           setLoading(false);
           return;
         }
-
         setBeautician(b);
-
         // Fetch active treatments
         const { data: tx } = await supabase
           .from('treatments')
@@ -355,9 +305,7 @@ export default function BookingPage() {
           .eq('beautician_id', b.id)
           .eq('is_active', true)
           .order('sort_order', { ascending: true });
-
         setTreatments(tx || []);
-
         // Fetch active add-ons for this beautician
         const { data: ao } = await supabase
           .from('add_ons')
@@ -365,12 +313,9 @@ export default function BookingPage() {
           .eq('beautician_id', b.id)
           .eq('is_active', true)
           .order('name');
-
         setAddOns(ao || []);
-
         // Unblock the page now — products are optional retail items, never block booking
         setLoading(false);
-
         // Fetch retail products in the background with a hard timeout
         try {
           const res = await fetch(`${API_BASE}/api/products/public/${b.id}`, {
@@ -381,7 +326,6 @@ export default function BookingPage() {
             setRetailProducts(products);
           }
         } catch { /* products are optional — fail silently */ }
-
       } catch (err) {
         setError("Something went wrong loading this page.");
         setLoading(false);
@@ -389,22 +333,18 @@ export default function BookingPage() {
     }
     load();
   }, [slug]);
-
   // Generate available time slots when date changes
   useEffect(() => {
     if (!selectedTreatment || !selectedDate || !beautician) return;
-
     async function loadSlots() {
       const dayOfWeek = new Date(selectedDate).toLocaleDateString('en-GB', { weekday: 'short' }).toLowerCase();
       const dayKey = { mon: 'mon', tue: 'tue', wed: 'wed', thu: 'thu', fri: 'fri', sat: 'sat', sun: 'sun' }[dayOfWeek];
       const hours = beautician.working_hours?.[dayKey];
-
       if (!hours || !hours.start || !hours.end) {
         setSlots([]);
         setSelectedSlot(null);
         return;
       }
-
       // Generate slots from working hours (respects buffer time)
       const duration = selectedTreatment.duration_minutes || 60;
       const buffer = selectedTreatment.buffer_minutes || 0;
@@ -413,30 +353,25 @@ export default function BookingPage() {
       const [endH, endM] = hours.end.split(':').map(Number);
       const startMin = startH * 60 + startM;
       const endMin = endH * 60 + endM;
-
       // Fetch existing appointments for this date to exclude booked slots
       let bookedSlots = [];
-      if (!isDevMode) {
-        const fromISO = `${selectedDate}T00:00:00`;
-        const toISO = `${selectedDate}T23:59:59`;
-        const { data: appts } = await supabase
-          .from('appointments')
-          .select('starts_at, duration_minutes, buffer_minutes')
-          .eq('beautician_id', beautician.id)
-          .gte('starts_at', fromISO)
-          .lte('starts_at', toISO)
-          .neq('status', 'cancelled');
-        bookedSlots = (appts || []).map(a => ({
-          start: new Date(a.starts_at).getHours() * 60 + new Date(a.starts_at).getMinutes(),
-          end: new Date(a.starts_at).getHours() * 60 + new Date(a.starts_at).getMinutes() + (a.duration_minutes || 60) + (a.buffer_minutes || 0),
-        }));
-      }
-
+      const fromISO = `${selectedDate}T00:00:00`;
+      const toISO = `${selectedDate}T23:59:59`;
+      const { data: appts } = await supabase
+        .from('appointments')
+        .select('starts_at, duration_minutes, buffer_minutes')
+        .eq('beautician_id', beautician.id)
+        .gte('starts_at', fromISO)
+        .lte('starts_at', toISO)
+        .neq('status', 'cancelled');
+      bookedSlots = (appts || []).map(a => ({
+        start: new Date(a.starts_at).getHours() * 60 + new Date(a.starts_at).getMinutes(),
+        end: new Date(a.starts_at).getHours() * 60 + new Date(a.starts_at).getMinutes() + (a.duration_minutes || 60) + (a.buffer_minutes || 0),
+      }));
       const generated = [];
       for (let m = startMin; m + totalBlock <= endMin; m += 30) {
         const isBooked = bookedSlots.some(b => m < b.end && m + totalBlock > b.start);
         if (isBooked) continue;
-
         const h = Math.floor(m / 60);
         const min = m % 60;
         const display = `${h.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
@@ -445,29 +380,16 @@ export default function BookingPage() {
         const startsAt = `${selectedDate}T${display}:00`;
         generated.push({ starts_at: startsAt, display });
       }
-
       setSlots(generated);
       setSelectedSlot(null);
     }
     loadSlots();
   }, [selectedDate, selectedTreatment, beautician]);
-
   // Submit booking via backend API (handles client creation, conflict checks, deposits)
   async function handleBook() {
     setSubmitting(true);
     setError(null);
-
     try {
-      if (isDevMode) {
-        setSuccess({
-          treatment: selectedTreatment.name,
-          date: new Date(selectedSlot.starts_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }),
-          time: selectedSlot.display,
-          price: `£${(selectedTreatment.price_cents / 100).toFixed(2)}`,
-        });
-        return;
-      }
-
       // Call backend API — handles client lookup/creation, RLS, conflict check, deposit flow
       const res = await fetch(`${API_BASE}/api/booking/${slug}/book`, {
         method: 'POST',
@@ -490,13 +412,11 @@ export default function BookingPage() {
           client_package_id: selectedPackage?.client_package_id || null,
         }),
       });
-
       const data = await res.json();
       if (!res.ok) {
         const detail = data.details?.length ? ` (${data.details.join(', ')})` : '';
         throw new Error((data.error || 'Booking failed') + detail);
       }
-
       // If deposit required and checkout URL returned, redirect to Stripe
       if (data.checkout_url) {
         try {
@@ -511,7 +431,6 @@ export default function BookingPage() {
         }
         return;
       }
-
       setSuccess({
         treatment: selectedTreatment.name,
         date: new Date(selectedSlot.starts_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }),
@@ -529,22 +448,18 @@ export default function BookingPage() {
       setSubmitting(false);
     }
   }
-
   // Validation helpers
   function isValidEmail(email) {
     if (!email) return true; // Optional field
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return re.test(email);
   }
-
   function isValidPhone(phone) {
     const cleaned = phone.replace(/[^\d]/g, '');
     return cleaned.length >= 10; // At least 10 digits
   }
-
   function validateStep(currentStep) {
     const errors = {};
-
     if (currentStep === 0) {
       if (!selectedTreatment) {
         errors.treatment = 'Please select a treatment to continue';
@@ -569,11 +484,9 @@ export default function BookingPage() {
         errors.email = 'Please enter a valid email address';
       }
     }
-
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
-
   // Generate next 14 days for date picker
   function getDateOptions() {
     const dates = [];
@@ -581,25 +494,21 @@ export default function BookingPage() {
     for (let i = 1; i <= 14; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() + i);
-
       // Skip days the beautician doesn't work
       if (beautician?.working_hours) {
         const dayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][d.getDay()];
         const hours = beautician.working_hours[dayKey];
         if (!hours || !hours.start) continue;
       }
-
       const iso = d.toISOString().split('T')[0];
       const label = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
       dates.push({ value: iso, label });
     }
     return dates;
   }
-
   const brand = beautician?.brand_color || '#C76B8A';
   const brandLight = brand + '18';
   const brandMedium = brand + '40';
-
   if (loading) {
     return (
       <div style={styles.loadingContainer}>
@@ -607,7 +516,6 @@ export default function BookingPage() {
       </div>
     );
   }
-
   if (error && !beautician) {
     return (
       <div style={styles.page}>
@@ -617,7 +525,6 @@ export default function BookingPage() {
       </div>
     );
   }
-
   if (success) {
     return (
       <div style={styles.page}>
@@ -658,12 +565,10 @@ export default function BookingPage() {
               ? "Your slot is held — we'll confirm once the deposit is received."
               : "You'll receive a confirmation message shortly."}
           </p>
-
           {/* Payment buffer countdown */}
           {success.paymentExpiresAt && (
             <PaymentCountdown expiresAt={success.paymentExpiresAt} brand={brand} brandLight={brandLight} />
           )}
-
           {/* Manage booking portal link */}
           {success.manageUrl && (
             <div style={{ marginTop: 20 }}>
@@ -692,7 +597,6 @@ export default function BookingPage() {
       </div>
     );
   }
-
   return (
     <div style={styles.page}>
       {/* Header */}
@@ -700,7 +604,6 @@ export default function BookingPage() {
         <h1 style={styles.businessName}>{beautician?.business_name || beautician?.first_name}</h1>
         <p style={styles.subtitle}>Book your appointment</p>
       </div>
-
       {/* Progress */}
       <div style={styles.progressContainer}>
         {STEPS.map((label, i) => (
@@ -718,14 +621,12 @@ export default function BookingPage() {
           </div>
         ))}
       </div>
-
       {error && (
         <div style={styles.errorBanner}>
           {error}
           <button onClick={() => setError(null)} style={styles.errorClose}>×</button>
         </div>
       )}
-
       <div style={styles.card}>
         {/* Step 0: Select Treatment */}
         {step === 0 && (
@@ -759,7 +660,6 @@ export default function BookingPage() {
             {treatments.length === 0 && (
               <p style={styles.noSlots}>No treatments available</p>
             )}
-
             {/* Add-ons shown after treatment is selected */}
             {selectedTreatment && suggestedAddOns.length > 0 && (
               <div style={{ marginTop: 20 }}>
@@ -802,7 +702,6 @@ export default function BookingPage() {
                 )}
               </div>
             )}
-
             {/* Retail Products — shown after treatment selected */}
             {selectedTreatment && retailProducts.length > 0 && (
               <div style={{ marginTop: 20 }}>
@@ -880,7 +779,6 @@ export default function BookingPage() {
                 )}
               </div>
             )}
-
             {selectedTreatment && (
               <button
                 onClick={() => setStep(1)}
@@ -891,7 +789,6 @@ export default function BookingPage() {
             )}
           </div>
         )}
-
         {/* Step 1: Pick Date & Time */}
         {step === 1 && (
           <div>
@@ -915,7 +812,6 @@ export default function BookingPage() {
                 </button>
               ))}
             </div>
-
             {selectedDate && (
               <div style={styles.slotGrid}>
                 {slots.length === 0 ? (
@@ -941,11 +837,9 @@ export default function BookingPage() {
             {fieldErrors.slot && (
               <div style={styles.inlineError}>{fieldErrors.slot}</div>
             )}
-
             <button onClick={() => setStep(0)} style={styles.backBtn}>← Back</button>
           </div>
         )}
-
         {/* Step 2: Client Details */}
         {step === 2 && (
           <div>
@@ -1030,7 +924,6 @@ export default function BookingPage() {
                 style={{ ...styles.input, minHeight: 80, resize: 'vertical' }}
               />
             </div>
-
             <div style={styles.buttonRow}>
               <button onClick={() => setStep(1)} style={styles.backBtn}>← Back</button>
               <button
@@ -1051,7 +944,6 @@ export default function BookingPage() {
             </div>
           </div>
         )}
-
         {/* Step 2.5: Consultation Form (only for treatments that require it) */}
         {step === 2.5 && (
           <div>
@@ -1072,7 +964,6 @@ export default function BookingPage() {
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#444', marginBottom: 4 }}>
                     {q.label}{q.required && <span style={{ color: 'var(--danger, #DC2626)' }}> *</span>}
                   </label>
-
                   {/* Yes/No toggle */}
                   {q.type === 'yes_no' && (
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -1088,7 +979,6 @@ export default function BookingPage() {
                       ))}
                     </div>
                   )}
-
                   {/* Single select (radio-like buttons) */}
                   {q.type === 'single_select' && q.options?.length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -1105,7 +995,6 @@ export default function BookingPage() {
                       ))}
                     </div>
                   )}
-
                   {/* Multi select (toggle chips) */}
                   {q.type === 'multi_select' && q.options?.length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -1130,7 +1019,6 @@ export default function BookingPage() {
                       })}
                     </div>
                   )}
-
                   {/* Checkbox */}
                   {q.type === 'checkbox' && (
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, cursor: 'pointer' }}>
@@ -1143,7 +1031,6 @@ export default function BookingPage() {
                       I confirm
                     </label>
                   )}
-
                   {/* Text block (multi-line) */}
                   {q.type === 'text_block' && (
                     <textarea
@@ -1153,7 +1040,6 @@ export default function BookingPage() {
                       style={{ ...styles.input, minHeight: 80, resize: 'vertical' }}
                     />
                   )}
-
                   {/* Default: text input */}
                   {(q.type === 'text' || (!['yes_no', 'single_select', 'multi_select', 'checkbox', 'text_block', 'signature'].includes(q.type))) && (
                     <input
@@ -1175,12 +1061,10 @@ export default function BookingPage() {
             </div>
           </div>
         )}
-
         {/* Step 3: Confirm */}
         {step === 3 && (
           <div>
             <h2 style={styles.stepTitle}>Confirm your booking</h2>
-
             <div style={styles.summaryCard}>
               <div style={styles.summaryRow}>
                 <span style={styles.summaryLabel}>Treatment</span>
@@ -1276,7 +1160,6 @@ export default function BookingPage() {
                 </div>
               )}
             </div>
-
             {/* Payment method picker — shown when multiple methods are accepted */}
             {(() => {
               const paySettings = beautician?.payment_settings || {};
@@ -1321,7 +1204,6 @@ export default function BookingPage() {
                 </div>
               );
             })()}
-
             {/* Membership badge */}
             {memberInfo && (
               <div style={{
@@ -1333,7 +1215,6 @@ export default function BookingPage() {
                 ★ {memberInfo.plan_name} member — any benefits will be applied by your beautician
               </div>
             )}
-
             {/* Package redemption */}
             {availablePackages.length > 0 && (
               <div style={{ marginBottom: 12 }}>
@@ -1372,7 +1253,6 @@ export default function BookingPage() {
                 )}
               </div>
             )}
-
             {/* Discount code section (hidden when using a package session) */}
             {!selectedPackage && <div style={{ marginBottom: 16 }}>
               {appliedDiscount ? (
@@ -1431,13 +1311,11 @@ export default function BookingPage() {
                 </>
               )}
             </div>}
-
             <div style={styles.summaryClient}>
               <p><strong>{clientDetails.name}</strong></p>
               <p>{clientDetails.phone}</p>
               {clientDetails.email && <p>{clientDetails.email}</p>}
             </div>
-
             {/* Photo consent */}
             <label style={{
               display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 20,
@@ -1455,7 +1333,6 @@ export default function BookingPage() {
                 I'm happy for before & after photos to be taken and used on social media (optional)
               </span>
             </label>
-
             <div style={styles.buttonRow}>
               <button onClick={() => setStep(2)} style={styles.backBtn}>← Back</button>
               <button
@@ -1481,7 +1358,6 @@ export default function BookingPage() {
           </div>
         )}
       </div>
-
       <div style={styles.footer}>
         <span style={styles.footerText}>Powered by </span>
         <span style={{ ...styles.footerBrand, color: brand }}>florrie.ai</span>
@@ -1489,7 +1365,6 @@ export default function BookingPage() {
     </div>
   );
 }
-
 // ── Dev mode mock beautician for booking page ──
 const DEV_BOOKING_BEAUTICIAN = {
   id: 'dev-beautician-id',
@@ -1506,7 +1381,6 @@ const DEV_BOOKING_BEAUTICIAN = {
     sat: null, sun: null,
   },
 };
-
 const styles = {
   page: {
     minHeight: '100vh',

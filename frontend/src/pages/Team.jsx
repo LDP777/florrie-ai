@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, insertRow, updateRow, deleteRow, isDevMode } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
@@ -41,11 +41,6 @@ export default function Team() {
 
   async function loadTeam() {
     if (!beautician) return;
-    if (isDevMode) {
-      setMembers(DEV_TEAM);
-      setLoading(false);
-      return;
-    }
     const rows = await fetchRows('team_members', beautician.id, { order: 'created_at' });
     setMembers(rows);
     setLoading(false);

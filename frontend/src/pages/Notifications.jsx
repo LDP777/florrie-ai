@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, isDevMode, fetchRows, updateRow } from '../lib/supabase.js';
+import { useBeautician, fetchRows, updateRow } from '../lib/supabase.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 
@@ -26,69 +26,6 @@ const CATEGORIES = {
   system: { label: 'System', icon: '⚙️', color: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', textColor: '#5A5550' },
 };
 
-const DEV_NOTIFICATIONS = [
-  {
-    id: 'n1', category: 'booking', type: 'booking_confirmed',
-    title: 'Booking confirmed',
-    body: 'Shauna booked Lamination & Hybrid Dye for Thu 27 Mar at 11:00',
-    time: new Date(Date.now() - 12 * 60000).toISOString(), read: false, actionUrl: '/calendar',
-  },
-  {
-    id: 'n2', category: 'ai', type: 'auto_reply',
-    title: 'florrie.ai replied for you',
-    body: "Sent Daisy a rebook confirmation for Tuesday. Message: \"Hey lovely, you're all booked in for Tue at 2pm xx\"",
-    time: new Date(Date.now() - 45 * 60000).toISOString(), read: false, actionUrl: '/voice',
-  },
-  {
-    id: 'n3', category: 'payment', type: 'payment_received',
-    title: 'Payment received',
-    body: '£45.00 from Shauna — Lamination & Hybrid Dye',
-    time: new Date(Date.now() - 2 * 3600000).toISOString(), read: false, actionUrl: '/money',
-  },
-  {
-    id: 'n4', category: 'client', type: 'review_left',
-    title: 'New review!',
-    body: 'Jasmin left a 5★ review: "Absolutely love my brows every single time!"',
-    time: new Date(Date.now() - 5 * 3600000).toISOString(), read: true, actionUrl: '/reviews',
-  },
-  {
-    id: 'n5', category: 'ai', type: 'escalation',
-    title: 'florrie.ai needs your input',
-    body: "Megan asked about availability for a treatment you don't offer. florrie.ai wasn't sure how to reply.",
-    time: new Date(Date.now() - 6 * 3600000).toISOString(), read: true, actionUrl: '/escalations',
-  },
-  {
-    id: 'n6', category: 'booking', type: 'booking_cancelled',
-    title: 'Booking cancelled',
-    body: 'Chloe cancelled her HD Brows appointment for Fri 28 Mar at 14:00. Slot is now open.',
-    time: new Date(Date.now() - 8 * 3600000).toISOString(), read: true, actionUrl: '/calendar',
-  },
-  {
-    id: 'n7', category: 'payment', type: 'deposit_received',
-    title: 'Deposit received',
-    body: '£10.00 deposit from Emma for Ombre Brows on Sat 29 Mar',
-    time: new Date(Date.now() - 10 * 3600000).toISOString(), read: true, actionUrl: '/money',
-  },
-  {
-    id: 'n8', category: 'client', type: 'rebook_due',
-    title: 'Rebook reminder',
-    body: "Daisy S is 12 days overdue for her usual Lamination & Tint. Send a nudge?",
-    time: new Date(Date.now() - 24 * 3600000).toISOString(), read: true, actionUrl: '/clients',
-  },
-  {
-    id: 'n9', category: 'system', type: 'weekly_digest',
-    title: 'Your weekly digest is ready',
-    body: 'Last week: £385 revenue, 9 appointments, 0 no-shows. Nice one!',
-    time: new Date(Date.now() - 48 * 3600000).toISOString(), read: true, actionUrl: '/digest',
-  },
-  {
-    id: 'n10', category: 'booking', type: 'no_show',
-    title: 'No-show detected',
-    body: 'Sarah didn\'t turn up for her 3pm Lash Lift & Tint. No-show fee of £10 has been charged.',
-    time: new Date(Date.now() - 72 * 3600000).toISOString(), read: true, actionUrl: '/calendar',
-  },
-];
-
 function timeAgo(isoString) {
   const diff = Date.now() - new Date(isoString).getTime();
   const mins = Math.floor(diff / 60000);
@@ -111,11 +48,6 @@ export default function Notifications() {
 
   async function loadData() {
     setLoading(true);
-    if (isDevMode) {
-      setNotifications(DEV_NOTIFICATIONS);
-      setLoading(false);
-      return;
-    }
     try {
       const rows = await fetchRows('notifications', beautician?.id, {
         order: 'created_at',
@@ -141,18 +73,14 @@ export default function Notifications() {
 
   async function markRead(id) {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-    if (!isDevMode) {
-      try { await updateRow('notifications', id, { read: true }); } catch (e) { /* silent */ }
-    }
+    try { await updateRow('notifications', id, { read: true }); } catch (e) { /* silent */ }
   }
 
   async function markAllRead() {
     const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-    if (!isDevMode) {
-      for (const uid of unreadIds) {
-        try { await updateRow('notifications', uid, { read: true }); } catch (e) { /* silent */ }
-      }
+    for (const uid of unreadIds) {
+      try { await updateRow('notifications', uid, { read: true }); } catch (e) { /* silent */ }
     }
   }
 

@@ -1,19 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useBeautician, supabase, isDevMode, updateRow, insertRow } from '../lib/supabase.js';
+import { useBeautician, supabase, updateRow, insertRow } from '../lib/supabase.js'
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
-
 /**
  * CalendarView — Day and Week view of appointments.
  * Wired to Supabase with client/treatment joins.
  * Redesigned to match Stitch design reference.
  */
-
 const HOUR_HEIGHT = 60;
 const START_HOUR = 8;
 const END_HOUR = 20;
-
 // Color palette (Stitch design)
 const COLORS = {
   primary: '#92405e',
@@ -26,7 +23,6 @@ const COLORS = {
   outlineVariant: '#d8c1c6',
   stone400: '#78716b',
 };
-
 export default function CalendarView() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -41,20 +37,17 @@ export default function CalendarView() {
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [loading, setLoading] = useState(true);
   const detailRef = useRef(null);
-
   // Time blocking state
   const [timeBlocks, setTimeBlocks] = useState([]);
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [selectedBlock, setSelectedBlock] = useState(null); // existing block tapped
   const [savingBlock, setSavingBlock] = useState(false);
-
   useEffect(() => {
     if (beautician) {
       loadAppointments();
       loadTimeBlocks();
     }
   }, [beautician, currentDate, view]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Auto-scroll to appointment detail when selected
   useEffect(() => {
     if (selectedAppointment && detailRef.current) {
@@ -63,19 +56,11 @@ export default function CalendarView() {
       }, 50);
     }
   }, [selectedAppointment]);
-
   async function loadAppointments() {
     setLoading(true);
     const from = view === 'day' ? formatDate(currentDate) : formatDate(getWeekStart(currentDate));
     const to = view === 'day' ? formatDate(currentDate) : formatDate(getWeekEnd(currentDate));
-
     try {
-      if (isDevMode) {
-        setAppointments([]);
-        setLoading(false);
-        return;
-      }
-
       const { data, error } = await supabase
         .from('appointments')
         .select('*, clients(first_name, last_name), treatments(name)')
@@ -83,7 +68,6 @@ export default function CalendarView() {
         .gte('starts_at', `${from}T00:00:00Z`)
         .lte('starts_at', `${to}T23:59:59Z`)
         .order('starts_at');
-
       if (error) logger.error('Calendar load:', error);
       setAppointments(data || []);
     } catch (err) {
@@ -92,13 +76,10 @@ export default function CalendarView() {
       setLoading(false);
     }
   }
-
   // ──────────────────────────────────────────────────────
   // Time block functions
   // ──────────────────────────────────────────────────────
-
   async function loadTimeBlocks() {
-    if (!beautician || isDevMode) return;
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
       const res = await fetch(`${API_BASE}/api/hours-exceptions`, {
@@ -110,7 +91,6 @@ export default function CalendarView() {
       logger.error('Load time blocks error:', err);
     }
   }
-
   async function createTimeBlock({ date, type, reason, note, start_time, end_time }) {
     setSavingBlock(true);
     try {
@@ -130,7 +110,6 @@ export default function CalendarView() {
       setSavingBlock(false);
     }
   }
-
   async function deleteTimeBlock(blockId) {
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
@@ -144,19 +123,16 @@ export default function CalendarView() {
       logger.error('Delete time block error:', err);
     }
   }
-
   function navigateDate(direction) {
     const delta = view === 'day' ? 1 : 7;
     const newDate = new Date(currentDate);
     newDate.setDate(newDate.getDate() + (direction * delta));
     setCurrentDate(newDate);
   }
-
   function getAppointmentsForDate(date) {
     const dateStr = formatDate(date);
     return appointments.filter(a => a.starts_at?.startsWith(dateStr));
   }
-
   function getBlockStyle(appointment) {
     const start = new Date(appointment.starts_at);
     const end = new Date(appointment.ends_at);
@@ -166,12 +142,10 @@ export default function CalendarView() {
     const height = ((endMinutes - startMinutes) / 60) * HOUR_HEIGHT;
     return { top: Math.max(0, top), height: Math.max(height, 64) };
   }
-
   function getStatusColor(status) {
     const colors = { confirmed: '#5BA67F', pending: '#D4A843', in_progress: '#4A90D9', completed: '#8A8580', cancelled_by_client: '#DC2626', cancelled_by_beautician: '#DC2626', no_show: '#EF4444', rescheduled: '#7C6EAF' };
     return colors[status] || '#8A8580';
   }
-
   function getAppointmentCardStyle(appointment) {
     // Determine card style based on tier/special status
     // For now, default style; can be extended with VIP/gold tier detection
@@ -180,12 +154,10 @@ export default function CalendarView() {
       borderColor: COLORS.primary,
     };
   }
-
   function getWeekDays() {
     const start = getWeekStart(currentDate);
     return Array.from({ length: 7 }, (_, i) => { const d = new Date(start); d.setDate(d.getDate() + i); return d; });
   }
-
   function countGapsToday() {
     const dayAppts = getAppointmentsForDate(currentDate).sort((a, b) => new Date(a.ends_at) - new Date(b.ends_at));
     let gaps = 0;
@@ -197,19 +169,16 @@ export default function CalendarView() {
     }
     return gaps;
   }
-
   function countWaitlistMatches() {
     // Placeholder: would come from waitlist data
     return 0;
   }
-
   const weekDays = getWeekDays();
   const weekMonthName = getWeekStart(currentDate).toLocaleDateString('en-GB', { month: 'long' });
   const weekNumber = Math.ceil((currentDate.getDate() + 6 - currentDate.getDay()) / 7);
   const gapsToday = countGapsToday();
   const waitlistMatches = countWaitlistMatches();
   const showInsightsPill = view === 'day' && (gapsToday > 0 || waitlistMatches > 0);
-
   return (
     <div style={styles.page}>
       <div style={styles.header}>
@@ -239,7 +208,6 @@ export default function CalendarView() {
           </button>
         </div>
       </div>
-
       {/* Weekly Date Strip (shared for both views) */}
       <div style={styles.weeklyStripContainer}>
         <div style={styles.weeklyStripHeader}>
@@ -263,7 +231,6 @@ export default function CalendarView() {
           ))}
         </div>
       </div>
-
       {/* Day View with Timeline Grid */}
       {view === 'day' && (
         <div style={styles.dayGrid}>
@@ -279,21 +246,18 @@ export default function CalendarView() {
             {Array.from({ length: END_HOUR - START_HOUR }, (_, i) => (
               <div key={i} style={{ ...styles.hourLine, top: i * HOUR_HEIGHT }} />
             ))}
-
             {/* Now-line indicator */}
             {isToday(currentDate) && (
               <div style={{ ...styles.nowLine, top: getNowPosition() }}>
                 <div style={styles.nowDot} />
               </div>
             )}
-
             {/* Appointment cards */}
             {getAppointmentsForDate(currentDate).map(appt => {
               const pos = getBlockStyle(appt);
               const cardStyle = getAppointmentCardStyle(appt);
               const statusColor = getStatusColor(appt.status);
               const clientInitials = `${appt.clients?.first_name?.[0] || ''}${appt.clients?.last_name?.[0] || ''}`.toUpperCase();
-
               return (
                 <button
                   key={appt.id}
@@ -326,7 +290,6 @@ export default function CalendarView() {
                 </button>
               );
             })}
-
             {/* Time block overlays */}
             {timeBlocks
               .filter(b => b.date === formatDate(currentDate))
@@ -368,12 +331,10 @@ export default function CalendarView() {
                 );
               })
             }
-
             {/* Open slot placeholders */}
             {(() => {
               const appts = getAppointmentsForDate(currentDate).sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
               const slots = [];
-
               // Check for gap at start of day
               if (appts.length > 0) {
                 const firstStart = new Date(appts[0].starts_at);
@@ -384,7 +345,6 @@ export default function CalendarView() {
                   slots.push({ id: 'start', top, height });
                 }
               }
-
               // Check for gaps between appointments
               for (let i = 0; i < appts.length - 1; i++) {
                 const end = new Date(appts[i].ends_at);
@@ -392,14 +352,12 @@ export default function CalendarView() {
                 const endMinutes = end.getHours() * 60 + end.getMinutes();
                 const nextStartMinutes = nextStart.getHours() * 60 + nextStart.getMinutes();
                 const diffMinutes = (nextStartMinutes - endMinutes);
-
                 if (diffMinutes > 30) {
                   const top = ((endMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT;
                   const height = (diffMinutes / 60) * HOUR_HEIGHT;
                   slots.push({ id: `gap-${i}`, top, height });
                 }
               }
-
               // Check for gap at end of day
               if (appts.length > 0) {
                 const lastEnd = new Date(appts[appts.length - 1].ends_at);
@@ -410,7 +368,6 @@ export default function CalendarView() {
                   slots.push({ id: 'end', top, height });
                 }
               }
-
               return slots.map(slot => (
                 <div
                   key={slot.id}
@@ -424,7 +381,6 @@ export default function CalendarView() {
                 </div>
               ));
             })()}
-
             {!loading && getAppointmentsForDate(currentDate).length === 0 && (
               <div style={{ position: 'absolute', top: '40%', left: 0, right: 0, textAlign: 'center' }}>
                 <p style={{ fontSize: 13, color: COLORS.stone400 }}>No appointments</p>
@@ -433,7 +389,6 @@ export default function CalendarView() {
           </div>
         </div>
       )}
-
       {/* Week View */}
       {view === 'week' && (
         <div style={styles.weekBody}>
@@ -467,7 +422,6 @@ export default function CalendarView() {
           })}
         </div>
       )}
-
       {/* Floating Insights Pill (day view only) */}
       {showInsightsPill && (
         <div style={styles.insightsPill}>
@@ -477,7 +431,6 @@ export default function CalendarView() {
           </span>
         </div>
       )}
-
       {/* Selected appointment detail + completion flow */}
       {selectedAppointment && (
         <div ref={detailRef}>
@@ -491,7 +444,6 @@ export default function CalendarView() {
           />
         </div>
       )}
-
       {/* Block Time modal */}
       {showBlockModal && (
         <BlockTimeModal
@@ -501,7 +453,6 @@ export default function CalendarView() {
           saving={savingBlock}
         />
       )}
-
       {/* Existing block detail (tap to remove) */}
       {selectedBlock && (
         <BlockDetailSheet
@@ -513,7 +464,6 @@ export default function CalendarView() {
     </div>
   );
 }
-
 /**
  * AppointmentDetail — detail panel with completion flow.
  * Mark done → log payment → add notes → rebook prompt → before/after photo.
@@ -530,9 +480,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
   const [paymentLinkUrl, setPaymentLinkUrl] = useState(null);
   const [linkLoading, setLinkLoading] = useState(false);
   const [noteSaved, setNoteSaved] = useState(false);
-
   async function handleSaveNote() {
-    if (isDevMode) { setNoteSaved(true); setTimeout(() => setNoteSaved(false), 1500); return; }
     try {
       await updateRow('appointments', appointment.id, { beautician_notes: notes || null });
       setNoteSaved(true);
@@ -541,7 +489,6 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
       logger.error('Save note error:', err);
     }
   }
-
   async function handleMarkNoShow() {
     if (!confirm('Mark this appointment as a no-show?')) return;
     setSaving(true);
@@ -554,7 +501,6 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-
       // If backend says we can charge, show the option
       if (data.no_show_fee?.can_charge) {
         setNoShowCharging(true);
@@ -566,7 +512,6 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
       setSaving(false);
     }
   }
-
   async function handleChargeNoShow() {
     setSaving(true);
     try {
@@ -588,7 +533,6 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
       setSaving(false);
     }
   }
-
   async function handleSendPaymentLink() {
     setLinkLoading(true);
     try {
@@ -615,30 +559,27 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
       setLinkLoading(false);
     }
   }
-
   async function handleComplete() {
     setSaving(true);
     try {
-      if (!isDevMode) {
-        // Update appointment
-        await updateRow('appointments', appointment.id, {
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-          beautician_notes: notes || null,
-          payment_method: paymentMethod
-        });
-        // Log income transaction
-        await insertRow('transactions', {
-          beautician_id: beautician.id,
-          appointment_id: appointment.id,
-          client_id: appointment.client_id,
-          treatment_id: appointment.treatment_id,
-          amount_cents: appointment.price_cents,
-          type: 'service',
-          payment_method: paymentMethod,
-          description: `${appointment.treatments?.name} — ${appointment.clients?.first_name}`
-        });
-      }
+      // Update appointment
+      await updateRow('appointments', appointment.id, {
+        status: 'completed',
+        completed_at: new Date().toISOString(),
+        beautician_notes: notes || null,
+        payment_method: paymentMethod
+      });
+      // Log income transaction
+      await insertRow('transactions', {
+        beautician_id: beautician.id,
+        appointment_id: appointment.id,
+        client_id: appointment.client_id,
+        treatment_id: appointment.treatment_id,
+        amount_cents: appointment.price_cents,
+        type: 'service',
+        payment_method: paymentMethod,
+        description: `${appointment.treatments?.name} — ${appointment.clients?.first_name}`
+      });
       setMode('done');
     } catch (err) {
       logger.error('Complete error:', err);
@@ -646,36 +587,30 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
       setSaving(false);
     }
   }
-
   async function handlePhotoUpload(e) {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
     try {
-      if (!isDevMode) {
-        const path = `${beautician.id}/before-after/${Date.now()}-${file.name}`;
-        const { error } = await supabase.storage.from('content-images').upload(path, file);
-        if (!error) {
-          const { data } = supabase.storage.from('content-images').getPublicUrl(path);
-          setBeforeAfterUrl(data?.publicUrl);
-        }
-      } else {
-        setBeforeAfterUrl(URL.createObjectURL(file));
+      const path = `${beautician.id}/before-after/${Date.now()}-${file.name}`;
+      const { error } = await supabase.storage.from('content-images').upload(path, file);
+      if (!error) {
+        const { data } = supabase.storage.from('content-images').getPublicUrl(path);
+        setBeforeAfterUrl(data?.publicUrl);
       }
+      } else {
+      setBeforeAfterUrl(URL.createObjectURL(file));
     } catch (err) {
       logger.error('Upload error:', err);
     } finally {
       setUploading(false);
     }
   }
-
   function handleDone() {
     onUpdate();
   }
-
   const isCompleted = appointment.status === 'completed';
   const canComplete = ['confirmed', 'pending', 'in_progress'].includes(appointment.status);
-
   return (
     <div style={styles.detailPanel}>
       <div style={styles.detailHeader}>
@@ -692,7 +627,6 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
         </div>
         <button onClick={onClose} style={styles.detailClose}>×</button>
       </div>
-
       {mode === 'detail' && (
         <>
           <div style={styles.detailGrid}>
@@ -708,7 +642,6 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
             )}
             {appointment.ai_booked && <div style={styles.detailRow}><span style={styles.detailLabel}>Booked by</span><span style={styles.aiTag}>Florrie</span></div>}
           </div>
-
           {/* Persistent notes — always visible, save without completing */}
           <div style={{ marginTop: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -733,7 +666,6 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
             />
             <p style={{ fontSize: 11, color: 'var(--text-muted, #aaa)', margin: '4px 0 0' }}>⌘S to save · notes shown next time this client books</p>
           </div>
-
           {canComplete && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
               <button onClick={() => setMode('completing')} style={styles.completeBtn}>
@@ -751,7 +683,6 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
               </div>
             </div>
           )}
-
           {/* No-show fee charge prompt */}
           {noShowCharging && (
             <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: '#FEF2F2', border: '1px solid #FECACA' }}>
@@ -768,7 +699,6 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
               </div>
             </div>
           )}
-
           {/* Payment link result */}
           {paymentLinkUrl && (
             <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: '#F0FFF4', border: '1px solid #C6F6D5' }}>
@@ -778,7 +708,6 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
               <p style={{ fontSize: 11, color: '#276749', margin: '6px 0 0' }}>Tap to copy. Send to client via WhatsApp or SMS.</p>
             </div>
           )}
-
           {/* Show status for already no-show or completed */}
           {appointment.status === 'no_show' && (
             <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: '#FEF2F2', textAlign: 'center' }}>
@@ -793,7 +722,6 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
           )}
         </>
       )}
-
       {mode === 'completing' && (
         <div style={styles.completionFlow}>
           {/* Payment method */}
@@ -808,7 +736,6 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
               ))}
             </div>
           </div>
-
           {/* Notes */}
           <div style={styles.completionSection}>
             <span style={styles.completionLabel}>Treatment notes</span>
@@ -820,7 +747,6 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
               rows={3}
             />
           </div>
-
           {/* Before/After photo */}
           <div style={styles.completionSection}>
             <span style={styles.completionLabel}>Before/after photo</span>
@@ -837,13 +763,11 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
               </label>
             )}
           </div>
-
           <button onClick={handleComplete} disabled={saving} style={styles.confirmCompleteBtn}>
             {saving ? 'Saving...' : `Complete — £${(appointment.price_cents / 100).toFixed(2)} ${paymentMethod}`}
           </button>
         </div>
       )}
-
       {mode === 'done' && (
         <div style={styles.doneScreen}>
           <span style={{ fontSize: 40 }}>✅</span>
@@ -851,7 +775,6 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
           <p style={{ fontSize: 14, color: '#888', marginBottom: 16 }}>
             £{(appointment.price_cents / 100).toFixed(2)} logged via {paymentMethod}
           </p>
-
           {/* Rebook prompt */}
           <div style={styles.rebookSection}>
             <span style={styles.completionLabel}>Rebook {appointment.clients?.first_name}?</span>
@@ -867,20 +790,17 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
               Send rebook reminder in {rebookWeeks} weeks
             </button>
           </div>
-
           <button onClick={handleDone} style={styles.doneCloseBtn}>Close</button>
         </div>
       )}
     </div>
   );
 }
-
 function formatDate(d) { return d.toISOString().split('T')[0]; }
 function isToday(d) { return d.toDateString() === new Date().toDateString(); }
 function getWeekStart(d) { const s = new Date(d); const day = s.getDay(); s.setDate(s.getDate() + (day === 0 ? -6 : 1 - day)); return s; }
 function getWeekEnd(d) { const e = getWeekStart(d); e.setDate(e.getDate() + 6); return e; }
 function getNowPosition() { const now = new Date(); return ((now.getHours() * 60 + now.getMinutes() - START_HOUR * 60) / 60) * HOUR_HEIGHT; }
-
 const styles = {
   page: { minHeight: '100vh', background: 'var(--bg)', fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)", padding: '0 16px 120px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)', animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' },
   header: { paddingTop: 20, paddingBottom: 16 },
@@ -891,7 +811,6 @@ const styles = {
   navBtn: { background: 'none', border: 'none', fontSize: 28, color: COLORS.stone400, cursor: 'pointer', padding: '0 8px' },
   viewToggle: { display: 'flex', gap: 4, background: `${COLORS.outlineVariant}33`, borderRadius: 12, padding: 3 },
   toggleBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'inherit' },
-
   // Weekly Date Strip
   weeklyStripContainer: { marginBottom: 20, background: COLORS.surfaceContainerLow, borderRadius: 24, padding: '12px 16px', position: 'relative' },
   weeklyStripHeader: { marginBottom: 12 },
@@ -900,7 +819,6 @@ const styles = {
   weeklyStripDay: { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '8px 4px', borderRadius: 12, border: 'none', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s ease' },
   weeklyStripDayName: { fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' },
   weeklyStripDayNumber: { fontSize: 16, fontWeight: 700, marginTop: 2 },
-
   // Day View Timeline
   dayGrid: { display: 'flex', gap: 0, background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)' },
   timeColumn: { width: 56, position: 'relative', borderRight: `1px solid ${COLORS.outlineVariant}33`, flexShrink: 0 },
@@ -909,7 +827,6 @@ const styles = {
   hourLine: { position: 'absolute', left: 0, right: 0, height: 1, background: `${COLORS.outlineVariant}33` },
   nowLine: { position: 'absolute', left: -4, right: 0, height: 2, background: '#E53E3E', zIndex: 10 },
   nowDot: { width: 8, height: 8, borderRadius: '50%', background: '#E53E3E', position: 'absolute', left: -2, top: -3 },
-
   // Appointment Cards
   appointmentCard: { position: 'absolute', left: 4, right: 4, borderRadius: 12, padding: '6px 10px', cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'inherit', textAlign: 'left', border: 'none', borderLeft: '4px solid', boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)', overflow: 'visible', width: 'calc(100% - 8px)', zIndex: 2, minHeight: 56 },
   appointmentCardContent: { display: 'flex', alignItems: 'center', gap: 8 },
@@ -921,11 +838,9 @@ const styles = {
   appointmentCardMeta: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, flexShrink: 0 },
   appointmentCardTime: { fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase' },
   aiTag: { display: 'inline-block', padding: '2px 6px', borderRadius: 4, fontSize: 9, fontWeight: 600, background: '#EEF4FC', color: '#4A90D9', letterSpacing: '0.03em' },
-
   // Open Slot Cards
   openSlotCard: { position: 'absolute', left: 4, right: 4, borderRadius: 16, border: `2px dashed ${COLORS.outlineVariant}80`, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 'calc(100% - 8px)' },
   openSlotText: { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.stone400 },
-
   // Week Body
   weekBody: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, background: '#fff', borderRadius: 16, padding: 8, boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)' },
   weekDayColumn: { display: 'flex', flexDirection: 'column', gap: 3, minHeight: 80 },
@@ -933,12 +848,10 @@ const styles = {
   weekApptTime: { fontSize: 9, fontWeight: 700, color: COLORS.stone400, lineHeight: 1 },
   weekApptName: { fontSize: 10, color: COLORS.onSurface, fontWeight: 600, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   weekEmpty: { height: 40, borderRadius: 8, background: COLORS.surfaceContainerLow },
-
   // Floating Insights Pill
   insightsPill: { position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)', background: `rgba(116, 90, 39, 0.9)`, backdropFilter: 'blur(10px)', borderRadius: 24, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)', zIndex: 20, color: '#fff' },
   insightsPillIcon: { fontSize: 14 },
   insightsPillText: { fontSize: 12, fontWeight: 600 },
-
   // Detail Panel
   detailPanel: { background: '#fff', borderRadius: 16, padding: 20, marginTop: 16, boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)' },
   detailHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
@@ -969,11 +882,9 @@ const styles = {
   rebookSendBtn: { width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   doneCloseBtn: { width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: `${COLORS.outlineVariant}33`, color: COLORS.stone400, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
 };
-
 // ──────────────────────────────────────────────────────────────────
 // BlockTimeModal — create a new time block
 // ──────────────────────────────────────────────────────────────────
-
 const BLOCK_REASONS = [
   { key: 'lunch', label: '🍽️ Lunch' },
   { key: 'holiday', label: '🏖️ Holiday' },
@@ -982,20 +893,17 @@ const BLOCK_REASONS = [
   { key: 'training', label: '📚 Training' },
   { key: 'other', label: '✏️ Other' },
 ];
-
 function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
   const now = new Date();
   const pad = n => String(n).padStart(2, '0');
   const nowTime = `${pad(now.getHours())}:${pad(Math.ceil(now.getMinutes() / 15) * 15 === 60 ? 0 : Math.ceil(now.getMinutes() / 15) * 15)}`;
   const plusOneHour = `${pad(now.getHours() + 1)}:${pad(Math.ceil(now.getMinutes() / 15) * 15 === 60 ? 0 : Math.ceil(now.getMinutes() / 15) * 15)}`;
-
   const [date, setDate] = useState(defaultDate);
   const [type, setType] = useState('amended'); // 'closed' = all day, 'amended' = time range
   const [startTime, setStartTime] = useState(nowTime);
   const [endTime, setEndTime] = useState(plusOneHour);
   const [reason, setReason] = useState('personal');
   const [note, setNote] = useState('');
-
   const PRESETS = [
     {
       label: 'Lunch (1hr)',
@@ -1032,7 +940,6 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
       },
     },
   ];
-
   function handleSave() {
     onSave({
       date,
@@ -1043,10 +950,8 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
       end_time: type === 'closed' ? undefined : endTime,
     });
   }
-
   const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'flex-end' };
   const sheet = { background: '#fff', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif', maxHeight: '90vh', overflowY: 'auto' };
-
   return (
     <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={sheet}>
@@ -1054,7 +959,6 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
           <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: COLORS.onSurface }}>Block time</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: COLORS.stone400 }}>×</button>
         </div>
-
         {/* Quick presets */}
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
           {PRESETS.map(p => (
@@ -1067,7 +971,6 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
             </button>
           ))}
         </div>
-
         {/* Date */}
         <label style={{ fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date</label>
         <input
@@ -1076,7 +979,6 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
           onChange={e => setDate(e.target.value)}
           style={{ display: 'block', width: '100%', marginTop: 4, marginBottom: 14, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
         />
-
         {/* All day toggle */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <span style={{ fontSize: 14, fontWeight: 500, color: COLORS.onSurface }}>All day</span>
@@ -1087,7 +989,6 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
             <div style={{ width: 20, height: 20, borderRadius: 10, background: '#fff', position: 'absolute', top: 2, transition: 'transform 0.2s', transform: type === 'closed' ? 'translateX(20px)' : 'translateX(2px)' }} />
           </button>
         </div>
-
         {/* Time range — only when not all day */}
         {type !== 'closed' && (
           <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'center' }}>
@@ -1112,7 +1013,6 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
             </div>
           </div>
         )}
-
         {/* Reason */}
         <label style={{ fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 8 }}>Reason</label>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
@@ -1130,7 +1030,6 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
             </button>
           ))}
         </div>
-
         {/* Note */}
         <label style={{ fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Note (optional)</label>
         <input
@@ -1140,7 +1039,6 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
           placeholder="e.g. School pickup, dentist..."
           style={{ display: 'block', width: '100%', marginTop: 4, marginBottom: 20, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
         />
-
         <button
           onClick={handleSave}
           disabled={saving}
@@ -1152,22 +1050,17 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
     </div>
   );
 }
-
 // ──────────────────────────────────────────────────────────────────
 // BlockDetailSheet — shows an existing block + remove option
 // ──────────────────────────────────────────────────────────────────
-
 function BlockDetailSheet({ block, onDelete, onClose }) {
   const [confirming, setConfirming] = useState(false);
-
   const isClosed = block.type === 'closed' || block.is_closed;
   const timeRange = isClosed
     ? 'All day'
     : `${block.start_time || block.custom_start || '?'} → ${block.end_time || block.custom_end || '?'}`;
-
   const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'flex-end' };
   const sheet = { background: '#fff', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif' };
-
   return (
     <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={sheet}>
@@ -1175,7 +1068,6 @@ function BlockDetailSheet({ block, onDelete, onClose }) {
           <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: COLORS.onSurface }}>Time block</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: COLORS.stone400 }}>×</button>
         </div>
-
         <div style={{ background: `${COLORS.outlineVariant}22`, borderRadius: 12, padding: 14, marginBottom: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
             <span style={{ fontSize: 12, color: COLORS.stone400 }}>Date</span>
@@ -1196,7 +1088,6 @@ function BlockDetailSheet({ block, onDelete, onClose }) {
             </div>
           )}
         </div>
-
         {confirming ? (
           <div>
             <p style={{ fontSize: 14, color: COLORS.onSurface, marginBottom: 12, textAlign: 'center' }}>Remove this block?</p>

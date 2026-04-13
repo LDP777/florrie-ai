@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, supabase, isDevMode, updateRow } from '../lib/supabase.js';
+import { useBeautician, supabase, updateRow } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -35,12 +35,6 @@ export default function Escalations() {
   async function loadEscalations() {
     setLoading(true);
     try {
-      if (isDevMode) {
-        setEscalations(DEV_ESCALATIONS);
-        setLoading(false);
-        return;
-      }
-
       const { data, error } = await supabase
         .from('messages')
         .select('*, clients(first_name, last_name)')
@@ -229,7 +223,6 @@ export default function Escalations() {
   );
 }
 
-// ── Dev mode sample escalations ──
 const DEV_ESCALATIONS = [
   {
     id: 'dev-esc-1',

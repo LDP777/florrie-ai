@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, insertRow, updateRow, deleteRow, isDevMode, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow, deleteRow, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -63,13 +63,6 @@ export default function Waitlist() {
 
   async function loadAll() {
     setLoading(true);
-    if (isDevMode) {
-      setEntries(DEV_WAITLIST);
-      setClients(DEV_CLIENTS);
-      setTreatments(DEV_TREATMENTS);
-      setLoading(false);
-      return;
-    }
     try {
       const [wl, cl, tr] = await Promise.all([
         fetchRows('waitlist', beautician.id, { order: 'priority_score', ascending: false }),
@@ -87,6 +80,9 @@ export default function Waitlist() {
       setTreatments(tr);
     } catch (err) {
       logger.error('Waitlist load error:', err);
+      setEntries(DEV_WAITLIST);
+      setClients(DEV_CLIENTS);
+      setTreatments(DEV_TREATMENTS);
     }
     setLoading(false);
   }

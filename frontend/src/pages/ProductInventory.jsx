@@ -6,7 +6,7 @@
  * cost-per-use, and one-tap reorder reminders.
  */
 import { useState, useEffect } from 'react';
-import { isDevMode, useBeautician, fetchRows, insertRow, updateRow } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -20,21 +20,6 @@ const CATEGORIES = [
   { key: 'aftercare', label: 'Aftercare' },
   { key: 'tools', label: 'Tools' },
   { key: 'retail', label: 'Retail' },
-];
-
-const DEV_PRODUCTS = [
-  { id: 'i1', name: 'HD Brows Tint – Dark Brown', category: 'tint', qty: 3, reorderAt: 5, unit: 'tubes', costPer: 850, supplier: 'HD Brows Direct', lastOrdered: '2026-03-10', usesPerUnit: 12, status: 'low' },
-  { id: 'i2', name: 'HD Brows Tint – Medium Brown', category: 'tint', qty: 8, reorderAt: 5, unit: 'tubes', costPer: 850, supplier: 'HD Brows Direct', lastOrdered: '2026-03-10', usesPerUnit: 12, status: 'ok' },
-  { id: 'i3', name: 'RefectoCil Oxidant 3%', category: 'tint', qty: 2, reorderAt: 3, unit: 'bottles', costPer: 620, supplier: 'Sally Beauty', lastOrdered: '2026-02-20', usesPerUnit: 20, status: 'low' },
-  { id: 'i4', name: 'Perron Rigot Stripless Wax', category: 'wax', qty: 6, reorderAt: 3, unit: 'pots', costPer: 2400, supplier: 'Ellisons', lastOrdered: '2026-03-15', usesPerUnit: 8, status: 'ok' },
-  { id: 'i5', name: 'Pre-Wax Cleanser', category: 'wax', qty: 4, reorderAt: 2, unit: 'bottles', costPer: 780, supplier: 'Ellisons', lastOrdered: '2026-02-28', usesPerUnit: 30, status: 'ok' },
-  { id: 'i6', name: 'Aftercare Balm – Brows', category: 'aftercare', qty: 12, reorderAt: 5, unit: 'sachets', costPer: 45, supplier: 'Own Brand', lastOrdered: '2026-03-01', usesPerUnit: 1, status: 'ok' },
-  { id: 'i7', name: 'Numbing Cream (EMLA)', category: 'tools', qty: 1, reorderAt: 3, unit: 'tubes', costPer: 1200, supplier: 'Pharmacy Direct', lastOrdered: '2026-01-15', usesPerUnit: 6, status: 'low' },
-  { id: 'i8', name: 'Disposable Microbrushes', category: 'tools', qty: 200, reorderAt: 100, unit: 'pcs', costPer: 3, supplier: 'Amazon', lastOrdered: '2026-03-05', usesPerUnit: 1, status: 'ok' },
-  { id: 'i9', name: 'Castor Oil Brow Serum', category: 'retail', qty: 0, reorderAt: 3, unit: 'bottles', costPer: 350, supplier: 'Own Brand', lastOrdered: '2026-02-10', usesPerUnit: 1, retailPrice: 1200, status: 'out' },
-  { id: 'i10', name: 'Lash Lift Kit', category: 'tools', qty: 5, reorderAt: 2, unit: 'kits', costPer: 1800, supplier: 'LashBase', lastOrdered: '2026-03-12', usesPerUnit: 10, status: 'ok' },
-  { id: 'i11', name: 'Brow Soap Bar', category: 'retail', qty: 8, reorderAt: 5, unit: 'bars', costPer: 200, supplier: 'Own Brand', lastOrdered: '2026-03-01', usesPerUnit: 1, retailPrice: 800, status: 'ok' },
-  { id: 'i12', name: 'Tint Developer 6%', category: 'tint', qty: 0, reorderAt: 2, unit: 'bottles', costPer: 550, supplier: 'Sally Beauty', lastOrdered: '2026-01-20', usesPerUnit: 15, status: 'out' },
 ];
 
 const STATUS_CFG = {
@@ -72,16 +57,13 @@ export default function ProductInventory() {
             retailPrice: p.retail_price_cents,
           }));
           setProducts(withStatus);
-        } else if (isDevMode) {
-          setProducts(DEV_PRODUCTS);
         } else {
           setProducts([]);
         }
       })
       .catch(err => {
-        logger.error('Failed to load inventory:', err);
-        if (isDevMode) setProducts(DEV_PRODUCTS);
-        else setProducts([]);
+        logger.error({ err }, 'Failed to load inventory');
+        setProducts([]);
       })
       .finally(() => setLoading(false));
   }, [beautician, bLoading]);
@@ -112,12 +94,12 @@ export default function ProductInventory() {
       setShowAdd(false);
       setNewProduct({ name: '', category: 'tint', qty: 0, unit: '', reorderAt: 5, costPer: 0, usesPerUnit: 1, supplier: '' });
     } catch (err) {
-      logger.error('Failed to add product:', err);
+      logger.error({ err }, 'Failed to add product');
     }
   }
 
   if (bLoading || loading) return <PageLoader />;
-  if (products.length === 0 && !isDevMode) return <EmptyState title="No products yet" description="Add your first product to start tracking inventory." />;
+  if (products.length === 0) return <EmptyState title="No products yet" description="Add your first product to start tracking inventory." />;
   const filtered = catFilter === 'all' ? products : products.filter(p => p.category === catFilter);
 
   const sorted = [...filtered].sort((a, b) => {

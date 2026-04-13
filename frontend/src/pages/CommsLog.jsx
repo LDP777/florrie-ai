@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, isDevMode, supabase } from '../lib/supabase.js';
+import { useBeautician, fetchRows, supabase } from '../lib/supabase.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
@@ -58,7 +58,7 @@ export default function CommsLog() {
 
   useEffect(() => {
     if (bLoading) return;
-    if (isDevMode || !beautician) { setMessages(DEV_MESSAGES); return; }
+    if (!beautician) { setMessages(DEV_MESSAGES); return; }
     fetchRows('messages', beautician.id, { order: 'created_at', ascending: false, limit: 50 })
       .then(rows => setMessages(rows.length ? rows : DEV_MESSAGES));
   }, [beautician, bLoading]);

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, updateRow, insertRow, isDevMode, supabase } from '../lib/supabase.js';
+import { useBeautician, fetchRows, updateRow, insertRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -60,7 +60,7 @@ export default function EndOfDay() {
 
   useEffect(() => {
     if (bLoading) return;
-    if (isDevMode || !beautician) return;
+    if (!beautician) return;
     const today = new Date().toISOString().slice(0, 10);
     // Fetch today's appointments for timeline
     fetchRows('appointments', beautician.id, { order: 'starts_at', ascending: true })
@@ -78,25 +78,11 @@ export default function EndOfDay() {
         }
       });
     // Fetch today's transactions for revenue summary
-    if (supabase) {
-      supabase.from('transactions').select('*')
-        .eq('beautician_id', beautician.id)
-        .gte('created_at', today + 'T00:00:00')
-        .lte('created_at', today + 'T23:59:59')
-        .then(({ data }) => {
-          if (data?.length) {
-            const totalRevenue = data.reduce((s, t) => s + (t.amount_cents || 0), 0) / 100;
-            const cardTaken = data.filter(t => t.method === 'card').reduce((s, t) => s + (t.amount_cents || 0), 0) / 100;
-            const cashTaken = data.filter(t => t.method === 'cash').reduce((s, t) => s + (t.amount_cents || 0), 0) / 100;
-            setDayData(prev => ({ ...prev, totalRevenue, cardTaken, cashTaken }));
-          }
-        });
-    }
   }, [beautician, bLoading]);
 
   // Save end-of-day report (upsert)
   const saveEndOfDay = async () => {
-    if (isDevMode || !beautician) return;
+    if (!beautician) return;
     const todayStr = new Date().toISOString().slice(0, 10);
 
     // Check if report exists for today
@@ -124,7 +110,7 @@ export default function EndOfDay() {
       }
       setDayClosed(true);
     } catch (err) {
-      logger.error('Failed to save end of day report:', err);
+      logger.error({ err }, 'Failed to save end of day report');
     }
   };
 

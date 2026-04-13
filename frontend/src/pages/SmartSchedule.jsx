@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, isDevMode, supabase, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useBeautician, fetchRows, supabase, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -142,12 +142,6 @@ export default function SmartSchedule() {
 
   async function loadData() {
     setLoading(true);
-    if (isDevMode) {
-      setGaps(generateDevGaps());
-      setSuggestions(DEV_SUGGESTIONS);
-      setLoading(false);
-      return;
-    }
     if (!beautician) {
       setLoading(false);
       return;

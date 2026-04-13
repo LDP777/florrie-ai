@@ -8,12 +8,11 @@
  *   - Smart matching (availability + treatment + priority)
  */
 import { useState, useEffect } from 'react';
-import { isDevMode, DEV_TREATMENTS, useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js'
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
-
 const DEV_WAITLIST = [
   {
     id: 'wl1', client: 'Holly B', treatment: 'Ombre Brows (Semi-Permanent)', priority: 'vip',
@@ -59,13 +58,11 @@ const DEV_WAITLIST = [
     flexible: false, maxWait: 21,
   },
 ];
-
 const PRIORITY_CONFIG = {
   vip: { label: 'VIP', bg: '#F0E6ED', color: 'var(--accent, #C76B8A)', icon: '⭐' },
   regular: { label: 'Regular', bg: '#F0ECE8', color: '#8B6F5E', icon: '👤' },
   flexible: { label: 'Flexible', bg: '#E8F5E9', color: '#6B8F7B', icon: '🔄' },
 };
-
 const STATUS_CONFIG = {
   waiting: { label: 'Waiting', bg: '#FFF5E6', color: '#B8860B' },
   notified: { label: 'Notified', bg: '#E3F2FD', color: '#2196F3' },
@@ -73,12 +70,10 @@ const STATUS_CONFIG = {
   booked: { label: 'Booked', bg: '#E8F5E9', color: '#4CAF50' },
   expired: { label: 'Expired', bg: '#F0ECE8', color: 'var(--text-muted, #AAA5A0)' },
 };
-
 const DAYS = [
   { value: 'mon', label: 'Mon' }, { value: 'tue', label: 'Tue' }, { value: 'wed', label: 'Wed' },
   { value: 'thu', label: 'Thu' }, { value: 'fri', label: 'Fri' }, { value: 'sat', label: 'Sat' },
 ];
-
 export default function WaitlistPro() {
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('active');
@@ -102,21 +97,17 @@ export default function WaitlistPro() {
     depositRequired: false,
     defaultDeposit: 2500,
   });
-
   useEffect(() => {
     if (bLoading || !beautician) return;
-    if (isDevMode) { setWaitlist(DEV_WAITLIST); setTreatments(DEV_TREATMENTS); return; }
     Promise.all([
       fetchRows('waitlist', beautician.id, { order: 'created_at' }),
       fetchRows('treatments', beautician.id, { eq: { is_active: true }, order: 'sort_order' }),
     ]).then(([wl, tx]) => {
       setWaitlist(wl || []);
       setTreatments(tx || []);
-    }).catch(err => { logger.error('Load waitlist error:', err); setWaitlist(DEV_WAITLIST); });
+    }).catch(err => { logger.error('Load waitlist error:', err); setState([]); });
   }, [beautician, bLoading]);
-
-  const activeTreatments = treatments.length > 0 ? treatments : DEV_TREATMENTS;
-
+  const activeTreatments = treatments;
   async function handleAddToWaitlist() {
     if (!addForm.client.trim() || !addForm.treatment) return;
     setSaving(true);
@@ -138,7 +129,7 @@ export default function WaitlistPro() {
         addedDate: new Date().toISOString().slice(0, 10),
         notifyCount: 0,
       };
-      if (!isDevMode && beautician) {
+      if (beautician) {
         const inserted = await insertRow('waitlist', row);
         if (inserted) setWaitlist(prev => [...prev, inserted]);
       } else {
@@ -153,9 +144,8 @@ export default function WaitlistPro() {
       setSaving(false);
     }
   }
-
   async function handleRemove(id) {
-    if (!isDevMode && beautician) {
+    if (beautician) {
       try {
         await deleteRow('waitlist', id);
         setWaitlist(prev => prev.filter(w => w.id !== id));
@@ -167,9 +157,8 @@ export default function WaitlistPro() {
       setWaitlist(prev => prev.filter(w => w.id !== id));
     }
   }
-
   async function handleNotify(id) {
-    if (!isDevMode && beautician) {
+    if (beautician) {
       try {
         await updateRow('waitlist', id, { status: 'notified', notifyCount: (waitlist.find(w => w.id === id)?.notifyCount || 0) + 1, lastNotified: new Date().toISOString() });
         setWaitlist(prev => prev.map(w => w.id === id ? { ...w, status: 'notified', notifyCount: (w.notifyCount || 0) + 1, lastNotified: new Date().toISOString() } : w));
@@ -181,9 +170,8 @@ export default function WaitlistPro() {
       setWaitlist(prev => prev.map(w => w.id === id ? { ...w, status: 'notified', notifyCount: (w.notifyCount || 0) + 1, lastNotified: new Date().toISOString() } : w));
     }
   }
-
   async function handleOfferSlot(id) {
-    if (!isDevMode && beautician) {
+    if (beautician) {
       try {
         const expiryTime = new Date();
         expiryTime.setHours(expiryTime.getHours() + (settings.offerExpiry || 24));
@@ -199,12 +187,11 @@ export default function WaitlistPro() {
       setWaitlist(prev => prev.map(w => w.id === id ? { ...w, status: 'offered', offerExpires: expiryTime.toISOString() } : w));
     }
   }
-
   async function handleSaveSettings() {
     setSaving(true);
     setError(null);
     try {
-      if (!isDevMode && beautician) {
+      if (beautician) {
         await updateRow('beautician_settings', beautician.id, {
           waitlist_auto_notify: settings.autoNotify,
           waitlist_offer_expiry_hours: settings.offerExpiry,
@@ -221,10 +208,8 @@ export default function WaitlistPro() {
       setSaving(false);
     }
   }
-
   const activeList = waitlist.filter(w => ['waiting', 'notified', 'offered'].includes(w.status));
   const archivedList = waitlist.filter(w => ['booked', 'expired'].includes(w.status));
-
   const stats = {
     active: activeList.length,
     vip: waitlist.filter(w => w.priority === 'vip' && w.status !== 'expired').length,
@@ -234,7 +219,6 @@ export default function WaitlistPro() {
       return s + days;
     }, 0) / (activeList.length || 1)),
   };
-
   const toggleDay = (day) => {
     setAddForm(f => ({
       ...f,
@@ -243,14 +227,12 @@ export default function WaitlistPro() {
         : [...f.preferredDays, day],
     }));
   };
-
   return (
     <div style={S.page}>
       <div style={S.header}>
         <h1 style={S.title}>Smart Waitlist</h1>
         <button style={S.addBtn} onClick={() => setShowAdd(true)}>+ Add</button>
       </div>
-
       {/* Stats */}
       <div style={S.statsRow}>
         {[
@@ -265,7 +247,6 @@ export default function WaitlistPro() {
           </div>
         ))}
       </div>
-
       {/* Tabs */}
       <div style={S.tabs}>
         {['active', 'archived', 'settings'].map(t => (
@@ -274,7 +255,6 @@ export default function WaitlistPro() {
           </button>
         ))}
       </div>
-
       {/* Active */}
       {tab === 'active' && (
         <div style={S.list}>
@@ -305,7 +285,6 @@ export default function WaitlistPro() {
                     <span style={S.wlDays}>{daysWaiting}d waiting</span>
                   </div>
                 </div>
-
                 {/* Offered slot */}
                 {w.status === 'offered' && w.offeredSlot && (
                   <div style={S.offerBanner}>
@@ -313,7 +292,6 @@ export default function WaitlistPro() {
                     <span style={S.offerExpiry}>Expires {new Date(w.offerExpires).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                 )}
-
                 {isExpanded && (
                   <div style={S.expandedSection}>
                     <div style={S.detailGrid}>
@@ -340,9 +318,7 @@ export default function WaitlistPro() {
                         </div>
                       )}
                     </div>
-
                     {w.notes && <p style={S.wlNotes}>{w.notes}</p>}
-
                     <div style={S.actionRow}>
                       <button style={S.actionBtn} onClick={e => { e.stopPropagation(); handleNotify(w.id); }}>Notify</button>
                       <button style={{ ...S.actionBtn, background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)' }} onClick={e => { e.stopPropagation(); handleOfferSlot(w.id); }}>Offer Slot</button>
@@ -355,7 +331,6 @@ export default function WaitlistPro() {
           })}
         </div>
       )}
-
       {/* Archived */}
       {tab === 'archived' && (
         <div style={S.list}>
@@ -380,7 +355,6 @@ export default function WaitlistPro() {
           })}
         </div>
       )}
-
       {/* Settings */}
       {tab === 'settings' && (
         <div style={S.settingsContainer}>
@@ -395,7 +369,6 @@ export default function WaitlistPro() {
                 <div style={{ ...S.toggleDot, transform: settings.autoNotify ? 'translateX(18px)' : 'translateX(2px)' }} />
               </button>
             </div>
-
             <div style={S.fieldLabel}>Offer expires after</div>
             <div style={S.chipRow}>
               {[4, 12, 24, 48].map(h => (
@@ -404,7 +377,6 @@ export default function WaitlistPro() {
                 </button>
               ))}
             </div>
-
             <div style={S.fieldLabel}>Max notifications per client</div>
             <div style={S.chipRow}>
               {[1, 2, 3, 5].map(n => (
@@ -414,7 +386,6 @@ export default function WaitlistPro() {
               ))}
             </div>
           </div>
-
           <div style={S.settingsCard}>
             <h3 style={S.settingsTitle}>Priority & Deposits</h3>
             <div style={S.toggleRow}>
@@ -426,7 +397,6 @@ export default function WaitlistPro() {
                 <div style={{ ...S.toggleDot, transform: settings.vipFirst ? 'translateX(18px)' : 'translateX(2px)' }} />
               </button>
             </div>
-
             <div style={S.toggleRow}>
               <div style={S.toggleInfo}>
                 <span style={S.toggleLabel}>Require deposit to join</span>
@@ -436,7 +406,6 @@ export default function WaitlistPro() {
                 <div style={{ ...S.toggleDot, transform: settings.depositRequired ? 'translateX(18px)' : 'translateX(2px)' }} />
               </button>
             </div>
-
             {settings.depositRequired && (
               <>
                 <div style={S.fieldLabel}>Default deposit</div>
@@ -450,27 +419,22 @@ export default function WaitlistPro() {
               </>
             )}
           </div>
-
           {error && <div style={{ color: '#F44336', fontSize: 13, marginBottom: 8 }}>{error}</div>}
           <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} onClick={handleSaveSettings} disabled={saving}>{saving ? 'Saving...' : 'Save Settings'}</button>
         </div>
       )}
-
       {/* Add modal */}
       {showAdd && (
         <div style={S.overlay} onClick={() => setShowAdd(false)}>
           <div style={S.modal} onClick={e => e.stopPropagation()}>
             <h2 style={S.modalTitle}>Add to Waitlist</h2>
-
             <div style={S.fieldLabel}>Client Name</div>
             <input style={S.input} placeholder="Client name" value={addForm.client} onChange={e => setAddForm(f => ({ ...f, client: e.target.value }))} />
-
             <div style={S.fieldLabel}>Treatment</div>
             <select style={S.select} value={addForm.treatment} onChange={e => setAddForm(f => ({ ...f, treatment: e.target.value }))}>
               <option value="">Select treatment</option>
               {activeTreatments.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
             </select>
-
             <div style={S.fieldLabel}>Priority</div>
             <div style={S.chipRow}>
               {Object.entries(PRIORITY_CONFIG).map(([key, cfg]) => (
@@ -479,7 +443,6 @@ export default function WaitlistPro() {
                 </button>
               ))}
             </div>
-
             <div style={S.fieldLabel}>Preferred Days</div>
             <div style={S.chipRow}>
               {DAYS.map(d => (
@@ -488,7 +451,6 @@ export default function WaitlistPro() {
                 </button>
               ))}
             </div>
-
             <div style={S.fieldLabel}>Preferred Time</div>
             <div style={S.chipRow}>
               {['morning', 'afternoon', 'evening', 'any'].map(t => (
@@ -497,7 +459,6 @@ export default function WaitlistPro() {
                 </button>
               ))}
             </div>
-
             <div style={S.fieldLabel}>Max days to wait</div>
             <div style={S.chipRow}>
               {[7, 14, 21, 30, 60].map(d => (
@@ -506,10 +467,8 @@ export default function WaitlistPro() {
                 </button>
               ))}
             </div>
-
             <div style={S.fieldLabel}>Notes</div>
             <textarea style={S.textarea} rows={2} placeholder="Any notes..." value={addForm.notes} onChange={e => setAddForm(f => ({ ...f, notes: e.target.value }))} />
-
             {error && <div style={{ color: '#F44336', fontSize: 13, marginBottom: 8 }}>{error}</div>}
             <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} onClick={handleAddToWaitlist} disabled={saving}>{saving ? 'Adding...' : 'Add to Waitlist'}</button>
           </div>
@@ -518,29 +477,23 @@ export default function WaitlistPro() {
     </div>
   );
 }
-
 function formatDate(dateStr) {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 }
-
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: 0 },
   addBtn: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-
   statsRow: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 },
   statCard: { background: 'var(--card, #fff)', borderRadius: 12, padding: '10px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   statValue: { fontSize: 18, fontWeight: 700 },
   statLabel: { fontSize: 10, color: 'var(--text-muted, #B5AFA8)' },
-
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
   tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--bg-card, #FFFFFF)', color: 'var(--text-muted, #B5AFA8)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   tabActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)' },
-
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
   empty: { textAlign: 'center', color: 'var(--text-muted, #B5AFA8)', fontSize: 14, padding: 32 },
-
   wlCard: { background: 'var(--bg-card, #FFFFFF)', borderRadius: 14, padding: 14, cursor: 'pointer', borderLeft: '3px solid var(--border, var(--border, #EDE9E4))' },
   wlHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
   wlLeft: { display: 'flex', gap: 10, alignItems: 'center' },
@@ -553,11 +506,9 @@ const S = {
   wlRight: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 },
   statusBadge: { padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600 },
   wlDays: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
-
   offerBanner: { margin: '10px 0 0', padding: '8px 12px', borderRadius: 8, background: 'var(--success-bg, #EDF7F0)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   offerText: { fontSize: 12, fontWeight: 600, color: 'var(--success, #5BA97B)' },
   offerExpiry: { fontSize: 11, color: 'var(--success, #5BA97B)' },
-
   expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, var(--border, #EDE9E4))' },
   detailGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 10 },
   detailItem: { display: 'flex', flexDirection: 'column', gap: 2 },
@@ -568,7 +519,6 @@ const S = {
   wlNotes: { fontSize: 12, color: 'var(--text-secondary, #7A756F)', fontStyle: 'italic', margin: '8px 0' },
   actionRow: { display: 'flex', gap: 8, marginTop: 8 },
   actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--bg-card, #FFFFFF)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
-
   // Settings
   settingsContainer: { display: 'flex', flexDirection: 'column', gap: 12 },
   settingsCard: { background: 'var(--bg-card, #FFFFFF)', borderRadius: 14, padding: 16 },
@@ -583,7 +533,6 @@ const S = {
   chipRow: { display: 'flex', gap: 8, flexWrap: 'wrap' },
   chip: { padding: '8px 14px', borderRadius: 10, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--bg-card, #FFFFFF)', color: 'var(--text-secondary, #7A756F)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
   chipActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', border: '1px solid var(--accent, #C76B8A)' },
-
   // Modal
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
   modal: { background: 'var(--bg-card, #FFFFFF)', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },

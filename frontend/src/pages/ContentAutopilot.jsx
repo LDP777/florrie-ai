@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { useBeautician, supabase, isDevMode, fetchRows, insertRow, updateRow, deleteRow, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useBeautician, supabase, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js'
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
-
 function getToken() {
   // Supabase stores session under sb-<project-ref>-auth-token — find it by pattern
   const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
@@ -17,7 +16,6 @@ function getToken() {
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
-
 /**
  * Content Autopilot — Ellie's #1 pain point.
  *
@@ -32,9 +30,7 @@ import ErrorCard from '../components/ErrorCard.jsx';
  * Caption generation calls the backend when available;
  * template-based fallback always works offline.
  */
-
 // ── Caption templates (Ellie's tone: warm, casual, 1-2 sentences, xx) ──
-
 const CAPTION_TEMPLATES = {
   before_after: [
     "Cannot get over this set {treatment} — the definition is unreal. DM me to book yours {emoji}",
@@ -66,7 +62,6 @@ const CAPTION_TEMPLATES = {
     "That feeling when every slot this week is full {emoji} If you want in next week, book now — they go fast xx",
   ],
 };
-
 const EMOJIS = ['✨', '💫', '🤍', '🫶', '💕', '👏'];
 const POST_TYPE_LABELS = {
   before_after: 'Before/After',
@@ -75,11 +70,9 @@ const POST_TYPE_LABELS = {
   testimonial: 'Client Love',
   general: 'General',
 };
-
 function pickRandom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
-
 function fillTemplate(template, vars) {
   let result = template;
   Object.entries(vars).forEach(([k, v]) => {
@@ -87,14 +80,12 @@ function fillTemplate(template, vars) {
   });
   return result;
 }
-
 // ── Default hashtag sets by category ──
 const DEFAULT_HASHTAGS = {
   brows: ['#brows', '#browlamination', '#browspecialist', '#browgoals', '#browsonfleek', '#beautysalon'],
   lashes: ['#lashes', '#lashlift', '#lashlifttint', '#lashgoals', '#lashspecialist', '#beautysalon'],
   other: ['#beauty', '#beautysalon', '#treatyourself', '#selfcare', '#beautytreatment'],
 };
-
 export default function ContentAutopilot() {
   const { beautician, loading: bLoading } = useBeautician();
   const [drafts, setDrafts] = useState([]);
@@ -105,17 +96,11 @@ export default function ContentAutopilot() {
   const [publishing, setPublishing] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editCaption, setEditCaption] = useState('');
-
-  // Instagram connection status
-  const [igStatus, setIgStatus] = useState(null); // { connected, page_name }
-
   // AI suggestions (from recent appointments)
   const [suggestions, setSuggestions] = useState([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
-
   // AI caption generation in compose
   const [generatingAI, setGeneratingAI] = useState(false);
-
   // Gallery (before/after)
   const [gallery, setGallery] = useState([]);
   const [showGalleryAdd, setShowGalleryAdd] = useState(false);
@@ -127,7 +112,6 @@ export default function ContentAutopilot() {
   const [savingGallery, setSavingGallery] = useState(false);
   const beforeRef = useRef(null);
   const afterRef = useRef(null);
-
   // Compose mode
   const [composing, setComposing] = useState(false);
   const [composeType, setComposeType] = useState('before_after');
@@ -137,27 +121,21 @@ export default function ContentAutopilot() {
   const [composeImagePreview, setComposeImagePreview] = useState(null);
   const [saving, setSaving] = useState(false);
   const fileRef = useRef(null);
-
   // Treatments for template fill
   const [treatments, setTreatments] = useState([]);
-
   // Content streams
   const [streams, setStreams] = useState([]);
   const [selectedStreamId, setSelectedStreamId] = useState(null);
   const [streamProgress, setStreamProgress] = useState(null);
   const [loadingStreams, setLoadingStreams] = useState(false);
-
   // New stream form
   const [showStreamForm, setShowStreamForm] = useState(false);
   const [newStreamForm, setNewStreamForm] = useState({ name: '', type: 'personal', monthly_target: '', brand_notes: '' });
   const [savingStream, setSavingStream] = useState(false);
-
   // Calendar view
   const [calendarDate, setCalendarDate] = useState(new Date());
-
   // Cancelled appointment prompt
   const [cancelledPrompt, setCancelledPrompt] = useState(null);
-
   useEffect(() => {
     if (beautician) {
       loadAll();
@@ -166,40 +144,18 @@ export default function ContentAutopilot() {
       loadSuggestions();
       loadStreams();
       loadCancelledAppointments();
-      fetchInstagramStatus();
     }
   }, [beautician]);
-
-  async function fetchInstagramStatus() {
-    if (isDevMode) { setIgStatus({ connected: false }); return; }
-    try {
-      const token = getToken();
-      const res = await fetch(`${API_BASE}/api/instagram/status`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (res.ok) setIgStatus(await res.json());
-      else setIgStatus({ connected: false });
-    } catch { setIgStatus({ connected: false }); }
-  }
-
   useEffect(() => {
     if (beautician && selectedStreamId) {
       loadAll();
       loadStreamProgress();
     }
   }, [selectedStreamId]);
-
   async function loadAll() {
     setLoading(true);
     setError(null);
     try {
-      if (isDevMode) {
-        setDrafts(DEV_DRAFTS);
-        setPosted([]);
-        setLoading(false);
-        return;
-      }
-
       // Fetch from API to support stream_id filtering
       const token = getToken();
       const streamParam = selectedStreamId ? `?stream_id=${selectedStreamId}` : '';
@@ -208,7 +164,6 @@ export default function ContentAutopilot() {
       });
       if (!res.ok) throw new Error('Failed to fetch posts');
       const data = await res.json();
-
       const allPosts = data.posts || [];
       setDrafts(allPosts.filter(p => p.status === 'draft').sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
       setPosted(allPosts.filter(p => p.status === 'posted').sort((a, b) => new Date(b.posted_at) - new Date(a.posted_at)));
@@ -219,15 +174,11 @@ export default function ContentAutopilot() {
       setLoading(false);
     }
   }
-
   async function loadTreatments() {
-    if (isDevMode) { setTreatments(DEV_TREATMENTS); return; }
     const data = await fetchRows('treatments', beautician.id, { eq: { is_active: true } });
     setTreatments(data);
   }
-
   async function loadSuggestions() {
-    if (isDevMode) return;
     setLoadingSuggestions(true);
     try {
       const token = getToken();
@@ -243,15 +194,7 @@ export default function ContentAutopilot() {
       setLoadingSuggestions(false);
     }
   }
-
   async function loadStreams() {
-    if (isDevMode) {
-      setStreams([
-        { id: 'stream-personal', beautician_id: beautician?.id, name: 'Personal', type: 'personal', monthly_target: null, brand_notes: {}, active: true },
-        { id: 'stream-buffbrows', beautician_id: beautician?.id, name: 'BuffBrows', type: 'sponsor', monthly_target: 8, brand_notes: {}, active: true },
-      ]);
-      return;
-    }
     setLoadingStreams(true);
     try {
       const token = getToken();
@@ -267,7 +210,6 @@ export default function ContentAutopilot() {
       setLoadingStreams(false);
     }
   }
-
   async function loadStreamProgress() {
     if (!selectedStreamId) return;
     try {
@@ -282,7 +224,6 @@ export default function ContentAutopilot() {
       logger.warn('Stream progress load failed:', err);
     }
   }
-
   async function handleCreateStream() {
     if (!newStreamForm.name.trim()) return;
     setSavingStream(true);
@@ -312,9 +253,7 @@ export default function ContentAutopilot() {
       setSavingStream(false);
     }
   }
-
   async function loadCancelledAppointments() {
-    if (isDevMode) return;
     try {
       const token = getToken();
       const sevenDaysAgo = new Date();
@@ -331,7 +270,6 @@ export default function ContentAutopilot() {
       logger.warn('Cancelled appointments load failed:', err);
     }
   }
-
   async function handleGenerateAvailabilityPost() {
     if (!cancelledPrompt) return;
     setGeneratingAI(true);
@@ -368,7 +306,6 @@ export default function ContentAutopilot() {
       setGeneratingAI(false);
     }
   }
-
   async function handleAIWrite() {
     if (!beautician || generatingAI) return;
     setGeneratingAI(true);
@@ -397,9 +334,7 @@ export default function ContentAutopilot() {
       setGeneratingAI(false);
     }
   }
-
   // ── Calendar helpers ──
-
   function getCalendarDays() {
     const year = calendarDate.getFullYear();
     const month = calendarDate.getMonth();
@@ -415,7 +350,6 @@ export default function ContentAutopilot() {
     }
     return daysArray;
   }
-
   function getPostsForDate(date) {
     const dateStr = date.toISOString().split('T')[0];
     return (selectedStreamId ? drafts.concat(posted) : drafts.concat(posted)).filter(post => {
@@ -423,21 +357,14 @@ export default function ContentAutopilot() {
       return postDate === dateStr;
     });
   }
-
   function getChipColor(status) {
     if (status === 'draft') return '#D1D5DB';
     if (status === 'scheduled') return '#60A5FA';
     if (status === 'posted') return '#34D399';
     return '#D1D5DB';
   }
-
   // ── Gallery helpers ──
-
   async function loadGallery() {
-    if (isDevMode) {
-      setGallery(DEV_GALLERY);
-      return;
-    }
     // Gallery items stored as content_posts with post_type='gallery'
     try {
       const data = await fetchRows('content_posts', beautician.id, {
@@ -450,7 +377,6 @@ export default function ContentAutopilot() {
       logger.error('Load gallery:', err);
     }
   }
-
   function handleGalleryImage(which, e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -458,14 +384,12 @@ export default function ContentAutopilot() {
     if (which === 'before') { setGalleryBefore(file); setGalleryBeforePreview(url); }
     else { setGalleryAfter(file); setGalleryAfterPreview(url); }
   }
-
   async function handleSaveGalleryItem() {
     if (!galleryBefore || !galleryAfter) return;
     setSavingGallery(true);
     try {
       let beforeUrl = galleryBeforePreview;
       let afterUrl = galleryAfterPreview;
-
       // Upload images in production
       if (supabase && beautician) {
         for (const [file, label] of [[galleryBefore, 'before'], [galleryAfter, 'after']]) {
@@ -481,7 +405,6 @@ export default function ContentAutopilot() {
           }
         }
       }
-
       const item = {
         id: crypto.randomUUID(),
         post_type: 'gallery',
@@ -491,17 +414,13 @@ export default function ContentAutopilot() {
         caption: galleryForm.notes,
         created_at: new Date().toISOString(),
       };
-
-      if (!isDevMode) {
-        await insertRow('content_posts', {
-          beautician_id: beautician.id,
-          post_type: 'gallery',
-          image_url: afterUrl,
-          caption: `Before/After: ${galleryForm.treatment}${galleryForm.notes ? ' — ' + galleryForm.notes : ''}`,
-          status: 'draft',
-        });
-      }
-
+      await insertRow('content_posts', {
+        beautician_id: beautician.id,
+        post_type: 'gallery',
+        image_url: afterUrl,
+        caption: `Before/After: ${galleryForm.treatment}${galleryForm.notes ? ' — ' + galleryForm.notes : ''}`,
+        status: 'draft',
+      });
       setGallery(prev => [item, ...prev]);
       setShowGalleryAdd(false);
       setGalleryForm({ treatment: '', notes: '' });
@@ -514,9 +433,7 @@ export default function ContentAutopilot() {
     }
     setSavingGallery(false);
   }
-
   // ── Compose helpers ──
-
   function startCompose(type, prefillCaption) {
     setComposeType(type);
     setComposeCaption(prefillCaption || '');
@@ -527,20 +444,17 @@ export default function ContentAutopilot() {
     setComposing(true);
     setTab('compose');
   }
-
   function handleImageSelect(e) {
     const file = e.target.files?.[0];
     if (!file) return;
     setComposeImageFile(file);
     setComposeImagePreview(URL.createObjectURL(file));
   }
-
   async function handleSaveDraft() {
     if (!composeCaption.trim() || !beautician) return;
     setSaving(true);
     try {
       let imageUrl = null;
-
       // Upload image to Supabase Storage if available
       if (composeImageFile && supabase) {
         const ext = composeImageFile.name.split('.').pop();
@@ -548,7 +462,6 @@ export default function ContentAutopilot() {
         const { error: uploadErr } = await supabase.storage
           .from('content-images')
           .upload(path, composeImageFile, { contentType: composeImageFile.type });
-
         if (!uploadErr) {
           const { data: urlData } = supabase.storage.from('content-images').getPublicUrl(path);
           imageUrl = urlData?.publicUrl || null;
@@ -556,9 +469,7 @@ export default function ContentAutopilot() {
           logger.warn('Image upload failed:', uploadErr.message);
         }
       }
-
       const hashtags = composeHashtags.trim().split(/\s+/).filter(h => h.startsWith('#'));
-
       const post = await insertRow('content_posts', {
         beautician_id: beautician.id,
         caption: composeCaption.trim(),
@@ -568,7 +479,6 @@ export default function ContentAutopilot() {
         post_type: composeType,
         status: 'draft',
       });
-
       setDrafts(prev => [post, ...prev]);
       setComposing(false);
       setTab('drafts');
@@ -578,19 +488,10 @@ export default function ContentAutopilot() {
       setSaving(false);
     }
   }
-
   // ── Draft actions ──
-
   async function handleApprove(postId) {
     setPublishing(postId);
     try {
-      if (isDevMode) {
-        // Dev mode: just move locally
-        setDrafts(prev => prev.filter(p => p.id !== postId));
-        setPublishing(null);
-        return;
-      }
-
       // Call backend publish endpoint — handles Instagram Graph API if connected
       const token = getToken();
       const res = await fetch(`${API_BASE}/api/content/${postId}/publish`, {
@@ -600,16 +501,12 @@ export default function ContentAutopilot() {
           ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         },
       });
-
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Publish failed');
-
       setDrafts(prev => prev.filter(p => p.id !== postId));
-
       // Reload posted
       const p = await fetchRows('content_posts', beautician.id, { eq: { status: 'posted' }, order: 'posted_at', ascending: false });
       setPosted(p);
-
       if (result.published) {
         logger.info('Post published to Instagram', result.instagramId);
       } else {
@@ -621,7 +518,6 @@ export default function ContentAutopilot() {
       setPublishing(null);
     }
   }
-
   async function handleEditSave(postId) {
     try {
       await updateRow('content_posts', postId, { caption: editCaption });
@@ -631,7 +527,6 @@ export default function ContentAutopilot() {
       logger.error('Edit error:', err);
     }
   }
-
   async function handleDiscard(postId) {
     try {
       await deleteRow('content_posts', postId);
@@ -640,9 +535,7 @@ export default function ContentAutopilot() {
       logger.error('Discard error:', err);
     }
   }
-
   // ── Template fill ──
-
   function getFilledTemplate(type) {
     const templates = CAPTION_TEMPLATES[type] || CAPTION_TEMPLATES.general;
     const template = pickRandom(templates);
@@ -657,11 +550,9 @@ export default function ContentAutopilot() {
       offer: '10% off all lamination this week',
     });
   }
-
   if (bLoading || loading) {
     return <PageLoader />;
   }
-
   return (
     <div style={styles.page}>
       {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
@@ -674,40 +565,6 @@ export default function ContentAutopilot() {
           + New Post
         </button>
       </div>
-
-      {/* Instagram connection banner */}
-      {igStatus && !igStatus.connected && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--warning-bg, #FFF3E0)', borderRadius: 12, marginBottom: 12, border: '1px solid var(--warning, #E59B3A)22' }}>
-          <span style={{ fontSize: 18 }}>📸</span>
-          <span style={{ flex: 1, fontSize: 13, color: 'var(--text-primary)' }}>
-            Connect Instagram to post directly from here
-          </span>
-          <button
-            onClick={async () => {
-              try {
-                const token = getToken();
-                const res = await fetch(`${API_BASE}/api/instagram/connect`, {
-                  headers: token ? { Authorization: `Bearer ${token}` } : {},
-                });
-                const data = await res.json();
-                if (data.url) window.location.href = data.url;
-              } catch (err) { logger.error('IG connect failed:', err); }
-            }}
-            style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
-          >
-            Connect →
-          </button>
-        </div>
-      )}
-      {igStatus?.connected && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: 'var(--success-bg, #E8F5E9)', borderRadius: 12, marginBottom: 12 }}>
-          <span style={{ fontSize: 14 }}>✅</span>
-          <span style={{ fontSize: 12, color: 'var(--success, #5BA97B)', fontWeight: 600 }}>
-            Connected to {igStatus.page_name || 'Instagram'} — posts will publish directly
-          </span>
-        </div>
-      )}
-
       {/* Stream selector pills */}
       <div style={styles.streamSelector}>
         <button
@@ -745,7 +602,6 @@ export default function ContentAutopilot() {
           + Add stream
         </button>
       </div>
-
       {/* New stream form */}
       {showStreamForm && (
         <div style={styles.streamFormCard}>
@@ -786,7 +642,6 @@ export default function ContentAutopilot() {
           </div>
         </div>
       )}
-
       {/* Stream progress bar (for sponsored streams) */}
       {selectedStreamId && streamProgress && streamProgress.monthly_target && (
         <div style={styles.progressSection}>
@@ -807,7 +662,6 @@ export default function ContentAutopilot() {
           </div>
         </div>
       )}
-
       {/* Cancelled appointment prompt */}
       {cancelledPrompt && (
         <div style={styles.cancelledPromptBanner}>
@@ -823,7 +677,6 @@ export default function ContentAutopilot() {
           </button>
         </div>
       )}
-
       {/* Tabs */}
       <div style={styles.tabs}>
         {['ideas', 'drafts', 'posted', 'calendar', 'gallery'].map(t => (
@@ -840,7 +693,6 @@ export default function ContentAutopilot() {
           </button>
         ))}
       </div>
-
       {/* ═══ IDEAS TAB ═══ */}
       {tab === 'ideas' && (
         <div style={styles.postList}>
@@ -866,11 +718,9 @@ export default function ContentAutopilot() {
               ))}
             </div>
           )}
-
           <p style={styles.ideaIntro}>
             Tap any idea to customise and save as a draft. Fresh templates every time.
           </p>
-
           {Object.entries(POST_TYPE_LABELS).map(([type, label]) => (
             <div key={type} style={styles.ideaGroup}>
               <div style={styles.ideaGroupHeader}>
@@ -884,7 +734,6 @@ export default function ContentAutopilot() {
           ))}
         </div>
       )}
-
       {/* ═══ COMPOSE VIEW ═══ */}
       {tab === 'compose' && composing && (
         <div style={styles.composeArea}>
@@ -904,7 +753,6 @@ export default function ContentAutopilot() {
               </button>
             ))}
           </div>
-
           {/* Photo */}
           <div
             style={styles.photoArea}
@@ -926,7 +774,6 @@ export default function ContentAutopilot() {
               style={{ display: 'none' }}
             />
           </div>
-
           {/* Caption */}
           <textarea
             value={composeCaption}
@@ -935,7 +782,6 @@ export default function ContentAutopilot() {
             style={styles.composeTextarea}
             rows={4}
           />
-
           {/* Caption tools row */}
           <div style={{ display: 'flex', gap: 8 }}>
             <button
@@ -959,7 +805,6 @@ export default function ContentAutopilot() {
               {generatingAI ? 'Writing...' : '✨ Write with AI'}
             </button>
           </div>
-
           {/* Hashtags */}
           <input
             value={composeHashtags}
@@ -967,7 +812,6 @@ export default function ContentAutopilot() {
             placeholder="#brows #beauty #browlamination"
             style={styles.hashtagInput}
           />
-
           {/* Actions */}
           <div style={styles.composeActions}>
             <button
@@ -986,7 +830,6 @@ export default function ContentAutopilot() {
           </div>
         </div>
       )}
-
       {/* ═══ DRAFTS TAB ═══ */}
       {tab === 'drafts' && !composing && (
         <div style={styles.postList}>
@@ -997,7 +840,6 @@ export default function ContentAutopilot() {
               subtitle="Head to Ideas to pick a template, or tap + New Post to start from scratch."
             />
           )}
-
           {drafts.map(post => (
             <div key={post.id} style={styles.postCard}>
               {/* Type badge */}
@@ -1008,14 +850,12 @@ export default function ContentAutopilot() {
               }}>
                 {POST_TYPE_LABELS[post.post_type] || 'Post'}
               </div>
-
               {/* Image */}
               {post.image_url && (
                 <div style={styles.imageContainer}>
                   <img src={post.image_url} alt="" style={styles.postImage} />
                 </div>
               )}
-
               {/* Caption */}
               {editingId === post.id ? (
                 <div style={styles.editArea}>
@@ -1034,7 +874,6 @@ export default function ContentAutopilot() {
               ) : (
                 <p style={styles.caption}>{post.caption}</p>
               )}
-
               {/* Hashtags */}
               {post.hashtags?.length > 0 && (
                 <div style={styles.hashtags}>
@@ -1043,7 +882,6 @@ export default function ContentAutopilot() {
                   ))}
                 </div>
               )}
-
               {/* Actions */}
               {editingId !== post.id && (
                 <div style={styles.actions}>
@@ -1052,7 +890,7 @@ export default function ContentAutopilot() {
                     disabled={publishing === post.id}
                     style={styles.publishBtn}
                   >
-                    {publishing === post.id ? 'Posting…' : igStatus?.connected ? '📸 Post to Instagram' : 'Approve'}
+                    {publishing === post.id ? 'Posting...' : 'Approve & Post'}
                   </button>
                   <button
                     onClick={() => { setEditingId(post.id); setEditCaption(post.caption || ''); }}
@@ -1072,7 +910,6 @@ export default function ContentAutopilot() {
           ))}
         </div>
       )}
-
       {/* ═══ POSTED TAB ═══ */}
       {tab === 'posted' && (
         <div style={styles.postList}>
@@ -1083,7 +920,6 @@ export default function ContentAutopilot() {
               subtitle="Approved posts will appear here with engagement stats once Instagram is connected."
             />
           )}
-
           {posted.map(post => (
             <div key={post.id} style={styles.postCard}>
               {post.image_url && (
@@ -1092,7 +928,6 @@ export default function ContentAutopilot() {
                 </div>
               )}
               <p style={styles.caption}>{post.caption}</p>
-
               {/* Engagement stats */}
               <div style={styles.statsRow}>
                 <div style={styles.stat}>
@@ -1108,7 +943,6 @@ export default function ContentAutopilot() {
                   <span style={styles.statLabel}>Bookings</span>
                 </div>
               </div>
-
               <span style={styles.postedDate}>
                 Posted {new Date(post.posted_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
               </span>
@@ -1116,7 +950,6 @@ export default function ContentAutopilot() {
           ))}
         </div>
       )}
-
       {/* ═══ CALENDAR TAB ═══ */}
       {tab === 'calendar' && (
         <div style={styles.postList}>
@@ -1169,7 +1002,6 @@ export default function ContentAutopilot() {
           </div>
         </div>
       )}
-
       {/* ═══ GALLERY TAB ═══ */}
       {tab === 'gallery' && (
         <div style={styles.postList}>
@@ -1179,7 +1011,6 @@ export default function ContentAutopilot() {
             </p>
             <button onClick={() => setShowGalleryAdd(true)} style={styles.galleryAddBtn}>+ Add</button>
           </div>
-
           {/* Add form */}
           {showGalleryAdd && (
             <div style={styles.galleryAddCard}>
@@ -1208,7 +1039,6 @@ export default function ContentAutopilot() {
                   <input ref={afterRef} type="file" accept="image/*" onChange={e => handleGalleryImage('after', e)} style={{ display: 'none' }} />
                 </div>
               </div>
-
               <select
                 value={galleryForm.treatment}
                 onChange={e => setGalleryForm(f => ({ ...f, treatment: e.target.value }))}
@@ -1219,14 +1049,12 @@ export default function ContentAutopilot() {
                   <option key={t.id} value={t.name}>{t.name}</option>
                 ))}
               </select>
-
               <input
                 value={galleryForm.notes}
                 onChange={e => setGalleryForm(f => ({ ...f, notes: e.target.value }))}
                 placeholder="Notes (optional) e.g. First-time client"
                 style={styles.galleryNotesInput}
               />
-
               <div style={styles.galleryFormActions}>
                 <button
                   onClick={handleSaveGalleryItem}
@@ -1250,7 +1078,6 @@ export default function ContentAutopilot() {
               </div>
             </div>
           )}
-
           {/* Gallery grid */}
           {gallery.length === 0 && !showGalleryAdd && (
             <EmptyState
@@ -1259,7 +1086,6 @@ export default function ContentAutopilot() {
               subtitle="Add your best transformations. These build trust and help clients see what you can do."
             />
           )}
-
           {gallery.map(item => (
             <div key={item.id} style={styles.galleryCard}>
               <div style={styles.galleryPhotoPairView}>
@@ -1286,7 +1112,6 @@ export default function ContentAutopilot() {
     </div>
   );
 }
-
 // ── Dev mode gallery items ──
 const DEV_GALLERY = [
   {
@@ -1306,7 +1131,6 @@ const DEV_GALLERY = [
     created_at: '2026-03-18T11:00:00Z',
   },
 ];
-
 // ── Dev mode sample drafts ──
 const DEV_DRAFTS = [
   {
@@ -1328,7 +1152,6 @@ const DEV_DRAFTS = [
     created_at: new Date(Date.now() - 3600000).toISOString(),
   },
 ];
-
 const styles = {
   page: {
     minHeight: '100vh',
@@ -1376,7 +1199,6 @@ const styles = {
     fontFamily: 'inherit',
     transition: 'all 0.2s'
   },
-
   // Ideas
   ideaIntro: { fontSize: 13, color: 'var(--text-secondary, #7A756F)', marginBottom: 16, lineHeight: 1.5 },
   ideaGroup: { marginBottom: 16 },
@@ -1393,7 +1215,6 @@ const styles = {
   },
   ideaCaption: { fontSize: 14, lineHeight: 1.6, margin: '0 0 8px', color: 'var(--text-primary, #2D2A26)' },
   ideaTap: { fontSize: 11, color: 'var(--accent, #C76B8A)', fontWeight: 600 },
-
   // Compose
   composeArea: { display: 'flex', flexDirection: 'column', gap: 12 },
   composeTypeRow: { display: 'flex', flexWrap: 'wrap', gap: 6 },
@@ -1475,7 +1296,6 @@ const styles = {
     cursor: 'pointer',
     fontFamily: 'inherit',
   },
-
   // Posts
   postList: { display: 'flex', flexDirection: 'column', gap: 14 },
   postCard: {
@@ -1569,7 +1389,6 @@ const styles = {
   emptyState: { textAlign: 'center', padding: '40px 20px' },
   emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 6px' },
   emptyDesc: { fontSize: 13, color: 'var(--text-muted, #7a7470)', margin: 0, lineHeight: 1.5 },
-
   // Gallery
   galleryHeaderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
   galleryAddBtn: {
@@ -1620,7 +1439,6 @@ const styles = {
   galleryTreatmentName: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
   galleryCaption: { display: 'block', fontSize: 12, color: 'var(--text-secondary, #7A756F)', marginTop: 2 },
   galleryDate: { display: 'block', fontSize: 10, color: 'var(--text-muted, #7a7470)', marginTop: 4 },
-
   // AI suggestions
   aiSuggestionsSection: { marginBottom: 4 },
   aiSuggestionsHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
@@ -1636,7 +1454,6 @@ const styles = {
   },
   aiSuggestionTreatment: { display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--accent, #C76B8A)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 },
   aiSuggestionCaption: { margin: '0 0 6px', fontSize: 13, lineHeight: 1.55, color: 'var(--text-primary, #2D2A26)' },
-
   // Streams
   streamSelector: { display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 12, marginBottom: 8, scrollBehavior: 'smooth' },
   streamPill: {
@@ -1671,7 +1488,6 @@ const styles = {
     boxSizing: 'border-box',
   },
   streamFormActions: { display: 'flex', gap: 8 },
-
   // Progress
   progressSection: { marginBottom: 12, padding: '12px 0' },
   progressLabel: {
@@ -1692,7 +1508,6 @@ const styles = {
     transition: 'width 0.3s ease',
     borderRadius: 4,
   },
-
   // Cancelled prompt
   cancelledPromptBanner: {
     display: 'flex',
@@ -1717,7 +1532,6 @@ const styles = {
     whiteSpace: 'nowrap',
     flexShrink: 0,
   },
-
   // Calendar
   calendarHeader: {
     display: 'flex',

@@ -11,7 +11,7 @@
  * Preview with mock data. Tone matches Ellie's voice model.
  */
 import { useState, useEffect } from 'react';
-import { useBeautician, supabase, isDevMode, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
+import { useBeautician, supabase, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -26,49 +26,6 @@ const CATEGORIES = [
 ];
 
 const VARIABLES = ['{name}', '{treatment}', '{date}', '{time}', '{link}'];
-
-const DEV_TEMPLATES = [
-  {
-    id: 'tmpl-1', category: 'booking', name: 'Booking Confirmation',
-    body: "Hey {name}! You're booked in for {treatment} on {date} at {time}. See you then lovely xx",
-    autoSend: true, trigger: 'on_booking',
-  },
-  {
-    id: 'tmpl-2', category: 'booking', name: '24h Reminder',
-    body: "Hey {name}! Just a reminder you're booked in tomorrow at {time} for your {treatment}. Can't wait to see you xx",
-    autoSend: true, trigger: '24h_before',
-  },
-  {
-    id: 'tmpl-3', category: 'booking', name: 'Post-Appointment Thank You',
-    body: "Thanks for coming in today {name}! Hope you love your {treatment}. Don't forget your aftercare and I'll see you next time xx",
-    autoSend: true, trigger: 'after_appointment',
-  },
-  {
-    id: 'tmpl-4', category: 'care', name: 'Rebook Nudge',
-    body: "Hey {name}! It's been a little while since your last {treatment}. Fancy getting booked in? I've got some lovely slots this week xx",
-    autoSend: false, trigger: 'manual',
-  },
-  {
-    id: 'tmpl-5', category: 'care', name: 'Birthday Message',
-    body: "Happy birthday {name}!! 🎂 Hope you have the best day lovely. I've got a little treat for you — 15% off your next visit xx",
-    autoSend: true, trigger: 'on_birthday',
-  },
-  {
-    id: 'tmpl-6', category: 'marketing', name: 'Seasonal Promo',
-    body: "Hey {name}! Spring is here and I've got a special offer — 20% off all brow treatments this week only! Book via {link} xx",
-    autoSend: false, trigger: 'manual',
-  },
-  {
-    id: 'tmpl-7', category: 'marketing', name: 'New Treatment Launch',
-    body: "Hey {name}! Exciting news — I'm now offering a brand new treatment and I think you'll love it. Check it out and book: {link} xx",
-    autoSend: false, trigger: 'manual',
-  },
-  {
-    id: 'tmpl-8', category: 'care', name: 'Aftercare Reminder',
-    body: "Hey {name}! Quick aftercare reminder for your {treatment} — avoid getting them wet for 24 hours and no makeup on the area. Any questions just message me xx",
-    autoSend: true, trigger: '2h_after',
-  },
-];
 
 const TRIGGERS = [
   { key: 'manual', label: 'Manual send' },
@@ -93,7 +50,7 @@ function previewMessage(body) {
 export default function MessageTemplates() {
   const { dark } = useTheme();
   const { beautician, loading: bLoading } = useBeautician();
-  const [templates, setTemplates] = useState(isDevMode ? DEV_TEMPLATES : []);
+  const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState('all');
@@ -117,16 +74,12 @@ export default function MessageTemplates() {
     setLoading(true);
     setError(null);
     try {
-      if (isDevMode) {
-        setTemplates(DEV_TEMPLATES);
-      } else {
-        const data = await fetchRows('message_templates', beautician.id, { order: 'created_at', ascending: false });
-        setTemplates(data || []);
-      }
+      const data = await fetchRows('message_templates', beautician.id, { order: 'created_at', ascending: false });
+      setTemplates(data || []);
     } catch (err) {
-      logger.error('Load templates error:', err);
-      setError(err.message || 'Failed to load templates');
-      setTemplates(DEV_TEMPLATES);
+      logger.error({ err }, 'Load templates error');
+      setError('Something went wrong');
+      setTemplates([]);
     } finally {
       setLoading(false);
     }
@@ -151,7 +104,7 @@ export default function MessageTemplates() {
       setNewBody('');
       setShowCreate(false);
     } catch (err) {
-      logger.error('Create template error:', err);
+      logger.error({ err }, 'Create template error');
     }
   }
 
@@ -162,7 +115,7 @@ export default function MessageTemplates() {
       setTemplates(prev => prev.filter(t => t.id !== id));
       setExpandedId(null);
     } catch (err) {
-      logger.error('Delete template error:', err);
+      logger.error({ err }, 'Delete template error');
     } finally {
       setDeleting(null);
     }

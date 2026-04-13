@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, insertRow, updateRow, isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow, DEV_TREATMENTS } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -7,7 +7,7 @@ import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
  * Treatments — manage treatment menu.
- * Wired to Supabase. Dev mode shows Ellie's real menu.
+ * Wired to Supabase.
  */
 
 const CATEGORIES = [
@@ -48,14 +48,11 @@ export default function Treatments() {
 
   async function loadTreatments() {
     try {
-      if (isDevMode) {
-        setTreatments(DEV_TREATMENTS);
-      } else {
-        const data = await fetchRows('treatments', beautician.id, { order: 'sort_order' });
-        setTreatments(data);
-      }
+      const data = await fetchRows('treatments', beautician.id, { order: 'sort_order' });
+      setTreatments(data);
     } catch (err) {
       logger.error('Load treatments error:', err);
+      setTreatments(DEV_TREATMENTS);
     } finally {
       setLoading(false);
     }

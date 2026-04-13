@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, isDevMode, fetchRows, insertRow, updateRow } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -19,63 +19,6 @@ import ErrorCard from '../components/ErrorCard.jsx';
  *   Settings — auto-send timing, channel, follow-up nudge
  */
 
-const DEV_AFTERCARE = [
-  {
-    id: 'dev-ac1',
-    treatment_name: 'Lamination & Hybrid Dye',
-    treatment_id: 'dev-t1',
-    icon: '✨',
-    send_after_hours: 1,
-    auto_send: true,
-    instructions: [
-      { title: 'First 24 hours', text: 'Keep brows dry — no water, steam, or sweat on them. Sleep on your back if you can.' },
-      { title: 'Next 48 hours', text: 'Avoid touching or rubbing. No makeup on the brow area yet.' },
-      { title: 'After 48 hours', text: 'You can gently wash and apply a light brow oil. Avoid exfoliants for a week.' },
-      { title: 'Ongoing', text: 'Use SPF around the brow area in the sun. Book your maintenance in 4-6 weeks for best results.' },
-    ],
-    products: ['Brow oil', 'SPF moisturiser'],
-    personal_note: "Your brows look amazing — they'll settle even more in the next day or two so don't panic if they feel bold right now! xx",
-    rebook_nudge_days: 35,
-    created_at: '2026-01-15T10:00:00Z',
-  },
-  {
-    id: 'dev-ac2',
-    treatment_name: 'Lash Lift & Tint',
-    treatment_id: 'dev-t13',
-    icon: '👁️',
-    send_after_hours: 1,
-    auto_send: true,
-    instructions: [
-      { title: 'First 24 hours', text: 'No water, steam, or touching your lashes. Avoid eye makeup and contact lenses if possible.' },
-      { title: 'Next 48 hours', text: 'Be gentle — no rubbing your eyes. Side-sleep is fine but face-down isn\'t.' },
-      { title: 'After 48 hours', text: 'You can wear mascara again (water-based only). No waterproof formulas or oil-based removers.' },
-      { title: 'Ongoing', text: 'Use a lash serum nightly for extra length. Results last 6-8 weeks.' },
-    ],
-    products: ['Lash serum', 'Water-based mascara'],
-    personal_note: "Your lashes look unreal! Let me know how you get on with them xx",
-    rebook_nudge_days: 42,
-    created_at: '2026-02-01T10:00:00Z',
-  },
-  {
-    id: 'dev-ac3',
-    treatment_name: 'Ombre Brows (Semi-Permanent)',
-    treatment_id: 'dev-t7',
-    icon: '🖌️',
-    send_after_hours: 2,
-    auto_send: true,
-    instructions: [
-      { title: 'Days 1-3', text: 'Keep the area completely dry. Blot gently with a clean tissue if needed — don\'t rub.' },
-      { title: 'Days 3-7', text: 'Apply the healing balm I gave you with a cotton bud, very thin layer, twice daily.' },
-      { title: 'Days 7-14', text: 'Light flaking is normal — let it happen naturally. No picking or peeling.' },
-      { title: 'Weeks 2-6', text: 'Colour will look lighter during healing then darken again. The true result shows at week 4-6.' },
-      { title: 'After healing', text: 'Use SPF daily on the brows. Your top-up appointment is included — book it around the 6-week mark.' },
-    ],
-    products: ['Healing balm (provided)', 'SPF 50'],
-    personal_note: "These are going to look incredible once they're healed. Trust the process — the colour comes back! Book your top-up with me around week 6 xx",
-    rebook_nudge_days: 42,
-    created_at: '2026-01-20T10:00:00Z',
-  },
-];
 
 const DEFAULT_SETTINGS = {
   auto_send_enabled: true,
@@ -112,11 +55,6 @@ export default function Aftercare() {
 
   async function loadData() {
     setLoading(true);
-    if (isDevMode) {
-      setCards(DEV_AFTERCARE);
-      setLoading(false);
-      return;
-    }
     try {
       const rows = await fetchRows('aftercare_cards', beautician?.id, { order: 'created_at', ascending: false });
       setCards(rows);
@@ -169,7 +107,7 @@ export default function Aftercare() {
       created_at: new Date().toISOString(),
     };
 
-    if (!isDevMode && beautician) {
+    if (beautician) {
       try {
         const saved = await insertRow('aftercare_cards', {
           beautician_id: beautician.id,
@@ -200,7 +138,7 @@ export default function Aftercare() {
   async function handleToggleAutoSend(card) {
     const updated = { ...card, auto_send: !card.auto_send };
     setCards(prev => prev.map(c => c.id === card.id ? updated : c));
-    if (!isDevMode) {
+    if (true) {
       try { await updateRow('aftercare_cards', card.id, { auto_send: updated.auto_send }); } catch {}
     }
   }

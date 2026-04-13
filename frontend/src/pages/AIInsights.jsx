@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
+import { useBeautician, fetchRows } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -15,27 +15,6 @@ import EmptyState from '../components/EmptyState.jsx';
  *   - Next Appointments compact list
  *   - Live Feed (activity)
  */
-
-/* ─── Dev-mode sample data ──────────────────────────── */
-const DEV_APPOINTMENTS = [
-  { id: 1, client_name: 'Emma Richardson', treatment_name: 'Signature Balayage + Treatment', starts_at: new Date().toISOString().slice(0, 10) + 'T14:00:00', status: 'confirmed', price_cents: 24500 },
-  { id: 2, client_name: 'Julianna Moore', treatment_name: 'Express Gloss & Blowout', starts_at: new Date().toISOString().slice(0, 10) + 'T15:30:00', status: 'confirmed', price_cents: 11000 },
-  { id: 3, client_name: 'Sarah Chen', treatment_name: 'Lash Lift & Tint', starts_at: new Date().toISOString().slice(0, 10) + 'T11:00:00', status: 'confirmed', price_cents: 5500 },
-  { id: 4, client_name: 'Olivia Brown', treatment_name: 'Facial Peel', starts_at: new Date().toISOString().slice(0, 10) + 'T13:15:00', status: 'confirmed', price_cents: 6500 },
-  { id: 5, client_name: 'Amy Wilson', treatment_name: 'Lip Filler Top-Up', starts_at: new Date().toISOString().slice(0, 10) + 'T16:30:00', status: 'pending', price_cents: 12000 },
-];
-
-const DEV_ACTIVITY = [
-  { type: 'optimization', message: 'Optimization complete. Restocked \'Mist\' inventory.', time: '2m ago', icon: '✨' },
-  { type: 'booking', message: 'New Booking: Sarah K. for Dec 12th.', time: '14m ago', icon: '📅' },
-  { type: 'payment', message: 'Payment Received: £240.00 from Maya L.', time: '1h ago', icon: '💰' },
-];
-
-const DEV_COACHING = [
-  { id: 'vc-1', summary: "Your Saturday mornings fill within 2 hours. You could increase your gel set by £5 — demand supports it.", metadata: { coaching_type: 'high_demand' } },
-  { id: 'vc-2', summary: "You haven't updated prices on 4 treatments in 6+ months. A £3 increase across these adds roughly £280/month based on your current bookings.", metadata: { coaching_type: 'price_stale' } },
-  { id: 'vc-3', summary: "Clients who add brow lamination spend £25 more per visit. Mention it when rebooking lash clients — it could mean £150/month extra.", metadata: { coaching_type: 'upsell' } },
-];
 
 const TIPS = [
   { text: 'Emma tends to purchase \'Velvet Shine Serum\' every 3 appointments. She\'s due today—mention the loyalty discount for a likely upsell.' },
@@ -77,30 +56,21 @@ export default function AIInsights() {
       });
       if (rows && rows.length > 0) {
         setAppointments(rows);
-      } else if (isDevMode) {
-        setAppointments(DEV_APPOINTMENTS);
       } else {
         setAppointments([]);
       }
-      setActivity(isDevMode ? DEV_ACTIVITY : []);
+      setActivity([]);
 
       // Fetch value coaching insights
-      if (!isDevMode) {
-        const coaching = await fetchRows('ai_actions', beautician.id, {
-          order: 'created_at', ascending: false,
-          filters: { action_type: 'eq.value_coaching' },
-          limit: 3,
-        });
-        setCoachingCards(coaching || []);
-      } else {
-        setCoachingCards(DEV_COACHING);
-      }
+      const coaching = await fetchRows('ai_actions', beautician.id, {
+        order: 'created_at', ascending: false,
+        filters: { action_type: 'eq.value_coaching' },
+        limit: 3,
+      });
+      setCoachingCards(coaching || []);
     } catch (err) {
       logger.error('Load AI insights error:', err);
-      if (isDevMode) {
-        setAppointments(DEV_APPOINTMENTS);
-        setActivity(DEV_ACTIVITY);
-      }
+      setAppointments([]);
     } finally {
       setLoading(false);
     }

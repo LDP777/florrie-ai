@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, insertRow, updateRow, deleteRow, isDevMode } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js'
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
-
 const triggerOptions = [
   { id: 'appointment_booked', label: 'Appointment booked', icon: '📅' },
   { id: 'appointment_completed', label: 'Appointment completed', icon: '✅' },
@@ -19,7 +18,6 @@ const triggerOptions = [
   { id: 'loyalty_milestone', label: 'Loyalty tier reached', icon: '🏆' },
   { id: 'patch_test_expiry', label: 'Patch test expiring', icon: '🩹' },
 ];
-
 const actionOptions = [
   { id: 'send_whatsapp', label: 'Send WhatsApp message', icon: '💬' },
   { id: 'send_email', label: 'Send email', icon: '📧' },
@@ -34,7 +32,6 @@ const actionOptions = [
   { id: 'move_to_waitlist', label: 'Add to waitlist', icon: '📋' },
   { id: 'schedule_followup', label: 'Schedule follow-up', icon: '🔄' },
 ];
-
 const conditionOptions = [
   { id: 'visit_count', label: 'Visit count', options: ['is more than', 'is less than', 'equals'] },
   { id: 'total_spend', label: 'Total spend', options: ['is more than', 'is less than'] },
@@ -43,7 +40,6 @@ const conditionOptions = [
   { id: 'client_tag', label: 'Client has tag', options: ['includes', 'does not include'] },
   { id: 'loyalty_tier', label: 'Loyalty tier', options: ['is', 'is above', 'is below'] },
 ];
-
 const mockRules = [
   {
     id: 1, name: 'Welcome new clients', enabled: true,
@@ -81,52 +77,43 @@ const mockRules = [
     description: 'Welcome to VIP — personal message, tag update, notify Ellie'
   },
 ];
-
 const templateRules = [
   { name: 'Post-appointment thank you', trigger: 'appointment_completed', actions: ['send_whatsapp'], description: 'Send thank you + aftercare link after each visit' },
   { name: 'Review request (5-star clients)', trigger: 'appointment_completed', actions: ['send_whatsapp'], description: 'Ask happy clients to leave a Google review' },
   { name: 'Patch test reminder', trigger: 'patch_test_expiry', actions: ['send_whatsapp', 'create_task'], description: 'Remind client and flag for rebooking when patch test expires' },
   { name: 'Cancellation follow-up', trigger: 'cancellation', actions: ['send_whatsapp', 'schedule_followup'], description: 'Sympathetic message + offer to rebook within 7 days' },
 ];
-
 export default function AutomationRules() {
   const [activeTab, setActiveTab] = useState('rules');
   const [rules, setRules] = useState([]);
   const [creating, setCreating] = useState(false);
   const [newRule, setNewRule] = useState({ name: '', trigger: null, actions: [], conditions: [], delay: '0' });
   const [expandedRule, setExpandedRule] = useState(null);
-
   const { beautician, loading: bLoading } = useBeautician();
-
   useEffect(() => {
     if (bLoading) return;
-    if (isDevMode || !beautician) { setRules(mockRules); return; }
+    if (!beautician) { setRules(mockRules); return; }
     fetchRows('automation_rules', beautician.id, { order: 'created_at', ascending: false })
       .then(rows => setRules(rows.length ? rows : mockRules));
   }, [beautician, bLoading]);
-
   if (bLoading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted, var(--text-muted, #7a7470))' }}>Loading...</div>;
-
   const toggleRule = async (id) => {
     const rule = rules.find(r => r.id === id);
     if (!rule) return;
     const newEnabled = !rule.enabled;
     setRules(rules.map(r => r.id === id ? { ...r, enabled: newEnabled } : r));
-    if (!isDevMode && beautician) {
+    if (beautician) {
       try { await updateRow('automation_rules', id, { enabled: newEnabled }); } catch (e) { logger.error(e); }
     }
   };
-
   const activeCount = rules.filter(r => r.enabled).length;
   const totalRuns = rules.reduce((sum, r) => sum + r.runs, 0);
-
   const tabs = [
     { id: 'rules', label: `Rules (${rules.length})` },
     { id: 'sequences', label: 'Sequences' },
     { id: 'templates', label: 'Templates' },
     { id: 'log', label: 'Activity' },
   ];
-
   return (
     <div style={styles.page}>
       <div style={styles.header}>
@@ -138,12 +125,10 @@ export default function AutomationRules() {
           {creating ? '✕' : '+ New'}
         </button>
       </div>
-
       {/* Create new rule */}
       {creating && (
         <div style={styles.createCard}>
           <div style={styles.createTitle}>Build a rule</div>
-
           {/* Rule name */}
           <input
             type="text"
@@ -152,7 +137,6 @@ export default function AutomationRules() {
             placeholder="Rule name..."
             style={styles.ruleInput}
           />
-
           {/* When (trigger) */}
           <div style={styles.stepLabel}>⚡ WHEN this happens...</div>
           <div style={styles.chipGrid}>
@@ -169,7 +153,6 @@ export default function AutomationRules() {
               </button>
             ))}
           </div>
-
           {/* Delay */}
           <div style={styles.stepLabel}>⏱️ Wait...</div>
           <div style={styles.delayRow}>
@@ -186,7 +169,6 @@ export default function AutomationRules() {
               </button>
             ))}
           </div>
-
           {/* Then (actions) */}
           <div style={styles.stepLabel}>🎯 THEN do this...</div>
           <div style={styles.chipGrid}>
@@ -208,7 +190,6 @@ export default function AutomationRules() {
               </button>
             ))}
           </div>
-
           {/* Only if (conditions) */}
           <div style={styles.stepLabel}>🔍 ONLY IF... <span style={{ fontSize: 11, color: 'var(--text-muted, var(--text-muted, #7a7470))', fontWeight: 400 }}>(optional)</span></div>
           <div style={styles.conditionsList}>
@@ -222,7 +203,6 @@ export default function AutomationRules() {
               </div>
             ))}
           </div>
-
           <button
             onClick={async () => {
               if (!newRule.name || !newRule.trigger || !newRule.actions.length) return;
@@ -253,7 +233,6 @@ export default function AutomationRules() {
           </button>
         </div>
       )}
-
       {/* Tabs */}
       <div style={styles.tabs}>
         {tabs.map(tab => (
@@ -267,7 +246,6 @@ export default function AutomationRules() {
           >{tab.label}</button>
         ))}
       </div>
-
       {/* Rules list */}
       {activeTab === 'rules' && (
         <div>
@@ -319,7 +297,6 @@ export default function AutomationRules() {
           ))}
         </div>
       )}
-
       {/* Templates */}
       {activeTab === 'templates' && (
         <div>
@@ -338,10 +315,8 @@ export default function AutomationRules() {
           ))}
         </div>
       )}
-
       {/* Follow-up sequences — merged from FollowUpSequences.jsx */}
       {activeTab === 'sequences' && <SequencesPanel beautician={beautician} />}
-
       {/* Activity log */}
       {activeTab === 'log' && (
         <div>
@@ -371,14 +346,12 @@ export default function AutomationRules() {
     </div>
   );
 }
-
 const styles = {
   page: { padding: '16px 16px 100px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: 0 },
   subtitle: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #7a7470))', marginTop: 2 },
   createBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-
   createCard: { background: 'var(--bg-card, #fff)', borderRadius: 16, padding: 16, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', marginBottom: 16 },
   createTitle: { fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', marginBottom: 12 },
   ruleInput: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border, var(--border, var(--border, #EDE9E4)))', fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 16, boxSizing: 'border-box', background: 'var(--bg, var(--bg, #FAF8F5))' },
@@ -393,11 +366,9 @@ const styles = {
   condSelect: { padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', fontSize: 11, fontFamily: 'inherit', background: 'var(--bg, var(--bg, #FAF8F5))', color: '#4A4540' },
   condInput: { width: 60, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', fontSize: 11, fontFamily: 'inherit', background: 'var(--bg, var(--bg, #FAF8F5))' },
   saveRuleBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
-
   tabs: { display: 'flex', gap: 4, marginBottom: 16, background: 'var(--border, var(--border, var(--border, #EDE9E4)))', borderRadius: 12, padding: 4 },
   tab: { flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 500, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', background: 'none', color: '#6B6560' },
   tabActive: { background: 'var(--bg-card, #fff)', color: 'var(--text-primary, #2D2A26)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' },
-
   ruleCard: { background: 'var(--bg-card, #fff)', borderRadius: 14, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', marginBottom: 10, overflow: 'hidden' },
   ruleHeader: { display: 'flex', alignItems: 'center', gap: 12, padding: 14, cursor: 'pointer' },
   ruleName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)', marginBottom: 2 },
@@ -410,15 +381,12 @@ const styles = {
   ruleStatItem: { textAlign: 'center' },
   ruleActions: { display: 'flex', gap: 8 },
   ruleActionBtn: { padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', background: 'var(--bg, var(--bg, #FAF8F5))', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#6B6560' },
-
   templatesHint: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #7a7470))', marginBottom: 12 },
   templateCard: { display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 14, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', marginBottom: 10 },
   useTemplateBtn: { padding: '8px 14px', borderRadius: 8, border: 'none', background: 'var(--border, var(--border, var(--border, #EDE9E4)))', color: 'var(--text-primary, #2D2A26)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
-
   logRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', borderBottom: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))' },
   logDot: { width: 6, height: 6, borderRadius: 3, flexShrink: 0 },
 };
-
 // ─── Sequences panel (merged from FollowUpSequences.jsx) ──────────────────────
 const SEQ_TRIGGERS = [
   { value: 'after-appointment', label: 'After Appointment', icon: '✅' },
@@ -430,7 +398,6 @@ const SEQ_TRIGGERS = [
 const SEQ_DELAYS  = ['0h','1h','2h','4h','12h','24h','2d','3d','5d','7d','14d','21d','30d','35d'];
 const SEQ_CHANNELS = ['whatsapp', 'sms', 'email'];
 const SEQ_VARS = ['{name}','{treatment}','{date}','{time}','{booking_link}','{aftercare_link}'];
-
 const DEV_SEQUENCES = [
   { id:'seq1', name:'Post Semi-Permanent Care', trigger:'after-appointment', treatments:['Ombre Brows (Semi-Permanent)'], active:true,
     steps:[
@@ -450,7 +417,6 @@ const DEV_SEQUENCES = [
       { delay:'0h', channel:'whatsapp', message:"Happy birthday {name}!! 🎂 Here's 15% off your next appointment — just mention this when you book xx" },
     ], stats:{ sent:8, opened:8, replied:5 } },
 ];
-
 function formatSeqDelay(d) {
   if (!d) return 'Immediately';
   if (d === '0h') return 'Immediately';
@@ -460,7 +426,6 @@ function formatSeqDelay(d) {
   if (unit === 'h') return n === '1' ? '1 hour' : `${n} hours`;
   return n === '1' ? '1 day' : `${n} days`;
 }
-
 function SequencesPanel({ beautician }) {
   const [sequences, setSequences] = useState([]);
   const [expanded, setExpanded]   = useState(null);
@@ -469,36 +434,31 @@ function SequencesPanel({ beautician }) {
   const [createForm, setCreateForm] = useState({
     name: '', trigger: 'after-appointment', steps: [{ delay: '0h', channel: 'whatsapp', message: '' }],
   });
-
   useEffect(() => {
     if (!beautician) return;
-    if (isDevMode) { setSequences(DEV_SEQUENCES); return; }
     fetchRows('follow_up_sequences', beautician.id, { order: 'created_at' })
       .then(rows => setSequences(rows?.length ? rows : DEV_SEQUENCES))
-      .catch(() => setSequences(DEV_SEQUENCES));
+      .catch(() => setState([]));
   }, [beautician]);
-
   async function handleToggle(seq) {
     const next = !seq.active;
     setSequences(prev => prev.map(s => s.id === seq.id ? { ...s, active: next } : s));
-    if (!isDevMode && beautician) {
+    if (beautician) {
       try { await updateRow('follow_up_sequences', seq.id, { active: next }); }
       catch (e) { logger.error(e); setSequences(prev => prev.map(s => s.id === seq.id ? { ...s, active: seq.active } : s)); }
     }
   }
-
   async function handleDelete(id) {
     setSequences(prev => prev.filter(s => s.id !== id));
-    if (!isDevMode && beautician) {
+    if (beautician) {
       try { await deleteRow('follow_up_sequences', id); } catch (e) { logger.error(e); }
     }
   }
-
   async function handleCreate() {
     if (!createForm.name.trim()) return;
     setSaving(true);
     try {
-      if (!isDevMode && beautician) {
+      if (beautician) {
         const row = await insertRow('follow_up_sequences', {
           beautician_id: beautician.id,
           name: createForm.name.trim(),
@@ -516,11 +476,9 @@ function SequencesPanel({ beautician }) {
     } catch (e) { logger.error(e); }
     finally { setSaving(false); }
   }
-
   const totalSent    = sequences.reduce((s, q) => s + (q.stats?.sent    || 0), 0);
   const totalReplied = sequences.reduce((s, q) => s + (q.stats?.replied || 0), 0);
   const replyRate    = totalSent > 0 ? Math.round((totalReplied / totalSent) * 100) : 0;
-
   return (
     <div>
       {/* Stats strip */}
@@ -540,7 +498,6 @@ function SequencesPanel({ beautician }) {
           style={{ padding: '10px 14px', borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
         >+ New</button>
       </div>
-
       {/* Sequence cards */}
       {sequences.map(seq => {
         const trigger  = SEQ_TRIGGERS.find(t => t.value === seq.trigger);
@@ -562,7 +519,6 @@ function SequencesPanel({ beautician }) {
                 {seq.active ? 'Active' : 'Paused'}
               </span>
             </div>
-
             {isOpen && (
               <div style={{ padding: '0 14px 14px', borderTop: '1px solid #EDE9E4' }}>
                 {/* Steps timeline */}
@@ -598,17 +554,14 @@ function SequencesPanel({ beautician }) {
           </div>
         );
       })}
-
       {/* Create modal */}
       {showCreate && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'flex-end', zIndex: 200 }} onClick={() => setShowCreate(false)}>
           <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '20px 16px 40px', width: '100%', maxHeight: '85vh', overflowY: 'auto', boxSizing: 'border-box' }} onClick={e => e.stopPropagation()}>
             <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 16px' }}>New Sequence</h2>
-
             <div style={{ fontSize: 12, fontWeight: 700, color: '#8B8580', marginBottom: 6 }}>Name</div>
             <input style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #EDE9E4', fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 14, boxSizing: 'border-box' }}
               placeholder="e.g. Post Lamination Care" value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))} />
-
             <div style={{ fontSize: 12, fontWeight: 700, color: '#8B8580', marginBottom: 6 }}>Trigger</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
               {SEQ_TRIGGERS.map(t => (
@@ -618,7 +571,6 @@ function SequencesPanel({ beautician }) {
                 </button>
               ))}
             </div>
-
             <div style={{ fontSize: 12, fontWeight: 700, color: '#8B8580', marginBottom: 8 }}>Steps</div>
             {createForm.steps.map((step, i) => (
               <div key={i} style={{ background: '#FAF8F5', borderRadius: 10, padding: 10, marginBottom: 8 }}>
@@ -645,7 +597,6 @@ function SequencesPanel({ beautician }) {
               style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1px dashed #C76B8A', background: 'none', color: '#C76B8A', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 14 }}>
               + Add step
             </button>
-
             <button onClick={handleCreate} disabled={saving || !createForm.name.trim()}
               style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: saving || !createForm.name.trim() ? 0.6 : 1 }}>
               {saving ? 'Saving…' : 'Create Sequence'}

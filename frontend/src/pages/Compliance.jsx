@@ -10,7 +10,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
+import { useBeautician, fetchRows } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 
 // Guardian avatar (inline, no external deps)
@@ -41,13 +41,6 @@ function MIcon({ name, size = 20, color, style: s }) {
   );
 }
 
-const DEV_PATCH_STATS = {
-  pending: 3, done_this_month: 14, expired: 1, total: 18,
-};
-const DEV_FORM_STATS = {
-  total_forms: 4, pending_signatures: 7, completed_this_month: 31,
-};
-
 function getToken() {
   const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
   if (!key) return null;
@@ -68,9 +61,7 @@ export default function Compliance() {
 
   useEffect(() => {
     if (loading) return;
-    if (isDevMode || !beautician) {
-      setPatchStats(DEV_PATCH_STATS);
-      setFormStats(DEV_FORM_STATS);
+    if (!beautician) {
       setFetching(false);
       return;
     }

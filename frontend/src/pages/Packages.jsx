@@ -12,7 +12,7 @@
  * Public page: /training/:slug/:courseId — TrainingBooking.jsx (to be built)
  */
 import { useState, useEffect, useCallback } from 'react';
-import { useBeautician, fetchRows, insertRow, updateRow, deleteRow, isDevMode } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -103,12 +103,6 @@ export default function Courses() {
 
   useEffect(() => {
     if (bLoading || !beautician) return;
-    if (isDevMode) {
-      setCourses(DEV_COURSES);
-      setEnrollments([]);
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     Promise.all([
       fetchRows('courses', beautician.id),

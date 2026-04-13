@@ -13,14 +13,12 @@
  *   - Smart insight adapts to appointment load
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useBeautician, fetchRows, supabase, updateRow, insertRow, deleteRow, isDevMode } from '../lib/supabase.js';
+import { useBeautician, fetchRows, supabase, updateRow, insertRow, deleteRow } from '../lib/supabase.js'
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
-
 const todayStr = () => new Date().toISOString().slice(0, 10);
-
 function MIcon({ name, fill, size, style }) {
   return (
     <span className="material-symbols-outlined" style={{
@@ -30,7 +28,6 @@ function MIcon({ name, fill, size, style }) {
     }}>{name}</span>
   );
 }
-
 /* ─── Factory default templates ─── */
 const FACTORY_OPENING = [
   { label: 'Sanitise all stations & tools', icon: 'sanitizer' },
@@ -42,7 +39,6 @@ const FACTORY_OPENING = [
   { label: 'Open booking system & confirm walk-in availability', icon: 'event_available' },
   { label: 'Post "Open Today" story on Instagram', icon: 'photo_camera' },
 ];
-
 const FACTORY_CLOSING = [
   { label: 'Sanitise & sterilise all tools', icon: 'sanitizer' },
   { label: 'Wipe down stations & mirrors', icon: 'cleaning_services' },
@@ -53,7 +49,6 @@ const FACTORY_CLOSING = [
   { label: 'Restock low supplies for tomorrow', icon: 'inventory' },
   { label: 'Lock up & set alarm', icon: 'lock' },
 ];
-
 /* ─── Dev-mode sample data ─── */
 const DEV_CHECKLISTS = {
   opening: FACTORY_OPENING.map((t, i) => ({
@@ -68,13 +63,11 @@ const DEV_CHECKLISTS = {
     { id: 'x3', label: 'Upload before/after from Daisy\'s appointment', done: true, dueDate: todayStr(), type: 'custom', sort_order: 2 },
   ],
 };
-
 const DEV_APPOINTMENTS = [
   { id: 1, client_name: 'Shauna', treatment_name: 'Lamination & Hybrid Dye', starts_at: todayStr() + 'T11:00:00', price_cents: 4500 },
   { id: 2, client_name: 'Daisy S', treatment_name: 'Lamination & Tint', starts_at: todayStr() + 'T13:00:00', price_cents: 4000 },
   { id: 3, client_name: 'Jasmin', treatment_name: 'HD Brows', starts_at: todayStr() + 'T15:00:00', price_cents: 2500 },
 ];
-
 export default function DailyChecklist() {
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('opening');
@@ -84,7 +77,6 @@ export default function DailyChecklist() {
   const [bestStreak, setBestStreak] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
   // ── Edit mode ──
   const [editing, setEditing] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
@@ -92,30 +84,16 @@ export default function DailyChecklist() {
   const [newDate, setNewDate] = useState(todayStr());
   const [templateSaving, setTemplateSaving] = useState(false);
   const [templateToast, setTemplateToast] = useState('');
-
   useEffect(() => {
     if (bLoading || !beautician) return;
     loadAll();
   }, [beautician, bLoading]);
-
   // ── Load data ──
-
   async function loadAll() {
     setLoading(true);
     setError(null);
     try {
-      if (isDevMode) {
-        // Check for saved dev template in sessionStorage-like state
-        setChecklists(DEV_CHECKLISTS);
-        setAppointments(DEV_APPOINTMENTS);
-        setStreakDays(5);
-        setBestStreak(12);
-        setLoading(false);
-        return;
-      }
-
       const td = todayStr();
-
       const [checklistRows, apptRows] = await Promise.all([
         fetchRows('daily_checklists', beautician.id, {
           eq: { date: td }, order: 'sort_order', ascending: true,
@@ -124,7 +102,6 @@ export default function DailyChecklist() {
           order: 'starts_at', ascending: true,
         }),
       ]);
-
       // Parse checklist rows
       if (checklistRows && checklistRows.length > 0) {
         const byType = { opening: [], closing: [], custom: [] };
@@ -138,7 +115,6 @@ export default function DailyChecklist() {
         // First visit today — load from saved template or factory defaults
         await seedTodayFromTemplate(td);
       }
-
       // Appointments
       if (apptRows && apptRows.length > 0) {
         const todayAppts = apptRows.filter(a => a.starts_at?.slice(0, 10) === td);
@@ -150,7 +126,6 @@ export default function DailyChecklist() {
           price_cents: a.price_cents || 0,
         })));
       }
-
       // Streak
       computeStreak();
     } catch (err) {
@@ -160,13 +135,10 @@ export default function DailyChecklist() {
       setLoading(false);
     }
   }
-
   // ── Seed today from saved template or factory defaults ──
-
   async function seedTodayFromTemplate(td) {
     let openingTemplate = FACTORY_OPENING;
     let closingTemplate = FACTORY_CLOSING;
-
     // Try to load saved template
     if (supabase && beautician) {
       try {
@@ -175,7 +147,6 @@ export default function DailyChecklist() {
           .select('*')
           .eq('beautician_id', beautician.id)
           .order('sort_order', { ascending: true });
-
         if (templates && templates.length > 0) {
           const savedOpening = templates.filter(t => t.type === 'opening');
           const savedClosing = templates.filter(t => t.type === 'closing');
@@ -187,10 +158,8 @@ export default function DailyChecklist() {
         logger.error('Load templates (non-critical):', err);
       }
     }
-
     const seeded = { opening: [], closing: [], custom: [] };
     const toInsert = [];
-
     openingTemplate.forEach((t, i) => {
       const item = {
         id: `temp-o${i}`, label: t.label, icon: t.icon || 'check_circle',
@@ -202,7 +171,6 @@ export default function DailyChecklist() {
         type: 'opening', date: td, sort_order: i,
       });
     });
-
     closingTemplate.forEach((t, i) => {
       const item = {
         id: `temp-c${i}`, label: t.label, icon: t.icon || 'check_circle',
@@ -214,9 +182,7 @@ export default function DailyChecklist() {
         type: 'closing', date: td, sort_order: i,
       });
     });
-
     setChecklists(seeded);
-
     // Bulk insert in background
     if (supabase && toInsert.length > 0) {
       try {
@@ -238,9 +204,7 @@ export default function DailyChecklist() {
       }
     }
   }
-
   // ── Compute streak ──
-
   async function computeStreak() {
     if (!supabase || !beautician) return;
     try {
@@ -251,21 +215,17 @@ export default function DailyChecklist() {
         .eq('type', 'opening')
         .order('date', { ascending: false })
         .limit(500);
-
       if (!recentDays) return;
-
       const dayMap = {};
       recentDays.forEach(r => {
         if (!dayMap[r.date]) dayMap[r.date] = { total: 0, done: 0 };
         dayMap[r.date].total++;
         if (r.done) dayMap[r.date].done++;
       });
-
       const dates = Object.keys(dayMap).sort().reverse();
       let streak = 0;
       let best = 0;
       let runStreak = 0;
-
       for (const d of dates) {
         const day = dayMap[d];
         if (day.total > 0 && day.done === day.total) {
@@ -283,22 +243,18 @@ export default function DailyChecklist() {
       logger.error('Streak compute error:', err);
     }
   }
-
   // ── Toggle item done ──
-
   const toggleItem = async (listKey, itemId) => {
     if (editing) return; // Don't toggle in edit mode
     const item = checklists[listKey]?.find(i => i.id === itemId);
     if (!item) return;
-
     setChecklists(prev => ({
       ...prev,
       [listKey]: prev[listKey].map(i =>
         i.id === itemId ? { ...i, done: !i.done } : i
       ),
     }));
-
-    if (!isDevMode && beautician && !String(itemId).startsWith('temp-')) {
+    if (beautician && !String(itemId).startsWith('temp-')) {
       try {
         await updateRow('daily_checklists', itemId, { done: !item.done });
       } catch (err) {
@@ -312,13 +268,10 @@ export default function DailyChecklist() {
       }
     }
   };
-
   // ── Add item to ANY tab ──
-
   const handleAddItem = async () => {
     const label = newLabel.trim();
     if (!label) return;
-
     const targetTab = tab;
     const dueDate = targetTab === 'custom' ? (newDate || todayStr()) : todayStr();
     const sortOrder = (checklists[targetTab]?.length || 0);
@@ -327,7 +280,6 @@ export default function DailyChecklist() {
       id: tempId, label, done: false, type: targetTab,
       dueDate, sort_order: sortOrder, icon: 'check_circle',
     };
-
     setChecklists(prev => ({
       ...prev,
       [targetTab]: [...prev[targetTab], newItem],
@@ -335,8 +287,7 @@ export default function DailyChecklist() {
     setNewLabel('');
     setNewDate(todayStr());
     setShowAdd(false);
-
-    if (!isDevMode && beautician) {
+    if (beautician) {
       try {
         const row = await insertRow('daily_checklists', {
           beautician_id: beautician.id, label, done: false,
@@ -355,17 +306,14 @@ export default function DailyChecklist() {
       }
     }
   };
-
   // ── Delete item ──
-
   const handleDeleteItem = async (listKey, itemId) => {
     const prev = checklists[listKey];
     setChecklists(p => ({
       ...p,
       [listKey]: p[listKey].filter(i => i.id !== itemId),
     }));
-
-    if (!isDevMode && !String(itemId).startsWith('temp-') && !String(itemId).startsWith('new-')) {
+    if (!String(itemId).startsWith('temp-') && !String(itemId).startsWith('new-')) {
       try {
         await deleteRow('daily_checklists', itemId);
       } catch (err) {
@@ -374,23 +322,18 @@ export default function DailyChecklist() {
       }
     }
   };
-
   // ── Reorder item ──
-
   const handleMove = async (listKey, index, direction) => {
     const list = [...checklists[listKey]];
     const targetIndex = index + direction;
     if (targetIndex < 0 || targetIndex >= list.length) return;
-
     // Swap
     [list[index], list[targetIndex]] = [list[targetIndex], list[index]];
-
     // Update sort_order
     const updated = list.map((item, i) => ({ ...item, sort_order: i }));
     setChecklists(prev => ({ ...prev, [listKey]: updated }));
-
     // Persist sort order for both swapped items
-    if (!isDevMode && beautician) {
+    if (beautician) {
       const a = updated[index];
       const b = updated[targetIndex];
       const promises = [];
@@ -403,28 +346,16 @@ export default function DailyChecklist() {
       try { await Promise.all(promises); } catch (err) { logger.error('Reorder error:', err); }
     }
   };
-
   // ── Save as template ──
-
   const handleSaveAsTemplate = async () => {
     setTemplateSaving(true);
     try {
-      if (isDevMode) {
-        // In dev mode, just show toast
-        setTemplateToast('Template saved');
-        setTimeout(() => setTemplateToast(''), 2500);
-        setTemplateSaving(false);
-        return;
-      }
-
       if (!supabase || !beautician) return;
-
       // Delete existing templates for this beautician
       await supabase
         .from('checklist_templates')
         .delete()
         .eq('beautician_id', beautician.id);
-
       // Insert current opening + closing as templates
       const rows = [];
       checklists.opening.forEach((item, i) => {
@@ -445,14 +376,12 @@ export default function DailyChecklist() {
           sort_order: i,
         });
       });
-
       if (rows.length > 0) {
         const { error: insertErr } = await supabase
           .from('checklist_templates')
           .insert(rows);
         if (insertErr) throw insertErr;
       }
-
       setTemplateToast('Template saved — tomorrow will use this list');
       setTimeout(() => setTemplateToast(''), 3000);
     } catch (err) {
@@ -463,14 +392,11 @@ export default function DailyChecklist() {
       setTemplateSaving(false);
     }
   };
-
   // ── Reset to factory defaults ──
-
   const handleResetToFactory = async () => {
     const td = todayStr();
-
     // Delete all of today's opening/closing items
-    if (!isDevMode && supabase && beautician) {
+    if (supabase && beautician) {
       try {
         await supabase
           .from('daily_checklists')
@@ -482,7 +408,6 @@ export default function DailyChecklist() {
         logger.error('Reset delete error:', err);
       }
     }
-
     // Re-seed from factory
     const newOpening = FACTORY_OPENING.map((t, i) => ({
       id: `temp-o${i}`, label: t.label, icon: t.icon, done: false, type: 'opening', sort_order: i,
@@ -490,11 +415,9 @@ export default function DailyChecklist() {
     const newClosing = FACTORY_CLOSING.map((t, i) => ({
       id: `temp-c${i}`, label: t.label, icon: t.icon, done: false, type: 'closing', sort_order: i,
     }));
-
     setChecklists(prev => ({ ...prev, opening: newOpening, closing: newClosing }));
-
     // Insert factory items into DB
-    if (!isDevMode && supabase && beautician) {
+    if (supabase && beautician) {
       const toInsert = [];
       FACTORY_OPENING.forEach((t, i) => {
         toInsert.push({ beautician_id: beautician.id, label: t.label, done: false, type: 'opening', date: td, sort_order: i });
@@ -517,29 +440,24 @@ export default function DailyChecklist() {
         logger.error('Reset insert error:', err);
       }
     }
-
     // Also clear saved template
-    if (!isDevMode && supabase && beautician) {
+    if (supabase && beautician) {
       try {
         await supabase.from('checklist_templates').delete().eq('beautician_id', beautician.id);
       } catch (err) {
         logger.error('Clear template error:', err);
       }
     }
-
     setTemplateToast('Reset to defaults');
     setTimeout(() => setTemplateToast(''), 2500);
   };
-
   // ── Derived data ──
-
   const currentList = checklists[tab] || [];
   const doneCount = currentList.filter(i => i.done).length;
   const totalCount = currentList.length;
   const progress = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
   const allOpeningDone = checklists.opening.length > 0 && checklists.opening.every(i => i.done);
   const allClosingDone = checklists.closing.length > 0 && checklists.closing.every(i => i.done);
-
   const todayInsights = useMemo(() => {
     const apptCount = appointments.length;
     const expectedRevenue = appointments.reduce((sum, a) => sum + (a.price_cents || 0), 0);
@@ -549,19 +467,15 @@ export default function DailyChecklist() {
       : null;
     return { apptCount, expectedRevenue, nextAppt, nextTime };
   }, [appointments]);
-
   const iconForItem = (item) => {
     const allDefaults = [...FACTORY_OPENING, ...FACTORY_CLOSING];
     const match = allDefaults.find(d => d.label === item.label);
     return match?.icon || item.icon || 'check_circle';
   };
-
   if (bLoading || loading) return <PageLoader />;
-
   return (
     <div style={S.page}>
       {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
-
       {/* ─── Header + Edit toggle ─── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 2 }}>
         <h1 style={S.pageTitle}>Daily Checklist</h1>
@@ -580,7 +494,6 @@ export default function DailyChecklist() {
       <p style={S.dateLabel}>
         {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })}
       </p>
-
       {/* ─── Template toast ─── */}
       {templateToast && (
         <div style={S.toast}>
@@ -588,7 +501,6 @@ export default function DailyChecklist() {
           {templateToast}
         </div>
       )}
-
       {/* ─── Today's Overview Card ─── */}
       {!editing && (
         <section style={S.overviewCard}>
@@ -621,7 +533,6 @@ export default function DailyChecklist() {
           </div>
         </section>
       )}
-
       {/* ─── Edit mode banner ─── */}
       {editing && (
         <section style={S.editBanner}>
@@ -634,7 +545,6 @@ export default function DailyChecklist() {
           </div>
         </section>
       )}
-
       {/* ─── Streak + Status Row (hide in edit mode) ─── */}
       {!editing && (
         <section style={S.streakRow}>
@@ -672,7 +582,6 @@ export default function DailyChecklist() {
           </div>
         </section>
       )}
-
       {/* ─── Tab Bar ─── */}
       <div style={S.tabBar}>
         {[
@@ -696,7 +605,6 @@ export default function DailyChecklist() {
           </button>
         ))}
       </div>
-
       {/* ─── Progress Bar (hide in edit mode) ─── */}
       {!editing && (
         <div style={S.progressSection}>
@@ -712,7 +620,6 @@ export default function DailyChecklist() {
           <span style={S.progressText}>{doneCount}/{totalCount} complete</span>
         </div>
       )}
-
       {/* ─── Checklist Items ─── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
         {currentList.length === 0 && (
@@ -739,7 +646,6 @@ export default function DailyChecklist() {
                 {item.done && <MIcon name="check" size={15} style={{ color: '#fff' }} />}
               </div>
             )}
-
             {/* ── Edit mode: reorder arrows ── */}
             {editing && (
               <div style={S.reorderCol}>
@@ -759,7 +665,6 @@ export default function DailyChecklist() {
                 </button>
               </div>
             )}
-
             <div
               style={{ flex: 1, minWidth: 0, cursor: editing ? 'default' : 'pointer' }}
               onClick={() => !editing && toggleItem(tab, item.id)}
@@ -774,13 +679,11 @@ export default function DailyChecklist() {
                 <span style={S.dueDate}>{formatDate(item.dueDate)}</span>
               )}
             </div>
-
             {/* ── Normal mode: icon ── */}
             {!editing && (
               <MIcon name={iconForItem(item)} size={18}
                 style={{ color: item.done ? '#867277' : 'rgba(146,64,94,0.35)' }} />
             )}
-
             {/* ── Edit mode: delete button ── */}
             {editing && (
               <button
@@ -793,7 +696,6 @@ export default function DailyChecklist() {
           </div>
         ))}
       </div>
-
       {/* ─── All done celebration (normal mode) ─── */}
       {!editing && progress === 100 && totalCount > 0 && (
         <section style={S.celebrationCard}>
@@ -803,7 +705,6 @@ export default function DailyChecklist() {
           </span>
         </section>
       )}
-
       {/* ─── Add Item (available on ALL tabs now) ─── */}
       {!showAdd && (
         <button style={S.addBtn} onClick={() => setShowAdd(true)}>
@@ -811,7 +712,6 @@ export default function DailyChecklist() {
           Add {tab === 'opening' ? 'Opening' : tab === 'closing' ? 'Closing' : ''} Item
         </button>
       )}
-
       {showAdd && (
         <section style={S.addForm}>
           <input
@@ -838,7 +738,6 @@ export default function DailyChecklist() {
           </div>
         </section>
       )}
-
       {/* ─── Template Actions (edit mode only) ─── */}
       {editing && (tab === 'opening' || tab === 'closing') && (
         <section style={S.templateActions}>
@@ -861,7 +760,6 @@ export default function DailyChecklist() {
           </div>
         </section>
       )}
-
       {/* ─── Insights Card (normal mode) ─── */}
       {!editing && (
         <section style={S.insightsCard}>
@@ -883,7 +781,6 @@ export default function DailyChecklist() {
           </div>
         </section>
       )}
-
       {/* ─── Today's Clients (normal mode) ─── */}
       {!editing && appointments.length > 0 && (
         <section style={{ marginBottom: 32 }}>
@@ -916,11 +813,9 @@ export default function DailyChecklist() {
     </div>
   );
 }
-
 function formatDate(dateStr) {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
-
 // ─── Styles — Stitch M3 ───
 const S = {
   page: {
@@ -937,7 +832,6 @@ const S = {
     color: '#92405e', margin: 0,
   },
   dateLabel: { fontSize: 13, color: '#867277', margin: '0 0 16px' },
-
   // Edit toggle
   editToggle: {
     display: 'flex', alignItems: 'center', gap: 5,
@@ -946,7 +840,6 @@ const S = {
     cursor: 'pointer', fontFamily: 'inherit',
     transition: 'all 0.2s ease',
   },
-
   // Toast
   toast: {
     display: 'flex', alignItems: 'center', gap: 8,
@@ -956,7 +849,6 @@ const S = {
     boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
     animation: 'fadeIn 0.2s ease',
   },
-
   // Edit banner
   editBanner: {
     display: 'flex', gap: 12, alignItems: 'center',
@@ -964,7 +856,6 @@ const S = {
     border: '1px solid rgba(146, 64, 94, 0.1)',
     borderRadius: 16, padding: 14, marginBottom: 16,
   },
-
   // Overview card
   overviewCard: {
     position: 'relative', overflow: 'hidden',
@@ -992,7 +883,6 @@ const S = {
   overviewSub: {
     fontSize: 13, opacity: 0.85, lineHeight: 1.4, margin: '10px 0 0', maxWidth: '85%',
   },
-
   // Streak row
   streakRow: { display: 'flex', gap: 10, marginBottom: 16, alignItems: 'stretch' },
   streakCard: {
@@ -1016,7 +906,6 @@ const S = {
     padding: '8px 14px', borderRadius: 12,
     border: '1px solid transparent',
   },
-
   // Tab bar
   tabBar: {
     display: 'flex', gap: 4,
@@ -1035,7 +924,6 @@ const S = {
     boxShadow: '0 2px 8px rgba(146, 64, 94, 0.2)',
     fontWeight: 600,
   },
-
   // Progress
   progressSection: { marginBottom: 16 },
   progressTrack: {
@@ -1045,7 +933,6 @@ const S = {
   },
   progressFill: { height: '100%', borderRadius: 3, transition: 'width 0.3s ease' },
   progressText: { fontSize: 11, color: '#867277', fontWeight: 500 },
-
   // Checklist items
   checkItem: {
     display: 'flex', gap: 10, alignItems: 'center',
@@ -1063,7 +950,6 @@ const S = {
   checkboxDone: { background: '#92405e', borderColor: '#92405e' },
   checkLabel: { fontSize: 14, color: '#1d1b19', lineHeight: 1.35, display: 'block' },
   dueDate: { fontSize: 11, color: '#867277', display: 'block', marginTop: 2 },
-
   // Reorder arrows
   reorderCol: {
     display: 'flex', flexDirection: 'column', gap: 0, flexShrink: 0,
@@ -1073,7 +959,6 @@ const S = {
     cursor: 'pointer', color: '#92405e', lineHeight: 1,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
-
   // Delete button
   deleteBtn: {
     background: 'rgba(186, 26, 26, 0.06)', border: 'none',
@@ -1082,7 +967,6 @@ const S = {
     cursor: 'pointer', flexShrink: 0,
     transition: 'background 0.15s ease',
   },
-
   // Celebration
   celebrationCard: {
     background: 'rgba(91, 169, 123, 0.1)',
@@ -1092,7 +976,6 @@ const S = {
     marginBottom: 16,
   },
   celebrationText: { fontSize: 14, fontWeight: 600, color: '#5ba97b' },
-
   // Add item
   addBtn: {
     width: '100%', padding: '12px 0', borderRadius: 14,
@@ -1128,14 +1011,12 @@ const S = {
     cursor: 'pointer', fontFamily: 'inherit',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
-
   // Template actions
   templateActions: {
     background: 'rgba(146, 64, 94, 0.04)',
     border: '1px solid rgba(146, 64, 94, 0.08)',
     borderRadius: 16, padding: 16, marginBottom: 16,
   },
-
   // Insights card
   insightsCard: {
     background: 'rgba(254, 219, 155, 0.35)',
@@ -1153,7 +1034,6 @@ const S = {
     fontSize: 12, color: 'rgba(121, 95, 43, 0.8)',
     lineHeight: 1.5, fontStyle: 'italic', margin: 0,
   },
-
   // Section headers
   sectionHeader: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
@@ -1168,7 +1048,6 @@ const S = {
     fontSize: 10, fontWeight: 700, color: '#867277',
     textTransform: 'uppercase', letterSpacing: '0.12em',
   },
-
   // Appointment rows
   apptRow: {
     background: '#f8f2ef', padding: 14, borderRadius: 14,

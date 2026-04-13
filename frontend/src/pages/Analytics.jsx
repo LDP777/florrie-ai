@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useBeautician, fetchRows, isDevMode, DEV_TREATMENTS, DEV_CLIENTS } from '../lib/supabase.js';
+import { useBeautician, fetchRows } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -73,11 +73,7 @@ export default function Analytics() {
     if (!beautician) return;
     setOverviewLoading(true);
 
-    if (isDevMode) {
-      setStats(getDevStats(period));
-      setOverviewLoading(false);
-      return;
-    }
+
 
     const now = new Date();
     let startDate = new Date(now);
@@ -140,7 +136,7 @@ export default function Analytics() {
         dayBreakdown: dayCount,
       });
     } catch (err) {
-      logger.error('Analytics overview load error:', err);
+      logger.error({ err }, 'Analytics overview load error');
     }
     setOverviewLoading(false);
   }
@@ -153,14 +149,7 @@ export default function Analytics() {
     setTreatmentLoading(true);
     setExportLoading(true);
 
-    if (isDevMode) {
-      setTreatmentStats(getDevTreatmentStats());
-      setAllAppointments(getDevAppointments());
-      setAllClients(DEV_CLIENTS || []);
-      setTreatmentLoading(false);
-      setExportLoading(false);
-      return;
-    }
+
 
     try {
       const cutoff = new Date();
@@ -218,7 +207,7 @@ export default function Analytics() {
 
       setTreatmentStats(stats);
     } catch (err) {
-      logger.error('Treatment stats load error:', err);
+      logger.error({ err }, 'Treatment stats load error');
     }
     setTreatmentLoading(false);
     setExportLoading(false);

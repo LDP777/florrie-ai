@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useBeautician, supabase, isDevMode, fetchRows } from '../lib/supabase.js';
-
+import { useBeautician, supabase, fetchRows } from '../lib/supabase.js'
 /**
  * SetupChecklist — persistent post-onboarding progress tracker.
  *
@@ -11,7 +10,6 @@ import { useBeautician, supabase, isDevMode, fetchRows } from '../lib/supabase.j
  *
  * Once all steps are done, the card shows a celebration and can be dismissed.
  */
-
 const STEPS = [
   {
     key: 'treatments',
@@ -56,13 +54,11 @@ const STEPS = [
     check: (data) => data.appointmentCount > 0,
   },
 ];
-
 export default function SetupChecklist() {
   const navigate = useNavigate();
   const { beautician } = useBeautician();
   const [data, setData] = useState(null);
   const [dismissed, setDismissed] = useState(false);
-
   useEffect(() => {
     if (!beautician) return;
     loadProgress();
@@ -70,20 +66,7 @@ export default function SetupChecklist() {
     window.addEventListener('focus', loadProgress);
     return () => window.removeEventListener('focus', loadProgress);
   }, [beautician]);
-
   async function loadProgress() {
-    if (isDevMode) {
-      setData({
-        treatmentCount: 3,
-        hasHours: true,
-        bookingSlug: 'ellie-beauty',
-        clientCount: 12,
-        stripeConnected: false,
-        appointmentCount: 5,
-      });
-      return;
-    }
-
     try {
       // Fetch fresh beautician data — don't rely on the cached hook value,
       // which won't reflect hours/slug/stripe changes made in Settings
@@ -98,7 +81,6 @@ export default function SetupChecklist() {
           .single()
           .then(r => r.data || {}),
       ]);
-
       setData({
         treatmentCount: treatments?.length || 0,
         hasHours: !!freshB.working_hours && Object.values(freshB.working_hours).some(d => d?.enabled),
@@ -111,20 +93,15 @@ export default function SetupChecklist() {
       setData(null);
     }
   }
-
   if (!data || dismissed) return null;
-
   const completed = STEPS.filter(s => s.check(data));
   const progress = completed.length / STEPS.length;
-
   // Hide if all done and dismissed previously
   if (progress === 1) {
     // Show celebration briefly, then allow dismiss
   }
-
   // Don't show if they've completed everything and already have 3+ bookings (established user)
   if (progress === 1 && data.appointmentCount > 3) return null;
-
   return (
     <div style={s.card}>
       <div style={s.header}>
@@ -142,12 +119,10 @@ export default function SetupChecklist() {
           <button onClick={() => setDismissed(true)} style={s.dismissBtn}>Done</button>
         )}
       </div>
-
       {/* Progress bar */}
       <div style={s.progressTrack}>
         <div style={{ ...s.progressFill, width: `${progress * 100}%` }} />
       </div>
-
       {/* Steps */}
       {progress < 1 && (
         <div style={s.steps}>
@@ -185,7 +160,6 @@ export default function SetupChecklist() {
     </div>
   );
 }
-
 const s = {
   card: {
     background: 'var(--bg-card, #fff)',

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, supabase, isDevMode, fetchRows } from '../lib/supabase.js';
+import { useBeautician, supabase, fetchRows } from '../lib/supabase.js';
 import { ds, type } from '../lib/designSystem.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -93,56 +93,6 @@ function computeChurnRisk(clients) {
   return scored.sort((a, b) => b.risk - a.risk);
 }
 
-// ── Dev-mode synthetic clients ──────────────────────────────
-function generateDevChurnClients() {
-  const now = new Date();
-  const clients = [
-    { first_name: 'Sophie', last_name: 'L', email: 'sophie@email.com', appointments: [] },
-    { first_name: 'Grace', last_name: 'K', email: 'grace@email.com', appointments: [] },
-    { first_name: 'Beth', last_name: 'W', email: 'beth@email.com', appointments: [] },
-    { first_name: 'Chloe', last_name: 'R', email: 'chloe@email.com', appointments: [] },
-    { first_name: 'Megan', last_name: 'T', email: 'megan@email.com', appointments: [] },
-    { first_name: 'Katie', last_name: 'P', email: 'katie@email.com', appointments: [] },
-    { first_name: 'Amber', last_name: 'J', email: 'amber@email.com', appointments: [] },
-    { first_name: 'Zara', last_name: 'H', email: 'zara@email.com', appointments: [] },
-  ];
-  const treatments = ['Lamination & Hybrid Dye', 'HD Brows', 'Lash Lift & Tint', 'Hybrid Brows', 'Lamination & Tint', 'Brow Jelly Mask', 'Ombre Brows', 'Lamination Maintenance / Tint'];
-  // Generate varied appointment histories that create churn signals
-  const patterns = [
-    { visits: 8, lastDaysAgo: 55, interval: 21, cancels: 0 },   // missed rebook + extended absence
-    { visits: 6, lastDaysAgo: 95, interval: 28, cancels: 0 },   // dormant
-    { visits: 4, lastDaysAgo: 40, interval: 14, cancels: 2 },   // cancellations
-    { visits: 10, lastDaysAgo: 48, interval: 21, cancels: 0 },  // was regular, now absent
-    { visits: 3, lastDaysAgo: 32, interval: 14, cancels: 1 },   // overdue
-    { visits: 12, lastDaysAgo: 60, interval: 28, cancels: 0 },  // declining frequency
-    { visits: 5, lastDaysAgo: 70, interval: 21, cancels: 0 },   // missed window
-    { visits: 7, lastDaysAgo: 110, interval: 35, cancels: 0 },  // long dormant
-  ];
-
-  clients.forEach((c, i) => {
-    const p = patterns[i];
-    for (let v = 0; v < p.visits; v++) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - p.lastDaysAgo - (v * p.interval));
-      c.appointments.push({
-        created_at: d.toISOString(),
-        treatment_name: treatments[i % treatments.length],
-        price_cents: 3000 + (i * 500),
-        status: v < p.cancels ? 'cancelled' : 'completed',
-      });
-    }
-  });
-
-  return clients;
-}
-
-const DEV_CAMPAIGNS = [
-  { name: 'We miss you — 20% off', sent: 23, opened: 18, rebooked: 7, revenue: '£840', status: 'active' },
-  { name: 'VIP comeback package', sent: 8, opened: 6, rebooked: 4, revenue: '£1,200', status: 'active' },
-  { name: 'Personal text from stylist', sent: 12, opened: 12, rebooked: 5, revenue: '£620', status: 'paused' },
-  { name: 'Birthday month return', sent: 5, opened: 4, rebooked: 2, revenue: '£280', status: 'scheduled' },
-];
-
 const triggers = [
   { name: 'Missed rebook window', threshold: '21 days past usual interval', clients: 14, icon: '📅' },
   { name: 'Consecutive cancellations', threshold: '2+ cancellations in 30 days', clients: 6, icon: '❌' },
@@ -161,12 +111,19 @@ const statusColors = {
 
 const tabs = ['At Risk', 'Campaigns', 'Triggers', 'Recovery'];
 
+const DEV_CAMPAIGNS = [
+  { name: 'We miss you — 20% off', sent: 23, opened: 18, rebooked: 7, revenue: '£840', status: 'active' },
+  { name: 'VIP comeback package', sent: 8, opened: 6, rebooked: 4, revenue: '£1,200', status: 'active' },
+  { name: 'Personal text from stylist', sent: 12, opened: 12, rebooked: 5, revenue: '£620', status: 'paused' },
+  { name: 'Birthday month return', sent: 5, opened: 4, rebooked: 2, revenue: '£280', status: 'scheduled' },
+];
+
 export default function ChurnPrevention() {
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [riskClients, setRiskClients] = useState(isDevMode ? DEV_RISK_CLIENTS : []);
-  const [churnCampaigns, setChurnCampaigns] = useState(isDevMode ? DEV_CAMPAIGNS : []);
+  const [riskClients, setRiskClients] = useState([]);
+  const [churnCampaigns, setChurnCampaigns] = useState([]);
 
   useEffect(() => {
     if (beautician && !bLoading) loadChurnData();
@@ -175,28 +132,22 @@ export default function ChurnPrevention() {
   async function loadChurnData() {
     setLoading(true);
     try {
-      if (isDevMode) {
-        const devClients = generateDevChurnClients();
-        setRiskClients(computeChurnRisk(devClients));
-        setChurnCampaigns(DEV_CAMPAIGNS);
+      const { data: clients } = await supabase
+        .from('clients')
+        .select('*, appointments(created_at, treatment_name, price_cents, starts_at, status)')
+        .eq('beautician_id', beautician.id);
+
+      if (clients && clients.length > 0) {
+        setRiskClients(computeChurnRisk(clients));
       } else {
-        const { data: clients } = await supabase
-          .from('clients')
-          .select('*, appointments(created_at, treatment_name, price_cents, starts_at, status)')
-          .eq('beautician_id', beautician.id);
-
-        if (clients && clients.length > 0) {
-          setRiskClients(computeChurnRisk(clients));
-        } else {
-          setRiskClients([]);
-        }
-
-        // Fetch real campaigns if they exist
-        const campaigns = await fetchRows('churn_campaigns', beautician.id);
-        setChurnCampaigns(campaigns.length > 0 ? campaigns : DEV_CAMPAIGNS);
+        setRiskClients([]);
       }
+
+      // Fetch real campaigns if they exist
+      const campaigns = await fetchRows('churn_campaigns', beautician.id);
+      setChurnCampaigns(campaigns.length > 0 ? campaigns : DEV_CAMPAIGNS);
     } catch (err) {
-      logger.error('Load churn data error:', err);
+      logger.error({ err }, 'Load churn data error');
       setRiskClients([]);
       setChurnCampaigns(DEV_CAMPAIGNS);
     } finally {

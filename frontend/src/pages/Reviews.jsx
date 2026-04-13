@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, supabase, isDevMode, fetchRows } from '../lib/supabase.js';
+import { useBeautician, supabase, fetchRows } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -15,23 +15,11 @@ import ErrorCard from '../components/ErrorCard.jsx';
  *   - Reputation score tracking over time
  */
 
-const DEV_REVIEWS = [
-  {
-    id: 'dev-rev-1', author: 'Sophie M', rating: 5,
-    text: 'Ellie is an absolute artist with brows! She spent ages getting them perfect and they look incredible. Already booked my next appointment. Highly recommend!',
-    date: '2 days ago', replied: false,
-  },
-  {
-    id: 'dev-rev-2', author: 'Hannah J', rating: 5,
-    text: 'Best lash lift I\'ve ever had. Natural and fluffy. The whole experience was so relaxing.',
-    date: '1 week ago', replied: false,
-  },
-];
 
 export default function Reviews() {
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('reviews');
-  const [reviews, setReviews] = useState(isDevMode ? DEV_REVIEWS : []);
+  const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyText, setReplyText] = useState('');
@@ -43,16 +31,13 @@ export default function Reviews() {
   async function loadReviews() {
     setLoading(true);
     try {
-      if (isDevMode) {
-        setReviews(DEV_REVIEWS);
-      } else {
         // Fetch reviews from DB
         const data = await fetchRows('reviews', beautician.id, { order: 'created_at', ascending: false });
         setReviews(data || []);
       }
     } catch (err) {
       logger.error('Load reviews error:', err);
-      setReviews(DEV_REVIEWS);
+      setReviews([]);
     } finally {
       setLoading(false);
     }
@@ -253,7 +238,7 @@ export default function Reviews() {
           {/* Recent requests */}
           <div style={styles.requestHistoryCard}>
             <h4 style={styles.sectionLabel}>Recent requests</h4>
-            {DEV_REQUESTS.map(req => (
+            {[].map(req => (
               <div key={req.id} style={styles.requestRow}>
                 <div style={styles.requestAvatar}>{req.name[0]}</div>
                 <div style={{ flex: 1 }}>
@@ -333,12 +318,6 @@ export default function Reviews() {
   );
 }
 
-const DEV_REQUESTS = [
-  { id: 'rq1', name: 'Shauna M', status: 'Left review' },
-  { id: 'rq2', name: 'Jasmin K', status: 'Left review' },
-  { id: 'rq3', name: 'Daisy S', status: 'Opened link' },
-  { id: 'rq4', name: 'Nicole P', status: 'Sent' },
-];
 
 const styles = {
   page: { minHeight: '100vh', background: 'var(--bg, #FAF8F5)', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text, #2D2A26)' },

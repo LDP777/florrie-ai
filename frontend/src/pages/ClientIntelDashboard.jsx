@@ -15,7 +15,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useBeautician, supabase, fetchRows, isDevMode, DEV_CLIENTS } from '../lib/supabase.js';
+import { useBeautician, supabase, fetchRows } from '../lib/supabase.js';
 import { ds, type } from '../lib/designSystem.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -90,18 +90,6 @@ function scoreRFM(clients) {
   });
 }
 
-// ── Dev mock data ──
-const DEV_STATS = { total: 42, active: 34, returning: 28, churnRisk: 6, avgVisits: 4.2, avgSpend: 187 };
-const DEV_CHURN = [
-  { name: 'Natalie W', initials: 'NW', daysSince: 94, trigger: 'Extended absence', score: 72, lastTreatment: 'HD Brows' },
-  { name: 'Lucy P', initials: 'LP', daysSince: 67, trigger: 'Missed rebook', score: 58, lastTreatment: 'Lash Lift' },
-  { name: 'Kelly M', initials: 'KM', daysSince: 43, trigger: '2 recent cancellations', score: 51, lastTreatment: 'Brow Lamination' },
-];
-const DEV_SEGMENTS = [
-  { key: 'vip', count: 5 }, { key: 'loyal', count: 12 }, { key: 'new', count: 8 },
-  { key: 'declining', count: 4 }, { key: 'dormant', count: 3 }, { key: 'one_timer', count: 10 },
-];
-
 export default function ClientIntelDashboard() {
   const navigate = useNavigate();
   const { beautician, loading: bLoading } = useBeautician();
@@ -112,10 +100,10 @@ export default function ClientIntelDashboard() {
 
   useEffect(() => {
     if (bLoading) return;
-    if (isDevMode || !beautician) {
-      setStats(DEV_STATS);
-      setChurnAlerts(DEV_CHURN);
-      setSegmentCounts(DEV_SEGMENTS);
+    if (!beautician) {
+      setStats(null);
+      setChurnAlerts([]);
+      setSegmentCounts([]);
       setLoading(false);
       return;
     }
@@ -177,7 +165,7 @@ export default function ClientIntelDashboard() {
       setChurnAlerts(triggers.slice(0, 5));
       setSegmentCounts(segCounts);
     } catch (err) {
-      logger.error('Client Intel dashboard load failed:', err);
+      logger.error({ err }, 'Client Intel dashboard load failed');
     } finally {
       setLoading(false);
     }

@@ -6,7 +6,7 @@
  * for the accountant, and a month-by-month breakdown.
  */
 import { useState, useEffect } from 'react';
-import { isDevMode, useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -29,28 +29,7 @@ const getCat = (v) => CATEGORIES.find(c => c.value === v) || CATEGORIES[9];
 
 const fmt = (cents) => `£${(Math.abs(cents) / 100).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-// ── Dev mock data ─────────────────────────────────────────
-const DEV_EXPENSES = [
-  { id: 'e1', vendor: 'Sally Beauty', description: 'Hybrid dye restocks', amount_cents: 4200, category: 'products', date: '2026-03-20', tax_deductible: true, recurring: false },
-  { id: 'e2', vendor: 'The Beauty Room', description: 'Chair rental March', amount_cents: 28000, category: 'rent', date: '2026-03-01', tax_deductible: true, recurring: true, recurring_interval: 'monthly' },
-  { id: 'e3', vendor: 'Brow Academy', description: 'Ombre technique course', amount_cents: 15000, category: 'training', date: '2026-03-15', tax_deductible: true, recurring: false },
-  { id: 'e4', vendor: 'Uber', description: 'Client home visit travel', amount_cents: 1450, category: 'travel', date: '2026-03-18', tax_deductible: true, recurring: false },
-  { id: 'e5', vendor: 'Amazon', description: 'Ring light replacement', amount_cents: 3999, category: 'equipment', date: '2026-03-12', tax_deductible: true, recurring: false },
-  { id: 'e6', vendor: 'Hiscox', description: 'Public liability insurance', amount_cents: 1667, category: 'insurance', date: '2026-03-01', tax_deductible: true, recurring: true, recurring_interval: 'monthly' },
-  { id: 'e7', vendor: 'Canva', description: 'Monthly plan', amount_cents: 1099, category: 'software', date: '2026-03-01', tax_deductible: true, recurring: true, recurring_interval: 'monthly' },
-  { id: 'e8', vendor: 'Instagram', description: 'Promoted post — March offer', amount_cents: 2500, category: 'marketing', date: '2026-03-10', tax_deductible: true, recurring: false },
-  { id: 'e9', vendor: 'Sally Beauty', description: 'Lash lift shields & glue', amount_cents: 1800, category: 'products', date: '2026-03-05', tax_deductible: true, recurring: false },
-  { id: 'e10', vendor: 'The Beauty Room', description: 'Chair rental February', amount_cents: 28000, category: 'rent', date: '2026-02-01', tax_deductible: true, recurring: true, recurring_interval: 'monthly' },
-  { id: 'e11', vendor: 'Sally Beauty', description: 'Tint refills', amount_cents: 2400, category: 'products', date: '2026-02-18', tax_deductible: true, recurring: false },
-  { id: 'e12', vendor: 'Uber', description: 'Travel to training', amount_cents: 2200, category: 'travel', date: '2026-02-15', tax_deductible: true, recurring: false },
-];
 
-const DEV_BUDGETS = [
-  { category: 'products', monthly_limit_cents: 15000 },
-  { category: 'rent', monthly_limit_cents: 30000 },
-  { category: 'marketing', monthly_limit_cents: 5000 },
-  { category: 'software', monthly_limit_cents: 3000 },
-];
 
 export default function Expenses() {
   const { beautician, loading: bLoading } = useBeautician();
@@ -70,7 +49,7 @@ export default function Expenses() {
       await deleteRow('expenses', id);
       setExpenses(prev => prev.filter(e => e.id !== id));
     } catch (err) {
-      logger.error('Failed to delete expense:', err);
+      logger.error({ err }, 'Failed to delete expense');
       alert('Failed to delete expense');
     }
   }
@@ -108,7 +87,7 @@ export default function Expenses() {
       setEditingExpense(null);
       setForm({ vendor: '', description: '', amount: '', category: 'products', date: new Date().toISOString().split('T')[0], tax_deductible: true, recurring: false, recurring_interval: 'monthly' });
     } catch (err) {
-      logger.error('Failed to save expense:', err);
+      logger.error({ err }, 'Failed to save expense');
       alert('Failed to save expense');
     } finally {
       setSaving(false);
@@ -133,7 +112,7 @@ export default function Expenses() {
       }
       setEditBudget(null);
     } catch (err) {
-      logger.error('Failed to save budget:', err);
+      logger.error({ err }, 'Failed to save budget');
     }
   }
 
@@ -143,13 +122,13 @@ export default function Expenses() {
     fetchRows('expenses', beautician.id, { order: 'date', ascending: false })
       .then(rows => setExpenses(rows || []))
       .catch(err => {
-        logger.error('Failed to load expenses:', err);
+        logger.error({ err }, 'Failed to load expenses');
         setExpenses([]);
       });
     fetchRows('expense_budgets', beautician.id)
       .then(rows => setBudgets(rows || []))
       .catch(err => {
-        logger.error('Failed to load budgets:', err);
+        logger.error({ err }, 'Failed to load budgets');
         setBudgets([]);
       });
   }, [beautician, bLoading]);
@@ -448,7 +427,7 @@ export default function Expenses() {
                     setShowAdd(false);
                     setForm({ vendor: '', description: '', amount: '', category: 'products', date: new Date().toISOString().split('T')[0], tax_deductible: true, recurring: false, recurring_interval: 'monthly' });
                   } catch (err) {
-                    logger.error('Failed to save expense:', err);
+                    logger.error({ err }, 'Failed to save expense');
                     alert('Failed to save expense');
                   } finally {
                     setSaving(false);

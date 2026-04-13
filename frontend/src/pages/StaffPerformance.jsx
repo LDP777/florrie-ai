@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, isDevMode } from '../lib/supabase.js';
+import { useBeautician, fetchRows } from '../lib/supabase.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
@@ -41,7 +41,7 @@ export default function StaffPerformance() {
 
   useEffect(() => {
     if (bLoading) return;
-    if (isDevMode || !beautician) { setStaff(DEV_STAFF); return; }
+    if (!beautician) { setStaff(DEV_STAFF); return; }
     fetchRows('team_members', beautician.id, { order: 'name', ascending: true })
       .then(rows => setStaff(rows.length ? rows : DEV_STAFF));
   }, [beautician, bLoading]);

@@ -6,18 +6,16 @@
  * so Ellie never walks into an appointment blind.
  */
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, insertRow, isDevMode } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow } from '../lib/supabase.js'
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
-
 const DEV_CLIENTS_FULL = [
   { id: 'c1', name: 'Shauna', visits: 8, totalSpent: 32000, since: '2025-09-15', tags: ['VIP', 'Regular'] },
   { id: 'c2', name: 'Daisy S', visits: 12, totalSpent: 54000, since: '2025-06-22', tags: ['VIP', 'Semi-perm client'] },
   { id: 'c3', name: 'Jasmin', visits: 5, totalSpent: 22500, since: '2025-11-10', tags: ['Regular'] },
 ];
-
 const DEV_EVENTS = {
   c1: [
     { id: 'e1', type: 'appointment', date: '2026-03-18T14:00', title: 'Lamination & Hybrid Dye', detail: 'Medium brown hybrid dye. 8 min processing.', amount: 4500, status: 'completed' },
@@ -48,7 +46,6 @@ const DEV_EVENTS = {
     { id: 'e33', type: 'appointment', date: '2026-02-14T10:00', title: 'Lamination Maintenance / Tint', detail: 'Quick session. Previous lamination held well.', amount: 2500, status: 'completed' },
   ],
 };
-
 const TYPE_CONFIG = {
   appointment: { icon: '📅', colour: 'var(--accent, #C76B8A)', bg: 'var(--accent-light, #FFF0F3)' },
   note: { icon: '📝', colour: 'var(--text-secondary, #8B6F5E)', bg: 'var(--border, #F0ECE8)' },
@@ -58,9 +55,7 @@ const TYPE_CONFIG = {
   consent: { icon: '📋', colour: '#7B6B8F', bg: '#F0E6F4' },
   referral: { icon: '🤝', colour: '#5E8B8B', bg: '#E0F2F1' },
 };
-
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
-
 export default function ClientTimeline() {
   const { beautician, loading: bLoading } = useBeautician();
   const [selectedClient, setSelectedClient] = useState('c1');
@@ -73,7 +68,6 @@ export default function ClientTimeline() {
   const [showAddNote, setShowAddNote] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [noteSaving, setNoteSaving] = useState(false);
-
   async function handleAddNote() {
     if (!noteText.trim() || !selectedClient) return;
     setNoteSaving(true);
@@ -86,8 +80,7 @@ export default function ClientTimeline() {
         title: 'Quick Note',
         detail: noteText.trim(),
       };
-
-      if (!isDevMode && beautician) {
+      if (beautician) {
         await insertRow('client_notes', {
           beautician_id: beautician.id,
           client_id: selectedClient,
@@ -95,7 +88,6 @@ export default function ClientTimeline() {
           created_at: now,
         });
       }
-
       setAllEvents(prev => ({
         ...prev,
         [selectedClient]: [noteEvent, ...(prev[selectedClient] || [])],
@@ -108,23 +100,13 @@ export default function ClientTimeline() {
       setNoteSaving(false);
     }
   }
-
   // Fetch clients and their appointment history
   useEffect(() => {
     if (bLoading || !beautician) return;
-
     (async () => {
       try {
         setLoading(true);
         setError(null);
-
-        if (isDevMode) {
-          setClients(DEV_CLIENTS_FULL);
-          setAllEvents(DEV_EVENTS);
-          setLoading(false);
-          return;
-        }
-
         const rows = await fetchRows('clients', beautician.id);
         if (rows && rows.length > 0) {
           setClients(rows.map(c => ({
@@ -136,7 +118,6 @@ export default function ClientTimeline() {
             tags: c.tags || [],
           })));
         }
-
         const appts = await fetchRows('appointments', beautician.id);
         if (appts && appts.length > 0) {
           const byClient = {};
@@ -154,7 +135,6 @@ export default function ClientTimeline() {
           });
           setAllEvents(byClient);
         }
-
         setLoading(false);
       } catch (err) {
         console.error('Failed to fetch client data:', err);
@@ -163,11 +143,9 @@ export default function ClientTimeline() {
       }
     })();
   }, [beautician, bLoading]);
-
   const client = clients.find(c => c.id === selectedClient);
   const clientEvents = (allEvents[selectedClient] || []).sort((a, b) => new Date(b.date) - new Date(a.date));
   const events = filterType === 'all' ? clientEvents : clientEvents.filter(e => e.type === filterType);
-
   // Client stats
   const appointments = clientEvents.filter(e => e.type === 'appointment');
   const totalPaid = clientEvents.filter(e => e.type === 'payment').reduce((s, e) => s + (e.amount || 0), 0);
@@ -177,7 +155,6 @@ export default function ClientTimeline() {
     const stars = fb.map(f => { const m = f.title.match(/(\d)★/); return m ? parseInt(m[1]) : 0; }).filter(Boolean);
     return stars.length ? (stars.reduce((a, b) => a + b, 0) / stars.length).toFixed(1) : null;
   })();
-
   // Group events by month
   const grouped = {};
   events.forEach(e => {
@@ -186,14 +163,11 @@ export default function ClientTimeline() {
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(e);
   });
-
   if (loading) return <PageLoader />;
-
   return (
     <div style={S.page}>
       {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
       <h1 style={S.title}>Client Timeline</h1>
-
       {/* Client selector */}
       <div style={S.clientRow}>
         {clients.map(c => (
@@ -203,7 +177,6 @@ export default function ClientTimeline() {
           </button>
         ))}
       </div>
-
       {/* Client card */}
       {client && (
         <div style={S.profileCard}>
@@ -235,7 +208,6 @@ export default function ClientTimeline() {
           </div>
         </div>
       )}
-
       {/* Type filter */}
       <div style={S.filterRow}>
         {[{ v: 'all', l: 'All' }, { v: 'appointment', l: '📅 Appts' }, { v: 'note', l: '📝 Notes' }, { v: 'payment', l: '💰 Payments' }, { v: 'message', l: '💬 Messages' }, { v: 'feedback', l: '⭐ Feedback' }].map(f => (
@@ -244,7 +216,6 @@ export default function ClientTimeline() {
           </button>
         ))}
       </div>
-
       {/* Add Note */}
       {client && !showAddNote && (
         <button style={S.addNoteBtn} onClick={() => setShowAddNote(true)}>+ Add Note</button>
@@ -267,7 +238,6 @@ export default function ClientTimeline() {
           </div>
         </div>
       )}
-
       {/* Timeline */}
       <div style={S.timeline}>
         {events.length === 0 ? (
@@ -328,20 +298,16 @@ export default function ClientTimeline() {
     </div>
   );
 }
-
 function formatDate(dateStr) {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
 }
-
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 16px' },
-
   clientRow: { display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto' },
   clientChip: { display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px 6px 6px', borderRadius: 20, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', whiteSpace: 'nowrap' },
   clientActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', border: '1px solid var(--accent, #C76B8A)' },
   clientAvatar: { width: 26, height: 26, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, flexShrink: 0 },
-
   profileCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 16, marginBottom: 16 },
   profileTop: { display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 },
   profileAvatar: { width: 44, height: 44, borderRadius: 22, background: 'var(--accent-light, #FFF0F3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, color: 'var(--accent, #C76B8A)', flexShrink: 0 },
@@ -354,21 +320,17 @@ const S = {
   profileStat: { flex: 1, background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', borderRadius: 10, padding: '8px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   profileStatVal: { fontSize: 15, fontWeight: 700, color: 'var(--text, #2D2A26)' },
   profileStatLabel: { fontSize: 10, color: 'var(--text-muted, #B5AFA8)' },
-
   filterRow: { display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', paddingBottom: 2 },
   filterChip: { padding: '6px 12px', borderRadius: 16, border: '1px solid var(--border, #F0ECE8)', background: 'var(--card, #fff)', color: 'var(--text-secondary, #8B6F5E)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
   filterActive: { background: 'var(--text-primary, #2D2A26)', color: 'var(--bg-card, #fff)', border: '1px solid var(--text-primary, #2D2A26)' },
-
   addNoteBtn: { width: '100%', padding: '10px 0', borderRadius: 10, border: '1px dashed var(--border, #F0ECE8)', background: 'transparent', color: 'var(--accent, #C76B8A)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 12 },
   addNoteCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 14, marginBottom: 12 },
   noteInput: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #F0ECE8)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
   noteActions: { display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' },
   noteCancelBtn: { padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border, #F0ECE8)', background: 'transparent', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-secondary, #8B6F5E)' },
   noteSaveBtn: { padding: '8px 16px', borderRadius: 8, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-
   timeline: {},
   monthHeader: { fontSize: 13, fontWeight: 700, color: 'var(--text-muted, #B5AFA8)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '12px 0 8px' },
-
   eventRow: { display: 'flex', gap: 0, marginBottom: 2, cursor: 'pointer' },
   eventLeft: { display: 'flex', gap: 8, width: 80, flexShrink: 0 },
   eventDate: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', width: 50 },
@@ -377,7 +339,6 @@ const S = {
   dotCol: { display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, paddingTop: 4 },
   dot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
   line: { width: 2, flex: 1, background: 'var(--border, #F0ECE8)', marginTop: 2 },
-
   eventCard: { flex: 1, background: 'var(--card, #fff)', borderRadius: 10, padding: '10px 12px', marginBottom: 6 },
   eventHeader: { display: 'flex', alignItems: 'center', gap: 6 },
   eventIcon: { fontSize: 14 },
@@ -387,6 +348,5 @@ const S = {
   eventDetail: { fontSize: 13, color: 'var(--text-secondary, #8B6F5E)', margin: '6px 0 0', lineHeight: 1.5 },
   eventStatus: { display: 'inline-block', padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600, marginTop: 6, textTransform: 'capitalize' },
   channelTag: { display: 'inline-block', padding: '2px 8px', borderRadius: 6, background: '#E3F2FD', color: '#2196F3', fontSize: 10, fontWeight: 500, marginTop: 6 },
-
   empty: { textAlign: 'center', color: 'var(--text-muted, #B5AFA8)', fontSize: 14, padding: 32 },
 };

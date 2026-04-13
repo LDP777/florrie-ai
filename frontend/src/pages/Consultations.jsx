@@ -7,7 +7,7 @@
  * different follow-up flow.
  */
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, insertRow, updateRow, deleteRow, isDevMode, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -15,7 +15,6 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 
-const CONSULT_TREATMENTS = DEV_TREATMENTS.filter(t => t.category === 'brows' && (t.name.includes('Semi-Permanent') || t.name.includes('Combination') || t.name.includes('Ombre')));
 
 const DEFAULT_QUESTIONS = [
   'Any previous brow tattooing?',

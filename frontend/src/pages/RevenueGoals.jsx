@@ -6,7 +6,7 @@
  * they'll hit it based on current bookings.
  */
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, updateRow, isDevMode } from '../lib/supabase.js';
+import { useBeautician, fetchRows, updateRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -55,10 +55,6 @@ export default function RevenueGoals() {
   // Fetch revenue goals and calculate current progress
   useEffect(() => {
     if (bLoading || !beautician) return;
-    if (isDevMode) {
-      setGoals(DEV_GOALS);
-      return;
-    }
     // Fetch revenue_goals table for current month
     const now = new Date();
     const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;

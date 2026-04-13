@@ -6,7 +6,7 @@
  * tags across campaigns, waitlist priority, and smart scheduling.
  */
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, insertRow, updateRow, deleteRow, isDevMode, DEV_CLIENTS } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -47,11 +47,6 @@ export default function ClientTags() {
 
   useEffect(() => {
     if (bLoading || !beautician) return;
-    if (isDevMode) {
-      setTags(DEV_TAGS);
-      setSegments(DEV_SEGMENTS);
-      return;
-    }
 
     // Fetch client_tags (tags) and their assignments
     fetchRows('client_tags', beautician.id)

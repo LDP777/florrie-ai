@@ -6,7 +6,7 @@
  * Works for solo too: shows her own availability at a glance.
  */
 import { useState, useEffect } from 'react';
-import { useBeautician, supabase, isDevMode, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
+import { useBeautician, supabase, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -15,28 +15,7 @@ import ErrorCard from '../components/ErrorCard.jsx';
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
-const DEV_STAFF = [
-  {
-    id: 's1', name: 'Ellie', role: 'Owner', colour: '#C76B8A',
-    hours: { mon: { start: '11:00', end: '15:00' }, tue: { start: '11:00', end: '19:00' }, wed: { start: '11:00', end: '18:00' }, thu: { start: '11:00', end: '19:00' }, fri: { start: '10:00', end: '17:00' }, sat: null },
-    timeOff: [{ date: '2026-04-02', reason: 'Dentist' }],
-  },
-  {
-    id: 's2', name: 'Sophie', role: 'Junior Stylist', colour: '#7B9FAF',
-    hours: { mon: null, tue: { start: '10:00', end: '16:00' }, wed: { start: '10:00', end: '16:00' }, thu: null, fri: { start: '10:00', end: '16:00' }, sat: { start: '09:00', end: '14:00' } },
-    timeOff: [],
-  },
-  {
-    id: 's3', name: 'Chair Rental', role: 'Freelance Chair', colour: '#8F9B6B',
-    hours: { mon: null, tue: null, wed: null, thu: { start: '10:00', end: '18:00' }, fri: null, sat: { start: '09:00', end: '15:00' } },
-    timeOff: [],
-  },
-];
 
-const DEV_EXCEPTIONS = [
-  { id: 'ex1', staffId: 's1', date: '2026-04-02', type: 'time-off', reason: 'Dentist appointment', allDay: false, start: '11:00', end: '14:00' },
-  { id: 'ex2', staffId: 's2', date: '2026-03-28', type: 'swap', reason: 'Covering Ellie — taking Friday for training', original: 'fri', swapTo: 'thu' },
-];
 
 export default function StaffRota() {
   const { beautician, loading: bLoading } = useBeautician();
@@ -60,10 +39,6 @@ export default function StaffRota() {
     setLoading(true);
     setError(null);
     try {
-      if (isDevMode) {
-        setStaff(DEV_STAFF);
-        setExceptions(DEV_EXCEPTIONS);
-      } else {
         const teamData = await fetchRows('team_members', beautician.id, { order: 'created_at' });
         setStaff(teamData || []);
 
@@ -77,10 +52,6 @@ export default function StaffRota() {
     } catch (err) {
       logger.error('Load rota error:', err);
       setError(err.message);
-      if (isDevMode) {
-        setStaff(DEV_STAFF);
-        setExceptions(DEV_EXCEPTIONS);
-      }
     } finally {
       setLoading(false);
     }
@@ -141,7 +112,7 @@ export default function StaffRota() {
         start_time: timeOffForm.allDay ? null : timeOffForm.start,
         end_time: timeOffForm.allDay ? null : timeOffForm.end,
       };
-      if (!isDevMode && beautician) {
+      if (beautician) {
         await insertRow('hours_exceptions', row);
       }
       setExceptions(prev => [...prev, { id: 'new-' + Date.now(), staffId: timeOffForm.staffId, date: timeOffForm.date, type: 'time-off', reason: timeOffForm.reason, allDay: timeOffForm.allDay, start: timeOffForm.start, end: timeOffForm.end }]);
@@ -157,7 +128,7 @@ export default function StaffRota() {
   const handleDeleteException = async (exId) => {
     if (!window.confirm('Delete this exception?')) return;
     try {
-      if (!isDevMode && beautician) {
+      if (beautician) {
         await deleteRow('hours_exceptions', exId);
       }
       setExceptions(prev => prev.filter(ex => ex.id !== exId));
@@ -190,7 +161,7 @@ export default function StaffRota() {
         colour: shiftForm.colour,
         hours: shiftForm.hours,
       };
-      if (!isDevMode && beautician) {
+      if (beautician) {
         await updateRow('team_members', editingShift, updates);
       }
       setStaff(prev => prev.map(s => s.id === editingShift ? { ...s, ...updates } : s));
@@ -205,7 +176,7 @@ export default function StaffRota() {
   const handleDeleteStaff = async (staffId) => {
     if (!window.confirm('Delete this staff member?')) return;
     try {
-      if (!isDevMode && beautician) {
+      if (beautician) {
         await deleteRow('team_members', staffId);
       }
       setStaff(prev => prev.filter(s => s.id !== staffId));

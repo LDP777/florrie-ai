@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, supabase, isDevMode, updateRow } from '../lib/supabase.js';
+import { useBeautician, supabase, updateRow } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 
@@ -36,12 +36,6 @@ export default function ApprovalQueue() {
   async function loadQueue() {
     setLoading(true);
     try {
-      if (isDevMode) {
-        setActions(DEV_QUEUE);
-        setLoading(false);
-        return;
-      }
-
       const { data, error } = await supabase
         .from('ai_actions')
         .select('*, clients(first_name, last_name, phone)')
@@ -199,40 +193,6 @@ export default function ApprovalQueue() {
     </div>
   );
 }
-
-// ── Dev sample data ──
-const DEV_QUEUE = [
-  {
-    id: 'aq-1',
-    action_type: 'rebook_nudge',
-    summary: 'Daisy S is 8 days overdue for her usual lash infill. Send a nudge SMS?',
-    confidence: 0.78,
-    status: 'pending_approval',
-    digital_employee: 'comeback',
-    created_at: new Date(Date.now() - 35 * 60000).toISOString(),
-    clients: { first_name: 'Daisy', last_name: 'S', phone: '+447700123456' },
-  },
-  {
-    id: 'aq-2',
-    action_type: 'gap_post',
-    summary: 'Wednesday has 3 hours of gaps. Draft an availability post for Instagram?',
-    confidence: 0.72,
-    status: 'pending_approval',
-    digital_employee: 'calendar',
-    created_at: new Date(Date.now() - 90 * 60000).toISOString(),
-    clients: null,
-  },
-  {
-    id: 'aq-3',
-    action_type: 'rebook_nudge',
-    summary: 'Chloe B hasn\'t been in for 6 weeks (usually every 4). Send a rebook reminder?',
-    confidence: 0.82,
-    status: 'pending_approval',
-    digital_employee: 'comeback',
-    created_at: new Date(Date.now() - 150 * 60000).toISOString(),
-    clients: { first_name: 'Chloe', last_name: 'B', phone: '+447700654321' },
-  },
-];
 
 const styles = {
   page: {

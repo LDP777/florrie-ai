@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, insertRow, updateRow, isDevMode, DEV_CLIENTS } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -67,7 +67,7 @@ const MESSAGE_TEMPLATES = {
 
 export default function Campaigns() {
   const { beautician, loading: bLoading } = useBeautician();
-  const [campaigns, setCampaigns] = useState(isDevMode ? [] : []);
+  const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('active'); // active | history | create
   const [creating, setCreating] = useState(false);
@@ -80,11 +80,6 @@ export default function Campaigns() {
 
   async function loadCampaigns() {
     setLoading(true);
-    if (isDevMode) {
-      setCampaigns(DEV_CAMPAIGNS);
-      setLoading(false);
-      return;
-    }
     try {
       const data = await fetchRows('campaigns', beautician.id, { order: 'created_at', ascending: false });
       setCampaigns(data);
@@ -101,9 +96,9 @@ export default function Campaigns() {
 
     // Estimate target count based on type
     let targetCount = 0;
-    if (type === 'reactivation') targetCount = DEV_CLIENTS?.length || 3;
+    if (type === 'reactivation') targetCount = 3;
     else if (type === 'rescue') targetCount = 1;
-    else targetCount = DEV_CLIENTS?.length || 5;
+    else targetCount = 5;
 
     setForm({
       name: `${cfg.label} — ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`,
@@ -448,39 +443,6 @@ function PerfStat({ label, value, color }) {
     </div>
   );
 }
-
-// Dev mock data
-const DEV_CAMPAIGNS = [
-  {
-    id: 'dev-camp-1',
-    type: 'reactivation',
-    name: 'Comeback — 20 Mar',
-    message_template: "Hey {name} 💕 It's been a while since your last appointment! I'd love to get you booked back in. I've got availability this week if you fancy it — DM me or book via my link xx",
-    target_count: 3,
-    status: 'sent',
-    delivered_count: 3,
-    opened_count: 2,
-    responded_count: 1,
-    booked_count: 1,
-    revenue_recovered_cents: 4500,
-    created_at: '2026-03-20T09:00:00Z',
-    sent_at: '2026-03-20T10:00:00Z',
-  },
-  {
-    id: 'dev-camp-2',
-    type: 'bank_holiday',
-    name: 'Easter Weekend — 25 Mar',
-    message_template: "Bank holiday weekend sorted? ✨ Get your brows done before the long weekend — limited slots left! Book now xx",
-    target_count: 8,
-    status: 'draft',
-    delivered_count: 0,
-    opened_count: 0,
-    responded_count: 0,
-    booked_count: 0,
-    revenue_recovered_cents: 0,
-    created_at: '2026-03-25T08:00:00Z',
-  },
-];
 
 const styles = {
   page: { minHeight: '100vh', background: 'var(--bg, #FAF8F5)', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text, #2D2A26)' },

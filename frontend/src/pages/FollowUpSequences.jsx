@@ -10,64 +10,11 @@
  * This page lets her build, preview, and manage these flows.
  */
 import { useState, useEffect } from 'react';
-import { isDevMode, useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 
-const DEV_SEQUENCES = [
-  {
-    id: 'seq1',
-    name: 'Post Semi-Permanent Care',
-    trigger: 'after-appointment',
-    treatments: ['Ombre Brows (Semi-Permanent)', 'Combination Brows (Semi-Permanent)'],
-    active: true,
-    steps: [
-      { delay: '0h', channel: 'whatsapp', message: 'Hey {name}! Your new brows are looking gorgeous 😍 Here\'s your aftercare guide — dead important for the first 10 days: {aftercare_link} xx' },
-      { delay: '24h', channel: 'whatsapp', message: 'Hey {name}, how are your brows feeling today? A little bit of redness is totally normal on day 1! Remember — no water on them for the first 24 hours xx' },
-      { delay: '3d', channel: 'whatsapp', message: 'Hey girl, would love to see how they\'re healing! Send me a pic when you get a sec 📸 xx' },
-      { delay: '7d', channel: 'whatsapp', message: 'One week in! They should be starting to peel now — don\'t pick at them! The colour will come back stronger once healed. Any questions just shout xx' },
-      { delay: '35d', channel: 'whatsapp', message: 'Hey {name}! Your top-up is coming up soon — shall I get you booked in? I\'ve got a few slots next week if that works for you xx' },
-    ],
-    stats: { sent: 45, opened: 42, replied: 18 },
-  },
-  {
-    id: 'seq2',
-    name: 'Post Lamination Care',
-    trigger: 'after-appointment',
-    treatments: ['Lamination & Hybrid Dye', 'Lamination & Tint'],
-    active: true,
-    steps: [
-      { delay: '0h', channel: 'whatsapp', message: 'Hey {name}! Brows are looking fab 💕 Remember — keep them dry for the next 24 hours and brush them up in the morning! xx' },
-      { delay: '24h', channel: 'whatsapp', message: 'Morning girl! You can get them wet now — how are they looking? xx' },
-      { delay: '21d', channel: 'whatsapp', message: 'Hey {name}, it\'s been about 3 weeks since your lamination — fancy getting booked in again before they start dropping? I\'ve got spaces this week and next xx' },
-    ],
-    stats: { sent: 72, opened: 68, replied: 31 },
-  },
-  {
-    id: 'seq3',
-    name: 'Birthday Flow',
-    trigger: 'on-birthday',
-    treatments: [],
-    active: true,
-    steps: [
-      { delay: '0h', channel: 'whatsapp', message: 'Happy birthday {name}!! 🎂 Hope you have the most amazing day! As a little treat from me, here\'s 15% off your next appointment — just mention this message when you book xx' },
-    ],
-    stats: { sent: 8, opened: 8, replied: 5 },
-  },
-  {
-    id: 'seq4',
-    name: 'Dormant Client Win-Back',
-    trigger: 'no-visit-60-days',
-    treatments: [],
-    active: false,
-    steps: [
-      { delay: '0h', channel: 'whatsapp', message: 'Hey {name}! It\'s been a while — miss your face! I\'ve got some new treatments on the menu and I\'d love to get you booked in. Fancy a catch-up appointment? xx' },
-      { delay: '7d', channel: 'sms', message: 'Hi {name}, just checking in! I\'ve got a few slots this week if you fancy it. Book here: {booking_link}' },
-    ],
-    stats: { sent: 12, opened: 9, replied: 4 },
-  },
-];
 
 const TRIGGERS = [
   { value: 'after-appointment', label: 'After Appointment', icon: '✅' },
@@ -96,10 +43,10 @@ export default function FollowUpSequences() {
 
   useEffect(() => {
     if (bLoading || !beautician) return;
-    if (isDevMode) { setSequences(DEV_SEQUENCES); return; }
+    
     fetchRows('follow_up_sequences', beautician.id, { order: 'created_at' })
       .then(rows => setSequences(rows || []))
-      .catch(err => { logger.error('Load sequences error:', err); setSequences(DEV_SEQUENCES); });
+      .catch(err => { logger.error("Load sequences error:", err); setSequences([]); });
   }, [beautician, bLoading]);
 
   async function handleCreate() {
@@ -107,7 +54,7 @@ export default function FollowUpSequences() {
     setSaving(true);
     setError(null);
     try {
-      if (!isDevMode && beautician) {
+      if (beautician) {
         const row = await insertRow('follow_up_sequences', {
           beautician_id: beautician.id,
           name: createForm.name.trim(),
@@ -134,7 +81,7 @@ export default function FollowUpSequences() {
   async function handleToggleActive(seq) {
     const updated = !seq.active;
     setSequences(prev => prev.map(s => s.id === seq.id ? { ...s, active: updated } : s));
-    if (!isDevMode && beautician) {
+    if (beautician) {
       try { await updateRow('follow_up_sequences', seq.id, { active: updated }); }
       catch (err) { logger.error('Toggle sequence error:', err); setSequences(prev => prev.map(s => s.id === seq.id ? { ...s, active: seq.active } : s)); }
     }
@@ -142,7 +89,7 @@ export default function FollowUpSequences() {
 
   async function handleDelete(seqId) {
     setSequences(prev => prev.filter(s => s.id !== seqId));
-    if (!isDevMode && beautician) {
+    if (beautician) {
       try { await deleteRow('follow_up_sequences', seqId); }
       catch (err) { logger.error('Delete sequence error:', err); }
     }

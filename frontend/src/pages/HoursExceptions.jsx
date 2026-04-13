@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useBeautician, supabase, isDevMode, insertRow, deleteRow } from '../lib/supabase.js';
+import { useBeautician, supabase, insertRow, deleteRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 
 /**
@@ -31,13 +31,6 @@ const TYPE_CFG = {
   extended: { label: 'Extra hours',    color: '#5BA97B', bg: '#E8F5E9', dot: '#5BA97B' },
 };
 
-const DEV_EXCEPTIONS = [
-  { id: 'dev-ex1', type: 'closed',   date: '2026-04-03', end_date: null,        reason: 'bank_holiday', note: 'Good Friday',          start_time: null,  end_time: null,  notify_clients: true },
-  { id: 'dev-ex2', type: 'closed',   date: '2026-04-06', end_date: null,        reason: 'bank_holiday', note: 'Easter Monday',        start_time: null,  end_time: null,  notify_clients: true },
-  { id: 'dev-ex3', type: 'amended',  date: '2026-03-28', end_date: null,        reason: 'personal',     note: 'School pick-up',       start_time: '10:00', end_time: '14:00', notify_clients: true },
-  { id: 'dev-ex4', type: 'closed',   date: '2026-04-14', end_date: '2026-04-18', reason: 'holiday',     note: 'Spring hols ☀️',       start_time: null,  end_time: null,  notify_clients: true },
-  { id: 'dev-ex5', type: 'extended', date: '2026-04-10', end_date: null,        reason: 'event',        note: 'Prom season late night', start_time: '10:00', end_time: '21:00', notify_clients: false },
-];
 
 // ── date helpers ────────────────────────────────────────────────────────────
 
@@ -148,14 +141,11 @@ export default function HoursExceptions() {
   const [blockEndTime, setBlockEndTime]     = useState('17:00');
   const [notifyClients, setNotifyClients]   = useState(true);
 
-  useEffect(() => { if (beautician || isDevMode) loadData(); }, [beautician]);
+  useEffect(() => { if (beautician) loadData(); }, [beautician]);
 
   async function loadData() {
     setLoading(true);
     try {
-      if (isDevMode) {
-        setExceptions(DEV_EXCEPTIONS);
-      } else {
         const { data } = await supabase
           .from('hours_exceptions')
           .select('*')
@@ -165,7 +155,7 @@ export default function HoursExceptions() {
       }
     } catch (err) {
       logger.error('Load exceptions error:', err);
-      setExceptions(isDevMode ? DEV_EXCEPTIONS : []);
+      setExceptions([]);
     } finally {
       setLoading(false);
     }
@@ -237,7 +227,7 @@ export default function HoursExceptions() {
       created_at: new Date().toISOString(),
     };
 
-    if (!isDevMode && beautician) {
+    if (beautician) {
       try {
         const saved = await insertRow('hours_exceptions', { beautician_id: beautician.id, ...exc });
         exc.id = saved.id;
@@ -253,7 +243,7 @@ export default function HoursExceptions() {
 
   async function handleDelete(id) {
     setExceptions(prev => prev.filter(e => e.id !== id));
-    if (!isDevMode) {
+    if (true) {
       try { await deleteRow('hours_exceptions', id); } catch {}
     }
   }
