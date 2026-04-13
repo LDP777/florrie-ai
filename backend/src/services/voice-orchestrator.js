@@ -91,19 +91,10 @@ export async function processVoiceCommand({ audioBase64, text, mimeType, beautic
       });
     } catch (apiErr) {
       // Anthropic SDK errors (billing, rate limits, invalid key, etc.)
-      const status = apiErr?.status || 0;
-      const errMsg = apiErr?.message || '';
-      const errBody = apiErr?.error || {};
-      logger.error({
-        status,
-        errMsg: errMsg.substring(0, 300),
-        errType: errBody?.type || 'unknown',
-        errBodyMsg: (errBody?.error?.message || errBody?.message || '').substring(0, 300),
-        constructor: apiErr?.constructor?.name || 'unknown',
-        keyPrefix: (process.env.ANTHROPIC_API_KEY || '').substring(0, 15) + '...',
-      }, 'Anthropic API error — full diagnostics');
+      const status = apiErr?.status || 500;
+      logger.error({ err: apiErr, status }, 'Anthropic API call failed');
 
-      if (status === 400 && errMsg.includes('credit balance')) {
+      if (status === 400 && apiErr.message?.includes('credit balance')) {
         throw new Error('AI_CREDITS_EXHAUSTED');
       } else if (status === 429) {
         throw new Error('AI_RATE_LIMITED');
