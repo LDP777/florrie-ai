@@ -218,7 +218,7 @@ const AVATAR_COMPONENTS = {
 const AGENT_MAP = [
   { id: 'front_desk',      name: 'Front Desk',     role: 'Handles client messages',  colour: '#C76B8A', path: '/inbox',          counterKey: 'inbox'      },
   { id: 'content_creator', name: 'Content Studio', role: 'Writes captions & posts',  colour: '#D4943A', path: '/content',         counterKey: 'content'    },
-  { id: 'client_intel',    name: 'Client Intel',   role: 'Spots at-risk clients',    colour: '#7B6BA8', path: '/churn',           counterKey: 'churn'      },
+  { id: 'client_intel',    name: 'Client Intel',   role: 'Knows your clients inside out', colour: '#7B6BA8', path: '/client-intel',    counterKey: 'churn'      },
   { id: 'business_coach',  name: 'Biz Coach',      role: 'Reads your numbers',       colour: '#5BA97B', path: '/ai-insights',     counterKey: 'insights'   },
   { id: 'scheduler',       name: 'Scheduler',      role: 'Optimises your diary',     colour: '#4A90D9', path: '/smart-schedule',  counterKey: null         },
   { id: 'guardian',        name: 'Guardian',       role: 'Keeps you compliant',      colour: '#C9A96E', path: '/compliance',      counterKey: 'compliance' },
