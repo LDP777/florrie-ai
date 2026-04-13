@@ -336,7 +336,11 @@ export default function VoiceCommander() {
       setMessages(prev => [...prev, aiMsg]);
     } catch (err) {
       logger.error('Voice command failed:', err);
-      addSystemMessage(`Something went wrong: ${err.message}. Try again or type your request.`);
+      // Never show raw error details to users — use the backend's friendly message if available
+      const friendly = typeof err.message === 'string' && !err.message.includes('{') && err.message.length < 120
+        ? err.message
+        : "Something went wrong. Try again in a moment.";
+      addSystemMessage(friendly);
     } finally {
       setIsProcessing(false);
     }

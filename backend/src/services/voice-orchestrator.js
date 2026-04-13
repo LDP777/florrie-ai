@@ -80,13 +80,29 @@ export async function processVoiceCommand({ audioBase64, text, mimeType, beautic
   while (rounds < MAX_TOOL_ROUNDS) {
     rounds++;
 
-    const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      system: systemPrompt,
-      tools: TOOL_DEFINITIONS,
-      messages,
-    });
+    let response;
+    try {
+      response = await anthropic.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        system: systemPrompt,
+        tools: TOOL_DEFINITIONS,
+        messages,
+      });
+    } catch (apiErr) {
+      // Anthropic SDK errors (billing, rate limits, invalid key, etc.)
+      const status = apiErr?.status || 500;
+      if (status === 400 && apiErr.message?.includes('credit balance')) {
+        logger.error({ err: apiErr }, 'Anthropic API credit balance exhausted');
+        throw new Error('AI_CREDITS_EXHAUSTED');
+      } else if (status === 429) {
+        logger.error({ err: apiErr }, 'Anthropic API rate limited');
+        throw new Error('AI_RATE_LIMITED');
+      } else {
+        logger.error({ err: apiErr }, 'Anthropic API call failed');
+        throw new Error('AI_UNAVAILABLE');
+      }
+    }
 
     // If Claude wants to use tools
     const toolUseBlocks = response.content.filter(b => b.type === 'tool_use');

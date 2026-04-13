@@ -39,7 +39,20 @@ router.post('/command', requireAuth, async (req, res) => {
     return res.json(result);
   } catch (err) {
     logger.error({ err }, 'Voice command route failed');
-    return res.status(500).json({ error: err.message || 'Something went wrong' });
+
+    // Map typed errors to friendly responses
+    const friendlyErrors = {
+      AI_CREDITS_EXHAUSTED: "I'm temporarily offline — the AI service needs topping up. Please try again later.",
+      AI_RATE_LIMITED: "I'm a bit overloaded right now. Give me a moment and try again.",
+      AI_UNAVAILABLE: "I couldn't connect to my brain just now. Try again in a moment.",
+    };
+
+    const friendly = friendlyErrors[err.message];
+    if (friendly) {
+      return res.status(503).json({ error: friendly });
+    }
+
+    return res.status(500).json({ error: 'Something went wrong. Try again in a moment.' });
   }
 });
 
