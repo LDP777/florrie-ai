@@ -58,7 +58,7 @@ function computeRFMSegments(clients) {
   // Score each client on R/F/M (1-10 scale)
   const scored = clients.map(c => {
     const appts = (c.appointments || [])
-      .map(a => new Date(a.created_at || a.start_time || a.starts_at))
+      .map(a => new Date(a.created_at || a.starts_at || a.start_time))
       .filter(d => !isNaN(d))
       .sort((a, b) => b - a);
     const lastVisit = appts[0] || new Date(c.last_visit_at || c.created_at || now);
@@ -209,7 +209,7 @@ export default function ClientSegments() {
       } else {
         const { data: clients } = await supabase
           .from('clients')
-          .select('*, appointments(created_at, treatment_name, price_cents, start_time)')
+          .select('*, appointments(created_at, treatment_name, price_cents, starts_at)')
           .eq('beautician_id', beautician.id);
 
         if (clients && clients.length > 0) {

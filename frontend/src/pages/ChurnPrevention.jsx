@@ -12,7 +12,7 @@ function computeChurnRisk(clients) {
 
   clients.forEach(c => {
     const appts = (c.appointments || [])
-      .map(a => ({ date: new Date(a.created_at || a.start_time || a.starts_at), treatment: a.treatment_name, status: a.status, price: a.price_cents || 0 }))
+      .map(a => ({ date: new Date(a.created_at || a.starts_at || a.start_time), treatment: a.treatment_name, status: a.status, price: a.price_cents || 0 }))
       .filter(a => !isNaN(a.date))
       .sort((a, b) => b.date - a.date);
 
@@ -182,7 +182,7 @@ export default function ChurnPrevention() {
       } else {
         const { data: clients } = await supabase
           .from('clients')
-          .select('*, appointments(created_at, treatment_name, price_cents, start_time, status)')
+          .select('*, appointments(created_at, treatment_name, price_cents, starts_at, status)')
           .eq('beautician_id', beautician.id);
 
         if (clients && clients.length > 0) {

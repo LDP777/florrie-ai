@@ -82,7 +82,7 @@ function computeSuggestions(clients, treatments) {
 
   (clients || []).forEach(c => {
     const appts = (c.appointments || [])
-      .map(a => ({ date: new Date(a.created_at || a.start_time), treatment: a.treatment_name, price: a.price_cents }))
+      .map(a => ({ date: new Date(a.created_at || a.starts_at), treatment: a.treatment_name, price: a.price_cents }))
       .filter(a => !isNaN(a.date))
       .sort((a, b) => b.date - a.date);
 
@@ -160,12 +160,12 @@ export default function SmartSchedule() {
 
     try {
       const appts = await fetchRows('appointments', beautician.id, {
-        order: 'start_time',
+        order: 'starts_at',
         ascending: true,
       });
 
       const thisWeekAppts = appts.filter(a =>
-        a.start_time && a.start_time.slice(0, 10) >= startStr && a.start_time.slice(0, 10) <= endStr
+        a.starts_at && a.starts_at.slice(0, 10) >= startStr && a.starts_at.slice(0, 10) <= endStr
       );
 
       const computedGaps = computeGapsFromAppointments(thisWeekAppts, beautician.working_hours);
@@ -173,7 +173,7 @@ export default function SmartSchedule() {
 
       // Fetch clients for fill suggestions
       const { data: clients } = await supabase
-        ? supabase.from('clients').select('*, appointments(created_at, treatment_name, price_cents, start_time)').eq('beautician_id', beautician.id)
+        ? supabase.from('clients').select('*, appointments(created_at, treatment_name, price_cents, starts_at)').eq('beautician_id', beautician.id)
         : { data: null };
       const treatments = await fetchRows('treatments', beautician.id);
       if (clients) {
@@ -210,9 +210,9 @@ export default function SmartSchedule() {
       const dayEndMins = endH * 60 + endM;
 
       const dayAppts = appts
-        .filter(a => a.start_time?.slice(0, 10) === dateStr)
+        .filter(a => a.starts_at?.slice(0, 10) === dateStr)
         .map(a => {
-          const [h, m] = a.start_time?.slice(11, 16).split(':').map(Number) || [0, 0];
+          const [h, m] = a.starts_at?.slice(11, 16).split(':').map(Number) || [0, 0];
           return { start: h * 60 + m, duration: a.duration_minutes || 0 };
         })
         .sort((a, b) => a.start - b.start);

@@ -36,15 +36,15 @@ export default function CancellationLog() {
     setLoading(true);
     setError('');
 
-    fetchRows('appointments', beautician.id, { order: 'start_time', ascending: false })
+    fetchRows('appointments', beautician.id, { order: 'starts_at', ascending: false })
       .then(appts => {
         const cancelled = appts.filter(a => a.status && (a.status.startsWith('cancelled') || a.status === 'no_show'));
         setCancellations(cancelled.map(a => ({
           id: a.id,
           client: a.client_name || 'Client',
           treatment: a.treatment_name || '',
-          date: a.start_time?.slice(0, 10) || '',
-          time: a.start_time?.slice(11, 16) || '',
+          date: a.starts_at?.slice(0, 10) || '',
+          time: a.starts_at?.slice(11, 16) || '',
           type: a.status === 'no_show' ? 'no-show' : a.cancellation_reason ? 'late-cancel' : 'cancelled',
           reason: a.cancellation_reason || '',
           revenue_lost: a.price_cents || 0,

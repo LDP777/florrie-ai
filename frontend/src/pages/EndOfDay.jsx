@@ -63,12 +63,12 @@ export default function EndOfDay() {
     if (isDevMode || !beautician) return;
     const today = new Date().toISOString().slice(0, 10);
     // Fetch today's appointments for timeline
-    fetchRows('appointments', beautician.id, { order: 'start_time', ascending: true })
+    fetchRows('appointments', beautician.id, { order: 'starts_at', ascending: true })
       .then(rows => {
-        const todayAppts = rows.filter(a => a.start_time?.startsWith(today));
+        const todayAppts = rows.filter(a => a.starts_at?.startsWith(today));
         if (todayAppts.length) {
           setTimeline(todayAppts.map(a => ({
-            time: a.start_time?.slice(11, 16) || '',
+            time: a.starts_at?.slice(11, 16) || '',
             client: a.client_name || 'Client',
             treatment: a.treatment_name || '',
             amount: (a.price_cents || 0) / 100,

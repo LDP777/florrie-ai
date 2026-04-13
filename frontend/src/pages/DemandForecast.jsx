@@ -35,7 +35,7 @@ function computeForecast(appointments, workingHours) {
 
     const dateStr = date.toISOString().slice(0, 10);
     const dayAppts = appointments.filter(a => {
-      const aDate = (a.start_time || a.starts_at || '').slice(0, 10);
+      const aDate = (a.starts_at || a.start_time || '').slice(0, 10);
       return aDate === dateStr && a.status !== 'cancelled';
     });
     const bookings = dayAppts.length;
@@ -63,14 +63,14 @@ function computeHeatmap(appointments, workingHours) {
   fourWeeksAgo.setDate(now.getDate() - 28);
 
   const recentAppts = appointments.filter(a => {
-    const d = new Date(a.start_time || a.starts_at || '');
+    const d = new Date(a.starts_at || a.start_time || '');
     return d >= fourWeeksAgo && a.status !== 'cancelled';
   });
 
   // Count appointments per hour per day-of-week
   const counts = {}; // { 'mon-11': 5, ... }
   recentAppts.forEach(a => {
-    const d = new Date(a.start_time || a.starts_at);
+    const d = new Date(a.starts_at || a.start_time);
     const dow = DAY_KEYS[d.getDay()];
     const hour = d.getHours();
     const key = `${dow}-${hour}`;
@@ -197,8 +197,8 @@ export default function DemandForecast() {
           .from('appointments')
           .select('*')
           .eq('beautician_id', beautician.id)
-          .gte('start_time', fourWeeksAgo.toISOString())
-          .lte('start_time', twoWeeksAhead.toISOString());
+          .gte('starts_at', fourWeeksAgo.toISOString())
+          .lte('starts_at', twoWeeksAhead.toISOString());
 
         if (appointments && appointments.length > 0) {
           setForecast(computeForecast(appointments, wh));

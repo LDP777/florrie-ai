@@ -145,7 +145,7 @@ export default function ClientTimeline() {
             byClient[a.client_id].push({
               id: a.id,
               type: 'appointment',
-              date: a.start_time || '',
+              date: a.starts_at || '',
               title: a.treatment_name || '',
               detail: a.notes || '',
               amount: a.price_cents || 0,

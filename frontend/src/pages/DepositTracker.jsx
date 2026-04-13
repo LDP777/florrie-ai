@@ -72,7 +72,7 @@ export default function DepositTracker() {
           takenDate: a.created_at?.slice(0, 10) || '',
           status: a.deposit_status || 'held',
           method: a.payment_method || 'card',
-          appointmentDate: a.start_time?.slice(0, 10) || null,
+          appointmentDate: a.starts_at?.slice(0, 10) || null,
           notes: a.notes || '',
         })));
       } catch (err) {
