@@ -106,6 +106,9 @@ export default function ContentAutopilot() {
   const [editingId, setEditingId] = useState(null);
   const [editCaption, setEditCaption] = useState('');
 
+  // Instagram connection status
+  const [igStatus, setIgStatus] = useState(null); // { connected, page_name }
+
   // AI suggestions (from recent appointments)
   const [suggestions, setSuggestions] = useState([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
@@ -163,8 +166,21 @@ export default function ContentAutopilot() {
       loadSuggestions();
       loadStreams();
       loadCancelledAppointments();
+      fetchInstagramStatus();
     }
   }, [beautician]);
+
+  async function fetchInstagramStatus() {
+    if (isDevMode) { setIgStatus({ connected: false }); return; }
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE}/api/instagram/status`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) setIgStatus(await res.json());
+      else setIgStatus({ connected: false });
+    } catch { setIgStatus({ connected: false }); }
+  }
 
   useEffect(() => {
     if (beautician && selectedStreamId) {
@@ -659,6 +675,39 @@ export default function ContentAutopilot() {
         </button>
       </div>
 
+      {/* Instagram connection banner */}
+      {igStatus && !igStatus.connected && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--warning-bg, #FFF3E0)', borderRadius: 12, marginBottom: 12, border: '1px solid var(--warning, #E59B3A)22' }}>
+          <span style={{ fontSize: 18 }}>📸</span>
+          <span style={{ flex: 1, fontSize: 13, color: 'var(--text-primary)' }}>
+            Connect Instagram to post directly from here
+          </span>
+          <button
+            onClick={async () => {
+              try {
+                const token = getToken();
+                const res = await fetch(`${API_BASE}/api/instagram/connect`, {
+                  headers: token ? { Authorization: `Bearer ${token}` } : {},
+                });
+                const data = await res.json();
+                if (data.url) window.location.href = data.url;
+              } catch (err) { logger.error('IG connect failed:', err); }
+            }}
+            style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >
+            Connect →
+          </button>
+        </div>
+      )}
+      {igStatus?.connected && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: 'var(--success-bg, #E8F5E9)', borderRadius: 12, marginBottom: 12 }}>
+          <span style={{ fontSize: 14 }}>✅</span>
+          <span style={{ fontSize: 12, color: 'var(--success, #5BA97B)', fontWeight: 600 }}>
+            Connected to {igStatus.page_name || 'Instagram'} — posts will publish directly
+          </span>
+        </div>
+      )}
+
       {/* Stream selector pills */}
       <div style={styles.streamSelector}>
         <button
@@ -1003,7 +1052,7 @@ export default function ContentAutopilot() {
                     disabled={publishing === post.id}
                     style={styles.publishBtn}
                   >
-                    {publishing === post.id ? 'Posting...' : 'Approve & Post'}
+                    {publishing === post.id ? 'Posting…' : igStatus?.connected ? '📸 Post to Instagram' : 'Approve'}
                   </button>
                   <button
                     onClick={() => { setEditingId(post.id); setEditCaption(post.caption || ''); }}

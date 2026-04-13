@@ -1,7 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBeautician, supabase, isDevMode } from '../lib/supabase.js';
+import { API_BASE } from '../lib/config.js';
 import { ds, type } from '../lib/designSystem.js';
+
+function getToken() {
+  const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
+  if (!key) return null;
+  const raw = localStorage.getItem(key);
+  try { const parsed = JSON.parse(raw); return parsed?.access_token || parsed?.session?.access_token || null; }
+  catch { return null; }
+}
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import logger from '../lib/logger.js';
@@ -188,6 +197,34 @@ export default function Integrations() {
     }
   }
 
+  const [connecting, setConnecting] = useState(null);
+
+  async function handleConnect(integId) {
+    if (integId === 'instagram') {
+      setConnecting('instagram');
+      try {
+        const token = getToken();
+        const res = await fetch(`${API_BASE}/api/instagram/connect`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        const data = await res.json();
+        if (data.url) {
+          window.location.href = data.url; // Redirect to Meta OAuth
+        } else {
+          logger.error('Instagram connect: no URL returned', data);
+          setConnecting(null);
+        }
+      } catch (err) {
+        logger.error('Instagram connect failed:', err);
+        setConnecting(null);
+      }
+      return;
+    }
+    // For other integrations, navigate to their connect page
+    const integ = CATALOG.find(i => i.id === integId);
+    if (integ?.connectPath) navigate(integ.connectPath);
+  }
+
   if (bLoading) return <div style={ds.page}><PageLoader /></div>;
 
   const integrations = CATALOG.map(item => ({
@@ -306,8 +343,9 @@ export default function Integrations() {
                   {integ.status === 'available' && integ.connectPath && (
                     <button
                       style={{ ...ds.btnPrimary, padding: '10px 0', fontSize: 13 }}
-                      onClick={e => { e.stopPropagation(); navigate(integ.connectPath); }}
-                    >Connect {integ.name} →</button>
+                      onClick={e => { e.stopPropagation(); handleConnect(integ.id); }}
+                      disabled={connecting === integ.id}
+                    >{connecting === integ.id ? 'Connecting…' : `Connect ${integ.name} →`}</button>
                   )}
 
                   {integ.status === 'coming_soon' && (
