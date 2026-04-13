@@ -297,24 +297,16 @@ function AgentTeamSection({ beautician, onNav }) {
 
   return (
     <div style={AT.wrap}>
-      {/* Header */}
+      {/* Header row: title + active badge */}
       <div style={AT.header}>
-        <div style={AT.headerLeft}>
-          <div style={AT.bzAvatar}>
-            {bzPhoto
-              ? <img src={bzPhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              : <span style={AT.bzInitials}>{bzInitials}</span>
-            }
-          </div>
-          <span style={AT.title}>Your AI team</span>
-        </div>
+        <span style={AT.title}>Your AI team</span>
         {activeCount > 0 && (
           <span style={AT.activeBadge}>{activeCount} active</span>
         )}
       </div>
 
-      {/* 2-col agent grid */}
-      <div style={AT.grid}>
+      {/* Compact horizontal avatar strip */}
+      <div style={AT.strip}>
         {AGENT_MAP.map(agent => {
           const d        = agentData[agent.id] || {};
           const isActive = d.isActive || (d.actionsToday || 0) > 0;
@@ -325,35 +317,20 @@ function AgentTeamSection({ beautician, onNav }) {
             <button
               key={agent.id}
               onClick={() => onNav(agent.path, agent.name, 'smart_toy')}
-              style={{
-                ...AT.card,
-                borderColor: isActive ? `${agent.colour}45` : 'rgba(199,107,138,0.1)',
-                boxShadow: isActive ? `0 3px 14px ${agent.colour}1A` : AT.card.boxShadow,
-              }}
+              style={AT.agentBtn}
             >
-              {/* Avatar row */}
-              <div style={AT.cardTop}>
-                <div style={{ position: 'relative', width: 44, height: 44 }}>
-                  {isActive && (
-                    <div style={{ position: 'absolute', inset: -3, borderRadius: '50%', border: `2px solid ${agent.colour}`, opacity: 0.6, animation: 'pulse 2.2s ease infinite' }} />
-                  )}
-                  {AvatarComp && <AvatarComp size={44} />}
-                </div>
+              <div style={{ position: 'relative', width: 40, height: 40 }}>
+                {isActive && (
+                  <div style={{ position: 'absolute', inset: -3, borderRadius: '50%', border: `2px solid ${agent.colour}`, opacity: 0.5, animation: 'agentPulse 2.2s ease infinite' }} />
+                )}
+                {AvatarComp && <AvatarComp size={40} />}
                 {count != null && count > 0 && (
                   <span style={{ ...AT.countBadge, background: agent.colour }}>
-                    {count > 99 ? '99+' : count}
+                    {count > 9 ? '9+' : count}
                   </span>
                 )}
               </div>
-
-              {/* Text */}
-              <div style={AT.agentName}>{agent.name}</div>
-              <div style={AT.agentRole}>{agent.role}</div>
-              {d.latest && (
-                <div style={AT.agentLatest}>
-                  {d.latest.length > 36 ? d.latest.slice(0, 36) + '…' : d.latest}
-                </div>
-              )}
+              <span style={AT.agentLabel}>{agent.name.split(' ')[0]}</span>
             </button>
           );
         })}
@@ -371,7 +348,7 @@ function AgentTeamSection({ beautician, onNav }) {
         <div style={AT.emptyState}>
           <span className="material-symbols-outlined" style={{ fontSize: 14, color: '#C76B8A', flexShrink: 0 }}>schedule</span>
           <span style={AT.emptyText}>
-            Your team is watching — first actions fire after your next appointment
+            Florrie kicks in after your first booking — we'll handle the follow-ups
           </span>
         </div>
       )}
@@ -389,57 +366,46 @@ function AgentTeamSection({ beautician, onNav }) {
 const AT = {
   wrap: {
     background: 'linear-gradient(150deg, #fff5f8 0%, #fff 65%)',
-    borderRadius: 24,
+    borderRadius: 20,
     border: '1px solid rgba(199,107,138,0.13)',
-    padding: '16px 14px 14px',
-    marginBottom: 20,
+    padding: '12px 14px 12px',
+    marginBottom: 16,
     boxShadow: '0 2px 20px rgba(199,107,138,0.07)',
   },
   header: {
     display: 'flex', alignItems: 'center',
-    justifyContent: 'space-between', marginBottom: 14,
+    justifyContent: 'space-between', marginBottom: 10,
   },
-  headerLeft: { display: 'flex', alignItems: 'center', gap: 10 },
-  bzAvatar: {
-    width: 30, height: 30, borderRadius: 15,
-    background: '#ffd9e2', border: '1.5px solid rgba(199,107,138,0.25)',
-    overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-  },
-  bzInitials: { fontSize: 11, fontWeight: 700, color: '#92405e' },
   title: {
-    fontSize: 14, fontWeight: 700, color: '#92405e',
+    fontSize: 13, fontWeight: 700, color: '#92405e',
     fontFamily: "'Noto Serif', Georgia, serif", fontStyle: 'italic',
   },
   activeBadge: {
-    fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
-    color: '#92405e', background: '#ffd9e2', padding: '3px 9px', borderRadius: 20,
+    fontSize: 9, fontWeight: 700, letterSpacing: '0.06em',
+    color: '#92405e', background: '#ffd9e2', padding: '2px 8px', borderRadius: 20,
   },
-  grid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 },
-  card: {
-    background: '#fff',
-    border: '1.5px solid rgba(199,107,138,0.1)',
-    borderRadius: 16,
-    padding: '11px 10px 10px',
-    textAlign: 'left',
-    cursor: 'pointer',
-    fontFamily: 'inherit',
+  strip: {
+    display: 'flex', justifyContent: 'space-between',
+    gap: 4, marginBottom: 10,
+  },
+  agentBtn: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+    background: 'none', border: 'none', cursor: 'pointer',
+    fontFamily: 'inherit', padding: '4px 2px',
     WebkitTapHighlightColor: 'transparent',
-    display: 'flex',
-    flexDirection: 'column',
-    transition: 'border-color 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease',
+    flex: 1, minWidth: 0,
   },
-  cardTop: {
-    display: 'flex', alignItems: 'flex-start',
-    justifyContent: 'space-between', marginBottom: 8,
+  agentLabel: {
+    fontSize: 9, fontWeight: 600, color: '#534247',
+    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+    maxWidth: '100%',
   },
   countBadge: {
-    fontSize: 11, fontWeight: 700, color: '#fff',
-    padding: '3px 7px', borderRadius: 10,
-    minWidth: 18, textAlign: 'center', lineHeight: '15px', flexShrink: 0,
+    position: 'absolute', top: -4, right: -4,
+    fontSize: 9, fontWeight: 700, color: '#fff',
+    padding: '1px 5px', borderRadius: 8,
+    minWidth: 14, textAlign: 'center', lineHeight: '14px',
   },
-  agentName:  { fontSize: 12, fontWeight: 700, color: '#1d1b19', marginBottom: 1 },
-  agentRole:  { fontSize: 10, color: '#B5AFA8', lineHeight: 1.35, marginBottom: 3 },
-  agentLatest:{ fontSize: 10, color: '#a06070', lineHeight: 1.35, fontStyle: 'italic' },
   ticker: {
     display: 'flex', alignItems: 'center', gap: 7,
     background: 'rgba(199,107,138,0.06)', borderRadius: 10,
@@ -525,7 +491,7 @@ function TodayStrip({ beautician }) {
       {todayData !== null && (
         <div style={TS.statsRow}>
           {todayData.total === 0 ? (
-            <span style={TS.empty}>Nothing booked today</span>
+            <span style={TS.empty}>No bookings today — enjoy the breathing room</span>
           ) : (
             <>
               <div style={TS.stat}>
