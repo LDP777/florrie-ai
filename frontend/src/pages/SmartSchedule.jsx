@@ -122,7 +122,7 @@ function computeSuggestions(clients, treatments) {
 
   return {
     rebook_due: rebook_due.sort((a, b) => b.days_overdue - a.days_overdue).slice(0, 5),
-    waitlist_match: [], // Would need a waitlist table
+    waitlist_match: [], // Populated by gap-fill engine API
     dormant_rescue: dormant_rescue.sort((a, b) => b.last_visit_days - a.last_visit_days).slice(0, 5),
   };
 }
@@ -171,13 +171,31 @@ export default function SmartSchedule() {
       const computedGaps = computeGapsFromAppointments(thisWeekAppts, beautician.working_hours);
       setGaps(computedGaps);
 
-      // Fetch clients for fill suggestions
-      const { data: clients } = await supabase
-        ? supabase.from('clients').select('*, appointments(created_at, treatment_name, price_cents, starts_at)').eq('beautician_id', beautician.id)
-        : { data: null };
+      // Fetch clients for fill suggestions + real gap-fill matches
+      const [clientsResult, gapFillResult] = await Promise.all([
+        supabase
+          ? supabase.from('clients').select('*, appointments(created_at, treatment_name, price_cents, starts_at)').eq('beautician_id', beautician.id)
+          : Promise.resolve({ data: null }),
+        fetch(`${API_BASE}/api/features/gap-fill-suggestions`, {
+          headers: { Authorization: `Bearer ${beautician.id}` },
+        }).then(r => r.ok ? r.json() : { suggestions: [] }).catch(() => ({ suggestions: [] })),
+      ]);
+
+      const clients = clientsResult?.data;
       const treatments = await fetchRows('treatments', beautician.id);
       if (clients) {
-        setSuggestions(computeSuggestions(clients, treatments));
+        const computed = computeSuggestions(clients, treatments);
+        // Merge real waitlist matches from gap-fill engine
+        const waitlistMatches = (gapFillResult.suggestions || []).flatMap(s =>
+          (s.matches || []).filter(m => m.type === 'waitlist').map(m => ({
+            client: m.client,
+            treatment: m.treatment,
+            reason: m.reason,
+            gap: s.gap,
+          }))
+        );
+        computed.waitlist_match = waitlistMatches.slice(0, 5);
+        setSuggestions(computed);
       }
     } catch (err) {
       logger.error('Failed to load appointments:', err);

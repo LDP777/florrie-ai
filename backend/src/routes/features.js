@@ -2195,6 +2195,26 @@ router.delete('/waitlist/:id', requireAuth, async (req, res) => {
 });
 
 // ============================================================================
+// GAP-FILL SUGGESTIONS
+// ============================================================================
+
+/**
+ * GET /api/features/gap-fill-suggestions
+ * Returns proactive gap-fill suggestions for SmartSchedule page.
+ * Read-only — does not send any messages.
+ */
+router.get('/gap-fill-suggestions', requireAuth, async (req, res) => {
+  try {
+    const { getGapFillSuggestions } = await import('../services/gap-fill-engine.js');
+    const suggestions = await getGapFillSuggestions(req.beautician.id);
+    res.json({ suggestions });
+  } catch (err) {
+    logger.error({ err }, 'Gap-fill suggestions failed');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+// ============================================================================
 // MESSAGES (INBOX)
 // ============================================================================
 

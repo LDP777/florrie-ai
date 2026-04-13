@@ -14,11 +14,12 @@ import { supabase } from '../index.js';
 import { refreshAllIntelligence } from './client-intelligence.js';
 import { draftAvailabilityPost } from './content-autopilot.js';
 import { processInboundMessage } from './ai-front-desk.js';
-import { sendSMS } from './notifications.js';
+import { sendNudge } from './notifications.js';
 import { shouldAutoSend } from './sms-metering.js';
 import { runValueCoaching } from './value-coaching.js';
 import { processReviewRequests } from './review-requests.js';
 import { pushTeamUpdate } from './push-notifications.js';
+import { checkGapFillOpportunities } from './gap-fill-engine.js';
 import logger from '../lib/logger.js';
 
 const DEFAULT_CONFIDENCE = 0.90;
@@ -94,20 +95,22 @@ async function runForBeautician(beautician) {
   const bid = beautician.id;
   const threshold = beautician.confidence_threshold || DEFAULT_CONFIDENCE;
 
-  // Run all three checks in parallel
-  const [rebookResults, gapResults, messageResults] = await Promise.allSettled([
+  // Run all four checks in parallel
+  const [rebookResults, gapResults, messageResults, gapFillResults] = await Promise.allSettled([
     checkRebookDueClients(bid, threshold),
     checkCalendarGaps(bid, threshold),
     checkUnansweredMessages(bid, beautician, threshold),
+    checkGapFillOpportunities(bid, threshold),
   ]);
 
   // Log summary
   const rebook = rebookResults.status === 'fulfilled' ? rebookResults.value : 0;
   const gaps = gapResults.status === 'fulfilled' ? gapResults.value : 0;
   const msgs = messageResults.status === 'fulfilled' ? messageResults.value : 0;
+  const gapFill = gapFillResults.status === 'fulfilled' ? gapFillResults.value : { matched: 0 };
 
-  if (rebook + gaps + msgs > 0) {
-    logger.info({ bid, rebook, gaps, msgs }, 'Autonomous actions taken');
+  if (rebook + gaps + msgs + (gapFill.matched || 0) > 0) {
+    logger.info({ bid, rebook, gaps, msgs, gapFill: gapFill.matched || 0 }, 'Autonomous actions taken');
   }
 }
 
@@ -120,7 +123,7 @@ async function checkRebookDueClients(beauticianId, threshold) {
   // Get clients with predicted next visit that's overdue
   const { data: clients } = await supabase
     .from('clients')
-    .select('id, first_name, last_name, phone, email, next_predicted_visit')
+    .select('id, first_name, last_name, phone, email, whatsapp_id, last_whatsapp_inbound_at, next_predicted_visit')
     .eq('beautician_id', beauticianId)
     .not('next_predicted_visit', 'is', null)
     .lt('next_predicted_visit', new Date().toISOString())
@@ -147,21 +150,39 @@ async function checkRebookDueClients(beauticianId, threshold) {
     const confidence = 0.85; // Rebook nudges are moderate confidence
     const summary = `${client.first_name} is overdue for a rebook. Send nudge?`;
 
-    if (confidence >= threshold && client.phone) {
+    if (confidence >= threshold && (client.phone || client.email)) {
       const { shouldSend, reason } = await shouldAutoSend(beauticianId, 'rebook_nudge');
       if (!shouldSend) {
         logger.info({ beauticianId, clientId: client.id, reason }, 'Rebook nudge skipped by autopilot rules');
         continue;
       }
-      // Auto-execute: send SMS nudge
+
+      // Fetch beautician prefs for channel routing
+      const { data: bPrefs } = await supabase
+        .from('beauticians')
+        .select('whatsapp_phone_id, client_reminder_prefs')
+        .eq('id', beauticianId)
+        .maybeSingle();
+      const beauticianPrefs = {
+        whatsapp_connected: !!bPrefs?.whatsapp_phone_id,
+        ...(bPrefs?.client_reminder_prefs || {}),
+      };
+
+      const nudgeBody = `Hey ${client.first_name}! It's been a while since your last visit. We'd love to see you again — fancy booking in? 💕`;
       try {
-        await sendSMS({
-          to: client.phone,
-          body: `Hey ${client.first_name}! It's been a while since your last visit. We'd love to see you again — fancy booking in? 💕`,
+        const sent = await sendNudge({
+          client,
+          body: nudgeBody,
+          templateName: 'rebook_nudge',
+          templateParams: [client.first_name],
           beauticianId,
-          messageType: 'rebook_nudge',
+          beauticianPrefs,
         });
-        await logAction(beauticianId, 'rebook_nudge', 'executed', summary, confidence, client.id);
+        if (sent) {
+          await logAction(beauticianId, 'rebook_nudge', 'executed', `${summary} (via ${sent.channel})`, confidence, client.id);
+        } else {
+          await logAction(beauticianId, 'rebook_nudge', 'failed', summary, confidence, client.id);
+        }
         actionsCount++;
       } catch (err) {
         logger.warn({ err, clientId: client.id }, 'Failed to send rebook nudge');
