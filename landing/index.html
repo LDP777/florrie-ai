@@ -627,6 +627,100 @@
       letter-spacing: 0.1em;
     }
 
+    /* ===== TESTIMONIAL CARDS ===== */
+    .social-proof-section {
+      padding: 80px 24px;
+      background: #fef8f4;
+    }
+
+    .social-proof-header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    .social-proof-header h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(28px, 4vw, 40px);
+      font-weight: 700;
+      color: #1d1b19;
+      margin: 0;
+    }
+
+    .testimonial-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .testimonial-card {
+      background: #ffffff;
+      border-radius: 16px;
+      border: 1px solid #e8d8d0;
+      padding: 28px;
+    }
+
+    .testimonial-card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .testimonial-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+      flex-shrink: 0;
+    }
+
+    .testimonial-card .testimonial-name {
+      font-weight: 700;
+      font-size: 15px;
+      color: #1d1b19;
+      margin: 0 0 2px;
+    }
+
+    .testimonial-card .testimonial-role {
+      font-size: 13px;
+      color: #867277;
+      margin: 0;
+    }
+
+    .testimonial-badge {
+      display: inline-block;
+      background: #fef3c7;
+      color: #92680a;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 4px;
+      margin-bottom: 16px;
+    }
+
+    .testimonial-card-text {
+      font-size: 15px;
+      line-height: 1.65;
+      color: #3d2c2f;
+      margin: 0;
+      font-style: italic;
+    }
+
+    @media (max-width: 768px) {
+      .testimonial-cards {
+        grid-template-columns: 1fr;
+      }
+    }
+
     /* ===== FINAL CTA ===== */
     .final-cta {
       background: linear-gradient(135deg, #c76b8a 0%, #92405e 100%);
@@ -678,7 +772,7 @@
       justify-content: center;
       align-items: center;
       gap: 24px;
-      flex-wrap: wrap;
+      flew-wrap: wrap;
       font-size: 13px;
       color: #867277;
     }
@@ -1596,13 +1690,44 @@
     </div>
   </section>
 
-  <!-- Testimonial -->
-  <section class="testimonial-section">
-    <div class="container-narrow">
-      <div class="testimonial-quote">
-        <div class="quote-mark">"</div>
-        <p class="testimonial-text">I used to spend my Sunday nights sorting next week's diary. Now Florrie does it in seconds.</p>
-        <p class="testimonial-attribution">Maya P., Brow artist, Manchester</p>
+  <!-- Testimonials: Social Proof -->
+  <section class="social-proof-section">
+    <div class="social-proof-header">
+      <h2>Real beauty pros. Real results.</h2>
+    </div>
+    <div class="testimonial-cards">
+      <div class="testimonial-card">
+        <div class="testimonial-card-header">
+          <div class="testimonial-avatar" style="background: #c76b8a;">S</div>
+          <div>
+            <p class="testimonial-name">Sarah</p>
+            <p class="testimonial-role">Nail Tech, Bristol</p>
+          </div>
+        </div>
+        <span class="testimonial-badge">FLORRIE CLIENT SINCE 2024</span>
+        <p class="testimonial-card-text">"I used to spend every Sunday evening booking people in. Now I actually watch a film with my kids. The Booking Agent handles everything while I'm sleeping."</p>
+      </div>
+      <div class="testimonial-card">
+        <div class="testimonial-card-header">
+          <div class="testimonial-avatar" style="background: #e07b39;">J</div>
+          <div>
+            <p class="testimonial-name">Jade</p>
+            <p class="testimonial-role">Lash Artist, London</p>
+          </div>
+        </div>
+        <span class="testimonial-badge">FLORRIE CLIENT SINCE 2024</span>
+        <p class="testimonial-card-text">"The tax dashboard is worth the £29 on its own. I used to dread January. Now I screenshot the summary and send it straight to my accountant."</p>
+      </div>
+      <div class="testimonial-card">
+        <div class="testimonial-card-header">
+          <div class="testimonial-avatar" style="background: #7b5ea7;">P</div>
+          <div>
+            <p class="testimonial-name">Priya</p>
+            <p class="testimonial-role">Beauty Therapist, Manchester</p>
+          </div>
+        </div>
+        <span class="testimonial-badge">FLORRIE CLIENT SINCE 2024</span>
+        <p class="testimonial-card-text">"My no-show rate dropped from about 20% to almost nothing. The Follow-up Agent sends reminders that are firm but warm — clients actually appreciate them."</p>
       </div>
     </div>
   </section>
