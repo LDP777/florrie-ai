@@ -88,7 +88,8 @@ const APISettings = lazy(() => import('./pages/APISettings.jsx'));
 const Pricing = lazy(() => import('./pages/Pricing.jsx'));
 const Hub = lazy(() => import('./pages/Hub.jsx'));
 const ClientManagePage = lazy(() => import('./pages/ClientManagePage.jsx'));
-const LandingPage = lazy(() => import('./pages/LandingPage.jsx'));
+// LandingPage.jsx removed — landing.html (in public/) is the single source of truth.
+// All unauthenticated visitors are redirected to /landing.html below.
 const TermsPage = lazy(() => import('./pages/TermsPage.jsx'));
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage.jsx'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy.jsx'));
@@ -193,9 +194,9 @@ export default function App() {
     );
   }
 
-  // Not logged in → landing page at /, login at /login
+  // Not logged in → static landing page or login
   if (!session) {
-    // If unauthenticated user hits /, send them to the static landing page
+    // All unauthenticated root hits → static landing.html (faster load, better SEO, single source of truth)
     if (isLandingRoute) {
       window.location.replace('/landing.html');
       return null;
@@ -203,7 +204,6 @@ export default function App() {
     return (
       <Suspense fallback={<PageLoader />}>
         <Routes>
-          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login supabase={supabase} />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
