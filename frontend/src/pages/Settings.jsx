@@ -23,6 +23,7 @@ export default function Settings({ onLogout }) {
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState(null);
   const [section, setSection] = useState('profile');
+  const [pendingCreditRules, setPendingCreditRules] = useState(null);
   const [connectingStripe, setConnectingStripe] = useState(false);
   const [stripeError, setStripeError] = useState(null);
   const [gcalConnecting, setGcalConnecting] = useState(false);
@@ -959,9 +960,8 @@ export default function Settings({ onLogout }) {
 
           {/* Credit priority rules */}
           {(() => {
-            // pendingRules gives instant visual feedback; resets to beautician data after refresh
-            const [pendingRules, setPendingRules] = useState(null);
-            const rules = pendingRules ?? beautician.credit_priority_rules ?? {};
+            // pendingCreditRules gives instant visual feedback; resets to beautician data after refresh
+            const rules = pendingCreditRules ?? beautician.credit_priority_rules ?? {};
             const CATEGORIES = [
               {
                 group: 'Always',
@@ -1017,8 +1017,8 @@ export default function Settings({ onLogout }) {
 
             function setRulePriority(key, value) {
               const next = { ...rules, [key]: value };
-              setPendingRules(next);   // optimistic — instant visual response
-              saveProfile({ credit_priority_rules: next }).finally(() => setPendingRules(null));
+              setPendingCreditRules(next);   // optimistic — instant visual response
+              saveProfile({ credit_priority_rules: next }).finally(() => setPendingCreditRules(null));
             }
 
             return (
@@ -1310,8 +1310,10 @@ export default function Settings({ onLogout }) {
             <div style={styles.fieldRow}>
               <span style={styles.fieldLabel}>Plan</span>
               <span style={styles.fieldValue}>
-                {beautician.subscription_status === 'trial' ? '14-day free trial' :
-                 beautician.subscription_status === 'active' ? 'Active (£50/mo)' :
+                {beautician.subscription_plan === 'trial' || !beautician.subscription_plan ? '14-day free trial' :
+                 beautician.subscription_plan === 'florrie' ? 'Florrie — £29/mo' :
+                 beautician.subscription_plan === 'florrie_team' ? 'Teams — £44/mo' :
+                 beautician.subscription_status === 'active' ? `Active (${beautician.subscription_plan})` :
                  beautician.subscription_status || 'Trial'}
               </span>
             </div>
@@ -1581,8 +1583,8 @@ const styles = {
   title: { fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)", letterSpacing: '-0.02em' },
   savedBadge: { padding: '4px 10px', borderRadius: 6, background: 'var(--success-bg)', color: 'var(--success)', fontSize: 12, fontWeight: 600 },
   loadingText: { textAlign: 'center', color: 'var(--text-muted)', padding: 60, fontSize: 14, fontFamily: "var(--font-body, 'DM Sans', sans-serif)" },
-  sectionNav: { display: 'flex', gap: 6, marginBottom: 16 },
-  sectionTab: { flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s' },
+  sectionNav: { display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none', paddingBottom: 2 },
+  sectionTab: { padding: '8px 12px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0 },
   card: { background: 'var(--bg-card)', borderRadius: 14, padding: 16, marginBottom: 12, boxShadow: 'var(--shadow-sm)' },
   cardTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 6px', color: 'var(--text-primary)' },
   cardDesc: { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 16px', lineHeight: 1.5 },

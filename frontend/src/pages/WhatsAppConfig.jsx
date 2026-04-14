@@ -227,6 +227,8 @@ export default function WhatsAppConfig() {
   async function loadData() {
     setLoading(true);
     try {
+      const data = await apiFetch('/status');
+      setStatus(data);
     } catch (err) {
       logger.error('WhatsApp load error:', err);
       // On error, show disconnected state so user can reconnect

@@ -83,7 +83,7 @@ export default function SetupChecklist() {
       ]);
       setData({
         treatmentCount: treatments?.length || 0,
-        hasHours: !!freshB.working_hours && Object.values(freshB.working_hours).some(d => d?.enabled),
+        hasHours: !!freshB.working_hours && Object.values(freshB.working_hours).some(d => d != null && d.start),
         bookingSlug: freshB.booking_slug || null,
         clientCount: clients?.length || 0,
         stripeConnected: !!freshB.stripe_account_id,

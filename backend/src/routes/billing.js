@@ -238,7 +238,7 @@ router.post('/webhook', async (req, res) => {
             .update({
               subscription_plan: plan,
               subscription_status: 'active',
-              stripe_subscription_id: session.subscription,
+              subscription_stripe_id: session.subscription,
             })
             .eq('id', beauticianId);
           logger.info({ beauticianId, plan }, 'Subscription activated');
@@ -278,7 +278,7 @@ router.post('/webhook', async (req, res) => {
             .update({
               subscription_plan: 'trial',
               subscription_status: 'cancelled',
-              stripe_subscription_id: null,
+              subscription_stripe_id: null,
             })
             .eq('id', beauticianId);
           logger.info({ beauticianId }, 'Subscription cancelled');
