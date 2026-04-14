@@ -172,13 +172,16 @@ export default function SmartSchedule() {
       }
 
       // Fetch clients for fill suggestions + real gap-fill matches
+      const token = (await supabase?.auth.getSession())?.data?.session?.access_token;
       const [clientsResult, gapFillResult] = await Promise.all([
         supabase
           ? supabase.from('clients').select('*, appointments(created_at, treatment_name, price_cents, starts_at)').eq('beautician_id', beautician.id)
           : Promise.resolve({ data: null }),
-        fetch(`${API_BASE}/api/features/gap-fill-suggestions`, {
-          headers: { Authorization: `Bearer ${beautician.id}` },
-        }).then(r => r.ok ? r.json() : { suggestions: [] }).catch(() => ({ suggestions: [] })),
+        token
+          ? fetch(`${API_BASE}/api/features/gap-fill-suggestions`, {
+              headers: { Authorization: `Bearer ${token}` },
+            }).then(r => r.ok ? r.json() : { suggestions: [] }).catch(() => ({ suggestions: [] }))
+          : Promise.resolve({ suggestions: [] }),
       ]);
 
       const clients = clientsResult?.data;
@@ -196,6 +199,13 @@ export default function SmartSchedule() {
         );
         computed.waitlist_match = waitlistMatches.slice(0, 5);
         setSuggestions(computed);
+
+        // Backfill real suggestions count onto each gap
+        const totalSuggestions = computed.rebook_due.length + computed.dormant_rescue.length + computed.waitlist_match.length;
+        if (totalSuggestions > 0) {
+          setGaps(prev => prev.map(g => ({ ...g, suggestions: totalSuggestions })));
+        }
+
         // Store flat appointments for insights tab
         const flat = clients.flatMap(c => c.appointments || []);
         setAllAppts(flat);
@@ -250,7 +260,7 @@ export default function SmartSchedule() {
             end: `${String(Math.floor(appt.start / 60)).padStart(2, '0')}:${String(appt.start % 60).padStart(2, '0')}`,
             duration_minutes: appt.start - currentTime,
             fillability: appt.start - currentTime >= 60 ? 'high' : 'medium',
-            suggestions: Math.floor(Math.random() * 3) + 1,
+            suggestions: 0, // Updated after suggestions computed
           });
         }
         currentTime = appt.start + appt.duration;
@@ -266,7 +276,7 @@ export default function SmartSchedule() {
           end: `${String(Math.floor(dayEndMins / 60)).padStart(2, '0')}:${String(dayEndMins % 60).padStart(2, '0')}`,
           duration_minutes: dayEndMins - currentTime,
           fillability: dayEndMins - currentTime >= 90 ? 'high' : 'low',
-          suggestions: 1,
+          suggestions: 0, // Updated after suggestions computed
         });
       }
     }
