@@ -95,12 +95,13 @@ async function runForBeautician(beautician) {
   const bid = beautician.id;
   const threshold = beautician.confidence_threshold || DEFAULT_CONFIDENCE;
 
-  // Run all four checks in parallel
-  const [rebookResults, gapResults, messageResults, gapFillResults] = await Promise.allSettled([
+  // Run all checks in parallel
+  const [rebookResults, gapResults, messageResults, gapFillResults, patchTestResults] = await Promise.allSettled([
     checkRebookDueClients(bid, threshold),
     checkCalendarGaps(bid, threshold),
     checkUnansweredMessages(bid, beautician, threshold),
     checkGapFillOpportunities(bid, threshold),
+    checkPatchTestsExpiring(bid, beautician),
   ]);
 
   // Log summary
@@ -108,9 +109,10 @@ async function runForBeautician(beautician) {
   const gaps = gapResults.status === 'fulfilled' ? gapResults.value : 0;
   const msgs = messageResults.status === 'fulfilled' ? messageResults.value : 0;
   const gapFill = gapFillResults.status === 'fulfilled' ? gapFillResults.value : { matched: 0 };
+  const patchTests = patchTestResults.status === 'fulfilled' ? patchTestResults.value : 0;
 
-  if (rebook + gaps + msgs + (gapFill.matched || 0) > 0) {
-    logger.info({ bid, rebook, gaps, msgs, gapFill: gapFill.matched || 0 }, 'Autonomous actions taken');
+  if (rebook + gaps + msgs + (gapFill.matched || 0) + patchTests > 0) {
+    logger.info({ bid, rebook, gaps, msgs, gapFill: gapFill.matched || 0, patchTests }, 'Autonomous actions taken');
   }
 }
 
@@ -307,6 +309,101 @@ async function checkUnansweredMessages(beauticianId, beautician, threshold) {
   }
 
   return actionsCount;
+}
+
+/**
+ * 5. Check for patch tests expiring soon and remind clients.
+ *    Only runs if beautician has patch_test_auto_remind = true.
+ *    Deduped: won't re-send within 7 days per client.
+ */
+async function checkPatchTestsExpiring(beauticianId, beautician) {
+  // Re-fetch full beautician row if we only have a partial object
+  const { data: b } = await supabase
+    .from('beauticians')
+    .select('patch_test_auto_remind, patch_test_remind_days_before, patch_test_expiry_months, whatsapp_phone_id, client_reminder_prefs, first_name, phone')
+    .eq('id', beauticianId)
+    .maybeSingle();
+
+  if (!b?.patch_test_auto_remind) return 0;
+
+  const expiryMonths = b.patch_test_expiry_months || 6;
+  const remindDaysBefore = b.patch_test_remind_days_before || 7;
+
+  // Calculate the date window: tests that will expire within remindDaysBefore days
+  const now = new Date();
+  const expiryWindowEnd = new Date(now.getTime() + remindDaysBefore * 24 * 60 * 60 * 1000);
+
+  // test_date + expiryMonths months = expiry date
+  // We want: test_date = expiry - expiryMonths
+  // So: test_date <= windowEnd - expiryMonths && test_date >= windowEnd - expiryMonths - 1 day (so we don't keep hitting already-expired ones)
+  const cutoffDate = new Date(expiryWindowEnd);
+  cutoffDate.setMonth(cutoffDate.getMonth() - expiryMonths);
+  const lowerBound = new Date(cutoffDate);
+  lowerBound.setDate(lowerBound.getDate() - 1);
+
+  const { data: expiringTests } = await supabase
+    .from('patch_tests')
+    .select('id, client_id, test_date, clients(id, first_name, last_name, phone, whatsapp_id, email)')
+    .eq('beautician_id', beauticianId)
+    .eq('result', 'pass')
+    .gte('test_date', lowerBound.toISOString().split('T')[0])
+    .lte('test_date', cutoffDate.toISOString().split('T')[0]);
+
+  if (!expiringTests?.length) return 0;
+
+  const beauticianPrefs = {
+    whatsapp_connected: !!b.whatsapp_phone_id,
+    ...(b.client_reminder_prefs || {}),
+  };
+
+  let sent = 0;
+
+  for (const test of expiringTests) {
+    const client = test.clients;
+    if (!client) continue;
+
+    // Dedup: check if we've already sent a patch test reminder in the last 7 days
+    const { count } = await supabase
+      .from('ai_actions')
+      .select('id', { count: 'exact', head: true })
+      .eq('beautician_id', beauticianId)
+      .eq('action_type', 'patch_test_reminder')
+      .eq('client_id', client.id)
+      .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+
+    if ((count || 0) > 0) continue;
+
+    const expiryDate = new Date(test.test_date);
+    expiryDate.setMonth(expiryDate.getMonth() + expiryMonths);
+    const daysLeft = Math.ceil((expiryDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+
+    const nudgeBody = `Hi ${client.first_name}! Just a heads up — your patch test is expiring in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}. You'll need a fresh one before your next tint or lift appointment. Give us a message to book one in 💕`;
+
+    try {
+      const result = await sendNudge({
+        client,
+        body: nudgeBody,
+        beauticianId,
+        beauticianPrefs,
+      });
+
+      if (result) {
+        await logAction(
+          beauticianId,
+          'patch_test_reminder',
+          'executed',
+          `Patch test reminder sent to ${client.first_name} — expires in ${daysLeft} days`,
+          0.95,
+          client.id
+        );
+        sent++;
+      }
+    } catch (err) {
+      logger.warn({ err, clientId: client.id }, 'Failed to send patch test reminder');
+    }
+  }
+
+  return sent;
 }
 
 /**

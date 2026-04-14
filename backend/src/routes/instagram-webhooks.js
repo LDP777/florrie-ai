@@ -209,7 +209,7 @@ async function sendInstagramReply(recipientId, text) {
  * Find or create client, store message, and pass to AI Front Desk.
  */
 async function processInstagramDM(beautician, senderId, messageText, messageId) {
-  const dmMode = beautician.instagram_dm_mode || 'ai';
+  const dmMode = beautician.instagram_dm_mode || 'redirect';
 
   // Find client by Instagram sender ID
   let { data: client } = await supabase

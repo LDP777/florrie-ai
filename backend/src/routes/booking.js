@@ -213,7 +213,7 @@ router.get('/:slug/manage/:token', async (req, res) => {
         payment_expires_at, policy_snapshot, client_email,
         treatments(id, name, duration_minutes, price_cents, category, requires_patch_test),
         clients(id, first_name, last_name, email, phone),
-        beauticians(id, first_name, business_name, booking_policy, booking_slug, brand_color, patch_test_expiry_months)
+        beauticians(id, first_name, business_name, booking_policy, booking_slug, brand_color, patch_test_expiry_months, patch_test_block_booking)
       `)
       .eq('management_token', req.params.token)
       .single();
@@ -259,6 +259,7 @@ router.get('/:slug/manage/:token', async (req, res) => {
       pt.status === 'pending' || pt.confirmed_at
     );
     const needsPatchTest = treatmentRequiresPatchTest && !hasValidPatchTest && !hasPendingPatchTest;
+    const blockBooking = needsPatchTest && (appt.beauticians?.patch_test_block_booking === true);
 
     const policy = appt.policy_snapshot || appt.beauticians?.booking_policy || {};
     const now = new Date();
@@ -291,6 +292,7 @@ router.get('/:slug/manage/:token', async (req, res) => {
       },
       patchTests: patchTests || [],
       needsPatchTest,
+      blockBooking,
       pendingForms: (pendingForms || []).map(f => ({
         ...f,
         // Compute form_url from token if not stored in DB

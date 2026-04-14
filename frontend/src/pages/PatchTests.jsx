@@ -84,24 +84,37 @@ export default function PatchTests() {
   });
   const [settingsSaved, setSettingsSaved] = useState(false);
 
-  // Seed expiry_months from beautician profile once loaded
+  // Seed settings from beautician profile once loaded
   useEffect(() => {
-    if (beautician?.patch_test_expiry_months) {
-      setSettings(s => ({ ...s, expiry_months: beautician.patch_test_expiry_months }));
-    }
+    if (!beautician) return;
+    setSettings(s => ({
+      ...s,
+      expiry_months: beautician.patch_test_expiry_months ?? s.expiry_months,
+      auto_remind: beautician.patch_test_auto_remind ?? s.auto_remind,
+      remind_days_before: beautician.patch_test_remind_days_before ?? s.remind_days_before,
+      block_booking_without_test: beautician.patch_test_block_booking ?? s.block_booking_without_test,
+    }));
   }, [beautician]);
 
   const saveExpiryMonths = useCallback(async (months) => {
     if (!beautician) return;
     try {
-      await supabase
-        .from('beauticians')
-        .update({ patch_test_expiry_months: months })
-        .eq('id', beautician.id);
+      await supabase.from('beauticians').update({ patch_test_expiry_months: months }).eq('id', beautician.id);
       setSettingsSaved(true);
       setTimeout(() => setSettingsSaved(false), 2000);
     } catch (err) {
       logger.error({ err }, 'Failed to save patch test expiry setting');
+    }
+  }, [beautician]);
+
+  const saveReminderSettings = useCallback(async (patch) => {
+    if (!beautician) return;
+    try {
+      await supabase.from('beauticians').update(patch).eq('id', beautician.id);
+      setSettingsSaved(true);
+      setTimeout(() => setSettingsSaved(false), 2000);
+    } catch (err) {
+      logger.error({ err }, 'Failed to save reminder settings');
     }
   }, [beautician]);
 
@@ -496,25 +509,40 @@ export default function PatchTests() {
             </div>
           </div>
 
-          <div style={{ ...styles.settingsCard, opacity: 0.6 }}>
+          <div style={styles.settingsCard}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <h3 style={{ ...styles.settingsSectionTitle, margin: 0 }}>Reminders</h3>
-              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text-muted)', background: 'var(--bg-subtle)', padding: '3px 8px', borderRadius: 6 }}>COMING SOON</span>
+              {settingsSaved && <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>Saved ✓</span>}
             </div>
             <div style={styles.settingsRow}>
               <div>
                 <span style={styles.settingsLabel}>Auto-remind clients</span>
-                <span style={styles.settingsHint}>florrie.ai will message clients when their test is expiring</span>
+                <span style={styles.settingsHint}>Florrie messages clients when their patch test is about to expire</span>
               </div>
-              <div style={{ ...styles.toggle, background: 'var(--border)', pointerEvents: 'none' }}>
-                <div style={{ ...styles.toggleDot, transform: 'translateX(2px)' }} />
+              <div
+                onClick={() => {
+                  const next = !settings.auto_remind;
+                  setSettings(p => ({ ...p, auto_remind: next }));
+                  saveReminderSettings({ patch_test_auto_remind: next });
+                }}
+                style={{ ...styles.toggle, background: settings.auto_remind ? 'var(--accent)' : 'var(--border)', cursor: 'pointer' }}
+              >
+                <div style={{ ...styles.toggleDot, transform: settings.auto_remind ? 'translateX(20px)' : 'translateX(2px)' }} />
               </div>
             </div>
             <div style={{ ...styles.settingsRow, borderBottom: 'none' }}>
               <div>
                 <span style={styles.settingsLabel}>Remind how many days before?</span>
               </div>
-              <select disabled value={7} style={{ ...styles.settingsSelect, opacity: 0.5 }}>
+              <select
+                value={settings.remind_days_before}
+                onChange={e => {
+                  const days = parseInt(e.target.value);
+                  setSettings(p => ({ ...p, remind_days_before: days }));
+                  saveReminderSettings({ patch_test_remind_days_before: days });
+                }}
+                style={styles.settingsSelect}
+              >
                 <option value={3}>3 days</option>
                 <option value={7}>7 days</option>
                 <option value={14}>14 days</option>
@@ -522,18 +550,24 @@ export default function PatchTests() {
             </div>
           </div>
 
-          <div style={{ ...styles.settingsCard, opacity: 0.6 }}>
+          <div style={styles.settingsCard}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
               <h3 style={{ ...styles.settingsSectionTitle, margin: 0 }}>Booking protection</h3>
-              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text-muted)', background: 'var(--bg-subtle)', padding: '3px 8px', borderRadius: 6 }}>COMING SOON</span>
             </div>
             <div style={{ ...styles.settingsRow, borderBottom: 'none' }}>
               <div>
                 <span style={styles.settingsLabel}>Block bookings without valid test</span>
                 <span style={styles.settingsHint}>Clients won't be able to book tint/lift treatments without a test on file</span>
               </div>
-              <div style={{ ...styles.toggle, background: 'var(--border)', pointerEvents: 'none' }}>
-                <div style={{ ...styles.toggleDot, transform: 'translateX(2px)' }} />
+              <div
+                onClick={() => {
+                  const next = !settings.block_booking_without_test;
+                  setSettings(p => ({ ...p, block_booking_without_test: next }));
+                  saveReminderSettings({ patch_test_block_booking: next });
+                }}
+                style={{ ...styles.toggle, background: settings.block_booking_without_test ? 'var(--accent)' : 'var(--border)', cursor: 'pointer' }}
+              >
+                <div style={{ ...styles.toggleDot, transform: settings.block_booking_without_test ? 'translateX(20px)' : 'translateX(2px)' }} />
               </div>
             </div>
           </div>
