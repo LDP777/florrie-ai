@@ -48,7 +48,6 @@ export default function StaffRota() {
           .eq('beautician_id', beautician.id);
         if (excepErr) throw excepErr;
         setExceptions(excepData || []);
-      }
     } catch (err) {
       logger.error('Load rota error:', err);
       setError(err.message);
