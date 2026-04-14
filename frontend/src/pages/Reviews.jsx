@@ -82,7 +82,7 @@ export default function Reviews() {
               <span key={i} style={{ fontSize: 16, color: i <= Math.round(parseFloat(avgRating)) ? 'var(--warning, #D4943A)' : 'var(--text-muted, #B5AFA8)' }}>★</span>
             ))}
           </div>
-          <span style={styles.heroCount}>{reviews.length} review+reviews.length !== 1 ? 's' : ''}</span>
+          <span style={styles.heroCount}>{reviews.length} review{reviews.length !== 1 ? 's' : ''}</span>
         </div>
         <div style={styles.heroRight}>
           <div style={styles.ratingBar}>
