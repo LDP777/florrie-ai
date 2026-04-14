@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, isDevMode, insertRow, updateRow, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -14,32 +14,6 @@ import ErrorCard from '../components/ErrorCard.jsx';
  *   History  — redeemed + expired vouchers
  */
 
-const DEV_VOUCHERS = [
-  {
-    id: 'dev-v1', code: 'GIFT-SH4UN', type: 'amount', amount_cents: 5000,
-    treatment_id: null, treatment_name: null,
-    buyer_name: 'Shauna', recipient_name: 'Emma',
-    recipient_email: 'emma@example.com', message: 'Happy birthday babe! Treat yourself xx',
-    status: 'active', created_at: '2026-03-10T10:00:00Z', expires_at: '2026-09-10T10:00:00Z',
-    redeemed_at: null, redeemed_by: null,
-  },
-  {
-    id: 'dev-v2', code: 'GIFT-D4ISY', type: 'treatment', amount_cents: 4500,
-    treatment_id: 'dev-t1', treatment_name: 'Lamination & Hybrid Dye',
-    buyer_name: 'Daisy S', recipient_name: 'Chloe',
-    recipient_email: '', message: "Merry Xmas! You'll love Ellie, she's amazing",
-    status: 'active', created_at: '2026-02-20T10:00:00Z', expires_at: '2026-08-20T10:00:00Z',
-    redeemed_at: null, redeemed_by: null,
-  },
-  {
-    id: 'dev-v3', code: 'GIFT-J4SM1', type: 'amount', amount_cents: 3000,
-    treatment_id: null, treatment_name: null,
-    buyer_name: 'Jasmin', recipient_name: 'Mum',
-    recipient_email: '', message: "Mother's day treat!",
-    status: 'redeemed', created_at: '2026-01-15T10:00:00Z', expires_at: '2026-07-15T10:00:00Z',
-    redeemed_at: '2026-03-15T14:00:00Z', redeemed_by: 'Mum (Carol)',
-  },
-];
 
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 const AMOUNTS = [2000, 2500, 3000, 4000, 5000, 7500, 10000];
@@ -53,7 +27,8 @@ function generateCode() {
 
 export default function GiftVouchers() {
   const { beautician, loading: bLoading } = useBeautician();
-  const [vouchers, setVouchers] = useState(DEV_VOUCHERS);
+  const [vouchers, setVouchers] = useState([]);
+  const [treatments, setTreatments] = useState([]);
   const [tab, setTab] = useState('active');
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -76,14 +51,13 @@ export default function GiftVouchers() {
       setLoading(false);
       return;
     }
-    if (isDevMode) {
-      setVouchers(DEV_VOUCHERS);
-      setLoading(false);
-      return;
-    }
     try {
-      const rows = await fetchRows('gift_vouchers', beautician.id, { order: 'created_at', ascending: false });
-      setVouchers(rows);
+      const [rows, txRows] = await Promise.all([
+        fetchRows('gift_vouchers', beautician.id, { order: 'created_at', ascending: false }),
+        fetchRows('treatments', beautician.id, { order: 'name', ascending: true }),
+      ]);
+      setVouchers(rows || []);
+      setTreatments((txRows || []).filter(t => t.is_active));
     } catch (err) {
       logger.error('Failed to load gift vouchers:', err);
     }
@@ -96,7 +70,7 @@ export default function GiftVouchers() {
     if (form.type === 'treatment' && !form.treatment_id) return;
 
     const treatment = form.type === 'treatment'
-      ? DEV_TREATMENTS.find(t => t.id === form.treatment_id)
+      ? treatments.find(t => t.id === form.treatment_id)
       : null;
 
     const voucher = {
@@ -117,11 +91,13 @@ export default function GiftVouchers() {
       redeemed_by: null,
     };
 
-    if (!isDevMode && beautician) {
+    if (beautician) {
       try {
         const saved = await insertRow('gift_vouchers', { beautician_id: beautician.id, ...voucher });
         voucher.id = saved.id;
-      } catch {}
+      } catch (err) {
+        logger.error('Failed to save gift voucher:', err);
+      }
     }
 
     setVouchers(prev => [voucher, ...prev]);
@@ -142,8 +118,10 @@ export default function GiftVouchers() {
   async function handleRedeem(voucher) {
     const updated = { ...voucher, status: 'redeemed', redeemed_at: new Date().toISOString(), redeemed_by: voucher.recipient_name };
     setVouchers(prev => prev.map(v => v.id === voucher.id ? updated : v));
-    if (!isDevMode) {
-      try { await updateRow('gift_vouchers', voucher.id, { status: 'redeemed', redeemed_at: updated.redeemed_at }); } catch {}
+    try {
+      await updateRow('gift_vouchers', voucher.id, { status: 'redeemed', redeemed_at: updated.redeemed_at });
+    } catch (err) {
+      logger.error('Failed to redeem gift voucher:', err);
     }
     setRedeemCode('');
     setRedeemSearch(null);
@@ -291,7 +269,7 @@ export default function GiftVouchers() {
                 style={styles.formSelect}
               >
                 <option value="">Choose a treatment...</option>
-                {DEV_TREATMENTS.filter(t => t.is_active).map(t => (
+                {treatments.map(t => (
                   <option key={t.id} value={t.id}>{t.name} — {fmt(t.price_cents)}</option>
                 ))}
               </select>
@@ -365,7 +343,7 @@ export default function GiftVouchers() {
             <div style={styles.previewBrand}>🎁 {beautician?.business_name || 'Ellindigo Brows & Beauty'}</div>
             <div style={styles.previewAmount}>
               {form.type === 'treatment'
-                ? (DEV_TREATMENTS.find(t => t.id === form.treatment_id)?.name || 'Treatment voucher')
+                ? (treatments.find(t => t.id === form.treatment_id)?.name || 'Treatment voucher')
                 : fmt(form.amount_cents)
               }
             </div>
