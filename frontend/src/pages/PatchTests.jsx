@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useBeautician, supabase, fetchRows, insertRow, updateRow } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
@@ -48,17 +48,21 @@ function daysUntilExpiry(testDate, expiryMonths) {
   return Math.round((expiry - new Date()) / 86400000);
 }
 
-// Treatments that require patch tests
-const REQUIRES_TEST = ['dev-t1', 'dev-t2', 'dev-t3', 'dev-t4', 'dev-t5', 'dev-t6', 'dev-t13'];
-
-const DEV_UPCOMING_NEEDING_TEST = [
-  { client_name: 'Emma', appointment_date: '2026-03-28', treatment: 'Lamination & Hybrid Dye', status: 'none' },
-  { client_name: 'Daisy S', appointment_date: '2026-03-29', treatment: 'Lamination & Tint', status: 'expired' },
-];
+// Keyword check: does this treatment name require a patch test?
+function requiresPatchTest(treatmentName) {
+  if (!treatmentName) return false;
+  const n = treatmentName.toLowerCase();
+  return (
+    n.includes('tint') || n.includes('dye') || n.includes('lash lift') ||
+    n.includes('lamination') || n.includes('henna') || n.includes('hybrid') ||
+    n.includes('keratin') || n.includes('semi-permanent') || n.includes('ombre brow')
+  );
+}
 
 export default function PatchTests() {
   const { beautician, loading: bLoading } = useBeautician();
   const [tests, setTests] = useState([]);
+  const [upcomingAlerts, setUpcomingAlerts] = useState([]);
   const [tab, setTab] = useState('alerts');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -71,14 +75,35 @@ export default function PatchTests() {
     result: 'pass', notes: '', treatment_id: '',
   });
 
-  // Settings
+  // Settings — seeded from beautician profile, saved back on change
   const [settings, setSettings] = useState({
     expiry_months: 6,
     auto_remind: true,
     remind_days_before: 7,
     block_booking_without_test: false,
-    require_for: REQUIRES_TEST,
   });
+  const [settingsSaved, setSettingsSaved] = useState(false);
+
+  // Seed expiry_months from beautician profile once loaded
+  useEffect(() => {
+    if (beautician?.patch_test_expiry_months) {
+      setSettings(s => ({ ...s, expiry_months: beautician.patch_test_expiry_months }));
+    }
+  }, [beautician]);
+
+  const saveExpiryMonths = useCallback(async (months) => {
+    if (!beautician) return;
+    try {
+      await supabase
+        .from('beauticians')
+        .update({ patch_test_expiry_months: months })
+        .eq('id', beautician.id);
+      setSettingsSaved(true);
+      setTimeout(() => setSettingsSaved(false), 2000);
+    } catch (err) {
+      logger.error({ err }, 'Failed to save patch test expiry setting');
+    }
+  }, [beautician]);
 
   useEffect(() => { loadData(); }, [beautician, bLoading]);
 
@@ -90,8 +115,54 @@ export default function PatchTests() {
       return;
     }
     try {
-      const rows = await fetchRows('patch_tests', beautician.id, { order: 'test_date', ascending: false });
+      // Fetch patch tests + upcoming appointments in parallel
+      const now = new Date();
+      const in14 = new Date(now); in14.setDate(now.getDate() + 14);
+
+      const [rows, { data: upcoming }] = await Promise.all([
+        fetchRows('patch_tests', beautician.id, { order: 'test_date', ascending: false }),
+        supabase
+          .from('appointments')
+          .select('id, starts_at, treatment_name, clients(first_name, last_name)')
+          .eq('beautician_id', beautician.id)
+          .gte('starts_at', now.toISOString())
+          .lte('starts_at', in14.toISOString())
+          .neq('status', 'cancelled')
+          .order('starts_at', { ascending: true }),
+      ]);
+
       setTests(rows);
+
+      // Build alerts: upcoming appointments that need a patch test and don't have a valid one
+      const expiryMs = settings.expiry_months * 30 * 24 * 60 * 60 * 1000;
+      const alerts = (upcoming || [])
+        .filter(a => requiresPatchTest(a.treatment_name))
+        .map(a => {
+          const clientName = a.clients
+            ? `${a.clients.first_name || ''} ${a.clients.last_name || ''}`.trim()
+            : 'Unknown';
+          // Find latest patch test for this client (match by name, case-insensitive)
+          const latestTest = (rows || [])
+            .filter(t => t.client_name?.toLowerCase() === clientName.toLowerCase())
+            .sort((x, y) => new Date(y.test_date) - new Date(x.test_date))[0];
+
+          let status = 'none';
+          if (latestTest) {
+            const ageMs = now - new Date(latestTest.test_date);
+            status = ageMs > expiryMs ? 'expired' : ageMs > expiryMs * 0.86 ? 'expiring' : 'valid';
+          }
+          // Only include if no valid test
+          if (status === 'valid') return null;
+          return {
+            client_name: clientName,
+            appointment_date: a.starts_at.slice(0, 10),
+            treatment: a.treatment_name,
+            status,
+          };
+        })
+        .filter(Boolean);
+
+      setUpcomingAlerts(alerts);
     } catch (err) {
       logger.error({ err }, 'Failed to load patch tests');
       setError('Something went wrong');
@@ -162,7 +233,7 @@ export default function PatchTests() {
   const validCount = testsWithStatus.filter(t => t.status === 'valid').length;
   const expiringCount = testsWithStatus.filter(t => t.status === 'expiring').length;
   const expiredCount = testsWithStatus.filter(t => t.status === 'expired').length;
-  const alertCount = DEV_UPCOMING_NEEDING_TEST.length;
+  const alertCount = upcomingAlerts.length;
 
   if (bLoading || loading) {
     return <PageLoader />;
@@ -299,7 +370,7 @@ export default function PatchTests() {
           ) : (
             <div style={styles.alertList}>
               <p style={styles.alertIntro}>These clients have upcoming appointments but need a patch test:</p>
-              {DEV_UPCOMING_NEEDING_TEST.map((alert, i) => {
+              {upcomingAlerts.map((alert, i) => {
                 const status = PATCH_STATUS[alert.status];
                 return (
                   <div key={i} style={styles.alertCard}>
@@ -404,43 +475,46 @@ export default function PatchTests() {
             <div style={styles.settingsRow}>
               <div>
                 <span style={styles.settingsLabel}>Test validity period</span>
-                <span style={styles.settingsHint}>How long before a patch test expires</span>
+                <span style={styles.settingsHint}>How long a patch test stays valid — affects booking compliance checks</span>
               </div>
-              <select
-                value={settings.expiry_months}
-                onChange={e => setSettings(p => ({ ...p, expiry_months: parseInt(e.target.value) }))}
-                style={styles.settingsSelect}
-              >
-                <option value={3}>3 months</option>
-                <option value={6}>6 months</option>
-                <option value={12}>12 months</option>
-              </select>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                {settingsSaved && <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>Saved ✓</span>}
+                <select
+                  value={settings.expiry_months}
+                  onChange={e => {
+                    const months = parseInt(e.target.value);
+                    setSettings(p => ({ ...p, expiry_months: months }));
+                    saveExpiryMonths(months);
+                  }}
+                  style={styles.settingsSelect}
+                >
+                  <option value={3}>3 months</option>
+                  <option value={6}>6 months</option>
+                  <option value={12}>12 months</option>
+                </select>
+              </div>
             </div>
           </div>
 
-          <div style={styles.settingsCard}>
-            <h3 style={styles.settingsSectionTitle}>Reminders</h3>
-            <div style={styles.settingsRow}>
-              <div>
-                <span style={styles.settingsLabel}>Auto-remind clients</span>
-                <span style={styles.settingsHint}>florrie.ai messages clients when their test is expiring</span>
-              </div>
-              <button
-                onClick={() => setSettings(p => ({ ...p, auto_remind: !p.auto_remind }))}
-                style={{ ...styles.toggle, background: settings.auto_remind ? 'var(--accent)' : 'var(--border)' }}
-              >
-                <div style={{ ...styles.toggleDot, transform: settings.auto_remind ? 'translateX(18px)' : 'translateX(2px)' }} />
-              </button>
+          <div style={{ ...styles.settingsCard, opacity: 0.6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h3 style={{ ...styles.settingsSectionTitle, margin: 0 }}>Reminders</h3>
+              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text-muted)', background: 'var(--bg-subtle)', padding: '3px 8px', borderRadius: 6 }}>COMING SOON</span>
             </div>
             <div style={styles.settingsRow}>
               <div>
+                <span style={styles.settingsLabel}>Auto-remind clients</span>
+                <span style={styles.settingsHint}>florrie.ai will message clients when their test is expiring</span>
+              </div>
+              <div style={{ ...styles.toggle, background: 'var(--border)', pointerEvents: 'none' }}>
+                <div style={{ ...styles.toggleDot, transform: 'translateX(2px)' }} />
+              </div>
+            </div>
+            <div style={{ ...styles.settingsRow, borderBottom: 'none' }}>
+              <div>
                 <span style={styles.settingsLabel}>Remind how many days before?</span>
               </div>
-              <select
-                value={settings.remind_days_before}
-                onChange={e => setSettings(p => ({ ...p, remind_days_before: parseInt(e.target.value) }))}
-                style={styles.settingsSelect}
-              >
+              <select disabled value={7} style={{ ...styles.settingsSelect, opacity: 0.5 }}>
                 <option value={3}>3 days</option>
                 <option value={7}>7 days</option>
                 <option value={14}>14 days</option>
@@ -448,25 +522,25 @@ export default function PatchTests() {
             </div>
           </div>
 
-          <div style={styles.settingsCard}>
-            <h3 style={styles.settingsSectionTitle}>Booking protection</h3>
-            <div style={styles.settingsRow}>
+          <div style={{ ...styles.settingsCard, opacity: 0.6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h3 style={{ ...styles.settingsSectionTitle, margin: 0 }}>Booking protection</h3>
+              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text-muted)', background: 'var(--bg-subtle)', padding: '3px 8px', borderRadius: 6 }}>COMING SOON</span>
+            </div>
+            <div style={{ ...styles.settingsRow, borderBottom: 'none' }}>
               <div>
                 <span style={styles.settingsLabel}>Block bookings without valid test</span>
-                <span style={styles.settingsHint}>Clients can't book tint/lift treatments without a test on file</span>
+                <span style={styles.settingsHint}>Clients won't be able to book tint/lift treatments without a test on file</span>
               </div>
-              <button
-                onClick={() => setSettings(p => ({ ...p, block_booking_without_test: !p.block_booking_without_test }))}
-                style={{ ...styles.toggle, background: settings.block_booking_without_test ? '#C76B8A' : '#E8E4E0' }}
-              >
-                <div style={{ ...styles.toggleDot, transform: settings.block_booking_without_test ? 'translateX(18px)' : 'translateX(2px)' }} />
-              </button>
+              <div style={{ ...styles.toggle, background: 'var(--border)', pointerEvents: 'none' }}>
+                <div style={{ ...styles.toggleDot, transform: 'translateX(2px)' }} />
+              </div>
             </div>
           </div>
 
           <div style={styles.settingsCard}>
             <h3 style={styles.settingsSectionTitle}>Treatments requiring patch test</h3>
-            <div style={styles.treatmentNote}>Select which treatments require a patch test before booking.</div>
+            <p style={styles.treatmentNote}>Toggle "Patch test required" on individual treatments in your <strong>Treatments</strong> page. That flag is what drives the compliance check on the client booking portal.</p>
           </div>
         </div>
       )}

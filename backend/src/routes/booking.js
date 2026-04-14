@@ -213,7 +213,7 @@ router.get('/:slug/manage/:token', async (req, res) => {
         payment_expires_at, policy_snapshot, client_email,
         treatments(id, name, duration_minutes, price_cents, category, requires_patch_test),
         clients(id, first_name, last_name, email, phone),
-        beauticians(id, first_name, business_name, booking_policy, booking_slug, brand_color)
+        beauticians(id, first_name, business_name, booking_policy, booking_slug, brand_color, patch_test_expiry_months)
       `)
       .eq('management_token', req.params.token)
       .single();
@@ -226,8 +226,9 @@ router.get('/:slug/manage/:token', async (req, res) => {
     const clientId = appt.clients?.id;
     const beauticianId = appt.beauticians?.id;
 
+    const expiryMonths = appt.beauticians?.patch_test_expiry_months || 6;
     const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - expiryMonths);
 
     const [{ data: patchTests }, { data: pendingForms }] = await Promise.all([
       supabase
