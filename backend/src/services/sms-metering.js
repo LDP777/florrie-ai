@@ -7,7 +7,7 @@ import { supabase } from '../index.js';
 import logger from '../lib/logger.js';
 
 const FREE_SMS_LIMIT = 30;
-const SURPLUS_RATE_PENCE = 8; // 8p per surplus SMS (4p cost + 4p margin)
+const SURPLUS_RATE_PENCE = 7; // 7p per surplus message (flat rate, all channels)
 
 // Water marks for AI autopilot decisions (not hard blocks — surcharge applies for overages)
 const PAUSE_FIRST_THRESHOLD = 15;   // < 15 free → AI skips 'pause_first' auto-sends

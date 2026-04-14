@@ -230,7 +230,7 @@ export default function Pricing() {
         </div>
         <div style={S.faqItem}>
           <div style={S.faqQ}>What about messages over 120/month?</div>
-          <div style={S.faqA}>SMS overages are 6p each, WhatsApp is 5p per conversation. Most solo beauticians stay well within the limit.</div>
+          <div style={S.faqA}>Any messages over 120/month are 7p each, whether SMS or WhatsApp. Most solo beauticians stay well within the limit.</div>
         </div>
         <div style={S.faqItem}>
           <div style={S.faqQ}>Can I cancel any time?</div>

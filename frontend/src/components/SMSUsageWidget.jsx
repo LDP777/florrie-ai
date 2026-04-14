@@ -4,7 +4,7 @@ import { useBeautician } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 
 const MONTHLY_LIMIT = 120;
-const SURPLUS_RATE_PENCE = 6;
+const SURPLUS_RATE_PENCE = 7;
 
 function getMonthBounds() {
   const now = new Date();

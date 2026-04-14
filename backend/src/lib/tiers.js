@@ -7,7 +7,7 @@
  *   Florrie Team — £29/mo + £15/seat. Multi-location, staff rota, up to 10 team members.
  *
  * Messaging: 120 messages/month included (SMS + WhatsApp combined).
- *   Overages: 6p/SMS, 5p/WhatsApp conversation over the limit.
+ *   Overages: 7p per message over the limit (flat rate, any channel).
  *
  * AI: Unlimited. Haiku for routine tasks, Sonnet for content generation.
  *   Cost to serve: ~£0.23/user/month. Not metered, not limited.
@@ -163,8 +163,7 @@ export function checkMessageLimit(plan, usedThisMonth, teamMembers = 1) {
     used: usedThisMonth,
     limit,
     remaining: Math.max(0, limit - usedThisMonth),
-    overage_rate_sms_pence: 6,
-    overage_rate_whatsapp_pence: 5,
+    overage_rate_pence: 7, // flat rate, any channel
   };
 }
 

@@ -268,17 +268,25 @@ export default function EndOfDay() {
         </div>
       )}
 
-      {/* Cash Up tab */}
+      {/* Cash Up tab — optional, not required to close the day */}
       {activeTab === 'cashup' && (
         <div style={styles.section}>
+          <div style={styles.optionalBanner}>
+            <span style={{ fontSize: 14 }}>💡</span>
+            <span style={{ fontSize: 12, color: '#6B6560', lineHeight: 1.4 }}>
+              This is optional. Card payments and bookings are tracked automatically —
+              use this only if you want to reconcile cash at the end of the day.
+            </span>
+          </div>
+
           <div style={styles.cashupCard}>
             <div style={styles.cashupRow}>
-              <span style={{ fontSize: 14, color: '#6B6560' }}>Expected cash</span>
+              <span style={{ fontSize: 14, color: '#6B6560' }}>Expected cash (from bookings)</span>
               <span style={{ fontSize: 16, fontWeight: 600 }}>£{d.cashTaken.toFixed(2)}</span>
             </div>
             <div style={styles.cashupDivider} />
             <div style={{ marginBottom: 16 }}>
-              <label style={styles.inputLabel}>Cash counted</label>
+              <label style={styles.inputLabel}>Cash counted (optional)</label>
               <div style={styles.cashInput}>
                 <span style={{ color: 'var(--text-muted, #AAA5A0)', fontSize: 18 }}>£</span>
                 <input
@@ -318,17 +326,17 @@ export default function EndOfDay() {
             </div>
           </div>
 
-          <button
-            onClick={() => setIsReconciled(true)}
-            style={{
-              ...styles.reconBtn,
-              opacity: cashCounted ? 1 : 0.5,
-              pointerEvents: cashCounted ? 'auto' : 'none',
-              background: isReconciled ? '#2E7D32' : 'var(--accent, #C76B8A)'
-            }}
-          >
-            {isReconciled ? '✓ Reconciled' : 'Mark as Reconciled'}
-          </button>
+          {cashCounted && (
+            <button
+              onClick={() => setIsReconciled(true)}
+              style={{
+                ...styles.reconBtn,
+                background: isReconciled ? '#2E7D32' : 'var(--accent, #C76B8A)'
+              }}
+            >
+              {isReconciled ? '✓ Reconciled' : 'Mark as Reconciled'}
+            </button>
+          )}
         </div>
       )}
 
@@ -356,21 +364,17 @@ export default function EndOfDay() {
         </div>
       )}
 
-      {/* Close day button */}
+      {/* Close day button — no longer gated on cash reconciliation */}
       {!dayClosed && (
         <div style={styles.closeDayWrap}>
           <button
             onClick={saveEndOfDay}
-            style={{
-              ...styles.closeDayBtn,
-              opacity: isReconciled ? 1 : 0.6,
-              pointerEvents: isReconciled ? 'auto' : 'none'
-            }}
+            style={styles.closeDayBtn}
           >
             🔒 Close Day
           </button>
           {!isReconciled && (
-            <div style={styles.closeDayHint}>Reconcile cash first to close the day</div>
+            <div style={styles.closeDayHint}>Cash up is optional — close whenever you're ready</div>
           )}
         </div>
       )}
@@ -421,6 +425,7 @@ const styles = {
   badgeNoShow: { fontSize: 11, color: '#E85D75', background: '#FDEDF0', padding: '3px 8px', borderRadius: 8, fontWeight: 600 },
   badgeCancelled: { fontSize: 11, color: '#F57C00', background: '#FFF3E0', padding: '3px 8px', borderRadius: 8, fontWeight: 600 },
 
+  optionalBanner: { display: 'flex', gap: 8, alignItems: 'flex-start', background: '#FFF8F0', border: '1px solid #FFE8CC', borderRadius: 10, padding: '10px 12px', marginBottom: 12 },
   cashupCard: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16, border: '1px solid #F0ECE8', marginBottom: 16 },
   cashupRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' },
   cashupDivider: { height: 1, background: '#F0ECE8', margin: '8px 0' },

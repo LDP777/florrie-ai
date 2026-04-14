@@ -811,7 +811,7 @@
         <span class="text-4xl font-bold" id="price-display">£29</span>
         <span class="text-on-surface-variant" id="price-period">/month</span>
       </div>
-      <p class="text-on-surface-variant text-sm mb-8" id="price-note">Includes 120 AI messages/month. 10p per message after that.</p>
+      <p class="text-on-surface-variant text-sm mb-8" id="price-note">Includes 120 AI messages/month. 7p per message after that.</p>
       <ul class="text-left space-y-4 mb-10">
         <li class="flex gap-3"><span class="material-symbols-outlined text-primary">check</span>AI WhatsApp Receptionist</li>
         <li class="flex gap-3"><span class="material-symbols-outlined text-primary">check</span>Smart booking &amp; reminders</li>
@@ -958,13 +958,13 @@
     if (mode === 'annual') {
       price.textContent = '£290';
       period.textContent = '/year';
-      note.textContent = 'Includes 120 AI messages/month. 10p per message after that. 2 months free vs monthly.';
+      note.textContent = 'Includes 120 AI messages/month. 7p per message after that. 2 months free vs monthly.';
       btnA.classList.add('bg-white','rounded-full','shadow-sm');
       btnM.classList.remove('bg-white','rounded-full','shadow-sm');
     } else {
       price.textContent = '£29';
       period.textContent = '/month';
-      note.textContent = 'Includes 120 AI messages/month. 10p per message after that.';
+      note.textContent = 'Includes 120 AI messages/month. 7p per message after that.';
       btnM.classList.add('bg-white','rounded-full','shadow-sm');
       btnA.classList.remove('bg-white','rounded-full','shadow-sm');
     }

@@ -4,9 +4,8 @@
  * Tracks monthly combined message usage (SMS + WhatsApp) against the
  * 120/month plan limit defined in tiers.js.
  *
- * Overage rates (per tiers.js):
- *   SMS:       6p per surplus message
- *   WhatsApp:  5p per surplus conversation
+ * Overage rate (per tiers.js):
+ *   All messages (SMS + WhatsApp): 7p per surplus message
  *
  * Called BEFORE every WhatsApp send. SMS sends continue to use sms-metering.js
  * for weekly tracking but ALSO write into message_usage for combined quota.
@@ -16,8 +15,7 @@ import { supabase } from '../index.js';
 import logger from '../lib/logger.js';
 import { getTier } from '../lib/tiers.js';
 
-const OVERAGE_SMS_PENCE = 6;
-const OVERAGE_WA_PENCE = 5;
+const OVERAGE_PENCE = 7; // flat rate regardless of channel
 
 /**
  * Returns the first day of the current month as YYYY-MM-DD (UTC).
@@ -108,7 +106,7 @@ export async function checkWhatsAppQuota(beauticianId) {
       used: totalUsed,
       limit: freeLimit,
       remaining: 0,
-      overageRate: OVERAGE_WA_PENCE,
+      overageRate: OVERAGE_PENCE,
     };
   } catch (err) {
     logger.error({ err, beauticianId }, 'checkWhatsAppQuota error');
@@ -144,8 +142,8 @@ export async function trackWhatsAppMessage(beauticianId) {
 
     if (isOverage) {
       updates.overage_wa_count = usage.overage_wa_count + 1;
-      updates.overage_wa_pence = usage.overage_wa_pence + OVERAGE_WA_PENCE;
-      updates.overage_total_pence = usage.overage_total_pence + OVERAGE_WA_PENCE;
+      updates.overage_wa_pence = usage.overage_wa_pence + OVERAGE_PENCE;
+      updates.overage_total_pence = usage.overage_total_pence + OVERAGE_PENCE;
     }
 
     const { data: updated, error } = await supabase
@@ -195,8 +193,8 @@ export async function trackSmsInMonthlyQuota(beauticianId) {
 
     if (isOverage) {
       updates.overage_sms_count = usage.overage_sms_count + 1;
-      updates.overage_sms_pence = usage.overage_sms_pence + OVERAGE_SMS_PENCE;
-      updates.overage_total_pence = usage.overage_total_pence + OVERAGE_SMS_PENCE;
+      updates.overage_sms_pence = usage.overage_sms_pence + OVERAGE_PENCE;
+      updates.overage_total_pence = usage.overage_total_pence + OVERAGE_PENCE;
     }
 
     await supabase
