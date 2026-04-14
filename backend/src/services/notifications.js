@@ -348,6 +348,79 @@ export function pickChannel(client, beauticianPrefs = {}) {
 }
 
 /**
+ * Check whether we're inside the 24-hour WhatsApp free-form messaging window.
+ * Meta only allows free-form text to a number that messaged us within the last 24h.
+ */
+function inWhatsAppSession(client) {
+  if (!client?.last_whatsapp_inbound_at) return false;
+  const lastInbound = new Date(client.last_whatsapp_inbound_at);
+  const hoursSince = (Date.now() - lastInbound.getTime()) / (1000 * 60 * 60);
+  return hoursSince < 24;
+}
+
+/**
+ * Send a proactive nudge via the best available channel.
+ *
+ * Proactive outbound is different from reactive replies:
+ *   - WhatsApp free-form only works within the 24h session window
+ *   - Outside that window, WhatsApp requires a pre-approved template
+ *   - If no template channel is available, fall back to SMS → Email
+ *
+ * @param {object} opts
+ * @param {object} opts.client         - Client record (needs whatsapp_id, last_whatsapp_inbound_at, phone, email)
+ * @param {string} opts.body           - Message text (used for SMS/email and in-session WhatsApp)
+ * @param {string} [opts.templateName] - WhatsApp template name for out-of-session sends
+ * @param {string[]} [opts.templateParams] - Template variable substitutions
+ * @param {string} opts.beauticianId
+ * @param {object} [opts.beauticianPrefs]
+ */
+export async function sendNudge({ client, body, templateName, templateParams, beauticianId, beauticianPrefs = {} }) {
+  // Path 1: active WhatsApp session — send free-form, it'll land immediately
+  if (client?.whatsapp_id && WA_TOKEN && beauticianPrefs?.whatsapp_connected && inWhatsAppSession(client)) {
+    const result = await sendWhatsAppText({ to: client.whatsapp_id, body, beauticianId });
+    if (result) {
+      await logComms(beauticianId, client.id, 'whatsapp', 'outbound', body);
+      return { channel: 'whatsapp_freeform', result };
+    }
+  }
+
+  // Path 2: WhatsApp template (client has opted in, we have a template, session not required)
+  if (client?.whatsapp_id && WA_TOKEN && beauticianPrefs?.whatsapp_connected && templateName) {
+    const result = await sendWhatsApp({ to: client.whatsapp_id, templateName, templateParams, beauticianId });
+    if (result) {
+      await logComms(beauticianId, client.id, 'whatsapp', 'outbound', body);
+      return { channel: 'whatsapp_template', result };
+    }
+  }
+
+  // Path 3: SMS — universal fallback for proactive outbound
+  if (client?.phone && BIRD_API_KEY) {
+    const result = await sendSMS({ to: client.phone, body, beauticianId, messageType: 'ai_checkin' });
+    if (result) {
+      await logComms(beauticianId, client.id, 'sms', 'outbound', body);
+      return { channel: 'sms', result };
+    }
+  }
+
+  // Path 4: Email — last resort
+  if (client?.email) {
+    const result = await sendEmail({
+      to: client.email,
+      subject: 'A message from your beautician',
+      text: body,
+      html: `<p>${body}</p>`,
+    });
+    if (result) {
+      await logComms(beauticianId, client.id, 'email', 'outbound', body);
+      return { channel: 'email', result };
+    }
+  }
+
+  logger.warn({ clientId: client?.id }, 'sendNudge: no channel available');
+  return null;
+}
+
+/**
  * Send a message via the best available channel.
  * Freeform text — used by AI Front Desk, nudges, etc.
  * Cascade: Instagram > WhatsApp > SMS > Email

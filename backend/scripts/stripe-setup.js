@@ -2,15 +2,14 @@
 /**
  * stripe-setup.js — Creates Florrie subscription products and prices in Stripe.
  *
- * Run once against your Stripe account:
- *   STRIPE_SECRET_KEY=sk_test_xxx node scripts/stripe-setup.js
+ * Run once against your live Stripe account:
+ *   STRIPE_SECRET_KEY=sk_live_xxx node scripts/stripe-setup.js
  *
  * Then copy the output price IDs into your Railway env vars.
  *
  * Products created:
- *   - Florrie Starter (£39/mo, £390/yr)
- *   - Florrie Pro     (£59/mo, £590/yr)
- *   - Florrie Team    (£89/mo, £890/yr)
+ *   - Florrie       (£29/mo, £290/yr — 2 months free)
+ *   - Florrie Team  (£44/mo, £440/yr — £29 base + £15/seat)
  */
 
 import Stripe from 'stripe';
@@ -19,25 +18,31 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 const PLANS = [
   {
-    name: 'Florrie Starter',
-    envKey: 'STARTER',
-    monthly: 3900,  // £39.00
-    annual: 39000,  // £390.00
-    features: ['50 clients', 'Online booking', 'SMS reminders', 'Receipt scanning', 'Basic reports'],
-  },
-  {
-    name: 'Florrie Pro',
-    envKey: 'PRO',
-    monthly: 5900,  // £59.00
-    annual: 59000,  // £590.00
-    features: ['Unlimited clients', 'AI Front Desk', 'WhatsApp automation', 'Smart Schedule', 'Content Autopilot', 'Full analytics'],
+    name: 'Florrie',
+    envKey: 'FLORRIE',
+    monthly: 2900,   // £29.00/mo
+    annual: 29000,   // £290.00/yr (2 months free)
+    features: [
+      'Unlimited clients',
+      'Online booking page',
+      'AI Front Desk (120 msgs/mo)',
+      'SMS & WhatsApp reminders',
+      'Smart scheduling',
+      'Analytics & tax dashboard',
+    ],
   },
   {
     name: 'Florrie Team',
-    envKey: 'TEAM',
-    monthly: 8900,  // £89.00
-    annual: 89000,  // £890.00
-    features: ['Everything in Pro', 'Multi-location', 'Staff rota & KPIs', 'Up to 10 team members', 'Priority support'],
+    envKey: 'FLORRIE_TEAM',
+    monthly: 4400,   // £44.00/mo (£29 + £15/seat)
+    annual: 44000,   // £440.00/yr
+    features: [
+      'Everything in Florrie',
+      'Multi-location support',
+      'Staff rota & KPIs',
+      'Up to 10 team members',
+      'Priority support',
+    ],
   },
 ];
 
@@ -88,10 +93,10 @@ async function main() {
     console.log(`${key}=${value}`);
   }
   console.log('');
-  console.log('Also ensure these are set:');
-  console.log('STRIPE_SECRET_KEY=sk_live_xxx (or sk_test_xxx for testing)');
-  console.log('STRIPE_WEBHOOK_SECRET=whsec_xxx');
-  console.log('APP_URL=https://florrie-ai-frontend.vercel.app');
+  console.log('Also set:');
+  console.log('STRIPE_SECRET_KEY=sk_live_xxx');
+  console.log('STRIPE_WEBHOOK_SECRET=whsec_xxx  (from Stripe webhook dashboard after registering endpoint)');
+  console.log('APP_URL=https://app.florrie.ai');
   console.log('='.repeat(60));
 }
 

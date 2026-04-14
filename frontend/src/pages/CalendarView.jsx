@@ -196,15 +196,16 @@ export default function CalendarView() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={styles.viewToggle}>
-            <button onClick={() => setView('day')} style={{ ...styles.toggleBtn, background: view === 'day' ? COLORS.secondary : 'transparent', color: view === 'day' ? '#fff' : COLORS.stone400 }}>Day</button>
-            <button onClick={() => setView('week')} style={{ ...styles.toggleBtn, background: view === 'week' ? COLORS.secondary : 'transparent', color: view === 'week' ? '#fff' : COLORS.stone400 }}>Week</button>
+            <button onClick={() => setView('day')} style={{ ...styles.toggleBtn, background: view === 'day' ? COLORS.primary : 'transparent', color: view === 'day' ? '#fff' : COLORS.stone400 }}>Day</button>
+            <button onClick={() => setView('week')} style={{ ...styles.toggleBtn, background: view === 'week' ? COLORS.primary : 'transparent', color: view === 'week' ? '#fff' : COLORS.stone400 }}>Week</button>
           </div>
           <button
             onClick={() => setShowBlockModal(true)}
             title="Block time"
-            style={{ width: 36, height: 36, borderRadius: 10, border: 'none', background: 'rgba(146,64,94,0.08)', color: COLORS.primary, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+            style={{ height: 36, padding: '0 12px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #fff)', color: COLORS.stone400, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit' }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: 18, fontVariationSettings: "'FILL' 0, 'wght' 300" }}>block</span>
+            <span className="material-symbols-outlined" style={{ fontSize: 15, fontVariationSettings: "'FILL' 0, 'wght' 300" }}>event_busy</span>
+            Block
           </button>
         </div>
       </div>
@@ -809,8 +810,8 @@ const styles = {
   dateTitle: { fontSize: 17, fontWeight: 600, margin: 0, textAlign: 'center', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
   todayBtn: { background: 'none', border: `1px solid ${COLORS.outlineVariant}`, borderRadius: 8, padding: '4px 12px', fontSize: 12, color: COLORS.stone400, cursor: 'pointer', fontFamily: 'inherit' },
   navBtn: { background: 'none', border: 'none', fontSize: 28, color: COLORS.stone400, cursor: 'pointer', padding: '0 8px' },
-  viewToggle: { display: 'flex', gap: 4, background: `${COLORS.outlineVariant}33`, borderRadius: 12, padding: 3 },
-  toggleBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'inherit' },
+  viewToggle: { display: 'flex', gap: 3, background: 'var(--card-bg, #fff)', borderRadius: 12, padding: 3, border: `1px solid ${COLORS.outlineVariant}` },
+  toggleBtn: { flex: 1, padding: '6px 14px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'inherit' },
   // Weekly Date Strip
   weeklyStripContainer: { marginBottom: 20, background: COLORS.surfaceContainerLow, borderRadius: 24, padding: '12px 16px', position: 'relative' },
   weeklyStripHeader: { marginBottom: 12 },

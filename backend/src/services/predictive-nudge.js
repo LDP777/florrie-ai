@@ -11,7 +11,7 @@
  * overdue, but reaching out *before* they even think about rebooking.
  */
 import { supabase } from '../index.js';
-import { sendSMS } from './notifications.js';
+import { sendNudge } from './notifications.js';
 import { shouldAutoSend } from './sms-metering.js';
 import logger from '../lib/logger.js';
 
@@ -62,16 +62,16 @@ async function nudgeForBeautician(beautician) {
   // Find clients with predicted visit in the window
   const { data: intelligence } = await supabase
     .from('client_intelligence')
-    .select('client_id, next_predicted_visit, favourite_treatment, avg_booking_gap_days, clients(first_name, last_name, phone, status)')
+    .select('client_id, next_predicted_visit, favourite_treatment, avg_booking_gap_days, clients(id, first_name, last_name, phone, email, whatsapp_id, last_whatsapp_inbound_at, status)')
     .eq('beautician_id', bid)
     .gte('next_predicted_visit', windowStart.toISOString())
     .lte('next_predicted_visit', windowEnd.toISOString());
 
   if (!intelligence?.length) return 0;
 
-  // Filter to active clients with phones
+  // Filter to active clients with at least one reachable channel
   const eligible = intelligence.filter(ci =>
-    ci.clients?.status === 'active' && ci.clients?.phone
+    ci.clients?.status === 'active' && (ci.clients?.phone || ci.clients?.email)
   );
 
   if (!eligible.length) return 0;
@@ -112,21 +112,41 @@ async function nudgeForBeautician(beautician) {
       ? `Hey ${client.first_name}! Just thinking of you — you're usually due around now. I've got a spot on ${slotLabel} if you fancy it? 💕`
       : `Hey ${client.first_name}! You're usually due around now. Fancy booking in? I'd love to see you! 💕`;
 
-    if (confidence >= threshold && client.phone) {
+    if (confidence >= threshold && (client.phone || client.email)) {
       const { shouldSend, reason } = await shouldAutoSend(bid, 'ai_checkin');
       if (!shouldSend) {
         logger.info({ beauticianId: bid, clientId: ci.client_id, reason }, 'AI checkin skipped by autopilot rules');
         continue;
       }
+
+      // Fetch beautician prefs for channel routing (WhatsApp connected etc.)
+      const { data: bPrefs } = await supabase
+        .from('beauticians')
+        .select('whatsapp_phone_id, client_reminder_prefs')
+        .eq('id', bid)
+        .maybeSingle();
+      const beauticianPrefs = {
+        whatsapp_connected: !!bPrefs?.whatsapp_phone_id,
+        ...(bPrefs?.client_reminder_prefs || {}),
+      };
+
       try {
-        await sendSMS({
-          to: client.phone,
+        const sent = await sendNudge({
+          client,
           body: message,
+          templateName: 'rebook_nudge',           // pre-approved WhatsApp template
+          templateParams: [client.first_name, slotLabel || 'soon'],
           beauticianId: bid,
-          messageType: 'ai_checkin',
+          beauticianPrefs,
         });
-        await logNudge(bid, 'executed', summary, confidence, ci.client_id);
-        count++;
+        if (sent) {
+          logger.info({ clientId: ci.client_id, channel: sent.channel }, 'Predictive nudge sent');
+          await logNudge(bid, 'executed', `${summary} (via ${sent.channel})`, confidence, ci.client_id);
+          count++;
+        } else {
+          logger.warn({ clientId: ci.client_id }, 'Predictive nudge: no channel available');
+          await logNudge(bid, 'failed', summary, confidence, ci.client_id);
+        }
       } catch (err) {
         logger.warn({ err, clientId: ci.client_id }, 'Failed to send predictive nudge');
       }
