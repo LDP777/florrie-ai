@@ -67,6 +67,7 @@ import hmrcRoutes from './routes/hmrc.js';
 import productRoutes from './routes/products.js';
 import migrateRoutes from './routes/migrate.js';
 import whatsappConfigRoutes from './routes/whatsapp-config.js';
+import coachRoutes from './routes/coach.js';
 
 dotenv.config();
 
@@ -197,6 +198,7 @@ app.use('/api/migrate', apiLimiter, migrateRoutes);
 app.use('/api/whatsapp', apiLimiter, whatsappConfigRoutes);
 app.use('/api/widget-state', apiLimiter, widgetRoutes);
 app.use('/api/webhooks/instagram', webhookLimiter, instagramWebhookRoutes);
+app.use('/api/coach', apiLimiter, coachRoutes);
 app.use('/api/instagram', apiLimiter, instagramRoutes);
 
 // Sentry error handler — must come after all routes, before the generic handler

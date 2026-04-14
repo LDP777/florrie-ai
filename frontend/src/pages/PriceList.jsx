@@ -6,6 +6,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { useBeautician, supabase } from '../lib/supabase.js';
+import { useCoach } from '../contexts/CoachContext.jsx';
 import PageLoader from '../components/PageLoader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
@@ -52,6 +53,7 @@ function guessCategory(name) {
 
 export default function PriceList() {
   const { beautician, loading: bLoading } = useBeautician();
+  const { triggerNudge } = useCoach();
   const [tab, setTab] = useState('preview');
   const [selectedCat, setSelectedCat] = useState('all');
   const [theme, setTheme] = useState('rose');
@@ -79,7 +81,7 @@ export default function PriceList() {
 
       if (fetchErr) throw fetchErr;
 
-      setItems((data || []).map(t => ({
+      const mapped = (data || []).map(t => ({
         id: t.id,
         name: t.name,
         category: t.category || guessCategory(t.name),
@@ -87,7 +89,19 @@ export default function PriceList() {
         duration_minutes: t.duration_minutes || 0,
         description: t.description || null,
         popular: t.is_popular || false,
-      })));
+      }));
+      setItems(mapped);
+
+      // Coach nudge: fire for the cheapest active treatment — most likely to be underpriced
+      const cheapest = mapped
+        .filter(t => t.price_cents > 0)
+        .sort((a, b) => a.price_cents - b.price_cents)[0];
+      if (cheapest) {
+        triggerNudge('price_edit', {
+          treatment_name: cheapest.name,
+          price_cents: cheapest.price_cents,
+        });
+      }
     } catch (err) {
       setError('Could not load treatments');
     } finally {

@@ -6,6 +6,8 @@ import { useBeautician } from './lib/supabase.js';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import PlanGate from './components/PlanGate.jsx';
 import InstallPrompt from './components/InstallPrompt.jsx';
+import CoachNudge from './components/CoachNudge.jsx';
+import { CoachProvider } from './contexts/CoachContext.jsx';
 
 // Lazy-loaded pages (code splitting — each becomes its own chunk)
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
@@ -268,6 +270,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
+      <CoachProvider>
       <div style={styles.appShell}>
         {isDevMode && (
           <div style={styles.devModeBanner}>
@@ -374,7 +377,9 @@ export default function App() {
 
       {showNav && <BottomNav current={location.pathname} session={session} />}
       {showNav && <FloatingInbox current={location.pathname} session={session} />}
+      <CoachNudge />
       </div>
+      </CoachProvider>
     </ErrorBoundary>
   );
 }

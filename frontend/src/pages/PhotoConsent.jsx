@@ -121,7 +121,7 @@ export default function PhotoConsent() {
       } catch (err) {
         console.error('Fetch error:', err);
         setConsents([]);
-        setClients(DEV_CLIENTS);
+        setClients([]);
       } finally {
         setLoading(false);
       }
@@ -309,7 +309,7 @@ export default function PhotoConsent() {
             <div style={S.fieldLabel}>Client</div>
             <select style={S.select} value={requestForm.client} onChange={e => setRequestForm(f => ({ ...f, client: e.target.value }))}>
               <option value="">Select client</option>
-              {DEV_CLIENTS.map(c => <option key={c.id} value={c.first_name}>{c.first_name} {c.last_name}</option>)}
+              {clients.map(c => <option key={c.id} value={c.first_name}>{c.first_name} {c.last_name}</option>)}
             </select>
 
             <div style={S.fieldLabel}>What can you use their photos for?</div>

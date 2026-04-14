@@ -172,21 +172,11 @@ export default function ClientIntelDashboard() {
   }
 
   if (loading || bLoading) return <PageLoader label="Loading client intel…" />;
-  if (!stats || stats.total === 0) {
-    return (
-      <div style={ds.page}>
-        <h1 style={ds.pageTitle}>Client Intel</h1>
-        <EmptyState
-          icon="psychology"
-          title="No client data yet"
-          message="Once you have clients and appointments, Florrie will start building intelligence — churn risk, segments, spending patterns, the lot."
-        />
-      </div>
-    );
-  }
 
-  const retentionPct = stats.active && stats.total ? Math.round((stats.active / stats.total) * 100) : 0;
-  const returningPct = stats.returning && stats.total ? Math.round((stats.returning / stats.total) * 100) : 0;
+  const isEmpty = !stats || stats.total === 0;
+  const safeStats = stats || { total: 0, active: 0, returning: 0, churnRisk: 0, avgVisits: 0, avgSpend: 0 };
+  const retentionPct = safeStats.active && safeStats.total ? Math.round((safeStats.active / safeStats.total) * 100) : 0;
+  const returningPct = safeStats.returning && safeStats.total ? Math.round((safeStats.returning / safeStats.total) * 100) : 0;
 
   return (
     <div style={ds.page}>
@@ -196,18 +186,29 @@ export default function ClientIntelDashboard() {
         <h1 style={{ ...ds.pageTitle, color: '#7B6BA8', margin: 0 }}>Client Intel</h1>
       </div>
 
+      {/* ── Empty state banner ── */}
+      {isEmpty && (
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: '14px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span className="material-symbols-outlined" style={{ fontSize: 22, color: '#7B6BA8', flexShrink: 0 }}>info</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>Intelligence builds as you work</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>Add clients and take bookings — Florrie will surface churn risk, segments, and spending patterns automatically.</div>
+          </div>
+        </div>
+      )}
+
       {/* ── Hero card: client health pulse ── */}
       <div style={{ ...S.heroCard, marginBottom: 16 }}>
         <div style={S.heroGrid}>
-          <HeroStat value={stats.total} label="Total clients" />
+          <HeroStat value={safeStats.total} label="Total clients" />
           <HeroStat value={`${retentionPct}%`} label="Active (90 days)" accent={retentionPct >= 70} />
           <HeroStat value={`${returningPct}%`} label="Returning" accent={returningPct >= 60} />
-          <HeroStat value={stats.churnRisk} label="At risk" warn={stats.churnRisk > 0} />
+          <HeroStat value={safeStats.churnRisk} label="At risk" warn={safeStats.churnRisk > 0} />
         </div>
         <div style={S.heroSubRow}>
-          <span style={S.heroSub}>Avg {stats.avgVisits} visits</span>
+          <span style={S.heroSub}>Avg {safeStats.avgVisits} visits</span>
           <span style={S.heroDot}>·</span>
-          <span style={S.heroSub}>Avg £{stats.avgSpend} spend</span>
+          <span style={S.heroSub}>Avg £{safeStats.avgSpend} spend</span>
         </div>
       </div>
 

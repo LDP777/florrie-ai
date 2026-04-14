@@ -7,6 +7,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
+import { useCoach } from '../contexts/CoachContext.jsx';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -33,6 +34,7 @@ const fmt = (cents) => `£${(Math.abs(cents) / 100).toLocaleString('en-GB', { mi
 
 export default function Expenses() {
   const { beautician, loading: bLoading } = useBeautician();
+  const { triggerNudge } = useCoach();
   const [tab, setTab] = useState('overview');
   const [month, setMonth] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });
   const [showAdd, setShowAdd] = useState(false);
@@ -425,6 +427,12 @@ export default function Expenses() {
                     });
                     setExpenses(prev => [created, ...prev]);
                     setShowAdd(false);
+                    // Coach nudge: contextual insight after saving expense
+                    triggerNudge('expense_added', {
+                      category: form.category,
+                      amount_pence: Math.round(parseFloat(form.amount) * 100),
+                      vendor: form.vendor.trim(),
+                    });
                     setForm({ vendor: '', description: '', amount: '', category: 'products', date: new Date().toISOString().split('T')[0], tax_deductible: true, recurring: false, recurring_interval: 'monthly' });
                   } catch (err) {
                     logger.error({ err }, 'Failed to save expense');

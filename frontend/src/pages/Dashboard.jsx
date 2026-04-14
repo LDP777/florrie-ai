@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBeautician, supabase } from '../lib/supabase.js';
+import { useCoach } from '../contexts/CoachContext.jsx';
 import logger from '../lib/logger.js';
 import SpotlightSearch from '../components/SpotlightSearch.jsx';
 import SetupChecklist from '../components/SetupChecklist.jsx';
@@ -103,6 +104,7 @@ function MIcon({ name, fill, size, style }) {
 export default function Dashboard() {
   const { beautician, loading: bLoading } = useBeautician();
   const navigate = useNavigate();
+  const { triggerNudge } = useCoach();
   const [today, setToday] = useState([]);
   const [weeklyPulse, setWeeklyPulse] = useState({ income: 0, expenses: 0, profit: 0, incomeChange: null });
   const [insights, setInsights] = useState([]);
@@ -168,6 +170,9 @@ export default function Dashboard() {
       const thisExp = sumC(thisWeekExp);
       const change = lastInc > 0 ? Math.round(((thisInc - lastInc) / lastInc) * 100) : null;
       setWeeklyPulse({ income: thisInc, expenses: thisExp, profit: thisInc - thisExp, incomeChange: change });
+
+      // Coach nudge: weekly business health on dashboard open
+      triggerNudge('dashboard_open', {});
 
       // AI agent summary
       try {

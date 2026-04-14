@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, supabase, DEV_CLIENTS, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useState, useEffect, useMemo } from 'react';
+import { useBeautician, fetchRows, supabase } from '../lib/supabase.js';
+import { useCoach } from '../contexts/CoachContext.jsx';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
-import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
  * Smart Schedule — Gap Finder & Fill Assistant.
@@ -20,53 +20,7 @@ import ErrorCard from '../components/ErrorCard.jsx';
  *   Insights — schedule utilisation stats
  */
 
-// Generate mock gaps for this week
-function generateDevGaps() {
-  const gaps = [];
-  const now = new Date();
-  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const workingDays = { 1: { s: '11:00', e: '15:00' }, 2: { s: '11:00', e: '19:00' }, 3: { s: '11:00', e: '18:00' }, 4: { s: '11:00', e: '19:00' }, 5: { s: '10:00', e: '17:00' } };
 
-  for (let i = 0; i < 7; i++) {
-    const date = new Date(now);
-    date.setDate(now.getDate() + i);
-    const dow = date.getDay();
-    if (!workingDays[dow]) continue;
-
-    const dateStr = date.toISOString().split('T')[0];
-    const dayLabel = dayNames[dow];
-    const dayFull = date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-
-    // Simulate some gaps
-    if (i === 0) {
-      gaps.push({ id: `gap-${i}-1`, date: dateStr, dayLabel: dayFull, start: '14:00', end: '15:00', duration_minutes: 60, fillability: 'high', suggestions: 2 });
-    }
-    if (i === 1) {
-      gaps.push({ id: `gap-${i}-1`, date: dateStr, dayLabel: dayFull, start: '11:00', end: '13:00', duration_minutes: 120, fillability: 'medium', suggestions: 3 });
-      gaps.push({ id: `gap-${i}-2`, date: dateStr, dayLabel: dayFull, start: '17:00', end: '19:00', duration_minutes: 120, fillability: 'low', suggestions: 1 });
-    }
-    if (i === 2) {
-      gaps.push({ id: `gap-${i}-1`, date: dateStr, dayLabel: dayFull, start: '15:00', end: '18:00', duration_minutes: 180, fillability: 'high', suggestions: 4 });
-    }
-    if (i === 3) {
-      gaps.push({ id: `gap-${i}-1`, date: dateStr, dayLabel: dayFull, start: '11:00', end: '12:00', duration_minutes: 60, fillability: 'medium', suggestions: 2 });
-    }
-  }
-  return gaps;
-}
-
-const DEV_SUGGESTIONS = {
-  rebook_due: [
-    { client: DEV_CLIENTS[0], treatment: DEV_TREATMENTS[0], days_overdue: 5, reason: 'Lamination due — last visit 15 days ago, usually rebooks every 10 days' },
-    { client: DEV_CLIENTS[1], treatment: DEV_TREATMENTS[1], days_overdue: 12, reason: 'Overdue for tint maintenance — normally comes every 3 weeks' },
-  ],
-  waitlist_match: [
-    { client: { first_name: 'Megan', last_name: 'R' }, preferred_day: 'Tuesday', preferred_time: 'morning', treatment: DEV_TREATMENTS[2] },
-  ],
-  dormant_rescue: [
-    { client: DEV_CLIENTS[2], last_visit_days: 38, treatment: DEV_TREATMENTS[4], reason: "Hasn't been in 5+ weeks — send a 'miss you' offer?" },
-  ],
-};
 
 const FILLABILITY = {
   high: { label: 'Easy fill', color: '#4CAF50', bg: '#E8F5E9' },
@@ -127,10 +81,47 @@ function computeSuggestions(clients, treatments) {
   };
 }
 
+// ── Compute real insight data from appointments ─────────────
+function computeDayStats(appts) {
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const counts = Array(7).fill(0);
+  appts.forEach(a => {
+    if (!a.starts_at) return;
+    const d = new Date(a.starts_at);
+    if (!isNaN(d)) counts[d.getDay()]++;
+  });
+  const workingDays = [1, 2, 3, 4, 5, 6, 0].filter(d => counts[d] > 0);
+  const max = Math.max(...workingDays.map(d => counts[d]), 1);
+  return workingDays
+    .map(d => ({ name: dayNames[d], count: counts[d], pct: Math.round((counts[d] / max) * 100) }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+}
+
+function computeTotalWorkMinutes(workingHours) {
+  if (!workingHours) return 5 * 8 * 60;
+  const dayMap = { 0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat' };
+  let total = 0;
+  const now = new Date();
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(now);
+    d.setDate(now.getDate() + i);
+    const dayKey = dayMap[d.getDay()];
+    const hours = workingHours[dayKey];
+    if (!hours?.start || !hours?.end) continue;
+    const [sh, sm] = hours.start.split(':').map(Number);
+    const [eh, em] = hours.end.split(':').map(Number);
+    total += (eh * 60 + em) - (sh * 60 + sm);
+  }
+  return total || 5 * 8 * 60;
+}
+
 export default function SmartSchedule() {
   const { beautician } = useBeautician();
+  const { triggerNudge } = useCoach();
   const [gaps, setGaps] = useState([]);
-  const [suggestions, setSuggestions] = useState(DEV_SUGGESTIONS);
+  const [suggestions, setSuggestions] = useState({ rebook_due: [], waitlist_match: [], dormant_rescue: [] });
+  const [allAppts, setAllAppts] = useState([]);
   const [tab, setTab] = useState('gaps');
   const [loading, setLoading] = useState(true);
   const [selectedGap, setSelectedGap] = useState(null);
@@ -165,6 +156,21 @@ export default function SmartSchedule() {
       const computedGaps = computeGapsFromAppointments(thisWeekAppts, beautician.working_hours);
       setGaps(computedGaps);
 
+      // Coach nudge: alert about gap revenue if schedule has openings
+      if (computedGaps.length > 0) {
+        const totalGapMins = computedGaps.reduce((s, g) => s + g.duration_minutes, 0);
+        const totalWorkMins = computeTotalWorkMinutes(beautician.working_hours);
+        const utilisation = totalWorkMins > 0 ? Math.round(((totalWorkMins - totalGapMins) / totalWorkMins) * 100) : 0;
+        const avgApptValue = 3500; // £35 fallback — backend enriches with real data
+        const revenueAtRisk = Math.round((totalGapMins / 60) * (avgApptValue / 100));
+        triggerNudge('calendar_gaps', {
+          gap_count: computedGaps.length,
+          gap_hours: Math.round(totalGapMins / 60),
+          revenue_at_risk: revenueAtRisk,
+          utilisation,
+        });
+      }
+
       // Fetch clients for fill suggestions + real gap-fill matches
       const [clientsResult, gapFillResult] = await Promise.all([
         supabase
@@ -190,6 +196,9 @@ export default function SmartSchedule() {
         );
         computed.waitlist_match = waitlistMatches.slice(0, 5);
         setSuggestions(computed);
+        // Store flat appointments for insights tab
+        const flat = clients.flatMap(c => c.appointments || []);
+        setAllAppts(flat);
       }
     } catch (err) {
       logger.error('Failed to load appointments:', err);
@@ -312,12 +321,41 @@ export default function SmartSchedule() {
     }
   }
 
-  // Utilisation stats
-  const totalWorkMinutes = 5 * 8 * 60; // rough: 5 days × 8 hours
+  // Utilisation stats — computed from actual working hours
+  const totalWorkMinutes = computeTotalWorkMinutes(beautician?.working_hours);
   const totalGapMinutes = gaps.reduce((sum, g) => sum + g.duration_minutes, 0);
-  const utilisation = totalWorkMinutes > 0 ? Math.round(((totalWorkMinutes - totalGapMinutes) / totalWorkMinutes) * 100) : 100;
-  const bookedHours = Math.round((totalWorkMinutes - totalGapMinutes) / 60);
+  const bookedMins = Math.max(0, totalWorkMinutes - totalGapMinutes);
+  const utilisation = totalWorkMinutes > 0 ? Math.round((bookedMins / totalWorkMinutes) * 100) : 0;
+  const bookedHours = Math.round(bookedMins / 60);
   const gapHours = (totalGapMinutes / 60).toFixed(1);
+
+  // Insights computed from real data
+  const dayStats = useMemo(() => computeDayStats(allAppts), [allAppts]);
+  const hardSlots = useMemo(() => {
+    const hourBuckets = {};
+    gaps.forEach(g => {
+      const h = g.start?.split(':')[0];
+      if (!h) return;
+      if (!hourBuckets[h]) hourBuckets[h] = { mins: 0, count: 0, end: g.end };
+      hourBuckets[h].mins += g.duration_minutes;
+      hourBuckets[h].count++;
+    });
+    return Object.entries(hourBuckets)
+      .sort((a, b) => b[1].mins - a[1].mins)
+      .slice(0, 3)
+      .map(([h, v]) => ({
+        slot: `${h}:00`,
+        note: `${v.mins}min unused this week`,
+      }));
+  }, [gaps]);
+
+  const tip = useMemo(() => {
+    if (dayStats.length === 0) return null;
+    const quietest = [...dayStats].sort((a, b) => a.count - b.count)[0];
+    const busiest = dayStats[0];
+    if (!quietest || quietest.count === 0) return null;
+    return `${quietest.name}s are your quietest day. Consider a limited-time slot offer to shift demand from ${busiest.name}s.`;
+  }, [dayStats]);
 
   return (
     <div style={styles.page}>
@@ -555,39 +593,44 @@ export default function SmartSchedule() {
 
           <div style={styles.insightSection}>
             <h3 style={styles.insightSectionTitle}>Busiest days</h3>
-            {['Tuesday', 'Thursday', 'Wednesday', 'Friday', 'Monday'].map((day, i) => {
-              const pct = [95, 88, 82, 75, 60][i];
-              return (
-                <div key={day} style={styles.dayRow}>
-                  <span style={styles.dayName}>{day}</span>
-                  <div style={styles.dayBar}>
-                    <div style={{ ...styles.dayBarFill, width: `${pct}%`, background: pct > 85 ? '#4CAF50' : pct > 70 ? '#FF9800' : '#E57373' }} />
-                  </div>
-                  <span style={styles.dayPct}>{pct}%</span>
+            {dayStats.length === 0 ? (
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>No appointment history yet.</p>
+            ) : dayStats.map(day => (
+              <div key={day.name} style={styles.dayRow}>
+                <span style={styles.dayName}>{day.name}</span>
+                <div style={styles.dayBar}>
+                  <div style={{ ...styles.dayBarFill, width: `${day.pct}%`, background: day.pct > 85 ? '#4CAF50' : day.pct > 60 ? '#FF9800' : '#E57373' }} />
                 </div>
-              );
-            })}
+                <span style={styles.dayPct}>{day.pct}%</span>
+              </div>
+            ))}
           </div>
 
           <div style={styles.insightSection}>
-            <h3 style={styles.insightSectionTitle}>Hardest slots to fill</h3>
-            <div style={styles.hardSlotList}>
-              {['Mon 11-12', 'Fri 15-17', 'Tue 17-19'].map((slot, i) => (
-                <div key={slot} style={styles.hardSlot}>
-                  <span style={styles.hardSlotText}>{slot}</span>
-                  <span style={styles.hardSlotNote}>{['Often empty 3 weeks running', 'End of day — clients prefer mornings', 'Late Tue harder to fill'][i]}</span>
-                </div>
-              ))}
-            </div>
+            <h3 style={styles.insightSectionTitle}>This week's hard slots</h3>
+            {hardSlots.length === 0 ? (
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>No gaps this week — fully booked 🎉</p>
+            ) : (
+              <div style={styles.hardSlotList}>
+                {hardSlots.map(s => (
+                  <div key={s.slot} style={styles.hardSlot}>
+                    <span style={styles.hardSlotText}>{s.slot}</span>
+                    <span style={styles.hardSlotNote}>{s.note}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div style={styles.tipCard}>
-            <span style={{ fontSize: 16, marginRight: 8 }}>💡</span>
-            <div>
-              <span style={styles.tipTitle}>florrie.ai's suggestion</span>
-              <span style={styles.tipText}>Your Monday mornings are consistently quiet. Consider offering a 10% "Monday morning" discount or moving your start time to 12pm to free up your morning.</span>
+          {tip && (
+            <div style={styles.tipCard}>
+              <span style={{ fontSize: 16, marginRight: 8 }}>💡</span>
+              <div>
+                <span style={styles.tipTitle}>Florrie's suggestion</span>
+                <span style={styles.tipText}>{tip}</span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>
