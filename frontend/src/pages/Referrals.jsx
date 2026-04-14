@@ -396,7 +396,23 @@ export default function Referrals() {
                 </button>
               ))}
             </div>
-                      {v} days
+          </div>
+
+          <div style={s.settingCard}>
+            <span style={s.settingLabel}>Reward expires after</span>
+            <div style={s.chipRow}>
+              {[14, 30, 60, 90].map(v => (
+                <button
+                  key={v}
+                  onClick={() => setExpiryDays(v)}
+                  style={{
+                    ...s.chip,
+                    background: expiryDays === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
+                    color: expiryDays === v ? '#fff' : 'var(--text, var(--text-primary, #2D2A26))',
+                    border: expiryDays === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+                  }}
+                >
+                  {v} days
                 </button>
               ))}
             </div>
@@ -442,11 +458,6 @@ const s = {
   shareBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid rgba(255,255,255,0.3)', background: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center' },
   tabBar: { display: 'flex', borderBottom: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', marginBottom: 14 },
   tab: { flex: 1, padding: '10px 0', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', textAlign: 'center' },
-  section: { display: 'flex', flexDirection: 'column', gap: 10 },
-  sectionTitle: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 4 },
-  rewardSummary: { display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', padding: '16px 0' },
-  rewardBox: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, background: 'var(--card-bg, #fff)', borderRadius: 12, padding: '14px 18px', border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))' },
-  rewardIcon: { fonnone', border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', textAlign: 'center' },
   section: { display: 'flex', flexDirection: 'column', gap: 10 },
   sectionTitle: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 4 },
   rewardSummary: { display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center', padding: '16px 0' },
