@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { supabase, isDevMode } from './lib/supabase.js';
+import { supabase } from './lib/supabase.js';
 import { useTheme } from './lib/theme.jsx';
 import { useBeautician } from './lib/supabase.js';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
@@ -53,7 +53,6 @@ const Portfolio = lazy(() => import('./pages/Portfolio.jsx'));
 const AppointmentNotes = lazy(() => import('./pages/AppointmentNotes.jsx'));
 const Feedback = lazy(() => import('./pages/Feedback.jsx'));
 const ExpensesPage = lazy(() => import('./pages/Expenses.jsx'));
-const FollowUpSequences = lazy(() => import('./pages/FollowUpSequences.jsx'));
 const PhotoConsent = lazy(() => import('./pages/PhotoConsent.jsx'));
 const WaitlistPro = lazy(() => import('./pages/WaitlistPro.jsx'));
 const ClientTimeline = lazy(() => import('./pages/ClientTimeline.jsx'));
@@ -135,13 +134,6 @@ export default function App() {
   const { beautician } = useBeautician();
 
   useEffect(() => {
-    if (isDevMode) {
-      // Dev mode — no Supabase configured, use mock session
-      setSession({ access_token: 'dev-token' });
-      setLoading(false);
-      return;
-    }
-
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       setSession(s);
       setLoading(false);
@@ -232,14 +224,13 @@ export default function App() {
   // Authenticated app
   const showNav = !isAuthRoute && !location.pathname.startsWith('/onboarding');
 
-  // ── Trial / subscription state ─────────────────────────────
   const trialEndsAt = beautician?.trial_ends_at ? new Date(beautician.trial_ends_at) : null;
   const now = new Date();
   const daysLeft = trialEndsAt ? Math.ceil((trialEndsAt - now) / (1000 * 60 * 60 * 24)) : null;
   const trialExpired = trialEndsAt ? now > trialEndsAt : false;
   const subActive = beautician?.subscription_status === 'active';
-  const showTrialWarning = !isDevMode && !subActive && daysLeft !== null && daysLeft <= 5 && daysLeft > 0;
-  const showTrialExpired = !isDevMode && !subActive && trialExpired;
+  const showTrialWarning = !subActive && daysLeft !== null && daysLeft <= 5 && daysLeft > 0;
+  const showTrialExpired = !subActive && trialExpired;
 
   // Soft paywall — expired trial and no active subscription
   if (showTrialExpired) {
@@ -274,12 +265,6 @@ export default function App() {
     <ErrorBoundary>
       <CoachProvider>
       <div style={styles.appShell}>
-        {isDevMode && (
-          <div style={styles.devModeBanner}>
-            <span style={{ fontSize: 12, fontWeight: 600 }}>🔧 Running in demo mode</span>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)' }}>— Connect Supabase to see real data</span>
-          </div>
-        )}
         {showTrialWarning && (
           <div style={{ background: 'var(--gold, #C9A96E)', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 13, fontWeight: 500 }}>
             ⏳ Your free trial ends in {daysLeft} day{daysLeft === 1 ? '' : 's'} —{' '}
@@ -645,18 +630,6 @@ const styles = {
     background: '#92405e',
     position: 'absolute',
     bottom: -1,
-  },
-
-  devModeBanner: {
-    background: 'linear-gradient(135deg, #1d1b19, #2d2a26)',
-    color: '#fff',
-    padding: '10px 16px',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    fontSize: 12,
-    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
-    borderBottom: '1px solid rgba(255,255,255,0.1)',
   },
 
 };
