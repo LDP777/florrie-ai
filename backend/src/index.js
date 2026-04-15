@@ -68,6 +68,7 @@ import productRoutes from './routes/products.js';
 import migrateRoutes from './routes/migrate.js';
 import whatsappConfigRoutes from './routes/whatsapp-config.js';
 import coachRoutes from './routes/coach.js';
+import courseRoutes from './routes/courses.js';
 
 dotenv.config();
 
@@ -200,6 +201,7 @@ app.use('/api/widget-state', apiLimiter, widgetRoutes);
 app.use('/api/webhooks/instagram', webhookLimiter, instagramWebhookRoutes);
 app.use('/api/coach', apiLimiter, coachRoutes);
 app.use('/api/instagram', apiLimiter, instagramRoutes);
+app.use('/api/courses', bookingLimiter, courseRoutes); // public course enrollment API
 
 // Sentry error handler — must come after all routes, before the generic handler
 if (process.env.SENTRY_DSN) {

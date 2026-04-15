@@ -820,6 +820,37 @@ router.post('/webhook', async (req, res) => {
             logger.warn({ err }, 'Post-payment confirmation notification failed (non-fatal)')
           );
         }
+
+        // Course enrollment deposit payment
+        const enrollmentId = session.metadata?.enrollment_id;
+        const isCourseDeposit = session.metadata?.type === 'course_deposit';
+        if (isCourseDeposit && enrollmentId) {
+          const courseBeauticianId = session.metadata?.beautician_id;
+          const courseId = session.metadata?.course_id;
+
+          // Mark enrollment as deposit_paid
+          await supabase.from('course_enrollments')
+            .update({
+              payment_status: 'deposit_paid',
+              amount_paid_cents: session.amount_total,
+              stripe_payment_intent_id: session.payment_intent,
+            })
+            .eq('id', enrollmentId);
+
+          // Log the transaction
+          if (courseBeauticianId) {
+            await supabase.from('transactions').insert({
+              beautician_id: courseBeauticianId,
+              amount_cents: session.amount_total,
+              type: 'deposit',
+              status: 'completed',
+              stripe_payment_intent_id: session.payment_intent,
+              payment_method: 'card_online',
+            });
+          }
+
+          logger.info({ enrollmentId, courseId, amount: session.amount_total }, 'Course deposit paid via Stripe');
+        }
         break;
       }
 
