@@ -48,3 +48,13 @@ frontend/src/pages/.gitignore
 # Audit/doc files (generated, not source)
 backend/AUDIT_*.md
 frontend/FLORRIE_HUB_AUDIT_*.md
+
+# Capacitor — native project build artefacts
+frontend/ios/App/Pods/
+frontend/ios/App/App/public/
+frontend/android/app/src/main/assets/public/
+frontend/android/.gradle/
+frontend/android/app/build/
+*.xcuserdata
+*.xcworkspace/xcuserdata/
+DerivedData/
