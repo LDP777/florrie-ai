@@ -18,10 +18,8 @@
  *   - Apply for production credentials (3-6 month review)
  *   - OAuth 2.0 for end-user authorization
  */
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
-
-// ── Config ──────────────────────────────────────────
 
 const HMRC_BASE = process.env.HMRC_API_BASE || 'https://test-api.service.hmrc.gov.uk';
 const HMRC_CLIENT_ID = process.env.HMRC_CLIENT_ID;

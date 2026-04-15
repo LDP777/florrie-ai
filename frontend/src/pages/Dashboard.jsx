@@ -25,7 +25,6 @@ import ErrorCard from '../components/ErrorCard.jsx';
  * All business logic preserved from v3.
  */
 
-// ─── Agent config ──────────────────────────────────────────
 const AGENTS = [
   { key: 'front_desk', name: 'Front Desk', icon: '💬', path: '/inbox', desc: 'Handles messages' },
   { key: 'calendar', name: 'Calendar', icon: '📅', path: '/calendar', desc: 'Manages bookings' },
@@ -35,7 +34,6 @@ const AGENTS = [
   { key: 'scout', name: 'Scout', icon: '🔍', path: '/ai-insights', desc: 'Spots trends' },
 ];
 
-// ─── Dev data ──────────────────────────────────────────────
 const DEV_TODAY = [
   { id: 'a1', time: '09:00', duration: 60, client: 'Sarah Jenkins', treatment: 'Root Touch-up', status: 'completed', price_cents: 8500 },
   { id: 'a2', time: '11:30', duration: 90, client: 'Marcus Thorne', treatment: 'Full Creative Color & Cut', status: 'confirmed', price_cents: 24000 },
@@ -64,7 +62,6 @@ const DEV_ACTIVITY = [
   { id: 'act3', agent: 'calendar', icon: '📅', text: 'Megan R booked HD Brows for today 3:30pm', time: '3h ago' },
 ];
 
-// ── Shift Report mock data ──
 const DEV_SHIFT_REPORT = [
   { id: 'sr1', category: 'message', agent: 'front_desk', summary: 'Confirmed Marcus\'s 11:30 booking via WhatsApp', value_cents: 0, created_at: new Date(Date.now() - 45 * 60000).toISOString() },
   { id: 'sr2', category: 'message', agent: 'front_desk', summary: 'Replied to Instagram DM from new enquiry — booked Friday 10am', value_cents: 4500, created_at: new Date(Date.now() - 90 * 60000).toISOString() },
@@ -84,7 +81,6 @@ const SHIFT_CATEGORIES = {
   other: { label: 'Other', icon: 'auto_awesome', color: '#867277', bg: 'rgba(146,64,94,0.06)' },
 };
 
-// ─── Material Icon helper ──────────────────────────────────
 function MIcon({ name, fill, size, style }) {
   return (
     <span
@@ -100,7 +96,6 @@ function MIcon({ name, fill, size, style }) {
   );
 }
 
-// ─── Main Dashboard ────────────────────────────────────────
 export default function Dashboard() {
   const { beautician, loading: bLoading } = useBeautician();
   const navigate = useNavigate();
@@ -647,7 +642,6 @@ function getGreeting() {
   return 'Good evening';
 }
 
-// ─── Styles — matching Stitch "Design System" (Home) reference ───
 const S = {
   page: {
     minHeight: '100vh',

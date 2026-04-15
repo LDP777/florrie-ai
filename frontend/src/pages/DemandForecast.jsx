@@ -5,7 +5,6 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 
-// ── Forecast computation engine ─────────────────────────────
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -101,7 +100,6 @@ function computeHeatmap(appointments, workingHours) {
   });
 }
 
-// ── Dev mode: generate synthetic appointments ───────────────
 function generateDevAppointments(workingHours) {
   const now = new Date();
   const appts = [];

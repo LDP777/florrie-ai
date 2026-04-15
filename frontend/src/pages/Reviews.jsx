@@ -15,7 +15,6 @@ import ErrorCard from '../components/ErrorCard.jsx';
  *   - Reputation score tracking over time
  */
 
-
 export default function Reviews() {
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('reviews');
@@ -316,7 +315,6 @@ export default function Reviews() {
     </div>
   );
 }
-
 
 const styles = {
   page: { minHeight: '100vh', background: 'var(--bg, #FAF8F5)', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text, #2D2A26)' },

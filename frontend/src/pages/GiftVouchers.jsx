@@ -14,7 +14,6 @@ import ErrorCard from '../components/ErrorCard.jsx';
  *   History  — redeemed + expired vouchers
  */
 
-
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 const AMOUNTS = [2000, 2500, 3000, 4000, 5000, 7500, 10000];
 

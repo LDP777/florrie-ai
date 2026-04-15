@@ -1,7 +1,6 @@
 import { Router } from 'express';
-import { z } from 'zod';
 import Stripe from 'stripe';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
 import { pushNewBooking } from '../services/push-notifications.js';
 import { sendConsultationFormSMS } from './consultation-forms.js';
@@ -10,36 +9,10 @@ import { requireAuth } from '../middleware/auth.js';
 import { calculatePlatformFee } from '../lib/platform-fees.js';
 import { verifyTurnstile } from '../middleware/turnstile.js';
 import logger from '../lib/logger.js';
+import { bookingSchema } from '../lib/schemas.js';
 
 const router = Router();
 const FRONTEND_URL = process.env.FRONTEND_URL;
-
-// Coerce empty/whitespace strings to null so optional fields don't trip email/format validators
-const emptyToNull = (v) => (typeof v === 'string' && v.trim() === '' ? null : v);
-
-const bookingSchema = z.object({
-  treatment_id: z.string().uuid('Invalid treatment ID'),
-  extra_treatment_ids: z.array(z.string().uuid()).optional().default([]),  // multi-treatment booking
-  starts_at: z.string().refine(
-    v => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(v) && !isNaN(Date.parse(v)),
-    { message: 'Invalid date/time format — expected ISO 8601 (e.g. 2026-03-28T14:00:00)' }
-  ),
-  client_name: z.string().min(1, 'Name is required').max(200).trim(),
-  client_email: z.preprocess(emptyToNull, z.string().email('Invalid email').nullable().optional().default(null)),
-  client_phone: z.string().min(5, 'Phone number too short').max(30).trim(),
-  notes: z.preprocess(emptyToNull, z.string().max(2000).nullable().optional().default(null)),
-  consultation: z.record(z.any()).optional().nullable().default(null),
-  add_ons: z.array(z.object({
-    id: z.string().uuid(),
-    price_cents: z.number().int().min(0),
-  })).optional().default([]),
-  payment_type: z.enum(['deposit', 'full']).optional().default('deposit'),
-  payment_method: z.enum(['card', 'cash', 'bank_transfer']).optional().default('card'),
-  discount_code: z.preprocess(emptyToNull, z.string().max(50).nullable().optional().default(null)),
-  is_member: z.boolean().optional().default(false),
-  photo_consent: z.boolean().optional().default(false),
-  client_package_id: z.preprocess(emptyToNull, z.string().uuid().nullable().optional().default(null)),
-});
 
 // Only init Stripe if key is present (avoids crash in dev without keys)
 const stripe = process.env.STRIPE_SECRET_KEY
@@ -1336,7 +1309,6 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
 
   if (!treatment) return res.status(404).json({ error: 'Treatment not found' });
 
-  // ── MULTI-TREATMENT: fetch extra treatments if provided ──
   let extraTreatments = [];
   if (extra_treatment_ids && extra_treatment_ids.length > 0) {
     const { data: extras } = await supabase
@@ -1462,7 +1434,6 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     clientNotes = JSON.stringify({ notes: notes || '', consultation });
   }
 
-  // ── DISCOUNT CODE VALIDATION ──────────────────────────────────────
   let discountCents = 0;
   let discountMeta = null;  // stored on appointment for audit trail
 
@@ -1515,7 +1486,6 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     // The frontend already validated it, so this is a safety net.
   }
 
-  // ── PACKAGE SESSION REDEMPTION ──────────────────────────────────
   let isPackageRedemption = false;
   if (client_package_id && client) {
     // Verify the package belongs to this client, is active, and has sessions left
@@ -1661,7 +1631,6 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   const dateStr = startsDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   pushNewBooking(beautician.id, firstName, treatmentNames, `${dateStr} at ${timeStr}`).catch(() => {});
 
-  // ── DEPOSIT FLOW ──────────────────────────────────────────
   // If deposit required but Stripe isn't configured, return booking with deposit_pending flag
   // so the frontend can show an appropriate message instead of silently skipping payment.
   if (depositRequired && (!stripe || !beautician.stripe_account_id || !beautician.stripe_onboarding_complete)) {

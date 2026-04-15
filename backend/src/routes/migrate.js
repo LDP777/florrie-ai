@@ -5,7 +5,7 @@
  * POST /api/migrate/execute  — bulk insert clients + treatments + appointments
  */
 import { Router } from 'express';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { parseMigrationFile } from '../services/migration-parser.js';
 import logger from '../lib/logger.js';
@@ -73,7 +73,6 @@ router.post('/execute', requireAuth, async (req, res) => {
   const imported = { clients: 0, treatments: 0, appointments: 0 };
 
   try {
-    // ── 1. Import clients ──────────────────────────────
     if (clients.length) {
       const clientRecords = clients.map(c => ({
         beautician_id: beauticianId,
@@ -106,7 +105,6 @@ router.post('/execute', requireAuth, async (req, res) => {
       }
     }
 
-    // ── 2. Import treatments ──────────────────────────────
     if (treatments.length) {
       const treatmentRecords = treatments.map(t => ({
         beautician_id: beauticianId,
@@ -131,7 +129,6 @@ router.post('/execute', requireAuth, async (req, res) => {
       }
     }
 
-    // ── 3. Import appointments (historical) ──────────────────────────────
     if (appointments.length) {
       // First, build lookup maps for clients and treatments
       const { data: existingClients } = await supabase

@@ -5,7 +5,6 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 
-// ── Churn risk scoring engine ───────────────────────────────
 function computeChurnRisk(clients) {
   const now = new Date();
   const scored = [];

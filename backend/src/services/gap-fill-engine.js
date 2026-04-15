@@ -13,7 +13,7 @@
  *
  * Called by autonomous-scheduler.js every 2 hours as a 4th check.
  */
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { sendNudge } from './notifications.js';
 import { shouldAutoSend } from './sms-metering.js';
 import logger from '../lib/logger.js';
@@ -269,9 +269,6 @@ export async function getGapFillSuggestions(beauticianId) {
 
   return suggestions;
 }
-
-
-// ─── Internal helpers ─────────────────────────────────────────────────────────
 
 /**
  * Compute all gaps ≥30 min for the next 7 days.

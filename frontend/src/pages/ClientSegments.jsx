@@ -6,7 +6,6 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 
-// ── Segment definitions — the buckets clients get sorted into ──
 const SEGMENT_DEFS = [
   {
     key: 'vip', name: 'VIP Regulars', icon: '👑',
@@ -52,7 +51,6 @@ const SEGMENT_DEFS = [
   },
 ];
 
-// ── RFM scoring engine ──────────────────────────────────────
 function computeRFMSegments(clients) {
   const now = new Date();
   // Score each client on R/F/M (1-10 scale)
@@ -139,7 +137,6 @@ function computeRFMSegments(clients) {
   }).filter(s => s.count > 0);
 }
 
-// ── Dev mode: synthetic clients with appointment history ────
 function generateDevClients() {
   const now = new Date();
   const names = [

@@ -4,7 +4,7 @@
  * Runs on an interval from index.js. Each function is idempotent
  * and safe to call multiple times.
  */
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 
 /**

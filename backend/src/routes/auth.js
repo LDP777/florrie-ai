@@ -1,35 +1,15 @@
 import { Router } from 'express';
-import { z } from 'zod';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { requireAuth, sanitizeBeautician } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { triggerSequence } from '../services/email-sequences.js';
 import logger from '../lib/logger.js';
+import {
+  signupSchema,
+  profileUpdateSchema
+} from '../lib/schemas.js';
 
 const router = Router();
-
-const signupSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-  firstName: z.string().min(1).max(100).trim(),
-  lastName: z.string().max(100).trim().optional().default(''),
-  businessName: z.string().max(200).trim().optional().nullable(),
-});
-
-const profileUpdateSchema = z.object({
-  first_name: z.string().min(1).max(100).trim().optional(),
-  last_name: z.string().max(100).trim().optional(),
-  business_name: z.string().max(200).trim().optional().nullable(),
-  phone: z.string().max(30).trim().optional().nullable(),
-  avatar_url: z.string().url().optional().nullable(),
-  booking_slug: z.string().min(2).max(60).regex(/^[a-z0-9-]+$/, 'Slug must be lowercase alphanumeric with dashes').optional(),
-  working_hours: z.record(z.any()).optional(),
-  brand_color: z.string().max(20).optional(),
-  brand_font: z.string().max(50).optional(),
-  logo_url: z.string().url().optional().nullable(),
-  confidence_threshold: z.number().min(0).max(1).optional(),
-  auto_reply_enabled: z.boolean().optional(),
-}).strict();
 
 /**
  * POST /api/auth/signup

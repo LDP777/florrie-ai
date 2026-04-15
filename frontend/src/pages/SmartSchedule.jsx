@@ -20,15 +20,12 @@ import EmptyState from '../components/EmptyState.jsx';
  *   Insights — schedule utilisation stats
  */
 
-
-
 const FILLABILITY = {
   high: { label: 'Easy fill', color: '#4CAF50', bg: '#E8F5E9' },
   medium: { label: 'Possible', color: '#FF9800', bg: '#FFF3E0' },
   low: { label: 'Tough', color: '#E57373', bg: '#FEF2F2' },
 };
 
-// ── Compute fill suggestions from real client data ──────────
 function computeSuggestions(clients, treatments) {
   const now = new Date();
   const rebook_due = [];
@@ -81,7 +78,6 @@ function computeSuggestions(clients, treatments) {
   };
 }
 
-// ── Compute real insight data from appointments ─────────────
 function computeDayStats(appts) {
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const counts = Array(7).fill(0);

@@ -25,7 +25,7 @@
  */
 
 import { Router } from 'express';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
 
@@ -47,10 +47,8 @@ function metaConfigured() {
   return !!(META_APP_ID && META_APP_SECRET);
 }
 
-// ───────────────────────────────────────────────────────
 // GET /api/instagram/connect
 // Returns the Facebook OAuth URL the frontend should open.
-// ───────────────────────────────────────────────────────
 router.get('/connect', requireAuth, (req, res) => {
   if (!metaConfigured()) {
     return res.status(503).json({ error: 'Instagram integration not configured — contact support' });
@@ -67,10 +65,8 @@ router.get('/connect', requireAuth, (req, res) => {
   res.json({ url });
 });
 
-// ───────────────────────────────────────────────────────
 // GET /api/instagram/callback
 // Meta redirects here after the user approves.
-// ───────────────────────────────────────────────────────
 router.get('/callback', async (req, res) => {
   const { code, state: beauticianId, error: oauthError } = req.query;
 
@@ -174,10 +170,8 @@ router.get('/callback', async (req, res) => {
   }
 });
 
-// ───────────────────────────────────────────────────────
 // GET /api/instagram/status
 // Returns connection status for the current beautician.
-// ───────────────────────────────────────────────────────
 router.get('/status', requireAuth, async (req, res) => {
   try {
     const { data } = await supabase
@@ -200,10 +194,8 @@ router.get('/status', requireAuth, async (req, res) => {
   }
 });
 
-// ───────────────────────────────────────────────────────
 // POST /api/instagram/disconnect
 // Clears the stored Instagram credentials.
-// ───────────────────────────────────────────────────────
 router.post('/disconnect', requireAuth, async (req, res) => {
   try {
     await supabase

@@ -30,8 +30,6 @@ const QUICK_REPLIES = [
 const CHANNEL_ICONS = { whatsapp: '💬', sms: '📱', email: '✉️', instagram: '📸' };
 const CHANNEL_FILTERS = ['all', 'whatsapp', 'sms', 'email', 'instagram'];
 
-// ── Component ──────────────────────────────────────────
-
 export default function Inbox() {
   const { dark } = useTheme();
   const { beautician, loading: bLoading } = useBeautician();
@@ -213,7 +211,6 @@ export default function Inbox() {
     return <ErrorCard message={error} onDismiss={() => setError(null)} />;
   }
 
-  // ── Conversation list view ──
   if (!activeId) {
     return (
       <div style={s.page}>
@@ -286,7 +283,6 @@ export default function Inbox() {
     );
   }
 
-  // ── Thread view ──
   return (
     <div style={s.threadPage}>
       {/* Thread header */}

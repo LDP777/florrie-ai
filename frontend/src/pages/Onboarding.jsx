@@ -54,7 +54,6 @@ export default function Onboarding({ onComplete }) {
   if (bLoading) {
     return <p style={styles.loadingText}>Setting up your account...</p>;
   }
-  // === Step handlers ===
   async function saveBusinessInfo() {
     if (!beautician) return;
     setSaving(true);

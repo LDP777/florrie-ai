@@ -1,37 +1,14 @@
 import { Router } from 'express';
-import { z } from 'zod';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import logger from '../lib/logger.js';
+import {
+  createLocationSchema,
+  updateLocationSchema
+} from '../lib/schemas.js';
 
 const router = Router();
-
-const createLocationSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(200).trim(),
-  address: z.string().max(500).trim().optional().nullable(),
-  phone: z.string().max(30).trim().optional().nullable(),
-  email: z.string().email().trim().optional().nullable(),
-  postcode: z.string().max(20).trim().optional().nullable(),
-  booking_slug: z.string().max(100).regex(/^[a-z0-9-]+$/).trim().optional().nullable(),
-  timezone: z.string().max(50).optional().default('Europe/London'),
-  notes: z.string().max(1000).trim().optional().nullable(),
-  is_primary: z.boolean().optional().default(false),
-  status: z.enum(['active', 'setup', 'archived']).optional().default('active'),
-});
-
-const updateLocationSchema = z.object({
-  name: z.string().min(1).max(200).trim().optional(),
-  address: z.string().max(500).trim().optional().nullable(),
-  phone: z.string().max(30).trim().optional().nullable(),
-  email: z.string().email().trim().optional().nullable(),
-  postcode: z.string().max(20).trim().optional().nullable(),
-  booking_slug: z.string().max(100).regex(/^[a-z0-9-]+$/).trim().optional().nullable(),
-  timezone: z.string().max(50).optional(),
-  notes: z.string().max(1000).trim().optional().nullable(),
-  is_primary: z.boolean().optional(),
-  status: z.enum(['active', 'setup', 'archived']).optional(),
-}).strict();
 
 /**
  * GET /api/locations

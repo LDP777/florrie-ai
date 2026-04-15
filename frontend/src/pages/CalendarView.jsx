@@ -76,9 +76,7 @@ export default function CalendarView() {
       setLoading(false);
     }
   }
-  // ──────────────────────────────────────────────────────
   // Time block functions
-  // ──────────────────────────────────────────────────────
   async function loadTimeBlocks() {
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
@@ -883,9 +881,7 @@ const styles = {
   rebookSendBtn: { width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   doneCloseBtn: { width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: `${COLORS.outlineVariant}33`, color: COLORS.stone400, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
 };
-// ──────────────────────────────────────────────────────────────────
 // BlockTimeModal — create a new time block
-// ──────────────────────────────────────────────────────────────────
 const BLOCK_REASONS = [
   { key: 'lunch', label: '🍽️ Lunch' },
   { key: 'holiday', label: '🏖️ Holiday' },
@@ -1051,9 +1047,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
     </div>
   );
 }
-// ──────────────────────────────────────────────────────────────────
 // BlockDetailSheet — shows an existing block + remove option
-// ──────────────────────────────────────────────────────────────────
 function BlockDetailSheet({ block, onDelete, onClose }) {
   const [confirming, setConfirming] = useState(false);
   const isClosed = block.type === 'closed' || block.is_closed;

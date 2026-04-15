@@ -39,7 +39,6 @@ export async function processVoiceCommand({ audioBase64, text, mimeType, beautic
   const anthropic = new Anthropic();
   const today = new Date().toISOString().slice(0, 10);
 
-  // ── Step 1: Get transcript (if audio) ─────────────────────────────────────
   let transcript = text;
 
   if (audioBase64) {
@@ -69,7 +68,6 @@ export async function processVoiceCommand({ audioBase64, text, mimeType, beautic
     return { transcript: '', reply: "I didn't catch that — try speaking again.", actions: [], status: 'empty' };
   }
 
-  // ── Step 2: Agentic tool-calling loop ──────────────────────────────────────
   const systemPrompt = buildSystemPrompt(beautician, today);
   const messages = [{ role: 'user', content: transcript }];
 
@@ -150,7 +148,6 @@ export async function processVoiceCommand({ audioBase64, text, mimeType, beautic
     }
   }
 
-  // ── Step 3: If no final text from Claude, synthesise from action results ───
   if (!finalReply) {
     if (executedActions.length === 1) {
       finalReply = executedActions[0].result;
@@ -168,8 +165,6 @@ export async function processVoiceCommand({ audioBase64, text, mimeType, beautic
     status: executedActions.length > 0 ? 'ok' : 'unknown',
   };
 }
-
-// ─── System prompt ───────────────────────────────────────────────────────────
 
 function buildSystemPrompt(beautician, today) {
   const name = beautician.first_name || 'the beautician';

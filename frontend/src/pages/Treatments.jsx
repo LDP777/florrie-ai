@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, insertRow, updateRow, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow } from '../lib/supabase.js';
+import { formatCurrency, formatDuration } from '../lib/formatting.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -23,7 +24,6 @@ const CATEGORIES = [
 
 const catEmoji = (cat) => CATEGORIES.find(c => c.value === cat)?.emoji || '🌸';
 const catLabel = (cat) => CATEGORIES.find(c => c.value === cat)?.label || cat;
-const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 
 export default function Treatments() {
   const { beautician, loading: bLoading } = useBeautician();
@@ -52,7 +52,7 @@ export default function Treatments() {
       setTreatments(data);
     } catch (err) {
       logger.error('Load treatments error:', err);
-      setTreatments(DEV_TREATMENTS);
+      setTreatments([]);
     } finally {
       setLoading(false);
     }
@@ -346,8 +346,8 @@ export default function Treatments() {
                   <div style={styles.treatmentInfo}>
                     <span style={styles.treatmentName}>{t.name}</span>
                     <span style={styles.treatmentMeta}>
-                      {t.duration_minutes} min{t.buffer_minutes > 0 && ` + ${t.buffer_minutes} buffer`} · {fmt(t.price_cents)}
-                      {t.deposit_percent > 0 ? ` · ${t.deposit_percent}% deposit` : t.deposit_cents > 0 ? ` · ${fmt(t.deposit_cents)} deposit` : ''}
+                      {t.duration_minutes} min{t.buffer_minutes > 0 && ` + ${t.buffer_minutes} buffer`} · {formatCurrency(t.price_cents)}
+                      {t.deposit_percent > 0 ? ` · ${t.deposit_percent}% deposit` : t.deposit_cents > 0 ? ` · ${formatCurrency(t.deposit_cents)} deposit` : ''}
                     </span>
                     {t.requires_consultation && (
                       <span style={styles.consultBadge}>📋 Consultation required</span>
@@ -388,7 +388,7 @@ export default function Treatments() {
                   <div style={styles.treatmentInfo}>
                     <span style={styles.treatmentName}>{t.name}</span>
                     <span style={styles.treatmentMeta}>
-                      {t.duration_minutes} min · {fmt(t.price_cents)}
+                      {t.duration_minutes} min · {formatCurrency(t.price_cents)}
                     </span>
                   </div>
                   <button

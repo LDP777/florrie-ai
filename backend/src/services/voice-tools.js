@@ -25,11 +25,8 @@ const stripe = process.env.STRIPE_SECRET_KEY
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://florrie.ai';
 
-// ─── Tool definitions (sent to Claude) ──────────────────────────────────────
-
 export const TOOL_DEFINITIONS = [
 
-  // ── SCHEDULE ──────────────────────────────────────────────────────────────
   {
     name: 'check_schedule',
     description: 'Get all appointments for a specific date. Use for "what\'s my schedule today", "do I have anything on Thursday", etc.',
@@ -53,7 +50,6 @@ export const TOOL_DEFINITIONS = [
     },
   },
 
-  // ── APPOINTMENTS ──────────────────────────────────────────────────────────
   {
     name: 'book_appointment',
     description: 'Create a new appointment for a client. Finds the client and treatment by name.',
@@ -95,7 +91,6 @@ export const TOOL_DEFINITIONS = [
     },
   },
 
-  // ── TIME BLOCKING ─────────────────────────────────────────────────────────
   {
     name: 'block_date',
     description: 'Block a single day or time slot. Use for "block Friday afternoon", "mark Tuesday as closed".',
@@ -139,7 +134,6 @@ export const TOOL_DEFINITIONS = [
     },
   },
 
-  // ── CLIENTS ───────────────────────────────────────────────────────────────
   {
     name: 'get_client_info',
     description: 'Look up a client\'s visit history, total spend, last visit, and next appointment.',
@@ -176,7 +170,6 @@ export const TOOL_DEFINITIONS = [
     },
   },
 
-  // ── MESSAGING ─────────────────────────────────────────────────────────────
   {
     name: 'send_message',
     description: 'Send an SMS/WhatsApp/email message to a single client.',
@@ -232,7 +225,6 @@ export const TOOL_DEFINITIONS = [
     },
   },
 
-  // ── MONEY ─────────────────────────────────────────────────────────────────
   {
     name: 'get_revenue_summary',
     description: 'Get revenue stats for a period. Use for "how much did I make last month", "what\'s my revenue this week".',
@@ -273,7 +265,6 @@ export const TOOL_DEFINITIONS = [
     },
   },
 
-  // ── NOTES & CHECKLISTS ────────────────────────────────────────────────────
   {
     name: 'add_note',
     description: 'Add an item to today\'s daily checklist / notes.',
@@ -286,7 +277,6 @@ export const TOOL_DEFINITIONS = [
     },
   },
 
-  // ── REPORTS ───────────────────────────────────────────────────────────────
   {
     name: 'get_top_clients',
     description: 'Get the top N clients by total spend.',
@@ -322,8 +312,6 @@ export const TOOL_DEFINITIONS = [
     },
   },
 ];
-
-// ─── Tool executor ───────────────────────────────────────────────────────────
 
 /**
  * Execute a single tool call.
@@ -366,8 +354,6 @@ export async function executeTool(toolName, toolInput, beautician, supabase) {
     return { result: `Something went wrong running ${toolName}.` };
   }
 }
-
-// ─── Schedule tools ──────────────────────────────────────────────────────────
 
 async function toolCheckSchedule({ date }, beautician, supabase) {
   const targetDate = date || new Date().toISOString().slice(0, 10);
@@ -426,8 +412,6 @@ async function toolGetUpcoming({ days_ahead = 7 }, beautician, supabase) {
     data: { appointments: appts },
   };
 }
-
-// ─── Appointment tools ───────────────────────────────────────────────────────
 
 async function toolBookAppointment({ client_name, treatment, date, time }, beautician, supabase) {
   const client = await findClient(beautician.id, client_name, supabase);
@@ -581,8 +565,6 @@ async function toolCancelAppointment({ client_name, notify_client = true }, beau
   };
 }
 
-// ─── Time blocking tools ─────────────────────────────────────────────────────
-
 async function toolBlockDate({ date, all_day, start_time, end_time, reason = 'personal', note }, beautician, supabase) {
   const isAllDay = all_day !== false && !start_time;
 
@@ -673,8 +655,6 @@ async function toolClearBlock({ date }, beautician, supabase) {
   return { result: `Block removed for ${friendlyDate}.` };
 }
 
-// ─── Client tools ────────────────────────────────────────────────────────────
-
 async function toolGetClientInfo({ client_name }, beautician, supabase) {
   const client = await findClient(beautician.id, client_name, supabase);
   if (!client) return { result: `Can't find "${client_name}".` };
@@ -754,8 +734,6 @@ async function toolAddClientNote({ client_name, note }, beautician, supabase) {
 
   return { result: `Note added to ${client.first_name}'s record.` };
 }
-
-// ─── Messaging tools ─────────────────────────────────────────────────────────
 
 async function toolSendMessage({ client_name, message }, beautician, supabase) {
   const client = await findClient(beautician.id, client_name, supabase);
@@ -924,8 +902,6 @@ async function toolSendRebookReminder({ client_name, treatment }, beautician, su
   return { result: `Rebook reminder sent to ${client.first_name}.` };
 }
 
-// ─── Money tools ─────────────────────────────────────────────────────────────
-
 async function toolGetRevenueSummary({ period = 'this_month', from_date, to_date }, beautician, supabase) {
   const now = new Date();
   let from, to;
@@ -1031,8 +1007,6 @@ async function toolCreateExpense({ amount_pence, category, description, date }, 
   return { result: `Logged £${(amount_pence / 100).toFixed(2)} expense: ${description} (${category}).` };
 }
 
-// ─── Notes tool ──────────────────────────────────────────────────────────────
-
 async function toolAddNote({ note }, beautician, supabase) {
   const today = new Date().toISOString().slice(0, 10);
   await supabase.from('daily_checklists').insert({
@@ -1043,8 +1017,6 @@ async function toolAddNote({ note }, beautician, supabase) {
   });
   return { result: `Added to today's checklist: "${note}"` };
 }
-
-// ─── Reports tools ───────────────────────────────────────────────────────────
 
 async function toolGetTopClients({ limit = 5 }, beautician, supabase) {
   const { data: appts } = await supabase
@@ -1118,8 +1090,6 @@ async function toolGetRevenueByTreatment({ from_date, to_date }, beautician, sup
   const lines = sorted.map(([name, total]) => `${name}: £${(total / 100).toFixed(2)}`);
   return { result: `Revenue by treatment:\n${lines.join('\n')}`, data: { totals } };
 }
-
-// ─── Shared helpers ──────────────────────────────────────────────────────────
 
 export async function findClient(beauticianId, name, supabase) {
   if (!name) return null;

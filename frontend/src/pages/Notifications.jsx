@@ -65,7 +65,6 @@ export default function Notifications() {
         actionUrl: r.action_url,
       })));
     } catch (err) {
-      console.error('Failed to load notifications:', err);
       setNotifications([]);
     }
     setLoading(false);

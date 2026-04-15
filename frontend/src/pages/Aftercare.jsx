@@ -19,7 +19,6 @@ import ErrorCard from '../components/ErrorCard.jsx';
  *   Settings — auto-send timing, channel, follow-up nudge
  */
 
-
 const DEFAULT_SETTINGS = {
   auto_send_enabled: true,
   default_send_after_hours: 1,

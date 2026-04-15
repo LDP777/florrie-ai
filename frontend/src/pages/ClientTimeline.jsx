@@ -137,7 +137,7 @@ export default function ClientTimeline() {
         }
         setLoading(false);
       } catch (err) {
-        console.error('Failed to fetch client data:', err);
+        logger.error('Failed to fetch client data:', err);
         setError(err.message || 'Failed to load client timeline');
         setLoading(false);
       }

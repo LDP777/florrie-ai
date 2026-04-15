@@ -117,7 +117,6 @@ export default function TrainingBooking() {
     });
   };
 
-  // ── Loading ────────────────────────────────────────────
   if (loading) {
     return (
       <div style={styles.page}>
@@ -129,7 +128,6 @@ export default function TrainingBooking() {
     );
   }
 
-  // ── Success ────────────────────────────────────────────
   if (success) {
     return (
       <div style={styles.page}>
@@ -164,7 +162,6 @@ export default function TrainingBooking() {
     );
   }
 
-  // ── Error (no course) ──────────────────────────────────
   if (error && !course) {
     return (
       <div style={styles.page}>
@@ -177,7 +174,6 @@ export default function TrainingBooking() {
     );
   }
 
-  // ── Main course page ───────────────────────────────────
   return (
     <div style={styles.page}>
       {/* Beautician header */}

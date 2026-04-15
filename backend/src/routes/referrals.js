@@ -1,10 +1,10 @@
 import { Router } from 'express';
-import { z } from 'zod';
 import crypto from 'crypto';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import logger from '../lib/logger.js';
+import { referralConfigSchema } from '../lib/schemas.js';
 
 const router = Router();
 
@@ -78,17 +78,11 @@ router.get('/config', requireAuth, async (req, res) => {
   });
 });
 
-const configSchema = z.object({
-  referral_enabled: z.boolean().optional(),
-  referral_reward_type: z.enum(['discount', 'free_addon', 'credit', 'none']).optional(),
-  referral_reward_value_cents: z.number().min(0).max(10000).optional(),
-});
-
 /**
  * PATCH /api/referrals/config
  * Update referral program settings.
  */
-router.patch('/config', requireAuth, validate(configSchema), async (req, res) => {
+router.patch('/config', requireAuth, validate(referralConfigSchema), async (req, res) => {
   const updates = { ...req.body };
 
   const { data, error } = await supabase
@@ -201,8 +195,6 @@ router.post('/:id/complete', requireAuth, async (req, res) => {
 
   res.json({ referral: data });
 });
-
-// ── Helpers ─────────────────────────────────────
 
 function generateCode(name) {
   const clean = name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 8);

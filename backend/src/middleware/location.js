@@ -7,7 +7,7 @@
  * If no header is sent, req.locationId is null — queries return all locations.
  * This makes multi-location opt-in and backwards-compatible.
  */
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 
 export function locationScope(req, res, next) {
   const locationId = req.headers['x-location-id'] || null;

@@ -1,53 +1,18 @@
 import { Router } from 'express';
-import { z } from 'zod';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 // Client limits removed — all plans have unlimited clients (Apr 2026)
 import { validate } from '../middleware/validate.js';
 import { refreshAllIntelligence } from '../services/client-intelligence.js';
 import logger from '../lib/logger.js';
+import { parsePagination, buildPaginationMeta, handleQueryError, buildSearchFilter } from '../lib/queries.js';
+import {
+  createClientSchema,
+  updateClientSchema,
+  importClientsSchema
+} from '../lib/schemas.js';
 
 const router = Router();
-
-const createClientSchema = z.object({
-  first_name: z.string().min(1, 'First name is required').max(100).trim(),
-  last_name: z.string().max(100).trim().optional().nullable(),
-  email: z.string().email('Invalid email').optional().nullable(),
-  phone: z.string().max(30).trim().optional().nullable(),
-  preferred_channel: z.enum(['whatsapp', 'sms', 'email']).optional().default('whatsapp'),
-  notes: z.string().max(5000).optional().nullable(),
-});
-
-const updateClientSchema = z.object({
-  first_name: z.string().min(1).max(100).trim().optional(),
-  last_name: z.string().max(100).trim().optional().nullable(),
-  email: z.string().email().optional().nullable(),
-  phone: z.string().max(30).trim().optional().nullable(),
-  preferred_channel: z.enum(['whatsapp', 'sms', 'email']).optional(),
-  marketing_consent: z.boolean().optional(),
-  health_data_consent: z.boolean().optional(),
-  notes: z.string().max(5000).optional().nullable(),
-  status: z.enum(['new', 'active', 'dormant', 'vip']).optional(),
-  preferences: z.record(z.any()).optional().nullable(),
-  life_events: z.record(z.any()).optional().nullable(),
-}).strict();
-
-const importClientsSchema = z.object({
-  clients: z.array(z.object({
-    first_name: z.string().optional(),
-    firstName: z.string().optional(),
-    last_name: z.string().optional(),
-    lastName: z.string().optional(),
-    name: z.string().optional(),
-    email: z.string().email().optional().nullable(),
-    phone: z.string().optional().nullable(),
-    mobile: z.string().optional().nullable(),
-    notes: z.string().optional().nullable(),
-    id: z.any().optional(),
-    external_id: z.any().optional(),
-  })).min(1, 'Provide at least one client'),
-  source: z.enum(['fresha', 'timely', 'csv']).optional().default('csv'),
-});
 
 /**
  * GET /api/clients
@@ -59,10 +24,7 @@ const importClientsSchema = z.object({
  *   - search=sarah
  */
 router.get('/', requireAuth, async (req, res) => {
-  // Pagination params
-  const page = Math.max(1, parseInt(req.query.page) || 1);
-  const per_page = Math.min(100, Math.max(1, parseInt(req.query.per_page) || 25));
-  const offset = (page - 1) * per_page;
+  const { page, per_page, offset } = parsePagination(req.query);
 
   // Build query
   let query = supabase
@@ -76,32 +38,20 @@ router.get('/', requireAuth, async (req, res) => {
   }
 
   if (req.query.search) {
-    // Sanitise: strip PostgREST filter metacharacters to prevent .or() injection
-    const search = req.query.search.replace(/[^a-zA-Z0-9\s\-'.@]/g, '').trim().substring(0, 100);
-    if (search) {
-      query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`);
+    const searchFilter = buildSearchFilter(req.query.search, ['first_name', 'last_name', 'email']);
+    if (searchFilter) {
+      query = query.or(searchFilter);
     }
   }
 
   // Apply pagination
   const { data, error, count } = await query.range(offset, offset + per_page - 1);
-  if (error) {
-    logger.error({ err: error }, 'Failed to fetch clients');
-    return res.status(500).json({ error: 'Something went wrong' });
+  if (handleQueryError(error, res, 'fetch clients')) {
+    return;
   }
 
-  const total = count || 0;
-  const total_pages = Math.ceil(total / per_page);
-
-  res.json({
-    data: data || [],
-    pagination: {
-      page,
-      per_page,
-      total,
-      total_pages
-    }
-  });
+  const pagination = buildPaginationMeta(count || 0, page, per_page);
+  res.json({ data: data || [], pagination });
 });
 
 /**

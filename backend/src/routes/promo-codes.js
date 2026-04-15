@@ -1,32 +1,15 @@
 import { Router } from 'express';
-import { z } from 'zod';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import logger from '../lib/logger.js';
+import {
+  createPromoCodeSchema,
+  updatePromoCodeSchema,
+  validatePromoCodeSchema
+} from '../lib/schemas.js';
 
 const router = Router();
-
-const createPromoCodeSchema = z.object({
-  code: z.string().min(1, 'Code is required').max(50).toUpperCase(),
-  discount_type: z.enum(['percentage', 'fixed'], { errorMap: () => ({ message: 'Must be percentage or fixed' }) }),
-  discount_value: z.number().int().positive('Discount value must be positive'),
-  max_uses: z.number().int().positive().optional().nullable(),
-  valid_from: z.string().datetime('Invalid ISO datetime format'),
-  valid_until: z.string().datetime('Invalid ISO datetime format'),
-});
-
-const updatePromoCodeSchema = z.object({
-  is_active: z.boolean().optional(),
-  discount_value: z.number().int().positive().optional(),
-  max_uses: z.number().int().positive().optional().nullable(),
-  valid_from: z.string().datetime().optional(),
-  valid_until: z.string().datetime().optional(),
-}).strict();
-
-const validatePromoCodeSchema = z.object({
-  code: z.string().min(1, 'Code is required').toUpperCase(),
-});
 
 /**
  * GET /api/promo-codes

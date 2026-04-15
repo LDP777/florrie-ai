@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-// ─── Every feature in the app, searchable ────────────────
 const FEATURES = [
   // Your Day
   { path: '/calendar', name: 'Calendar', desc: 'View and manage appointments', icon: '📅', cat: 'Your Day' },
@@ -88,7 +87,6 @@ const FEATURES = [
   { path: '/treatment-stats', name: 'Treatment Stats', desc: 'Service analytics', icon: '📊', cat: 'Business' },
 ];
 
-// ─── Fuzzy match: all query words must appear somewhere ──
 function search(query) {
   if (!query.trim()) return [];
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
@@ -120,7 +118,6 @@ function search(query) {
   return scored;
 }
 
-// ─── Group results by category ───────────────────────────
 function groupByCategory(results) {
   const groups = [];
   const seen = new Set();
@@ -179,7 +176,6 @@ export default function SpotlightSearch() {
     setQuery('');
   }
 
-  // ── Inline trigger (sits on the Dashboard) ─────────────
   if (!open) {
     return (
       <button onClick={() => setOpen(true)} style={S.trigger}>
@@ -192,7 +188,6 @@ export default function SpotlightSearch() {
     );
   }
 
-  // ── Full-screen overlay ────────────────────────────────
   return (
     <div style={S.overlay} onClick={handleClose}>
       <div style={S.modal} onClick={e => e.stopPropagation()}>
@@ -267,7 +262,6 @@ export default function SpotlightSearch() {
   );
 }
 
-// ─── Styles ──────────────────────────────────────────────
 const S = {
   // Inline trigger bar (sits on Dashboard)
   trigger: {

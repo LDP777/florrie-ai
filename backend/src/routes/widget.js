@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
 
@@ -71,7 +71,6 @@ router.get('/', requireAuth, async (req, res) => {
         .order('created_at', { ascending: false }),
     ]);
 
-    // ── Today's stats ──
     const appointments = appointmentsRes.data || [];
     const transactions = transactionsRes.data || [];
     const aiActions = aiActionsRes.data || [];
@@ -80,7 +79,6 @@ router.get('/', requireAuth, async (req, res) => {
     const bookedCount = appointments.filter(a => a.status !== 'cancelled').length;
     const revenuePence = transactions.reduce((sum, t) => sum + (t.amount_pence || 0), 0);
 
-    // ── Active agents — deduplicate by name, keep latest action ──
     const agentMap = new Map();
     for (const row of agentRows) {
       if (!agentMap.has(row.agent_name)) {
@@ -100,14 +98,12 @@ router.get('/', requireAuth, async (req, res) => {
     }
     const activeAgents = Array.from(agentMap.values());
 
-    // ── Recent actions (last 3 one-liners) ──
     const recentActions = aiActions.map(a => ({
       action_type: a.action_type,
       summary: a.summary || a.action_type,
       created_at: a.created_at,
     }));
 
-    // ── Next appointment (first upcoming today, or null) ──
     const upcoming = appointments.find(a =>
       a.status !== 'cancelled' && new Date(a.starts_at) > new Date(now)
     );

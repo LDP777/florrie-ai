@@ -11,7 +11,7 @@
  * for weekly tracking but ALSO write into message_usage for combined quota.
  */
 
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 import { getTier } from '../lib/tiers.js';
 

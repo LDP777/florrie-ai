@@ -12,12 +12,11 @@
  *   - Mark as sent to avoid duplicates
  *   - Return { sent, total } for logging
  */
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 import { sendEmail, sendSMS, sendWhatsApp } from './notifications.js';
 import { shouldAutoSend } from './sms-metering.js';
 
-// ── Shared: send a message on the beautician's preferred channel ────────
 // messageType must match a key in DEFAULT_PRIORITY_RULES (e.g. 'aftercare_followup', 'rebook_nudge', 'review_request', 'marketing').
 // shouldAutoSend() is checked before any AI-initiated SMS to respect autopilot credit rules.
 async function sendOnChannel({ beautician, client, body, beauticianId, messageType = 'general' }) {
@@ -467,7 +466,6 @@ export async function processFollowUpSequences() {
   let enrolled = 0;
   let sent = 0;
 
-  // ── Phase A: Enroll new clients ──────────────
   const { data: sequences } = await supabase
     .from('follow_up_sequences')
     .select('*')
@@ -529,7 +527,6 @@ export async function processFollowUpSequences() {
     }
   }
 
-  // ── Phase B: Send due steps ──────────────
   const now = new Date();
   const { data: dueEnrollments } = await supabase
     .from('follow_up_enrollments')

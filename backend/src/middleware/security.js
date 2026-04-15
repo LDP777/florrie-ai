@@ -10,7 +10,6 @@
 import rateLimit from 'express-rate-limit';
 import logger from '../lib/logger.js';
 
-// ── Security headers (Helmet-lite, no extra dependency) ─────────
 export function securityHeaders(req, res, next) {
   // Content Security Policy — only allow Stripe's JS for payment frames
   res.setHeader('Content-Security-Policy', [
@@ -47,7 +46,6 @@ export function securityHeaders(req, res, next) {
   next();
 }
 
-// ── Payment-specific rate limiter ───────────────────────────────
 // Tighter than booking limiter: max 5 payment attempts per 15 min per IP
 export const paymentLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -65,7 +63,6 @@ export const paymentLimiter = rateLimit({
   },
 });
 
-// ── Prototype pollution guard ───────────────────────────────────
 // Strips dangerous keys from request bodies before they hit route handlers
 export function sanitiseBody(req, res, next) {
   if (req.body && typeof req.body === 'object') {
@@ -88,7 +85,6 @@ function stripDangerousKeys(obj) {
   }
 }
 
-// ── Idempotency key check for payment endpoints ─────────────────
 // Clients send Idempotency-Key header; we reject duplicates within a window.
 // This prevents double-charging if a user clicks "Pay" twice.
 const recentPaymentKeys = new Map(); // key -> timestamp

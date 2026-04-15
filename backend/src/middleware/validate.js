@@ -12,7 +12,6 @@ export function validate(schema) {
     } catch (err) {
       if (err instanceof ZodError) {
         const messages = err.errors.map(e => `${e.path.join('.')}: ${e.message}`);
-        console.warn('[validate] Validation failed:', messages, '| body keys:', Object.keys(req.body || {}));
         return res.status(400).json({ error: 'Validation failed', details: messages });
       }
       next(err);

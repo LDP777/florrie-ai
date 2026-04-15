@@ -1,12 +1,14 @@
 import { Router } from 'express';
-import { z } from 'zod';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { updateClientIntelligence } from '../services/client-intelligence.js';
 import { triggerSequence } from '../services/email-sequences.js';
 import { scheduleReviewRequest } from '../services/review-requests.js';
 import logger from '../lib/logger.js';
+import { parsePagination, buildPaginationMeta, handleQueryError } from '../lib/queries.js';
+import { completeDaySchema } from '../lib/schemas.js';
+import { getTaxYear } from '../lib/time-utils.js';
 
 const router = Router();
 
@@ -21,10 +23,7 @@ const router = Router();
  *   - status=confirmed
  */
 router.get('/', requireAuth, async (req, res) => {
-  // Pagination params
-  const page = Math.max(1, parseInt(req.query.page) || 1);
-  const per_page = Math.min(100, Math.max(1, parseInt(req.query.per_page) || 25));
-  const offset = (page - 1) * per_page;
+  const { page, per_page, offset } = parsePagination(req.query);
 
   // Build query
   let query = supabase
@@ -45,23 +44,12 @@ router.get('/', requireAuth, async (req, res) => {
 
   // Apply pagination
   const { data, error, count } = await query.range(offset, offset + per_page - 1);
-  if (error) {
-    logger.error({ err: error }, 'Failed to fetch appointments');
-    return res.status(500).json({ error: 'Something went wrong' });
+  if (handleQueryError(error, res, 'fetch appointments')) {
+    return;
   }
 
-  const total = count || 0;
-  const total_pages = Math.ceil(total / per_page);
-
-  res.json({
-    data: data || [],
-    pagination: {
-      page,
-      per_page,
-      total,
-      total_pages
-    }
-  });
+  const pagination = buildPaginationMeta(count || 0, page, per_page);
+  res.json({ data: data || [], pagination });
 });
 
 /**
@@ -319,10 +307,6 @@ router.post('/:id/complete', requireAuth, async (req, res) => {
  * Optional { date } (defaults to today).
  * Returns { count, completed_appointments }.
  */
-const completeDaySchema = z.object({
-  date: z.string().date().optional()
-});
-
 router.post('/complete-day', requireAuth, validate(completeDaySchema), async (req, res) => {
   try {
     // Use provided date or today
@@ -503,16 +487,6 @@ function generateSlots(date, startTime, endTime, durationMinutes, existingAppoin
   }
 
   return slots;
-}
-
-function getTaxYear(date) {
-  const year = date.getFullYear();
-  const month = date.getMonth(); // 0-indexed
-  // UK tax year runs April 6 to April 5
-  if (month < 3 || (month === 3 && date.getDate() < 6)) {
-    return `${year - 1}-${String(year).slice(2)}`;
-  }
-  return `${year}-${String(year + 1).slice(2)}`;
 }
 
 export default router;

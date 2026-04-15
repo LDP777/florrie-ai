@@ -1413,7 +1413,6 @@ export default function BookingPage() {
     </div>
   );
 }
-// ── Dev mode mock beautician for booking page ──
 const DEV_BOOKING_BEAUTICIAN = {
   id: 'dev-beautician-id',
   first_name: 'Ellie',

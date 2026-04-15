@@ -17,7 +17,6 @@ export default function EndOfDay() {
   const today = new Date().toISOString().slice(0, 10);
   const todayDisplay = new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 
-  // ── Fetch real data ──────────────────────────────────────
   useEffect(() => {
     if (bLoading || !beautician) return;
 
@@ -51,7 +50,6 @@ export default function EndOfDay() {
     load();
   }, [beautician, bLoading, today]);
 
-  // ── Compute stats from real data ─────────────────────────
   const stats = useMemo(() => {
     const completed = appointments.filter(a => a.status === 'completed');
     const noShows = appointments.filter(a => a.status === 'no-show' || a.status === 'no_show');
@@ -107,7 +105,6 @@ export default function EndOfDay() {
     };
   }, [appointments, transactions, expenses]);
 
-  // ── Build timeline from real appointments ─────────────────
   const timeline = useMemo(() => {
     return appointments.map(a => ({
       time: a.starts_at?.slice(11, 16) || '',
@@ -119,7 +116,6 @@ export default function EndOfDay() {
     }));
   }, [appointments]);
 
-  // ── Auto-generate notes from today's events ──────────────
   const autoNotes = useMemo(() => {
     const notes = [];
     const noShows = appointments.filter(a => a.status === 'no-show' || a.status === 'no_show');
@@ -138,7 +134,6 @@ export default function EndOfDay() {
     return notes;
   }, [appointments, stats.newClients]);
 
-  // ── Save end-of-day report ────────────────────────────────
   const saveEndOfDay = async () => {
     if (!beautician) return;
 
@@ -170,7 +165,6 @@ export default function EndOfDay() {
     }
   };
 
-  // ── Loading state ─────────────────────────────────────────
   if (bLoading || loading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted, #AAA5A0)' }}>Loading...</div>;
 
   const d = stats;

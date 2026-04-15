@@ -12,7 +12,7 @@ import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
 import { processVoiceCommand } from '../services/voice-orchestrator.js';
 import logger from '../lib/logger.js';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 
 const router = Router();
 

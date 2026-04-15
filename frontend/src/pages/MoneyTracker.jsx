@@ -115,7 +115,6 @@ export default function MoneyTracker() {
     setError(null);
     try {
 
-
       const [expRes, txRes] = await Promise.all([
         supabase.from('expenses')
           .select('*')
@@ -141,8 +140,6 @@ export default function MoneyTracker() {
       setLoading(false);
     }
   }
-
-  // ── Pulse computation ──
 
   function computePulse() {
     const now = new Date();
@@ -203,8 +200,6 @@ export default function MoneyTracker() {
       incomeChange,
     };
   }
-
-  // ── Tax computation ──
 
   function computeTax() {
     const now = new Date();
@@ -346,8 +341,6 @@ export default function MoneyTracker() {
     };
   }
 
-  // ── Receipt scanning with Claude Vision OCR ──
-
   async function handleReceiptScan(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -357,8 +350,6 @@ export default function MoneyTracker() {
       const reader = new FileReader();
       reader.onload = async () => {
         const base64 = reader.result.split(',')[1];
-
-
 
         // 1. Upload receipt image to Supabase Storage
         const path = `${beautician.id}/receipts/${Date.now()}-${file.name}`;
@@ -432,8 +423,6 @@ export default function MoneyTracker() {
     }
   }
 
-  // ── Add expense ──
-
   async function handleAddExpense() {
     if (!newExpense.amount || !newExpense.date || !beautician) return;
 
@@ -460,8 +449,6 @@ export default function MoneyTracker() {
     }
   }
 
-  // ── Log tip ──
-
   async function handleLogTip() {
     const cents = Math.round(parseFloat(tipAmount) * 100);
     if (!cents || cents <= 0 || !beautician) return;
@@ -483,8 +470,6 @@ export default function MoneyTracker() {
     }
   }
 
-  // ── Log product sale ──
-
   async function handleLogSale() {
     const cents = Math.round(parseFloat(saleAmount) * 100);
     if (!cents || cents <= 0 || !beautician) return;
@@ -505,8 +490,6 @@ export default function MoneyTracker() {
       logger.error({ err }, 'Log product sale error');
     }
   }
-
-  // ── Derived data ──
 
   const pulse = useMemo(() => !loading ? computePulse() : null, [loading, expenses, transactions]);
 
@@ -1299,9 +1282,6 @@ export default function MoneyTracker() {
   );
 }
 
-// ── Dev mode mock data ──
-
-// ─── Styles — Stitch "Money & Revenue" reference ───
 const S = {
   page: {
     minHeight: '100vh',

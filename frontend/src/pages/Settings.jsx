@@ -634,7 +634,6 @@ export default function Settings({ onLogout }) {
             })}
           </div>
 
-
           {/* Payout info */}
           <div style={styles.card}>
             <div style={styles.cardTitle}>Payouts</div>

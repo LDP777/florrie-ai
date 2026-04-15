@@ -8,11 +8,11 @@
  * The beautician's own CRUD is handled by Supabase client-side in Packages.jsx.
  */
 import { Router } from 'express';
-import { z } from 'zod';
 import Stripe from 'stripe';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 import { calculatePlatformFee } from '../lib/platform-fees.js';
+import { enrollCourseSchema as enrollSchema } from '../lib/schemas.js';
 
 const router = Router();
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://florrie.ai';
@@ -21,14 +21,6 @@ const stripe = process.env.STRIPE_SECRET_KEY
   ? new Stripe(process.env.STRIPE_SECRET_KEY)
   : null;
 
-const enrollSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(200).trim(),
-  email: z.string().email('Valid email required').max(200).trim(),
-  phone: z.string().min(5).max(30).trim().optional().default(''),
-  notes: z.string().max(2000).optional().default(''),
-});
-
-// ─── GET /api/courses/:slug/:courseId ─────────────────────
 // Public: returns course details + beautician branding for the booking page
 router.get('/:slug/:courseId', async (req, res) => {
   try {
@@ -91,7 +83,6 @@ router.get('/:slug/:courseId', async (req, res) => {
   }
 });
 
-// ─── POST /api/courses/:slug/:courseId/enroll ─────────────
 // Public: enroll a student. If deposit > 0 and Stripe is configured, creates Checkout session.
 router.post('/:slug/:courseId/enroll', async (req, res) => {
   try {

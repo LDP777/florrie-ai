@@ -1,21 +1,9 @@
 import { Router } from 'express';
-import { z } from 'zod';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import Anthropic from '@anthropic-ai/sdk';
 import logger from '../lib/logger.js';
-
-const HMRC_CATEGORIES = ['cost_of_goods', 'premises', 'admin', 'travel', 'advertising', 'professional_fees', 'insurance', 'interest', 'phone', 'other_expenses'];
-
-const expenseSchema = z.object({
-  amount_cents: z.number().int().min(1, 'Amount must be positive'),
-  vendor: z.string().max(200).nullable().optional(),
-  description: z.string().max(1000).nullable().optional(),
-  category: z.string().min(1).max(100),
-  hmrc_category: z.enum(HMRC_CATEGORIES).nullable().optional(),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}/, 'Date must be YYYY-MM-DD format'),
-  tax_deductible: z.boolean().optional().default(true)
-});
+import { expenseSchema } from '../lib/schemas.js';
 
 const router = Router();
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -228,7 +216,6 @@ router.get('/tax-summary', requireAuth, async (req, res) => {
     const taxableProfit = totalIncome - totalExpenses;
     const profitPounds = taxableProfit / 100;
 
-    // ── UK Income Tax 2025/26 rates ──
     const personalAllowance = 12_570;
     const basicBand = 50_270;
     let incomeTax = 0;
@@ -239,12 +226,10 @@ router.get('/tax-summary', requireAuth, async (req, res) => {
       incomeTax = basicPortion * 0.20 + higherPortion * 0.40;
     }
 
-    // ── NI Class 2 (£3.45/week if profit > £12,570) ──
     const niClass2Weekly = 3.45;
     const weeksInYear = 52;
     const niClass2 = profitPounds > personalAllowance ? niClass2Weekly * weeksInYear : 0;
 
-    // ── NI Class 4 (6% on £12,570-£50,270, 2% above) ──
     let niClass4 = 0;
     if (profitPounds > personalAllowance) {
       const band1 = Math.min(profitPounds, basicBand) - personalAllowance;
@@ -254,11 +239,9 @@ router.get('/tax-summary', requireAuth, async (req, res) => {
 
     const totalTaxLiability = incomeTax + niClass2 + niClass4;
 
-    // ── Quarterly breakdown ──
     // UK payment on account deadlines: 31 Jan (first) + 31 Jul (second)
     const quarterlySetAside = totalTaxLiability / 4;
 
-    // ── Payment deadlines ──
     const deadlines = [
       { label: 'Payment on account 1', date: `${startYear + 1}-01-31` },
       { label: 'Payment on account 2', date: `${startYear + 1}-07-31` },

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { learnFromCorrection } from '../services/ai-front-desk.js';
 import { sendSMS } from '../services/notifications.js';
@@ -76,14 +76,14 @@ router.post('/:messageId/resolve', requireAuth, async (req, res) => {
     .eq('id', message.client_id)
     .single();
 
-  // Send the response via SMS (WhatsApp migration planned — using Twilio SMS for now)
+  // Send the response via SMS (using Bird API)
   if (client?.phone) {
     try {
       const result = await sendSMS({ to: client.phone, body: finalResponse, beauticianId: req.beautician.id });
-      if (result?.sid) {
-        logger.info({ clientId: client.id, sid: result.sid }, 'Escalation response sent via SMS');
+      if (result) {
+        logger.info({ clientId: client.id }, 'Escalation response sent via SMS');
       } else {
-        logger.warn({ clientId: client.id }, 'SMS send returned no SID — check Twilio config');
+        logger.warn({ clientId: client.id }, 'SMS send failed');
       }
     } catch (err) {
       logger.error({ err }, 'Escalation SMS send error');

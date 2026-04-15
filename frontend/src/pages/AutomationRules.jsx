@@ -387,7 +387,6 @@ const styles = {
   logRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '12px 0', borderBottom: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))' },
   logDot: { width: 6, height: 6, borderRadius: 3, flexShrink: 0 },
 };
-// ─── Sequences panel (merged from FollowUpSequences.jsx) ──────────────────────
 const SEQ_TRIGGERS = [
   { value: 'after-appointment', label: 'After Appointment', icon: '✅' },
   { value: 'on-birthday',       label: 'On Birthday',       icon: '🎂' },

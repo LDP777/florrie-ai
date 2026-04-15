@@ -21,7 +21,6 @@ const AGENT_ROUTES = {
   settings: { label: 'Settings', icon: '⚙️', color: '#6b6560' },
   general: { label: 'florrie.ai', icon: null, color: 'var(--accent, #C76B8A)' }, // uses petal SVG
 };
-// ── Florrie petal SVG ────────────────────────────────────
 function FloriePetal({ size = 28, spinning = false, white = false }) {
   const colour = white ? '#fff' : '#C76B8A';
   const gold = white ? 'rgba(255,255,255,0.6)' : '#C9A96E';
@@ -164,7 +163,6 @@ export default function VoiceCommander() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-  // ── Web Speech API ──────────────────────────────────────
   function startRecording() {
     if (!SpeechRecognition) {
       inputRef.current?.focus();
@@ -243,7 +241,6 @@ export default function VoiceCommander() {
       timestamp: new Date().toISOString(),
     }]);
   }
-  // ── Message Processing ──────────────────────────────────
   async function processMessage(text, isVoice = false) {
     if (!text.trim()) return;
     const userMsg = {

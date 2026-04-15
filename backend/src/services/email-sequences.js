@@ -1,4 +1,4 @@
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { sendEmail } from './notifications.js';
 import logger from '../lib/logger.js';
 
@@ -15,7 +15,6 @@ import logger from '../lib/logger.js';
  * Individual sends are tracked in `email_sends` so we never double-send.
  */
 
-// ── Sequence definitions ───────────────────────
 // delay_hours: hours after the trigger event to send
 // Each email gets a unique key per beautician so we can dedup.
 
@@ -80,8 +79,6 @@ const SEQUENCES = {
     ],
   },
 };
-
-// ── Public API ──────────────────────────────────
 
 /**
  * Trigger a sequence for a beautician.
@@ -236,8 +233,6 @@ export async function checkTrialExpiry() {
   return { triggered };
 }
 
-
-// ── Email templates ─────────────────────────────
 // All return { html, text }. Branded wrapper keeps them consistent.
 
 function brandedWrapper(beautician, content) {
@@ -271,8 +266,6 @@ function ctaButton(text, url, color = '#92405E') {
     <a href="${url}" style="display:inline-block;padding:12px 28px;background:${color};color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px">${text}</a>
   </td></tr></table>`;
 }
-
-// ── Welcome sequence ────────────────────────────
 
 function welcomeDay0(b) {
   const name = b.first_name || 'there';
@@ -405,8 +398,6 @@ function welcomeDay14(b) {
   return { html, text };
 }
 
-// ── Trial lifecycle ─────────────────────────────
-
 function trialWarning(b) {
   const name = b.first_name || 'there';
 
@@ -457,8 +448,6 @@ function trialExpired(b) {
 
   return { html, text };
 }
-
-// ── Post-appointment ────────────────────────────
 
 function reviewRequest(b, ctx) {
   const clientName = ctx.client_name || 'there';

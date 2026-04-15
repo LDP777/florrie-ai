@@ -4,7 +4,6 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
-import { createClient } from '@supabase/supabase-js';
 import logger from './lib/logger.js';
 
 // Initialise Sentry before anything else so it captures startup errors too.
@@ -72,7 +71,6 @@ import courseRoutes from './routes/courses.js';
 
 dotenv.config();
 
-// ── Startup validation ──────────────────────────────
 const REQUIRED_ENV = [
   'SUPABASE_URL',
   'SUPABASE_ANON_KEY',
@@ -84,8 +82,6 @@ const OPTIONAL_ENV = [
   'STRIPE_WEBHOOK_SECRET',
   'RESEND_API_KEY',
   'ANTHROPIC_API_KEY',
-  'TWILIO_ACCOUNT_SID',
-  'TWILIO_AUTH_TOKEN',
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
   'ENCRYPTION_KEY',
@@ -107,18 +103,6 @@ const PORT = process.env.PORT || 3001;
 
 // Railway / Render / Fly all run behind a reverse proxy
 app.set('trust proxy', 1);
-
-// Supabase client (service role for backend operations)
-export const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
-
-// Supabase client (anon key for auth-gated operations)
-export const supabaseAnon = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
 
 // Middleware
 app.use(securityHeaders);
@@ -156,7 +140,7 @@ app.use('/api/clients', apiLimiter, clientRoutes);
 app.use('/api/appointments', apiLimiter, appointmentRoutes);
 app.use('/api/booking', bookingLimiter, bookingRoutes); // public booking page API
 app.use('/api/ai-actions', apiLimiter, aiActionRoutes);
-app.use('/api/webhooks', webhookLimiter, webhookRoutes); // WhatsApp + Stripe webhooks
+app.use('/api/webhooks', webhookLimiter, webhookRoutes); // WhatsApp + Twilio SMS inbound webhooks
 app.use('/api/escalations', apiLimiter, escalationRoutes);
 app.use('/api/content', apiLimiter, contentRoutes);
 app.use('/api/money', apiLimiter, moneyRoutes);

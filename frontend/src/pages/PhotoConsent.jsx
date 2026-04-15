@@ -119,7 +119,6 @@ export default function PhotoConsent() {
           setClients(data || []);
         }
       } catch (err) {
-        console.error('Fetch error:', err);
         setConsents([]);
         setClients([]);
       } finally {
@@ -194,7 +193,6 @@ export default function PhotoConsent() {
       setShowRequest(false);
       setRequestForm({ client: '', scope: ['portfolio', 'booking-page'], method: 'digital', message: '' });
     } catch (err) {
-      console.error('Send error:', err);
       alert('Failed to send request');
     }
   };

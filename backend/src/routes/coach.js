@@ -23,13 +23,12 @@
 
 import { Router } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
 
 const router = Router();
 
-// ── UK beauty market benchmarks ─────────────────────────────
 // Source: NHBF Industry Report 2024, BABTAC member surveys
 const UK_BENCHMARKS = {
   'lash lift': { avg: 49, low: 35, high: 70 },
@@ -69,7 +68,6 @@ function findBenchmark(treatmentName) {
   return match ? { key: match[0], ...match[1] } : null;
 }
 
-// ── In-memory rate limiter ───────────────────────────────────
 const rateLimitMap = new Map(); // beauticianId → { count, resetAt }
 function checkRateLimit(id) {
   const now = Date.now();
@@ -83,7 +81,6 @@ function checkRateLimit(id) {
   return true;
 }
 
-// ── Coach system prompt ──────────────────────────────────────
 const SYSTEM_PROMPT = `You are Florrie's Biz Coach — a sharp, friendly business advisor embedded in a beauty salon app.
 You surface concise, data-backed insights to help beauticians earn more and work smarter.
 
@@ -104,7 +101,6 @@ Return ONLY valid JSON in this exact shape:
   "icon": "trending_up" | "warning" | "lightbulb" | "money_off" | "groups"
 }`;
 
-// ── Main nudge endpoint ──────────────────────────────────────
 router.post('/nudge', requireAuth, async (req, res) => {
   const { trigger, context = {} } = req.body;
   const beauticianId = req.beautician.id;
@@ -119,7 +115,6 @@ router.post('/nudge', requireAuth, async (req, res) => {
   try {
     let prompt = '';
 
-    // ── TRIGGER: price_edit ──────────────────────────────────
     if (trigger === 'price_edit') {
       const { treatment_name, price_cents, category } = context;
       const currentPrice = (price_cents || 0) / 100;
@@ -151,7 +146,6 @@ ${diff > 0 ? `The price is £${diff.toFixed(0)} below market average.` : `The pr
 
 Generate a ${diff > 0 ? '"opportunity"' : '"info"'} nudge. CTA should go to "/price-list". If above average, congratulate and suggest the next uplift milestone.`;
 
-    // ── TRIGGER: calendar_gaps ───────────────────────────────
     } else if (trigger === 'calendar_gaps') {
       const { gap_count, gap_hours, revenue_at_risk, utilisation } = context;
 
@@ -179,7 +173,6 @@ Total clients in system: ${dormantCount || 0}.
 
 Generate a "warning" nudge about the gap revenue at risk. CTA should go to "/smart-schedule" with label "Fill gaps".`;
 
-    // ── TRIGGER: expense_added ───────────────────────────────
     } else if (trigger === 'expense_added') {
       const { category, amount_pence, vendor } = context;
 
@@ -212,7 +205,6 @@ Generate a "warning" nudge about the gap revenue at risk. CTA should go to "/sma
 
 Generate a ${Math.abs(pctChange) > 20 ? '"warning"' : '"info"'} nudge about expense trend. CTA should go to "/expenses". Keep it practical.`;
 
-    // ── TRIGGER: dashboard_open ──────────────────────────────
     } else if (trigger === 'dashboard_open') {
       const thisWeekStart = new Date(); thisWeekStart.setDate(thisWeekStart.getDate() - thisWeekStart.getDay());
       const lastWeekStart = new Date(thisWeekStart); lastWeekStart.setDate(lastWeekStart.getDate() - 7);
@@ -237,7 +229,6 @@ Generate a ${revChange < -10 ? '"warning"' : revChange > 10 ? '"opportunity"' : 
       return res.status(400).json({ error: 'Unknown trigger' });
     }
 
-    // ── Call Claude Haiku ────────────────────────────────────
     const anthropic = new Anthropic();
     const response = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',

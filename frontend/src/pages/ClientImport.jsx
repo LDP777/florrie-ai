@@ -45,7 +45,6 @@ export default function ClientImport() {
   const [error, setError] = useState(null);
   const [importResult, setImportResult] = useState(null);
 
-  // ── Step 1: Pick platform, then open file picker ──────────
   function pickPlatform(platformId) {
     setSelectedPlatform(platformId);
     setError(null);
@@ -53,7 +52,6 @@ export default function ClientImport() {
     setTimeout(() => fileRef.current?.click(), 100);
   }
 
-  // ── Step 2: Read file, send to preview endpoint ──────────
   async function handleFile(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -96,7 +94,6 @@ export default function ClientImport() {
     e.target.value = '';
   }
 
-  // ── Step 3: Execute import ──────────
   async function executeImport() {
     setStep('importing');
     setError(null);

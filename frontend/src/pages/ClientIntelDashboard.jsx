@@ -21,7 +21,6 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 
-// ── Segment bucket definitions (mirrors ClientSegments.jsx) ──
 const SEGMENTS = [
   { key: 'vip',        name: 'VIP',       icon: '👑', colour: 'var(--gold, #C9A96E)',      bg: 'var(--gold-light, #FDF8EE)',    match: c => c.rfm.r >= 8 && c.rfm.f >= 7 && c.rfm.m >= 7 },
   { key: 'loyal',      name: 'Loyal',     icon: '💎', colour: 'var(--accent, #C76B8A)',     bg: 'var(--accent-light, #FFF0F3)',  match: c => c.rfm.r >= 5 && c.rfm.f >= 4 && c.rfm.m >= 3 },
@@ -31,7 +30,6 @@ const SEGMENTS = [
   { key: 'one_timer',  name: 'One-Timer', icon: '👋', colour: 'var(--text-muted, #B5A99B)', bg: 'var(--bg-subtle, #F5F2EF)',     match: c => c.visits <= 1 },
 ];
 
-// ── Risk thresholds ──
 function churnScore(c) {
   let score = 0;
   const avg = c.avgInterval || 28;
@@ -43,7 +41,6 @@ function churnScore(c) {
   return Math.min(99, Math.round(score));
 }
 
-// ── RFM scorer ──
 function scoreRFM(clients) {
   const now = new Date();
   return clients.map(c => {
@@ -293,8 +290,6 @@ export default function ClientIntelDashboard() {
   );
 }
 
-// ── Sub-components ──────────────────────────────────────────
-
 function HeroStat({ value, label, accent = false, warn = false }) {
   const colour = warn ? '#D4605C' : accent ? '#5BA97B' : '#fff';
   return (
@@ -324,7 +319,6 @@ function ChurnCard({ client, onNav }) {
   );
 }
 
-// ── Quick-action definitions ──
 const QUICK_ACTIONS = [
   { path: '/churn',     label: 'Churn Risk',     desc: 'At-risk clients',        matIcon: 'warning',     colour: '#D4605C' },
   { path: '/segments',  label: 'Segments',       desc: 'Value-based groups',     matIcon: 'donut_small', colour: '#7B6BA8' },
@@ -334,7 +328,6 @@ const QUICK_ACTIONS = [
   { path: '/clients',   label: 'All Clients',    desc: 'Full client list',       matIcon: 'group',       colour: '#8B6F5E' },
 ];
 
-// ── Styles ──────────────────────────────────────────────────
 const S = {
   heroCard: {
     background: 'linear-gradient(135deg, #7B6BA8 0%, #5A4B82 100%)',

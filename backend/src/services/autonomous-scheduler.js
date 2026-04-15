@@ -10,7 +10,7 @@
  *   - Above threshold → auto-execute, log to ai_actions
  *   - Below threshold → queue to approval inbox (escalations), log as pending
  */
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { refreshAllIntelligence } from './client-intelligence.js';
 import { draftAvailabilityPost } from './content-autopilot.js';
 import { processInboundMessage } from './ai-front-desk.js';

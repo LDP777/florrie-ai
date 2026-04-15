@@ -154,8 +154,6 @@ export default function AgentAvatars() {
   );
 }
 
-// ── Styles ──────────────────────────────────────────────
-
 const styles = {
   wrapper: {
     position: 'relative',

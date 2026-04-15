@@ -151,7 +151,6 @@ export default function Policies() {
     { key: 'builder', label: '✦ AI Builder' },
   ];
 
-  // ── Wizard helpers ─────────────────────────────────────────────────
   function wizAnswer(key, value) {
     const next = { ...wizAnswers, [key]: value };
     setWizAnswers(next);
@@ -1182,7 +1181,6 @@ const s = {
     boxShadow: '0 4px 14px rgba(199,107,138,0.3)',
   },
 
-  // ── Wizard styles ──────────────────────────────────────────────────
   wizIntro: {
     display: 'flex',
     gap: 10,

@@ -7,7 +7,7 @@
  *   Social     — Instagram, TikTok, Facebook, website links
  *   Booking    — booking page URL preview, share button
  *
- * Dev-mode mock data from DEV_BEAUTICIAN.
+ * Beautician profile data from Supabase.
  */
 import { useState, useEffect, useRef } from 'react';
 import { useBeautician, updateRow, supabase } from '../lib/supabase.js';

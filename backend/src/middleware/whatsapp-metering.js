@@ -11,7 +11,7 @@
  * for weekly tracking but ALSO write into message_usage for combined quota.
  */
 
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 import { getTier } from '../lib/tiers.js';
 
@@ -121,50 +121,45 @@ export async function checkWhatsAppQuota(beauticianId) {
  * Returns the updated usage row.
  */
 export async function trackWhatsAppMessage(beauticianId) {
-  try {
-    const { data: b } = await supabase
-      .from('beauticians')
-      .select('plan')
-      .eq('id', beauticianId)
-      .single();
+  const { data: b } = await supabase
+    .from('beauticians')
+    .select('plan')
+    .eq('id', beauticianId)
+    .single();
 
-    const tier = getTier(b?.plan);
-    const freeLimit = tier.messages_per_month || 120;
-    const month = getMonthStart();
-    const usage = await getOrCreateUsageRow(beauticianId, month, freeLimit);
-    const totalUsed = usage.sms_sent + usage.whatsapp_sent;
-    const isOverage = totalUsed >= freeLimit;
+  const tier = getTier(b?.plan);
+  const freeLimit = tier.messages_per_month || 120;
+  const month = getMonthStart();
+  const usage = await getOrCreateUsageRow(beauticianId, month, freeLimit);
+  const totalUsed = usage.sms_sent + usage.whatsapp_sent;
+  const isOverage = totalUsed >= freeLimit;
 
-    const updates = {
-      whatsapp_sent: usage.whatsapp_sent + 1,
-      updated_at: new Date().toISOString(),
-    };
+  const updates = {
+    whatsapp_sent: usage.whatsapp_sent + 1,
+    updated_at: new Date().toISOString(),
+  };
 
-    if (isOverage) {
-      updates.overage_wa_count = usage.overage_wa_count + 1;
-      updates.overage_wa_pence = usage.overage_wa_pence + OVERAGE_PENCE;
-      updates.overage_total_pence = usage.overage_total_pence + OVERAGE_PENCE;
-    }
-
-    const { data: updated, error } = await supabase
-      .from('message_usage')
-      .update(updates)
-      .eq('id', usage.id)
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    logger.info(
-      { beauticianId, month, waTotal: updated.whatsapp_sent, isOverage },
-      'WhatsApp message tracked'
-    );
-
-    return updated;
-  } catch (err) {
-    logger.error({ err, beauticianId }, 'trackWhatsAppMessage error — usage not recorded');
-    return null;
+  if (isOverage) {
+    updates.overage_wa_count = usage.overage_wa_count + 1;
+    updates.overage_wa_pence = usage.overage_wa_pence + OVERAGE_PENCE;
+    updates.overage_total_pence = usage.overage_total_pence + OVERAGE_PENCE;
   }
+
+  const { data: updated, error } = await supabase
+    .from('message_usage')
+    .update(updates)
+    .eq('id', usage.id)
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  logger.info(
+    { beauticianId, month, waTotal: updated.whatsapp_sent, isOverage },
+    'WhatsApp message tracked'
+  );
+
+  return updated;
 }
 
 /**
@@ -172,37 +167,38 @@ export async function trackWhatsAppMessage(beauticianId) {
  * Call this alongside (not instead of) the existing sms-metering.js weekly tracking.
  */
 export async function trackSmsInMonthlyQuota(beauticianId) {
-  try {
-    const { data: b } = await supabase
-      .from('beauticians')
-      .select('plan')
-      .eq('id', beauticianId)
-      .single();
+  const { data: b } = await supabase
+    .from('beauticians')
+    .select('plan')
+    .eq('id', beauticianId)
+    .single();
 
-    const tier = getTier(b?.plan);
-    const freeLimit = tier.messages_per_month || 120;
-    const month = getMonthStart();
-    const usage = await getOrCreateUsageRow(beauticianId, month, freeLimit);
-    const totalUsed = usage.sms_sent + usage.whatsapp_sent;
-    const isOverage = totalUsed >= freeLimit;
+  const tier = getTier(b?.plan);
+  const freeLimit = tier.messages_per_month || 120;
+  const month = getMonthStart();
+  const usage = await getOrCreateUsageRow(beauticianId, month, freeLimit);
+  const totalUsed = usage.sms_sent + usage.whatsapp_sent;
+  const isOverage = totalUsed >= freeLimit;
 
-    const updates = {
-      sms_sent: usage.sms_sent + 1,
-      updated_at: new Date().toISOString(),
-    };
+  const updates = {
+    sms_sent: usage.sms_sent + 1,
+    updated_at: new Date().toISOString(),
+  };
 
-    if (isOverage) {
-      updates.overage_sms_count = usage.overage_sms_count + 1;
-      updates.overage_sms_pence = usage.overage_sms_pence + OVERAGE_PENCE;
-      updates.overage_total_pence = usage.overage_total_pence + OVERAGE_PENCE;
-    }
+  if (isOverage) {
+    updates.overage_sms_count = usage.overage_sms_count + 1;
+    updates.overage_sms_pence = usage.overage_sms_pence + OVERAGE_PENCE;
+    updates.overage_total_pence = usage.overage_total_pence + OVERAGE_PENCE;
+  }
 
-    await supabase
-      .from('message_usage')
-      .update(updates)
-      .eq('id', usage.id);
-  } catch (err) {
-    logger.error({ err, beauticianId }, 'trackSmsInMonthlyQuota error');
+  const { error } = await supabase
+    .from('message_usage')
+    .update(updates)
+    .eq('id', usage.id);
+
+  // Fire-and-forget: log but don't throw. SMS still went out even if tracking fails.
+  if (error) {
+    logger.error({ err: error, beauticianId }, 'trackSmsInMonthlyQuota error');
   }
 }
 
@@ -211,40 +207,35 @@ export async function trackSmsInMonthlyQuota(beauticianId) {
  * Used by the frontend usage display.
  */
 export async function getMonthlyUsage(beauticianId) {
-  try {
-    const month = getMonthStart();
-    const { data, error } = await supabase
-      .from('message_usage')
-      .select('*')
-      .eq('beautician_id', beauticianId)
-      .eq('month', month)
+  const month = getMonthStart();
+  const { data, error } = await supabase
+    .from('message_usage')
+    .select('*')
+    .eq('beautician_id', beauticianId)
+    .eq('month', month)
+    .single();
+
+  if (error && error.code !== 'PGRST116') throw error; // PGRST116 = not found
+
+  if (!data) {
+    const { data: b } = await supabase
+      .from('beauticians')
+      .select('plan')
+      .eq('id', beauticianId)
       .single();
-
-    if (error && error.code !== 'PGRST116') throw error; // PGRST116 = not found
-
-    if (!data) {
-      const { data: b } = await supabase
-        .from('beauticians')
-        .select('plan')
-        .eq('id', beauticianId)
-        .single();
-      const tier = getTier(b?.plan);
-      return {
-        sms_sent: 0,
-        whatsapp_sent: 0,
-        total_sent: 0,
-        free_limit: tier.messages_per_month || 120,
-        overage_total_pence: 0,
-        month,
-      };
-    }
-
+    const tier = getTier(b?.plan);
     return {
-      ...data,
-      total_sent: data.sms_sent + data.whatsapp_sent,
+      sms_sent: 0,
+      whatsapp_sent: 0,
+      total_sent: 0,
+      free_limit: tier.messages_per_month || 120,
+      overage_total_pence: 0,
+      month,
     };
-  } catch (err) {
-    logger.error({ err, beauticianId }, 'getMonthlyUsage error');
-    return null;
   }
+
+  return {
+    ...data,
+    total_sent: data.sms_sent + data.whatsapp_sent,
+  };
 }

@@ -8,7 +8,7 @@
  * GET  /api/hmrc/status — check if HMRC is linked
  */
 import { Router } from 'express';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import {
   buildQuarterlySummary,

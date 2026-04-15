@@ -1,5 +1,5 @@
 import webpush from 'web-push';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 
 /**
@@ -82,8 +82,6 @@ export async function sendPush(beauticianId, { title, body, icon, url, tag, data
   return { sent, expired: expired.length };
 }
 
-// ── Agent personas for team-style notifications ──────────
-
 const AGENT_PUSH = {
   front_desk: { name: 'Front Desk', emoji: '💬' },
   content_creator: { name: 'Content Creator', emoji: '🎨' },
@@ -130,8 +128,6 @@ export async function pushTeamUpdate(beauticianId, actionType, summary, { url, c
     data: { agentId, actionType, clientName },
   });
 }
-
-// ── Specific notification factories ──────────────────────
 
 export async function pushNewBooking(beauticianId, clientName, treatmentName, dateStr) {
   return pushTeamUpdate(beauticianId, 'booking_confirmed',

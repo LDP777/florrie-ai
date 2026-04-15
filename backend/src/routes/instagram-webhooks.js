@@ -13,7 +13,7 @@
  */
 import { Router } from 'express';
 import crypto from 'crypto';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { processInboundMessage } from '../services/ai-front-desk.js';
 import logger from '../lib/logger.js';
 
@@ -258,13 +258,11 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
     .select()
     .single();
 
-  // ── Mode: off — just store, no reply ──
   if (dmMode === 'off') {
     logger.info({ senderId, mode: 'off' }, 'Instagram DM stored, no reply (mode=off)');
     return;
   }
 
-  // ── Mode: redirect — send WhatsApp link once per client (max once per 7 days) ──
   if (dmMode === 'redirect') {
     const lastSent = client?.instagram_redirect_sent_at
       ? new Date(client.instagram_redirect_sent_at)
@@ -304,7 +302,6 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
     return;
   }
 
-  // ── Mode: ai (default) — pass to AI Front Desk ──
   if (beautician.auto_reply_enabled && messageText) {
     try {
       const result = await processInboundMessage(
@@ -329,16 +326,12 @@ async function fetchInstagramProfile(userId) {
   const token = process.env.INSTAGRAM_PAGE_TOKEN;
   if (!token) return null;
 
-  try {
-    const res = await fetch(
-      `https://graph.instagram.com/v21.0/${userId}?fields=name,username&access_token=${token}`
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.name || data.username || null;
-  } catch {
-    return null;
-  }
+  const res = await fetch(
+    `https://graph.instagram.com/v21.0/${userId}?fields=name,username&access_token=${token}`
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.name || data.username || null;
 }
 
 export default router;

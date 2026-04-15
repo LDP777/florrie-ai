@@ -1,25 +1,14 @@
 import { Router } from 'express';
-import { z } from 'zod';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import logger from '../lib/logger.js';
+import {
+  createPhotoConsentSchema,
+  revokePhotoConsentSchema
+} from '../lib/schemas.js';
 
 const router = Router();
-
-const createPhotoConsentSchema = z.object({
-  client_id: z.string().uuid('Invalid client ID'),
-  consent_type: z.enum(['before_after', 'social_media', 'marketing', 'portfolio'], {
-    errorMap: () => ({ message: 'consent_type must be one of: before_after, social_media, marketing, portfolio' }),
-  }),
-  granted: z.boolean().optional().default(false),
-  signature_data: z.string().optional().nullable(),
-  notes: z.string().max(1000).optional().nullable(),
-});
-
-const revokePhotoConsentSchema = z.object({
-  notes: z.string().max(1000).optional().nullable(),
-});
 
 /**
  * GET /api/photo-consent/:clientId

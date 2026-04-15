@@ -27,8 +27,6 @@ function getToken() {
   catch { return raw; }
 }
 
-
-
 const STATUS_CONFIG = {
   shared: { label: 'Shared', color: 'var(--text-muted)', bg: 'var(--bg-subtle)' },
   pending: { label: 'Pending', color: 'var(--warning)', bg: 'var(--warning-bg)' },

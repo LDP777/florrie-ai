@@ -8,7 +8,7 @@
  *
  * Runs weekly via autonomous scheduler. Results stored in ai_actions for dashboard display.
  */
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 
 /**

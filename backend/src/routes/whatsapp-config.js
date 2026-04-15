@@ -17,7 +17,7 @@
  */
 
 import express from 'express';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 import { requireAuth } from '../middleware/auth.js';
 import { getMonthlyUsage } from '../services/whatsapp-metering.js';
@@ -29,8 +29,6 @@ const WA_TOKEN = process.env.WHATSAPP_TOKEN;
 const WABA_ID = process.env.WHATSAPP_WABA_ID;
 const API_VER = process.env.WHATSAPP_API_VERSION || 'v19.0';
 const GRAPH = `https://graph.facebook.com/${API_VER}`;
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
 
 function metaHeaders() {
   return {
@@ -60,7 +58,6 @@ function splitPhone(e164) {
   return { cc: e164.slice(0, 2), number: e164.slice(2) };
 }
 
-// ── POST /api/whatsapp/register ─────────────────────────────────────────────
 /**
  * Register a phone number with Florrie's WABA.
  * Triggers Meta to send an OTP to that number via SMS.
@@ -133,7 +130,6 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// ── POST /api/whatsapp/verify ───────────────────────────────────────────────
 /**
  * Verify the OTP sent by Meta. Marks the number as active.
  *
@@ -197,7 +193,6 @@ router.post('/verify', async (req, res) => {
   }
 });
 
-// ── GET /api/whatsapp/status ────────────────────────────────────────────────
 /**
  * Returns connection status + monthly usage for the dashboard.
  */
@@ -240,7 +235,6 @@ router.get('/status', async (req, res) => {
   }
 });
 
-// ── DELETE /api/whatsapp/disconnect ─────────────────────────────────────────
 /**
  * Disconnect WhatsApp — removes the number from Meta's WABA and clears credentials.
  */

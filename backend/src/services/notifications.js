@@ -1,15 +1,14 @@
 /**
- * Notification service — email (Resend), SMS (Twilio), WhatsApp.
+ * Notification service — email (Resend), SMS (Bird), WhatsApp (Meta).
  *
  * Email defaults to ON for all notifications unless the beautician
  * explicitly disables it. SMS and WhatsApp are opt-in.
  */
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 import { trackSMSUsage } from './sms-metering.js';
 import { checkWhatsAppQuota, trackWhatsAppMessage } from './whatsapp-metering.js';
 
-// ── Email via Resend ─────────────────────────
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || 'Florrie <noreply@florrie.ai>';
 
@@ -55,9 +54,8 @@ export async function sendEmail({ to, subject, html, text }) {
   }
 }
 
-// ── SMS via Bird (MessageBird) ───────────────
-// Bird replaced Twilio for SMS — no regulatory bundle required for UK,
-// and ~90% cheaper per message. Twilio vars remain for WhatsApp config.
+// Bird (MessageBird) provides SMS delivery — no regulatory bundle required for UK,
+// and more cost-effective than Twilio. Twilio inbound webhooks still active for fallback SMS routing.
 const BIRD_API_KEY = process.env.BIRD_API_KEY;
 const BIRD_ORIGINATOR_DEFAULT = process.env.BIRD_ORIGINATOR || 'Florrie';
 
@@ -119,8 +117,7 @@ export async function sendSMS({ to, body, beauticianId, originator, messageType 
   }
 }
 
-// ── WhatsApp via Meta Cloud API ──────────────
-// Primary channel for clients with WhatsApp. Falls back to Twilio SMS.
+// Primary channel for clients with WhatsApp. Falls back to Bird SMS.
 // Each beautician has their own phone_number_id registered to Florrie's WABA.
 // Florrie pays Meta; usage is metered against the 120 msg/month plan limit.
 const WA_TOKEN = process.env.WHATSAPP_TOKEN;
@@ -267,7 +264,6 @@ export async function sendWhatsAppText({ to, body, beauticianId }) {
   }
 }
 
-// ── Instagram DM via Graph API ──────────────
 // Sends replies to Instagram DMs using the page token stored per-beautician.
 // Falls back to the global INSTAGRAM_PAGE_TOKEN env var for single-tenant setups.
 
@@ -490,7 +486,6 @@ async function logComms(beauticianId, clientId, channel, direction, content) {
   }
 }
 
-// ── Branded HTML email wrapper ───────────────
 function emailTemplate({ bizName, brandColor, content }) {
   const color = brandColor || '#C4A882';
   return `<!DOCTYPE html>
@@ -514,8 +509,6 @@ function emailTemplate({ bizName, brandColor, content }) {
 </body>
 </html>`;
 }
-
-// ── Template-based notifications ─────────────
 
 /**
  * Send a booking confirmation to the client.

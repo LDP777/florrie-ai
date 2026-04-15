@@ -30,8 +30,6 @@ const getCat = (v) => CATEGORIES.find(c => c.value === v) || CATEGORIES[9];
 
 const fmt = (cents) => `£${(Math.abs(cents) / 100).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-
-
 export default function Expenses() {
   const { beautician, loading: bLoading } = useBeautician();
   const { triggerNudge } = useCoach();

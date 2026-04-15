@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { encrypt, decrypt, isEncrypted } from '../lib/crypto.js';
 import logger from '../lib/logger.js';

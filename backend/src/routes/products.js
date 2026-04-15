@@ -12,7 +12,7 @@
  *   GET    /api/products/orders — list order items
  */
 import { Router } from 'express';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
 

@@ -1,38 +1,11 @@
 import { Router } from 'express';
-import { z } from 'zod';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
-
-const treatmentSchema = z.object({
-  name: z.string().min(1).max(200).trim(),
-  description: z.string().max(5000).nullable().optional(),
-  duration_minutes: z.number().int().min(1).max(480),
-  buffer_minutes: z.number().int().min(0).max(120).optional().default(0),
-  price_cents: z.number().int().min(0),
-  deposit_cents: z.number().int().min(0).optional().default(0),
-  category: z.string().max(100).nullable().optional(),
-  product_cost_cents: z.number().int().min(0).optional().default(0),
-  contraindications: z.array(z.string().max(200)).max(20).optional().default([])
-});
-
-const treatmentUpdateSchema = z.object({
-  name: z.string().min(1).max(200).trim().optional(),
-  description: z.string().max(5000).nullable().optional(),
-  duration_minutes: z.number().int().min(1).max(480).optional(),
-  buffer_minutes: z.number().int().min(0).max(120).optional(),
-  price_cents: z.number().int().min(0).optional(),
-  deposit_cents: z.number().int().min(0).optional(),
-  deposit_percent: z.number().min(0).max(100).optional(),
-  category: z.string().max(100).nullable().optional(),
-  product_cost_cents: z.number().int().min(0).optional(),
-  contraindications: z.array(z.string().max(200)).max(20).optional(),
-  is_active: z.boolean().optional(),
-  booking_enabled: z.boolean().optional(),
-  sort_order: z.number().int().min(0).optional(),
-  requires_consultation: z.boolean().optional(),
-  consultation_form_id: z.string().uuid().nullable().optional()
-}).strict();
+import {
+  treatmentSchema,
+  treatmentUpdateSchema
+} from '../lib/schemas.js';
 
 const router = Router();
 

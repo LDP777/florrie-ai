@@ -10,7 +10,7 @@
  * This is the "Florrie spots you're due" magic — not nagging after they're
  * overdue, but reaching out *before* they even think about rebooking.
  */
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { sendNudge } from './notifications.js';
 import { shouldAutoSend } from './sms-metering.js';
 import logger from '../lib/logger.js';

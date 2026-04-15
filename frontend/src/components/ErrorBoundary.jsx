@@ -12,7 +12,6 @@ export default class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
-    // TODO: send to Sentry / error tracking service
     logger.error('ErrorBoundary caught:', error, info);
   }
 

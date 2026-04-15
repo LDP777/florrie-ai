@@ -1,11 +1,14 @@
 import { Router } from 'express';
-import { z } from 'zod';
 import crypto from 'crypto';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { sendSMS } from '../services/notifications.js';
 import logger from '../lib/logger.js';
+import {
+  createConsultationFormSchema,
+  submitConsultationFormSchema
+} from '../lib/schemas.js';
 
 const router = Router();
 const FRONTEND_URL = process.env.FRONTEND_URL;
@@ -59,20 +62,7 @@ router.get('/:id', requireAuth, async (req, res) => {
  * POST /api/consultation-forms
  * Create a new consultation form with fields.
  */
-const createFormSchema = z.object({
-  name: z.string().min(1).max(200).trim(),
-  consent_text: z.string().max(5000).optional().nullable().default(null),
-  is_default: z.boolean().optional().default(false),
-  fields: z.array(z.object({
-    type: z.enum(['text', 'yes_no', 'multi_select', 'single_select', 'checkbox', 'text_block', 'signature']),
-    label: z.string().min(1).max(1000).trim(),
-    options: z.array(z.string()).optional().default([]),
-    required: z.boolean().optional().default(false),
-    sort_order: z.number().int().optional().default(0),
-  })).optional().default([]),
-});
-
-router.post('/', requireAuth, validate(createFormSchema), async (req, res) => {
+router.post('/', requireAuth, validate(createConsultationFormSchema), async (req, res) => {
   const { name, consent_text, is_default, fields } = req.body;
 
   // If marking as default, unset other defaults first
@@ -339,12 +329,7 @@ router.get('/public/:token', async (req, res) => {
  * POST /api/consultation-forms/public/:token/submit
  * Submit a completed consultation form. No auth required.
  */
-const submitFormSchema = z.object({
-  answers: z.record(z.any()),  // { field_id: value }
-  signature_data: z.string().optional().nullable().default(null),
-});
-
-router.post('/public/:token/submit', validate(submitFormSchema), async (req, res) => {
+router.post('/public/:token/submit', validate(submitConsultationFormSchema), async (req, res) => {
   const { answers, signature_data } = req.body;
 
   // Load response
@@ -408,15 +393,15 @@ router.post('/public/:token/submit', validate(submitFormSchema), async (req, res
  * Send a consultation form SMS to a client.
  * Called internally by the booking route for first-time clients.
  *
- * @param {Object} opts
- * @param {string} opts.beauticianId
- * @param {string} opts.clientId
- * @param {string} opts.appointmentId
- * @param {string} opts.clientPhone
- * @param {string} opts.clientFirstName
- * @param {string} opts.treatmentId - used to find treatment-specific form
- * @param {string} opts.beauticianName
- * @returns {Object|null} response record or null if no form configured
+ * @param {{beauticianId: string, clientId: string, appointmentId: string, clientPhone: string, clientFirstName: string, treatmentId: string, beauticianName: string}} opts
+ * @param {string} opts.beauticianId - UUID of the beautician
+ * @param {string} opts.clientId - UUID of the client
+ * @param {string} opts.appointmentId - UUID of the appointment
+ * @param {string} opts.clientPhone - phone number to send SMS to
+ * @param {string} opts.clientFirstName - client's first name for personalization
+ * @param {string} opts.treatmentId - UUID used to find treatment-specific form
+ * @param {string} opts.beauticianName - beautician's name for SMS personalization
+ * @returns {Promise<{id: string, form_id: string, token: string, status: string, expires_at: string, created_at: string}|null>} consultation response record or null if no form configured
  */
 export async function sendConsultationFormSMS({
   beauticianId, clientId, appointmentId, clientPhone, clientFirstName,
@@ -467,7 +452,7 @@ export async function sendConsultationFormSMS({
 
   if (error) {
     logger.error({ err: error }, 'Failed to create consultation response');
-    return null;
+    throw error;
   }
 
   // 3. Send SMS with link

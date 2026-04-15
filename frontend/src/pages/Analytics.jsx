@@ -41,17 +41,14 @@ export default function Analytics() {
   const [tab, setTab] = useState('overview');
   const [period, setPeriod] = useState('month');
 
-  // === Overview state ===
   const [stats, setStats] = useState(null);
   const [overviewLoading, setOverviewLoading] = useState(true);
 
-  // === Treatment state ===
   const [treatmentStats, setTreatmentStats] = useState([]);
   const [treatmentLoading, setTreatmentLoading] = useState(true);
   const [sortBy, setSortBy] = useState('revenue');
   const [catFilter, setCatFilter] = useState('all');
 
-  // === Export state ===
   const [allAppointments, setAllAppointments] = useState([]);
   const [allClients, setAllClients] = useState([]);
   const [exportLoading, setExportLoading] = useState(false);
@@ -66,14 +63,10 @@ export default function Analytics() {
     if (tab === 'treatments' || tab === 'export') loadTreatmentAndExportData();
   }, [tab, beautician]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ──────────────────────────────────────────────────────
   // Overview data loading
-  // ──────────────────────────────────────────────────────
   async function loadOverview() {
     if (!beautician) return;
     setOverviewLoading(true);
-
-
 
     const now = new Date();
     let startDate = new Date(now);
@@ -141,15 +134,11 @@ export default function Analytics() {
     setOverviewLoading(false);
   }
 
-  // ──────────────────────────────────────────────────────
   // Treatment stats + export data loading
-  // ──────────────────────────────────────────────────────
   async function loadTreatmentAndExportData() {
     if (!beautician) return;
     setTreatmentLoading(true);
     setExportLoading(true);
-
-
 
     try {
       const cutoff = new Date();
@@ -213,9 +202,7 @@ export default function Analytics() {
     setExportLoading(false);
   }
 
-  // ──────────────────────────────────────────────────────
   // Treatment sorting/filtering (memoised)
-  // ──────────────────────────────────────────────────────
   const filteredTreatments = useMemo(() => {
     let list = catFilter === 'all' ? treatmentStats : treatmentStats.filter(t => t.category === catFilter);
     return [...list].sort((a, b) => {
@@ -234,9 +221,7 @@ export default function Analytics() {
 
   const DAY_LABELS = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' };
 
-  // ──────────────────────────────────────────────────────
   // CSV export helpers
-  // ──────────────────────────────────────────────────────
   function downloadCSV(filename, headers, rows) {
     const csv = [headers.join(','), ...rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -286,9 +271,7 @@ export default function Analytics() {
     );
   }
 
-  // ──────────────────────────────────────────────────────
   // Render
-  // ──────────────────────────────────────────────────────
   return (
     <div style={styles.page}>
       <div style={styles.header}>
@@ -548,9 +531,7 @@ export default function Analytics() {
   );
 }
 
-// ──────────────────────────────────────────────────────
 // Sub-components
-// ──────────────────────────────────────────────────────
 
 function StatCard({ label, value, sub, color }) {
   return (
@@ -617,9 +598,7 @@ function ExportCard({ icon, title, desc, onExport, loading }) {
   );
 }
 
-// ──────────────────────────────────────────────────────
 // Insights logic
-// ──────────────────────────────────────────────────────
 function getInsights(stats) {
   const insights = [];
   if (stats.noShowRate > 10) insights.push({ icon: '⚠️', text: `No-show rate is ${stats.noShowRate}%. Deposits reduce this significantly.` });
@@ -632,9 +611,7 @@ function getInsights(stats) {
   return insights;
 }
 
-// ──────────────────────────────────────────────────────
 // Dev mode mock data
-// ──────────────────────────────────────────────────────
 function getDevStats(period) {
   const base = period === 'week' ? 1 : period === 'month' ? 4 : 12;
   return {
@@ -681,9 +658,7 @@ function getDevAppointments() {
   }));
 }
 
-// ──────────────────────────────────────────────────────
 // Styles
-// ──────────────────────────────────────────────────────
 const styles = {
   page: { minHeight: '100vh', background: 'var(--bg, #FAF8F5)', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)' },
   header: { paddingTop: 28, paddingBottom: 8 },

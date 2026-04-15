@@ -3,7 +3,7 @@
  * Tracks SMS usage and charges for surplus messages above the 30/week free limit.
  */
 
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 
 const FREE_SMS_LIMIT = 30;

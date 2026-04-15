@@ -6,7 +6,7 @@
  * the add-on menu and tracks upsell performance.
  */
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, insertRow, updateRow, deleteRow, DEV_TREATMENTS } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -306,7 +306,7 @@ export default function AddOns() {
 
             <div style={S.fieldLabel}>Auto-suggest with treatments</div>
             <div style={S.treatmentPicker}>
-              {(treatments.length > 0 ? treatments : DEV_TREATMENTS).slice(0, 12).map(t => {
+              {treatments.slice(0, 12).map(t => {
                 const selected = form.suggestWith.includes(t.name);
                 return (
                   <button key={t.id} onClick={() => toggleSuggestWith(t.name)} style={{ ...S.treatmentPickChip, ...(selected ? S.treatmentPickActive : {}) }}>

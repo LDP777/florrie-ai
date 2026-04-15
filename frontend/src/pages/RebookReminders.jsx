@@ -18,8 +18,6 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
-// ── Mock rebook data ───────────────────────────────────────
-
 const today = new Date();
 const daysAgo = d => Math.floor((today - new Date(d)) / 86400000);
 
@@ -41,8 +39,6 @@ const MESSAGE_TEMPLATES = [
   },
 ];
 
-// ── Helpers ────────────────────────────────────────────────
-
 function dueDate(client) {
   const last = new Date(client.lastVisit);
   last.setDate(last.getDate() + client.avgInterval);
@@ -62,8 +58,6 @@ function daysSinceLabel(dateStr) {
   if (d === 1) return 'Yesterday';
   return `${d} days ago`;
 }
-
-// ── Component ──────────────────────────────────────────────
 
 export default function RebookReminders() {
   const { dark } = useTheme();

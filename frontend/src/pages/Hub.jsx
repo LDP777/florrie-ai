@@ -4,7 +4,6 @@ import { useBeautician } from '../lib/supabase.js';
 import { hasFeature, getRequiredPlan } from '../lib/subscription.js';
 import { API_BASE } from '../lib/config.js';
 
-// ─── Agent definitions — must match backend agent-status.js exactly ──────────
 const AGENTS = [
   { id: 'front_desk',      name: 'Desk',    label: 'Front Desk',      colour: '#C76B8A' },
   { id: 'content_creator', name: 'Studio',  label: 'Content',         colour: '#D4943A' },
@@ -24,7 +23,6 @@ function getToken() {
   } catch { return null; }
 }
 
-// ─── SVG Mini-character avatars ───────────────────────────────────────────────
 // 6 illustrated characters, fully drawn in code. No external image URLs.
 // Each has a unique personality prop that matches their role.
 
@@ -211,7 +209,6 @@ const AVATAR_COMPONENTS = {
   guardian:        AvatarGuardian,
 };
 
-// ─── Agent team section ─────────────────────────────────────────────────────
 // Unified: replaces separate AgentStrip + SuperpowersSection.
 // 2-col grid of 6 agents, each with live counter + latest action + Ask Florrie.
 
@@ -435,7 +432,6 @@ const AT = {
   askText: { flex: 1, fontSize: 13, color: '#C5B8B2', textAlign: 'left' },
 };
 
-// ─── Today strip ─────────────────────────────────────────────────────────────
 function TodayStrip({ beautician }) {
   const [todayData, setTodayData] = useState(null);
 
@@ -536,7 +532,6 @@ const TS = {
   empty:     { fontSize: 12, color: 'rgba(255,255,255,0.65)' },
 };
 
-// ─── Navigation categories ────────────────────────────────────────────────────
 const CATEGORIES = [
   {
     id: 'daily',
@@ -642,7 +637,6 @@ const CATEGORIES = [
   },
 ];
 
-// ─── Recents tracking ─────────────────────────────────────────────────────────
 const RECENT_KEY = 'florrie_recent_pages';
 const RECENT_MAX = 6;
 
@@ -670,7 +664,6 @@ function MIcon({ name, size = 24, color, style }) {
   );
 }
 
-// ─── Hub page ─────────────────────────────────────────────────────────────────
 export default function Hub() {
   const [search, setSearch] = useState('');
   // First two categories expanded by default (Your Day + Clients)
@@ -835,7 +828,6 @@ export default function Hub() {
   );
 }
 
-// ─── Item card ────────────────────────────────────────────────────────────────
 function ItemCard({ item, locked, isActive, plan, onNav }) {
   return (
     <button
@@ -860,7 +852,6 @@ function ItemCard({ item, locked, isActive, plan, onNav }) {
   );
 }
 
-// ─── Hub page styles ──────────────────────────────────────────────────────────
 const S = {
   page: {
     minHeight: '100vh',

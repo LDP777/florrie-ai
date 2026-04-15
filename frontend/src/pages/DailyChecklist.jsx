@@ -77,7 +77,6 @@ export default function DailyChecklist() {
   const [bestStreak, setBestStreak] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  // ── Edit mode ──
   const [editing, setEditing] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [newLabel, setNewLabel] = useState('');
@@ -88,7 +87,6 @@ export default function DailyChecklist() {
     if (bLoading || !beautician) return;
     loadAll();
   }, [beautician, bLoading]);
-  // ── Load data ──
   async function loadAll() {
     setLoading(true);
     setError(null);
@@ -135,7 +133,6 @@ export default function DailyChecklist() {
       setLoading(false);
     }
   }
-  // ── Seed today from saved template or factory defaults ──
   async function seedTodayFromTemplate(td) {
     let openingTemplate = FACTORY_OPENING;
     let closingTemplate = FACTORY_CLOSING;
@@ -204,7 +201,6 @@ export default function DailyChecklist() {
       }
     }
   }
-  // ── Compute streak ──
   async function computeStreak() {
     if (!supabase || !beautician) return;
     try {
@@ -243,7 +239,6 @@ export default function DailyChecklist() {
       logger.error('Streak compute error:', err);
     }
   }
-  // ── Toggle item done ──
   const toggleItem = async (listKey, itemId) => {
     if (editing) return; // Don't toggle in edit mode
     const item = checklists[listKey]?.find(i => i.id === itemId);
@@ -268,7 +263,6 @@ export default function DailyChecklist() {
       }
     }
   };
-  // ── Add item to ANY tab ──
   const handleAddItem = async () => {
     const label = newLabel.trim();
     if (!label) return;
@@ -306,7 +300,6 @@ export default function DailyChecklist() {
       }
     }
   };
-  // ── Delete item ──
   const handleDeleteItem = async (listKey, itemId) => {
     const prev = checklists[listKey];
     setChecklists(p => ({
@@ -322,7 +315,6 @@ export default function DailyChecklist() {
       }
     }
   };
-  // ── Reorder item ──
   const handleMove = async (listKey, index, direction) => {
     const list = [...checklists[listKey]];
     const targetIndex = index + direction;
@@ -346,7 +338,6 @@ export default function DailyChecklist() {
       try { await Promise.all(promises); } catch (err) { logger.error('Reorder error:', err); }
     }
   };
-  // ── Save as template ──
   const handleSaveAsTemplate = async () => {
     setTemplateSaving(true);
     try {
@@ -392,7 +383,6 @@ export default function DailyChecklist() {
       setTemplateSaving(false);
     }
   };
-  // ── Reset to factory defaults ──
   const handleResetToFactory = async () => {
     const td = todayStr();
     // Delete all of today's opening/closing items
@@ -451,7 +441,6 @@ export default function DailyChecklist() {
     setTemplateToast('Reset to defaults');
     setTimeout(() => setTemplateToast(''), 2500);
   };
-  // ── Derived data ──
   const currentList = checklists[tab] || [];
   const doneCount = currentList.filter(i => i.done).length;
   const totalCount = currentList.length;
@@ -816,7 +805,6 @@ export default function DailyChecklist() {
 function formatDate(dateStr) {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
-// ─── Styles — Stitch M3 ───
 const S = {
   page: {
     minHeight: '100vh',

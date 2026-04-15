@@ -18,8 +18,6 @@
  */
 import logger from '../lib/logger.js';
 
-// ── Platform signatures ──────────────────────────────────
-
 const PLATFORM_SIGNATURES = {
   fresha: {
     // Fresha uses "Mobile Number" specifically
@@ -116,8 +114,6 @@ const PLATFORM_SIGNATURES = {
     },
   },
 };
-
-// ── CSV Parser ──────────────────────────────────
 
 /**
  * Parse CSV text handling quoted fields, commas inside quotes, newlines in quotes.
@@ -217,8 +213,6 @@ function parseCSVProper(text) {
   return { headers, rows: dataRows, delimiter };
 }
 
-// ── Platform Detection ──────────────────────────────────
-
 /**
  * Detect which platform a CSV export came from.
  * Returns: { platform: 'fresha'|'timely'|'vagaro'|'generic', confidence: 0-1, fileType: 'clients'|'appointments'|'treatments' }
@@ -267,8 +261,6 @@ export function detectPlatform(headers) {
 
   return bestMatch;
 }
-
-// ── Data Extraction ──────────────────────────────────
 
 function mapRow(row, columnMap, headers) {
   const normalised = {};

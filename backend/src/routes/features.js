@@ -1,13 +1,11 @@
 import { Router } from 'express';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
 
 const router = Router();
 
-// ============================================================================
 // DAILY CHECKLISTS
-// ============================================================================
 
 /**
  * GET /api/features/daily-checklists
@@ -103,9 +101,7 @@ router.delete('/daily-checklists/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ============================================================================
 // CONSULTATIONS
-// ============================================================================
 
 /**
  * GET /api/features/consultations
@@ -195,9 +191,7 @@ router.delete('/consultations/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ============================================================================
 // PATCH TESTS
-// ============================================================================
 
 /**
  * GET /api/features/patch-tests
@@ -286,9 +280,7 @@ router.delete('/patch-tests/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ============================================================================
 // AFTERCARE MESSAGES
-// ============================================================================
 
 /**
  * GET /api/features/aftercare-messages
@@ -377,9 +369,7 @@ router.delete('/aftercare-messages/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ============================================================================
 // PACKAGES
-// ============================================================================
 
 /**
  * GET /api/features/packages
@@ -471,9 +461,7 @@ router.delete('/packages/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ============================================================================
 // CLIENT PACKAGES
-// ============================================================================
 
 /**
  * GET /api/features/client-packages
@@ -545,9 +533,7 @@ router.patch('/client-packages/:id', requireAuth, async (req, res) => {
   res.json({ clientPackage: data });
 });
 
-// ============================================================================
 // ADD-ONS
-// ============================================================================
 
 /**
  * GET /api/features/add-ons
@@ -650,9 +636,7 @@ router.delete('/add-ons/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ============================================================================
 // GIFT VOUCHERS
-// ============================================================================
 
 /**
  * GET /api/features/gift-vouchers
@@ -750,9 +734,7 @@ router.delete('/gift-vouchers/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ============================================================================
 // CLIENT MEMBERSHIPS
-// ============================================================================
 
 /**
  * GET /api/features/client-memberships
@@ -842,9 +824,7 @@ router.delete('/client-memberships/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ============================================================================
 // MEMBERSHIP SUBSCRIPTIONS
-// ============================================================================
 
 /**
  * GET /api/features/membership-subscriptions
@@ -916,9 +896,7 @@ router.patch('/membership-subscriptions/:id', requireAuth, async (req, res) => {
   res.json({ membershipSubscription: data });
 });
 
-// ============================================================================
 // LOYALTY CONFIG
-// ============================================================================
 
 /**
  * GET /api/features/loyalty-config
@@ -964,9 +942,7 @@ router.post('/loyalty-config', requireAuth, async (req, res) => {
   res.status(201).json({ loyaltyConfig: data });
 });
 
-// ============================================================================
 // LOYALTY POINTS
-// ============================================================================
 
 /**
  * GET /api/features/loyalty-points
@@ -1020,9 +996,7 @@ router.post('/loyalty-points', requireAuth, async (req, res) => {
   res.status(201).json({ loyaltyPoints: data });
 });
 
-// ============================================================================
 // REFERRALS
-// ============================================================================
 
 /**
  * GET /api/features/referrals
@@ -1095,9 +1069,7 @@ router.patch('/referrals/:id', requireAuth, async (req, res) => {
   res.json({ referral: data });
 });
 
-// ============================================================================
 // REVENUE GOALS
-// ============================================================================
 
 /**
  * GET /api/features/revenue-goals
@@ -1186,9 +1158,7 @@ router.delete('/revenue-goals/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ============================================================================
 // MESSAGE TEMPLATES
-// ============================================================================
 
 /**
  * GET /api/features/message-templates
@@ -1278,9 +1248,7 @@ router.delete('/message-templates/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ============================================================================
 // AUTOMATION RULES
-// ============================================================================
 
 /**
  * GET /api/features/automation-rules
@@ -1374,9 +1342,7 @@ router.delete('/automation-rules/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ============================================================================
 // POLICIES
-// ============================================================================
 
 /**
  * GET /api/features/policies
@@ -1466,9 +1432,7 @@ router.delete('/policies/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ============================================================================
 // INTAKE FORMS
-// ============================================================================
 
 /**
  * GET /api/features/intake-forms
@@ -1556,9 +1520,7 @@ router.delete('/intake-forms/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ============================================================================
 // FORM SUBMISSIONS
-// ============================================================================
 
 /**
  * GET /api/features/form-submissions
@@ -1615,9 +1577,7 @@ router.post('/form-submissions', requireAuth, async (req, res) => {
   res.status(201).json({ formSubmission: data });
 });
 
-// ============================================================================
 // HOURS EXCEPTIONS
-// ============================================================================
 
 /**
  * GET /api/features/hours-exceptions
@@ -1691,9 +1651,7 @@ router.delete('/hours-exceptions/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ============================================================================
 // CLIENT TAGS
-// ============================================================================
 
 /**
  * GET /api/features/client-tags
@@ -1756,9 +1714,7 @@ router.delete('/client-tags/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ============================================================================
 // CLIENT TAG ASSIGNMENTS
-// ============================================================================
 
 /**
  * GET /api/features/client-tag-assignments
@@ -1827,9 +1783,7 @@ router.delete('/client-tag-assignments/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ============================================================================
 // REVIEWS
-// ============================================================================
 
 /**
  * GET /api/features/reviews
@@ -1902,9 +1856,7 @@ router.patch('/reviews/:id', requireAuth, async (req, res) => {
   res.json({ review: data });
 });
 
-// ============================================================================
 // END OF DAY REPORTS
-// ============================================================================
 
 /**
  * GET /api/features/end-of-day-reports
@@ -1960,9 +1912,7 @@ router.post('/end-of-day-reports', requireAuth, async (req, res) => {
   res.status(201).json({ endOfDayReport: data });
 });
 
-// ============================================================================
 // PORTAL SETTINGS
-// ============================================================================
 
 /**
  * GET /api/features/portal-settings
@@ -2009,9 +1959,7 @@ router.post('/portal-settings', requireAuth, async (req, res) => {
   res.status(201).json({ portalSettings: data });
 });
 
-// ============================================================================
 // REBOOK REMINDERS
-// ============================================================================
 
 /**
  * GET /api/features/rebook-reminders
@@ -2102,9 +2050,7 @@ router.delete('/rebook-reminders/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ============================================================================
 // WAITLIST (existing table without backend routes)
-// ============================================================================
 
 /**
  * GET /api/features/waitlist
@@ -2194,9 +2140,7 @@ router.delete('/waitlist/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ============================================================================
 // GAP-FILL SUGGESTIONS
-// ============================================================================
 
 /**
  * GET /api/features/gap-fill-suggestions
@@ -2214,9 +2158,7 @@ router.get('/gap-fill-suggestions', requireAuth, async (req, res) => {
   }
 });
 
-// ============================================================================
 // MESSAGES (INBOX)
-// ============================================================================
 
 /**
  * GET /api/features/messages
@@ -2263,9 +2205,7 @@ router.post('/messages', requireAuth, async (req, res) => {
   res.status(201).json({ message: data });
 });
 
-// ============================================================================
 // CAMPAIGNS
-// ============================================================================
 
 /**
  * GET /api/features/campaigns
@@ -2339,9 +2279,7 @@ router.patch('/campaigns/:id', requireAuth, async (req, res) => {
   res.json({ campaign: data });
 });
 
-// ============================================================================
 // CONTENT POSTS
-// ============================================================================
 
 /**
  * GET /api/features/content-posts
@@ -2431,9 +2369,7 @@ router.delete('/content-posts/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ============================================================================
 // TEAM MEMBERS
-// ============================================================================
 
 /**
  * GET /api/features/team-members
@@ -2525,9 +2461,7 @@ router.delete('/team-members/:id', requireAuth, async (req, res) => {
   res.json({ success: true });
 });
 
-// ============================================================================
 // BOOKING SUGGESTIONS (suggest-and-confirm from AI Front Desk / Voice)
-// ============================================================================
 
 /**
  * GET /api/features/booking-suggestions

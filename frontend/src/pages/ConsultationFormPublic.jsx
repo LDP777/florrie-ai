@@ -329,7 +329,6 @@ export default function ConsultationFormPublic() {
   );
 }
 
-// ── Signature Pad Component ─────────────────────────────
 function SignaturePad({ brandColor, value, onChange, hasError }) {
   const canvasRef = useRef(null);
   const [drawing, setDrawing] = useState(false);
@@ -409,7 +408,6 @@ function SignaturePad({ brandColor, value, onChange, hasError }) {
   );
 }
 
-// ── Styles ──────────────────────────────────────────────
 const styles = {
   page: {
     maxWidth: 520,

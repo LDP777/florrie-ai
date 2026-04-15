@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 import { createBookingSuggestion } from './automations.js';
 import { sendMessage, sendInstagramDM, sendWhatsAppText, sendSMS } from './notifications.js';
@@ -153,10 +153,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
   }
 }
 
-
-// ============================================================
 // STEP 1: GATHER CONTEXT
-// ============================================================
 
 async function gatherContext(beautician, client) {
   const now = new Date();
@@ -218,10 +215,7 @@ async function gatherContext(beautician, client) {
   };
 }
 
-
-// ============================================================
 // STEP 2: CLASSIFY INTENT
-// ============================================================
 
 async function classifyIntent(message, context) {
   const treatmentNames = context.treatments.map(t => t.name).join(', ');
@@ -283,10 +277,7 @@ Only include extracted fields if they're mentioned in the message. Confidence is
   }
 }
 
-
-// ============================================================
 // STEP 3: DECIDE
-// ============================================================
 
 function canActAutonomously(classification, threshold) {
   // Always escalate certain intents regardless of confidence
@@ -309,10 +300,7 @@ function getEscalationReason(classification) {
   return `Intent "${classification.intent}" is not in the autonomous action list`;
 }
 
-
-// ============================================================
 // STEP 4a: GENERATE RESPONSE + TAKE ACTION
-// ============================================================
 
 async function generateResponseAndAct(message, classification, context, beautician, client) {
   const { intent, extracted } = classification;
@@ -462,10 +450,7 @@ Respond with ONLY a number between 0.0 and 1.0 (e.g., 0.78). No explanation.`,
   }
 }
 
-
-// ============================================================
 // STEP 4b: GENERATE SUGGESTED RESPONSE (for escalated messages)
-// ============================================================
 
 async function generateSuggestedResponse(message, classification, context, beautician) {
   const toneGuide = buildToneGuide(beautician.tone_model);
@@ -491,10 +476,7 @@ Respond with the suggested message only.`,
   return response.content[0].text.trim();
 }
 
-
-// ============================================================
 // INTENT-SPECIFIC PROMPT BUILDERS
-// ============================================================
 
 function buildBookingPrompt(context, extracted) {
   const availableDays = getAvailableDays(context.upcomingAppointments, context.beautician.workingHours);
@@ -529,10 +511,7 @@ If you can't find their appointment, ask for more details.
 Direct them to the booking link if needed.`;
 }
 
-
-// ============================================================
 // TONE MODEL
-// ============================================================
 
 function buildToneGuide(toneModel) {
   if (!toneModel || Object.keys(toneModel).length === 0) {
@@ -646,10 +625,7 @@ Return JSON with:
   }
 }
 
-
-// ============================================================
 // HELPERS
-// ============================================================
 
 function getAvailableDays(existingAppointments, workingHours) {
   // Simple availability summary for the next 7 days

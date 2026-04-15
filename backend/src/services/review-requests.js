@@ -1,4 +1,4 @@
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { sendMessage } from './notifications.js';
 import { sendEmail } from './notifications.js';
 import logger from '../lib/logger.js';

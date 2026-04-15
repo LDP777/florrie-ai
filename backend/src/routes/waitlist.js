@@ -1,19 +1,12 @@
 import { Router } from 'express';
-import { z } from 'zod';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { apiLimiter } from '../middleware/rate-limit.js';
 import { verifyTurnstile } from '../middleware/turnstile.js';
 import { sendEmail } from '../services/notifications.js';
 import logger from '../lib/logger.js';
+import { waitlistSchema } from '../lib/schemas.js';
 
 const router = Router();
-
-// Schema for waitlist signup validation
-const waitlistSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  name: z.string().max(200).optional().nullable().default(null),
-  source: z.string().max(100).optional().default('landing_page'),
-});
 
 /**
  * POST /api/waitlist

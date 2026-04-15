@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { processInboundMessage } from '../services/ai-front-desk.js';
 import logger from '../lib/logger.js';
 import Anthropic from '@anthropic-ai/sdk';
@@ -148,7 +148,11 @@ router.post('/whatsapp', async (req, res) => {
       mediaType = 'audio';
       // Download audio from WhatsApp and transcribe
       const mimeType = message.audio?.mime_type;
-      messageContent = await transcribeWhatsAppAudio(message.audio?.id, mimeType);
+      try {
+        messageContent = await transcribeWhatsAppAudio(message.audio?.id, mimeType);
+      } catch (transcriptErr) {
+        logger.warn({ err: transcriptErr, mediaId: message.audio?.id }, 'Voice note transcription failed');
+      }
       if (!messageContent) messageContent = '[Voice note — transcription unavailable]';
     } else if (message.type === 'image') {
       mediaType = 'image';
@@ -269,10 +273,16 @@ router.post('/twilio-sms', async (req, res) => {
     }
 
     // Find or create client by matching phone number
-    let client = await findOrCreateClientBySMS(beautician.id, From);
+    let client;
+    try {
+      client = await findOrCreateClientBySMS(beautician.id, From);
+    } catch (clientErr) {
+      logger.error({ err: clientErr, beautician_id: beautician.id, from: From }, 'Error finding/creating SMS client');
+      return;
+    }
 
     if (!client) {
-      logger.warn({ beautician_id: beautician.id, from: From }, 'Failed to find or create client for SMS');
+      logger.warn({ beautician_id: beautician.id, from: From }, 'No client found or created for SMS');
       return;
     }
 
@@ -325,12 +335,6 @@ router.post('/twilio-sms', async (req, res) => {
   }
 });
 
-// Note: Stripe webhooks are handled in src/routes/stripe.js (mounted at /api/stripe/webhook)
-// This route is kept as a legacy no-op redirect for any old webhook registrations
-router.post('/stripe', (req, res) => {
-  res.status(301).json({ error: 'Stripe webhooks moved to /api/stripe/webhook' });
-});
-
 /**
  * Find beautician by Twilio phone number.
  * First tries to match phoneNumber against beautician columns, then falls back to first beautician.
@@ -368,37 +372,32 @@ async function findBeauticianByTwilioNumber(phoneNumber) {
  * Matches phone number against clients table, or creates a new client.
  */
 async function findOrCreateClientBySMS(beauticianId, phoneNumber) {
-  try {
-    // First, try to find existing client by phone number
-    const { data: client } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('beautician_id', beauticianId)
-      .eq('phone', phoneNumber)
-      .single();
+  // First, try to find existing client by phone number
+  const { data: client } = await supabase
+    .from('clients')
+    .select('*')
+    .eq('beautician_id', beauticianId)
+    .eq('phone', phoneNumber)
+    .single();
 
-    if (client) {
-      return client;
-    }
-
-    // Create new client from SMS contact
-    const { data: newClient } = await supabase
-      .from('clients')
-      .insert({
-        beautician_id: beauticianId,
-        first_name: 'Unknown',
-        phone: phoneNumber,
-        status: 'new'
-      })
-      .select()
-      .single();
-
-    logger.info({ beautician_id: beauticianId, phone: phoneNumber }, 'Created new client from SMS');
-    return newClient;
-  } catch (err) {
-    logger.error({ err, beautician_id: beauticianId, phone: phoneNumber }, 'Error finding/creating SMS client');
-    return null;
+  if (client) {
+    return client;
   }
+
+  // Create new client from SMS contact
+  const { data: newClient } = await supabase
+    .from('clients')
+    .insert({
+      beautician_id: beauticianId,
+      first_name: 'Unknown',
+      phone: phoneNumber,
+      status: 'new'
+    })
+    .select()
+    .single();
+
+  logger.info({ beautician_id: beauticianId, phone: phoneNumber }, 'Created new client from SMS');
+  return newClient;
 }
 
 /**
@@ -408,76 +407,72 @@ async function findOrCreateClientBySMS(beauticianId, phoneNumber) {
  *
  * @param {string} mediaId - WhatsApp media ID
  * @param {string} mimeType - MIME type from WhatsApp message payload (e.g., 'audio/ogg')
- * @returns {Promise<string|null>} Transcribed text or null if failed
+ * @returns {Promise<string|null>} Transcribed text or null if no transcript
+ * @throws {Error} Network or API errors
  */
 async function transcribeWhatsAppAudio(mediaId, mimeType) {
   if (!mediaId || !process.env.WHATSAPP_TOKEN) return null;
 
-  try {
-    // Determine audio format with fallback
-    let audioFormat = 'audio/ogg'; // default fallback
+  // Determine audio format with fallback
+  let audioFormat = 'audio/ogg'; // default fallback
 
-    // Supported WhatsApp audio formats
-    const supportedFormats = ['audio/ogg', 'audio/opus', 'audio/mpeg', 'audio/amr', 'audio/aac'];
+  // Supported WhatsApp audio formats
+  const supportedFormats = ['audio/ogg', 'audio/opus', 'audio/mpeg', 'audio/amr', 'audio/aac'];
 
-    if (mimeType && supportedFormats.includes(mimeType)) {
-      audioFormat = mimeType;
-    } else if (mimeType) {
-      // Unknown format — log and use fallback
-      logger.warn({ mediaId, receivedMimeType: mimeType }, 'Unsupported audio format, falling back to audio/ogg');
-      audioFormat = 'audio/ogg';
-    }
-
-    logger.debug({ mediaId, audioFormat }, 'Detected audio format');
-
-    // Step 1: Get the download URL from Meta
-    const metaRes = await fetch(`https://graph.facebook.com/v21.0/${mediaId}`, {
-      headers: { 'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}` },
-    });
-    if (!metaRes.ok) throw new Error('Failed to get media URL');
-    const { url: mediaUrl } = await metaRes.json();
-
-    // Step 2: Download the audio binary
-    const audioRes = await fetch(mediaUrl, {
-      headers: { 'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}` },
-    });
-    if (!audioRes.ok) throw new Error('Failed to download audio');
-    const audioBuffer = Buffer.from(await audioRes.arrayBuffer());
-
-    // Step 3: Transcribe using Claude (supports audio input)
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      messages: [{
-        role: 'user',
-        content: [
-          {
-            type: 'document',
-            source: {
-              type: 'base64',
-              media_type: audioFormat,
-              data: audioBuffer.toString('base64'),
-            },
-          },
-          {
-            type: 'text',
-            text: 'Transcribe this voice note. Return only the transcription text, nothing else. If the audio is unclear, do your best to transcribe what you can hear.',
-          },
-        ],
-      }],
-    });
-
-    const transcript = response.content[0]?.text?.trim();
-    if (transcript) {
-      logger.info({ mediaId, audioFormat, length: transcript.length }, 'Voice note transcribed');
-      return transcript;
-    }
-    return null;
-  } catch (err) {
-    logger.error({ err, mediaId }, 'Voice note transcription failed');
-    return null;
+  if (mimeType && supportedFormats.includes(mimeType)) {
+    audioFormat = mimeType;
+  } else if (mimeType) {
+    // Unknown format — log and use fallback
+    logger.warn({ mediaId, receivedMimeType: mimeType }, 'Unsupported audio format, falling back to audio/ogg');
+    audioFormat = 'audio/ogg';
   }
+
+  logger.debug({ mediaId, audioFormat }, 'Detected audio format');
+
+  // Step 1: Get the download URL from Meta
+  const metaRes = await fetch(`https://graph.facebook.com/v21.0/${mediaId}`, {
+    headers: { 'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}` },
+  });
+  if (!metaRes.ok) throw new Error('Failed to get media URL');
+  const { url: mediaUrl } = await metaRes.json();
+
+  // Step 2: Download the audio binary
+  const audioRes = await fetch(mediaUrl, {
+    headers: { 'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}` },
+  });
+  if (!audioRes.ok) throw new Error('Failed to download audio');
+  const audioBuffer = Buffer.from(await audioRes.arrayBuffer());
+
+  // Step 3: Transcribe using Claude (supports audio input)
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 1000,
+    messages: [{
+      role: 'user',
+      content: [
+        {
+          type: 'document',
+          source: {
+            type: 'base64',
+            media_type: audioFormat,
+            data: audioBuffer.toString('base64'),
+          },
+        },
+        {
+          type: 'text',
+          text: 'Transcribe this voice note. Return only the transcription text, nothing else. If the audio is unclear, do your best to transcribe what you can hear.',
+        },
+      ],
+    }],
+  });
+
+  const transcript = response.content[0]?.text?.trim();
+  if (transcript) {
+    logger.info({ mediaId, audioFormat, length: transcript.length }, 'Voice note transcribed');
+    return transcript;
+  }
+  return null;
 }
 
 export default router;

@@ -13,7 +13,7 @@
  * GET /api/agents/widget — lightweight payload for iOS widget
  */
 import { Router } from 'express';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
@@ -218,8 +218,6 @@ router.get('/widget', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'Widget data failed' });
   }
 });
-
-// ── Helpers ──────────────────────────────────────────────────
 
 function timeAgo(date, now) {
   const seconds = Math.floor((now - date) / 1000);

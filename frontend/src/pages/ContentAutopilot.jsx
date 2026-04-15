@@ -30,7 +30,6 @@ import ErrorCard from '../components/ErrorCard.jsx';
  * Caption generation calls the backend when available;
  * template-based fallback always works offline.
  */
-// ── Caption templates (Ellie's tone: warm, casual, 1-2 sentences, xx) ──
 const CAPTION_TEMPLATES = {
   before_after: [
     "Cannot get over this set {treatment} — the definition is unreal. DM me to book yours {emoji}",
@@ -80,7 +79,6 @@ function fillTemplate(template, vars) {
   });
   return result;
 }
-// ── Default hashtag sets by category ──
 const DEFAULT_HASHTAGS = {
   brows: ['#brows', '#browlamination', '#browspecialist', '#browgoals', '#browsonfleek', '#beautysalon'],
   lashes: ['#lashes', '#lashlift', '#lashlifttint', '#lashgoals', '#lashspecialist', '#beautysalon'],
@@ -334,7 +332,6 @@ export default function ContentAutopilot() {
       setGeneratingAI(false);
     }
   }
-  // ── Calendar helpers ──
   function getCalendarDays() {
     const year = calendarDate.getFullYear();
     const month = calendarDate.getMonth();
@@ -363,7 +360,6 @@ export default function ContentAutopilot() {
     if (status === 'posted') return '#34D399';
     return '#D1D5DB';
   }
-  // ── Gallery helpers ──
   async function loadGallery() {
     // Gallery items stored as content_posts with post_type='gallery'
     try {
@@ -433,7 +429,6 @@ export default function ContentAutopilot() {
     }
     setSavingGallery(false);
   }
-  // ── Compose helpers ──
   function startCompose(type, prefillCaption) {
     setComposeType(type);
     setComposeCaption(prefillCaption || '');
@@ -488,7 +483,6 @@ export default function ContentAutopilot() {
       setSaving(false);
     }
   }
-  // ── Draft actions ──
   async function handleApprove(postId) {
     setPublishing(postId);
     try {
@@ -535,7 +529,6 @@ export default function ContentAutopilot() {
       logger.error('Discard error:', err);
     }
   }
-  // ── Template fill ──
   function getFilledTemplate(type) {
     const templates = CAPTION_TEMPLATES[type] || CAPTION_TEMPLATES.general;
     const template = pickRandom(templates);
@@ -1112,7 +1105,6 @@ export default function ContentAutopilot() {
     </div>
   );
 }
-// ── Dev mode gallery items ──
 const DEV_GALLERY = [
   {
     id: 'dev-gal-1',
@@ -1131,7 +1123,6 @@ const DEV_GALLERY = [
     created_at: '2026-03-18T11:00:00Z',
   },
 ];
-// ── Dev mode sample drafts ──
 const DEV_DRAFTS = [
   {
     id: 'dev-draft-1',

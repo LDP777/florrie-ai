@@ -242,7 +242,6 @@ export default function AIInsights() {
   );
 }
 
-// ─── Styles — Stitch "florrie.ai Assistant" reference ───
 const S = {
   page: {
     minHeight: '100vh',

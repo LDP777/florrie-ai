@@ -5,8 +5,6 @@ import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 
-// ── Constants ────────────────────────────────────────────────────────────────
-
 const MOCK_CONNECTED = {
   connected: true,
   phone: '+44 7700 900123',
@@ -33,8 +31,6 @@ const autoReplyDefaults = [
   { id: 4, trigger: 'New message (no match)', response: null, enabled: false },
 ];
 
-// ── API helpers ──────────────────────────────────────────────────────────────
-
 async function apiFetch(path, options = {}) {
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;
@@ -50,8 +46,6 @@ async function apiFetch(path, options = {}) {
   if (!res.ok) throw new Error(json.error || 'Request failed');
   return json;
 }
-
-// ── Usage bar component ──────────────────────────────────────────────────────
 
 function UsageBar({ usage }) {
   if (!usage) return null;
@@ -89,8 +83,6 @@ function UsageBar({ usage }) {
     </div>
   );
 }
-
-// ── Connect flow (not yet connected) ────────────────────────────────────────
 
 function ConnectFlow({ onConnected }) {
   const [step, setStep] = useState('phone'); // 'phone' | 'otp'
@@ -206,8 +198,6 @@ function ConnectFlow({ onConnected }) {
     </div>
   );
 }
-
-// ── Main component ────────────────────────────────────────────────────────────
 
 export default function WhatsAppConfig() {
   const { beautician, loading: bLoading } = useBeautician();
@@ -485,8 +475,6 @@ export default function WhatsAppConfig() {
     </div>
   );
 }
-
-// ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = {
   page: { padding: '16px 16px 100px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },

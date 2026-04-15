@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import Stripe from 'stripe';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
 import { cleanupStripeEvents } from '../services/stripe-cleanup.js';
@@ -739,7 +739,6 @@ router.post('/webhook', async (req, res) => {
 
   try {
     switch (event.type) {
-      // ── Payment completed (deposit, full payment, or payment link) ──
       case 'checkout.session.completed': {
         const session = event.data.object;
         if (session.mode !== 'payment') break;
@@ -854,7 +853,6 @@ router.post('/webhook', async (req, res) => {
         break;
       }
 
-      // ── Refund processed ──
       case 'charge.refunded': {
         const charge = event.data.object;
         if (charge.metadata?.appointment_id) {
@@ -863,7 +861,6 @@ router.post('/webhook', async (req, res) => {
         break;
       }
 
-      // ── Payment failed (off-session no-show charge) ──
       case 'payment_intent.payment_failed': {
         const pi = event.data.object;
         if (pi.metadata?.type === 'no_show_fee') {
@@ -881,7 +878,6 @@ router.post('/webhook', async (req, res) => {
         break;
       }
 
-      // ── Subscription created or updated ──
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const sub = event.data.object;
@@ -902,7 +898,6 @@ router.post('/webhook', async (req, res) => {
         break;
       }
 
-      // ── Subscription cancelled ──
       case 'customer.subscription.deleted': {
         const sub = event.data.object;
         const beauticianId = sub.metadata?.beautician_id;
@@ -919,7 +914,6 @@ router.post('/webhook', async (req, res) => {
         break;
       }
 
-      // ── Connect account updated (v1 Express — legacy) ──
       case 'account.updated': {
         const account = event.data.object;
         if (account.metadata?.beautician_id) {
@@ -932,7 +926,6 @@ router.post('/webhook', async (req, res) => {
         break;
       }
 
-      // ── Connect recipient capability updated (v2 Accounts) ──
       // Fired when stripe_balance.stripe_transfers capability status changes
       // (e.g. pending → active after KYC, or active → restricted after a review).
       // The thin event carries the account ID in related_object and the capability

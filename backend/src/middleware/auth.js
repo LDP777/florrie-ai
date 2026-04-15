@@ -1,4 +1,4 @@
-import { supabaseAnon } from '../index.js';
+import { supabaseAnon } from '../config.js';
 import logger from '../lib/logger.js';
 
 /**

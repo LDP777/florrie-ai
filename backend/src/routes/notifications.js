@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { supabase } from '../index.js';
+import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { processReminders, sendSMS, sendEmail } from '../services/notifications.js';
 import { getSMSUsage } from '../services/sms-metering.js';

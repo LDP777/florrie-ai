@@ -71,7 +71,6 @@ export default function PromoCodes() {
         }));
         setCodes(transformed);
       } catch (err) {
-        console.error('Fetch error:', err);
         setCodes([]);
       } finally {
         setLoading(false);
@@ -96,7 +95,6 @@ export default function PromoCodes() {
       alert('Please fill in all required fields');
       return;
     }
-
 
     setCreating(true);
     try {
@@ -156,7 +154,6 @@ export default function PromoCodes() {
         valid_until: ''
       });
     } catch (err) {
-      console.error('Create error:', err);
       alert('Failed to create code');
     } finally {
       setCreating(false);
@@ -182,7 +179,6 @@ export default function PromoCodes() {
       const { data: updated } = await res.json();
       setCodes(codes.map(c => c.id === codeId ? { ...c, status: updated.is_active ? 'active' : 'expired' } : c));
     } catch (err) {
-      console.error('Update error:', err);
       alert('Failed to update code');
     }
   };

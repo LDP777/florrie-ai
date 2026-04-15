@@ -44,7 +44,6 @@ function authHeaders() {
   return t ? { 'Authorization': `Bearer ${t}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
 }
 
-// ── Form List View ──────────────────────────────────────
 function FormList() {
   const navigate = useNavigate();
   const [forms, setForms] = useState([]);
@@ -56,7 +55,6 @@ function FormList() {
       .then(r => r.json())
       .then(d => setForms(d.forms || []))
       .catch(err => {
-        console.error('Failed to load forms:', err);
         setError(err.message || 'Failed to load consultation forms');
       })
       .finally(() => setLoading(false));
@@ -108,7 +106,6 @@ function FormList() {
   );
 }
 
-// ── Form Editor View ────────────────────────────────────
 function FormEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -332,7 +329,6 @@ function FormEditor() {
   );
 }
 
-// ── Field Card Component ────────────────────────────────
 function FieldCard({ field, index, isEditing, onEdit, onUpdate, onRemove, onMove, isFirst, isLast }) {
   const typeInfo = FIELD_TYPES.find(ft => ft.value === field.type);
 
@@ -424,14 +420,12 @@ function FieldCard({ field, index, isEditing, onEdit, onUpdate, onRemove, onMove
   );
 }
 
-// ── Main Export ─────────────────────────────────────────
 export default function ConsultationFormBuilder() {
   const { id } = useParams();
   if (!id) return <FormList />;
   return <FormEditor />;
 }
 
-// ── Styles ──────────────────────────────────────────────
 const styles = {
   page: {
     maxWidth: 540,
