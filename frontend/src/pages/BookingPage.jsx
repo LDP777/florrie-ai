@@ -64,8 +64,9 @@ export default function BookingPage() {
   const [beautician, setBeautician] = useState(null);
   const [treatments, setTreatments] = useState([]);
   const [slots, setSlots] = useState([]);
-  // User selections
-  const [selectedTreatment, setSelectedTreatment] = useState(null);
+  // User selections — multi-treatment support
+  const [selectedTreatments, setSelectedTreatments] = useState([]);
+  const selectedTreatment = selectedTreatments[0] || null; // primary treatment for backwards compat
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [clientDetails, setClientDetails] = useState({
@@ -107,8 +108,8 @@ export default function BookingPage() {
     { key: 'pregnant', label: 'Are you pregnant or breastfeeding?', type: 'yes_no' },
     { key: 'previous_reactions', label: 'Have you had any adverse reactions to beauty treatments before?', type: 'text' },
   ];
-  const needsConsultation = selectedTreatment?.requires_consultation;
-  const needsPatchTest = selectedTreatment?.requires_patch_test;
+  const needsConsultation = selectedTreatments.some(t => t.requires_consultation);
+  const needsPatchTest = selectedTreatments.some(t => t.requires_patch_test);
   // The questions to render — dynamic form fields if available, else defaults
   // Filter out the patch_test question for treatments that don't require it (wax, microblading, etc.)
   const consultationQuestions = consultationForm?.consultation_form_fields?.length
@@ -128,7 +129,10 @@ export default function BookingPage() {
     }
     return treatment.deposit_cents || 0;
   }
-  const depositCents = getDepositCents(selectedTreatment);
+  // Multi-treatment totals
+  const combinedTreatmentCents = selectedTreatments.reduce((sum, t) => sum + (t.price_cents || 0), 0);
+  const combinedDuration = selectedTreatments.reduce((sum, t) => sum + (t.duration_minutes || 0), 0);
+  const depositCents = selectedTreatments.reduce((sum, t) => sum + getDepositCents(t), 0);
   const hasDeposit = depositCents > 0;
   // Add-on totals
   const addOnTotal = selectedAddOns.reduce((sum, ao) => sum + (ao.price_cents || 0), 0);
@@ -136,10 +140,10 @@ export default function BookingPage() {
   // Calculate discount
   const discountCents = appliedDiscount
     ? appliedDiscount.discount_type === 'percentage'
-      ? Math.round(((selectedTreatment?.price_cents || 0) + addOnTotal) * appliedDiscount.discount_value / 100)
-      : Math.min(appliedDiscount.discount_value, (selectedTreatment?.price_cents || 0) + addOnTotal)
+      ? Math.round((combinedTreatmentCents + addOnTotal) * appliedDiscount.discount_value / 100)
+      : Math.min(appliedDiscount.discount_value, combinedTreatmentCents + addOnTotal)
     : 0;
-  const grandTotalCents = Math.max(0, (selectedTreatment?.price_cents || 0) + addOnTotal - discountCents);
+  const grandTotalCents = Math.max(0, combinedTreatmentCents + addOnTotal - discountCents);
   // Smart add-on suggestions: filter to add-ons that suggest_with includes selected treatment
   const suggestedAddOns = selectedTreatment
     ? addOns.filter(ao => {
@@ -335,7 +339,7 @@ export default function BookingPage() {
   }, [slug]);
   // Generate available time slots when date changes
   useEffect(() => {
-    if (!selectedTreatment || !selectedDate || !beautician) return;
+    if (selectedTreatments.length === 0 || !selectedDate || !beautician) return;
     async function loadSlots() {
       const dayOfWeek = new Date(selectedDate).toLocaleDateString('en-GB', { weekday: 'short' }).toLowerCase();
       const dayKey = { mon: 'mon', tue: 'tue', wed: 'wed', thu: 'thu', fri: 'fri', sat: 'sat', sun: 'sun' }[dayOfWeek];
@@ -345,10 +349,10 @@ export default function BookingPage() {
         setSelectedSlot(null);
         return;
       }
-      // Generate slots from working hours (respects buffer time)
-      const duration = selectedTreatment.duration_minutes || 60;
-      const buffer = selectedTreatment.buffer_minutes || 0;
-      const totalBlock = duration + buffer; // treatment + cleanup/prep
+      // Generate slots from working hours (uses combined duration for multi-treatment)
+      const duration = combinedDuration || 60;
+      const buffer = Math.max(...selectedTreatments.map(t => t.buffer_minutes || 0), 0);
+      const totalBlock = duration + buffer; // all treatments + longest buffer
       const [startH, startM] = hours.start.split(':').map(Number);
       const [endH, endM] = hours.end.split(':').map(Number);
       const startMin = startH * 60 + startM;
@@ -384,7 +388,7 @@ export default function BookingPage() {
       setSelectedSlot(null);
     }
     loadSlots();
-  }, [selectedDate, selectedTreatment, beautician]);
+  }, [selectedDate, selectedTreatments, beautician, combinedDuration]);
   // Submit booking via backend API (handles client creation, conflict checks, deposits)
   async function handleBook() {
     setSubmitting(true);
@@ -396,6 +400,7 @@ export default function BookingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           treatment_id: selectedTreatment.id,
+          extra_treatment_ids: selectedTreatments.slice(1).map(t => t.id),
           starts_at: selectedSlot.starts_at,
           client_name: clientDetails.name,
           client_email: clientDetails.email || null,
@@ -432,10 +437,10 @@ export default function BookingPage() {
         return;
       }
       setSuccess({
-        treatment: selectedTreatment.name,
+        treatment: selectedTreatments.map(t => t.name).join(' + '),
         date: new Date(selectedSlot.starts_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }),
         time: selectedSlot.display,
-        price: `£${(selectedTreatment.price_cents / 100).toFixed(2)}`,
+        price: `£${(combinedTreatmentCents / 100).toFixed(2)}`,
         deposit: data.booking?.deposit || null,
         depositPending: data.booking?.deposit_pending || false,
         depositNote: data.deposit_note || null,
@@ -461,8 +466,8 @@ export default function BookingPage() {
   function validateStep(currentStep) {
     const errors = {};
     if (currentStep === 0) {
-      if (!selectedTreatment) {
-        errors.treatment = 'Please select a treatment to continue';
+      if (selectedTreatments.length === 0) {
+        errors.treatment = 'Please select at least one treatment to continue';
       }
     } else if (currentStep === 1) {
       if (!selectedDate) {
@@ -631,32 +636,56 @@ export default function BookingPage() {
         {/* Step 0: Select Treatment */}
         {step === 0 && (
           <div>
-            <h2 style={styles.stepTitle}>Choose your treatment</h2>
+            <h2 style={styles.stepTitle}>Choose your treatment{selectedTreatments.length > 1 ? 's' : ''}</h2>
+            {selectedTreatments.length === 0 && (
+              <p style={{ fontSize: 13, color: '#888', margin: '-12px 0 14px' }}>Tap multiple to book them together</p>
+            )}
             {fieldErrors.treatment && (
               <div style={styles.inlineError}>{fieldErrors.treatment}</div>
             )}
             <div style={styles.treatmentList}>
-              {treatments.map(t => (
-                <button
-                  key={t.id}
-                  onClick={() => { setSelectedTreatment(t); setSelectedAddOns([]); setFieldErrors({}); }}
-                  style={{
-                    ...styles.treatmentCard,
-                    borderColor: selectedTreatment?.id === t.id ? brand : '#E8E4DF',
-                    background: selectedTreatment?.id === t.id ? brandLight : '#fff'
-                  }}
-                >
-                  <div style={styles.treatmentInfo}>
-                    <span style={styles.treatmentName}>{t.name}</span>
-                    {t.description && <span style={styles.treatmentDesc}>{t.description}</span>}
-                    <span style={styles.treatmentDuration}>{t.duration_minutes} min</span>
-                  </div>
-                  <span style={{ ...styles.treatmentPrice, color: brand }}>
-                    £{(t.price_cents / 100).toFixed(2)}
-                  </span>
-                </button>
-              ))}
+              {treatments.map(t => {
+                const isSelected = selectedTreatments.some(st => st.id === t.id);
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => {
+                      setSelectedTreatments(prev => {
+                        const exists = prev.find(st => st.id === t.id);
+                        const next = exists ? prev.filter(st => st.id !== t.id) : [...prev, t];
+                        if (next.length === 0) setSelectedAddOns([]);
+                        return next;
+                      });
+                      setFieldErrors({});
+                    }}
+                    style={{
+                      ...styles.treatmentCard,
+                      borderColor: isSelected ? brand : '#E8E4DF',
+                      background: isSelected ? brandLight : '#fff'
+                    }}
+                  >
+                    <div style={styles.treatmentInfo}>
+                      <span style={styles.treatmentName}>
+                        {isSelected ? '✓ ' : ''}{t.name}
+                      </span>
+                      {t.description && <span style={styles.treatmentDesc}>{t.description}</span>}
+                      <span style={styles.treatmentDuration}>{t.duration_minutes} min</span>
+                    </div>
+                    <span style={{ ...styles.treatmentPrice, color: brand }}>
+                      £{(t.price_cents / 100).toFixed(2)}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
+            {/* Multi-treatment summary bar */}
+            {selectedTreatments.length > 1 && (
+              <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 10, background: brandLight, border: `1px solid ${brand}30`, textAlign: 'center' }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: brand }}>
+                  {selectedTreatments.length} treatments · {combinedDuration} min · £{(combinedTreatmentCents / 100).toFixed(2)}
+                </span>
+              </div>
+            )}
             {treatments.length === 0 && (
               <p style={styles.noSlots}>No treatments available</p>
             )}
@@ -779,7 +808,7 @@ export default function BookingPage() {
                 )}
               </div>
             )}
-            {selectedTreatment && (
+            {selectedTreatments.length > 0 && (
               <button
                 onClick={() => setStep(1)}
                 style={{ ...styles.primaryBtn, background: brand, width: '100%', marginTop: 16 }}
@@ -1066,10 +1095,25 @@ export default function BookingPage() {
           <div>
             <h2 style={styles.stepTitle}>Confirm your booking</h2>
             <div style={styles.summaryCard}>
-              <div style={styles.summaryRow}>
-                <span style={styles.summaryLabel}>Treatment</span>
-                <span style={styles.summaryValue}>{selectedTreatment.name}</span>
-              </div>
+              {/* Show each treatment row when multiple selected */}
+              {selectedTreatments.length > 1 ? (
+                <>
+                  <div style={{ ...styles.summaryRow, borderBottom: 'none', paddingBottom: 0 }}>
+                    <span style={{ ...styles.summaryLabel, fontWeight: 600 }}>Treatments</span>
+                  </div>
+                  {selectedTreatments.map(t => (
+                    <div key={t.id} style={styles.summaryRow}>
+                      <span style={styles.summaryLabel}>{t.name} ({t.duration_minutes} min)</span>
+                      <span style={styles.summaryValue}>£{(t.price_cents / 100).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <div style={styles.summaryRow}>
+                  <span style={styles.summaryLabel}>Treatment</span>
+                  <span style={styles.summaryValue}>{selectedTreatment?.name}</span>
+                </div>
+              )}
               <div style={styles.summaryRow}>
                 <span style={styles.summaryLabel}>Date</span>
                 <span style={styles.summaryValue}>
@@ -1082,14 +1126,16 @@ export default function BookingPage() {
               </div>
               <div style={styles.summaryRow}>
                 <span style={styles.summaryLabel}>Duration</span>
-                <span style={styles.summaryValue}>{selectedTreatment.duration_minutes} minutes</span>
+                <span style={styles.summaryValue}>{combinedDuration + addOnDuration} minutes</span>
               </div>
               {selectedAddOns.length > 0 && (
                 <>
-                  <div style={styles.summaryRow}>
-                    <span style={styles.summaryLabel}>Treatment price</span>
-                    <span style={styles.summaryValue}>£{(selectedTreatment.price_cents / 100).toFixed(2)}</span>
-                  </div>
+                  {selectedTreatments.length <= 1 && (
+                    <div style={styles.summaryRow}>
+                      <span style={styles.summaryLabel}>Treatment price</span>
+                      <span style={styles.summaryValue}>£{(combinedTreatmentCents / 100).toFixed(2)}</span>
+                    </div>
+                  )}
                   {selectedAddOns.map(ao => (
                     <div key={ao.id} style={styles.summaryRow}>
                       <span style={styles.summaryLabel}>+ {ao.name}</span>
@@ -1131,7 +1177,7 @@ export default function BookingPage() {
                   <div style={{ ...styles.depositBanner, background: brandLight, borderColor: brandMedium, marginBottom: 10 }}>
                     {paymentType === 'full'
                       ? `Paying £${(grandTotalCents / 100).toFixed(2)} in full`
-                      : `Deposit of £${(depositCents / 100).toFixed(2)} required to confirm`}
+                      : `Deposit of £${(depositCents / 100).toFixed(2)} to confirm${selectedTreatments.length > 1 ? ` (${selectedTreatments.length} treatments)` : ''}`}
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
@@ -1351,8 +1397,10 @@ export default function BookingPage() {
                     : hasDeposit
                       ? paymentType === 'full'
                         ? `Pay £${(grandTotalCents / 100).toFixed(2)}`
-                        : `Pay £${((depositCents + addOnTotal) / 100).toFixed(2)} deposit`
-                      : 'Confirm booking'}
+                        : `Pay £${(depositCents / 100).toFixed(2)} deposit`
+                      : selectedTreatments.length > 1
+                        ? `Book ${selectedTreatments.length} treatments`
+                        : 'Confirm booking'}
               </button>
             </div>
           </div>

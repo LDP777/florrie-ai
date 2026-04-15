@@ -115,6 +115,7 @@ export default function Dashboard() {
   const [notifCount, setNotifCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (beautician) loadData();
@@ -376,26 +377,66 @@ export default function Dashboard() {
         </button>
       </section>
 
-      {/* ─── Booking link chip — right under greeting ─── */}
-      {beautician?.booking_slug && (
-        <button onClick={() => {
-          const url = `${window.location.origin}/book/${beautician.booking_slug}`;
-          if (navigator.share) {
-            navigator.share({ title: 'Book an appointment', url }).catch(() => {});
-          } else {
-            navigator.clipboard.writeText(url);
-          }
-        }} style={{
-          display: 'flex', alignItems: 'center', gap: 6,
-          background: 'rgba(146,64,94,0.07)', border: '1px solid rgba(146,64,94,0.15)',
-          borderRadius: 20, padding: '6px 14px', cursor: 'pointer',
-          fontSize: 12, fontWeight: 600, color: '#92405e',
-          fontFamily: 'inherit', marginBottom: 20, width: 'fit-content',
-        }}>
-          <MIcon name="link" size={14} style={{ color: '#92405e' }} />
-          Share booking link
-        </button>
-      )}
+      {/* ─── Your booking link — prominent card ─── */}
+      {beautician?.booking_slug && (() => {
+        const bookingUrl = `${window.location.origin}/book/${beautician.booking_slug}`;
+        return (
+          <section style={S.bookingLinkCard}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <div style={{
+                width: 32, height: 32, borderRadius: 10,
+                background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                <MIcon name="link" size={18} style={{ color: '#fff' }} />
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#1d1b19' }}>Your booking link</p>
+                <p style={{ margin: 0, fontSize: 11, color: 'rgba(83,66,71,0.55)' }}>Share this with clients so they can book online</p>
+              </div>
+            </div>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              background: '#fff', borderRadius: 12, padding: '10px 12px',
+              border: '1px solid rgba(146,64,94,0.12)',
+            }}>
+              <p style={{
+                margin: 0, fontSize: 13, color: '#92405e', fontWeight: 500,
+                flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                fontFamily: "var(--font-sans, 'DM Sans', sans-serif)",
+              }}>{bookingUrl.replace('https://', '')}</p>
+              <button onClick={() => {
+                navigator.clipboard.writeText(bookingUrl);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              }} style={{
+                background: copied ? '#92405e' : 'rgba(146,64,94,0.08)',
+                border: 'none', borderRadius: 8, padding: '6px 12px', cursor: 'pointer',
+                fontSize: 12, fontWeight: 600,
+                color: copied ? '#fff' : '#92405e',
+                fontFamily: 'inherit', transition: 'all 0.2s ease',
+                display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
+              }}>
+                <MIcon name={copied ? 'check' : 'content_copy'} size={14} style={{ color: copied ? '#fff' : '#92405e' }} />
+                {copied ? 'Copied!' : 'Copy'}
+              </button>
+              {navigator.share && (
+                <button onClick={() => {
+                  navigator.share({ title: `Book with ${beautician.first_name || 'me'}`, url: bookingUrl }).catch(() => {});
+                }} style={{
+                  background: 'rgba(146,64,94,0.08)', border: 'none', borderRadius: 8,
+                  padding: '6px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                  color: '#92405e', fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
+                }}>
+                  <MIcon name="share" size={14} style={{ color: '#92405e' }} />
+                  Share
+                </button>
+              )}
+            </div>
+          </section>
+        );
+      })()}
 
       {/* ─── Setup Checklist (shown until fully onboarded) ─── */}
       <SetupChecklist />
@@ -619,8 +660,15 @@ const S = {
     animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
   },
 
+  // Booking link card
+  bookingLinkCard: {
+    background: 'rgba(146,64,94,0.04)',
+    border: '1.5px solid rgba(146,64,94,0.12)',
+    borderRadius: 16, padding: 16, marginBottom: 24,
+  },
+
   // Greeting
-  greetingSection: { paddingTop: 32, marginBottom: 32 },
+  greetingSection: { paddingTop: 32, marginBottom: 16 },
   dateLabel: {
     fontFamily: "var(--font-sans, 'DM Sans', sans-serif)",
     fontSize: 14, color: 'rgba(83, 66, 71, 0.7)', margin: '0 0 4px',

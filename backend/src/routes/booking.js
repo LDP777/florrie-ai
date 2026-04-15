@@ -19,6 +19,7 @@ const emptyToNull = (v) => (typeof v === 'string' && v.trim() === '' ? null : v)
 
 const bookingSchema = z.object({
   treatment_id: z.string().uuid('Invalid treatment ID'),
+  extra_treatment_ids: z.array(z.string().uuid()).optional().default([]),  // multi-treatment booking
   starts_at: z.string().refine(
     v => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(v) && !isNaN(Date.parse(v)),
     { message: 'Invalid date/time format — expected ISO 8601 (e.g. 2026-03-28T14:00:00)' }
@@ -1314,7 +1315,7 @@ router.post('/:slug/validate-code', async (req, res) => {
  * Returning clients with a saved Stripe customer see their saved cards.
  */
 router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req, res) => {
-  const { treatment_id, starts_at, client_name, client_email, client_phone, notes, consultation, add_ons, payment_type, payment_method, discount_code, photo_consent, client_package_id } = req.body;
+  const { treatment_id, extra_treatment_ids, starts_at, client_name, client_email, client_phone, notes, consultation, add_ons, payment_type, payment_method, discount_code, photo_consent, client_package_id } = req.body;
 
   // Get beautician from slug (include Stripe fields, booking policy, payment settings)
   const { data: beautician } = await supabase
@@ -1325,7 +1326,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
 
   if (!beautician) return res.status(404).json({ error: 'Booking page not found' });
 
-  // Get treatment (including deposit_percent for percentage-based deposits)
+  // Get primary treatment (including deposit_percent for percentage-based deposits)
   const { data: treatment } = await supabase
     .from('treatments')
     .select('*, deposit_percent, consultation_form_id')
@@ -1334,6 +1335,24 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     .single();
 
   if (!treatment) return res.status(404).json({ error: 'Treatment not found' });
+
+  // ── MULTI-TREATMENT: fetch extra treatments if provided ──
+  let extraTreatments = [];
+  if (extra_treatment_ids && extra_treatment_ids.length > 0) {
+    const { data: extras } = await supabase
+      .from('treatments')
+      .select('id, name, duration_minutes, buffer_minutes, price_cents, deposit_cents, deposit_percent')
+      .in('id', extra_treatment_ids)
+      .eq('beautician_id', beautician.id);
+    extraTreatments = extras || [];
+    if (extraTreatments.length !== extra_treatment_ids.length) {
+      return res.status(404).json({ error: 'One or more selected treatments not found' });
+    }
+  }
+  const allTreatments = [treatment, ...extraTreatments];
+  const combinedDuration = allTreatments.reduce((sum, t) => sum + (t.duration_minutes || 0), 0);
+  const combinedBuffer = Math.max(...allTreatments.map(t => t.buffer_minutes || 0)); // use longest buffer, not sum
+  const combinedPriceCents = allTreatments.reduce((sum, t) => sum + (t.price_cents || 0), 0);
 
   // Block appointments in the past
   const startsAtCheck = new Date(starts_at);
@@ -1419,8 +1438,8 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     isNewClient = true;
   }
 
-  // Calculate times
-  const totalMinutes = treatment.duration_minutes + (treatment.buffer_minutes || 0);
+  // Calculate times (use combined duration for multi-treatment bookings)
+  const totalMinutes = combinedDuration + combinedBuffer;
   const startsDate = new Date(starts_at);
   const endsDate = new Date(startsDate.getTime() + totalMinutes * 60 * 1000);
 
@@ -1461,7 +1480,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
 
     if (promo && promo.is_active && now >= promo.valid_from && now <= promo.valid_until
         && (!promo.max_uses || promo.current_uses < promo.max_uses)) {
-      const treatmentTotal = treatment.price_cents + (add_ons || []).reduce((s, ao) => s + ao.price_cents, 0);
+      const treatmentTotal = combinedPriceCents + (add_ons || []).reduce((s, ao) => s + ao.price_cents, 0);
       if (promo.discount_type === 'percentage') {
         discountCents = Math.round(treatmentTotal * promo.discount_value / 100);
       } else {
@@ -1483,7 +1502,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
         .maybeSingle();
 
       if (voucher && voucher.status === 'active') {
-        const treatmentTotal = treatment.price_cents + (add_ons || []).reduce((s, ao) => s + ao.price_cents, 0);
+        const treatmentTotal = combinedPriceCents + (add_ons || []).reduce((s, ao) => s + ao.price_cents, 0);
         discountCents = Math.min(voucher.amount, treatmentTotal);
         discountMeta = { type: 'voucher', code: voucher.code, voucher_id: voucher.id, discount_cents: discountCents };
 
@@ -1536,26 +1555,28 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   const isOfflinePayment = payment_method === 'cash' || payment_method === 'bank_transfer';
 
   if (!isPackageRedemption) {
-    // Calculate deposit: percentage overrides flat amount
-    depositCents = treatment.deposit_cents || 0;
-    if (treatment.deposit_percent > 0 && treatment.price_cents > 0) {
-      depositCents = Math.round(treatment.price_cents * treatment.deposit_percent / 100);
-    }
+    // Calculate deposit: sum deposits across all treatments (multi-treatment aware)
+    depositCents = allTreatments.reduce((sum, t) => {
+      if (t.deposit_percent > 0 && t.price_cents > 0) {
+        return sum + Math.round(t.price_cents * t.deposit_percent / 100);
+      }
+      return sum + (t.deposit_cents || 0);
+    }, 0);
 
     // Apply global require_deposit override (only for card payments)
     const paySettings = beautician.payment_settings || {};
-    if (!isOfflinePayment && paySettings.require_deposit && depositCents === 0 && treatment.price_cents > 0) {
+    if (!isOfflinePayment && paySettings.require_deposit && depositCents === 0 && combinedPriceCents > 0) {
       // Parse global deposit amount setting (e.g. '£10', '£15', '50%')
       const dAmt = paySettings.deposit_amount || '£10';
       if (dAmt.endsWith('%')) {
-        depositCents = Math.round(treatment.price_cents * parseInt(dAmt) / 100);
+        depositCents = Math.round(combinedPriceCents * parseInt(dAmt) / 100);
       } else {
         depositCents = Math.round(parseFloat(dAmt.replace('£', '')) * 100);
       }
     }
 
     // If client chose to pay full amount, charge treatment price + add-ons minus discount
-    isFullPayment = payment_type === 'full' && treatment.price_cents > 0;
+    isFullPayment = payment_type === 'full' && combinedPriceCents > 0;
 
     // Offline payments never require online deposit — appointment confirmed directly
     depositRequired = !isOfflinePayment && (depositCents > 0 || isFullPayment);
@@ -1567,7 +1588,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     ? new Date(Date.now() + (bookingPolicy.payment_buffer_minutes || 10) * 60 * 1000).toISOString()
     : null;
 
-  // Create appointment
+  // Create appointment (uses combined duration/price for multi-treatment bookings)
   const { data: appointment, error: aError } = await supabase
     .from('appointments')
     .insert({
@@ -1576,9 +1597,9 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
       treatment_id,
       starts_at,
       ends_at: endsDate.toISOString(),
-      duration_minutes: treatment.duration_minutes,
-      buffer_minutes: treatment.buffer_minutes || 0,
-      price_cents: treatment.price_cents,
+      duration_minutes: combinedDuration,
+      buffer_minutes: combinedBuffer,
+      price_cents: combinedPriceCents,
       deposit_cents: depositCents,
       payment_type: isFullPayment ? 'full' : 'deposit',
       client_notes: clientNotes,
@@ -1591,6 +1612,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
       ...(discountMeta && { discount_meta: discountMeta, discount_cents: discountCents }),
       ...(photo_consent && { photo_consent: true }),
       ...(isPackageRedemption && { package_redemption: true, client_package_id }),
+      ...(extraTreatments.length > 0 && { extra_treatment_ids: extraTreatments.map(t => t.id) }),
     })
     .select()
     .single();
@@ -1614,27 +1636,30 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   // Calculate total including add-ons for Stripe line items
   const addOnTotalCents = (add_ons || []).reduce((sum, ao) => sum + ao.price_cents, 0);
 
+  // Build display name for all treatments
+  const treatmentNames = allTreatments.map(t => t.name).join(' + ');
+
   // Log AI action (supabase returns thenable, not a Promise — use .then() not .catch())
   const { error: logErr } = await supabase.from('ai_actions').insert({
     beautician_id: beautician.id,
     action_type: 'booking_created',
     digital_employee: 'front_desk',
-    summary: `${firstName} booked ${treatment.name} for ${startsDate.toLocaleDateString('en-GB')} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`,
-    details: { appointment_id: appointment.id, treatment: treatment.name, client_name },
+    summary: `${firstName} booked ${treatmentNames} for ${startsDate.toLocaleDateString('en-GB')} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`,
+    details: { appointment_id: appointment.id, treatment: treatmentNames, treatments: allTreatments.map(t => ({ id: t.id, name: t.name })), client_name },
     client_id: client.id,
     appointment_id: appointment.id,
     confidence: 1.0,
     autonomous: false,
     outcome: 'success',
     notification_sent: true,
-    notification_text: `New booking: ${firstName} — ${treatment.name}, ${startsDate.toLocaleDateString('en-GB')} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
+    notification_text: `New booking: ${firstName} — ${treatmentNames}, ${startsDate.toLocaleDateString('en-GB')} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
   });
   if (logErr) logger.warn({ err: logErr }, 'AI action log failed (non-fatal)');
 
   // Push notification — beautician gets a team-style alert
   const timeStr = startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   const dateStr = startsDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-  pushNewBooking(beautician.id, firstName, treatment.name, `${dateStr} at ${timeStr}`).catch(() => {});
+  pushNewBooking(beautician.id, firstName, treatmentNames, `${dateStr} at ${timeStr}`).catch(() => {});
 
   // ── DEPOSIT FLOW ──────────────────────────────────────────
   // If deposit required but Stripe isn't configured, return booking with deposit_pending flag
@@ -1665,10 +1690,11 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
         id: appointment.id,
         managementToken: appointment.management_token,
         manageUrl: `${FRONTEND_URL}/book/${req.params.slug}/manage/${appointment.management_token}`,
-        treatment: treatment.name,
+        treatment: treatmentNames,
+        treatments: allTreatments.map(t => ({ id: t.id, name: t.name, price_cents: t.price_cents })),
         date: startsDate.toLocaleDateString('en-GB'),
         time: startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-        price: `£${(treatment.price_cents / 100).toFixed(2)}`,
+        price: `£${(combinedPriceCents / 100).toFixed(2)}`,
         deposit: `£${(depositCents / 100).toFixed(2)}`,
         status: 'pending',
         deposit_pending: true,
@@ -1699,28 +1725,49 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
       }
 
       // Build line items: treatment payment (deposit or full) + add-on costs
-      const treatmentLabel = isFullPayment ? treatment.name : `${treatment.name} — deposit`;
-      let treatmentAmountCents = isFullPayment ? treatment.price_cents : depositCents;
+      // For multi-treatment bookings, show each treatment as a line item when paying in full
+      const lineItems = [];
 
-      // Apply discount to the treatment line item when paying in full
-      // (discounts don't reduce deposits — they reduce the total bill)
-      if (isFullPayment && discountCents > 0) {
-        treatmentAmountCents = Math.max(0, treatmentAmountCents - discountCents);
-      }
-
-      const lineItems = [{
-        price_data: {
-          currency: 'gbp',
-          product_data: {
-            name: discountCents > 0 && isFullPayment
-              ? `${treatmentLabel} (${discountMeta.code} applied)`
-              : treatmentLabel,
-            description: `${dateLabel} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} with ${beautician.business_name || beautician.first_name}`,
+      if (isFullPayment) {
+        // Full payment: one line per treatment (discount applied to first)
+        let remainingDiscount = discountCents;
+        for (const t of allTreatments) {
+          let amount = t.price_cents;
+          if (remainingDiscount > 0) {
+            const applied = Math.min(remainingDiscount, amount);
+            amount -= applied;
+            remainingDiscount -= applied;
+          }
+          lineItems.push({
+            price_data: {
+              currency: 'gbp',
+              product_data: {
+                name: discountCents > 0 && t === treatment ? `${t.name} (${discountMeta?.code} applied)` : t.name,
+                description: `${dateLabel} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} with ${beautician.business_name || beautician.first_name}`,
+              },
+              unit_amount: Math.max(0, amount),
+            },
+            quantity: 1,
+          });
+        }
+      } else {
+        // Deposit: single combined line item
+        const label = allTreatments.length > 1
+          ? `${treatmentNames} — deposit`
+          : `${treatment.name} — deposit`;
+        lineItems.push({
+          price_data: {
+            currency: 'gbp',
+            product_data: {
+              name: label,
+              description: `${dateLabel} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} with ${beautician.business_name || beautician.first_name}`,
+            },
+            unit_amount: depositCents,
           },
-          unit_amount: treatmentAmountCents,
-        },
-        quantity: 1,
-      }];
+          quantity: 1,
+        });
+      }
+      const treatmentAmountCents = isFullPayment ? Math.max(0, combinedPriceCents - discountCents) : depositCents;
 
       // Add each add-on as a separate line item (full price, not deposit)
       if (add_ons && add_ons.length > 0) {
@@ -1807,10 +1854,11 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
           id: appointment.id,
           managementToken: appointment.management_token,
           manageUrl: `${FRONTEND_URL}/book/${req.params.slug}/manage/${appointment.management_token}`,
-          treatment: treatment.name,
+          treatment: treatmentNames,
+          treatments: allTreatments.map(t => ({ id: t.id, name: t.name, price_cents: t.price_cents })),
           date: startsDate.toLocaleDateString('en-GB'),
           time: startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-          price: `£${(treatment.price_cents / 100).toFixed(2)}`,
+          price: `£${(combinedPriceCents / 100).toFixed(2)}`,
           deposit: isFullPayment ? null : `£${(depositCents / 100).toFixed(2)}`,
           payment_type: isFullPayment ? 'full' : 'deposit',
           amount_charged: `£${(checkoutTotalCents / 100).toFixed(2)}`,
@@ -1853,10 +1901,11 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
       id: appointment.id,
       managementToken: appointment.management_token,
       manageUrl: `${FRONTEND_URL}/book/${req.params.slug}/manage/${appointment.management_token}`,
-      treatment: treatment.name,
+      treatment: treatmentNames,
+      treatments: allTreatments.map(t => ({ id: t.id, name: t.name, price_cents: t.price_cents })),
       date: startsDate.toLocaleDateString('en-GB'),
       time: startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-      price: `£${(treatment.price_cents / 100).toFixed(2)}`,
+      price: `£${(combinedPriceCents / 100).toFixed(2)}`,
       deposit: null,
       status: appointment.status,
       paymentExpiresAt: paymentExpiresAt || null,
