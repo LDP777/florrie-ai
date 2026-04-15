@@ -14,6 +14,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useBeautician, supabase, fetchRows } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
+import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -39,6 +40,7 @@ export default function Inbox() {
   const [compose, setCompose] = useState('');
   const [showAiDraft, setShowAiDraft] = useState(true);
   const [channelFilter, setChannelFilter] = useState('all');
+  const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
@@ -55,15 +57,14 @@ export default function Inbox() {
         .from('messages')
         .select('*, clients(first_name, last_name)')
         .eq('beautician_id', beautician.id)
-        .eq('direction', 'inbound')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: true });
 
       if (error) {
         logger.error({ err: error }, 'Load conversations error');
         setError('Something went wrong');
         setConversations([]);
       } else {
-        // Group messages by client_id to create conversation list
+        // Group ALL messages (inbound + outbound) by client_id
         const grouped = {};
         (data || []).forEach(msg => {
           if (!grouped[msg.client_id]) {
@@ -72,23 +73,42 @@ export default function Inbox() {
               client_id: msg.client_id,
               client: msg.clients?.first_name || 'Unknown',
               channel: msg.channel,
-              unread: msg.read ? 0 : 1,
+              unread: 0,
               lastMessage: msg.content,
               lastTime: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               messages: [],
-              aiDraft: msg.ai_response || null,
+              aiDraft: null,
             };
           }
+          // Track unread count from inbound messages only
+          if (msg.direction === 'inbound' && !msg.read) {
+            grouped[msg.client_id].unread += 1;
+          }
+          // Keep latest AI draft suggestion from inbound messages
+          if (msg.direction === 'inbound' && msg.ai_response) {
+            grouped[msg.client_id].aiDraft = msg.ai_response;
+          }
+          // Update last message to the most recent (data is sorted ascending)
+          grouped[msg.client_id].lastMessage = msg.content;
+          grouped[msg.client_id].lastTime = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
           grouped[msg.client_id].messages.push({
             id: msg.id,
             dir: msg.direction === 'inbound' ? 'in' : 'out',
             text: msg.content,
-            time: new Date(msg.created_at).toLocaleTimeString(),
+            time: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             read: msg.read || false,
           });
         });
 
-        setConversations(Object.values(grouped));
+        // Sort conversations by most recent message (last in each group)
+        const convList = Object.values(grouped).sort((a, b) => {
+          const aLast = (data || []).filter(m => m.client_id === a.client_id).pop();
+          const bLast = (data || []).filter(m => m.client_id === b.client_id).pop();
+          return new Date(bLast?.created_at || 0) - new Date(aLast?.created_at || 0);
+        });
+
+        setConversations(convList);
       }
     } catch (err) {
       logger.error({ err }, 'Failed to load conversations');
@@ -118,19 +138,65 @@ export default function Inbox() {
   }
 
   async function sendMessage(text) {
-    if (!text.trim() || !activeId) return;
-    const newMsg = { id: `m-${Date.now()}`, dir: 'out', text: text.trim(), time: 'Just now', read: true };
+    if (!text.trim() || !activeId || sending) return;
+    const body = text.trim();
+    const conv = conversations.find(c => c.id === activeId);
+    if (!conv) return;
 
-    // Update UI optimistically
+    setSending(true);
+    setCompose('');
+    setShowAiDraft(false);
+
+    // Optimistic UI update
+    const tempId = `m-${Date.now()}`;
+    const optimistic = { id: tempId, dir: 'out', text: body, time: 'Sending…', read: true };
     setConversations(prev => prev.map(c =>
       c.id === activeId
-        ? { ...c, messages: [...c.messages, newMsg], lastMessage: text.trim(), lastTime: 'Just now', aiDraft: null }
+        ? { ...c, messages: [...c.messages, optimistic], lastMessage: body, lastTime: 'Just now', aiDraft: null }
         : c
     ));
 
-    // Send to real DB via SMS API (Twilio)
-    setCompose('');
-    setShowAiDraft(false);
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+      const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
+
+      let res;
+      if (conv.channel === 'email') {
+        res = await fetch(`${API_BASE}/api/notifications/send-email`, {
+          method: 'POST', headers,
+          body: JSON.stringify({ client_id: conv.client_id, subject: 'Message from your beautician', text: body }),
+        });
+      } else {
+        // SMS covers sms + whatsapp channels via Bird
+        res = await fetch(`${API_BASE}/api/notifications/send-sms`, {
+          method: 'POST', headers,
+          body: JSON.stringify({ client_id: conv.client_id, message: body }),
+        });
+      }
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Send failed');
+      }
+
+      // Mark the optimistic message as sent
+      setConversations(prev => prev.map(c =>
+        c.id === activeId
+          ? { ...c, messages: c.messages.map(m => m.id === tempId ? { ...m, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) } : m) }
+          : c
+      ));
+    } catch (err) {
+      logger.error({ err }, 'Failed to send message');
+      // Mark message as failed in UI
+      setConversations(prev => prev.map(c =>
+        c.id === activeId
+          ? { ...c, messages: c.messages.map(m => m.id === tempId ? { ...m, time: 'Failed — tap to retry', failed: true } : m) }
+          : c
+      ));
+    } finally {
+      setSending(false);
+    }
   }
 
   function useAiDraft() {
@@ -238,13 +304,17 @@ export default function Inbox() {
         {active.messages.map(msg => (
           <div
             key={msg.id}
+            onClick={msg.failed ? () => sendMessage(msg.text) : undefined}
             style={{
               ...s.bubble,
               ...(msg.dir === 'out' ? s.bubbleOut : s.bubbleIn),
+              ...(msg.failed ? { background: '#d4463644', cursor: 'pointer' } : {}),
             }}
           >
             <p style={s.bubbleText}>{msg.text}</p>
-            <span style={s.bubbleTime}>{msg.time}</span>
+            <span style={{ ...s.bubbleTime, color: msg.failed ? '#d44636' : undefined }}>
+              {msg.failed ? '⚠ Failed — tap to retry' : msg.time}
+            </span>
           </div>
         ))}
 
@@ -290,19 +360,20 @@ export default function Inbox() {
           type="text"
           value={compose}
           onChange={e => setCompose(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && sendMessage(compose)}
-          placeholder="Type a message..."
-          style={s.composeInput}
+          onKeyDown={e => e.key === 'Enter' && !sending && sendMessage(compose)}
+          placeholder={sending ? 'Sending…' : 'Type a message...'}
+          disabled={sending}
+          style={{ ...s.composeInput, opacity: sending ? 0.6 : 1 }}
         />
         <button
           onClick={() => sendMessage(compose)}
-          disabled={!compose.trim()}
+          disabled={!compose.trim() || sending}
           style={{
             ...s.sendBtn,
-            opacity: compose.trim() ? 1 : 0.4,
+            opacity: compose.trim() && !sending ? 1 : 0.4,
           }}
         >
-          ↑
+          {sending ? '…' : '↑'}
         </button>
       </div>
     </div>
