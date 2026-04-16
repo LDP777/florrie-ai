@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import Stripe from 'stripe';
 import { supabase } from '../config.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';

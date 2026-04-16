@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import Anthropic from '@anthropic-ai/sdk';
