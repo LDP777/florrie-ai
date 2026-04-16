@@ -95,6 +95,7 @@ const PrivacyPage = lazy(() => import('./pages/PrivacyPage.jsx'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy.jsx'));
 const Support = lazy(() => import('./pages/Support.jsx'));
 const NotFound = lazy(() => import('./pages/NotFound.jsx'));
+const UpdatePassword = lazy(() => import('./pages/UpdatePassword.jsx'));
 
 function PageLoader() {
   return (
@@ -158,7 +159,7 @@ export default function App() {
   }, [session, beautician]);
 
   const isPublicRoute = location.pathname.startsWith('/book/') || location.pathname.startsWith('/form/') || location.pathname.includes('/manage/') || location.pathname === '/privacy' || location.pathname === '/support';
-  const isAuthRoute = location.pathname === '/login';
+  const isAuthRoute = location.pathname === '/login' || location.pathname === '/update-password';
   const isLandingRoute = location.pathname === '/';
 
   if (loading) {
@@ -199,6 +200,7 @@ export default function App() {
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/login" element={<Login supabase={supabase} />} />
+          <Route path="/update-password" element={<UpdatePassword supabase={supabase} />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
@@ -355,6 +357,7 @@ export default function App() {
               <Onboarding onComplete={() => navigate('/')} />
             } />
             <Route path="/login" element={<Navigate to="/" replace />} />
+            <Route path="/update-password" element={<UpdatePassword supabase={supabase} />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="*" element={<NotFound />} />
