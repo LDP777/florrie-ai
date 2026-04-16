@@ -152,6 +152,28 @@ export default function Campaigns() {
   const active = campaigns.filter(c => ['draft', 'approved', 'sending'].includes(c.status));
   const history = campaigns.filter(c => ['sent', 'cancelled'].includes(c.status));
 
+  // Compute a contextual AI suggestion based on actual campaign state
+  const nextBankHoliday = (() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    // UK bank holidays (approximate — covers the common ones)
+    const holidays = [
+      new Date(year, 0, 1), new Date(year, 3, 18), new Date(year, 3, 21),
+      new Date(year, 4, 5), new Date(year, 4, 26), new Date(year, 7, 25),
+      new Date(year, 11, 25), new Date(year, 11, 26),
+    ];
+    return holidays.find(h => h > now && (h - now) / 86400000 <= 14);
+  })();
+
+  function getAiSuggestion() {
+    if (nextBankHoliday) {
+      const dayName = nextBankHoliday.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
+      return { type: 'bank_holiday', text: `Bank holiday coming up on ${dayName}. A promo blast before the long weekend could fill your book.` };
+    }
+    return { type: 'reactivation', text: 'Some of your clients haven\'t visited in a while. A comeback campaign could bring them back.' };
+  }
+  const aiSuggestion = getAiSuggestion();
+
   return (
     <div style={styles.page}>
       <div style={styles.header}>
@@ -275,13 +297,9 @@ export default function Campaigns() {
               <span style={{ fontSize: 16 }}>🤖</span>
               <span style={styles.aiCardTitle}>AI Suggestion</span>
             </div>
-            <p style={styles.aiCardText}>
-              {active.length === 0
-                ? 'You have 3 clients who haven\'t visited in 30+ days. Want me to draft a comeback campaign?'
-                : 'A bank holiday is coming up next Monday. Perfect time for a promo blast.'}
-            </p>
+            <p style={styles.aiCardText}>{aiSuggestion.text}</p>
             <button
-              onClick={() => startCreate(active.length === 0 ? 'reactivation' : 'bank_holiday')}
+              onClick={() => startCreate(aiSuggestion.type)}
               style={styles.aiCardBtn}
             >
               Draft it for me

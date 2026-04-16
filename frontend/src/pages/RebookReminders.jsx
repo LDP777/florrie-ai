@@ -18,8 +18,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
-const today = new Date();
-const daysAgo = d => Math.floor((today - new Date(d)) / 86400000);
+const daysAgo = d => Math.floor((new Date() - new Date(d)) / 86400000);
 
 const MESSAGE_TEMPLATES = [
   {

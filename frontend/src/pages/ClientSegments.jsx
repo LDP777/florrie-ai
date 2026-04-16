@@ -137,53 +137,6 @@ function computeRFMSegments(clients) {
   }).filter(s => s.count > 0);
 }
 
-function generateDevClients() {
-  const now = new Date();
-  const names = [
-    'Shauna', 'Daisy S', 'Jasmin', 'Sophie', 'Grace', 'Beth', 'Amy', 'Chloe',
-    'Laura', 'Megan', 'Katie', 'Ellie M', 'Poppy', 'Ruby', 'Charlotte',
-    'Holly', 'Freya', 'Isla', 'Lucy', 'Molly', 'Emily', 'Amber', 'Zara',
-  ];
-  const treatments = [
-    'Lamination & Hybrid Dye', 'Lamination & Tint', 'HD Brows', 'Lash Lift & Tint',
-    'Hybrid Brows', 'Lamination Maintenance / Tint', 'Brow Jelly Mask', 'Ombre Brows',
-  ];
-  const prices = [4500, 4000, 2500, 4000, 3000, 2500, 700, 25000];
-
-  return names.map((name, i) => {
-    // Vary patterns: VIPs visit often & recently, dormants haven't been in ages, etc.
-    const isVip = i < 4;
-    const isLoyal = i >= 4 && i < 10;
-    const isNew = i >= 10 && i < 14;
-    const isDeclining = i >= 14 && i < 17;
-    const isDormant = i >= 17 && i < 20;
-    // rest are one-timers
-
-    const visitCount = isVip ? 12 + i : isLoyal ? 6 + (i % 3) : isNew ? 2 + (i % 2) : isDeclining ? 8 : isDormant ? 5 : 1;
-    const lastDaysAgo = isVip ? 3 + i : isLoyal ? 14 + i : isNew ? 5 + i : isDeclining ? 50 + i : isDormant ? 100 + i : 45 + (i * 3);
-    const treatIdx = i % treatments.length;
-    const pricePerVisit = prices[treatIdx];
-
-    const appts = [];
-    for (let v = 0; v < visitCount; v++) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - lastDaysAgo - (v * (isVip ? 14 : isLoyal ? 28 : 35)));
-      appts.push({ created_at: d.toISOString(), treatment_name: treatments[treatIdx], price_cents: pricePerVisit });
-    }
-
-    return {
-      id: `dev-seg-${i}`,
-      first_name: name,
-      last_name: '',
-      total_visits: visitCount,
-      total_spend_cents: visitCount * pricePerVisit,
-      last_visit_at: appts[0]?.created_at,
-      created_at: appts[appts.length - 1]?.created_at || now.toISOString(),
-      appointments: appts,
-    };
-  });
-}
-
 export default function ClientSegments() {
   const { beautician, loading: bLoading } = useBeautician();
   const navigate = useNavigate();

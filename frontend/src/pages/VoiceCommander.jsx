@@ -86,14 +86,81 @@ const TOOL_TO_ACTION = {
   get_top_clients: { label: 'View Clients', path: '/clients' },
   add_note: { label: 'View Checklist', path: '/checklist' },
 };
-const EXAMPLE_PROMPTS = [
+// Fallback prompts shown before real data loads
+const FALLBACK_PROMPTS = [
   "What's my schedule today?",
-  "Block next week for a holiday",
-  "What did I earn last month?",
-  "Message everyone booked this week",
-  "Who haven't I seen in 2 months?",
-  "Move Shauna's appointment to Thursday",
+  "What did I earn this week?",
+  "Who's overdue for a rebook?",
+  "Block tomorrow afternoon off",
+  "What's my busiest day this week?",
+  "Show me my top clients",
 ];
+
+// Build contextual suggestions from live data
+function buildLiveSuggestions({ todayAppts, upcomingAppts, recentClients, dormantClients }) {
+  const pool = [];
+  const now = new Date();
+  const dayName = now.toLocaleDateString('en-GB', { weekday: 'long' });
+  const tomorrowName = new Date(now.getTime() + 86400000).toLocaleDateString('en-GB', { weekday: 'long' });
+
+  // Schedule-based
+  if (todayAppts.length > 0) {
+    pool.push(`What's my schedule today?`);
+    const nextAppt = todayAppts.find(a => new Date(a.starts_at) > now);
+    if (nextAppt) {
+      const clientName = nextAppt.clients
+        ? `${nextAppt.clients.first_name || ''} ${nextAppt.clients.last_name || ''}`.trim()
+        : null;
+      if (clientName) pool.push(`What time is ${clientName} in today?`);
+    }
+  } else {
+    pool.push(`Any bookings coming up this week?`);
+  }
+
+  if (todayAppts.length > 0) {
+    pool.push(`How many appointments do I have today?`);
+  }
+
+  // Tomorrow context
+  if (upcomingAppts.length > 0) {
+    pool.push(`What does ${tomorrowName} look like?`);
+    pool.push(`Message everyone booked for ${tomorrowName}`);
+  }
+
+  // Client-name suggestions — use real recent clients
+  if (recentClients.length > 0) {
+    const pick = recentClients[Math.floor(Math.random() * recentClients.length)];
+    pool.push(`When is ${pick} next booked in?`);
+  }
+  if (recentClients.length > 1) {
+    const pick = recentClients[Math.floor(Math.random() * recentClients.length)];
+    pool.push(`Add a note on ${pick}'s file`);
+  }
+
+  // Dormant / rebook
+  if (dormantClients.length > 0) {
+    pool.push(`Who haven't I seen in 2 months?`);
+    if (dormantClients.length >= 3) {
+      pool.push(`Send a comeback message to my ${dormantClients.length} dormant clients`);
+    }
+    const pick = dormantClients[Math.floor(Math.random() * dormantClients.length)];
+    pool.push(`Send ${pick} a rebook nudge`);
+  }
+
+  // Revenue — always relevant
+  pool.push(`What did I earn this week?`);
+  pool.push(`How's this month compared to last?`);
+
+  // Power features
+  pool.push(`What's my busiest day this week?`);
+  pool.push(`Block ${tomorrowName} afternoon off`);
+  pool.push(`Show me my top 5 clients by spend`);
+
+  // Deduplicate and pick 6
+  const unique = [...new Set(pool)];
+  const shuffled = unique.sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, 6);
+}
 // Check Web Speech API support
 const SpeechRecognition = typeof window !== 'undefined'
   ? (window.SpeechRecognition || window.webkitSpeechRecognition)
@@ -108,9 +175,89 @@ export default function VoiceCommander() {
   const [pulseAnim, setPulseAnim] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
   const [speechSupported, setSpeechSupported] = useState(!!SpeechRecognition);
+  const [suggestions, setSuggestions] = useState(FALLBACK_PROMPTS);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const recognitionRef = useRef(null);
+  const suggestionsDataRef = useRef(null);
+
+  // Fetch live data for suggestions
+  useEffect(() => {
+    if (!beautician || bLoading) return;
+    let cancelled = false;
+
+    async function fetchSuggestionData() {
+      try {
+        const now = new Date();
+        const todayStr = now.toISOString().slice(0, 10);
+        const tomorrowStr = new Date(now.getTime() + 86400000).toISOString().slice(0, 10);
+        const sixtyDaysAgo = new Date(now.getTime() - 60 * 86400000).toISOString().slice(0, 10);
+
+        // Fetch today's appointments, tomorrow's, recent clients, and all clients for dormant check
+        const [todayRes, tomorrowRes, clientsRes] = await Promise.all([
+          supabase.from('appointments')
+            .select('starts_at, clients(first_name, last_name)')
+            .eq('beautician_id', beautician.id)
+            .gte('starts_at', `${todayStr}T00:00:00Z`)
+            .lte('starts_at', `${todayStr}T23:59:59Z`)
+            .order('starts_at'),
+          supabase.from('appointments')
+            .select('starts_at, clients(first_name, last_name)')
+            .eq('beautician_id', beautician.id)
+            .gte('starts_at', `${tomorrowStr}T00:00:00Z`)
+            .lte('starts_at', `${tomorrowStr}T23:59:59Z`)
+            .order('starts_at'),
+          supabase.from('clients')
+            .select('first_name, last_name, appointments(created_at)')
+            .eq('beautician_id', beautician.id)
+            .order('created_at', { ascending: false })
+            .limit(50),
+        ]);
+
+        if (cancelled) return;
+
+        const todayAppts = todayRes.data || [];
+        const upcomingAppts = tomorrowRes.data || [];
+
+        // Recent clients = anyone with an appointment in the last 30 days
+        const clients = clientsRes.data || [];
+        const recentClients = [];
+        const dormantClients = [];
+
+        clients.forEach(c => {
+          const name = `${c.first_name || ''} ${c.last_name || ''}`.trim();
+          if (!name) return;
+          const appts = (c.appointments || [])
+            .map(a => new Date(a.created_at))
+            .filter(d => !isNaN(d))
+            .sort((a, b) => b - a);
+          const lastVisit = appts[0];
+          if (!lastVisit) return;
+          const daysSince = Math.floor((now - lastVisit) / 86400000);
+          if (daysSince <= 30) recentClients.push(name);
+          if (daysSince >= 60) dormantClients.push(name);
+        });
+
+        const data = { todayAppts, upcomingAppts, recentClients, dormantClients };
+        suggestionsDataRef.current = data;
+        setSuggestions(buildLiveSuggestions(data));
+      } catch (err) {
+        logger.error('Suggestion data fetch error:', err);
+      }
+    }
+
+    fetchSuggestionData();
+
+    // Reshuffle suggestions every 45 seconds so they feel alive
+    const interval = setInterval(() => {
+      if (suggestionsDataRef.current) {
+        setSuggestions(buildLiveSuggestions(suggestionsDataRef.current));
+      }
+    }, 45000);
+
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [beautician, bLoading]);
+
   // Init greeting + load history
   useEffect(() => {
     if (!bLoading) loadHistory();
@@ -438,9 +585,9 @@ export default function VoiceCommander() {
         <div style={styles.promptsSection}>
           <span style={styles.promptsLabel}>Try saying:</span>
           <div style={styles.promptsGrid}>
-            {EXAMPLE_PROMPTS.map((prompt, i) => (
+            {suggestions.map((prompt, i) => (
               <button
-                key={i}
+                key={prompt}
                 onClick={() => processMessage(prompt, false)}
                 style={styles.promptChip}
               >

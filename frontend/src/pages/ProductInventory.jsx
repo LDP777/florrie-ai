@@ -99,7 +99,48 @@ export default function ProductInventory() {
   }
 
   if (bLoading || loading) return <PageLoader />;
-  if (products.length === 0) return <EmptyState title="No products yet" description="Add your first product to start tracking inventory." />;
+
+  if (products.length === 0) return (
+    <div style={S.page}>
+      <h1 style={S.title}>Inventory</h1>
+      <EmptyState title="No products yet" description="Add your first product to start tracking inventory." />
+      <button style={S.fab} onClick={() => setShowAdd(true)}>+</button>
+      {showAdd && (
+        <div style={S.overlay} onClick={() => setShowAdd(false)}>
+          <div style={S.modal} onClick={e => e.stopPropagation()}>
+            <div style={S.modalHeader}>
+              <h2 style={S.modalTitle}>Add Product</h2>
+              <button style={S.closeBtn} onClick={() => setShowAdd(false)}>✕</button>
+            </div>
+            <div style={S.formBody}>
+              <label style={S.fLabel}>Product Name</label>
+              <input style={S.input} placeholder="e.g. HD Brows Tint – Blonde" value={newProduct.name} onChange={e => setNewProduct(p => ({ ...p, name: e.target.value }))} />
+              <label style={S.fLabel}>Category</label>
+              <div style={S.catGrid}>
+                {CATEGORIES.filter(c => c.key !== 'all').map(c => (
+                  <button key={c.key} style={{ ...S.catBtn, ...(newProduct.category === c.key ? { background: 'var(--accent, #C76B8A)', color: '#fff' } : {}) }} onClick={() => setNewProduct(p => ({ ...p, category: c.key }))}>{c.label}</button>
+                ))}
+              </div>
+              <label style={S.fLabel}>Current Quantity</label>
+              <input style={S.input} type="number" placeholder="0" value={newProduct.qty || ''} onChange={e => setNewProduct(p => ({ ...p, qty: e.target.value }))} />
+              <label style={S.fLabel}>Unit</label>
+              <input style={S.input} placeholder="e.g. tubes, bottles, pcs" value={newProduct.unit} onChange={e => setNewProduct(p => ({ ...p, unit: e.target.value }))} />
+              <label style={S.fLabel}>Reorder Point</label>
+              <input style={S.input} type="number" placeholder="5" value={newProduct.reorderAt || ''} onChange={e => setNewProduct(p => ({ ...p, reorderAt: e.target.value }))} />
+              <label style={S.fLabel}>Cost per Unit (£)</label>
+              <input style={S.input} type="number" step="0.01" placeholder="8.50" value={newProduct.costPer || ''} onChange={e => setNewProduct(p => ({ ...p, costPer: e.target.value }))} />
+              <label style={S.fLabel}>Uses per Unit</label>
+              <input style={S.input} type="number" placeholder="12" value={newProduct.usesPerUnit || ''} onChange={e => setNewProduct(p => ({ ...p, usesPerUnit: e.target.value }))} />
+              <label style={S.fLabel}>Supplier</label>
+              <input style={S.input} placeholder="e.g. HD Brows Direct" value={newProduct.supplier} onChange={e => setNewProduct(p => ({ ...p, supplier: e.target.value }))} />
+            </div>
+            <button style={S.saveBtn} onClick={handleAddProduct} disabled={!newProduct.name}>Add Product</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   const filtered = catFilter === 'all' ? products : products.filter(p => p.category === catFilter);
 
   const sorted = [...filtered].sort((a, b) => {
@@ -289,7 +330,10 @@ export default function ProductInventory() {
 }
 
 function formatDate(d) {
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  if (!d) return '—';
+  const parsed = new Date(d + 'T00:00:00');
+  if (isNaN(parsed)) return '—';
+  return parsed.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 const S = {
