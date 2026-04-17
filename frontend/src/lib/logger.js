@@ -4,7 +4,7 @@ const isDev = import.meta.env.DEV;
 
 const logger = {
   error: (msg, data) => {
-    logger.error(`[florrie.ai] ${msg}`, data || '');
+    console.error(`[florrie.ai] ${msg}`, data || '');
   },
   warn: (msg, data) => {
     if (isDev) console.warn(`[florrie.ai] ${msg}`, data || '');

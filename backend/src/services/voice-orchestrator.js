@@ -1,5 +1,5 @@
 /**
- * Voice Orchestrator — Claude as an agentic tool-caller.
+ * Voice Orchestrator - Claude as an agentic tool-caller.
  *
  * Instead of intent classification → hardcoded switch, we give Claude the full
  * tool library and let it compose whatever sequence of actions it needs.
@@ -28,11 +28,11 @@ const MAX_TOOL_ROUNDS = 5; // Safety limit on agentic loops
 /**
  * Process a voice command end-to-end.
  *
- * @param {string|null} audioBase64 — raw audio as base64 (null if text input)
- * @param {string|null} text — direct text input (null if audio)
- * @param {string|null} mimeType — audio MIME type if audio provided
- * @param {object} beautician — authenticated beautician record
- * @param {object} supabase — supabase client
+ * @param {string|null} audioBase64 - raw audio as base64 (null if text input)
+ * @param {string|null} text - direct text input (null if audio)
+ * @param {string|null} mimeType - audio MIME type if audio provided
+ * @param {object} beautician - authenticated beautician record
+ * @param {object} supabase - supabase client
  * @returns {{ transcript, reply, actions, status }}
  */
 export async function processVoiceCommand({ audioBase64, text, mimeType, beautician, supabase }) {
@@ -65,7 +65,7 @@ export async function processVoiceCommand({ audioBase64, text, mimeType, beautic
   }
 
   if (!transcript) {
-    return { transcript: '', reply: "I didn't catch that — try speaking again.", actions: [], status: 'empty' };
+    return { transcript: '', reply: "I didn't catch that. Try speaking again.", actions: [], status: 'empty' };
   }
 
   const systemPrompt = buildSystemPrompt(beautician, today);
@@ -105,7 +105,7 @@ export async function processVoiceCommand({ audioBase64, text, mimeType, beautic
     const toolUseBlocks = response.content.filter(b => b.type === 'tool_use');
 
     if (toolUseBlocks.length === 0) {
-      // Claude returned a text response — we're done
+      // Claude returned a text response, we're done
       const textBlock = response.content.find(b => b.type === 'text');
       finalReply = textBlock?.text?.trim() || "Done.";
       break;
@@ -192,15 +192,16 @@ Useful dates:
 You have access to tools that let you take real actions in the salon management system. Use them to help ${name} run their business.
 
 IMPORTANT RULES:
-1. Always use tools to take the real action — don't just describe what you'd do.
+1. Always use tools to take the real action. Don't just describe what you'd do.
 2. For compound requests ("block next week AND message everyone booked"), call multiple tools.
 3. For holiday/time-off ranges, use block_date_range (not repeated block_date calls).
 4. For "everyone booked next week", use send_bulk_message with segment "booked_next_week".
 5. After tools complete, give a brief, friendly confirmation of what was done.
 6. Resolve relative dates (today, tomorrow, next Thursday, etc.) using the dates above.
-7. If something is ambiguous, make a sensible assumption and do it — don't ask for clarification unless truly impossible.
-8. Keep your final response concise and warm — this appears in a small voice UI.
+7. If something is ambiguous, make a sensible assumption and do it. Don't ask for clarification unless truly impossible.
+8. Keep your final response concise and warm. This appears in a small voice UI.
 9. NEVER mention tool names in your response to the user.
+10. NEVER use em dashes (—) or en dashes (–). Use commas, full stops, colons or line breaks instead.
 
 Examples of good compound commands you should handle:
 - "Book Megan in for HD Brows next Thursday at 11 and send her a payment link for £20" → book_appointment + send_payment_link

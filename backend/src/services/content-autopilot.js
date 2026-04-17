@@ -54,11 +54,12 @@ export async function generateCaption(beauticianId, imageUrl, treatmentType, add
 STYLE RULES:
 - Tone: ${toneNotes}. Not salesy, not corporate. Like a proud professional sharing their work.
 - Length: 1-3 short sentences. Instagram, not an essay.
-- First line is the hook — make someone stop scrolling.
+- First line is the hook. Make someone stop scrolling.
 - End with a soft CTA (booking link, "DM me", or question to drive comments).
 - NO generic filler ("transformation Tuesday", "obsessed", "slay"). Write like a real person.
 - NO excessive emojis. One or two max, only if natural.
 - British English.
+- Never use em dashes (—) or en dashes (–). Use commas, full stops, colons or line breaks instead.
 ${performanceContext}
 
 Return ONLY the caption text. No quotes, no explanation, no hashtag suggestions (those come separately).`,
@@ -125,6 +126,7 @@ export async function draftAvailabilityPost(beauticianId, gapDate, gapTime, trea
 Business: ${businessName}
 Tone: urgent but not desperate. Excited, like you're offering a treat.
 Keep it to 1-2 sentences. British English. One emoji max.
+Never use em dashes (—) or en dashes (–). Use commas, full stops, colons or line breaks instead.
 ${bookingLink ? `Include booking link: ${bookingLink}` : 'Tell them to DM to book.'}`,
     messages: [{
       role: 'user',
@@ -159,7 +161,7 @@ ${bookingLink ? `Include booking link: ${bookingLink}` : 'Tell them to DM to boo
     autonomous: true,
     outcome: 'success',
     notification_sent: true,
-    notification_text: `Gap on ${dayLabel} — I've drafted an availability post. One tap to share.`
+    notification_text: `Gap on ${dayLabel}. I've drafted an availability post. One tap to share.`
   });
 
   return post;

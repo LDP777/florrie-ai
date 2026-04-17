@@ -353,6 +353,7 @@ RULES:
 - Include specific details (treatment names, prices, times) when relevant.
 - If directing to booking, include the link: florrie.ai/book/${context.beautician.bookingSlug || 'book'}
 - Never make up availability. Only reference times from the context provided.
+- Never use em dashes (—) or en dashes (–). Use commas, full stops, colons or line breaks instead.
 
 ${actionPrompt}
 
@@ -466,6 +467,8 @@ This message was escalated because: ${getEscalationReason(classification)}
 The beautician will review and edit before sending.
 
 Keep it short (WhatsApp style, 1-3 sentences). Be helpful but flag anything you're unsure about with [CHECK: ...].
+
+Never use em dashes (—) or en dashes (–). Use commas, full stops, colons or line breaks instead.
 
 Treatments: ${context.treatments.map(t => `${t.name} (£${(t.price_cents/100).toFixed(2)})`).join(', ')}
 
