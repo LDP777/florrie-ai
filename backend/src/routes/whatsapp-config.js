@@ -5,10 +5,17 @@
  * Each beautician adds their own number — Florrie pays Meta, beauticians just connect.
  *
  * Flow:
- *   POST /api/whatsapp/register  → send OTP to phone via Meta
- *   POST /api/whatsapp/verify    → verify OTP, store phone_number_id
- *   GET  /api/whatsapp/status    → connection status + monthly usage
+ *   POST /api/whatsapp/register     → add number to WABA + request OTP via SMS
+ *   POST /api/whatsapp/resend-code  → request another OTP (user tapped "resend")
+ *   POST /api/whatsapp/verify       → verify OTP + activate number for Cloud API
+ *   GET  /api/whatsapp/status       → connection status + monthly usage
  *   DELETE /api/whatsapp/disconnect → remove number from WABA
+ *
+ * Meta's 3-step registration (what this actually does under the hood):
+ *   1. POST /{WABA_ID}/phone_numbers       → add the number as a WABA entry
+ *   2. POST /{phone_number_id}/request_code → Meta sends SMS to the number
+ *   3. POST /{phone_number_id}/verify_code  → confirm ownership
+ *   4. POST /{phone_number_id}/register     → activate for Cloud API (with PIN)
  *
  * Env vars required:
  *   WHATSAPP_TOKEN    — Florrie's system user token (permanent)
@@ -17,6 +24,7 @@
  */
 
 import express from 'express';
+import crypto from 'crypto';
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -39,28 +47,50 @@ function metaHeaders() {
 
 /** Normalise a UK/intl phone number to E.164 digits only (no +) */
 function normalisePhone(raw) {
-  // Strip everything except digits and leading +
   let cleaned = raw.replace(/\s+/g, '').replace(/[^\d+]/g, '');
   if (cleaned.startsWith('+')) cleaned = cleaned.slice(1);
-  // UK: 07xxx → 447xxx
+  // UK: 07xxx (11 digits) → 447xxx
   if (cleaned.startsWith('07') && cleaned.length === 11) {
     cleaned = '44' + cleaned.slice(1);
   }
   return cleaned;
 }
 
+/** Basic sanity check for a UK/intl E.164 number (digits only, no +) */
+function isValidE164(digits) {
+  if (!/^\d{10,15}$/.test(digits)) return false;
+  // UK mobile sanity: 44 + 10 digits, starting 447
+  if (digits.startsWith('44')) {
+    return digits.length === 12 && digits[2] === '7';
+  }
+  return true;
+}
+
 /** Split E.164 number into country code + national number */
 function splitPhone(e164) {
-  // Simple: UK = 44, US = 1. Expand as needed.
   if (e164.startsWith('44')) return { cc: '44', number: e164.slice(2) };
   if (e164.startsWith('1') && e164.length === 11) return { cc: '1', number: e164.slice(1) };
-  // Fallback: first 2 digits as cc
   return { cc: e164.slice(0, 2), number: e164.slice(2) };
 }
 
+/** Generate a random 6-digit PIN for WhatsApp 2FA */
+function generatePin() {
+  return String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+}
+
+/** Ask Meta to send an OTP to the given phone_number_id via SMS */
+async function requestOtp(phoneNumberId) {
+  const res = await fetch(`${GRAPH}/${phoneNumberId}/request_code`, {
+    method: 'POST',
+    headers: metaHeaders(),
+    body: JSON.stringify({ code_method: 'SMS', language: 'en' }),
+  });
+  const data = await res.json();
+  return { ok: res.ok, data };
+}
+
 /**
- * Register a phone number with Florrie's WABA.
- * Triggers Meta to send an OTP to that number via SMS.
+ * Register a phone number with Florrie's WABA, then trigger an SMS OTP.
  *
  * Body: { phone: "+447700900123" }
  */
@@ -76,48 +106,75 @@ router.post('/register', async (req, res) => {
 
   try {
     const e164 = normalisePhone(phone);
+    if (!isValidE164(e164)) {
+      return res.status(400).json({
+        error: 'That number doesn\'t look right. UK mobiles should be 11 digits starting with 07.',
+      });
+    }
     const { cc, number } = splitPhone(e164);
 
-    // Call Meta: register the number to Florrie's WABA
-    const metaRes = await fetch(`${GRAPH}/${WABA_ID}/phone_numbers`, {
+    // Step 1: add the number to Florrie's WABA
+    const addRes = await fetch(`${GRAPH}/${WABA_ID}/phone_numbers`, {
       method: 'POST',
       headers: metaHeaders(),
-      body: JSON.stringify({
-        cc,
-        phone_number: number,
-        method: 'SMS', // or VOICE — SMS is standard
-        certificate: undefined, // optional display name verification cert
-      }),
+      body: JSON.stringify({ cc, phone_number: number }),
     });
+    const addData = await addRes.json();
 
-    const metaData = await metaRes.json();
+    let phoneNumberId = addData?.id;
 
-    if (!metaRes.ok) {
-      const code = metaData?.error?.code;
-      // 100 = number already registered to this WABA — not an error for us
-      if (code !== 100) {
-        logger.error({ metaData, phone }, 'Meta phone registration failed');
+    if (!addRes.ok) {
+      const code = addData?.error?.code;
+      // 100 = already registered to this WABA. Look it up rather than failing.
+      if (code === 100) {
+        const lookup = await fetch(
+          `${GRAPH}/${WABA_ID}/phone_numbers?filtering=[{"field":"phone_number","operator":"CONTAINS","value":"${e164}"}]`,
+          { headers: metaHeaders() }
+        );
+        const lookupData = await lookup.json();
+        phoneNumberId = lookupData?.data?.[0]?.id;
+        if (!phoneNumberId) {
+          logger.error({ addData, lookupData, phone: e164 }, 'Meta reported number exists but lookup failed');
+          return res.status(400).json({ error: 'Meta says this number is registered but we can\'t find it. Try disconnecting first.' });
+        }
+      } else {
+        logger.error({ addData, phone: e164 }, 'Meta phone registration failed');
         return res.status(400).json({
-          error: metaData?.error?.message || 'Failed to register number with Meta',
+          error: addData?.error?.message || 'Failed to register number with Meta',
           meta_code: code,
         });
       }
     }
 
-    const phoneNumberId = metaData.id;
+    if (!phoneNumberId) {
+      logger.error({ addData }, 'Meta returned 200 but no phone_number_id');
+      return res.status(500).json({ error: 'Meta didn\'t return a phone ID' });
+    }
 
-    // Store the pending number + phone_number_id on the beautician
-    // (not yet connected — awaiting OTP verification)
+    // Step 2: actually send the SMS
+    const otp = await requestOtp(phoneNumberId);
+    if (!otp.ok) {
+      logger.error({ metaData: otp.data, phoneNumberId, phone: e164 }, 'Meta OTP request failed');
+      return res.status(400).json({
+        error: otp.data?.error?.message || 'Couldn\'t send the verification code. Make sure the number isn\'t active on WhatsApp.',
+        meta_code: otp.data?.error?.code,
+      });
+    }
+
+    // Generate + persist a PIN now so /verify can use it
+    const pin = generatePin();
+
     await supabase
       .from('beauticians')
       .update({
         whatsapp_pending_phone: `+${e164}`,
         whatsapp_phone_id: phoneNumberId,
+        whatsapp_pin: pin,
         whatsapp_connected: false,
       })
       .eq('id', beauticianId);
 
-    logger.info({ beauticianId, phoneNumberId, phone: `+${e164}` }, 'WhatsApp number registered, OTP sent');
+    logger.info({ beauticianId, phoneNumberId, phone: `+${e164}` }, 'WhatsApp number registered, OTP SMS sent');
 
     return res.json({
       success: true,
@@ -131,7 +188,43 @@ router.post('/register', async (req, res) => {
 });
 
 /**
- * Verify the OTP sent by Meta. Marks the number as active.
+ * Trigger another OTP SMS for the beautician's pending number.
+ * Used when the first SMS didn't arrive.
+ */
+router.post('/resend-code', async (req, res) => {
+  if (!WA_TOKEN) return res.status(503).json({ error: 'WhatsApp not configured on this server' });
+
+  const beauticianId = req.beautician.id;
+
+  try {
+    const { data: b } = await supabase
+      .from('beauticians')
+      .select('whatsapp_phone_id, whatsapp_pending_phone')
+      .eq('id', beauticianId)
+      .single();
+
+    if (!b?.whatsapp_phone_id) {
+      return res.status(400).json({ error: 'No pending WhatsApp registration found' });
+    }
+
+    const otp = await requestOtp(b.whatsapp_phone_id);
+    if (!otp.ok) {
+      logger.warn({ metaData: otp.data, beauticianId }, 'Meta OTP resend failed');
+      return res.status(400).json({
+        error: otp.data?.error?.message || 'Couldn\'t resend the code',
+        meta_code: otp.data?.error?.code,
+      });
+    }
+
+    return res.json({ success: true, message: `New code sent to ${b.whatsapp_pending_phone}` });
+  } catch (err) {
+    logger.error({ err }, 'WhatsApp resend-code error');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+/**
+ * Verify the OTP sent by Meta, then activate the number for Cloud API use.
  *
  * Body: { code: "123456" }
  */
@@ -142,10 +235,9 @@ router.post('/verify', async (req, res) => {
   const beauticianId = req.beautician.id;
 
   try {
-    // Get the pending phone_number_id for this beautician
     const { data: b, error: bErr } = await supabase
       .from('beauticians')
-      .select('whatsapp_phone_id, whatsapp_pending_phone')
+      .select('whatsapp_phone_id, whatsapp_pending_phone, whatsapp_pin')
       .eq('id', beauticianId)
       .single();
 
@@ -153,23 +245,44 @@ router.post('/verify', async (req, res) => {
       return res.status(400).json({ error: 'No pending WhatsApp registration found' });
     }
 
-    // Verify with Meta
-    const metaRes = await fetch(`${GRAPH}/${b.whatsapp_phone_id}/verify_code`, {
+    // Step 1: verify ownership
+    const verifyRes = await fetch(`${GRAPH}/${b.whatsapp_phone_id}/verify_code`, {
       method: 'POST',
       headers: metaHeaders(),
       body: JSON.stringify({ code }),
     });
+    const verifyData = await verifyRes.json();
 
-    const metaData = await metaRes.json();
+    if (!verifyRes.ok) {
+      logger.warn({ metaData: verifyData, beauticianId }, 'WhatsApp OTP verification failed');
+      return res.status(400).json({ error: verifyData?.error?.message || 'Invalid verification code' });
+    }
 
-    if (!metaRes.ok) {
-      logger.warn({ metaData, beauticianId }, 'WhatsApp OTP verification failed');
+    // Step 2: activate the number for Cloud API (required — otherwise messages can't send)
+    // Backfill a PIN if one is missing (e.g. legacy rows).
+    const pin = b.whatsapp_pin || generatePin();
+    if (!b.whatsapp_pin) {
+      await supabase.from('beauticians').update({ whatsapp_pin: pin }).eq('id', beauticianId);
+    }
+
+    const registerRes = await fetch(`${GRAPH}/${b.whatsapp_phone_id}/register`, {
+      method: 'POST',
+      headers: metaHeaders(),
+      body: JSON.stringify({ messaging_product: 'whatsapp', pin }),
+    });
+    const registerData = await registerRes.json();
+
+    if (!registerRes.ok) {
+      const metaCode = registerData?.error?.code;
+      // 133004 / 133005 / 133006 = PIN-related; treat the verification itself as successful
+      // but flag that 2FA activation failed so Levi can retry.
+      logger.error({ metaData: registerData, beauticianId, metaCode }, 'WhatsApp Cloud API register failed after verify');
       return res.status(400).json({
-        error: metaData?.error?.message || 'Invalid verification code',
+        error: registerData?.error?.message || 'Number verified but Cloud API activation failed — try disconnecting and reconnecting.',
+        meta_code: metaCode,
       });
     }
 
-    // Mark as connected
     await supabase
       .from('beauticians')
       .update({
@@ -180,7 +293,7 @@ router.post('/verify', async (req, res) => {
       })
       .eq('id', beauticianId);
 
-    logger.info({ beauticianId, phone: b.whatsapp_pending_phone }, 'WhatsApp number verified and connected');
+    logger.info({ beauticianId, phone: b.whatsapp_pending_phone }, 'WhatsApp number verified and activated for Cloud API');
 
     return res.json({
       success: true,
@@ -248,7 +361,6 @@ router.delete('/disconnect', async (req, res) => {
       .eq('id', beauticianId)
       .single();
 
-    // Delete from Meta if we have a phone_number_id
     if (b?.whatsapp_phone_id && WA_TOKEN) {
       const metaRes = await fetch(`${GRAPH}/${b.whatsapp_phone_id}`, {
         method: 'DELETE',
@@ -261,7 +373,6 @@ router.delete('/disconnect', async (req, res) => {
       }
     }
 
-    // Clear WhatsApp data from Supabase regardless
     await supabase
       .from('beauticians')
       .update({
@@ -269,6 +380,7 @@ router.delete('/disconnect', async (req, res) => {
         whatsapp_phone: null,
         whatsapp_phone_id: null,
         whatsapp_pending_phone: null,
+        whatsapp_pin: null,
         whatsapp_registered_at: null,
       })
       .eq('id', beauticianId);

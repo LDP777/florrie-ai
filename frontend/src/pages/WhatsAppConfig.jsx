@@ -89,7 +89,16 @@ function ConnectFlow({ onConnected }) {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendNote, setResendNote] = useState('');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown(c => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
 
   async function handleRegister(e) {
     e.preventDefault();
@@ -102,6 +111,7 @@ function ConnectFlow({ onConnected }) {
         body: JSON.stringify({ phone: phone.trim() }),
       });
       setStep('otp');
+      setResendCooldown(30);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -124,6 +134,22 @@ function ConnectFlow({ onConnected }) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleResend() {
+    if (resendCooldown > 0 || resending) return;
+    setError('');
+    setResendNote('');
+    setResending(true);
+    try {
+      await apiFetch('/resend-code', { method: 'POST' });
+      setResendNote('New code sent — check your messages.');
+      setResendCooldown(30);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setResending(false);
     }
   }
 
@@ -183,13 +209,26 @@ function ConnectFlow({ onConnected }) {
             autoFocus
           />
           {error && <div style={styles.errorMsg}>{error}</div>}
+          {resendNote && <div style={styles.resendNote}>{resendNote}</div>}
           <button style={styles.connectBtn} type="submit" disabled={loading || otp.length < 6}>
             {loading ? 'Verifying…' : 'Confirm'}
           </button>
           <button
             type="button"
+            style={styles.resendBtn}
+            onClick={handleResend}
+            disabled={resending || resendCooldown > 0}
+          >
+            {resending
+              ? 'Sending…'
+              : resendCooldown > 0
+                ? `Resend code in ${resendCooldown}s`
+                : 'Didn\'t get a code? Resend'}
+          </button>
+          <button
+            type="button"
             style={styles.backBtn}
-            onClick={() => { setStep('phone'); setError(''); setOtp(''); }}
+            onClick={() => { setStep('phone'); setError(''); setOtp(''); setResendNote(''); }}
           >
             ← Change number
           </button>
@@ -492,6 +531,8 @@ const styles = {
   input: { width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid var(--border, #E8E4E0)', fontSize: 15, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', background: 'var(--bg, #FAF8F5)', outline: 'none', boxSizing: 'border-box', marginBottom: 12 },
   connectBtn: { width: '100%', padding: '13px 0', borderRadius: 12, border: 'none', background: '#25D366', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   backBtn: { width: '100%', padding: '10px 0', borderRadius: 12, border: 'none', background: 'none', color: 'var(--text-muted, #AAA5A0)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
+  resendBtn: { width: '100%', padding: '10px 0', borderRadius: 12, border: '1px solid var(--border, #E8E4E0)', background: 'var(--bg, #FAF8F5)', color: 'var(--text-secondary, #8B6F5E)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', marginTop: 10 },
+  resendNote: { fontSize: 12, color: '#2E7D32', background: '#E8F5E9', border: '1px solid #C8E6C9', borderRadius: 10, padding: '8px 12px', marginBottom: 10 },
   errorMsg: { fontSize: 13, color: '#E85D75', marginBottom: 10 },
 
   // Usage bar
