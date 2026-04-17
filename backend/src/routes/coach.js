@@ -224,7 +224,7 @@ Generate a ${Math.abs(pctChange) > 20 ? '"warning"' : '"info"'} nudge about expe
 
       prompt = `This week revenue so far: £${thisRevenue} | Last week: £${lastRevenue} | Change: ${revChange > 0 ? '+' : ''}${revChange}% | Total clients: ${clientCount}.
 
-Generate a ${revChange < -10 ? '"warning"' : revChange > 10 ? '"opportunity"' : '"info"'} nudge about weekly business health. CTA should go to "/dashboard". Be encouraging if doing well, practical if not.`;
+Generate a ${revChange < -10 ? '"warning"' : revChange > 10 ? '"opportunity"' : '"info"'} nudge about weekly business health. CTA should go to "/ai-insights" with label like "See full insights". Be encouraging if doing well, practical if not.`;
 
     } else {
       return res.status(400).json({ error: 'Unknown trigger' });
