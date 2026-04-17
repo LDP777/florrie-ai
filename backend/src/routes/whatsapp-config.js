@@ -113,11 +113,27 @@ router.post('/register', async (req, res) => {
     }
     const { cc, number } = splitPhone(e164);
 
-    // Step 1: add the number to Florrie's WABA
+    // Meta requires a verified_name (the display name clients see) on every new
+    // WABA number. Source it from the beautician's business_name; bail early
+    // with a clear message if they haven't set one.
+    const { data: profile } = await supabase
+      .from('beauticians')
+      .select('business_name')
+      .eq('id', beauticianId)
+      .single();
+
+    const verifiedName = (profile?.business_name || '').trim();
+    if (!verifiedName) {
+      return res.status(400).json({
+        error: 'Set your business name in Settings first — WhatsApp uses it as the display name your clients will see.',
+      });
+    }
+
+    // Step 1: add the number to Florrie's WABA (with verified_name)
     const addRes = await fetch(`${GRAPH}/${WABA_ID}/phone_numbers`, {
       method: 'POST',
       headers: metaHeaders(),
-      body: JSON.stringify({ cc, phone_number: number }),
+      body: JSON.stringify({ cc, phone_number: number, verified_name: verifiedName }),
     });
     const addData = await addRes.json();
 
@@ -125,22 +141,38 @@ router.post('/register', async (req, res) => {
 
     if (!addRes.ok) {
       const code = addData?.error?.code;
-      // 100 = already registered to this WABA. Look it up rather than failing.
+      const metaMessage = addData?.error?.message || '';
+
+      // Meta's code 100 is a catch-all ("Invalid parameter"). One benign case:
+      // the number is already on our WABA from a half-finished previous attempt.
+      // Try to recover by looking it up before surfacing an error.
       if (code === 100) {
+        const filter = encodeURIComponent(
+          JSON.stringify([{ field: 'phone_number', operator: 'CONTAIN', value: e164 }])
+        );
         const lookup = await fetch(
-          `${GRAPH}/${WABA_ID}/phone_numbers?filtering=[{"field":"phone_number","operator":"CONTAINS","value":"${e164}"}]`,
+          `${GRAPH}/${WABA_ID}/phone_numbers?filtering=${filter}`,
           { headers: metaHeaders() }
         );
         const lookupData = await lookup.json();
         phoneNumberId = lookupData?.data?.[0]?.id;
+
         if (!phoneNumberId) {
-          logger.error({ addData, lookupData, phone: e164 }, 'Meta reported number exists but lookup failed');
-          return res.status(400).json({ error: 'Meta says this number is registered but we can\'t find it. Try disconnecting first.' });
+          logger.error(
+            { addData, lookupData, phone: e164 },
+            'Meta rejected phone registration and WABA lookup found nothing'
+          );
+          return res.status(400).json({
+            error:
+              "Couldn't connect this number. Usual causes: it's still active on WhatsApp or WhatsApp Business on your phone (delete that account first — export your chat history beforehand if you need it), or it's already tied to another WhatsApp Business API provider.",
+            meta_code: code,
+            meta_message: metaMessage,
+          });
         }
       } else {
         logger.error({ addData, phone: e164 }, 'Meta phone registration failed');
         return res.status(400).json({
-          error: addData?.error?.message || 'Failed to register number with Meta',
+          error: metaMessage || 'Failed to register number with Meta',
           meta_code: code,
         });
       }
