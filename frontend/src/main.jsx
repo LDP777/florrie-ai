@@ -3,8 +3,11 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider } from './lib/theme.jsx';
 import * as Sentry from '@sentry/react';
+import { initAnalytics } from './lib/analytics.js';
 import App from './App.jsx';
 import './index.css';
+
+initAnalytics();
 
 // Initialise Sentry. No-op when VITE_SENTRY_DSN is absent (local dev / staging
 // without a DSN configured).

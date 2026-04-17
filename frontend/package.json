@@ -26,6 +26,7 @@
     "@capacitor/status-bar": "^6.0.0",
     "@sentry/react": "^8.0.0",
     "@supabase/supabase-js": "^2.45.0",
+    "posthog-js": "^1.369.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.0.0"
