@@ -84,10 +84,10 @@ export async function sendPush(beauticianId, { title, body, icon, url, tag, data
 
 const AGENT_PUSH = {
   front_desk: { name: 'Front Desk', emoji: '💬' },
-  content_creator: { name: 'Content Creator', emoji: '🎨' },
+  content_creator: { name: 'Content Studio', emoji: '🎨' },
   client_intel: { name: 'Client Intel', emoji: '🔮' },
-  business_coach: { name: 'Business Coach', emoji: '📊' },
-  scheduler: { name: 'Scheduler', emoji: '📅' },
+  bookkeeper: { name: 'Bookkeeper', emoji: '💷' },
+  business_coach: { name: 'Biz Coach', emoji: '📊' },
   guardian: { name: 'Guardian', emoji: '🛡️' },
 };
 
@@ -100,13 +100,17 @@ const ACTION_TO_AGENT = {
   booking_confirmed: 'front_desk',
   booking_rescheduled: 'front_desk',
   booking_cancelled: 'front_desk',
+  booking_auto_cancelled: 'front_desk',
   content_drafted: 'content_creator',
   content_posted: 'content_creator',
   gap_post: 'content_creator',
   rebook_nudge: 'client_intel',
   predictive_nudge: 'client_intel',
   value_coaching: 'business_coach',
-  booking_auto_cancelled: 'scheduler',
+  expense_logged: 'bookkeeper',
+  income_logged: 'bookkeeper',
+  tax_drafted: 'bookkeeper',
+  receipt_processed: 'bookkeeper',
   review_request: 'guardian',
   follow_up: 'guardian',
   aftercare_sent: 'guardian',

@@ -8,8 +8,8 @@ const AGENTS = [
   { id: 'front_desk',      name: 'Desk',    label: 'Front Desk',      colour: '#C76B8A' },
   { id: 'content_creator', name: 'Studio',  label: 'Content',         colour: '#D4943A' },
   { id: 'client_intel',    name: 'Intel',   label: 'Client Intel',    colour: '#7B6BA8' },
-  { id: 'business_coach',  name: 'Coach',   label: 'Biz Coach',       colour: '#5BA97B' },
-  { id: 'scheduler',       name: 'Sched',   label: 'Scheduler',       colour: '#4A90D9' },
+  { id: 'bookkeeper',      name: 'Books',   label: 'Bookkeeper',      colour: '#5BA97B' },
+  { id: 'business_coach',  name: 'Coach',   label: 'Biz Coach',       colour: '#4A90D9' },
   { id: 'guardian',        name: 'Guard',   label: 'Guardian',        colour: '#C9A96E' },
 ];
 
@@ -109,11 +109,11 @@ function AvatarClientIntel({ size = 56 }) {
   );
 }
 
-// 4. Business Coach — confident advisor with clipboard + upward chart
+// 4. Business Coach - strategic advisor with clipboard + rising chart (blue)
 function AvatarBusinessCoach({ size = 56 }) {
   return (
     <svg viewBox="0 0 56 56" width={size} height={size}>
-      <circle cx="28" cy="28" r="28" fill="#5BA97B"/>
+      <circle cx="28" cy="28" r="28" fill="#4A90D9"/>
       <circle cx="28" cy="27" r="13" fill="#FFD5B0"/>
       {/* Confident eyes */}
       <circle cx="24.5" cy="24.5" r="1.8" fill="#3D2B1A"/>
@@ -124,12 +124,12 @@ function AvatarBusinessCoach({ size = 56 }) {
       <path d="M23.5 29 Q28 33 32.5 29" stroke="#3D2B1A" strokeWidth="1.4" fill="none" strokeLinecap="round"/>
       {/* Clipboard top-right */}
       <rect x="35" y="7" width="14" height="17" rx="2.5" fill="#fff" opacity="0.9"/>
-      <rect x="39" y="5" width="6" height="4" rx="2" fill="#5BA97B" opacity="0.8"/>
+      <rect x="39" y="5" width="6" height="4" rx="2" fill="#4A90D9" opacity="0.8"/>
       {/* Rising chart on clipboard */}
-      <polyline points="37,20 40,17 43,15 46,11" stroke="#5BA97B" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-      <circle cx="46" cy="11" r="1.5" fill="#5BA97B"/>
+      <polyline points="37,20 40,17 43,15 46,11" stroke="#4A90D9" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="46" cy="11" r="1.5" fill="#4A90D9"/>
       {/* Arrow up */}
-      <path d="M44 9 L46 11 L48 9" stroke="#5BA97B" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+      <path d="M44 9 L46 11 L48 9" stroke="#4A90D9" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
       {/* Lightbulb top-left */}
       <circle cx="10" cy="11" r="5.5" fill="#fff" opacity="0.85"/>
       <path d="M8 14 L12 14" stroke="#F59E0B" strokeWidth="1.2" strokeLinecap="round"/>
@@ -139,38 +139,40 @@ function AvatarBusinessCoach({ size = 56 }) {
   );
 }
 
-// 5. Scheduler — organised planner with open calendar + clock
-function AvatarScheduler({ size = 56 }) {
+// 5. Bookkeeper - careful money-keeper with calculator + pound coin + ledger
+function AvatarBookkeeper({ size = 56 }) {
   return (
     <svg viewBox="0 0 56 56" width={size} height={size}>
-      <circle cx="28" cy="28" r="28" fill="#4A90D9"/>
+      <circle cx="28" cy="28" r="28" fill="#5BA97B"/>
       <circle cx="28" cy="27" r="13" fill="#FFD5B0"/>
-      {/* Focused eyes with raised brow (busy!) */}
-      <path d="M22 22 Q24.5 20.5 27 22" stroke="#3D2B1A" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
-      <path d="M29 22 Q31.5 20.5 34 22" stroke="#3D2B1A" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
-      <ellipse cx="24.5" cy="24.5" rx="2" ry="1.6" fill="#3D2B1A"/>
-      <ellipse cx="31.5" cy="24.5" rx="2" ry="1.6" fill="#3D2B1A"/>
-      <circle cx="25" cy="24" r="0.6" fill="#fff"/>
-      <circle cx="32" cy="24" r="0.6" fill="#fff"/>
-      <path d="M24 29 Q28 32 32 29" stroke="#3D2B1A" strokeWidth="1.4" fill="none" strokeLinecap="round"/>
-      {/* Calendar open top-right */}
-      <rect x="34" y="6" width="17" height="16" rx="2.5" fill="#fff" opacity="0.9"/>
-      <rect x="34" y="6" width="17" height="5" rx="2.5" fill="#4A90D9" opacity="0.7"/>
-      <rect x="37" y="4" width="2" height="4" rx="1" fill="#fff"/>
-      <rect x="46" y="4" width="2" height="4" rx="1" fill="#fff"/>
-      {/* Calendar grid */}
-      <circle cx="37" cy="15" r="1" fill="#4A90D9"/>
-      <circle cx="40.5" cy="15" r="1" fill="#4A90D9"/>
-      <circle cx="44" cy="15" r="1.2" fill="#C76B8A"/>
-      <circle cx="47.5" cy="15" r="1" fill="#4A90D9"/>
-      <circle cx="37" cy="19" r="1" fill="#4A90D9"/>
-      <circle cx="40.5" cy="19" r="1" fill="#4A90D9"/>
-      {/* Clock bottom-left */}
-      <circle cx="10" cy="14" r="7" fill="#fff" opacity="0.85"/>
-      <circle cx="10" cy="14" r="5.5" fill="none" stroke="#4A90D9" strokeWidth="1"/>
-      <line x1="10" y1="14" x2="10" y2="10" stroke="#3D2B1A" strokeWidth="1.5" strokeLinecap="round"/>
-      <line x1="10" y1="14" x2="13" y2="15.5" stroke="#C76B8A" strokeWidth="1.5" strokeLinecap="round"/>
-      <circle cx="10" cy="14" r="1" fill="#3D2B1A"/>
+      {/* Careful, precise eyes */}
+      <circle cx="24.5" cy="25" r="1.8" fill="#3D2B1A"/>
+      <circle cx="31.5" cy="25" r="1.8" fill="#3D2B1A"/>
+      <circle cx="25.2" cy="24.3" r="0.6" fill="#fff"/>
+      <circle cx="32.2" cy="24.3" r="0.6" fill="#fff"/>
+      {/* Quiet satisfied smile, books balanced */}
+      <path d="M24 29.5 Q28 32 32 29.5" stroke="#3D2B1A" strokeWidth="1.4" fill="none" strokeLinecap="round"/>
+      {/* Calculator top-right */}
+      <rect x="34" y="5" width="15" height="18" rx="2" fill="#fff" opacity="0.92"/>
+      <rect x="36" y="7" width="11" height="3.5" rx="0.6" fill="#5BA97B" opacity="0.3"/>
+      <rect x="36" y="12" width="2" height="2" rx="0.3" fill="#5BA97B"/>
+      <rect x="39.5" y="12" width="2" height="2" rx="0.3" fill="#5BA97B"/>
+      <rect x="43" y="12" width="2" height="2" rx="0.3" fill="#5BA97B"/>
+      <rect x="46.5" y="12" width="2" height="2" rx="0.3" fill="#F59E0B"/>
+      <rect x="36" y="15" width="2" height="2" rx="0.3" fill="#5BA97B"/>
+      <rect x="39.5" y="15" width="2" height="2" rx="0.3" fill="#5BA97B"/>
+      <rect x="43" y="15" width="2" height="2" rx="0.3" fill="#5BA97B"/>
+      <rect x="36" y="18" width="2" height="2" rx="0.3" fill="#5BA97B"/>
+      <rect x="39.5" y="18" width="2" height="2" rx="0.3" fill="#5BA97B"/>
+      <rect x="43" y="18" width="5.5" height="2" rx="0.3" fill="#F59E0B"/>
+      {/* Pound coin top-left */}
+      <circle cx="10" cy="11" r="6" fill="#F59E0B" opacity="0.92"/>
+      <circle cx="10" cy="11" r="6" fill="none" stroke="#fff" strokeWidth="0.8" opacity="0.85"/>
+      <text x="10" y="14" textAnchor="middle" fontSize="8" fontWeight="800" fill="#fff">£</text>
+      {/* Tiny ledger lines bottom-left */}
+      <rect x="4" y="19" width="10" height="1.2" rx="0.4" fill="#fff" opacity="0.75"/>
+      <rect x="4" y="21.5" width="7" height="1.2" rx="0.4" fill="#fff" opacity="0.75"/>
+      <rect x="4" y="24" width="12" height="1.2" rx="0.4" fill="#fff" opacity="0.75"/>
     </svg>
   );
 }
@@ -204,8 +206,8 @@ const AVATAR_COMPONENTS = {
   front_desk:      AvatarFrontDesk,
   content_creator: AvatarContentCreator,
   client_intel:    AvatarClientIntel,
+  bookkeeper:      AvatarBookkeeper,
   business_coach:  AvatarBusinessCoach,
-  scheduler:       AvatarScheduler,
   guardian:        AvatarGuardian,
 };
 
@@ -213,12 +215,12 @@ const AVATAR_COMPONENTS = {
 // 2-col grid of 6 agents, each with live counter + latest action + Ask Florrie.
 
 const AGENT_MAP = [
-  { id: 'front_desk',      name: 'Front Desk',     role: 'Handles client messages',  colour: '#C76B8A', path: '/inbox',          counterKey: 'inbox'      },
-  { id: 'content_creator', name: 'Content Studio', role: 'Writes captions & posts',  colour: '#D4943A', path: '/content',         counterKey: 'content'    },
-  { id: 'client_intel',    name: 'Client Intel',   role: 'Knows your clients inside out', colour: '#7B6BA8', path: '/client-intel',    counterKey: 'churn'      },
-  { id: 'business_coach',  name: 'Biz Coach',      role: 'Reads your numbers',       colour: '#5BA97B', path: '/ai-insights',     counterKey: 'insights'   },
-  { id: 'scheduler',       name: 'Scheduler',      role: 'Optimises your diary',     colour: '#4A90D9', path: '/smart-schedule',  counterKey: null         },
-  { id: 'guardian',        name: 'Guardian',       role: 'Keeps you compliant',      colour: '#C9A96E', path: '/compliance',      counterKey: 'compliance' },
+  { id: 'front_desk',      name: 'Front Desk',     role: 'Replies, books, guards your diary', colour: '#C76B8A', path: '/inbox',        counterKey: 'inbox'      },
+  { id: 'content_creator', name: 'Content Studio', role: 'Captions and posts in your voice',  colour: '#D4943A', path: '/content',      counterKey: 'content'    },
+  { id: 'client_intel',    name: 'Client Intel',   role: 'Nudges the clients who went quiet', colour: '#7B6BA8', path: '/client-intel', counterKey: 'churn'      },
+  { id: 'bookkeeper',      name: 'Bookkeeper',     role: 'Logs income, drafts your tax',      colour: '#5BA97B', path: '/tax',          counterKey: 'bookkeeper' },
+  { id: 'business_coach',  name: 'Biz Coach',      role: 'Spots the money days',              colour: '#4A90D9', path: '/ai-insights',  counterKey: 'insights'   },
+  { id: 'guardian',        name: 'Guardian',       role: 'Patch tests, consent, insurance',   colour: '#C9A96E', path: '/compliance',   counterKey: 'compliance' },
 ];
 
 function AgentTeamSection({ beautician, onNav }) {
@@ -268,6 +270,7 @@ function AgentTeamSection({ beautician, onNav }) {
       inbox:      countsData?.inbox      || null,
       content:    countsData?.content    || null,
       churn:      countsData?.churn      || null,
+      bookkeeper: countsData?.bookkeeper || null,
       insights:   countsData?.insights   || null,
       compliance: countsData?.compliance || null,
     });
