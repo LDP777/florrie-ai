@@ -13,9 +13,9 @@ const MOCK_CONNECTED = {
 };
 
 const mockTemplates = [
-  { id: 1, name: 'Booking confirmation', category: 'utility', status: 'approved', lastUsed: 'Today', uses: 156, preview: "Hey {name}! Your {treatment} is booked for {date} at {time}. See you soon! 💕 — Ellie" },
+  { id: 1, name: 'Booking confirmation', category: 'utility', status: 'approved', lastUsed: 'Today', uses: 156, preview: "Hey {name}! Your {treatment} is booked for {date} at {time}. See you soon! 💕 - Ellie" },
   { id: 2, name: 'Appointment reminder (24h)', category: 'utility', status: 'approved', lastUsed: 'Today', uses: 289, preview: "Hi {name}, just a reminder about your {treatment} tomorrow at {time}. Reply YES to confirm or call to reschedule. See you soon! ✨" },
-  { id: 3, name: 'No-show follow-up', category: 'utility', status: 'approved', lastUsed: 'Yesterday', uses: 12, preview: "Hey {name}, we missed you today! No worries at all — life happens. Want me to rebook you? Just reply with a day that works 💛" },
+  { id: 3, name: 'No-show follow-up', category: 'utility', status: 'approved', lastUsed: 'Yesterday', uses: 12, preview: "Hey {name}, we missed you today! No worries at all, life happens. Want me to rebook you? Just reply with a day that works 💛" },
   { id: 4, name: 'Aftercare instructions', category: 'utility', status: 'approved', lastUsed: '2 days ago', uses: 98, preview: "Hey {name}! Here are your aftercare tips for your {treatment}: {aftercare_link}. Any questions at all, just message me! 💆‍♀️" },
   { id: 5, name: 'Review request', category: 'marketing', status: 'approved', lastUsed: '3 days ago', uses: 45, preview: "Hi {name}! So glad you loved your {treatment} 🥰 If you have a sec, a Google review would mean the world: {review_link}" },
   { id: 6, name: 'Win-back offer', category: 'marketing', status: 'approved', lastUsed: '1 week ago', uses: 23, preview: "Hey {name}, it's been a while! I've got 10% off your next visit if you fancy coming back 💕 Book here: {booking_link}" },
@@ -25,12 +25,17 @@ const mockTemplates = [
 ];
 
 const autoReplyDefaults = [
-  { id: 1, trigger: 'Outside business hours', response: "Hey! I'm not at the salon right now but I'll get back to you first thing tomorrow morning 💕 — Ellie", enabled: true },
+  { id: 1, trigger: 'Outside business hours', response: "Hey! I'm not at the salon right now but I'll get back to you first thing tomorrow morning 💕 - Ellie", enabled: true },
   { id: 2, trigger: 'Pricing enquiry detected', response: "Thanks for asking! You can see all my prices and book directly here: {booking_link} 💅", enabled: true },
   { id: 3, trigger: 'Availability enquiry detected', response: "Let me check what I've got! My next available slots are: {next_slots}. Want me to book one? 🗓️", enabled: true },
   { id: 4, trigger: 'New message (no match)', response: null, enabled: false },
 ];
 
+/**
+ * apiFetch attaches the full response body to thrown errors so callers can
+ * read structured diagnostic fields (diagnostic.code, meta_code, fbtrace_id…)
+ * instead of only the human-readable message.
+ */
 async function apiFetch(path, options = {}) {
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;
@@ -42,8 +47,13 @@ async function apiFetch(path, options = {}) {
       ...options.headers,
     },
   });
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.error || 'Request failed');
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(json.error || 'Request failed');
+    err.body = json;
+    err.status = res.status;
+    throw err;
+  }
   return json;
 }
 
@@ -72,12 +82,258 @@ function UsageBar({ usage }) {
       </div>
       {isOver && (
         <div style={{ fontSize: 11, color: '#E85D75', marginTop: 4 }}>
-          Over limit — extra messages billed at 5p each
+          Over limit, extra messages billed at 5p each
         </div>
       )}
       {!isOver && isNearLimit && (
         <div style={{ fontSize: 11, color: '#E65100', marginTop: 4 }}>
-          Getting close — {free_limit - total_sent} left this month
+          Getting close, {free_limit - total_sent} left this month
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Per-diagnostic-code presentation. Keeps the content side of things in one
+ * place so ConnectFlow can stay focused on the flow itself.
+ */
+const DIAGNOSTIC_META = {
+  on_consumer_whatsapp: {
+    icon: '📱',
+    title: 'Delete WhatsApp on this number first',
+    tone: 'warning',
+    steps: [
+      'Open WhatsApp or WhatsApp Business on the phone.',
+      'Go to Settings → Account → Delete my account.',
+      'Enter this exact number and confirm.',
+      'Wait at least 2 hours for Meta to release the number.',
+      'Come back here and tap Try again.',
+    ],
+  },
+  on_other_waba: {
+    icon: '🔗',
+    title: 'Number is tied to another WhatsApp provider',
+    tone: 'blocked',
+    steps: [
+      'Someone else is already using this number with the WhatsApp Business API.',
+      "Sign in to that provider's dashboard and release the number.",
+      'If you don\'t know who that is, contact Meta Business Support.',
+      'Once released, try again here.',
+    ],
+  },
+  verified_name_collision: {
+    icon: '⚠️',
+    title: 'Business display name clash',
+    tone: 'warning',
+    steps: [
+      'Your business name is in use elsewhere on WhatsApp.',
+      "We've retried with a duplicate-name override.",
+      'If this keeps happening, change your business name in Settings to something more unique and try again.',
+    ],
+  },
+  cooldown_active: {
+    icon: '⏳',
+    title: 'Meta is still processing this number',
+    tone: 'waiting',
+    steps: [
+      'Meta holds numbers for a short period after any change.',
+      'It usually clears in a few hours, sometimes up to 24.',
+      'Try the Check status button below to see when it\'s ready.',
+    ],
+  },
+  invalid_number: {
+    icon: '❌',
+    title: "Meta didn't recognise that number",
+    tone: 'error',
+    steps: [
+      'Double-check the country code.',
+      'For UK, enter it as 07… or +447….',
+      'Use digits only, no spaces or dashes.',
+    ],
+  },
+  invalid_format: {
+    icon: '❌',
+    title: 'Number format looks off',
+    tone: 'error',
+    steps: [
+      'UK mobiles should be 11 digits starting with 07.',
+      'For international numbers, include the + and country code.',
+    ],
+  },
+  rate_limit: {
+    icon: '🚦',
+    title: 'Too many attempts in a short window',
+    tone: 'waiting',
+    steps: [
+      'Meta has temporarily throttled this number.',
+      'Wait an hour before trying again.',
+    ],
+  },
+  waba_not_approved: {
+    icon: '🛠️',
+    title: 'Configuration issue on our side',
+    tone: 'error',
+    steps: [
+      'This is a Florrie-side problem, not yours.',
+      "We've been notified and are looking at it.",
+      'Try again in a few minutes or contact support if it persists.',
+    ],
+  },
+  unknown: {
+    icon: '⚠️',
+    title: "We couldn't connect this number",
+    tone: 'error',
+    steps: [
+      "Meta rejected the request but didn't give us a clear reason.",
+      'Tap Show technical details below and send the numbers to support.',
+    ],
+  },
+};
+
+function formatCountdown(seconds) {
+  if (seconds <= 0) return 'Ready to retry';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `Try again in ${h}h ${m}m`;
+  if (m > 0) return `Try again in ${m}m ${s.toString().padStart(2, '0')}s`;
+  return `Try again in ${s}s`;
+}
+
+function DiagnosticError({ error, errBody, onRetry }) {
+  const [showDetails, setShowDetails] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(null);
+
+  const code = errBody?.diagnostic?.code || 'unknown';
+  const meta = DIAGNOSTIC_META[code] || DIAGNOSTIC_META.unknown;
+  const retryAfter = errBody?.diagnostic?.retryAfter;
+
+  useEffect(() => {
+    if (!retryAfter) { setSecondsLeft(null); return; }
+    const update = () => {
+      const diff = new Date(retryAfter).getTime() - Date.now();
+      setSecondsLeft(Math.max(0, Math.floor(diff / 1000)));
+    };
+    update();
+    const t = setInterval(update, 1000);
+    return () => clearInterval(t);
+  }, [retryAfter]);
+
+  const toneStyles = {
+    warning:  { bg: '#FFF8E1', border: '#FFE082', text: '#7B5E00' },
+    blocked:  { bg: '#FDECEA', border: '#F5C6C0', text: '#8A2A1C' },
+    waiting:  { bg: '#EDF3FA', border: '#CFD8E5', text: '#2E4A6B' },
+    error:    { bg: '#FDECEA', border: '#F5C6C0', text: '#8A2A1C' },
+  };
+  const t = toneStyles[meta.tone] || toneStyles.error;
+
+  const metaCode = errBody?.meta_code;
+  const metaSubcode = errBody?.meta_subcode;
+  const metaTitle = errBody?.meta_user_title;
+  const fbtrace = errBody?.fbtrace_id;
+  const hasTechDetails = metaCode || metaSubcode || fbtrace || metaTitle;
+
+  return (
+    <div style={{
+      background: t.bg,
+      border: `1px solid ${t.border}`,
+      borderRadius: 14,
+      padding: 14,
+      marginBottom: 14,
+    }}>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+        <span style={{ fontSize: 22, lineHeight: 1, flexShrink: 0 }}>{meta.icon}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 6, lineHeight: 1.3 }}>
+            {meta.title}
+          </div>
+          <div style={{ fontSize: 13, color: t.text, lineHeight: 1.5, marginBottom: meta.steps.length ? 10 : 0 }}>
+            {error.message || "We couldn't connect this number."}
+          </div>
+          {meta.steps && meta.steps.length > 0 && (
+            <ol style={{ margin: '0 0 8px', padding: '0 0 0 18px', fontSize: 12, color: t.text, lineHeight: 1.6 }}>
+              {meta.steps.map((s, i) => <li key={i} style={{ marginBottom: 2 }}>{s}</li>)}
+            </ol>
+          )}
+
+          {retryAfter && secondsLeft !== null && (
+            <div style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: t.text,
+              marginTop: 8,
+              padding: '6px 10px',
+              background: 'rgba(255,255,255,0.6)',
+              borderRadius: 8,
+              display: 'inline-block',
+            }}>
+              {formatCountdown(secondsLeft)}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {(hasTechDetails || onRetry) && (
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              style={{
+                padding: '7px 12px',
+                borderRadius: 8,
+                border: `1px solid ${t.border}`,
+                background: '#fff',
+                color: t.text,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Check status
+            </button>
+          )}
+          {hasTechDetails && (
+            <button
+              type="button"
+              onClick={() => setShowDetails(v => !v)}
+              style={{
+                padding: '7px 12px',
+                borderRadius: 8,
+                border: `1px solid ${t.border}`,
+                background: 'transparent',
+                color: t.text,
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              {showDetails ? 'Hide technical details' : 'Show technical details'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {showDetails && hasTechDetails && (
+        <div style={{
+          marginTop: 10,
+          padding: 10,
+          background: 'rgba(255,255,255,0.7)',
+          borderRadius: 8,
+          fontSize: 11,
+          fontFamily: '"SF Mono", ui-monospace, monospace',
+          color: '#3A332E',
+          lineHeight: 1.6,
+        }}>
+          {metaTitle && <div><b>Meta title:</b> {metaTitle}</div>}
+          {metaCode && <div><b>Error code:</b> {metaCode}</div>}
+          {metaSubcode && <div><b>Subcode:</b> {metaSubcode}</div>}
+          {fbtrace && <div><b>Trace ID:</b> {fbtrace}</div>}
+          {errBody?.diagnostic?.code && <div><b>Diagnosis:</b> {errBody.diagnostic.code}</div>}
+          {errBody?.diagnostic?.suggestedAction && <div><b>Suggested:</b> {errBody.diagnostic.suggestedAction}</div>}
         </div>
       )}
     </div>
@@ -92,7 +348,10 @@ function ConnectFlow({ onConnected }) {
   const [resending, setResending] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendNote, setResendNote] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null);   // Error object
+  const [errBody, setErrBody] = useState(null); // response body from thrown error
+  const [checking, setChecking] = useState(false);
+  const [checkResult, setCheckResult] = useState(null);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -100,10 +359,16 @@ function ConnectFlow({ onConnected }) {
     return () => clearTimeout(t);
   }, [resendCooldown]);
 
+  function clearError() {
+    setError(null);
+    setErrBody(null);
+  }
+
   async function handleRegister(e) {
     e.preventDefault();
     if (!phone.trim()) return;
-    setError('');
+    clearError();
+    setCheckResult(null);
     setLoading(true);
     try {
       await apiFetch('/register', {
@@ -113,16 +378,36 @@ function ConnectFlow({ onConnected }) {
       setStep('otp');
       setResendCooldown(30);
     } catch (err) {
-      setError(err.message);
+      setError(err);
+      setErrBody(err.body || null);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleDiagnose() {
+    if (!phone.trim() || checking) return;
+    clearError();
+    setCheckResult(null);
+    setChecking(true);
+    try {
+      const result = await apiFetch('/diagnose', {
+        method: 'POST',
+        body: JSON.stringify({ phone: phone.trim() }),
+      });
+      setCheckResult(result);
+    } catch (err) {
+      setError(err);
+      setErrBody(err.body || null);
+    } finally {
+      setChecking(false);
     }
   }
 
   async function handleVerify(e) {
     e.preventDefault();
     if (!otp.trim()) return;
-    setError('');
+    clearError();
     setLoading(true);
     try {
       const result = await apiFetch('/verify', {
@@ -131,7 +416,8 @@ function ConnectFlow({ onConnected }) {
       });
       onConnected(result.phone);
     } catch (err) {
-      setError(err.message);
+      setError(err);
+      setErrBody(err.body || null);
     } finally {
       setLoading(false);
     }
@@ -139,15 +425,16 @@ function ConnectFlow({ onConnected }) {
 
   async function handleResend() {
     if (resendCooldown > 0 || resending) return;
-    setError('');
+    clearError();
     setResendNote('');
     setResending(true);
     try {
       await apiFetch('/resend-code', { method: 'POST' });
-      setResendNote('New code sent — check your messages.');
+      setResendNote('New code sent, check your messages.');
       setResendCooldown(30);
     } catch (err) {
-      setError(err.message);
+      setError(err);
+      setErrBody(err.body || null);
     } finally {
       setResending(false);
     }
@@ -165,7 +452,7 @@ function ConnectFlow({ onConnected }) {
       <h2 style={styles.connectTitle}>Connect WhatsApp</h2>
       <p style={styles.connectDesc}>
         Add your business phone number. Florrie will send booking confirmations,
-        reminders, and follow-ups from your number — clients see messages from you,
+        reminders, and follow-ups from your number, so clients see messages from you,
         not from a generic platform.
       </p>
 
@@ -184,11 +471,40 @@ function ConnectFlow({ onConnected }) {
             placeholder="+44 7700 900000"
             value={phone}
             onChange={e => setPhone(e.target.value)}
-            disabled={loading}
+            disabled={loading || checking}
           />
-          {error && <div style={styles.errorMsg}>{error}</div>}
-          <button style={styles.connectBtn} type="submit" disabled={loading || !phone.trim()}>
+
+          {error && (
+            <DiagnosticError
+              error={error}
+              errBody={errBody}
+              onRetry={handleDiagnose}
+            />
+          )}
+
+          {checkResult && !error && (
+            <div style={{
+              ...styles.checkResult,
+              background: checkResult.ready ? '#E8F5E9' : '#FFF8E1',
+              borderColor: checkResult.ready ? '#C8E6C9' : '#FFE082',
+              color: checkResult.ready ? '#2E7D32' : '#7B5E00',
+            }}>
+              <b>{checkResult.ready ? '✅ Ready to connect' : '⏳ Not ready yet'}</b>
+              <div style={{ marginTop: 4 }}>{checkResult.userMessage}</div>
+            </div>
+          )}
+
+          <button style={styles.connectBtn} type="submit" disabled={loading || checking || !phone.trim()}>
             {loading ? 'Sending code…' : 'Send verification code'}
+          </button>
+
+          <button
+            type="button"
+            style={styles.diagnoseBtn}
+            onClick={handleDiagnose}
+            disabled={loading || checking || !phone.trim()}
+          >
+            {checking ? 'Checking…' : "Check status (doesn't send SMS)"}
           </button>
         </form>
       ) : (
@@ -208,7 +524,9 @@ function ConnectFlow({ onConnected }) {
             disabled={loading}
             autoFocus
           />
-          {error && <div style={styles.errorMsg}>{error}</div>}
+          {error && (
+            <DiagnosticError error={error} errBody={errBody} />
+          )}
           {resendNote && <div style={styles.resendNote}>{resendNote}</div>}
           <button style={styles.connectBtn} type="submit" disabled={loading || otp.length < 6}>
             {loading ? 'Verifying…' : 'Confirm'}
@@ -223,12 +541,12 @@ function ConnectFlow({ onConnected }) {
               ? 'Sending…'
               : resendCooldown > 0
                 ? `Resend code in ${resendCooldown}s`
-                : 'Didn\'t get a code? Resend'}
+                : "Didn't get a code? Resend"}
           </button>
           <button
             type="button"
             style={styles.backBtn}
-            onClick={() => { setStep('phone'); setError(''); setOtp(''); setResendNote(''); }}
+            onClick={() => { setStep('phone'); clearError(); setOtp(''); setResendNote(''); }}
           >
             ← Change number
           </button>
@@ -274,7 +592,7 @@ export default function WhatsAppConfig() {
       await apiFetch('/disconnect', { method: 'DELETE' });
       setStatus({ connected: false });
     } catch (err) {
-      alert('Something went wrong — try again');
+      alert('Something went wrong, try again');
     } finally {
       setDisconnecting(false);
     }
@@ -309,10 +627,10 @@ export default function WhatsAppConfig() {
         </div>
       </div>
 
-      {/* Not connected — show setup flow */}
+      {/* Not connected, show setup flow */}
       {!connected && <ConnectFlow onConnected={handleConnected} />}
 
-      {/* Connected — show dashboard */}
+      {/* Connected, show dashboard */}
       {connected && (
         <>
           {/* Connection card */}
@@ -332,7 +650,7 @@ export default function WhatsAppConfig() {
             <div style={styles.metaBadge}>Meta Cloud API</div>
           </div>
 
-          {/* Usage bar — always visible */}
+          {/* Usage bar, always visible */}
           <UsageBar usage={status?.usage} />
 
           {/* Tabs */}
@@ -455,7 +773,7 @@ export default function WhatsAppConfig() {
                     <div style={styles.autoReplyPreview}>{rule.response}</div>
                   ) : (
                     <div style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)', fontStyle: 'italic' }}>
-                      No auto-reply — messages go to Inbox for manual response
+                      No auto-reply, messages go to Inbox for manual response
                     </div>
                   )}
                 </div>
@@ -530,6 +848,8 @@ const styles = {
   inputLabel: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #8B6F5E)', marginBottom: 6 },
   input: { width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid var(--border, #E8E4E0)', fontSize: 15, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', background: 'var(--bg, #FAF8F5)', outline: 'none', boxSizing: 'border-box', marginBottom: 12 },
   connectBtn: { width: '100%', padding: '13px 0', borderRadius: 12, border: 'none', background: '#25D366', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  diagnoseBtn: { width: '100%', padding: '11px 0', borderRadius: 12, border: '1px solid var(--border, #E8E4E0)', background: 'var(--bg, #FAF8F5)', color: 'var(--text-secondary, #8B6F5E)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', marginTop: 10 },
+  checkResult: { fontSize: 13, border: '1px solid', borderRadius: 10, padding: 12, marginBottom: 12, lineHeight: 1.5 },
   backBtn: { width: '100%', padding: '10px 0', borderRadius: 12, border: 'none', background: 'none', color: 'var(--text-muted, #AAA5A0)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
   resendBtn: { width: '100%', padding: '10px 0', borderRadius: 12, border: '1px solid var(--border, #E8E4E0)', background: 'var(--bg, #FAF8F5)', color: 'var(--text-secondary, #8B6F5E)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', marginTop: 10 },
   resendNote: { fontSize: 12, color: '#2E7D32', background: '#E8F5E9', border: '1px solid #C8E6C9', borderRadius: 10, padding: '8px 12px', marginBottom: 10 },
