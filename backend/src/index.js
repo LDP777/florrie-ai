@@ -31,6 +31,7 @@ import { cleanupStaleBookings } from './services/cleanup.js';
 import { runAutonomousCycle } from './services/autonomous-scheduler.js';
 import { runPredictiveNudges } from './services/predictive-nudge.js';
 import { processEmailQueue, checkTrialExpiry } from './services/email-sequences.js';
+import { processRetryQueue as processWhatsAppRetryQueue } from './services/whatsapp-retry.js';
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -300,4 +301,27 @@ app.listen(PORT, () => {
       logger.error({ err }, 'Startup: email queue processing failed');
     });
   }, 45_000);
+
+  // WhatsApp registration retry queue — picks up cooldowns once Meta has
+  // released them, and polls pending-activation numbers until they flip to
+  // CONNECTED. Every 30 minutes is dense enough for the cooldowns we see in
+  // the wild (2h - 24h) without hammering Meta.
+  const WHATSAPP_RETRY_INTERVAL = 30 * 60 * 1000; // 30 minutes
+  setInterval(async () => {
+    try {
+      const result = await processWhatsAppRetryQueue();
+      if (result.processed > 0) {
+        logger.info(result, 'WhatsApp retry cron: processed queue');
+      }
+    } catch (err) {
+      logger.error({ err }, 'WhatsApp retry cron: failed');
+    }
+  }, WHATSAPP_RETRY_INTERVAL);
+
+  // Run once 90s after startup so deploys don't eat queued retries.
+  setTimeout(() => {
+    processWhatsAppRetryQueue().catch(err => {
+      logger.error({ err }, 'Startup: WhatsApp retry queue pass failed');
+    });
+  }, 90_000);
 });

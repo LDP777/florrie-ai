@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useBeautician, fetchRows } from '../lib/supabase.js';
 import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
@@ -139,7 +139,7 @@ const DIAGNOSTIC_META = {
     steps: [
       'Meta holds numbers for a short period after any change.',
       'It usually clears in a few hours, sometimes up to 24.',
-      'Try the Check status button below to see when it\'s ready.',
+      "We've queued an automatic retry. You don't have to do anything.",
     ],
   },
   invalid_number: {
@@ -161,13 +161,22 @@ const DIAGNOSTIC_META = {
       'For international numbers, include the + and country code.',
     ],
   },
+  missing_business_name: {
+    icon: '📛',
+    title: 'Set your business name first',
+    tone: 'error',
+    steps: [
+      'WhatsApp uses your business name as the display name clients see.',
+      'Go to Settings and add it before connecting.',
+    ],
+  },
   rate_limit: {
     icon: '🚦',
     title: 'Too many attempts in a short window',
     tone: 'waiting',
     steps: [
       'Meta has temporarily throttled this number.',
-      'Wait an hour before trying again.',
+      "We've queued an automatic retry for when the window clears.",
     ],
   },
   waba_not_approved: {
@@ -201,13 +210,76 @@ function formatCountdown(seconds) {
   return `Try again in ${s}s`;
 }
 
-function DiagnosticError({ error, errBody, onRetry }) {
+/**
+ * Small inline Reset button. Calls POST /reset, optionally with a phone so the
+ * backend can also force-delete a phone_number_id that exists on Meta's side
+ * but isn't recorded in our DB (the usual "stuck half-finished attempt" path).
+ */
+function ResetButton({ phone, onDone, variant = 'inline', children = 'Reset and start again' }) {
+  const [busy, setBusy] = useState(false);
+  const isDanger = variant === 'danger';
+
+  async function handleReset() {
+    const ok = confirm(
+      phone
+        ? `Reset this number with Meta and clear the connection so you can start fresh? This is safe, you'll need to verify the number again.`
+        : 'Reset the WhatsApp connection and start fresh? This is safe, you can reconnect right after.'
+    );
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await apiFetch('/reset', {
+        method: 'POST',
+        body: JSON.stringify(phone ? { phone } : {}),
+      });
+      onDone?.();
+    } catch (err) {
+      logger.error('WhatsApp reset failed:', err);
+      alert(err.message || 'Reset failed, try again');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const style = isDanger
+    ? {
+        padding: '10px 16px',
+        borderRadius: 10,
+        border: '1px solid var(--danger, #D4605C)',
+        background: 'none',
+        color: 'var(--danger, #D4605C)',
+        fontSize: 13,
+        fontWeight: 600,
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+      }
+    : {
+        padding: '7px 12px',
+        borderRadius: 8,
+        border: '1px solid #F5C6C0',
+        background: '#fff',
+        color: '#8A2A1C',
+        fontSize: 12,
+        fontWeight: 600,
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+      };
+
+  return (
+    <button type="button" onClick={handleReset} disabled={busy} style={style}>
+      {busy ? 'Resetting…' : children}
+    </button>
+  );
+}
+
+function DiagnosticError({ error, errBody, onRetry, onReset, phone }) {
   const [showDetails, setShowDetails] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(null);
 
   const code = errBody?.diagnostic?.code || 'unknown';
   const meta = DIAGNOSTIC_META[code] || DIAGNOSTIC_META.unknown;
   const retryAfter = errBody?.diagnostic?.retryAfter;
+  const autoRetryScheduled = !!errBody?.diagnostic?.autoRetryScheduled;
 
   useEffect(() => {
     if (!retryAfter) { setSecondsLeft(null); return; }
@@ -234,6 +306,10 @@ function DiagnosticError({ error, errBody, onRetry }) {
   const fbtrace = errBody?.fbtrace_id;
   const hasTechDetails = metaCode || metaSubcode || fbtrace || metaTitle;
 
+  // Reset makes sense for most terminal codes but not for "just wait" ones
+  // where Meta is already managing the clock.
+  const showResetCta = code !== 'cooldown_active' && code !== 'rate_limit' && code !== 'invalid_format' && code !== 'missing_business_name';
+
   return (
     <div style={{
       background: t.bg,
@@ -257,7 +333,22 @@ function DiagnosticError({ error, errBody, onRetry }) {
             </ol>
           )}
 
-          {retryAfter && secondsLeft !== null && (
+          {autoRetryScheduled && (
+            <div style={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: t.text,
+              marginTop: 8,
+              padding: '6px 10px',
+              background: 'rgba(255,255,255,0.7)',
+              borderRadius: 8,
+              display: 'inline-block',
+            }}>
+              ⏳ Auto-retry queued — you don't need to do anything
+            </div>
+          )}
+
+          {retryAfter && secondsLeft !== null && !autoRetryScheduled && (
             <div style={{
               fontSize: 12,
               fontWeight: 600,
@@ -274,48 +365,51 @@ function DiagnosticError({ error, errBody, onRetry }) {
         </div>
       </div>
 
-      {(hasTechDetails || onRetry) && (
-        <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
-          {onRetry && (
-            <button
-              type="button"
-              onClick={onRetry}
-              style={{
-                padding: '7px 12px',
-                borderRadius: 8,
-                border: `1px solid ${t.border}`,
-                background: '#fff',
-                color: t.text,
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              Check status
-            </button>
-          )}
-          {hasTechDetails && (
-            <button
-              type="button"
-              onClick={() => setShowDetails(v => !v)}
-              style={{
-                padding: '7px 12px',
-                borderRadius: 8,
-                border: `1px solid ${t.border}`,
-                background: 'transparent',
-                color: t.text,
-                fontSize: 12,
-                fontWeight: 500,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              {showDetails ? 'Hide technical details' : 'Show technical details'}
-            </button>
-          )}
-        </div>
-      )}
+      <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            style={{
+              padding: '7px 12px',
+              borderRadius: 8,
+              border: `1px solid ${t.border}`,
+              background: '#fff',
+              color: t.text,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            Check status
+          </button>
+        )}
+        {showResetCta && onReset && (
+          <ResetButton phone={phone} onDone={onReset} variant="inline">
+            Reset and start again
+          </ResetButton>
+        )}
+        {hasTechDetails && (
+          <button
+            type="button"
+            onClick={() => setShowDetails(v => !v)}
+            style={{
+              padding: '7px 12px',
+              borderRadius: 8,
+              border: `1px solid ${t.border}`,
+              background: 'transparent',
+              color: t.text,
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            {showDetails ? 'Hide technical details' : 'Show technical details'}
+          </button>
+        )}
+      </div>
 
       {showDetails && hasTechDetails && (
         <div style={{
@@ -340,7 +434,129 @@ function DiagnosticError({ error, errBody, onRetry }) {
   );
 }
 
-function ConnectFlow({ onConnected }) {
+/**
+ * Surfaces the state of the retry queue on the main page. Shows up when the
+ * backend has a whatsapp_retry_at for this beautician — usually because a
+ * cooldown is active and we've queued an automatic retry.
+ */
+function RetryBanner({ retry, onReset }) {
+  const [secondsLeft, setSecondsLeft] = useState(null);
+
+  useEffect(() => {
+    if (!retry?.retry_at) { setSecondsLeft(null); return; }
+    const update = () => {
+      const diff = new Date(retry.retry_at).getTime() - Date.now();
+      setSecondsLeft(Math.max(0, Math.floor(diff / 1000)));
+    };
+    update();
+    const t = setInterval(update, 1000);
+    return () => clearInterval(t);
+  }, [retry?.retry_at]);
+
+  if (!retry) return null;
+
+  const reasonCopy = {
+    cooldown_active: 'Meta is still processing this number from a previous attempt.',
+    rate_limit: 'Meta is rate-limiting this number right now.',
+    pending_activation: "Meta's almost there — just waiting for the number to flip to live.",
+    otp_retry_pending: 'We cleared the cooldown — retrying the verification SMS.',
+  }[retry.reason] || 'Meta has asked us to wait before retrying.';
+
+  return (
+    <div style={styles.retryBanner}>
+      <span style={{ fontSize: 20 }}>⏳</span>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#2E4A6B', marginBottom: 3 }}>
+          Auto-retry queued
+        </div>
+        <div style={{ fontSize: 12, color: '#2E4A6B', lineHeight: 1.5 }}>
+          {reasonCopy} {secondsLeft > 0 ? `Retry ${formatCountdown(secondsLeft).replace('Try again ', '')}.` : 'Running now…'}
+          {retry.attempts > 0 && ` Attempt ${retry.attempts + 1}.`}
+        </div>
+      </div>
+      <ResetButton onDone={onReset} variant="inline">Cancel</ResetButton>
+    </div>
+  );
+}
+
+/**
+ * Full-screen state after /verify says the number is pending activation.
+ * Polls /activation-status every 10s until Meta flips it to CONNECTED. Shows
+ * a Reset-if-stuck escape hatch after 60s.
+ */
+function PendingActivation({ phone, onConnected, onReset }) {
+  const [metaStatus, setMetaStatus] = useState(null);
+  const [elapsed, setElapsed] = useState(0);
+  const startRef = useRef(Date.now());
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function tick() {
+      try {
+        const result = await apiFetch('/activation-status');
+        if (cancelled) return;
+        setMetaStatus(result.metaStatus || result.status);
+        if (result.connected) {
+          onConnected(phone || result.phone);
+          return;
+        }
+      } catch (err) {
+        logger.warn('activation-status poll failed:', err);
+      }
+    }
+
+    tick();
+    const poll = setInterval(tick, 10_000);
+    const elapsedT = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)), 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(poll);
+      clearInterval(elapsedT);
+    };
+  }, [phone, onConnected]);
+
+  return (
+    <div style={styles.pendingBox}>
+      <div style={styles.spinnerWrap}>
+        <div style={styles.spinner} />
+      </div>
+      <h2 style={{ ...styles.connectTitle, marginBottom: 6 }}>
+        Bringing your number online
+      </h2>
+      <p style={{ fontSize: 14, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.6, margin: '0 0 16px' }}>
+        Meta's finishing the last step — usually a few minutes, sometimes a bit longer.
+        You can close this page and come back, we'll keep watching in the background.
+      </p>
+      <div style={styles.pendingMeta}>
+        <div style={styles.pendingMetaRow}>
+          <span>Number</span>
+          <b>{phone}</b>
+        </div>
+        {metaStatus && (
+          <div style={styles.pendingMetaRow}>
+            <span>Meta status</span>
+            <b>{metaStatus}</b>
+          </div>
+        )}
+        <div style={styles.pendingMetaRow}>
+          <span>Waited</span>
+          <b>{Math.floor(elapsed / 60)}m {String(elapsed % 60).padStart(2, '0')}s</b>
+        </div>
+      </div>
+      {elapsed > 60 && (
+        <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text-muted, #AAA5A0)', textAlign: 'center' }}>
+          Taking longer than expected?{' '}
+          <ResetButton phone={phone} onDone={onReset} variant="inline">
+            Reset and try again
+          </ResetButton>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ConnectFlow({ onConnected, onPending, onReset }) {
   const [step, setStep] = useState('phone'); // 'phone' | 'otp'
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
@@ -348,8 +564,8 @@ function ConnectFlow({ onConnected }) {
   const [resending, setResending] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendNote, setResendNote] = useState('');
-  const [error, setError] = useState(null);   // Error object
-  const [errBody, setErrBody] = useState(null); // response body from thrown error
+  const [error, setError] = useState(null);
+  const [errBody, setErrBody] = useState(null);
   const [checking, setChecking] = useState(false);
   const [checkResult, setCheckResult] = useState(null);
 
@@ -391,7 +607,7 @@ function ConnectFlow({ onConnected }) {
     setCheckResult(null);
     setChecking(true);
     try {
-      const result = await apiFetch('/diagnose', {
+      const result = await apiFetch('/preflight', {
         method: 'POST',
         body: JSON.stringify({ phone: phone.trim() }),
       });
@@ -414,7 +630,12 @@ function ConnectFlow({ onConnected }) {
         method: 'POST',
         body: JSON.stringify({ code: otp.trim() }),
       });
-      onConnected(result.phone);
+      // Verify now returns one of: connected=true | pendingActivation=true.
+      if (result.pendingActivation) {
+        onPending(result.phone);
+      } else {
+        onConnected(result.phone);
+      }
     } catch (err) {
       setError(err);
       setErrBody(err.body || null);
@@ -438,6 +659,15 @@ function ConnectFlow({ onConnected }) {
     } finally {
       setResending(false);
     }
+  }
+
+  function handleLocalReset() {
+    setStep('phone');
+    setOtp('');
+    setResendNote('');
+    clearError();
+    setCheckResult(null);
+    onReset?.();
   }
 
   return (
@@ -479,6 +709,8 @@ function ConnectFlow({ onConnected }) {
               error={error}
               errBody={errBody}
               onRetry={handleDiagnose}
+              onReset={handleLocalReset}
+              phone={phone.trim() || null}
             />
           )}
 
@@ -525,7 +757,12 @@ function ConnectFlow({ onConnected }) {
             autoFocus
           />
           {error && (
-            <DiagnosticError error={error} errBody={errBody} />
+            <DiagnosticError
+              error={error}
+              errBody={errBody}
+              onReset={handleLocalReset}
+              phone={phone.trim() || null}
+            />
           )}
           {resendNote && <div style={styles.resendNote}>{resendNote}</div>}
           <button style={styles.connectBtn} type="submit" disabled={loading || otp.length < 6}>
@@ -558,13 +795,14 @@ function ConnectFlow({ onConnected }) {
 
 export default function WhatsAppConfig() {
   const { beautician, loading: bLoading } = useBeautician();
-  const [status, setStatus] = useState(null); // from /api/whatsapp/status
+  const [status, setStatus] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [expandedTemplate, setExpandedTemplate] = useState(null);
   const [autoReplies, setAutoReplies] = useState(autoReplyDefaults);
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [pendingPhone, setPendingPhone] = useState(null);
 
   useEffect(() => {
     if (bLoading || !beautician) return;
@@ -576,9 +814,16 @@ export default function WhatsAppConfig() {
     try {
       const data = await apiFetch('/status');
       setStatus(data);
+      // If the server already knows this beautician is pending activation,
+      // jump straight to the polling UI. This handles the "closed the tab"
+      // and "came back a few minutes later" cases.
+      if (!data.connected && data.pending_activation) {
+        setPendingPhone(data.pending_phone || data.phone);
+      } else {
+        setPendingPhone(null);
+      }
     } catch (err) {
       logger.error('WhatsApp load error:', err);
-      // On error, show disconnected state so user can reconnect
       setStatus({ connected: false });
     } finally {
       setLoading(false);
@@ -591,6 +836,7 @@ export default function WhatsAppConfig() {
     try {
       await apiFetch('/disconnect', { method: 'DELETE' });
       setStatus({ connected: false });
+      setPendingPhone(null);
     } catch (err) {
       alert('Something went wrong, try again');
     } finally {
@@ -599,12 +845,25 @@ export default function WhatsAppConfig() {
   }
 
   function handleConnected(phone) {
-    setStatus(prev => ({ ...prev, connected: true, phone }));
+    setStatus(prev => ({ ...prev, connected: true, phone, pending_activation: false, retry: null }));
+    setPendingPhone(null);
+  }
+
+  function handlePending(phone) {
+    setPendingPhone(phone);
+    setStatus(prev => ({ ...prev, connected: false, pending_activation: true, pending_phone: phone }));
+  }
+
+  async function handleReset() {
+    // After a reset, reload status from scratch so banners clear cleanly.
+    setPendingPhone(null);
+    await loadData();
   }
 
   if (bLoading || loading) return <PageLoader />;
 
   const connected = status?.connected;
+  const pendingActivation = !!status?.pending_activation || !!pendingPhone;
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
@@ -615,25 +874,46 @@ export default function WhatsAppConfig() {
 
   return (
     <div style={styles.page}>
-      {/* Header */}
       <div style={styles.header}>
         <h1 style={styles.title}>WhatsApp Business</h1>
         <div style={{
           ...styles.statusBadge,
-          background: connected ? 'var(--success-bg, #EDF7F0)' : '#FFF3E0',
-          color: connected ? 'var(--success, #5BA97B)' : '#E65100',
+          background: connected
+            ? 'var(--success-bg, #EDF7F0)'
+            : pendingActivation ? '#EDF3FA' : '#FFF3E0',
+          color: connected
+            ? 'var(--success, #5BA97B)'
+            : pendingActivation ? '#2E4A6B' : '#E65100',
         }}>
-          {connected ? '🟢 Connected' : '🔴 Not connected'}
+          {connected ? '🟢 Connected' : pendingActivation ? '⏳ Activating' : '🔴 Not connected'}
         </div>
       </div>
 
-      {/* Not connected, show setup flow */}
-      {!connected && <ConnectFlow onConnected={handleConnected} />}
+      {/* Retry queue banner — shown whenever /status reports a queued retry */}
+      {!connected && !pendingActivation && status?.retry && (
+        <RetryBanner retry={status.retry} onReset={handleReset} />
+      )}
 
-      {/* Connected, show dashboard */}
+      {/* Pending activation — polling Meta until CONNECTED */}
+      {!connected && pendingActivation && (
+        <PendingActivation
+          phone={pendingPhone || status?.pending_phone || status?.phone}
+          onConnected={handleConnected}
+          onReset={handleReset}
+        />
+      )}
+
+      {/* Not connected and nothing in flight — show setup flow */}
+      {!connected && !pendingActivation && (
+        <ConnectFlow
+          onConnected={handleConnected}
+          onPending={handlePending}
+          onReset={handleReset}
+        />
+      )}
+
       {connected && (
         <>
-          {/* Connection card */}
           <div style={styles.connectionCard}>
             <div style={styles.waLogo}>
               <svg width="28" height="28" viewBox="0 0 24 24" fill="#25D366">
@@ -650,10 +930,8 @@ export default function WhatsAppConfig() {
             <div style={styles.metaBadge}>Meta Cloud API</div>
           </div>
 
-          {/* Usage bar, always visible */}
           <UsageBar usage={status?.usage} />
 
-          {/* Tabs */}
           <div style={styles.tabs}>
             {tabs.map(tab => (
               <button
@@ -664,7 +942,6 @@ export default function WhatsAppConfig() {
             ))}
           </div>
 
-          {/* Overview */}
           {activeTab === 'overview' && (
             <div>
               <div style={styles.statsRow}>
@@ -708,7 +985,6 @@ export default function WhatsAppConfig() {
             </div>
           )}
 
-          {/* Templates */}
           {activeTab === 'templates' && (
             <div>
               <button style={styles.newTemplateBtn}>+ Create Template</button>
@@ -751,7 +1027,6 @@ export default function WhatsAppConfig() {
             </div>
           )}
 
-          {/* Auto-replies */}
           {activeTab === 'autoreplies' && (
             <div>
               <div style={styles.autoReplyHint}>
@@ -793,7 +1068,6 @@ export default function WhatsAppConfig() {
             </div>
           )}
 
-          {/* Settings */}
           {activeTab === 'settings' && (
             <div>
               {[
@@ -817,13 +1091,26 @@ export default function WhatsAppConfig() {
 
               <div style={styles.dangerZone}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#E85D75', marginBottom: 8 }}>Danger zone</div>
-                <button
-                  style={styles.disconnectBtn}
-                  onClick={handleDisconnect}
-                  disabled={disconnecting}
-                >
-                  {disconnecting ? 'Disconnecting…' : 'Disconnect WhatsApp'}
-                </button>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.5, margin: '0 0 12px' }}>
+                  <b>Reset</b> wipes the connection on both our side and Meta's, so you can start from scratch if a connection's stuck.
+                  <b> Disconnect</b> just stops Florrie sending messages from this number.
+                </p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <ResetButton
+                    phone={status?.phone}
+                    onDone={handleReset}
+                    variant="danger"
+                  >
+                    Reset with Meta
+                  </ResetButton>
+                  <button
+                    style={styles.disconnectBtn}
+                    onClick={handleDisconnect}
+                    disabled={disconnecting}
+                  >
+                    {disconnecting ? 'Disconnecting…' : 'Disconnect WhatsApp'}
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -839,7 +1126,6 @@ const styles = {
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },
   statusBadge: { padding: '4px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600 },
 
-  // Connect flow
   connectBox: { background: 'var(--bg-card, #fff)', borderRadius: 18, padding: 24, border: '1px solid var(--border, #F0ECE8)' },
   connectIcon: { width: 56, height: 56, borderRadius: 16, background: 'var(--success-bg, #EDF7F0)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   connectTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 8px' },
@@ -855,7 +1141,49 @@ const styles = {
   resendNote: { fontSize: 12, color: '#2E7D32', background: '#E8F5E9', border: '1px solid #C8E6C9', borderRadius: 10, padding: '8px 12px', marginBottom: 10 },
   errorMsg: { fontSize: 13, color: '#E85D75', marginBottom: 10 },
 
-  // Usage bar
+  retryBanner: {
+    display: 'flex',
+    gap: 12,
+    alignItems: 'flex-start',
+    background: '#EDF3FA',
+    border: '1px solid #CFD8E5',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 14,
+  },
+
+  pendingBox: {
+    background: 'var(--bg-card, #fff)',
+    borderRadius: 18,
+    padding: 28,
+    border: '1px solid var(--border, #F0ECE8)',
+    textAlign: 'center',
+  },
+  spinnerWrap: { display: 'flex', justifyContent: 'center', marginBottom: 18 },
+  spinner: {
+    width: 44,
+    height: 44,
+    borderRadius: '50%',
+    border: '4px solid #E8E4E0',
+    borderTopColor: '#25D366',
+    animation: 'wa-spin 0.9s linear infinite',
+  },
+  pendingMeta: {
+    background: 'var(--bg, #FAF8F5)',
+    borderRadius: 12,
+    padding: '10px 14px',
+    marginTop: 6,
+    textAlign: 'left',
+  },
+  pendingMetaRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    padding: '6px 0',
+    fontSize: 13,
+    color: 'var(--text-secondary, #8B6F5E)',
+    borderBottom: '1px solid var(--border, #F0ECE8)',
+  },
+
   usageBar: { background: 'var(--bg-card, #fff)', borderRadius: 12, padding: '12px 14px', border: '1px solid var(--border, #F0ECE8)', marginBottom: 12 },
 
   connectionCard: { display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 14, border: '1px solid var(--border, #F0ECE8)', marginBottom: 12 },
@@ -904,3 +1232,12 @@ const styles = {
   dangerZone: { marginTop: 24, padding: 16, background: 'var(--danger-bg, #FDF0EF)', borderRadius: 14, border: '1px solid var(--danger, #D4605C)' },
   disconnectBtn: { padding: '10px 16px', borderRadius: 10, border: '1px solid var(--danger, #D4605C)', background: 'none', color: 'var(--danger, #D4605C)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 };
+
+// Spinner keyframes injected once so the <PendingActivation> spinner animates
+// without needing a global stylesheet.
+if (typeof document !== 'undefined' && !document.getElementById('wa-spin-keyframes')) {
+  const st = document.createElement('style');
+  st.id = 'wa-spin-keyframes';
+  st.textContent = '@keyframes wa-spin { to { transform: rotate(360deg); } }';
+  document.head.appendChild(st);
+}

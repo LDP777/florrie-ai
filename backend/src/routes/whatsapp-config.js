@@ -5,20 +5,28 @@
  * Each beautician adds their own number. Florrie pays Meta, beauticians just connect.
  *
  * Flow:
- *   POST   /api/whatsapp/register     add number to WABA + request OTP via SMS
+ *   POST   /api/whatsapp/preflight    dry-run that actively checks Meta state without SMS
+ *   POST   /api/whatsapp/register     add number to WABA + request OTP via SMS (runs preflight first)
  *   POST   /api/whatsapp/resend-code  request another OTP (user tapped "resend")
  *   POST   /api/whatsapp/verify       verify OTP + activate number for Cloud API
- *   POST   /api/whatsapp/diagnose     dry-run probe that returns what Meta would do, without
- *                                     sending an SMS or mutating beautician state
- *   GET    /api/whatsapp/status       connection status + monthly usage
+ *   POST   /api/whatsapp/diagnose     lightweight version of preflight (kept for legacy UI)
+ *   POST   /api/whatsapp/reset        nuclear reset: delete from Meta + clear DB columns
+ *   GET    /api/whatsapp/status       connection status + monthly usage + activation state
+ *   GET    /api/whatsapp/activation-status
+ *                                     poll endpoint the UI hits after /verify; returns
+ *                                     true once Meta confirms Cloud API is truly live
  *   GET    /api/whatsapp/diagnostics  last 10 diagnostic rows for this beautician
- *   DELETE /api/whatsapp/disconnect   remove number from WABA
+ *   DELETE /api/whatsapp/disconnect   remove number from WABA (alias for /reset)
  *
  * Meta's 4-step registration (what this actually does under the hood):
  *   1. POST /{WABA_ID}/phone_numbers       add the number as a WABA entry (with verified_name)
  *   2. POST /{phone_number_id}/request_code Meta sends SMS to the number
  *   3. POST /{phone_number_id}/verify_code  confirm ownership
  *   4. POST /{phone_number_id}/register     activate for Cloud API (with PIN)
+ *
+ * After step 4 we also GET /{phone_number_id}?fields=status to confirm the
+ * number actually went live, because step 4 can succeed at the HTTP layer
+ * while Meta silently fails to flip the number into CONNECTED state.
  *
  * Env vars required:
  *   WHATSAPP_TOKEN       Florrie's system user token (permanent)
@@ -123,7 +131,6 @@ function interpretMetaError(meta, { context = 'register', now = new Date() } = {
   const sub = meta.subcode;
   const userMsg = (meta.userMsg || meta.message || '').toLowerCase();
 
-  // consumer WhatsApp app conflict
   if (sub === 2388023 || /already.*whatsapp|registered.*consumer|already active on whatsapp/i.test(userMsg)) {
     return {
       diagnosis: 'on_consumer_whatsapp',
@@ -134,7 +141,6 @@ function interpretMetaError(meta, { context = 'register', now = new Date() } = {
     };
   }
 
-  // number held by another WhatsApp Business API provider
   if (sub === 2388008 || /associated with.*business|already.*business account|tied to/i.test(userMsg)) {
     return {
       diagnosis: 'on_other_waba',
@@ -145,7 +151,6 @@ function interpretMetaError(meta, { context = 'register', now = new Date() } = {
     };
   }
 
-  // verified_name collision (Meta rejects duplicate display names unless allow_duplicate set)
   if (sub === 2388009 || /verified.name|display name.*exists/i.test(userMsg)) {
     return {
       diagnosis: 'verified_name_collision',
@@ -156,18 +161,16 @@ function interpretMetaError(meta, { context = 'register', now = new Date() } = {
     };
   }
 
-  // Meta-side cooldown after deletion
   if (sub === 2388024 || /migration.*pending|pending.*review|still processing/i.test(userMsg)) {
     return {
       diagnosis: 'cooldown_active',
       suggestedAction: 'wait',
       retryAfter: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
       userMessage:
-        "Meta is still processing a recent change to this number. This usually clears within a few hours but can take up to 24 hours. Try again later.",
+        "Meta is still processing a recent change to this number. This usually clears within a few hours but can take up to 24 hours. We'll retry automatically in the background.",
     };
   }
 
-  // invalid number format / country
   if (code === 100 && /invalid.*phone|phone.*invalid|country code/i.test(userMsg)) {
     return {
       diagnosis: 'invalid_number',
@@ -178,7 +181,6 @@ function interpretMetaError(meta, { context = 'register', now = new Date() } = {
     };
   }
 
-  // rate limit / temp block
   if (code === 368 || code === 4 || code === 17 || /rate.?limit|too many requests/i.test(userMsg)) {
     return {
       diagnosis: 'rate_limit',
@@ -189,7 +191,6 @@ function interpretMetaError(meta, { context = 'register', now = new Date() } = {
     };
   }
 
-  // WABA not approved / token invalid
   if (code === 190 || code === 200 || /access token|permission|not approved/i.test(userMsg)) {
     return {
       diagnosis: 'waba_not_approved',
@@ -200,7 +201,6 @@ function interpretMetaError(meta, { context = 'register', now = new Date() } = {
     };
   }
 
-  // Fallback: unknown
   return {
     diagnosis: 'unknown',
     suggestedAction: 'contact_support',
@@ -235,16 +235,10 @@ async function requestOtp(phoneNumberId) {
 }
 
 /**
- * Try to add a phone number to our WABA, with full error capture + interpretation.
- * Shared by /register and /diagnose.
- *
- * Returns one of:
- *   { ok: true, phoneNumberId, alreadyOnWaba: boolean }
- *   { ok: false, diagnostic, raw }
+ * Look up a phone number on our WABA. Returns phone_number_id if it already
+ * exists on our side, null if not.
  */
-async function addPhoneNumberToWaba({ cc, number, verifiedName, e164 }) {
-  // First, check if it's already on our WABA from a previous half-finished attempt.
-  // Cheaper than POSTing and getting rejected, and doesn't count towards rate limits.
+async function findExistingOnWaba(e164) {
   const filter = encodeURIComponent(
     JSON.stringify([{ field: 'phone_number', operator: 'CONTAIN', value: e164 }])
   );
@@ -252,19 +246,78 @@ async function addPhoneNumberToWaba({ cc, number, verifiedName, e164 }) {
     const lookup = await fetch(`${GRAPH}/${WABA_ID}/phone_numbers?filtering=${filter}`, {
       headers: metaHeaders(),
     });
-    const lookupData = await lookup.json();
-    const existing = lookupData?.data?.[0]?.id;
-    if (existing) {
-      return { ok: true, phoneNumberId: existing, alreadyOnWaba: true };
-    }
+    const data = await lookup.json();
+    return data?.data?.[0]?.id || null;
   } catch (err) {
-    // non-fatal, fall through to POST attempt
-    logger.debug({ err }, 'WABA lookup before add failed, attempting POST');
+    logger.debug({ err }, 'WABA lookup failed, assuming not present');
+    return null;
+  }
+}
+
+/**
+ * Delete a phone_number_id from Meta's WABA. Idempotent: returns ok even when
+ * Meta says the id is unknown (meaning: already gone, which is the outcome we want).
+ */
+async function deleteFromMeta(phoneNumberId) {
+  if (!phoneNumberId || !WA_TOKEN) return { ok: true, alreadyGone: true };
+  try {
+    const res = await fetch(`${GRAPH}/${phoneNumberId}`, {
+      method: 'DELETE',
+      headers: metaHeaders(),
+    });
+    if (res.ok) return { ok: true, alreadyGone: false };
+    const data = await res.json();
+    const meta = extractMetaError(data);
+    // code 100 + "does not exist" means already deleted — treat as success
+    const alreadyGone = /does not exist|cannot be loaded|unknown.*path/i.test(
+      (meta.userMsg || meta.message || '')
+    );
+    return { ok: alreadyGone, alreadyGone, meta, raw: data };
+  } catch (err) {
+    logger.warn({ err, phoneNumberId }, 'Meta phone delete threw');
+    return { ok: false, err: err.message };
+  }
+}
+
+/**
+ * Clear every whatsapp_* column on a beautician row. Used by the nuclear reset.
+ */
+async function clearBeauticianWhatsapp(beauticianId) {
+  await supabase
+    .from('beauticians')
+    .update({
+      whatsapp_connected: false,
+      whatsapp_phone: null,
+      whatsapp_phone_id: null,
+      whatsapp_pending_phone: null,
+      whatsapp_pin: null,
+      whatsapp_registered_at: null,
+      whatsapp_pending_activation: false,
+      whatsapp_retry_at: null,
+      whatsapp_retry_reason: null,
+      whatsapp_retry_attempts: 0,
+    })
+    .eq('id', beauticianId);
+}
+
+/**
+ * Try to add a phone number to our WABA, with full error capture + interpretation.
+ * Shared by /register, /diagnose, /preflight, and the retry worker.
+ *
+ * Returns one of:
+ *   { ok: true, phoneNumberId, alreadyOnWaba: boolean }
+ *   { ok: false, diagnostic, raw, meta }
+ */
+async function addPhoneNumberToWaba({ cc, number, verifiedName, e164 }) {
+  // First, check if it's already on our WABA from a previous half-finished attempt.
+  const existing = await findExistingOnWaba(e164);
+  if (existing) {
+    return { ok: true, phoneNumberId: existing, alreadyOnWaba: true };
   }
 
-  // Actually try to add. allow_duplicate_verified_names prevents rejections when
-  // another beautician already has the same business display name registered,
-  // which is a common cause of generic 100 errors on shared WABAs.
+  // allow_duplicate_verified_names prevents rejections when another beautician
+  // already has the same business display name registered, which is a common
+  // cause of generic 100 errors on shared WABAs.
   const body = {
     cc,
     phone_number: number,
@@ -284,16 +337,10 @@ async function addPhoneNumberToWaba({ cc, number, verifiedName, e164 }) {
   }
 
   // Failed. Try one more lookup in case the number was added but the response was odd.
-  try {
-    const lookup2 = await fetch(`${GRAPH}/${WABA_ID}/phone_numbers?filtering=${filter}`, {
-      headers: metaHeaders(),
-    });
-    const lookup2Data = await lookup2.json();
-    const existing = lookup2Data?.data?.[0]?.id;
-    if (existing) {
-      return { ok: true, phoneNumberId: existing, alreadyOnWaba: true };
-    }
-  } catch {}
+  const reexisting = await findExistingOnWaba(e164);
+  if (reexisting) {
+    return { ok: true, phoneNumberId: reexisting, alreadyOnWaba: true };
+  }
 
   const meta = extractMetaError(addData);
   const diagnostic = interpretMetaError(meta, { context: 'add_number' });
@@ -301,95 +348,403 @@ async function addPhoneNumberToWaba({ cc, number, verifiedName, e164 }) {
 }
 
 /**
+ * Comprehensive pre-flight: validates everything we can without burning an SMS.
+ * Returns { ready: true, ... } or { ready: false, diagnosis, userMessage, ... }.
+ *
+ * Checks, in order:
+ *   1. Format
+ *   2. Business name present on beautician
+ *   3. Meta token health (GET /{WABA_ID})
+ *   4. Number is addable (POST /{WABA_ID}/phone_numbers with our full context)
+ *
+ * Step 4 is the same call as /register does, but because it doesn't hit
+ * /request_code, no SMS is sent. If it succeeds, we keep the resulting
+ * phone_number_id so /register can skip the add step and jump straight to OTP.
+ */
+async function runPreflight({ beauticianId, phone }) {
+  const e164 = normalisePhone(phone || '');
+  if (!isValidE164(e164)) {
+    return {
+      ready: false,
+      diagnosis: 'invalid_format',
+      userMessage: "That number doesn't look right. UK mobiles should be 11 digits starting with 07.",
+      e164: null,
+    };
+  }
+
+  const { cc, number } = splitPhone(e164);
+
+  const { data: profile } = await supabase
+    .from('beauticians')
+    .select('business_name')
+    .eq('id', beauticianId)
+    .single();
+
+  const verifiedName = (profile?.business_name || '').trim();
+  if (!verifiedName) {
+    return {
+      ready: false,
+      diagnosis: 'missing_business_name',
+      userMessage: "Set your business name in Settings first. WhatsApp uses it as the display name your clients will see.",
+      e164,
+    };
+  }
+
+  // Meta token health check. Cheap and bails fast with a clear message if the
+  // system-user token expired or the WABA id env var is wrong.
+  try {
+    const tokenProbe = await fetch(`${GRAPH}/${WABA_ID}?fields=id,name`, {
+      headers: metaHeaders(),
+    });
+    if (!tokenProbe.ok) {
+      const probeData = await tokenProbe.json();
+      const meta = extractMetaError(probeData);
+      const diagnostic = interpretMetaError(meta, { context: 'preflight' });
+      return {
+        ready: false,
+        diagnosis: diagnostic.diagnosis === 'unknown' ? 'waba_not_approved' : diagnostic.diagnosis,
+        userMessage: diagnostic.userMessage,
+        suggestedAction: diagnostic.suggestedAction,
+        meta,
+        e164,
+      };
+    }
+  } catch (err) {
+    logger.warn({ err }, 'Preflight token probe threw');
+    // non-fatal, carry on to the real add
+  }
+
+  // The real test. If this succeeds we reuse the phoneNumberId in /register.
+  const add = await addPhoneNumberToWaba({ cc, number, verifiedName, e164 });
+
+  if (add.ok) {
+    return {
+      ready: true,
+      phoneNumberId: add.phoneNumberId,
+      alreadyOnWaba: add.alreadyOnWaba,
+      verifiedName,
+      e164,
+      cc,
+      number,
+      userMessage: add.alreadyOnWaba
+        ? "This number is already on our side from a previous attempt. We'll send a verification code now."
+        : "This number looks clean and ready. We'll send a verification code now.",
+    };
+  }
+
+  const { diagnostic, meta, raw } = add;
+  return {
+    ready: false,
+    diagnosis: diagnostic.diagnosis,
+    userMessage: diagnostic.userMessage,
+    suggestedAction: diagnostic.suggestedAction,
+    retryAfter: diagnostic.retryAfter,
+    meta,
+    raw,
+    e164,
+  };
+}
+
+/**
+ * After /register activates the Cloud API, confirm with Meta that the number
+ * is actually CONNECTED. Meta's /register endpoint sometimes returns success
+ * at the HTTP layer while leaving the number in a PENDING or MIGRATED state,
+ * which means messages silently fail. We GET the phone number status to find
+ * out for sure.
+ *
+ * Returns { active: true } when Meta reports CONNECTED, otherwise details.
+ */
+async function verifyCloudApiActivation(phoneNumberId) {
+  try {
+    const res = await fetch(
+      `${GRAPH}/${phoneNumberId}?fields=status,code_verification_status,name_status,quality_rating`,
+      { headers: metaHeaders() }
+    );
+    const data = await res.json();
+    if (!res.ok) {
+      const meta = extractMetaError(data);
+      return { active: false, meta, raw: data };
+    }
+    const status = (data?.status || '').toUpperCase();
+    const codeStatus = (data?.code_verification_status || '').toUpperCase();
+    // CONNECTED is the only value that means messages can actually send.
+    // PENDING usually becomes CONNECTED on its own within a few minutes.
+    const active = status === 'CONNECTED';
+    return {
+      active,
+      status,
+      codeStatus,
+      nameStatus: data?.name_status,
+      qualityRating: data?.quality_rating,
+      raw: data,
+    };
+  } catch (err) {
+    logger.warn({ err, phoneNumberId }, 'verifyCloudApiActivation threw');
+    return { active: false, err: err.message };
+  }
+}
+
+/**
+ * POST /preflight
+ * Non-destructive check. Runs the same Meta calls /register does (token probe
+ * + add_number lookup/attempt) but never calls /request_code. Safe to call
+ * from the UI to gate the Send code button.
+ */
+router.post('/preflight', async (req, res) => {
+  if (!WA_TOKEN || !WABA_ID) {
+    return res.status(503).json({ error: 'WhatsApp not configured on this server' });
+  }
+  const { phone } = req.body;
+  if (!phone) return res.status(400).json({ error: 'phone is required' });
+
+  try {
+    const beauticianId = req.beautician.id;
+    const result = await runPreflight({ beauticianId, phone });
+
+    if (!result.ready && result.meta) {
+      await logDiagnostic({
+        beautician_id: beauticianId,
+        phone: `+${result.e164 || normalisePhone(phone)}`,
+        stage: 'preflight',
+        success: false,
+        meta_code: result.meta.code,
+        meta_subcode: result.meta.subcode,
+        meta_type: result.meta.type,
+        meta_user_msg: result.meta.userMsg,
+        meta_user_title: result.meta.userTitle,
+        meta_message: result.meta.message,
+        fbtrace_id: result.meta.fbtraceId,
+        raw_response: result.raw,
+        diagnosis: `preflight:${result.diagnosis}`,
+        suggested_action: result.suggestedAction,
+        retry_after: result.retryAfter,
+      });
+    }
+
+    return res.json({
+      ready: !!result.ready,
+      status: result.ready ? (result.alreadyOnWaba ? 'already_on_waba' : 'clean') : result.diagnosis,
+      userMessage: result.userMessage,
+      suggestedAction: result.suggestedAction,
+      retryAfter: result.retryAfter,
+      phone_number_id: result.phoneNumberId || null,
+      already_on_waba: !!result.alreadyOnWaba,
+      meta_code: result.meta?.code,
+      meta_subcode: result.meta?.subcode,
+      fbtrace_id: result.meta?.fbtraceId,
+    });
+  } catch (err) {
+    logger.error({ err }, 'WhatsApp preflight error');
+    return res.status(500).json({ error: 'Preflight failed' });
+  }
+});
+
+/**
+ * POST /diagnose
+ * Kept for legacy UI, now a thin alias of /preflight.
+ */
+router.post('/diagnose', async (req, res) => {
+  if (!WA_TOKEN || !WABA_ID) {
+    return res.status(503).json({ error: 'WhatsApp not configured on this server' });
+  }
+  const { phone } = req.body;
+  if (!phone) return res.status(400).json({ error: 'phone is required' });
+
+  try {
+    const beauticianId = req.beautician.id;
+    const result = await runPreflight({ beauticianId, phone });
+    return res.json({
+      status: result.ready ? (result.alreadyOnWaba ? 'already_on_waba' : 'ready') : result.diagnosis,
+      ready: !!result.ready,
+      userMessage: result.userMessage,
+      suggestedAction: result.suggestedAction,
+      retryAfter: result.retryAfter,
+      phone_number_id: result.phoneNumberId || null,
+      meta_code: result.meta?.code,
+      meta_subcode: result.meta?.subcode,
+      fbtrace_id: result.meta?.fbtraceId,
+    });
+  } catch (err) {
+    logger.error({ err }, 'WhatsApp diagnose error');
+    return res.status(500).json({ error: 'Diagnostic failed' });
+  }
+});
+
+/**
+ * POST /reset
+ * Nuclear option. For stuck numbers on a shared WABA, the cleanest thing we
+ * can do is force-delete from Meta's side and wipe local state, so the next
+ * /register starts from zero.
+ *
+ * Body: {} or { phone: "+447..." } (if no phone given, uses stored phone_id)
+ *
+ * Safe to call repeatedly. Returns { success: true, cleared: {...} }.
+ */
+router.post('/reset', async (req, res) => {
+  if (!WA_TOKEN || !WABA_ID) {
+    return res.status(503).json({ error: 'WhatsApp not configured on this server' });
+  }
+  const beauticianId = req.beautician.id;
+  const cleared = { meta_phone_id: null, meta_deleted: false, meta_already_gone: false, db_cleared: false };
+
+  try {
+    // 1. What's currently on this beautician's row?
+    const { data: b } = await supabase
+      .from('beauticians')
+      .select('whatsapp_phone_id, whatsapp_pending_phone, whatsapp_phone')
+      .eq('id', beauticianId)
+      .single();
+
+    // 2. If a phone was passed in the body, also force a WABA lookup so we
+    //    catch phone_number_ids that exist on Meta's side but aren't in our DB
+    //    (the typical "stuck half-finished attempt" situation).
+    let targetId = b?.whatsapp_phone_id || null;
+    const bodyPhone = req.body?.phone;
+    if (bodyPhone) {
+      const e164 = normalisePhone(bodyPhone);
+      if (isValidE164(e164)) {
+        const found = await findExistingOnWaba(e164);
+        if (found && !targetId) targetId = found;
+      }
+    }
+
+    cleared.meta_phone_id = targetId;
+
+    // 3. Delete from Meta (idempotent)
+    if (targetId) {
+      const del = await deleteFromMeta(targetId);
+      cleared.meta_deleted = del.ok && !del.alreadyGone;
+      cleared.meta_already_gone = !!del.alreadyGone;
+      if (!del.ok) {
+        logger.warn({ del, targetId, beauticianId }, 'Meta delete during reset failed, clearing locally anyway');
+      }
+    }
+
+    // 4. Clear every whatsapp_* column
+    await clearBeauticianWhatsapp(beauticianId);
+    cleared.db_cleared = true;
+
+    await logDiagnostic({
+      beautician_id: beauticianId,
+      phone: b?.whatsapp_phone || b?.whatsapp_pending_phone || bodyPhone || 'unknown',
+      stage: 'reset',
+      success: true,
+      diagnosis: 'nuclear_reset',
+      raw_response: cleared,
+    });
+
+    logger.info({ beauticianId, cleared }, 'WhatsApp nuclear reset complete');
+    return res.json({ success: true, cleared });
+  } catch (err) {
+    logger.error({ err }, 'WhatsApp reset error');
+    return res.status(500).json({ error: 'Reset failed' });
+  }
+});
+
+/**
  * POST /register
  * Register a phone number with Florrie's WABA, then trigger an SMS OTP.
- * Body: { phone: "+447700900123" }
+ * Body: { phone: "+447700900123", reset?: boolean }
+ *
+ * If reset is true, we wipe the beautician's whatsapp_* columns and
+ * force-delete any stuck phone_number_id from Meta's side before attempting.
+ * This is the "try again from scratch" path for stuck flows.
  */
 router.post('/register', async (req, res) => {
   if (!WA_TOKEN || !WABA_ID) {
     return res.status(503).json({ error: 'WhatsApp not configured on this server' });
   }
 
-  const { phone } = req.body;
+  const { phone, reset } = req.body;
   if (!phone) return res.status(400).json({ error: 'phone is required' });
 
   const beauticianId = req.beautician.id;
 
   try {
-    const e164 = normalisePhone(phone);
-    if (!isValidE164(e164)) {
-      return res.status(400).json({
-        error: "That number doesn't look right. UK mobiles should be 11 digits starting with 07.",
-      });
-    }
-    const { cc, number } = splitPhone(e164);
-
-    // Meta requires a verified_name (the display name clients see) on every new
-    // WABA number. Source it from the beautician's business_name; bail early
-    // with a clear message if they haven't set one.
-    const { data: profile } = await supabase
-      .from('beauticians')
-      .select('business_name')
-      .eq('id', beauticianId)
-      .single();
-
-    const verifiedName = (profile?.business_name || '').trim();
-    if (!verifiedName) {
-      return res.status(400).json({
-        error: "Set your business name in Settings first. WhatsApp uses it as the display name your clients will see.",
-      });
+    // Optional nuclear reset before retry
+    if (reset) {
+      const { data: b } = await supabase
+        .from('beauticians')
+        .select('whatsapp_phone_id')
+        .eq('id', beauticianId)
+        .single();
+      const e164 = normalisePhone(phone);
+      const existing = isValidE164(e164) ? await findExistingOnWaba(e164) : null;
+      const targetId = b?.whatsapp_phone_id || existing;
+      if (targetId) await deleteFromMeta(targetId);
+      await clearBeauticianWhatsapp(beauticianId);
     }
 
-    // Step 1: add the number to Florrie's WABA
-    const add = await addPhoneNumberToWaba({ cc, number, verifiedName, e164 });
+    // Unified preflight. This does format, business_name, token probe, and add_number.
+    // On success, we already have the phone_number_id in hand and can skip straight to OTP.
+    const pre = await runPreflight({ beauticianId, phone });
 
-    if (!add.ok) {
-      const { diagnostic, raw, meta } = add;
+    if (!pre.ready) {
+      const retryAfter = pre.retryAfter;
+
       await logDiagnostic({
         beautician_id: beauticianId,
-        phone: `+${e164}`,
-        stage: 'add_number',
+        phone: `+${pre.e164 || normalisePhone(phone)}`,
+        stage: pre.diagnosis === 'invalid_format' || pre.diagnosis === 'missing_business_name'
+          ? 'preflight'
+          : 'add_number',
         success: false,
-        meta_code: meta.code,
-        meta_subcode: meta.subcode,
-        meta_type: meta.type,
-        meta_user_msg: meta.userMsg,
-        meta_user_title: meta.userTitle,
-        meta_message: meta.message,
-        fbtrace_id: meta.fbtraceId,
-        raw_response: raw,
-        diagnosis: diagnostic.diagnosis,
-        suggested_action: diagnostic.suggestedAction,
-        retry_after: diagnostic.retryAfter,
+        meta_code: pre.meta?.code ?? null,
+        meta_subcode: pre.meta?.subcode ?? null,
+        meta_type: pre.meta?.type ?? null,
+        meta_user_msg: pre.meta?.userMsg ?? null,
+        meta_user_title: pre.meta?.userTitle ?? null,
+        meta_message: pre.meta?.message ?? null,
+        fbtrace_id: pre.meta?.fbtraceId ?? null,
+        raw_response: pre.raw ?? null,
+        diagnosis: pre.diagnosis,
+        suggested_action: pre.suggestedAction,
+        retry_after: retryAfter,
       });
+
+      // If we know when Meta will release the number, schedule a background retry
+      if (pre.diagnosis === 'cooldown_active' || pre.diagnosis === 'rate_limit') {
+        await supabase
+          .from('beauticians')
+          .update({
+            whatsapp_retry_at: retryAfter,
+            whatsapp_retry_reason: pre.diagnosis,
+            whatsapp_retry_attempts: 0,
+            whatsapp_pending_phone: `+${pre.e164}`,
+          })
+          .eq('id', beauticianId);
+      }
+
       logger.warn(
-        { beauticianId, phone: `+${e164}`, meta, diagnosis: diagnostic.diagnosis },
-        'WhatsApp add-number failed'
+        { beauticianId, phone, diagnosis: pre.diagnosis },
+        'WhatsApp register blocked at preflight'
       );
+
       return res.status(400).json({
-        error: diagnostic.userMessage,
+        error: pre.userMessage,
         diagnostic: {
-          code: diagnostic.diagnosis,
-          suggestedAction: diagnostic.suggestedAction,
-          retryAfter: diagnostic.retryAfter,
+          code: pre.diagnosis,
+          suggestedAction: pre.suggestedAction,
+          retryAfter,
+          autoRetryScheduled: pre.diagnosis === 'cooldown_active' || pre.diagnosis === 'rate_limit',
         },
-        meta_code: meta.code,
-        meta_subcode: meta.subcode,
-        meta_user_title: meta.userTitle,
-        fbtrace_id: meta.fbtraceId,
+        meta_code: pre.meta?.code ?? null,
+        meta_subcode: pre.meta?.subcode ?? null,
+        meta_user_title: pre.meta?.userTitle ?? null,
+        fbtrace_id: pre.meta?.fbtraceId ?? null,
       });
     }
 
-    const phoneNumberId = add.phoneNumberId;
+    const phoneNumberId = pre.phoneNumberId;
 
-    // Step 2: actually send the SMS
+    // Preflight succeeded, actually send the SMS
     const otp = await requestOtp(phoneNumberId);
     if (!otp.ok) {
       const meta = extractMetaError(otp.data);
       const diagnostic = interpretMetaError(meta, { context: 'request_otp' });
       await logDiagnostic({
         beautician_id: beauticianId,
-        phone: `+${e164}`,
+        phone: `+${pre.e164}`,
         stage: 'request_otp',
         success: false,
         meta_code: meta.code,
@@ -404,7 +759,7 @@ router.post('/register', async (req, res) => {
         suggested_action: diagnostic.suggestedAction,
         retry_after: diagnostic.retryAfter,
       });
-      logger.warn({ beauticianId, phone: `+${e164}`, meta, phoneNumberId }, 'Meta OTP request failed');
+      logger.warn({ beauticianId, phone: `+${pre.e164}`, meta, phoneNumberId }, 'Meta OTP request failed');
       return res.status(400).json({
         error: diagnostic.userMessage,
         diagnostic: {
@@ -418,35 +773,40 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Log the successful add so we can see the whole journey in diagnostics
     await logDiagnostic({
       beautician_id: beauticianId,
-      phone: `+${e164}`,
+      phone: `+${pre.e164}`,
       stage: 'add_number',
       success: true,
-      diagnosis: add.alreadyOnWaba ? 'already_on_waba' : 'clean_add',
+      diagnosis: pre.alreadyOnWaba ? 'already_on_waba' : 'clean_add',
     });
 
-    // Generate + persist a PIN now so /verify can use it
     const pin = generatePin();
 
     await supabase
       .from('beauticians')
       .update({
-        whatsapp_pending_phone: `+${e164}`,
+        whatsapp_pending_phone: `+${pre.e164}`,
         whatsapp_phone_id: phoneNumberId,
         whatsapp_pin: pin,
         whatsapp_connected: false,
+        whatsapp_pending_activation: false,
+        whatsapp_retry_at: null,
+        whatsapp_retry_reason: null,
+        whatsapp_retry_attempts: 0,
       })
       .eq('id', beauticianId);
 
-    logger.info({ beauticianId, phoneNumberId, phone: `+${e164}` }, 'WhatsApp number registered, OTP SMS sent');
+    logger.info(
+      { beauticianId, phoneNumberId, phone: `+${pre.e164}` },
+      'WhatsApp number registered, OTP SMS sent'
+    );
 
     return res.json({
       success: true,
       phone_number_id: phoneNumberId,
-      message: `Verification code sent to +${e164}`,
-      already_on_waba: add.alreadyOnWaba,
+      message: `Verification code sent to +${pre.e164}`,
+      already_on_waba: !!pre.alreadyOnWaba,
     });
   } catch (err) {
     logger.error({ err }, 'WhatsApp register error');
@@ -455,91 +815,7 @@ router.post('/register', async (req, res) => {
 });
 
 /**
- * POST /diagnose
- * Dry-run probe. Same Meta calls as /register but no SMS sent and no beautician row
- * mutated. Safe to call from the UI repeatedly to give the user a live status check.
- * Body: { phone: "+447700900123" }
- */
-router.post('/diagnose', async (req, res) => {
-  if (!WA_TOKEN || !WABA_ID) {
-    return res.status(503).json({ error: 'WhatsApp not configured on this server' });
-  }
-
-  const { phone } = req.body;
-  if (!phone) return res.status(400).json({ error: 'phone is required' });
-
-  const beauticianId = req.beautician.id;
-
-  try {
-    const e164 = normalisePhone(phone);
-    if (!isValidE164(e164)) {
-      return res.json({
-        status: 'invalid_format',
-        ready: false,
-        userMessage: "That number doesn't look right. UK mobiles should be 11 digits starting with 07.",
-      });
-    }
-
-    const { cc, number } = splitPhone(e164);
-
-    const { data: profile } = await supabase
-      .from('beauticians')
-      .select('business_name')
-      .eq('id', beauticianId)
-      .single();
-    const verifiedName = (profile?.business_name || '').trim() || 'Florrie Beautician';
-
-    const add = await addPhoneNumberToWaba({ cc, number, verifiedName, e164 });
-
-    if (add.ok) {
-      return res.json({
-        status: add.alreadyOnWaba ? 'already_on_waba' : 'ready',
-        ready: true,
-        phone_number_id: add.phoneNumberId,
-        userMessage: add.alreadyOnWaba
-          ? "This number is already registered on our side from a previous attempt. Tap Send verification code to finish connecting."
-          : "This number is clean and ready to connect. Tap Send verification code to continue.",
-      });
-    }
-
-    const { diagnostic, raw, meta } = add;
-    await logDiagnostic({
-      beautician_id: beauticianId,
-      phone: `+${e164}`,
-      stage: 'add_number',
-      success: false,
-      meta_code: meta.code,
-      meta_subcode: meta.subcode,
-      meta_type: meta.type,
-      meta_user_msg: meta.userMsg,
-      meta_user_title: meta.userTitle,
-      meta_message: meta.message,
-      fbtrace_id: meta.fbtraceId,
-      raw_response: raw,
-      diagnosis: `diagnose:${diagnostic.diagnosis}`,
-      suggested_action: diagnostic.suggestedAction,
-      retry_after: diagnostic.retryAfter,
-    });
-
-    return res.json({
-      status: diagnostic.diagnosis,
-      ready: false,
-      userMessage: diagnostic.userMessage,
-      suggestedAction: diagnostic.suggestedAction,
-      retryAfter: diagnostic.retryAfter,
-      meta_code: meta.code,
-      meta_subcode: meta.subcode,
-      fbtrace_id: meta.fbtraceId,
-    });
-  } catch (err) {
-    logger.error({ err }, 'WhatsApp diagnose error');
-    return res.status(500).json({ error: 'Diagnostic failed' });
-  }
-});
-
-/**
  * Trigger another OTP SMS for the beautician's pending number.
- * Used when the first SMS didn't arrive.
  */
 router.post('/resend-code', async (req, res) => {
   if (!WA_TOKEN) return res.status(503).json({ error: 'WhatsApp not configured on this server' });
@@ -599,7 +875,9 @@ router.post('/resend-code', async (req, res) => {
 
 /**
  * Verify the OTP sent by Meta, then activate the number for Cloud API use.
- * Body: { code: "123456" }
+ * After Cloud API activation, GET the phone number status to confirm it's
+ * truly CONNECTED. If it's not, mark pending_activation and let the UI poll
+ * /activation-status until it flips.
  */
 router.post('/verify', async (req, res) => {
   const { code } = req.body;
@@ -618,7 +896,6 @@ router.post('/verify', async (req, res) => {
       return res.status(400).json({ error: 'No pending WhatsApp registration found' });
     }
 
-    // Step 1: verify ownership
     const verifyRes = await fetch(`${GRAPH}/${b.whatsapp_phone_id}/verify_code`, {
       method: 'POST',
       headers: metaHeaders(),
@@ -653,7 +930,6 @@ router.post('/verify', async (req, res) => {
       });
     }
 
-    // Step 2: activate the number for Cloud API (required; otherwise messages can't send)
     const pin = b.whatsapp_pin || generatePin();
     if (!b.whatsapp_pin) {
       await supabase.from('beauticians').update({ whatsapp_pin: pin }).eq('id', beauticianId);
@@ -690,19 +966,62 @@ router.post('/verify', async (req, res) => {
         error:
           meta.userMsg ||
           meta.message ||
-          'Number verified but Cloud API activation failed. Try disconnecting and reconnecting.',
+          'Number verified but Cloud API activation failed. Try the Reset button in Settings and start again.',
         meta_code: meta.code,
         fbtrace_id: meta.fbtraceId,
       });
     }
 
+    // Cloud API register returned OK. Confirm with Meta that the number is
+    // actually CONNECTED. If it's still PENDING, flag pending_activation and
+    // let the retry worker/poller flip it to connected later.
+    const activation = await verifyCloudApiActivation(b.whatsapp_phone_id);
+
+    if (activation.active) {
+      await supabase
+        .from('beauticians')
+        .update({
+          whatsapp_phone: b.whatsapp_pending_phone,
+          whatsapp_connected: true,
+          whatsapp_pending_activation: false,
+          whatsapp_registered_at: new Date().toISOString(),
+          whatsapp_pending_phone: null,
+        })
+        .eq('id', beauticianId);
+
+      await logDiagnostic({
+        beautician_id: beauticianId,
+        phone: b.whatsapp_pending_phone || '',
+        stage: 'register_cloud_api',
+        success: true,
+        diagnosis: 'connected',
+      });
+
+      logger.info(
+        { beauticianId, phone: b.whatsapp_pending_phone },
+        'WhatsApp number verified, activated, and confirmed CONNECTED'
+      );
+
+      return res.json({
+        success: true,
+        phone: b.whatsapp_pending_phone,
+        connected: true,
+        pendingActivation: false,
+        message: 'WhatsApp connected successfully',
+      });
+    }
+
+    // Register returned OK but status is not CONNECTED. Park it and let the
+    // UI poll /activation-status. Meta usually flips this within a few minutes.
     await supabase
       .from('beauticians')
       .update({
         whatsapp_phone: b.whatsapp_pending_phone,
-        whatsapp_connected: true,
+        whatsapp_connected: false,
+        whatsapp_pending_activation: true,
         whatsapp_registered_at: new Date().toISOString(),
-        whatsapp_pending_phone: null,
+        whatsapp_retry_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+        whatsapp_retry_reason: 'pending_activation',
       })
       .eq('id', beauticianId);
 
@@ -711,15 +1030,22 @@ router.post('/verify', async (req, res) => {
       phone: b.whatsapp_pending_phone || '',
       stage: 'register_cloud_api',
       success: true,
-      diagnosis: 'connected',
+      diagnosis: 'pending_activation',
+      raw_response: activation.raw,
     });
 
-    logger.info({ beauticianId, phone: b.whatsapp_pending_phone }, 'WhatsApp number verified and activated for Cloud API');
+    logger.warn(
+      { beauticianId, phone: b.whatsapp_pending_phone, metaStatus: activation.status },
+      'Cloud API register returned OK but status not yet CONNECTED, polling scheduled'
+    );
 
     return res.json({
       success: true,
       phone: b.whatsapp_pending_phone,
-      message: 'WhatsApp connected successfully',
+      connected: false,
+      pendingActivation: true,
+      metaStatus: activation.status || null,
+      message: "Number verified. Meta is still bringing it online, this usually clears within a few minutes. We'll keep watching.",
     });
   } catch (err) {
     logger.error({ err }, 'WhatsApp verify error');
@@ -728,8 +1054,72 @@ router.post('/verify', async (req, res) => {
 });
 
 /**
+ * GET /activation-status
+ * Polled by the UI after /verify to detect when Meta's Cloud API actually
+ * flips from PENDING to CONNECTED. When it does, we flip
+ * whatsapp_connected=true and the UI swaps out of the spinner.
+ */
+router.get('/activation-status', async (req, res) => {
+  const beauticianId = req.beautician.id;
+
+  try {
+    const { data: b } = await supabase
+      .from('beauticians')
+      .select('whatsapp_phone, whatsapp_phone_id, whatsapp_connected, whatsapp_pending_activation')
+      .eq('id', beauticianId)
+      .single();
+
+    if (!b) return res.status(404).json({ error: 'Beautician not found' });
+    if (!b.whatsapp_phone_id) {
+      return res.json({ connected: false, pendingActivation: false, status: 'no_number' });
+    }
+    if (b.whatsapp_connected) {
+      return res.json({ connected: true, pendingActivation: false, status: 'connected' });
+    }
+
+    // Live poll Meta
+    const activation = await verifyCloudApiActivation(b.whatsapp_phone_id);
+
+    if (activation.active) {
+      await supabase
+        .from('beauticians')
+        .update({
+          whatsapp_connected: true,
+          whatsapp_pending_activation: false,
+          whatsapp_pending_phone: null,
+          whatsapp_retry_at: null,
+          whatsapp_retry_reason: null,
+        })
+        .eq('id', beauticianId);
+
+      await logDiagnostic({
+        beautician_id: beauticianId,
+        phone: b.whatsapp_phone || '',
+        stage: 'register_cloud_api',
+        success: true,
+        diagnosis: 'connected_delayed',
+      });
+
+      logger.info({ beauticianId }, 'WhatsApp Cloud API flipped to CONNECTED on poll');
+
+      return res.json({ connected: true, pendingActivation: false, status: 'connected' });
+    }
+
+    return res.json({
+      connected: false,
+      pendingActivation: !!b.whatsapp_pending_activation,
+      status: activation.status || 'pending',
+      metaStatus: activation.status || null,
+    });
+  } catch (err) {
+    logger.error({ err }, 'WhatsApp activation-status error');
+    return res.status(500).json({ error: 'Could not check activation status' });
+  }
+});
+
+/**
  * GET /status
- * Returns connection status + monthly usage for the dashboard.
+ * Returns connection status + monthly usage + retry queue state for the dashboard.
  */
 router.get('/status', async (req, res) => {
   const beauticianId = req.beautician.id;
@@ -737,7 +1127,7 @@ router.get('/status', async (req, res) => {
   try {
     const { data: b, error: bErr } = await supabase
       .from('beauticians')
-      .select('whatsapp_connected, whatsapp_phone, whatsapp_phone_id, whatsapp_registered_at, whatsapp_pending_phone, business_name')
+      .select('whatsapp_connected, whatsapp_phone, whatsapp_phone_id, whatsapp_registered_at, whatsapp_pending_phone, whatsapp_pending_activation, whatsapp_retry_at, whatsapp_retry_reason, whatsapp_retry_attempts, business_name')
       .eq('id', beauticianId)
       .single();
 
@@ -750,8 +1140,16 @@ router.get('/status', async (req, res) => {
       phone: b.whatsapp_phone || null,
       phone_number_id: b.whatsapp_phone_id || null,
       pending_phone: b.whatsapp_pending_phone || null,
+      pending_activation: !!b.whatsapp_pending_activation,
       registered_at: b.whatsapp_registered_at || null,
       business_name: b.business_name || null,
+      retry: b.whatsapp_retry_at
+        ? {
+            retry_at: b.whatsapp_retry_at,
+            reason: b.whatsapp_retry_reason,
+            attempts: b.whatsapp_retry_attempts || 0,
+          }
+        : null,
       usage: usage
         ? {
             sms_sent: usage.sms_sent,
@@ -772,8 +1170,7 @@ router.get('/status', async (req, res) => {
 
 /**
  * GET /diagnostics
- * Returns the last 10 diagnostic rows for this beautician. Used by the UI
- * to show a history of Meta responses.
+ * Returns the last 10 diagnostic rows for this beautician.
  */
 router.get('/diagnostics', async (req, res) => {
   const beauticianId = req.beautician.id;
@@ -793,7 +1190,7 @@ router.get('/diagnostics', async (req, res) => {
 
 /**
  * DELETE /disconnect
- * Removes the number from Meta's WABA and clears credentials.
+ * Same as /reset but bound to DELETE for back-compat with older frontend code.
  */
 router.delete('/disconnect', async (req, res) => {
   const beauticianId = req.beautician.id;
@@ -805,29 +1202,14 @@ router.delete('/disconnect', async (req, res) => {
       .eq('id', beauticianId)
       .single();
 
-    if (b?.whatsapp_phone_id && WA_TOKEN) {
-      const metaRes = await fetch(`${GRAPH}/${b.whatsapp_phone_id}`, {
-        method: 'DELETE',
-        headers: metaHeaders(),
-      });
-
-      if (!metaRes.ok) {
-        const metaData = await metaRes.json();
-        logger.warn({ metaData, beauticianId }, 'Meta phone delete failed, clearing locally anyway');
+    if (b?.whatsapp_phone_id) {
+      const del = await deleteFromMeta(b.whatsapp_phone_id);
+      if (!del.ok) {
+        logger.warn({ del, beauticianId }, 'Meta phone delete failed during disconnect, clearing locally');
       }
     }
 
-    await supabase
-      .from('beauticians')
-      .update({
-        whatsapp_connected: false,
-        whatsapp_phone: null,
-        whatsapp_phone_id: null,
-        whatsapp_pending_phone: null,
-        whatsapp_pin: null,
-        whatsapp_registered_at: null,
-      })
-      .eq('id', beauticianId);
+    await clearBeauticianWhatsapp(beauticianId);
 
     logger.info({ beauticianId }, 'WhatsApp disconnected');
     return res.json({ success: true });
@@ -836,5 +1218,20 @@ router.delete('/disconnect', async (req, res) => {
     return res.status(500).json({ error: 'Something went wrong' });
   }
 });
+
+// Expose helpers for the retry worker. Kept at the bottom so the public
+// route surface stays readable above.
+export const _whatsappInternals = {
+  runPreflight,
+  verifyCloudApiActivation,
+  requestOtp,
+  deleteFromMeta,
+  findExistingOnWaba,
+  clearBeauticianWhatsapp,
+  logDiagnostic,
+  normalisePhone,
+  isValidE164,
+  splitPhone,
+};
 
 export default router;
