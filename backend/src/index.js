@@ -82,9 +82,13 @@ const REQUIRED_ENV = [
 // unset, taking down features that don't depend on WhatsApp at all. Routes
 // under /api/whatsapp/* check for these at request time and return a
 // structured error via Sentry if missing.
+//
+// Each entry is an array of acceptable names. The first set value wins.
+// We accept both the short names we ship under and Meta's official names,
+// because Railway provisions with the Meta names.
 const WHATSAPP_ENV = [
-  'WHATSAPP_TOKEN',
-  'WHATSAPP_WABA_ID',
+  ['WHATSAPP_TOKEN', 'WHATSAPP_ACCESS_TOKEN'],
+  ['WHATSAPP_WABA_ID', 'WHATSAPP_BUSINESS_ACCOUNT_ID'],
 ];
 const OPTIONAL_ENV = [
   'STRIPE_SECRET_KEY',
@@ -102,7 +106,9 @@ if (missing.length) {
   process.exit(1);
 }
 
-const whatsappMissing = WHATSAPP_ENV.filter(k => !process.env[k]);
+const whatsappMissing = WHATSAPP_ENV
+  .filter(names => !names.some(n => process.env[n]))
+  .map(names => names.join(' or '));
 if (whatsappMissing.length) {
   logger.error(
     { missing: whatsappMissing },

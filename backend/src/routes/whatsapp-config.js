@@ -29,9 +29,9 @@
  * while Meta silently fails to flip the number into CONNECTED state.
  *
  * Env vars required:
- *   WHATSAPP_TOKEN       Florrie's system user token (permanent)
- *   WHATSAPP_WABA_ID     Florrie's WhatsApp Business Account ID
- *   WHATSAPP_API_VERSION e.g. "v21.0" (defaults to v21.0)
+ *   WHATSAPP_TOKEN                or WHATSAPP_ACCESS_TOKEN       Florrie's system user token (permanent)
+ *   WHATSAPP_WABA_ID              or WHATSAPP_BUSINESS_ACCOUNT_ID Florrie's WhatsApp Business Account ID
+ *   WHATSAPP_API_VERSION          e.g. "v21.0" (defaults to v21.0)
  */
 
 import express from 'express';
@@ -45,8 +45,10 @@ import { getMonthlyUsage } from '../services/whatsapp-metering.js';
 const router = express.Router();
 router.use(requireAuth);
 
-const WA_TOKEN = process.env.WHATSAPP_TOKEN;
-const WABA_ID = process.env.WHATSAPP_WABA_ID;
+// Accept Meta's official Railway env names as fallbacks so we don't have to
+// rename dashboard variables mid-flight. Keep the short names as primary.
+const WA_TOKEN = process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN;
+const WABA_ID = process.env.WHATSAPP_WABA_ID || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
 const API_VER = process.env.WHATSAPP_API_VERSION || 'v21.0';
 const GRAPH = `https://graph.facebook.com/${API_VER}`;
 

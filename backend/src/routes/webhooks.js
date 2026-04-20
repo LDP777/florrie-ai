@@ -411,7 +411,8 @@ async function findOrCreateClientBySMS(beauticianId, phoneNumber) {
  * @throws {Error} Network or API errors
  */
 async function transcribeWhatsAppAudio(mediaId, mimeType) {
-  if (!mediaId || !process.env.WHATSAPP_TOKEN) return null;
+  const waToken = process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN;
+  if (!mediaId || !waToken) return null;
 
   // Determine audio format with fallback
   let audioFormat = 'audio/ogg'; // default fallback
@@ -431,14 +432,14 @@ async function transcribeWhatsAppAudio(mediaId, mimeType) {
 
   // Step 1: Get the download URL from Meta
   const metaRes = await fetch(`https://graph.facebook.com/v21.0/${mediaId}`, {
-    headers: { 'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}` },
+    headers: { 'Authorization': `Bearer ${waToken}` },
   });
   if (!metaRes.ok) throw new Error('Failed to get media URL');
   const { url: mediaUrl } = await metaRes.json();
 
   // Step 2: Download the audio binary
   const audioRes = await fetch(mediaUrl, {
-    headers: { 'Authorization': `Bearer ${process.env.WHATSAPP_TOKEN}` },
+    headers: { 'Authorization': `Bearer ${waToken}` },
   });
   if (!audioRes.ok) throw new Error('Failed to download audio');
   const audioBuffer = Buffer.from(await audioRes.arrayBuffer());

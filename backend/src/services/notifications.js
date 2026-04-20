@@ -120,7 +120,7 @@ export async function sendSMS({ to, body, beauticianId, originator, messageType 
 // Primary channel for clients with WhatsApp. Falls back to Bird SMS.
 // Each beautician has their own phone_number_id registered to Florrie's WABA.
 // Florrie pays Meta; usage is metered against the 120 msg/month plan limit.
-const WA_TOKEN = process.env.WHATSAPP_TOKEN;
+const WA_TOKEN = process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN;
 
 /**
  * Send a WhatsApp template message (for booking confirmations, reminders etc.)

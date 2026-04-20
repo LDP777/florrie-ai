@@ -25,8 +25,9 @@ import { getMonthlyUsage } from '../services/whatsapp-metering.js';
 const router = express.Router();
 router.use(requireAuth);
 
-const WA_TOKEN = process.env.WHATSAPP_TOKEN;
-const WABA_ID = process.env.WHATSAPP_WABA_ID;
+// Accept Meta's official Railway env names as fallbacks.
+const WA_TOKEN = process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN;
+const WABA_ID = process.env.WHATSAPP_WABA_ID || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
 const API_VER = process.env.WHATSAPP_API_VERSION || 'v19.0';
 const GRAPH = `https://graph.facebook.com/${API_VER}`;
 
