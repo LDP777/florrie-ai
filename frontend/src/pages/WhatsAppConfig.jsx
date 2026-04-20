@@ -199,6 +199,17 @@ const DIAGNOSTIC_META = {
       'If it persists, email hello@florrie.ai and we will escalate it.',
     ],
   },
+  waba_capacity: {
+    icon: '🛠️',
+    title: "We're at WhatsApp capacity right now",
+    tone: 'blocked',
+    steps: [
+      "Florrie's WhatsApp account has hit its phone-number limit.",
+      "This is on our side, not yours, and no action from you is needed.",
+      "We've been notified and will free up a slot as soon as we can, usually within a few hours.",
+      "Email hello@florrie.ai if you want us to ping you the moment it's cleared.",
+    ],
+  },
   unknown: {
     icon: '⚠️',
     title: "We couldn't connect this number",
@@ -318,7 +329,7 @@ function DiagnosticError({ error, errBody, onRetry, onReset, phone }) {
 
   // Reset makes sense for most terminal codes but not for "just wait" ones
   // where Meta is already managing the clock.
-  const showResetCta = code !== 'cooldown_active' && code !== 'rate_limit' && code !== 'invalid_format' && code !== 'missing_business_name';
+  const showResetCta = code !== 'cooldown_active' && code !== 'rate_limit' && code !== 'invalid_format' && code !== 'missing_business_name' && code !== 'waba_capacity';
 
   return (
     <div style={{

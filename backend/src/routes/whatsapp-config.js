@@ -160,6 +160,7 @@ function extractMetaError(responseBody) {
  *   100 / 2388009       verified_name already in use (allow_duplicate fixes)
  *   100 / 2388023       phone number still active on WhatsApp consumer app
  *   100 / 2388024       phone migration pending (Meta-side cooldown)
+ *   100 / 2388386       WABA is at its phone-number quota (our problem, not the beautician's)
  *   131005              phone number not registered with Cloud API
  *   131031              phone number migration to new WABA required
  *   133004/5/6          PIN-related register failures
@@ -211,6 +212,24 @@ function interpretMetaError(meta, { context = 'register', now = new Date() } = {
     };
   }
 
+  // 2388386: our shared WABA has hit Meta's per-business phone number cap.
+  // This is a Florrie operations problem, not the beautician's — don't tell them
+  // to go digging in Meta Business Suite. We need to free a slot on our side.
+  const userTitle = (meta.userTitle || '').toLowerCase();
+  if (
+    sub === 2388386 ||
+    /phone numbers? count exceeded|exceeded limit per business|numbers count exceeded limit/i.test(userMsg) ||
+    /phone numbers? count exceeded|exceeded limit per business/i.test(userTitle)
+  ) {
+    return {
+      diagnosis: 'waba_capacity',
+      suggestedAction: 'contact_support',
+      retryAfter: null,
+      userMessage:
+        "Florrie's WhatsApp account has hit its number limit. This is on our side, not yours. We've been notified and will free up space as soon as we can, usually within a few hours.",
+    };
+  }
+
   if (code === 100 && /invalid.*phone|phone.*invalid|country code/i.test(userMsg)) {
     return {
       diagnosis: 'invalid_number',
@@ -251,13 +270,19 @@ function interpretMetaError(meta, { context = 'register', now = new Date() } = {
     };
   }
 
+  // Final fallback: surface Meta's own human-readable copy when they gave us some,
+  // so beauticians at least see the real reason instead of "Meta rejected the request".
+  const metaTitle = meta.userTitle;
+  const metaCopy = meta.userMsg || meta.message;
+  const combined = metaTitle && metaCopy
+    ? `${metaTitle}: ${metaCopy}`
+    : (metaTitle || metaCopy || '');
   return {
     diagnosis: 'unknown',
     suggestedAction: 'contact_support',
     retryAfter: null,
     userMessage:
-      meta.userMsg ||
-      meta.message ||
+      combined ||
       "Meta rejected the connection but didn't tell us why. Take a screenshot of this and send it to support.",
   };
 }
@@ -395,6 +420,26 @@ async function addPhoneNumberToWaba({ cc, number, verifiedName, e164 }) {
 
   const meta = extractMetaError(addData);
   const diagnostic = interpretMetaError(meta, { context: 'add_number' });
+
+  // waba_capacity is an operational incident on our side — page it immediately
+  // so we free up a slot before more beauticians get blocked.
+  if (diagnostic.diagnosis === 'waba_capacity') {
+    Sentry.captureMessage('WhatsApp WABA at phone-number capacity — beautician blocked', {
+      level: 'error',
+      tags: {
+        route: 'whatsapp/add_number',
+        diagnosis: 'waba_capacity',
+        meta_subcode: String(meta.subcode ?? ''),
+      },
+      extra: {
+        e164,
+        meta_title: meta.userTitle,
+        meta_msg: meta.userMsg,
+        fbtrace_id: meta.fbtraceId,
+      },
+    });
+  }
+
   return { ok: false, diagnostic, raw: addData, meta };
 }
 
