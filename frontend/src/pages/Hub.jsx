@@ -490,7 +490,7 @@ function TodayStrip({ beautician }) {
       {todayData !== null && (
         <div style={TS.statsRow}>
           {todayData.total === 0 ? (
-            <span style={TS.empty}>No bookings today — enjoy the breathing room</span>
+            <span style={TS.empty}>No bookings today. Enjoy the breathing room.</span>
           ) : (
             <>
               <div style={TS.stat}>
@@ -710,6 +710,9 @@ export default function Hub() {
       {/* ── Today strip ── */}
       <TodayStrip beautician={beautician} />
 
+      {/* ── WhatsApp connect nudge ── */}
+      <WhatsAppHubBanner beautician={beautician} onNav={handleNav} />
+
       {/* ── Agent team section ── */}
       <AgentTeamSection beautician={beautician} onNav={handleNav} />
 
@@ -830,6 +833,237 @@ export default function Hub() {
     </div>
   );
 }
+
+/**
+ * Dismissible pinned banner that nudges beauticians to connect WhatsApp.
+ * Hides entirely once beautician.whatsapp_connected = true. Collapses to a
+ * small chip if the user dismisses but hasn't connected yet (reminder without
+ * harassing). Dismissal lives in localStorage so it survives reloads.
+ */
+function WhatsAppHubBanner({ beautician, onNav }) {
+  const connected = !!beautician?.whatsapp_connected;
+  const pending = !!beautician?.whatsapp_pending_activation;
+
+  const [dismissed, setDismissed] = useState(() => {
+    try {
+      return localStorage.getItem('florrie.whatsappBanner.dismissed') === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  // Connected = tiny status chip, success-coloured. Always honest.
+  if (connected) {
+    return (
+      <button
+        onClick={() => onNav('/whatsapp', 'WhatsApp', 'chat')}
+        style={WBS.chipConnected}
+        aria-label="WhatsApp connected, open settings"
+      >
+        <span style={WBS.chipDot} />
+        WhatsApp · connected
+      </button>
+    );
+  }
+
+  // Pending activation = amber chip, don't pitch a CTA over Meta.
+  if (pending) {
+    return (
+      <button
+        onClick={() => onNav('/whatsapp', 'WhatsApp', 'chat')}
+        style={WBS.chipPending}
+        aria-label="WhatsApp activating, open settings"
+      >
+        <span style={{ ...WBS.chipDot, background: '#D4943A' }} />
+        WhatsApp · activating
+      </button>
+    );
+  }
+
+  // Dismissed but not connected = small chip nudge, no modal weight.
+  if (dismissed) {
+    return (
+      <button
+        onClick={() => onNav('/whatsapp', 'WhatsApp', 'chat')}
+        style={WBS.chipNudge}
+        aria-label="Connect WhatsApp"
+      >
+        <span style={WBS.chipDotIdle} />
+        Connect WhatsApp when you're ready
+      </button>
+    );
+  }
+
+  // Full banner.
+  return (
+    <div style={WBS.card}>
+      <div style={WBS.row}>
+        <div style={WBS.icon} aria-hidden>💬</div>
+        <div style={WBS.copy}>
+          <div style={WBS.title}>Unlock WhatsApp replies</div>
+          <div style={WBS.desc}>
+            Florrie replies to clients on WhatsApp, in your voice, 24/7. Books them in, reminds them, chases no-shows.
+          </div>
+        </div>
+        <button
+          onClick={() => {
+            try { localStorage.setItem('florrie.whatsappBanner.dismissed', '1'); } catch { /* ignore */ }
+            setDismissed(true);
+          }}
+          style={WBS.closeBtn}
+          aria-label="Dismiss"
+        >
+          ×
+        </button>
+      </div>
+      <div style={WBS.ctaRow}>
+        <button
+          onClick={() => onNav('/whatsapp', 'WhatsApp', 'chat')}
+          style={WBS.primaryCta}
+        >
+          Connect WhatsApp →
+        </button>
+        <button
+          onClick={() => onNav('/settings', 'Settings', 'settings')}
+          style={WBS.secondaryCta}
+        >
+          Settings
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const WBS = {
+  card: {
+    background: 'linear-gradient(135deg, #E8F9ED 0%, #F4FDF6 100%)',
+    border: '1px solid #BEE5C6',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 16,
+    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+  },
+  row: {
+    display: 'flex',
+    gap: 12,
+    alignItems: 'flex-start',
+  },
+  icon: {
+    fontSize: 26,
+    lineHeight: 1,
+    flexShrink: 0,
+    marginTop: 2,
+  },
+  copy: { flex: 1, minWidth: 0 },
+  title: {
+    fontSize: 14,
+    fontWeight: 700,
+    color: '#1C5A2F',
+    marginBottom: 4,
+  },
+  desc: {
+    fontSize: 12.5,
+    color: '#2E5F40',
+    lineHeight: 1.45,
+  },
+  closeBtn: {
+    background: 'transparent',
+    border: 'none',
+    fontSize: 20,
+    lineHeight: 1,
+    color: '#5B8A6A',
+    cursor: 'pointer',
+    padding: '0 4px',
+    flexShrink: 0,
+    fontFamily: 'inherit',
+  },
+  ctaRow: {
+    display: 'flex',
+    gap: 8,
+    marginTop: 12,
+    flexWrap: 'wrap',
+  },
+  primaryCta: {
+    background: '#25D366',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 10,
+    padding: '9px 14px',
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    boxShadow: '0 1px 2px rgba(37,211,102,0.3)',
+  },
+  secondaryCta: {
+    background: '#fff',
+    color: '#1C5A2F',
+    border: '1px solid #BEE5C6',
+    borderRadius: 10,
+    padding: '9px 14px',
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  },
+  chipConnected: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    background: '#E8F9ED',
+    border: '1px solid #BEE5C6',
+    borderRadius: 999,
+    padding: '5px 10px',
+    fontSize: 11.5,
+    fontWeight: 600,
+    color: '#1C5A2F',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    marginBottom: 16,
+  },
+  chipPending: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    background: '#FDF4E3',
+    border: '1px solid #E7CE93',
+    borderRadius: 999,
+    padding: '5px 10px',
+    fontSize: 11.5,
+    fontWeight: 600,
+    color: '#7A5A1B',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    marginBottom: 16,
+  },
+  chipNudge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    background: '#fff',
+    border: '1px dashed #d8c1c6',
+    borderRadius: 999,
+    padding: '5px 10px',
+    fontSize: 11.5,
+    fontWeight: 600,
+    color: '#92405e',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    marginBottom: 16,
+  },
+  chipDot: {
+    width: 6,
+    height: 6,
+    borderRadius: '50%',
+    background: '#25D366',
+  },
+  chipDotIdle: {
+    width: 6,
+    height: 6,
+    borderRadius: '50%',
+    background: '#C76B8A',
+  },
+};
 
 function ItemCard({ item, locked, isActive, plan, onNav }) {
   return (

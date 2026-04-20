@@ -699,12 +699,26 @@ function ConnectFlow({ onConnected, onPending, onReset }) {
         </svg>
       </div>
 
-      <h2 style={styles.connectTitle}>Connect WhatsApp</h2>
+      <h2 style={styles.connectTitle}>Your WhatsApp does the bookings now</h2>
       <p style={styles.connectDesc}>
-        Add your business phone number. Florrie will send booking confirmations,
-        reminders, and follow-ups from your number, so clients see messages from you,
-        not from a generic platform.
+        Florrie replies to clients in your voice, 24/7. Books them in, sends reminders,
+        chases no-shows. SMS keeps running in the background as backup.
       </p>
+
+      <ul style={styles.outcomeList}>
+        <li style={styles.outcomeItem}>
+          <span style={styles.outcomeTick}>✓</span>
+          Replies to every DM, even at 11pm on a Sunday
+        </li>
+        <li style={styles.outcomeItem}>
+          <span style={styles.outcomeTick}>✓</span>
+          Takes the booking, holds the deposit, adds it to your calendar
+        </li>
+        <li style={styles.outcomeItem}>
+          <span style={styles.outcomeTick}>✓</span>
+          Sends 24h reminders so no-shows stop hurting your week
+        </li>
+      </ul>
 
       <div style={styles.connectNote}>
         ⚠️ The number must not already be active on personal WhatsApp. Use a business
@@ -1218,6 +1232,9 @@ const styles = {
   connectTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 8px' },
   connectDesc: { fontSize: 14, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.6, margin: '0 0 14px' },
   connectNote: { fontSize: 12, color: '#7B5E00', background: '#FFF8E1', border: '1px solid #FFE082', borderRadius: 10, padding: 12, marginBottom: 20, lineHeight: 1.5 },
+  outcomeList: { listStyle: 'none', padding: 0, margin: '0 0 16px', display: 'flex', flexDirection: 'column', gap: 6 },
+  outcomeItem: { fontSize: 13, color: 'var(--text, #2D2A26)', lineHeight: 1.5, display: 'flex', gap: 8, alignItems: 'flex-start' },
+  outcomeTick: { color: '#25D366', fontWeight: 800, flexShrink: 0, marginTop: 1 },
   inputLabel: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #8B6F5E)', marginBottom: 6 },
   input: { width: '100%', padding: '12px 14px', borderRadius: 12, border: '1.5px solid var(--border, #E8E4E0)', fontSize: 15, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', background: 'var(--bg, #FAF8F5)', outline: 'none', boxSizing: 'border-box', marginBottom: 12 },
   connectBtn: { width: '100%', padding: '13px 0', borderRadius: 12, border: 'none', background: '#25D366', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
