@@ -77,6 +77,12 @@ const REQUIRED_ENV = [
   'SUPABASE_ANON_KEY',
   'SUPABASE_SERVICE_KEY',
   'FRONTEND_URL',
+];
+// WhatsApp vars used to be required but that crashed the whole backend when
+// unset, taking down features that don't depend on WhatsApp at all. Routes
+// under /api/whatsapp/* check for these at request time and return a
+// structured error via Sentry if missing.
+const WHATSAPP_ENV = [
   'WHATSAPP_TOKEN',
   'WHATSAPP_WABA_ID',
 ];
@@ -96,9 +102,17 @@ if (missing.length) {
   process.exit(1);
 }
 
+const whatsappMissing = WHATSAPP_ENV.filter(k => !process.env[k]);
+if (whatsappMissing.length) {
+  logger.error(
+    { missing: whatsappMissing },
+    'WhatsApp env vars not set; /api/whatsapp/* routes will 503 until configured',
+  );
+}
+
 const unset = OPTIONAL_ENV.filter(k => !process.env[k]);
 if (unset.length) {
-  logger.warn({ unset }, 'Optional env vars not set — some features disabled');
+  logger.warn({ unset }, 'Optional env vars not set; some features disabled');
 }
 
 const app = express();
