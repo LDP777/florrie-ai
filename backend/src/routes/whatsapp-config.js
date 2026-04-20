@@ -187,7 +187,17 @@ function interpretMetaError(meta, { context = 'register', now = new Date() } = {
       suggestedAction: 'wait',
       retryAfter: new Date(now.getTime() + 60 * 60 * 1000).toISOString(),
       userMessage:
-        "Too many attempts in a short time. Wait an hour and try again.",
+        "Meta is rate-limiting this number. Too many attempts in a short time. We'll retry automatically in an hour.",
+    };
+  }
+
+  if (sub === 133004 || sub === 133005 || sub === 133006 || /pin|register.*fail|cloud.*api/i.test(userMsg)) {
+    return {
+      diagnosis: 'pin_error',
+      suggestedAction: 'reset_and_retry',
+      retryAfter: null,
+      userMessage:
+        "Cloud API registration failed. This is usually a temporary issue. Try the Reset button to clear and start again.",
     };
   }
 
@@ -296,6 +306,7 @@ async function clearBeauticianWhatsapp(beauticianId) {
       whatsapp_retry_at: null,
       whatsapp_retry_reason: null,
       whatsapp_retry_attempts: 0,
+      whatsapp_retry_exhausted: false,
     })
     .eq('id', beauticianId);
 }
@@ -742,6 +753,21 @@ router.post('/register', async (req, res) => {
     if (!otp.ok) {
       const meta = extractMetaError(otp.data);
       const diagnostic = interpretMetaError(meta, { context: 'request_otp' });
+
+      // If OTP request fails, queue for retry via background worker so SMS arrives
+      // automatically once Meta clears the issue.
+      if (diagnostic.diagnosis === 'rate_limit' || diagnostic.diagnosis === 'cooldown_active') {
+        await supabase
+          .from('beauticians')
+          .update({
+            whatsapp_retry_at: diagnostic.retryAfter,
+            whatsapp_retry_reason: 'otp_retry_pending',
+            whatsapp_retry_attempts: 0,
+            whatsapp_pending_phone: `+${pre.e164}`,
+          })
+          .eq('id', beauticianId);
+      }
+
       await logDiagnostic({
         beautician_id: beauticianId,
         phone: `+${pre.e164}`,
@@ -766,6 +792,7 @@ router.post('/register', async (req, res) => {
           code: diagnostic.diagnosis,
           suggestedAction: diagnostic.suggestedAction,
           retryAfter: diagnostic.retryAfter,
+          autoRetryScheduled: diagnostic.diagnosis === 'rate_limit' || diagnostic.diagnosis === 'cooldown_active',
         },
         meta_code: meta.code,
         meta_subcode: meta.subcode,
@@ -986,6 +1013,7 @@ router.post('/verify', async (req, res) => {
           whatsapp_pending_activation: false,
           whatsapp_registered_at: new Date().toISOString(),
           whatsapp_pending_phone: null,
+          whatsapp_retry_exhausted: false,
         })
         .eq('id', beauticianId);
 
@@ -1127,7 +1155,7 @@ router.get('/status', async (req, res) => {
   try {
     const { data: b, error: bErr } = await supabase
       .from('beauticians')
-      .select('whatsapp_connected, whatsapp_phone, whatsapp_phone_id, whatsapp_registered_at, whatsapp_pending_phone, whatsapp_pending_activation, whatsapp_retry_at, whatsapp_retry_reason, whatsapp_retry_attempts, business_name')
+      .select('whatsapp_connected, whatsapp_phone, whatsapp_phone_id, whatsapp_registered_at, whatsapp_pending_phone, whatsapp_pending_activation, whatsapp_retry_at, whatsapp_retry_reason, whatsapp_retry_attempts, whatsapp_retry_exhausted, business_name')
       .eq('id', beauticianId)
       .single();
 
@@ -1143,6 +1171,7 @@ router.get('/status', async (req, res) => {
       pending_activation: !!b.whatsapp_pending_activation,
       registered_at: b.whatsapp_registered_at || null,
       business_name: b.business_name || null,
+      retry_exhausted: !!b.whatsapp_retry_exhausted,
       retry: b.whatsapp_retry_at
         ? {
             retry_at: b.whatsapp_retry_at,

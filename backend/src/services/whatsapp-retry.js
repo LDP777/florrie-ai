@@ -97,7 +97,16 @@ async function rescheduleOrGiveUp(b, nextDelayMs, reason) {
       diagnosis: 'retry_exhausted',
       suggested_action: 'contact_support',
     });
-    await clearRetry(b.id, { whatsapp_pending_activation: false });
+    // Set flag so frontend can show user a banner telling them to contact support
+    await supabase
+      .from('beauticians')
+      .update({
+        whatsapp_retry_at: null,
+        whatsapp_retry_reason: null,
+        whatsapp_retry_exhausted: true,
+        whatsapp_pending_activation: false,
+      })
+      .eq('id', b.id);
     return;
   }
 
@@ -132,6 +141,7 @@ async function handlePendingActivation(b) {
         whatsapp_pending_phone: null,
         whatsapp_retry_at: null,
         whatsapp_retry_reason: null,
+        whatsapp_retry_exhausted: false,
       })
       .eq('id', b.id);
 

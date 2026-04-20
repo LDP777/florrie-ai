@@ -179,6 +179,16 @@ const DIAGNOSTIC_META = {
       "We've queued an automatic retry for when the window clears.",
     ],
   },
+  pin_error: {
+    icon: '⚠️',
+    title: 'Cloud API registration failed',
+    tone: 'error',
+    steps: [
+      'WhatsApp rejected the activation PIN. This usually clears quickly.',
+      'Try the Reset button to clear and start again from scratch.',
+      'If it keeps happening, contact support.',
+    ],
+  },
   waba_not_approved: {
     icon: '🛠️',
     title: 'Configuration issue on our side',
@@ -459,7 +469,7 @@ function RetryBanner({ retry, onReset }) {
     cooldown_active: 'Meta is still processing this number from a previous attempt.',
     rate_limit: 'Meta is rate-limiting this number right now.',
     pending_activation: "Meta's almost there — just waiting for the number to flip to live.",
-    otp_retry_pending: 'We cleared the cooldown — retrying the verification SMS.',
+    otp_retry_pending: "We're retrying the verification code SMS once Meta clears the temporary block.",
   }[retry.reason] || 'Meta has asked us to wait before retrying.';
 
   return (
@@ -540,16 +550,26 @@ function PendingActivation({ phone, onConnected, onReset }) {
           </div>
         )}
         <div style={styles.pendingMetaRow}>
-          <span>Waited</span>
+          <span>Elapsed time</span>
           <b>{Math.floor(elapsed / 60)}m {String(elapsed % 60).padStart(2, '0')}s</b>
         </div>
       </div>
-      {elapsed > 60 && (
-        <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text-muted, #AAA5A0)', textAlign: 'center' }}>
-          Taking longer than expected?{' '}
+      {elapsed > 180 ? (
+        <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text, #2D2A26)', background: '#FFF8E1', border: '1px solid #FFE082', borderRadius: 8, padding: 10, textAlign: 'center' }}>
+          <div style={{ marginBottom: 8, fontWeight: 600 }}>
+            Still waiting after 3 minutes? Meta might be having issues.
+          </div>
           <ResetButton phone={phone} onDone={onReset} variant="inline">
-            Reset and try again
+            Reset and start over
           </ResetButton>
+        </div>
+      ) : elapsed > 60 && (
+        <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text-muted, #AAA5A0)', textAlign: 'center' }}>
+          Usually takes a few minutes. If it's taking longer, you can{' '}
+          <ResetButton phone={phone} onDone={onReset} variant="inline">
+            reset
+          </ResetButton>
+          {' '}and start again.
         </div>
       )}
     </div>
@@ -889,8 +909,50 @@ export default function WhatsAppConfig() {
         </div>
       </div>
 
+      {/* Retry exhausted — shown when retry worker has given up after max attempts */}
+      {!connected && !pendingActivation && status?.retry_exhausted && (
+        <div style={{
+          background: '#FDECEA',
+          border: '1px solid #F5C6C0',
+          borderRadius: 14,
+          padding: 14,
+          marginBottom: 14,
+          display: 'flex',
+          gap: 12,
+          alignItems: 'flex-start',
+        }}>
+          <span style={{ fontSize: 20, flexShrink: 0 }}>❌</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#8A2A1C', marginBottom: 6 }}>
+              We've tried 8 times — time for support
+            </div>
+            <div style={{ fontSize: 12, color: '#8A2A1C', lineHeight: 1.5, marginBottom: 10 }}>
+              We've automatically retried this connection multiple times without success.
+              This usually means Meta needs to investigate your account directly.
+              Please contact support with your phone number and we'll escalate it.
+            </div>
+            <button
+              onClick={handleReset}
+              style={{
+                padding: '7px 12px',
+                borderRadius: 8,
+                border: '1px solid #F5C6C0',
+                background: '#fff',
+                color: '#8A2A1C',
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              Clear and try again
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Retry queue banner — shown whenever /status reports a queued retry */}
-      {!connected && !pendingActivation && status?.retry && (
+      {!connected && !pendingActivation && status?.retry && !status?.retry_exhausted && (
         <RetryBanner retry={status.retry} onReset={handleReset} />
       )}
 
