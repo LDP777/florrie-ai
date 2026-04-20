@@ -77,6 +77,8 @@ const REQUIRED_ENV = [
   'SUPABASE_ANON_KEY',
   'SUPABASE_SERVICE_KEY',
   'FRONTEND_URL',
+  'WHATSAPP_TOKEN',
+  'WHATSAPP_WABA_ID',
 ];
 const OPTIONAL_ENV = [
   'STRIPE_SECRET_KEY',
@@ -302,11 +304,11 @@ app.listen(PORT, () => {
     });
   }, 45_000);
 
-  // WhatsApp registration retry queue — picks up cooldowns once Meta has
+  // WhatsApp registration retry queue: picks up cooldowns once Meta has
   // released them, and polls pending-activation numbers until they flip to
-  // CONNECTED. Every 30 minutes is dense enough for the cooldowns we see in
-  // the wild (2h - 24h) without hammering Meta.
-  const WHATSAPP_RETRY_INTERVAL = 30 * 60 * 1000; // 30 minutes
+  // CONNECTED. 5 minutes balances 1h rate-limits (need tight polling) with
+  // 24h cooldowns (no harm checking more often).
+  const WHATSAPP_RETRY_INTERVAL = 5 * 60 * 1000; // 5 minutes
   setInterval(async () => {
     try {
       const result = await processWhatsAppRetryQueue();

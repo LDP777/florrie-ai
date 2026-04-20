@@ -36,6 +36,7 @@
 
 import express from 'express';
 import crypto from 'crypto';
+import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -546,7 +547,8 @@ router.post('/preflight', async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, 'WhatsApp preflight error');
-    return res.status(500).json({ error: 'Preflight failed' });
+    Sentry.captureException(err, { tags: { route: 'whatsapp/preflight' } });
+    return res.status(500).json({ error: 'Preflight failed', code: 'preflight_failed' });
   }
 });
 
@@ -577,7 +579,8 @@ router.post('/diagnose', async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, 'WhatsApp diagnose error');
-    return res.status(500).json({ error: 'Diagnostic failed' });
+    Sentry.captureException(err, { tags: { route: 'whatsapp/diagnose' } });
+    return res.status(500).json({ error: 'Diagnostic failed', code: 'diagnose_failed' });
   }
 });
 
@@ -648,7 +651,8 @@ router.post('/reset', async (req, res) => {
     return res.json({ success: true, cleared });
   } catch (err) {
     logger.error({ err }, 'WhatsApp reset error');
-    return res.status(500).json({ error: 'Reset failed' });
+    Sentry.captureException(err, { tags: { route: 'whatsapp/reset' } });
+    return res.status(500).json({ error: 'Reset failed', code: 'reset_failed' });
   }
 });
 
@@ -837,7 +841,8 @@ router.post('/register', async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, 'WhatsApp register error');
-    return res.status(500).json({ error: 'Something went wrong' });
+    Sentry.captureException(err, { tags: { route: 'whatsapp/register' } });
+    return res.status(500).json({ error: 'Something went wrong', code: 'register_failed' });
   }
 });
 
@@ -896,7 +901,8 @@ router.post('/resend-code', async (req, res) => {
     return res.json({ success: true, message: `New code sent to ${b.whatsapp_pending_phone}` });
   } catch (err) {
     logger.error({ err }, 'WhatsApp resend-code error');
-    return res.status(500).json({ error: 'Something went wrong' });
+    Sentry.captureException(err, { tags: { route: 'whatsapp/resend-code' } });
+    return res.status(500).json({ error: 'Something went wrong', code: 'resend_failed' });
   }
 });
 
@@ -1077,7 +1083,8 @@ router.post('/verify', async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, 'WhatsApp verify error');
-    return res.status(500).json({ error: 'Something went wrong' });
+    Sentry.captureException(err, { tags: { route: 'whatsapp/verify' } });
+    return res.status(500).json({ error: 'Something went wrong', code: 'verify_failed' });
   }
 });
 
@@ -1141,7 +1148,8 @@ router.get('/activation-status', async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, 'WhatsApp activation-status error');
-    return res.status(500).json({ error: 'Could not check activation status' });
+    Sentry.captureException(err, { tags: { route: 'whatsapp/activation-status' } });
+    return res.status(500).json({ error: 'Could not check activation status', code: 'activation_status_failed' });
   }
 });
 
@@ -1193,7 +1201,8 @@ router.get('/status', async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, 'WhatsApp status error');
-    return res.status(500).json({ error: 'Something went wrong' });
+    Sentry.captureException(err, { tags: { route: 'whatsapp/status' } });
+    return res.status(500).json({ error: 'Something went wrong', code: 'status_failed' });
   }
 });
 
@@ -1213,7 +1222,8 @@ router.get('/diagnostics', async (req, res) => {
     return res.json({ diagnostics: data || [] });
   } catch (err) {
     logger.error({ err }, 'WhatsApp diagnostics fetch error');
-    return res.status(500).json({ error: 'Failed to load diagnostics' });
+    Sentry.captureException(err, { tags: { route: 'whatsapp/diagnostics' } });
+    return res.status(500).json({ error: 'Failed to load diagnostics', code: 'diagnostics_failed' });
   }
 });
 
@@ -1244,7 +1254,8 @@ router.delete('/disconnect', async (req, res) => {
     return res.json({ success: true });
   } catch (err) {
     logger.error({ err }, 'WhatsApp disconnect error');
-    return res.status(500).json({ error: 'Something went wrong' });
+    Sentry.captureException(err, { tags: { route: 'whatsapp/disconnect' } });
+    return res.status(500).json({ error: 'Something went wrong', code: 'disconnect_failed' });
   }
 });
 

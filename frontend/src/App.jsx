@@ -214,9 +214,9 @@ export default function App() {
     return (
       <Suspense fallback={<PageLoader />}>
         <Onboarding
-          onComplete={() => {
+          onComplete={(destination) => {
             setNeedsOnboarding(false);
-            navigate('/');
+            navigate(destination || '/');
           }}
         />
       </Suspense>
@@ -354,7 +354,7 @@ export default function App() {
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/hub" element={<Hub />} />
             <Route path="/onboarding" element={
-              <Onboarding onComplete={() => navigate('/')} />
+              <Onboarding onComplete={(destination) => navigate(destination || '/')} />
             } />
             <Route path="/login" element={<Navigate to="/" replace />} />
             <Route path="/update-password" element={<UpdatePassword supabase={supabase} />} />

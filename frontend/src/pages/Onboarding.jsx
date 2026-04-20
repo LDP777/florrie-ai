@@ -194,13 +194,13 @@ export default function Onboarding({ onComplete }) {
       }
       setImportStatus(`Imported ${imported} client${imported !== 1 ? 's' : ''}`);
     } catch (err) {
-      setError('Import failed — check the file format');
+      setError('Import failed. Check the file format.');
     } finally {
       setSaving(false);
     }
   }
-  function finishOnboarding() {
-    if (onComplete) onComplete();
+  function finishOnboarding(destination) {
+    if (onComplete) onComplete(destination);
   }
   async function enableNotifications() {
     setPushLoading(true);
@@ -503,7 +503,7 @@ export default function Onboarding({ onComplete }) {
             <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
               <li>In Timely, go to <b>Clients → Export</b></li>
               <li>Download the CSV file</li>
-              <li>Upload it below — we'll match the columns automatically</li>
+              <li>Upload it below and we'll match the columns automatically</li>
             </ol>
           </div>
           {/* Import from Fresha */}
@@ -514,7 +514,7 @@ export default function Onboarding({ onComplete }) {
             </div>
             <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
               <li>In Fresha, go to <b>Clients → Export to CSV</b></li>
-              <li>Upload it here — same thing, we sort the columns</li>
+              <li>Upload it here. Same thing, we sort the columns.</li>
             </ol>
           </div>
           <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', margin: '8px 0 12px' }}>
@@ -544,7 +544,7 @@ export default function Onboarding({ onComplete }) {
             onClick={() => setStep(6)}
             style={styles.primaryBtn}
           >
-            {importStatus ? 'Done — Next' : 'Skip — Next'}
+            {importStatus ? 'Next' : 'Skip for now'}
           </button>
           {!importStatus && (
             <button onClick={skipStep} style={styles.skipBtn}>
@@ -558,7 +558,7 @@ export default function Onboarding({ onComplete }) {
         <div style={styles.stepContent}>
           <h1 style={styles.stepTitle}>You're all set</h1>
           <p style={styles.stepDesc}>
-            Your 14-day free trial is active. Full access to everything — no card needed.
+            Your 14-day free trial is active. Full access to everything. No card needed.
           </p>
           <div style={{
             ...styles.planCard,
@@ -578,8 +578,39 @@ export default function Onboarding({ onComplete }) {
             </ul>
           </div>
           <p style={styles.trialNote}>
-            After your trial, it's {PLAN.monthlyLabel} — or save with annual billing at {PLAN.annualLabel}.
+            After your trial, it's {PLAN.monthlyLabel}. Save with annual billing at {PLAN.annualLabel}.
           </p>
+          {/* WhatsApp-first connect card. SMS is already live so it sits below as reassurance. */}
+          <div style={styles.messagingCard}>
+            <div style={styles.channelRow}>
+              <span style={styles.waIcon}>💬</span>
+              <div style={styles.channelCopy}>
+                <div style={styles.waTitleRow}>
+                  <span style={styles.channelTitle}>WhatsApp: your AI receptionist</span>
+                  <span style={styles.waRecommend}>Recommended</span>
+                </div>
+                <div style={styles.channelDesc}>Books, reschedules, answers questions. 24/7, in your voice.</div>
+                <div style={styles.waMeta}>~15 min. Spare number needed.</div>
+              </div>
+            </div>
+            <div style={styles.waButtonRow}>
+              <button onClick={() => finishOnboarding('/whatsapp')} style={styles.waPrimaryBtn}>
+                Connect WhatsApp →
+              </button>
+              <button onClick={() => finishOnboarding('/')} style={styles.waSkipBtn}>
+                Skip for now
+              </button>
+            </div>
+            <div style={styles.channelDivider} />
+            <div style={styles.channelRow}>
+              <span style={styles.channelCheck}>✓</span>
+              <div style={styles.channelCopy}>
+                <div style={styles.channelTitle}>SMS is already on</div>
+                <div style={styles.channelDesc}>Reminders and confirmations going out today.</div>
+              </div>
+              <span style={styles.channelBadgeOn}>Live</span>
+            </div>
+          </div>
           {/* Push notification opt-in */}
           <div style={styles.pushCard}>
             <div style={styles.pushCardTop}>
@@ -590,8 +621,8 @@ export default function Onboarding({ onComplete }) {
                 </div>
                 <div style={styles.pushDesc}>
                   {pushGranted
-                    ? 'You\'ll hear from Florrie when something happens — review requests sent, nudges fired, messages handled.'
-                    : 'Know the moment Florrie sends a review request, spots a lapsed client, or handles a message — without opening the app.'}
+                    ? 'You\'ll hear from Florrie when something happens. Review requests sent, nudges fired, messages handled.'
+                    : 'Know the moment Florrie sends a review request, spots a lapsed client, or handles a message. No need to open the app.'}
                 </div>
               </div>
             </div>
@@ -952,5 +983,117 @@ const styles = {
     alignItems: 'center',
     gap: 6,
     justifyContent: 'center',
+  },
+  // Messaging card (step 6). WhatsApp-first with inline Connect button. SMS sits below as reassurance.
+  messagingCard: {
+    background: 'linear-gradient(180deg, rgba(37, 211, 102, 0.06) 0%, var(--bg-card, #fff) 60%)',
+    border: '1.5px solid rgba(37, 211, 102, 0.25)',
+    borderRadius: 14,
+    padding: '16px 18px',
+    marginBottom: 16,
+    marginTop: 4,
+  },
+  channelRow: {
+    display: 'flex',
+    gap: 12,
+    alignItems: 'flex-start',
+  },
+  channelCheck: {
+    fontSize: 16,
+    lineHeight: 1,
+    color: 'var(--success, #5BA97B)',
+    flexShrink: 0,
+    marginTop: 2,
+    fontWeight: 700,
+  },
+  channelCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  channelTitle: {
+    fontSize: 14,
+    fontWeight: 700,
+    color: 'var(--text-primary)',
+    marginBottom: 3,
+  },
+  channelDesc: {
+    fontSize: 12,
+    color: 'var(--text-secondary)',
+    lineHeight: 1.5,
+  },
+  channelBadgeOn: {
+    fontSize: 10,
+    fontWeight: 700,
+    color: 'var(--success, #5BA97B)',
+    background: 'rgba(91, 169, 123, 0.12)',
+    padding: '3px 8px',
+    borderRadius: 6,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+    alignSelf: 'flex-start',
+    flexShrink: 0,
+  },
+  channelDivider: {
+    height: 1,
+    background: 'var(--border-light, rgba(0,0,0,0.06))',
+    margin: '14px 0',
+  },
+  // WhatsApp connect row (step 6)
+  waIcon: {
+    fontSize: 18,
+    lineHeight: 1,
+    flexShrink: 0,
+    marginTop: 1,
+  },
+  waTitleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+    marginBottom: 3,
+  },
+  waRecommend: {
+    fontSize: 10,
+    fontWeight: 700,
+    color: '#065F46',
+    background: 'rgba(37, 211, 102, 0.18)',
+    padding: '2px 8px',
+    borderRadius: 999,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+  },
+  waMeta: {
+    fontSize: 11,
+    color: 'var(--text-muted)',
+    marginTop: 6,
+  },
+  waButtonRow: {
+    display: 'flex',
+    gap: 8,
+    marginTop: 12,
+  },
+  waPrimaryBtn: {
+    flex: 1,
+    padding: '11px 14px',
+    borderRadius: 10,
+    border: 'none',
+    background: '#25D366',
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    letterSpacing: '0.01em',
+  },
+  waSkipBtn: {
+    padding: '11px 14px',
+    borderRadius: 10,
+    border: '1px solid var(--border)',
+    background: 'transparent',
+    color: 'var(--text-primary)',
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
   },
 };

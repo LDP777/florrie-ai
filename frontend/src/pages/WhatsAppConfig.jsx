@@ -195,8 +195,8 @@ const DIAGNOSTIC_META = {
     tone: 'error',
     steps: [
       'This is a Florrie-side problem, not yours.',
-      "We've been notified and are looking at it.",
-      'Try again in a few minutes or contact support if it persists.',
+      'Try again in a few minutes.',
+      'If it persists, email hello@florrie.ai and we will escalate it.',
     ],
   },
   unknown: {
@@ -924,29 +924,54 @@ export default function WhatsAppConfig() {
           <span style={{ fontSize: 20, flexShrink: 0 }}>❌</span>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#8A2A1C', marginBottom: 6 }}>
-              We've tried 8 times — time for support
+              We've tried 8 times. Time to get support involved.
             </div>
             <div style={{ fontSize: 12, color: '#8A2A1C', lineHeight: 1.5, marginBottom: 10 }}>
-              We've automatically retried this connection multiple times without success.
+              We automatically retried this connection multiple times without success.
               This usually means Meta needs to investigate your account directly.
-              Please contact support with your phone number and we'll escalate it.
+              Email your phone number to{' '}
+              <a
+                href="mailto:hello@florrie.ai?subject=WhatsApp%20connection%20help"
+                style={{ color: '#8A2A1C', fontWeight: 700, textDecoration: 'underline' }}
+              >
+                hello@florrie.ai
+              </a>{' '}
+              and we will escalate it.
             </div>
-            <button
-              onClick={handleReset}
-              style={{
-                padding: '7px 12px',
-                borderRadius: 8,
-                border: '1px solid #F5C6C0',
-                background: '#fff',
-                color: '#8A2A1C',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-              }}
-            >
-              Clear and try again
-            </button>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <a
+                href="mailto:hello@florrie.ai?subject=WhatsApp%20connection%20help"
+                style={{
+                  padding: '7px 12px',
+                  borderRadius: 8,
+                  border: '1px solid #8A2A1C',
+                  background: '#8A2A1C',
+                  color: '#fff',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Contact support
+              </a>
+              <button
+                onClick={handleReset}
+                style={{
+                  padding: '7px 12px',
+                  borderRadius: 8,
+                  border: '1px solid #F5C6C0',
+                  background: '#fff',
+                  color: '#8A2A1C',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Clear and try again
+              </button>
+            </div>
           </div>
         </div>
       )}
