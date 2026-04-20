@@ -1,9 +1,34 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import fs from 'fs';
+import path from 'path';
+
+// Custom plugin to force-clean dist before build
+const cleanDistPlugin = {
+  name: 'clean-dist',
+  async buildStart() {
+    const distPath = path.resolve(__dirname, 'dist');
+    if (fs.existsSync(distPath)) {
+      try {
+        // Try recursive removal with force flag
+        fs.rmSync(distPath, { recursive: true, force: true });
+        console.log('Cleaned dist directory');
+      } catch (err) {
+        console.warn('Warning: Could not clean dist directory:', err.message);
+        // Continue anyway — Vite's emptyOutDir should still work
+      }
+    }
+  },
+};
 
 export default defineConfig({
+  build: {
+    outDir: 'dist',
+    emptyOutDir: false,
+  },
   plugins: [
+    cleanDistPlugin,
     react(),
     VitePWA({
       registerType: 'autoUpdate',
