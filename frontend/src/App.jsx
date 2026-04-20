@@ -244,7 +244,7 @@ export default function App() {
             Your free trial has ended
           </h1>
           <p style={{ color: 'var(--text-secondary, #6B6460)', fontSize: 15, lineHeight: 1.6, marginBottom: 32 }}>
-            Thanks for trying Florrie! We're still in early access — drop us a message and we'll get you set up on a plan.
+            Thanks for trying Florrie! We're still in early access. Drop us a message and we'll get you set up on a plan.
           </p>
           <a
             href="mailto:hello@florrie.ai?subject=I want to continue using Florrie"
@@ -269,7 +269,7 @@ export default function App() {
       <div style={styles.appShell}>
         {showTrialWarning && (
           <div style={{ background: 'var(--gold, #C9A96E)', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 13, fontWeight: 500 }}>
-            ⏳ Your free trial ends in {daysLeft} day{daysLeft === 1 ? '' : 's'} —{' '}
+            ⏳ Your free trial ends in {daysLeft} day{daysLeft === 1 ? '' : 's'}.{' '}
             <a href="mailto:hello@florrie.ai?subject=Florrie plan" style={{ color: '#fff', fontWeight: 700, textDecoration: 'underline' }}>
               get in touch to keep going
             </a>

@@ -354,7 +354,7 @@ function DiagnosticError({ error, errBody, onRetry, onReset, phone }) {
               borderRadius: 8,
               display: 'inline-block',
             }}>
-              ⏳ Auto-retry queued — you don't need to do anything
+              ⏳ Auto-retry queued. You don't need to do anything.
             </div>
           )}
 
@@ -468,7 +468,7 @@ function RetryBanner({ retry, onReset }) {
   const reasonCopy = {
     cooldown_active: 'Meta is still processing this number from a previous attempt.',
     rate_limit: 'Meta is rate-limiting this number right now.',
-    pending_activation: "Meta's almost there — just waiting for the number to flip to live.",
+    pending_activation: "Meta's almost there. Just waiting for the number to flip to live.",
     otp_retry_pending: "We're retrying the verification code SMS once Meta clears the temporary block.",
   }[retry.reason] || 'Meta has asked us to wait before retrying.';
 
@@ -535,7 +535,7 @@ function PendingActivation({ phone, onConnected, onReset }) {
         Bringing your number online
       </h2>
       <p style={{ fontSize: 14, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.6, margin: '0 0 16px' }}>
-        Meta's finishing the last step — usually a few minutes, sometimes a bit longer.
+        Meta's finishing the last step. Usually a few minutes, sometimes a bit longer.
         You can close this page and come back, we'll keep watching in the background.
       </p>
       <div style={styles.pendingMeta}>

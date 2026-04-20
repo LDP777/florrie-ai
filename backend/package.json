@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "build": "echo 'No build step — pure Node.js backend'"
+    "build": "echo 'No build step — pure Node.js backend'",
+    "test": "node --test tests/unit/"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.1",

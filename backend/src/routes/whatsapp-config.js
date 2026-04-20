@@ -57,6 +57,43 @@ function metaHeaders() {
   };
 }
 
+/**
+ * In-memory idempotency cache for /verify. Keyed on `beauticianId:code`.
+ * A network flake can retrigger the POST before the first response lands;
+ * without this, Meta sees the second call, returns "code already used",
+ * and the user gets an "Invalid code" screen despite having succeeded.
+ *
+ * Single-instance cache. If we ever horizontally scale the API, swap this
+ * for Redis or Supabase row-level coordination.
+ */
+const VERIFY_IDEMPOTENCY_TTL_MS = 60 * 1000;
+const verifyIdempotencyCache = new Map();
+
+function idempotencyKey(beauticianId, code) {
+  return `${beauticianId}:${String(code).trim()}`;
+}
+
+function getCachedVerify(key) {
+  const entry = verifyIdempotencyCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.at > VERIFY_IDEMPOTENCY_TTL_MS) {
+    verifyIdempotencyCache.delete(key);
+    return null;
+  }
+  return entry;
+}
+
+function cacheVerify(key, status, body) {
+  verifyIdempotencyCache.set(key, { at: Date.now(), status, body });
+  // Lightweight GC so the map doesn't grow unbounded.
+  if (verifyIdempotencyCache.size > 500) {
+    const cutoff = Date.now() - VERIFY_IDEMPOTENCY_TTL_MS;
+    for (const [k, v] of verifyIdempotencyCache) {
+      if (v.at < cutoff) verifyIdempotencyCache.delete(k);
+    }
+  }
+}
+
 /** Normalise a UK/intl phone number to E.164 digits only (no +) */
 function normalisePhone(raw) {
   let cleaned = raw.replace(/\s+/g, '').replace(/[^\d+]/g, '');
@@ -917,6 +954,17 @@ router.post('/verify', async (req, res) => {
   if (!code) return res.status(400).json({ error: 'code is required' });
 
   const beauticianId = req.beautician.id;
+  const idempKey = idempotencyKey(beauticianId, code);
+  const cached = getCachedVerify(idempKey);
+  if (cached) {
+    logger.info({ beauticianId }, 'WhatsApp verify hit idempotency cache, replaying response');
+    return res.status(cached.status).json({ ...cached.body, idempotent: true });
+  }
+
+  const respondAndCache = (status, body) => {
+    cacheVerify(idempKey, status, body);
+    return res.status(status).json(body);
+  };
 
   try {
     const { data: b, error: bErr } = await supabase
@@ -956,7 +1004,7 @@ router.post('/verify', async (req, res) => {
         suggested_action: diagnostic.suggestedAction,
       });
       logger.warn({ beauticianId, meta }, 'WhatsApp OTP verification failed');
-      return res.status(400).json({
+      return respondAndCache(400, {
         error: meta.userMsg || meta.message || 'Invalid verification code',
         meta_code: meta.code,
         fbtrace_id: meta.fbtraceId,
@@ -995,7 +1043,7 @@ router.post('/verify', async (req, res) => {
         suggested_action: diagnostic.suggestedAction,
       });
       logger.error({ beauticianId, meta }, 'WhatsApp Cloud API register failed after verify');
-      return res.status(400).json({
+      return respondAndCache(400, {
         error:
           meta.userMsg ||
           meta.message ||
@@ -1036,7 +1084,7 @@ router.post('/verify', async (req, res) => {
         'WhatsApp number verified, activated, and confirmed CONNECTED'
       );
 
-      return res.json({
+      return respondAndCache(200, {
         success: true,
         phone: b.whatsapp_pending_phone,
         connected: true,
@@ -1073,7 +1121,7 @@ router.post('/verify', async (req, res) => {
       'Cloud API register returned OK but status not yet CONNECTED, polling scheduled'
     );
 
-    return res.json({
+    return respondAndCache(200, {
       success: true,
       phone: b.whatsapp_pending_phone,
       connected: false,
@@ -1272,6 +1320,11 @@ export const _whatsappInternals = {
   normalisePhone,
   isValidE164,
   splitPhone,
+  // Exposed for unit tests
+  idempotencyKey,
+  getCachedVerify,
+  cacheVerify,
+  verifyIdempotencyCache,
 };
 
 export default router;
