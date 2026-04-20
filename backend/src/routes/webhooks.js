@@ -401,6 +401,190 @@ async function findOrCreateClientBySMS(beauticianId, phoneNumber) {
 }
 
 /**
+ * GET /api/webhooks/bird-sms
+ * Verification endpoint (Bird/MessageBird may issue a challenge during setup).
+ */
+router.get('/bird-sms', (req, res) => {
+  const token = req.query.token;
+  const challenge = req.query.challenge;
+  if (challenge) {
+    logger.info('Bird SMS webhook challenge received');
+    return res.status(200).send(challenge);
+  }
+  if (token) {
+    return res.status(200).send(token);
+  }
+  res.status(200).send('ok');
+});
+
+/**
+ * POST /api/webhooks/bird-sms
+ * Receives inbound SMS from Bird (MessageBird).
+ *
+ * Auth: Bird's v2 signatures use JWT (Messagebird-Signature-JWT header), and the
+ * classic API uses HMAC. Because body-parser consumes the raw body before this
+ * handler runs, we use a query-param token as the primary auth — set
+ * BIRD_WEBHOOK_TOKEN in env and include it in the webhook URL configured in the
+ * Bird dashboard: https://api.florrie.ai/api/webhooks/bird-sms?token=YOUR_TOKEN
+ *
+ * Handles two payload shapes:
+ *  - Classic MessageBird: { id, originator, recipient, payload/body, ... }
+ *  - Bird v2 Channels API: { type: 'sms.inbound' | 'channels.message.created',
+ *                            payload: { message: { body }, sender, receiver } }
+ */
+router.post('/bird-sms', async (req, res) => {
+  const expectedToken = process.env.BIRD_WEBHOOK_TOKEN;
+  if (expectedToken) {
+    const receivedToken = req.query.token || req.headers['x-bird-token'];
+    if (!receivedToken || receivedToken !== expectedToken) {
+      logger.warn('Bird SMS webhook: invalid or missing token');
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+  } else {
+    logger.debug('BIRD_WEBHOOK_TOKEN not set, skipping auth check');
+  }
+
+  // ACK early — Bird retries on non-2xx
+  res.sendStatus(200);
+
+  try {
+    const body = req.body || {};
+
+    // Normalise payload across classic + v2 shapes
+    let from;
+    let to;
+    let messageBody;
+    let externalId;
+
+    if (body.type && body.payload) {
+      // v2 Channels API format
+      const p = body.payload;
+      from = p.sender?.phoneNumber
+        || p.sender?.identifierValue
+        || p.from
+        || p.message?.from;
+      to = p.receiver?.phoneNumber
+        || p.receiver?.identifierValue
+        || p.to
+        || p.message?.to;
+      messageBody = p.message?.body || p.message?.text || p.body || '';
+      externalId = body.id || p.id || p.message?.id;
+    } else {
+      // Classic MessageBird SMS inbound
+      from = body.originator || body.from || body.msisdn;
+      to = body.recipient || body.to;
+      messageBody = body.payload || body.body || body.message || '';
+      externalId = body.id || body.messageId;
+    }
+
+    if (!from || !messageBody) {
+      logger.warn({ bodyKeys: Object.keys(body) }, 'Bird SMS: missing from or body');
+      return;
+    }
+
+    // Normalise phone numbers to E.164-ish (ensure leading +)
+    const fromPhone = normalisePhoneNumber(from);
+    const toPhone = to ? normalisePhoneNumber(to) : null;
+
+    // Resolve beautician by recipient number, then fall back to platform default
+    const beautician = await findBeauticianByBirdNumber(
+      toPhone || process.env.BIRD_ORIGINATOR
+    );
+
+    if (!beautician) {
+      logger.warn({ to: toPhone, birdOriginator: process.env.BIRD_ORIGINATOR }, 'No beautician found for Bird number');
+      return;
+    }
+
+    // Find or create client
+    let client;
+    try {
+      client = await findOrCreateClientBySMS(beautician.id, fromPhone);
+    } catch (clientErr) {
+      logger.error({ err: clientErr, beautician_id: beautician.id, from: fromPhone }, 'Error finding/creating Bird SMS client');
+      return;
+    }
+
+    if (!client) {
+      logger.warn({ beautician_id: beautician.id, from: fromPhone }, 'No client found or created for Bird SMS');
+      return;
+    }
+
+    // Store inbound message
+    const { data: storedMessage, error: storeErr } = await supabase
+      .from('messages')
+      .insert({
+        beautician_id: beautician.id,
+        client_id: client.id,
+        channel: 'sms',
+        direction: 'inbound',
+        content: messageBody,
+        external_message_id: externalId,
+        ai_handled: false,
+        escalated: false,
+      })
+      .select()
+      .single();
+
+    if (storeErr) {
+      logger.error({ err: storeErr, beautician_id: beautician.id }, 'Failed to store inbound Bird SMS');
+      return;
+    }
+
+    // Route to AI Front Desk
+    if (beautician.auto_reply_enabled && messageBody) {
+      const result = await processInboundMessage(
+        storedMessage.id, beautician, client, messageBody
+      );
+      logger.info({ handled: result.handled, intent: result.intent, client: client?.first_name || fromPhone }, 'Front Desk processed Bird SMS');
+    } else {
+      logger.debug({ client: client?.first_name || fromPhone, content: messageBody }, 'Inbound Bird SMS: auto-reply disabled');
+    }
+  } catch (err) {
+    logger.error({ err }, 'Bird SMS webhook processing error');
+  }
+});
+
+/**
+ * Normalise an inbound phone number string to E.164-ish format.
+ * Bird sometimes sends without the leading +; add one if missing.
+ */
+function normalisePhoneNumber(raw) {
+  if (!raw) return raw;
+  const s = raw.toString().trim();
+  if (s.startsWith('+')) return s;
+  // Drop any leading zeroes (common in classic MessageBird payloads that strip +)
+  return `+${s.replace(/^0+/, '')}`;
+}
+
+/**
+ * Find beautician by Bird virtual mobile number (the recipient on the inbound SMS).
+ * Matches against sms_originator (per-beautician number) and falls back to first
+ * beautician for single-tenant MVP.
+ */
+async function findBeauticianByBirdNumber(phoneNumber) {
+  if (phoneNumber) {
+    const sanitised = phoneNumber.toString().replace(/[^0-9+\-() ]/g, '').substring(0, 30);
+    const { data: beautician } = await supabase
+      .from('beauticians')
+      .select('*')
+      .eq('sms_originator', sanitised)
+      .maybeSingle();
+    if (beautician) return beautician;
+
+    logger.warn({ phoneNumber }, 'Bird number not matched to beautician, falling back to first');
+  }
+
+  // MVP single-tenant fallback
+  const { data: beautician } = await supabase
+    .from('beauticians')
+    .select('*')
+    .limit(1)
+    .single();
+  return beautician || null;
+}
+
+/**
  * Download a WhatsApp voice note and transcribe it using Claude.
  * Supports multiple audio formats from WhatsApp: ogg, opus, mpeg, amr, aac.
  * WhatsApp media flow: get media URL → download binary → send to Claude.

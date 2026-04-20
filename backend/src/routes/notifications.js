@@ -290,10 +290,19 @@ router.put('/sms/config', requireAuth, async (req, res) => {
   try {
     const { sms_originator, sms_enabled, channel } = req.body;
 
-    // Validate originator — alphanumeric, max 11 chars (Bird/GSMA limit)
+    // Validate originator — either a phone number (E.164, +7-15 digits) for 2-way
+    // SMS, or an alphanumeric sender (max 11 chars, GSMA limit) for one-way.
     if (sms_originator !== undefined) {
-      if (typeof sms_originator !== 'string' || sms_originator.length > 11 || !/^[a-zA-Z0-9 ]+$/.test(sms_originator)) {
-        return res.status(400).json({ error: 'sms_originator must be alphanumeric, max 11 characters' });
+      if (typeof sms_originator !== 'string' || sms_originator.length === 0) {
+        return res.status(400).json({ error: 'sms_originator must be a non-empty string' });
+      }
+      const trimmed = sms_originator.trim();
+      const isPhone = /^\+?[0-9]{7,15}$/.test(trimmed.replace(/\s/g, ''));
+      const isAlpha = trimmed.length <= 11 && /^[a-zA-Z0-9 ]+$/.test(trimmed);
+      if (!isPhone && !isAlpha) {
+        return res.status(400).json({
+          error: 'sms_originator must be a phone number (e.g. +447700900123) or alphanumeric (max 11 chars)'
+        });
       }
     }
 

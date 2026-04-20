@@ -98,6 +98,9 @@ const OPTIONAL_ENV = [
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
   'ENCRYPTION_KEY',
+  'BIRD_API_KEY',        // outbound SMS via MessageBird
+  'BIRD_ORIGINATOR',     // default sender (phone number for 2-way, alpha for 1-way)
+  'BIRD_WEBHOOK_TOKEN',  // query-param auth for inbound POST /api/webhooks/bird-sms
 ];
 
 const missing = REQUIRED_ENV.filter(k => !process.env[k]);
@@ -163,7 +166,7 @@ app.use('/api/clients', apiLimiter, clientRoutes);
 app.use('/api/appointments', apiLimiter, appointmentRoutes);
 app.use('/api/booking', bookingLimiter, bookingRoutes); // public booking page API
 app.use('/api/ai-actions', apiLimiter, aiActionRoutes);
-app.use('/api/webhooks', webhookLimiter, webhookRoutes); // WhatsApp + Twilio SMS inbound webhooks
+app.use('/api/webhooks', webhookLimiter, webhookRoutes); // WhatsApp + Twilio + Bird SMS inbound webhooks
 app.use('/api/escalations', apiLimiter, escalationRoutes);
 app.use('/api/content', apiLimiter, contentRoutes);
 app.use('/api/money', apiLimiter, moneyRoutes);
