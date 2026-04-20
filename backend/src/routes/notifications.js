@@ -269,8 +269,22 @@ router.get('/sms/config', requireAuth, async (req, res) => {
       return res.status(500).json({ error: 'Something went wrong' });
     }
 
+    // Resolve effective sender — beautician override → platform default → fallback.
+    // Mirrors sendSMS() resolution so the /sms UI shows the same sender that
+    // outbound messages will actually use (and the 2-way badge stays truthful
+    // when the platform default is a phone number).
+    const beauticianOriginator = data?.sms_originator || null;
+    const platformOriginator = process.env.BIRD_ORIGINATOR || null;
+    const effectiveOriginator = beauticianOriginator || platformOriginator || 'Florrie';
+    const originatorSource = beauticianOriginator
+      ? 'beautician'
+      : platformOriginator
+        ? 'platform'
+        : 'default';
+
     res.json({
-      sms_originator: data?.sms_originator || 'Florrie',
+      sms_originator: effectiveOriginator,
+      sms_originator_source: originatorSource,
       sms_enabled: data?.sms_enabled || false,
       bird_configured: !!process.env.BIRD_API_KEY,
       channel: data?.client_reminder_prefs?.channel || 'whatsapp',
