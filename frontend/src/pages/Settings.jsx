@@ -996,9 +996,14 @@ export default function Settings({ onLogout }) {
               <div style={styles.msgChannelInfo}>
                 <span style={styles.msgChannelIcon} aria-hidden>📱</span>
                 <div>
-                  <div style={styles.msgChannelName}>Bird SMS</div>
-                  <div style={styles.msgChannelStatus}>
-                    Backup for clients who aren't on WhatsApp
+                  <div style={styles.msgChannelName}>SMS</div>
+                  <div style={{
+                    ...styles.msgChannelStatus,
+                    color: beautician.sms_enabled ? 'var(--success, #16a34a)' : 'var(--text-muted)',
+                  }}>
+                    {beautician.sms_enabled
+                      ? `● On${beautician.sms_originator ? ` · sending from ${beautician.sms_originator}` : ''}`
+                      : "Off. Turn on if your clients aren't on WhatsApp."}
                   </div>
                 </div>
               </div>
@@ -1007,12 +1012,12 @@ export default function Settings({ onLogout }) {
                 onClick={() => navigate('/sms')}
                 style={{
                   ...styles.msgChannelBtn,
-                  background: 'var(--bg-hover)',
-                  color: 'var(--text-secondary)',
-                  border: '1.5px solid var(--border)',
+                  background: beautician.sms_enabled ? 'var(--bg-hover)' : 'var(--accent)',
+                  color: beautician.sms_enabled ? 'var(--text-secondary)' : 'var(--bg-card)',
+                  border: beautician.sms_enabled ? '1.5px solid var(--border)' : 'none',
                 }}
               >
-                Manage
+                {beautician.sms_enabled ? 'Manage' : 'Turn on'}
               </button>
             </div>
           </div>

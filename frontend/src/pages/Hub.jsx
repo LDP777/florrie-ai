@@ -617,8 +617,17 @@ const CATEGORIES = [
       { path: '/referrals',   label: 'Referrals',         matIcon: 'group_add',      desc: 'Word-of-mouth tracking'    },
       { path: '/automations', label: 'Automations',       matIcon: 'bolt',           desc: 'If-this-then-that rules'   },
       { path: '/templates',   label: 'Templates',         matIcon: 'description',    desc: 'Reusable messages'         },
-      { path: '/whatsapp',    label: 'WhatsApp',          matIcon: 'smartphone',     desc: 'Business messaging',        gate: 'whatsapp' },
       { path: '/portfolio',   label: 'Portfolio',         matIcon: 'photo_library',  desc: 'Showcase your work'        },
+    ],
+  },
+  {
+    id: 'messaging',
+    label: 'Messaging',
+    matIcon: 'forum',
+    items: [
+      { path: '/messaging', label: 'Overview',  matIcon: 'forum',      desc: 'WhatsApp + SMS in one place'  },
+      { path: '/whatsapp',  label: 'WhatsApp',  matIcon: 'smartphone', desc: 'Business messaging',            gate: 'whatsapp' },
+      { path: '/sms',       label: 'SMS',       matIcon: 'sms',        desc: 'Text reminders + replies'      },
     ],
   },
   {
@@ -669,8 +678,8 @@ function MIcon({ name, size = 24, color, style }) {
 
 export default function Hub() {
   const [search, setSearch] = useState('');
-  // First two categories expanded by default (Your Day + Clients)
-  const [expandedCats, setExpandedCats] = useState(new Set(['daily', 'clients']));
+  // First three categories expanded by default (Your Day + Clients + Messaging)
+  const [expandedCats, setExpandedCats] = useState(new Set(['daily', 'clients', 'messaging']));
   const [recents, setRecents] = useState(getRecents);
   const navigate = useNavigate();
   const location = useLocation();
@@ -924,12 +933,18 @@ function WhatsAppHubBanner({ beautician, onNav }) {
           Connect WhatsApp →
         </button>
         <button
-          onClick={() => onNav('/settings', 'Settings', 'settings')}
+          onClick={() => onNav('/messaging', 'Messaging', 'forum')}
           style={WBS.secondaryCta}
         >
-          Settings
+          Compare
         </button>
       </div>
+      <button
+        onClick={() => onNav('/sms', 'SMS', 'sms')}
+        style={WBS.altLink}
+      >
+        No WhatsApp? Use SMS instead →
+      </button>
     </div>
   );
 }
@@ -1062,6 +1077,22 @@ const WBS = {
     height: 6,
     borderRadius: '50%',
     background: '#C76B8A',
+  },
+  altLink: {
+    display: 'block',
+    width: '100%',
+    marginTop: 10,
+    padding: '6px 0',
+    background: 'transparent',
+    border: 'none',
+    color: '#4A6E55',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    textAlign: 'center',
+    textDecoration: 'underline',
+    textUnderlineOffset: '2px',
   },
 };
 

@@ -84,6 +84,7 @@ const Compliance = lazy(() => import('./pages/Compliance.jsx'));
 const MultiLocation = lazy(() => import('./pages/MultiLocation.jsx'));
 const Integrations = lazy(() => import('./pages/Integrations.jsx'));
 const SMSConfig = lazy(() => import('./pages/SMSConfig.jsx'));
+const Messaging = lazy(() => import('./pages/Messaging.jsx'));
 const APISettings = lazy(() => import('./pages/APISettings.jsx'));
 const Pricing = lazy(() => import('./pages/Pricing.jsx'));
 const Hub = lazy(() => import('./pages/Hub.jsx'));
@@ -350,6 +351,7 @@ export default function App() {
             <Route path="/locations" element={<PlanGate feature="multi_location"><MultiLocation /></PlanGate>} />
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/sms" element={<PlanGate feature="sms"><SMSConfig /></PlanGate>} />
+            <Route path="/messaging" element={<Messaging />} />
             <Route path="/api-settings" element={<APISettings />} />
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/hub" element={<Hub />} />
@@ -408,7 +410,7 @@ function BottomNav({ current, session }) {
     return () => clearInterval(intervalRef.current);
   }, [session]);
 
-  const hubPaths = ['/hub', '/money', '/analytics', '/clients', '/treatments', '/team', '/waitlist', '/digest', '/campaigns', '/reviews', '/loyalty', '/aftercare', '/import', '/smart-schedule', '/vouchers', '/notifications', '/hours', '/patch-tests', '/compliance', '/reports', '/policies', '/business', '/rebook', '/packages', '/templates', '/referrals', '/portfolio', '/notes', '/feedback', '/expenses', '/sequences', '/photo-consent', '/waitlist-pro', '/client-timeline', '/rota', '/deposits', '/addons', '/cancellations', '/tags', '/promos', '/checklist', '/inventory', '/goals', '/price-list', '/treatment-stats', '/staff-performance', '/memberships', '/comms', '/end-of-day', '/automations', '/whatsapp', '/portal', '/ai-insights', '/segments', '/churn', '/client-intel', '/demand', '/locations', '/integrations', '/sms', '/api-settings', '/escalations', '/settings'];
+  const hubPaths = ['/hub', '/money', '/analytics', '/clients', '/treatments', '/team', '/waitlist', '/digest', '/campaigns', '/reviews', '/loyalty', '/aftercare', '/import', '/smart-schedule', '/vouchers', '/notifications', '/hours', '/patch-tests', '/compliance', '/reports', '/policies', '/business', '/rebook', '/packages', '/templates', '/referrals', '/portfolio', '/notes', '/feedback', '/expenses', '/sequences', '/photo-consent', '/waitlist-pro', '/client-timeline', '/rota', '/deposits', '/addons', '/cancellations', '/tags', '/promos', '/checklist', '/inventory', '/goals', '/price-list', '/treatment-stats', '/staff-performance', '/memberships', '/comms', '/end-of-day', '/automations', '/whatsapp', '/portal', '/ai-insights', '/segments', '/churn', '/client-intel', '/demand', '/locations', '/integrations', '/sms', '/messaging', '/api-settings', '/escalations', '/settings'];
   const isHubActive = hubPaths.includes(current) && current !== '/inbox';
 
   const tabs = [

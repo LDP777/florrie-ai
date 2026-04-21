@@ -3,6 +3,23 @@ import { useBeautician, updateRow, insertRow } from '../lib/supabase.js'
 import { PLAN } from '../lib/subscription.js';
 import { registerPush, getPushStatus } from '../lib/push.js';
 import logger from '../lib/logger.js';
+
+const API = import.meta.env.VITE_API_URL;
+async function getAuthToken() {
+  const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
+  if (!key) return null;
+  const raw = localStorage.getItem(key);
+  if (!raw) return null;
+  try { const p = JSON.parse(raw); return p?.access_token || p?.session?.access_token || raw; }
+  catch { return raw; }
+}
+// Phone-sender detection — matches SMSConfig. Numbers with + or 7-15 digits = 2-way.
+function isPhoneSender(value) {
+  if (!value) return false;
+  const trimmed = value.toString().trim();
+  if (trimmed.startsWith('+')) return /^\+[0-9]{7,15}$/.test(trimmed);
+  return /^[0-9]{7,15}$/.test(trimmed);
+}
 /**
  * Onboarding — first-run wizard after signup.
  *
@@ -49,6 +66,14 @@ export default function Onboarding({ onComplete }) {
   // Step 6: Push notifications
   const [pushGranted, setPushGranted] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
+  // Step 6: SMS fork (for users who don't have WhatsApp)
+  const [smsForkOpen, setSmsForkOpen] = useState(false);
+  const [smsOriginator, setSmsOriginator] = useState('+447418313493');
+  const [smsTestPhone, setSmsTestPhone] = useState('');
+  const [smsTestMsg, setSmsTestMsg] = useState('');
+  const [smsTesting, setSmsTesting] = useState(false);
+  const [smsSaving, setSmsSaving] = useState(false);
+  const [smsError, setSmsError] = useState(null);
   const totalSteps = 6;
   const progress = (step / totalSteps) * 100;
   if (bLoading) {
@@ -211,6 +236,60 @@ export default function Onboarding({ onComplete }) {
       logger.warn('Push enable failed:', err);
     } finally {
       setPushLoading(false);
+    }
+  }
+  async function sendSMSTest() {
+    const phone = smsTestPhone.trim();
+    if (!phone) {
+      setSmsTestMsg('Enter your mobile number first');
+      return;
+    }
+    setSmsTesting(true);
+    setSmsTestMsg('');
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API}/api/notifications/sms/test`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Send failed');
+      setSmsTestMsg(`Sent. Check ${phone}.`);
+    } catch (err) {
+      setSmsTestMsg(err.message || 'Could not send test');
+    } finally {
+      setSmsTesting(false);
+    }
+  }
+  async function useSMSOnly() {
+    const originator = smsOriginator.trim();
+    if (!originator) {
+      setSmsError('Enter a sender number first');
+      return;
+    }
+    setSmsSaving(true);
+    setSmsError(null);
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API}/api/notifications/sms/config`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sms_originator: isPhoneSender(originator)
+            ? originator.substring(0, 16)
+            : originator.substring(0, 11),
+          sms_enabled: true,
+          channel: 'sms',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not save SMS settings');
+      finishOnboarding('/');
+    } catch (err) {
+      setSmsError(err.message || 'Could not save SMS settings');
+    } finally {
+      setSmsSaving(false);
     }
   }
   function skipStep() {
@@ -602,14 +681,112 @@ export default function Onboarding({ onComplete }) {
               </button>
             </div>
             <div style={styles.channelDivider} />
-            <div style={styles.channelRow}>
-              <span style={styles.channelCheck}>✓</span>
-              <div style={styles.channelCopy}>
-                <div style={styles.channelTitle}>SMS is already on</div>
-                <div style={styles.channelDesc}>Reminders and confirmations going out today.</div>
+            {!smsForkOpen ? (
+              <button
+                type="button"
+                onClick={() => setSmsForkOpen(true)}
+                style={styles.smsForkToggle}
+              >
+                <span style={styles.smsForkToggleIcon}>✉</span>
+                <span style={styles.smsForkToggleText}>
+                  <span style={styles.smsForkToggleTitle}>No WhatsApp? Use SMS instead</span>
+                  <span style={styles.smsForkToggleHint}>Text only. Works on any UK number.</span>
+                </span>
+                <span style={styles.smsForkToggleArrow}>→</span>
+              </button>
+            ) : (
+              <div style={styles.smsForkPanel}>
+                <div style={styles.smsForkHeadRow}>
+                  <div style={styles.smsForkHead}>
+                    <div style={styles.smsForkTitle}>Set up SMS</div>
+                    <div style={styles.smsForkSub}>Two-way from our UK longcode. Clients can reply.</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSmsForkOpen(false);
+                      setSmsError(null);
+                      setSmsTestMsg('');
+                    }}
+                    style={styles.smsForkCloseBtn}
+                    aria-label="Close SMS setup"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div style={styles.smsFieldBlock}>
+                  <label style={styles.smsFieldLabel}>Sender number</label>
+                  <input
+                    type="text"
+                    value={smsOriginator}
+                    onChange={e => setSmsOriginator(e.target.value)}
+                    style={styles.smsFieldInput}
+                    placeholder="+44 7418 313493"
+                    inputMode="tel"
+                  />
+                  <div style={styles.smsFieldHint}>
+                    Pre-filled with our shared UK longcode. Leave it as-is unless you've bought your own Bird number.
+                  </div>
+                </div>
+                <div style={styles.smsFieldBlock}>
+                  <label style={styles.smsFieldLabel}>Send a test to yourself</label>
+                  <div style={styles.smsTestRow}>
+                    <input
+                      type="tel"
+                      value={smsTestPhone}
+                      onChange={e => setSmsTestPhone(e.target.value)}
+                      style={styles.smsFieldInput}
+                      placeholder="+44 7..."
+                      inputMode="tel"
+                    />
+                    <button
+                      type="button"
+                      onClick={sendSMSTest}
+                      disabled={smsTesting || !smsTestPhone.trim()}
+                      style={{
+                        ...styles.smsTestBtn,
+                        opacity: (smsTesting || !smsTestPhone.trim()) ? 0.5 : 1,
+                      }}
+                    >
+                      {smsTesting ? 'Sending…' : 'Send test'}
+                    </button>
+                  </div>
+                  {smsTestMsg && (
+                    <div style={styles.smsTestNote}>{smsTestMsg}</div>
+                  )}
+                </div>
+                {smsError && (
+                  <div style={styles.smsForkError}>{smsError}</div>
+                )}
+                <div style={styles.smsForkActions}>
+                  <button
+                    type="button"
+                    onClick={useSMSOnly}
+                    disabled={smsSaving}
+                    style={{
+                      ...styles.smsForkSaveBtn,
+                      opacity: smsSaving ? 0.6 : 1,
+                    }}
+                  >
+                    {smsSaving ? 'Saving…' : 'Use SMS only'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSmsForkOpen(false);
+                      setSmsError(null);
+                      setSmsTestMsg('');
+                    }}
+                    style={styles.smsForkBackBtn}
+                  >
+                    Back
+                  </button>
+                </div>
+                <div style={styles.smsForkFootnote}>
+                  You can switch on WhatsApp later from Settings → Messaging channels.
+                </div>
               </div>
-              <span style={styles.channelBadgeOn}>Live</span>
-            </div>
+            )}
           </div>
           {/* Push notification opt-in */}
           <div style={styles.pushCard}>
@@ -1095,5 +1272,188 @@ const styles = {
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
+  },
+  // SMS fork (step 6) — collapsed pill
+  smsForkToggle: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    width: '100%',
+    padding: '12px 14px',
+    borderRadius: 12,
+    border: '1px solid var(--border)',
+    background: 'var(--bg, #fff)',
+    color: 'var(--text-primary)',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    textAlign: 'left',
+  },
+  smsForkToggleIcon: {
+    fontSize: 16,
+    lineHeight: 1,
+    color: 'var(--text-secondary)',
+    flexShrink: 0,
+  },
+  smsForkToggleText: {
+    flex: 1,
+    minWidth: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 2,
+  },
+  smsForkToggleTitle: {
+    fontSize: 13,
+    fontWeight: 700,
+    color: 'var(--text-primary)',
+    lineHeight: 1.3,
+  },
+  smsForkToggleHint: {
+    fontSize: 11,
+    color: 'var(--text-muted)',
+    lineHeight: 1.4,
+  },
+  smsForkToggleArrow: {
+    fontSize: 14,
+    color: 'var(--text-muted)',
+    flexShrink: 0,
+  },
+  // SMS fork (step 6) — expanded panel
+  smsForkPanel: {
+    background: 'var(--bg-card, #fff)',
+    border: '1px solid var(--border)',
+    borderRadius: 12,
+    padding: '14px 14px 16px',
+  },
+  smsForkHeadRow: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 12,
+  },
+  smsForkHead: {
+    flex: 1,
+    minWidth: 0,
+  },
+  smsForkTitle: {
+    fontSize: 14,
+    fontWeight: 700,
+    color: 'var(--text-primary)',
+    marginBottom: 2,
+  },
+  smsForkSub: {
+    fontSize: 12,
+    color: 'var(--text-secondary)',
+    lineHeight: 1.45,
+  },
+  smsForkCloseBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 6,
+    border: '1px solid var(--border)',
+    background: 'transparent',
+    color: 'var(--text-secondary)',
+    fontSize: 16,
+    lineHeight: 1,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    flexShrink: 0,
+  },
+  smsFieldBlock: {
+    marginBottom: 12,
+  },
+  smsFieldLabel: {
+    display: 'block',
+    fontSize: 11,
+    fontWeight: 700,
+    color: 'var(--text-secondary)',
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+    marginBottom: 6,
+  },
+  smsFieldInput: {
+    flex: 1,
+    width: '100%',
+    padding: '10px 12px',
+    borderRadius: 9,
+    border: '1px solid var(--border)',
+    background: 'var(--bg, #fff)',
+    color: 'var(--text-primary)',
+    fontSize: 13,
+    fontFamily: 'inherit',
+    boxSizing: 'border-box',
+  },
+  smsFieldHint: {
+    fontSize: 11,
+    color: 'var(--text-muted)',
+    marginTop: 6,
+    lineHeight: 1.45,
+  },
+  smsTestRow: {
+    display: 'flex',
+    gap: 8,
+    alignItems: 'stretch',
+  },
+  smsTestBtn: {
+    padding: '10px 12px',
+    borderRadius: 9,
+    border: '1px solid var(--border)',
+    background: 'var(--bg, #fff)',
+    color: 'var(--text-primary)',
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
+  },
+  smsTestNote: {
+    fontSize: 11,
+    color: 'var(--text-secondary)',
+    marginTop: 6,
+    lineHeight: 1.45,
+  },
+  smsForkError: {
+    fontSize: 12,
+    color: 'var(--danger-text, #B43C3C)',
+    background: 'var(--danger-bg, rgba(180, 60, 60, 0.08))',
+    border: '1px solid var(--danger-border, rgba(180, 60, 60, 0.25))',
+    borderRadius: 8,
+    padding: '8px 10px',
+    marginBottom: 10,
+  },
+  smsForkActions: {
+    display: 'flex',
+    gap: 8,
+    marginTop: 4,
+  },
+  smsForkSaveBtn: {
+    flex: 1,
+    padding: '11px 14px',
+    borderRadius: 10,
+    border: 'none',
+    background: 'var(--accent, #C76B8A)',
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  },
+  smsForkBackBtn: {
+    padding: '11px 14px',
+    borderRadius: 10,
+    border: '1px solid var(--border)',
+    background: 'transparent',
+    color: 'var(--text-primary)',
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  },
+  smsForkFootnote: {
+    fontSize: 11,
+    color: 'var(--text-muted)',
+    marginTop: 10,
+    textAlign: 'center',
+    lineHeight: 1.4,
   },
 };

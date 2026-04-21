@@ -28,26 +28,6 @@ const CATALOG = [
     connectPath: '/settings',
   },
   {
-    id: 'whatsapp',
-    name: 'WhatsApp Business',
-    icon: '💬',
-    category: 'Messaging',
-    description: 'Send confirmations, reminders, and AI-powered replies via WhatsApp',
-    features: ['Booking confirmations', '24h reminders', 'AI auto-replies', 'Campaign broadcasts'],
-    settingsPath: '/whatsapp',
-    connectPath: '/whatsapp',
-  },
-  {
-    id: 'bird',
-    name: 'Bird SMS',
-    icon: '📱',
-    category: 'Messaging',
-    description: 'SMS for clients who aren\'t on WhatsApp — no regulatory bundle, works immediately',
-    features: ['Booking confirmations', '24h reminders', 'Custom sender name', 'Auto-fallback from WhatsApp'],
-    settingsPath: '/sms',
-    connectPath: '/sms',
-  },
-  {
     id: 'google-cal',
     name: 'Google Calendar',
     icon: '📅',
@@ -113,7 +93,7 @@ const CATALOG = [
   },
 ];
 
-const categories = ['All', 'Payments', 'Messaging', 'Calendar', 'Social', 'Accounting', 'Reviews'];
+const categories = ['All', 'Payments', 'Calendar', 'Social', 'Accounting', 'Reviews'];
 
 function getIntegrationStatus(id, beautician, smsConfig) {
   switch (id) {
@@ -248,6 +228,38 @@ export default function Integrations() {
         <h1 style={ds.pageTitle}>Integrations</h1>
         <p style={{ ...type.bodySmall, marginTop: 4 }}>{connectedCount} connected · {integrations.length} available</p>
       </div>
+
+      {/* WhatsApp + SMS moved to their own home at /messaging */}
+      <button
+        type="button"
+        onClick={() => navigate('/messaging')}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          width: '100%',
+          padding: '14px 16px',
+          borderRadius: 12,
+          border: '1px solid var(--border)',
+          background: 'var(--bg-card, #fff)',
+          color: 'var(--text-primary)',
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+          textAlign: 'left',
+          marginBottom: 16,
+        }}
+      >
+        <span style={{ fontSize: 20, flexShrink: 0 }} aria-hidden>💬</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>
+            Looking for WhatsApp or SMS?
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+            Messaging now lives in its own place. Connect, manage, and pick your channel there.
+          </div>
+        </div>
+        <span style={{ fontSize: 14, color: 'var(--text-muted)', flexShrink: 0 }}>→</span>
+      </button>
 
       {/* Connected summary */}
       <div style={{ ...ds.heroCard, marginBottom: 20 }}>
