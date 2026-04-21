@@ -51,10 +51,43 @@ export default function PrivacyPolicy() {
           <ul style={s.list}>
             <li><strong>Supabase</strong> — Database hosting and user authentication (EU servers)</li>
             <li><strong>Stripe</strong> — Secure payment processing (PCI DSS Level 1 compliant)</li>
-            <li><strong>Bird</strong> — SMS delivery for appointment reminders</li>
+            <li><strong>Bird</strong> — SMS delivery for appointment reminders and two-way messaging</li>
+            <li><strong>Meta (WhatsApp Business Cloud API)</strong> — Delivery and receipt of WhatsApp messages between beauticians and their clients</li>
+            <li><strong>Resend</strong> — Transactional email delivery</li>
           </ul>
           <p style={s.p}>
             All these partners are contractually obligated to protect your data and use it only as needed to provide their services.
+          </p>
+        </section>
+
+        <section id="whatsapp" style={s.section}>
+          <h2 style={s.h2}>WhatsApp Business messaging</h2>
+          <p style={s.p}>
+            When a beautician connects their WhatsApp Business Account to Florrie, we exchange messages with their clients on their behalf using Meta's WhatsApp Business Cloud API. Specifically:
+          </p>
+          <ul style={s.list}>
+            <li>We receive inbound client messages (text, media, voice notes) forwarded from Meta's servers to our backend.</li>
+            <li>We send outbound messages (appointment confirmations, reminders, replies drafted by the beautician or the Florrie AI) via the Cloud API.</li>
+            <li>We store message content, timestamps, and phone numbers in our EU-hosted Supabase database so beauticians can review conversation history and so the AI can produce contextually relevant replies.</li>
+            <li>We retain messages for the life of the beautician's account. On account deletion, we purge all message content within 30 days.</li>
+            <li>We never sell WhatsApp data. We never share WhatsApp message content with any third party except the infrastructure providers named above. We never use WhatsApp data to train models owned by anyone other than the beautician's own account.</li>
+            <li>The beautician can disconnect at any time from Settings → WhatsApp, which revokes the sharing permission and stops message ingestion immediately.</li>
+          </ul>
+        </section>
+
+        <section id="delete" style={s.section}>
+          <h2 style={s.h2}>Data deletion</h2>
+          <p style={s.p}>
+            To delete your account and all associated data (including WhatsApp message history), email <a href="mailto:hello@florrie.ai" style={s.link}>hello@florrie.ai</a> with the subject line "Delete my account". We will:
+          </p>
+          <ul style={s.list}>
+            <li>Confirm the request from the email address on your account within 24 hours.</li>
+            <li>Revoke all third-party tokens (Meta WhatsApp, Stripe, Bird) within 72 hours of confirmation.</li>
+            <li>Purge all personal data and message content from our database within 30 days.</li>
+            <li>Send you a final confirmation when deletion is complete.</li>
+          </ul>
+          <p style={s.p}>
+            Clients of beauticians on Florrie can also request deletion of their own records — contact the beautician directly or email us.
           </p>
         </section>
 

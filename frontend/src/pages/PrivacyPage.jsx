@@ -48,26 +48,42 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-xl font-semibold text-gray-900 mb-3">8. Third-party services</h2>
-            <p>Florrie integrates with third-party services including Stripe (payments), Supabase (database), WhatsApp/Meta (messaging), and Resend (email). Each has its own privacy policy. We only share data with these services to the extent necessary to operate Florrie.</p>
+            <p>Florrie integrates with third-party services including Stripe (payments), Supabase (database), Meta (WhatsApp Business Cloud API for messaging), Bird (SMS), and Resend (email). Each has its own privacy policy. We only share data with these services to the extent necessary to operate Florrie.</p>
+          </section>
+
+          <section id="whatsapp">
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">9. WhatsApp Business messaging</h2>
+            <p>When a beautician connects their WhatsApp Business Account to Florrie, we exchange messages with their clients on their behalf using Meta's WhatsApp Business Cloud API:</p>
+            <p className="mt-2"><strong>Inbound:</strong> we receive client messages (text, media, voice notes) forwarded from Meta's servers to api.florrie.ai.</p>
+            <p className="mt-2"><strong>Outbound:</strong> we send confirmations, reminders, and replies drafted by the beautician or the Florrie AI.</p>
+            <p className="mt-2"><strong>Storage:</strong> message content, timestamps, and phone numbers are stored in our EU-hosted Supabase database for conversation history and AI context.</p>
+            <p className="mt-2"><strong>Retention:</strong> messages are retained for the life of the beautician's account. On account deletion we purge all message content within 30 days.</p>
+            <p className="mt-2"><strong>Sharing:</strong> we never sell WhatsApp data, never share message content with any third party except the infrastructure providers named above, and never use WhatsApp data to train models owned by anyone other than the beautician's own account.</p>
+            <p className="mt-2"><strong>Control:</strong> the beautician can disconnect at any time from Settings → WhatsApp, which revokes the sharing permission and stops message ingestion immediately.</p>
+          </section>
+
+          <section id="delete">
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">10. Data deletion</h2>
+            <p>To delete your account and all associated data (including WhatsApp message history), email <a href="mailto:hello@florrie.ai" className="text-pink-600 underline">hello@florrie.ai</a> with the subject line "Delete my account". We confirm within 24 hours, revoke third-party tokens (Meta WhatsApp, Stripe, Bird) within 72 hours, and purge all personal data within 30 days. Clients of beauticians on Florrie can also request deletion of their own records by contacting the beautician or emailing us directly.</p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">9. Your rights</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">11. Your rights</h2>
             <p>Under UK GDPR, you have the right to access, correct, or delete your personal data, restrict or object to processing, and request a portable copy of your data. To exercise any of these rights, email <a href="mailto:hello@florrie.ai" className="text-pink-600 underline">hello@florrie.ai</a>. We will respond within 30 days.</p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">10. Cookies</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">12. Cookies</h2>
             <p>We use essential cookies to keep you logged in and remember your preferences. We do not use advertising cookies or sell data to ad networks.</p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">11. Changes to this policy</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">13. Changes to this policy</h2>
             <p>We may update this policy from time to time. Material changes will be communicated by email before they take effect.</p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-gray-900 mb-3">12. Contact and complaints</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-3">14. Contact and complaints</h2>
             <p>For privacy questions, email <a href="mailto:hello@florrie.ai" className="text-pink-600 underline">hello@florrie.ai</a>. If you are unhappy with how we handle your data, you have the right to lodge a complaint with the ICO (ico.org.uk).</p>
           </section>
 

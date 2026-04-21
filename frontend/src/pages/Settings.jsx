@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useBeautician, updateRow, supabase } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
 import { API_BASE } from '../lib/config.js';
@@ -19,6 +20,7 @@ const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 export default function Settings({ onLogout }) {
   const { beautician, loading, refresh } = useBeautician();
   const { isDark, toggle: toggleDark } = useTheme();
+  const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState(null);
@@ -954,6 +956,67 @@ export default function Settings({ onLogout }) {
             </div>
           </div>
 
+          {/* Messaging channels: connect and manage WhatsApp + SMS */}
+          <div style={styles.card}>
+            <h3 style={styles.cardTitle}>Messaging channels</h3>
+            <p style={styles.cardDesc}>Connect the channels Florrie sends reminders and replies through.</p>
+
+            {/* WhatsApp row */}
+            <div style={styles.msgChannelRow}>
+              <div style={styles.msgChannelInfo}>
+                <span style={styles.msgChannelIcon} aria-hidden>💬</span>
+                <div>
+                  <div style={styles.msgChannelName}>WhatsApp Business</div>
+                  <div style={{
+                    ...styles.msgChannelStatus,
+                    color: beautician.whatsapp_connected ? 'var(--success, #16a34a)' : 'var(--text-muted)',
+                  }}>
+                    {beautician.whatsapp_connected
+                      ? `● Connected${beautician.whatsapp_phone ? ` · ${beautician.whatsapp_phone}` : ''}`
+                      : 'Not connected'}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/whatsapp')}
+                style={{
+                  ...styles.msgChannelBtn,
+                  background: beautician.whatsapp_connected ? 'var(--bg-hover)' : 'var(--accent)',
+                  color: beautician.whatsapp_connected ? 'var(--text-secondary)' : 'var(--bg-card)',
+                  border: beautician.whatsapp_connected ? '1.5px solid var(--border)' : 'none',
+                }}
+              >
+                {beautician.whatsapp_connected ? 'Manage' : 'Connect'}
+              </button>
+            </div>
+
+            {/* SMS row */}
+            <div style={{ ...styles.msgChannelRow, borderBottom: 'none' }}>
+              <div style={styles.msgChannelInfo}>
+                <span style={styles.msgChannelIcon} aria-hidden>📱</span>
+                <div>
+                  <div style={styles.msgChannelName}>Bird SMS</div>
+                  <div style={styles.msgChannelStatus}>
+                    Backup for clients who aren't on WhatsApp
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/sms')}
+                style={{
+                  ...styles.msgChannelBtn,
+                  background: 'var(--bg-hover)',
+                  color: 'var(--text-secondary)',
+                  border: '1.5px solid var(--border)',
+                }}
+              >
+                Manage
+              </button>
+            </div>
+          </div>
+
           {/* SMS Usage */}
           <SMSUsageWidget />
 
@@ -1633,6 +1696,14 @@ const styles = {
   channelLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' },
   channelOptions: { display: 'flex', gap: 6 },
   channelChip: { padding: '6px 12px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+
+  // Messaging channels card
+  msgChannelRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px solid var(--border-light)', gap: 12 },
+  msgChannelInfo: { display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 },
+  msgChannelIcon: { fontSize: 22, flexShrink: 0 },
+  msgChannelName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' },
+  msgChannelStatus: { fontSize: 12, color: 'var(--text-muted)', marginTop: 2 },
+  msgChannelBtn: { padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
 
   // Block time links
   blockLinkBtn: {
