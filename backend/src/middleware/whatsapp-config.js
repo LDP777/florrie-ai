@@ -13,7 +13,7 @@
  * Env vars required:
  *   WHATSAPP_TOKEN    — Florrie's system user token (permanent)
  *   WHATSAPP_WABA_ID  — Florrie's WhatsApp Business Account ID
- *   WHATSAPP_API_VERSION — e.g. "v19.0" (defaults to v19.0)
+ *   WHATSAPP_API_VERSION — e.g. "v21.0" (defaults to v21.0)
  */
 
 import express from 'express';
@@ -28,7 +28,7 @@ router.use(requireAuth);
 // Accept Meta's official Railway env names as fallbacks.
 const WA_TOKEN = process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN;
 const WABA_ID = process.env.WHATSAPP_WABA_ID || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
-const API_VER = process.env.WHATSAPP_API_VERSION || 'v19.0';
+const API_VER = process.env.WHATSAPP_API_VERSION || 'v21.0';
 const GRAPH = `https://graph.facebook.com/${API_VER}`;
 
 function metaHeaders() {
