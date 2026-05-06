@@ -4,13 +4,13 @@ export default function TermsPage() {
       <div className="max-w-[720px] mx-auto">
         <a href="/" className="text-sm text-gray-400 hover:text-gray-600 mb-10 inline-block">&larr; Back to florrie.ai</a>
         <h1 className="text-4xl font-bold mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>Terms of Service</h1>
-        <p className="text-sm text-gray-400 mb-12">Last updated: April 2026</p>
+        <p className="text-sm text-gray-400 mb-12">Last updated: May 2026</p>
 
         <div className="prose prose-gray max-w-none space-y-8 text-gray-700 leading-relaxed">
 
           <section>
             <h2 className="text-xl font-semibold text-gray-900 mb-3">1. Who we are</h2>
-            <p>Florrie is an AI-powered business management tool built for independent beauty professionals in the UK. References to "Florrie", "we", "us" or "our" mean Florrie Ltd. References to "you" mean the individual or business using our service.</p>
+            <p>Florrie is operated by <strong>FLORRIE.AI LTD</strong>, a private limited company registered in England and Wales (company number <strong>17141774</strong>), with registered office at 89 Pitcroft Avenue, Reading, United Kingdom, RG6 1NN. References to "Florrie", "we", "us" or "our" mean FLORRIE.AI LTD. References to "you" mean the individual or business using our service.</p>
           </section>
 
           <section>
@@ -30,7 +30,8 @@ export default function TermsPage() {
 
           <section>
             <h2 className="text-xl font-semibold text-gray-900 mb-3">5. Messaging channels</h2>
-            <p>If you connect a messaging channel (WhatsApp Business via Meta's WhatsApp Cloud API, SMS via Bird, or email via Resend) to your Florrie account, you authorise us to send and receive messages on your behalf through that channel. You remain the sender of record and are responsible for complying with the channel provider's terms, including Meta's WhatsApp Business Messaging Policy for WhatsApp. You can disconnect any channel from Settings at any time.</p>
+            <p>If you connect a messaging channel (WhatsApp Business via Meta's WhatsApp Cloud API, SMS via Bird, or email via Resend) to your Florrie account, you authorise us to send and receive messages on your behalf through that channel. You remain the sender of record and are responsible for complying with the channel provider's terms, including Meta's WhatsApp Business Messaging Policy for WhatsApp.</p>
+            <p>SMS messages sent on your behalf are transactional in nature: appointment confirmations, day-before reminders, rescheduling notices, and replies to client messages. Clients typically receive two to four SMS per booking. Clients can opt out of SMS at any time by replying <strong>STOP</strong>; replying <strong>HELP</strong> returns contact information. Standard message and data rates from the recipient's mobile carrier may apply. You can disconnect any messaging channel from Settings at any time.</p>
           </section>
 
           <section>
@@ -66,6 +67,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-semibold text-gray-900 mb-3">12. Contact</h2>
             <p>Questions about these terms? Email us at <a href="mailto:hello@florrie.ai" className="text-pink-600 underline">hello@florrie.ai</a>.</p>
+            <p className="text-sm text-gray-500 mt-4">FLORRIE.AI LTD, Company No. 17141774, registered office: 89 Pitcroft Avenue, Reading, United Kingdom, RG6 1NN.</p>
           </section>
 
         </div>

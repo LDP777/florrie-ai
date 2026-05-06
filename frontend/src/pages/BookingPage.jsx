@@ -904,9 +904,14 @@ export default function BookingPage() {
                     border: '1px solid var(--gold, #C9A96E)', fontSize: 12, fontWeight: 500,
                     color: 'var(--gold, #C9A96E)',
                   }}>
-                    ★ Member — {memberInfo.plan_name}
+                    ★ Member, {memberInfo.plan_name}
                   </div>
                 )}
+                <p style={{
+                  fontSize: 11, color: '#9C9690', marginTop: 6, marginBottom: 0, lineHeight: 1.4,
+                }}>
+                  By providing your phone number, you agree to receive SMS booking confirmations and reminders from your beautician. Reply <strong>STOP</strong> to opt out at any time. Standard message and data rates may apply. See our <a href="/privacy" style={{ color: '#9C9690', textDecoration: 'underline' }}>Privacy Policy</a>.
+                </p>
               </div>
               <div>
                 <input
