@@ -58,3 +58,9 @@ frontend/android/app/build/
 *.xcuserdata
 *.xcworkspace/xcuserdata/
 DerivedData/
+
+# Playwright runtime (regenerated each run)
+frontend/test-results/
+
+# Playwright saved auth state, may contain real session tokens, never commit
+frontend/tests/.auth/
