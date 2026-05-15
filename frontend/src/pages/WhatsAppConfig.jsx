@@ -457,7 +457,7 @@ function DiagnosticError({ error, errBody, onRetry, onReset, phone }) {
 
 /**
  * Surfaces the state of the retry queue on the main page. Shows up when the
- * backend has a whatsapp_retry_at for this beautician — usually because a
+ * backend has a whatsapp_retry_at for this beautician, usually because a
  * cooldown is active and we've queued an automatic retry.
  */
 function RetryBanner({ retry, onReset }) {
@@ -934,7 +934,7 @@ export default function WhatsAppConfig() {
         </div>
       </div>
 
-      {/* Retry exhausted — shown when retry worker has given up after max attempts */}
+      {/* Retry exhausted, shown when retry worker has given up after max attempts */}
       {!connected && !pendingActivation && status?.retry_exhausted && (
         <div style={{
           background: '#FDECEA',
@@ -1001,12 +1001,12 @@ export default function WhatsAppConfig() {
         </div>
       )}
 
-      {/* Retry queue banner — shown whenever /status reports a queued retry */}
+      {/* Retry queue banner, shown whenever /status reports a queued retry */}
       {!connected && !pendingActivation && status?.retry && !status?.retry_exhausted && (
         <RetryBanner retry={status.retry} onReset={handleReset} />
       )}
 
-      {/* Pending activation — polling Meta until CONNECTED */}
+      {/* Pending activation, polling Meta until CONNECTED */}
       {!connected && pendingActivation && (
         <PendingActivation
           phone={pendingPhone || status?.pending_phone || status?.phone}
@@ -1015,7 +1015,7 @@ export default function WhatsAppConfig() {
         />
       )}
 
-      {/* Not connected and nothing in flight — show setup flow */}
+      {/* Not connected and nothing in flight, show setup flow */}
       {!connected && !pendingActivation && (
         <ConnectFlow
           onConnected={handleConnected}
@@ -1066,7 +1066,7 @@ export default function WhatsAppConfig() {
                   <div style={styles.statLabel}>SMS sent</div>
                 </div>
                 <div style={styles.statCard}>
-                  <div style={styles.statValue}>{status?.usage?.remaining ?? '—'}</div>
+                  <div style={styles.statValue}>{status?.usage?.remaining ?? '-'}</div>
                   <div style={styles.statLabel}>Remaining</div>
                 </div>
               </div>

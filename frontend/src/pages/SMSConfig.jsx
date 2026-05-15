@@ -14,12 +14,12 @@ async function getToken() {
 }
 
 const templates = [
-  { id: 'booking_confirmation', name: 'Booking Confirmation', trigger: 'On booking', message: 'Hi {name}, your {treatment} is confirmed for {date} at {time}. — {business}' },
-  { id: 'reminder_24h', name: '24h Reminder', trigger: '24h before', message: 'Reminder: {name}, your {treatment} is tomorrow at {time}. See you then! — {business}' },
-  { id: 'reminder_1h', name: '1h Reminder', trigger: '1h before', message: '{name}, your appointment is in 1 hour at {time}. — {business}' },
-  { id: 'rebook_nudge', name: 'Rebook Nudge', trigger: 'Auto (21 days)', message: "Hey {name}! It's been a few weeks. Ready to book in again? {booking_link} — {business}" },
-  { id: 'review_request', name: 'Review Request', trigger: 'Post-appointment', message: '{name}, thanks for visiting! We\'d love your feedback: {review_link} — {business}' },
-  { id: 'no_show_followup', name: 'No-Show Follow Up', trigger: 'On no-show', message: 'Hey {name}, we missed you today! Want to rebook? {booking_link} — {business}' },
+  { id: 'booking_confirmation', name: 'Booking Confirmation', trigger: 'On booking', message: 'Hi {name}, your {treatment} is confirmed for {date} at {time}. {business}' },
+  { id: 'reminder_24h', name: '24h Reminder', trigger: '24h before', message: 'Reminder: {name}, your {treatment} is tomorrow at {time}. See you then! {business}' },
+  { id: 'reminder_1h', name: '1h Reminder', trigger: '1h before', message: '{name}, your appointment is in 1 hour at {time}. {business}' },
+  { id: 'rebook_nudge', name: 'Rebook Nudge', trigger: 'Auto (21 days)', message: "Hey {name}! It's been a few weeks. Ready to book in again? {booking_link}, {business}" },
+  { id: 'review_request', name: 'Review Request', trigger: 'Post-appointment', message: '{name}, thanks for visiting! We\'d love your feedback: {review_link}, {business}' },
+  { id: 'no_show_followup', name: 'No-Show Follow Up', trigger: 'On no-show', message: 'Hey {name}, we missed you today! Want to rebook? {booking_link}, {business}' },
 ];
 
 const tabs = ['Overview', 'Templates', 'Settings'];
@@ -140,7 +140,7 @@ export default function SMSConfig() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Send failed');
-      setTestMsg(`✓ Test SMS sent — check ${testPhone}`);
+      setTestMsg(`✓ Test SMS sent, check ${testPhone}`);
     } catch (err) {
       setTestMsg(`✗ ${err.message}`);
     } finally {
@@ -164,7 +164,7 @@ export default function SMSConfig() {
   );
 
   const birdConfigured = config?.bird_configured;
-  const deliveryRate = usage ? ((usage.messagesSent > 0 ? 97.3 : 0)).toFixed(1) : '—';
+  const deliveryRate = usage ? ((usage.messagesSent > 0 ? 97.3 : 0)).toFixed(1) : '-';
   const senderValue = config?.sms_originator || originatorInput || 'Florrie';
   const twoWay = isPhoneSender(senderValue);
 
@@ -172,7 +172,7 @@ export default function SMSConfig() {
     <div style={ds.page}>
       <div style={{ marginBottom: 20 }}>
         <h1 style={ds.pageTitle}>SMS</h1>
-        <p style={{ ...type.bodySmall, marginTop: 4 }}>Bird-powered SMS — no regulatory bundle required</p>
+        <p style={{ ...type.bodySmall, marginTop: 4 }}>Bird-powered SMS, no regulatory bundle required</p>
       </div>
 
       {/* Status card */}
@@ -195,7 +195,7 @@ export default function SMSConfig() {
             </div>
             <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 999, background: twoWay ? 'rgba(74,222,128,0.2)' : 'rgba(250,204,21,0.18)', fontSize: 11, fontWeight: 600 }}>
               <span style={{ width: 6, height: 6, borderRadius: 3, background: twoWay ? '#4ADE80' : '#FACC15' }} />
-              {twoWay ? '2-way — clients can reply' : 'One-way — alphanumeric sender, no replies'}
+              {twoWay ? '2-way, clients can reply' : 'One-way, alphanumeric sender, no replies'}
             </div>
           </div>
           <div style={{ fontSize: 40 }}>📱</div>
@@ -205,7 +205,7 @@ export default function SMSConfig() {
           <div style={{ display: 'flex', gap: 16, marginTop: 16 }}>
             {[
               { label: 'Sent this week', val: usage.messagesSent || 0 },
-              { label: 'Free remaining', val: usage.freeRemaining ?? '—' },
+              { label: 'Free remaining', val: usage.freeRemaining ?? '-' },
               { label: 'Surplus cost', val: usage.surplusTotalFormatted || '£0.00' },
             ].map(s => (
               <div key={s.label} style={{ flex: 1 }}>
@@ -236,8 +236,8 @@ export default function SMSConfig() {
             <span style={{ fontSize: 20 }}>{twoWay ? '💬' : '💡'}</span>
             <div style={{ ...type.bodySmall, lineHeight: 1.5 }}>
               {twoWay
-                ? "2-way SMS is on — clients can text your number and Florrie's AI replies the same way it does on WhatsApp. Booking confirmations, reminders, and rebook nudges all fire automatically."
-                : "SMS fires automatically when a client doesn't have WhatsApp — booking confirmations, 24h reminders, and rebook nudges all fall back to SMS seamlessly. Paste a phone number in Settings to turn on 2-way replies."}
+                ? "2-way SMS is on, clients can text your number and Florrie's AI replies the same way it does on WhatsApp. Booking confirmations, reminders, and rebook nudges all fire automatically."
+                : "SMS fires automatically when a client doesn't have WhatsApp, booking confirmations, 24h reminders, and rebook nudges all fall back to SMS seamlessly. Paste a phone number in Settings to turn on 2-way replies."}
             </div>
           </div>
 
@@ -251,7 +251,7 @@ export default function SMSConfig() {
                 step: '4',
                 label: twoWay ? 'Client replies' : 'Post-appointment',
                 desc: twoWay
-                  ? "Reply lands in Florrie — AI books, reschedules, or escalates to you"
+                  ? "Reply lands in Florrie, AI books, reschedules, or escalates to you"
                   : 'Rebook nudge after 21 days if no new booking'
               },
             ].map(s => (
@@ -332,7 +332,7 @@ export default function SMSConfig() {
             <div style={{ marginBottom: 16 }}>
               <div style={ds.inputLabel}>Sender</div>
               <div style={{ ...type.bodySmall, fontSize: 11, marginBottom: 8 }}>
-                Paste a UK mobile number (e.g. +447700900123) to enable 2-way SMS — clients can reply and the AI handles it. Or enter up to 11 letters/numbers (e.g. Ellindigo) for a one-way brand sender.
+                Paste a UK mobile number (e.g. +447700900123) to enable 2-way SMS, clients can reply and the AI handles it. Or enter up to 11 letters/numbers (e.g. Ellindigo) for a one-way brand sender.
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <input
@@ -415,11 +415,11 @@ export default function SMSConfig() {
             <div style={{ ...type.bodySmall, fontSize: 12, lineHeight: 1.5 }}>
               {twoWay ? (
                 <>
-                  <strong>2-way SMS is live.</strong> Clients see your number as the sender and can reply — Florrie's AI picks up the thread the same way it does on WhatsApp. Messages cost ~0.5p each via Bird. First 30/week are included in your Florrie plan.
+                  <strong>2-way SMS is live.</strong> Clients see your number as the sender and can reply, Florrie's AI picks up the thread the same way it does on WhatsApp. Messages cost ~0.5p each via Bird. First 30/week are included in your Florrie plan.
                 </>
               ) : (
                 <>
-                  <strong>One-way sender.</strong> Alphanumeric names like "Ellindigo" can't receive replies — use a phone number above to switch on 2-way. Outbound messages cost ~0.5p each via Bird. First 30/week are included in your Florrie plan.
+                  <strong>One-way sender.</strong> Alphanumeric names like "Ellindigo" can't receive replies, use a phone number above to switch on 2-way. Outbound messages cost ~0.5p each via Bird. First 30/week are included in your Florrie plan.
                 </>
               )}
             </div>

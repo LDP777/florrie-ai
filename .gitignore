@@ -64,3 +64,8 @@ frontend/test-results/
 
 # Playwright saved auth state, may contain real session tokens, never commit
 frontend/tests/.auth/
+
+# Local credentials notes (Meta App Review test account, etc.) — never commit
+docs/.app-review-credentials.local.md
+docs/*.local.md
+docs/.*.local.md

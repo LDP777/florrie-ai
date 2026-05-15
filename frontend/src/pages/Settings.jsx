@@ -10,7 +10,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
- * Settings — beautician profile and app configuration.
+ * Settings, beautician profile and app configuration.
  * Wired to Supabase via useBeautician. Ellie's real hours + tone model as defaults.
  */
 
@@ -107,7 +107,7 @@ export default function Settings({ onLogout }) {
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
       logger.error('Save error:', err);
-      setSaveError(err?.message || 'Save failed — please try again');
+      setSaveError(err?.message || 'Save failed, please try again');
       setTimeout(() => setSaveError(null), 4000);
     } finally {
       setSaving(false);
@@ -265,7 +265,7 @@ export default function Settings({ onLogout }) {
           <FieldEditor label="Business name" value={beautician.business_name || ''} onSave={v => saveProfile({ business_name: v })} />
           <FieldEditor label="Phone" value={beautician.phone || ''} onSave={v => saveProfile({ phone: v })} />
 
-          {/* Booking link — shareable */}
+          {/* Booking link, shareable */}
           {beautician.booking_slug ? (
             <BookingLinkCard slug={beautician.booking_slug} />
           ) : (
@@ -328,7 +328,7 @@ export default function Settings({ onLogout }) {
             </button>
           </div>
 
-          {/* VAT number — only shown if registered */}
+          {/* VAT number, only shown if registered */}
           {beautician.vat_registered && (
             <FieldEditor
               label="VAT number"
@@ -542,12 +542,12 @@ export default function Settings({ onLogout }) {
           {/* Stripe return banners */}
           {stripeBanner === 'success' && (
             <div style={{ background: 'var(--success)', color: '#fff', borderRadius: 12, padding: '12px 16px', marginBottom: 12, fontSize: 13, fontWeight: 500 }}>
-              ✓ Stripe connected — you can now accept card payments and deposits.
+              ✓ Stripe connected, you can now accept card payments and deposits.
             </div>
           )}
           {stripeBanner === 'pending' && (
             <div style={{ background: 'var(--warning)', color: '#fff', borderRadius: 12, padding: '12px 16px', marginBottom: 12, fontSize: 13, fontWeight: 500 }}>
-              Stripe setup received — it may take a few minutes for your account to be fully verified. Refresh this page shortly.
+              Stripe setup received, it may take a few minutes for your account to be fully verified. Refresh this page shortly.
             </div>
           )}
           {stripeBanner === 'refresh' && (
@@ -727,11 +727,11 @@ export default function Settings({ onLogout }) {
               <p style={{ fontSize: 12, color: 'var(--success)', marginTop: 8, marginBottom: 0 }}>✓ Google Calendar connected</p>
             )}
             {gcalBanner === 'error' && (
-              <p style={{ fontSize: 12, color: 'var(--danger, #E57373)', marginTop: 8, marginBottom: 0 }}>Connection failed — check your Google credentials and try again</p>
+              <p style={{ fontSize: 12, color: 'var(--danger, #E57373)', marginTop: 8, marginBottom: 0 }}>Connection failed, check your Google credentials and try again</p>
             )}
           </div>
 
-          {/* Apple / iPhone — use ICS feed */}
+          {/* Apple / iPhone, use ICS feed */}
           <div style={styles.card}>
             <div style={styles.calendarProviderRow}>
               <span style={{ fontSize: 22 }}>🍎</span>
@@ -1032,7 +1032,7 @@ export default function Settings({ onLogout }) {
             const CATEGORIES = [
               {
                 group: 'Always',
-                hint: 'Florrie always sends these on your behalf — they\'re time-sensitive or directly tied to a booking.',
+                hint: 'Florrie always sends these on your behalf. They\'re time-sensitive or directly tied to a booking.',
                 color: '#22c55e',
                 items: [
                   { key: 'booking_confirmation', label: 'Booking confirmations' },
@@ -1084,7 +1084,7 @@ export default function Settings({ onLogout }) {
 
             function setRulePriority(key, value) {
               const next = { ...rules, [key]: value };
-              setPendingCreditRules(next);   // optimistic — instant visual response
+              setPendingCreditRules(next);   // optimistic, instant visual response
               saveProfile({ credit_priority_rules: next }).finally(() => setPendingCreditRules(null));
             }
 
@@ -1095,7 +1095,7 @@ export default function Settings({ onLogout }) {
                   <h3 style={{ ...styles.cardTitle, margin: 0 }}>Florrie's autopilot</h3>
                 </div>
                 <p style={styles.cardDesc}>
-                  Control what Florrie decides to send on her own — rebook nudges, check-ins, marketing. Booking confirmations and reminders always go out regardless. Anything you send manually is never affected.
+                  Control what Florrie decides to send on her own: rebook nudges, check-ins, marketing. Booking confirmations and reminders always go out regardless. Anything you send manually is never affected.
                 </p>
 
                 {CATEGORIES.map(group => (
@@ -1154,7 +1154,7 @@ export default function Settings({ onLogout }) {
                   color: beautician.instagram_page_id ? 'var(--success)' : 'var(--text-muted)',
                 }}>
                   {beautician.instagram_page_id
-                    ? `● Connected${beautician.instagram_page_name ? ` — ${beautician.instagram_page_name}` : ''}`
+                    ? `● Connected${beautician.instagram_page_name ? `, ${beautician.instagram_page_name}` : ''}`
                     : 'Not connected'}
                 </span>
               </div>
@@ -1181,10 +1181,10 @@ export default function Settings({ onLogout }) {
                 : 'Connect your Instagram Business account so Content Studio can publish posts without you copying and pasting.'}
             </p>
             {igBanner === 'success' && (
-              <p style={{ fontSize: 12, color: 'var(--success)', marginTop: 8, marginBottom: 0 }}>✓ Instagram connected — Content Studio can now post directly</p>
+              <p style={{ fontSize: 12, color: 'var(--success)', marginTop: 8, marginBottom: 0 }}>✓ Instagram connected, Content Studio can now post directly</p>
             )}
             {igBanner === 'error' && (
-              <p style={{ fontSize: 12, color: 'var(--danger, #E57373)', marginTop: 8, marginBottom: 0 }}>Connection failed — try again or contact support</p>
+              <p style={{ fontSize: 12, color: 'var(--danger, #E57373)', marginTop: 8, marginBottom: 0 }}>Connection failed, try again or contact support</p>
             )}
             {igBanner === 'no_page' && (
               <p style={{ fontSize: 12, color: 'var(--warning, #F59E0B)', marginTop: 8, marginBottom: 0 }}>No Facebook Page found. You need a Facebook Page with an Instagram Business account connected.</p>
@@ -1325,7 +1325,7 @@ export default function Settings({ onLogout }) {
               })}
             </div>
 
-            {/* Redirect message editor — only shown in redirect mode */}
+            {/* Redirect message editor, only shown in redirect mode */}
             {(['redirect', 'ai'].includes(beautician.instagram_dm_mode || 'redirect')) && (() => {
               const phone = beautician.phone || '';
               const digits = phone.replace(/\D/g, '');
@@ -1333,7 +1333,7 @@ export default function Settings({ onLogout }) {
               const waLink = waNumber ? `https://wa.me/${waNumber}` : null;
               const defaultMsg = waLink
                 ? `Hey! ${beautician.first_name || 'I'} replies much faster on WhatsApp 💬 Message me here: ${waLink}`
-                : `Hey! I reply much faster on WhatsApp — please message me there instead 💬`;
+                : `Hey! I reply much faster on WhatsApp, please message me there instead 💬`;
 
               return (
                 <div>
@@ -1378,8 +1378,8 @@ export default function Settings({ onLogout }) {
               <span style={styles.fieldLabel}>Plan</span>
               <span style={styles.fieldValue}>
                 {beautician.subscription_plan === 'trial' || !beautician.subscription_plan ? '14-day free trial' :
-                 beautician.subscription_plan === 'florrie' ? 'Florrie — £29/mo' :
-                 beautician.subscription_plan === 'florrie_team' ? 'Teams — £44/mo' :
+                 beautician.subscription_plan === 'florrie' ? 'Florrie (£29/mo)' :
+                 beautician.subscription_plan === 'florrie_team' ? 'Teams (£44/mo)' :
                  beautician.subscription_status === 'active' ? `Active (${beautician.subscription_plan})` :
                  beautician.subscription_status || 'Trial'}
               </span>
@@ -1527,7 +1527,7 @@ function NotificationToggle({ label, desc, prefs, onChange }) {
 
   function toggle(key) {
     const next = { ...local, [key]: !local[key] };
-    setLocal(next);   // optimistic — instant visual response
+    setLocal(next);   // optimistic, instant visual response
     onChange(next);   // async save
   }
 
@@ -1767,7 +1767,7 @@ const styles = {
 };
 
 /**
- * SubscriptionManager — Opens Stripe Customer Portal to manage subscription
+ * SubscriptionManager, Opens Stripe Customer Portal to manage subscription
  */
 function SubscriptionManager({ beautician }) {
   const [loading, setLoading] = useState(false);

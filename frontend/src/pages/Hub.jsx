@@ -26,7 +26,7 @@ function getToken() {
 // 6 illustrated characters, fully drawn in code. No external image URLs.
 // Each has a unique personality prop that matches their role.
 
-// 1. Front Desk — receptionist with headset + mic
+// 1. Front Desk, receptionist with headset + mic
 function AvatarFrontDesk({ size = 56 }) {
   return (
     <svg viewBox="0 0 56 56" width={size} height={size}>
@@ -53,13 +53,13 @@ function AvatarFrontDesk({ size = 56 }) {
   );
 }
 
-// 2. Content Creator — creative character with palette + brush
+// 2. Content Creator, creative character with palette + brush
 function AvatarContentCreator({ size = 56 }) {
   return (
     <svg viewBox="0 0 56 56" width={size} height={size}>
       <circle cx="28" cy="28" r="28" fill="#D4943A"/>
       <circle cx="28" cy="27" r="13" fill="#FFD5B0"/>
-      {/* Creative eyes — one winking */}
+      {/* Creative eyes, one winking */}
       <circle cx="24.5" cy="25" r="1.8" fill="#3D2B1A"/>
       <path d="M30 24 Q31.5 22 33 24" stroke="#3D2B1A" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
       <circle cx="25.2" cy="24.3" r="0.65" fill="#fff"/>
@@ -80,7 +80,7 @@ function AvatarContentCreator({ size = 56 }) {
   );
 }
 
-// 3. Client Intel — analyst with magnifying glass + data dots
+// 3. Client Intel, analyst with magnifying glass + data dots
 function AvatarClientIntel({ size = 56 }) {
   return (
     <svg viewBox="0 0 56 56" width={size} height={size}>
@@ -177,7 +177,7 @@ function AvatarBookkeeper({ size = 56 }) {
   );
 }
 
-// 6. Guardian — protector with shield + check mark + star
+// 6. Guardian, protector with shield + check mark + star
 function AvatarGuardian({ size = 56 }) {
   return (
     <svg viewBox="0 0 56 56" width={size} height={size}>
@@ -195,7 +195,7 @@ function AvatarGuardian({ size = 56 }) {
       <path d="M42 8 L48 10.5 L48 16 Q48 21 42 23.5 Q36 21 36 16 L36 10.5 Z" fill="#C9A96E" opacity="0.3"/>
       {/* Check mark on shield */}
       <path d="M38 16 L41 19 L46 13" stroke="#5BA97B" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-      {/* Stars floating left — reputation */}
+      {/* Stars floating left, reputation */}
       <path d="M9 10 L10 13 L13 13 L10.5 15 L11.5 18 L9 16 L6.5 18 L7.5 15 L5 13 L8 13Z" fill="#fff" opacity="0.9"/>
       <path d="M6 5 L6.5 6.5 L8 6.5 L7 7.5 L7.5 9 L6 8 L4.5 9 L5 7.5 L4 6.5 L5.5 6.5Z" fill="#fff" opacity="0.7"/>
     </svg>
@@ -336,7 +336,7 @@ function AgentTeamSection({ beautician, onNav }) {
         })}
       </div>
 
-      {/* Ticker — or day-1 empty state */}
+      {/* Ticker, or day-1 empty state */}
       {tickerAgent ? (
         <div style={AT.ticker}>
           <span className="material-symbols-outlined" style={{ fontSize: 12, color: '#92405e', flexShrink: 0 }}>auto_awesome</span>
@@ -348,7 +348,7 @@ function AgentTeamSection({ beautician, onNav }) {
         <div style={AT.emptyState}>
           <span className="material-symbols-outlined" style={{ fontSize: 14, color: '#C76B8A', flexShrink: 0 }}>schedule</span>
           <span style={AT.emptyText}>
-            Florrie kicks in after your first booking — we'll handle the follow-ups
+            Florrie kicks in after your first booking, we'll handle the follow-ups
           </span>
         </div>
       )}
@@ -1205,7 +1205,7 @@ const S = {
     borderTop: '1px solid rgba(146,64,94,0.06)',
   },
 
-  // Item grid — 2 columns of square cards
+  // Item grid, 2 columns of square cards
   itemGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(2, 1fr)',

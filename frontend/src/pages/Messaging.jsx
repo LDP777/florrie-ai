@@ -6,7 +6,7 @@ import WhatsAppConfig from './WhatsAppConfig.jsx';
 import SMSConfig from './SMSConfig.jsx';
 
 /**
- * Messaging — single entry point for WhatsApp + SMS setup.
+ * Messaging, single entry point for WhatsApp + SMS setup.
  *
  * Tabs between the two configs. Landing tab picks the sensible default:
  * - If WhatsApp is already connected, open WhatsApp tab so they land on "their" channel
@@ -141,7 +141,7 @@ function Overview({ waConnected, smsOn, beautician, onPickWA, onPickSMS }) {
         </ul>
         <div style={styles.channelMeta}>
           {waConnected
-            ? <span>Connected number: <b>{beautician?.whatsapp_phone || '—'}</b></span>
+            ? <span>Connected number: <b>{beautician?.whatsapp_phone || '-'}</b></span>
             : <span>Needs a spare UK mobile number and a few minutes with Meta.</span>}
         </div>
         <button

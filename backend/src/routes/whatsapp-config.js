@@ -1184,6 +1184,187 @@ router.post('/verify', async (req, res) => {
 });
 
 /**
+ * POST /reconcile
+ *
+ * Recovery endpoint for the case where a beautician's number was added to
+ * Florrie's WABA out-of-band (e.g. directly in Meta Business Manager) and
+ * Florrie's findExistingOnWaba lookup misses it on retry, causing the app to
+ * keep trying to add fresh and hit waba_capacity.
+ *
+ * Given a Meta phone_number_id, this:
+ *   1. Validates the phone_number_id is on Florrie's WABA (Meta GET).
+ *   2. Verifies the number's verified_name matches the beautician's
+ *      business_name (case-insensitive). This prevents one beautician from
+ *      claiming another's number.
+ *   3. Runs Cloud API register with a fresh PIN.
+ *   4. Writes the reconciliation into the beauticians row.
+ *
+ * Returns 4xx with diagnostic on validation failure, 200 on success.
+ */
+router.post('/reconcile', async (req, res) => {
+  const beauticianId = req.beautician.id;
+  const phoneNumberId = String(req.body?.phone_number_id || '').trim();
+
+  if (!/^\d{12,18}$/.test(phoneNumberId)) {
+    return res.status(400).json({
+      error: 'phone_number_id required (12-18 digits)',
+      code: 'invalid_phone_number_id',
+    });
+  }
+
+  if (!WA_TOKEN || !WABA_ID) {
+    return res.status(503).json({
+      error: 'WhatsApp env not configured',
+      code: 'whatsapp_env_missing',
+    });
+  }
+
+  try {
+    // 1. Read beautician profile (need business_name for verified_name check)
+    const { data: profile, error: profileErr } = await supabase
+      .from('beauticians')
+      .select('id, business_name')
+      .eq('id', beauticianId)
+      .single();
+    if (profileErr || !profile) {
+      return res.status(404).json({ error: 'Beautician not found', code: 'beautician_not_found' });
+    }
+    const expectedName = (profile.business_name || '').trim();
+    if (!expectedName) {
+      return res.status(400).json({
+        error: 'Set your business name in Settings before reconciling.',
+        code: 'missing_business_name',
+      });
+    }
+
+    // 2. Check this phone_number_id isn't already claimed by another beautician
+    const { data: existing } = await supabase
+      .from('beauticians')
+      .select('id, email')
+      .eq('whatsapp_phone_id', phoneNumberId)
+      .neq('id', beauticianId);
+    if (existing && existing.length > 0) {
+      return res.status(409).json({
+        error: 'This phone_number_id is already linked to another beautician.',
+        code: 'phone_number_id_in_use',
+      });
+    }
+
+    // 3. Validate against Meta — does this phone_number_id exist on Florrie's WABA?
+    const lookupRes = await fetch(
+      `${GRAPH}/${phoneNumberId}?fields=display_phone_number,verified_name,code_verification_status,quality_rating,id`,
+      { headers: metaHeaders() }
+    );
+    const lookup = await lookupRes.json();
+    if (!lookupRes.ok || !lookup?.id) {
+      const meta = extractMetaError(lookup);
+      logger.warn({ phoneNumberId, meta }, 'Reconcile: Meta lookup failed');
+      return res.status(400).json({
+        error: meta.userMsg || meta.message || 'phone_number_id not found in Florrie WABA',
+        code: 'phone_number_id_not_on_waba',
+        meta,
+      });
+    }
+
+    // 4. Verified-name security check
+    const actualName = (lookup.verified_name || '').trim();
+    if (actualName.toLowerCase() !== expectedName.toLowerCase()) {
+      logger.warn(
+        { beauticianId, expectedName, actualName, phoneNumberId },
+        'Reconcile: verified_name mismatch'
+      );
+      return res.status(403).json({
+        error: `Verified name mismatch. Meta says "${actualName}", your business name is "${expectedName}". Update business_name to match, or pick a different phone_number_id.`,
+        code: 'verified_name_mismatch',
+        expectedName,
+        actualName,
+      });
+    }
+
+    // 5. Cloud API register (idempotent: succeeds if already registered)
+    const pin = String(Math.floor(100000 + Math.random() * 900000));
+    const regRes = await fetch(`${GRAPH}/${phoneNumberId}/register`, {
+      method: 'POST',
+      headers: metaHeaders(),
+      body: JSON.stringify({ messaging_product: 'whatsapp', pin }),
+    });
+    const regData = await regRes.json();
+    const registerOk = regRes.ok && regData.success === true;
+    if (!registerOk) {
+      const meta = extractMetaError(regData);
+      logger.warn({ phoneNumberId, meta }, 'Reconcile: Cloud API register failed');
+      // Still write the phone_number_id to DB so subsequent retries can finish
+      // the registration. Mark pending_activation so the retry worker picks it up.
+    }
+
+    // 6. Normalise the phone number from Meta's response (handles formatting variants)
+    const displayPhone = String(lookup.display_phone_number || '').replace(/[^\d+]/g, '');
+    const normalisedPhone = displayPhone.startsWith('+') ? displayPhone : `+${displayPhone}`;
+
+    // 7. Write the reconciliation
+    const { error: updateErr } = await supabase
+      .from('beauticians')
+      .update({
+        whatsapp_phone: normalisedPhone,
+        whatsapp_phone_id: phoneNumberId,
+        whatsapp_connected: registerOk,
+        whatsapp_registered_at: new Date().toISOString(),
+        whatsapp_pin: pin,
+        whatsapp_pending_phone: null,
+        whatsapp_pending_activation: !registerOk,
+        whatsapp_retry_at: null,
+        whatsapp_retry_reason: null,
+        whatsapp_retry_attempts: 0,
+        whatsapp_retry_exhausted: false,
+      })
+      .eq('id', beauticianId);
+
+    if (updateErr) {
+      logger.error({ updateErr }, 'Reconcile: DB update failed');
+      Sentry.captureException(updateErr, { tags: { route: 'whatsapp/reconcile' } });
+      return res.status(500).json({
+        error: 'Database update failed',
+        code: 'db_update_failed',
+        detail: updateErr.message,
+      });
+    }
+
+    await logDiagnostic({
+      beautician_id: beauticianId,
+      phone: normalisedPhone,
+      stage: 'reconcile',
+      success: registerOk,
+      meta_code: regData?.error?.code ?? null,
+      meta_subcode: regData?.error?.error_subcode ?? null,
+      meta_user_msg: regData?.error?.error_user_msg ?? null,
+      meta_user_title: regData?.error?.error_user_title ?? null,
+      meta_message: regData?.error?.message ?? null,
+      raw_response: { lookup, register: regData },
+      diagnosis: registerOk ? 'reconciled_and_registered' : 'reconciled_pending_register',
+      suggested_action: registerOk ? null : 'retry_register',
+    });
+
+    return res.json({
+      ok: true,
+      phone_number_id: phoneNumberId,
+      display_phone_number: lookup.display_phone_number,
+      verified_name: lookup.verified_name,
+      code_verification_status: lookup.code_verification_status,
+      quality_rating: lookup.quality_rating,
+      cloud_api_registered: registerOk,
+      register_response: regData,
+      message: registerOk
+        ? 'Number reconciled and registered for Cloud API. WhatsApp is live.'
+        : 'Number reconciled. Cloud API register pending — retry worker will finish.',
+    });
+  } catch (err) {
+    logger.error({ err }, 'WhatsApp reconcile error');
+    Sentry.captureException(err, { tags: { route: 'whatsapp/reconcile' } });
+    return res.status(500).json({ error: 'Reconcile failed', code: 'reconcile_failed', detail: err.message });
+  }
+});
+
+/**
  * GET /activation-status
  * Polled by the UI after /verify to detect when Meta's Cloud API actually
  * flips from PENDING to CONNECTED. When it does, we flip
