@@ -1365,6 +1365,55 @@ router.post('/reconcile', async (req, res) => {
 });
 
 /**
+ * POST /subscribe-webhook
+ *
+ * Subscribes Florrie's app to receive inbound WhatsApp webhooks for this
+ * beautician's WABA. Required for inbound messages to actually reach
+ * /api/webhooks/whatsapp. Registration alone (the reconcile endpoint or the
+ * usual register/verify flow) does NOT do this — it's a separate Meta step.
+ *
+ * Idempotent: Meta returns success even if already subscribed.
+ *
+ * No body required. Uses Florrie's env WABA_ID.
+ */
+router.post('/subscribe-webhook', async (req, res) => {
+  const beauticianId = req.beautician.id;
+  if (!WA_TOKEN || !WABA_ID) {
+    return res.status(503).json({ error: 'WhatsApp env not configured', code: 'whatsapp_env_missing' });
+  }
+  try {
+    const subRes = await fetch(`${GRAPH}/${WABA_ID}/subscribed_apps`, {
+      method: 'POST',
+      headers: metaHeaders(),
+    });
+    const subData = await subRes.json();
+    if (!subRes.ok) {
+      const meta = extractMetaError(subData);
+      logger.warn({ meta, beauticianId }, 'WABA subscribe-webhook failed');
+      return res.status(400).json({
+        ok: false,
+        error: meta.userMsg || meta.message || 'Meta rejected the subscription',
+        meta_code: meta.code,
+        meta_subcode: meta.subcode,
+        raw: subData,
+      });
+    }
+    // Verify
+    const checkRes = await fetch(`${GRAPH}/${WABA_ID}/subscribed_apps`, { headers: metaHeaders() });
+    const checkData = await checkRes.json();
+    return res.json({
+      ok: true,
+      subscribed: subData,
+      subscribed_apps: checkData?.data || [],
+    });
+  } catch (err) {
+    logger.error({ err }, 'WABA subscribe-webhook threw');
+    Sentry.captureException(err, { tags: { route: 'whatsapp/subscribe-webhook' } });
+    return res.status(500).json({ error: 'Subscribe failed', detail: err.message });
+  }
+});
+
+/**
  * POST /test-send
  *
  * End-to-end audit endpoint. Sends Meta's hello_world template from the
