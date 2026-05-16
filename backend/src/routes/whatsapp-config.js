@@ -1408,55 +1408,106 @@ router.post('/test-send', async (req, res) => {
 
     const recipient = to.startsWith('+') ? to.slice(1) : to;
 
-    // hello_world ships pre-approved on every WABA, but the language code
-    // varies. Try the most common UK/international variants in order.
-    const languageCandidates = ['en_US', 'en', 'en_GB'];
-    let sendRes;
-    let sendData;
-    let usedLanguage = null;
-    let lastMeta = null;
-
-    for (const lang of languageCandidates) {
-      sendRes = await fetch(`${GRAPH}/${b.whatsapp_phone_id}/messages`, {
+    // Try hello_world first across common UK/intl locales. If it's not on the
+    // WABA, auto-discover an APPROVED template with zero required parameters
+    // and use that. This lets the audit succeed regardless of which sample
+    // templates are present.
+    async function tryTemplate(name, lang) {
+      const res = await fetch(`${GRAPH}/${b.whatsapp_phone_id}/messages`, {
         method: 'POST',
         headers: metaHeaders(),
         body: JSON.stringify({
           messaging_product: 'whatsapp',
           to: recipient,
           type: 'template',
-          template: { name: 'hello_world', language: { code: lang } },
+          template: { name, language: { code: lang } },
         }),
       });
-      sendData = await sendRes.json();
-      if (sendRes.ok) {
+      const data = await res.json();
+      return { res, data };
+    }
+
+    const attempted = [];
+    let result = null;
+    let usedTemplate = null;
+    let usedLanguage = null;
+    let lastMeta = null;
+
+    // Pass 1: hello_world in common UK/intl locales
+    for (const lang of ['en_US', 'en', 'en_GB']) {
+      const t = await tryTemplate('hello_world', lang);
+      attempted.push({ name: 'hello_world', lang, status: t.res.status });
+      if (t.res.ok) {
+        result = t.data;
+        usedTemplate = 'hello_world';
         usedLanguage = lang;
         break;
       }
-      lastMeta = extractMetaError(sendData);
-      // Only retry on the "template language not found" path; abort on real errors.
-      if (lastMeta?.code !== 132001) break;
+      lastMeta = extractMetaError(t.data);
+      // Anything that's not "template not found" is a real error; stop.
+      if (lastMeta?.code !== 132001 && lastMeta?.code !== 132012) {
+        return res.status(400).json({
+          ok: false,
+          error: lastMeta?.userMsg || lastMeta?.message || 'Meta rejected the send',
+          meta_code: lastMeta?.code,
+          meta_subcode: lastMeta?.subcode,
+          attempted,
+          raw: t.data,
+        });
+      }
     }
 
-    if (!sendRes.ok) {
-      logger.warn({ meta: lastMeta, beauticianId, to }, 'Test send failed');
-      return res.status(400).json({
-        ok: false,
-        error: lastMeta?.userMsg || lastMeta?.message || 'Meta rejected the send',
-        meta_code: lastMeta?.code,
-        meta_subcode: lastMeta?.subcode,
-        meta_user_msg: lastMeta?.userMsg,
-        tried_languages: languageCandidates,
-        raw: sendData,
+    // Pass 2: auto-discover an APPROVED template with no required body params
+    if (!result) {
+      const tplList = await fetch(
+        `${GRAPH}/${WABA_ID}/message_templates?fields=name,language,status,components&limit=50`,
+        { headers: metaHeaders() }
+      );
+      const tplJson = await tplList.json();
+      const candidates = (tplJson?.data || []).filter((t) => {
+        if (t.status !== 'APPROVED') return false;
+        const body = (t.components || []).find((c) => c.type === 'BODY');
+        const params = body?.text?.match(/\{\{\d+\}\}/g) || [];
+        return params.length === 0;
       });
+      for (const tpl of candidates) {
+        const t = await tryTemplate(tpl.name, tpl.language);
+        attempted.push({ name: tpl.name, lang: tpl.language, status: t.res.status });
+        if (t.res.ok) {
+          result = t.data;
+          usedTemplate = tpl.name;
+          usedLanguage = tpl.language;
+          break;
+        }
+        lastMeta = extractMetaError(t.data);
+      }
+
+      if (!result) {
+        const approvedCount = (tplJson?.data || []).filter((t) => t.status === 'APPROVED').length;
+        return res.status(400).json({
+          ok: false,
+          error: 'No usable template found for test send',
+          approved_templates: approvedCount,
+          zero_param_templates: candidates.length,
+          attempted,
+          last_meta: lastMeta,
+          template_list_sample: (tplJson?.data || []).slice(0, 10).map((t) => ({
+            name: t.name,
+            language: t.language,
+            status: t.status,
+          })),
+        });
+      }
     }
 
     return res.json({
       ok: true,
-      message_id: sendData?.messages?.[0]?.id || null,
+      message_id: result?.messages?.[0]?.id || null,
       to: `+${recipient}`,
-      template: 'hello_world',
+      template: usedTemplate,
       language: usedLanguage,
-      raw: sendData,
+      attempted,
+      raw: result,
     });
   } catch (err) {
     logger.error({ err }, 'Test send threw');
