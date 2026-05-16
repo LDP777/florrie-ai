@@ -2,6 +2,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { supabase } from '../config.js';
 import { processInboundMessage } from '../services/ai-front-desk.js';
+import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -16,13 +17,9 @@ function recordWebhookHit(entry) {
   if (webhookHits.length > 20) webhookHits.length = 20;
 }
 
-router.get('/whatsapp/_debug-hits', (req, res) => {
-  // Token-gated so we can read it from the browser without exposing publicly.
-  const supplied = req.query.token || req.headers['x-debug-token'];
-  const expected = process.env.WHATSAPP_VERIFY_TOKEN; // reuse — already a shared secret
-  if (!expected || supplied !== expected) {
-    return res.status(401).json({ error: 'Bad debug token' });
-  }
+router.get('/whatsapp/_debug-hits', requireAuth, (req, res) => {
+  // Behind beautician JWT so any logged-in beautician can debug their own
+  // webhook delivery. Cheap to expose — no sensitive payload in the buffer.
   res.json({ hits: webhookHits, count: webhookHits.length });
 });
 
