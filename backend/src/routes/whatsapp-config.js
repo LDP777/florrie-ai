@@ -1365,6 +1365,88 @@ router.post('/reconcile', async (req, res) => {
 });
 
 /**
+ * POST /test-send
+ *
+ * End-to-end audit endpoint. Sends Meta's hello_world template from the
+ * beautician's own WABA number to a target recipient. Returns the Meta
+ * messages.0.id on success. Used to prove the Cloud API stack actually
+ * delivers messages, not just that the registration paperwork looks right.
+ *
+ * Body: { to: "+447..." }   — target recipient in E.164
+ * Requires beautician to be connected (whatsapp_phone_id set).
+ * Uses Meta's built-in "hello_world" template (en) which is pre-approved
+ * on every WABA, so no template-creation step is needed.
+ */
+router.post('/test-send', async (req, res) => {
+  const beauticianId = req.beautician.id;
+  const to = String(req.body?.to || '').trim();
+
+  if (!to || !/^\+?\d{10,15}$/.test(to)) {
+    return res.status(400).json({
+      error: 'to required (E.164 phone, e.g. +447951413513)',
+      code: 'invalid_recipient',
+    });
+  }
+
+  if (!WA_TOKEN) {
+    return res.status(503).json({ error: 'WhatsApp env not configured', code: 'whatsapp_env_missing' });
+  }
+
+  try {
+    const { data: b, error: bErr } = await supabase
+      .from('beauticians')
+      .select('whatsapp_phone_id, whatsapp_connected')
+      .eq('id', beauticianId)
+      .single();
+    if (bErr || !b) return res.status(404).json({ error: 'Beautician not found' });
+    if (!b.whatsapp_phone_id) {
+      return res.status(400).json({
+        error: 'Connect WhatsApp first',
+        code: 'whatsapp_not_connected',
+      });
+    }
+
+    const recipient = to.startsWith('+') ? to.slice(1) : to;
+    const sendRes = await fetch(`${GRAPH}/${b.whatsapp_phone_id}/messages`, {
+      method: 'POST',
+      headers: metaHeaders(),
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: recipient,
+        type: 'template',
+        template: { name: 'hello_world', language: { code: 'en_US' } },
+      }),
+    });
+    const sendData = await sendRes.json();
+
+    if (!sendRes.ok) {
+      const meta = extractMetaError(sendData);
+      logger.warn({ meta, beauticianId, to }, 'Test send failed');
+      return res.status(400).json({
+        ok: false,
+        error: meta.userMsg || meta.message || 'Meta rejected the send',
+        meta_code: meta.code,
+        meta_subcode: meta.subcode,
+        meta_user_msg: meta.userMsg,
+        raw: sendData,
+      });
+    }
+
+    return res.json({
+      ok: true,
+      message_id: sendData?.messages?.[0]?.id || null,
+      to: `+${recipient}`,
+      template: 'hello_world',
+      raw: sendData,
+    });
+  } catch (err) {
+    logger.error({ err }, 'Test send threw');
+    Sentry.captureException(err, { tags: { route: 'whatsapp/test-send' } });
+    return res.status(500).json({ error: 'Test send failed', code: 'test_send_failed', detail: err.message });
+  }
+});
+
+/**
  * GET /activation-status
  * Polled by the UI after /verify to detect when Meta's Cloud API actually
  * flips from PENDING to CONNECTED. When it does, we flip
