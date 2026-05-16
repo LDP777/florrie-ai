@@ -7,6 +7,25 @@ import Anthropic from '@anthropic-ai/sdk';
 
 const router = Router();
 
+// In-memory ring buffer of recent WhatsApp webhook hits. Used for live
+// diagnosis when inbound messages aren't arriving. Stores at most 20 entries.
+// Single-instance only — fine since Florrie API is single-replica today.
+const webhookHits = [];
+function recordWebhookHit(entry) {
+  webhookHits.unshift({ at: new Date().toISOString(), ...entry });
+  if (webhookHits.length > 20) webhookHits.length = 20;
+}
+
+router.get('/whatsapp/_debug-hits', (req, res) => {
+  // Token-gated so we can read it from the browser without exposing publicly.
+  const supplied = req.query.token || req.headers['x-debug-token'];
+  const expected = process.env.WHATSAPP_VERIFY_TOKEN; // reuse — already a shared secret
+  if (!expected || supplied !== expected) {
+    return res.status(401).json({ error: 'Bad debug token' });
+  }
+  res.json({ hits: webhookHits, count: webhookHits.length });
+});
+
 /**
  * GET /api/webhooks/whatsapp
  * WhatsApp webhook verification (Meta sends a challenge).
@@ -30,12 +49,38 @@ router.get('/whatsapp', (req, res) => {
  * This is where the AI Front Desk starts.
  */
 router.post('/whatsapp', async (req, res) => {
+  // Record the hit immediately so we know Meta is calling us, regardless of
+  // what happens next (signature failures, parsing errors, etc.)
+  const bodyShape = (() => {
+    try {
+      const b = req.body;
+      const change = b?.entry?.[0]?.changes?.[0]?.value;
+      return {
+        has_entry: !!b?.entry,
+        has_messages: !!change?.messages,
+        has_statuses: !!change?.statuses,
+        phone_number_id: change?.metadata?.phone_number_id || null,
+        from: change?.messages?.[0]?.from || null,
+        text_preview: change?.messages?.[0]?.text?.body?.slice(0, 60) || null,
+      };
+    } catch (e) {
+      return { parse_error: e.message };
+    }
+  })();
+  const hitBase = {
+    method: 'POST',
+    signature_header_present: !!req.headers['x-hub-signature-256'],
+    body_size: JSON.stringify(req.body || {}).length,
+    body_shape: bodyShape,
+  };
+
   // Verify HMAC-SHA256 signature from Meta (WhatsApp)
   const secret = process.env.WHATSAPP_APP_SECRET;
   if (secret) {
     const signature = req.headers['x-hub-signature-256'];
     if (!signature) {
       logger.warn('WhatsApp webhook: missing x-hub-signature-256 header');
+      recordWebhookHit({ ...hitBase, result: '403_no_signature' });
       return res.status(403).json({ error: 'Missing signature' });
     }
 
@@ -47,6 +92,7 @@ router.post('/whatsapp', async (req, res) => {
       const signatureParts = signature.split('=');
       if (signatureParts.length !== 2 || signatureParts[0] !== 'sha256') {
         logger.warn('WhatsApp webhook: invalid signature format');
+        recordWebhookHit({ ...hitBase, result: '403_bad_signature_format' });
         return res.status(403).json({ error: 'Invalid signature format' });
       }
 
@@ -54,19 +100,29 @@ router.post('/whatsapp', async (req, res) => {
       const expectedBuffer = Buffer.from(expected);
       const receivedBuffer = Buffer.from(received);
 
-      if (!crypto.timingSafeEqual(expectedBuffer, receivedBuffer)) {
-        logger.warn({ received, expected: expected.substring(0, 8) + '...' }, 'WhatsApp webhook: signature mismatch');
+      if (expectedBuffer.length !== receivedBuffer.length ||
+          !crypto.timingSafeEqual(expectedBuffer, receivedBuffer)) {
+        logger.warn({ received: received.slice(0, 8), expected: expected.slice(0, 8) }, 'WhatsApp webhook: signature mismatch');
+        recordWebhookHit({
+          ...hitBase,
+          result: '403_signature_mismatch',
+          received_prefix: received.slice(0, 12),
+          expected_prefix: expected.slice(0, 12),
+        });
         return res.status(403).json({ error: 'Signature verification failed' });
       }
 
       logger.debug('WhatsApp webhook signature verified');
     } catch (err) {
       logger.warn({ err }, 'WhatsApp webhook: signature verification error');
+      recordWebhookHit({ ...hitBase, result: '403_signature_error', error: err.message });
       return res.status(403).json({ error: 'Signature verification failed' });
     }
   } else {
     logger.debug('WHATSAPP_APP_SECRET not set, skipping signature verification');
   }
+
+  recordWebhookHit({ ...hitBase, result: '200_accepted' });
 
   // Signature verified or skipped — return 200 immediately (Meta retries on failure)
   res.sendStatus(200);
