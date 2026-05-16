@@ -1380,6 +1380,8 @@ router.post('/reconcile', async (req, res) => {
 router.post('/test-send', async (req, res) => {
   const beauticianId = req.beautician.id;
   const to = String(req.body?.to || '').trim();
+  const explicitTemplate = String(req.body?.template || '').trim() || null;
+  const explicitLang = String(req.body?.language || '').trim() || null;
 
   if (!to || !/^\+?\d{10,15}$/.test(to)) {
     return res.status(400).json({
@@ -1432,6 +1434,34 @@ router.post('/test-send', async (req, res) => {
     let usedTemplate = null;
     let usedLanguage = null;
     let lastMeta = null;
+
+    // If caller specified an explicit template, just try that one and report.
+    if (explicitTemplate) {
+      const langs = explicitLang ? [explicitLang] : ['en', 'en_US', 'en_GB'];
+      for (const lang of langs) {
+        const t = await tryTemplate(explicitTemplate, lang);
+        attempted.push({ name: explicitTemplate, lang, status: t.res.status });
+        if (t.res.ok) {
+          return res.json({
+            ok: true,
+            message_id: t.data?.messages?.[0]?.id || null,
+            to: `+${recipient}`,
+            template: explicitTemplate,
+            language: lang,
+            attempted,
+            raw: t.data,
+          });
+        }
+        lastMeta = extractMetaError(t.data);
+      }
+      return res.status(400).json({
+        ok: false,
+        error: lastMeta?.userMsg || lastMeta?.message || 'Meta rejected the send',
+        meta_code: lastMeta?.code,
+        meta_subcode: lastMeta?.subcode,
+        attempted,
+      });
+    }
 
     // Pass 1: hello_world in common UK/intl locales
     for (const lang of ['en_US', 'en', 'en_GB']) {
