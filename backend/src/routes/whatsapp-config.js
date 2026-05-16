@@ -1492,6 +1492,60 @@ router.post('/webhook-self-test', async (req, res) => {
 });
 
 /**
+ * POST /subscribe-phone
+ *
+ * Subscribes Florrie's app to the specific phone_number_id (in addition to
+ * the WABA-level subscribe). Some setups need both. Uses the beauticians
+ * own whatsapp_phone_id.
+ */
+router.post('/subscribe-phone', async (req, res) => {
+  const beauticianId = req.beautician.id;
+  if (!WA_TOKEN) return res.status(503).json({ error: 'WhatsApp env not configured' });
+  try {
+    const { data: b } = await supabase
+      .from('beauticians')
+      .select('whatsapp_phone_id')
+      .eq('id', beauticianId)
+      .single();
+    if (!b?.whatsapp_phone_id) {
+      return res.status(400).json({ error: 'No whatsapp_phone_id on beautician' });
+    }
+    const r = await fetch(`${GRAPH}/${b.whatsapp_phone_id}/subscribed_apps`, {
+      method: 'POST',
+      headers: metaHeaders(),
+    });
+    const data = await r.json();
+    return res.json({ ok: r.ok, status: r.status, body: data });
+  } catch (err) {
+    return res.status(500).json({ error: 'Subscribe-phone failed', detail: err.message });
+  }
+});
+
+/**
+ * GET /phone-details
+ *
+ * Returns Meta's full state for the beautician's phone, including
+ * messaging_limit_tier, throughput, quality_rating, status, and platform_type.
+ * Used to confirm the phone is provisioned for inbound traffic.
+ */
+router.get('/phone-details', async (req, res) => {
+  const beauticianId = req.beautician.id;
+  try {
+    const { data: b } = await supabase
+      .from('beauticians')
+      .select('whatsapp_phone_id')
+      .eq('id', beauticianId)
+      .single();
+    if (!b?.whatsapp_phone_id) return res.status(400).json({ error: 'No whatsapp_phone_id' });
+    const fields = 'display_phone_number,verified_name,code_verification_status,quality_rating,status,platform_type,throughput,messaging_limit_tier,name_status,is_official_business_account,is_pin_enabled,account_mode,id';
+    const r = await fetch(`${GRAPH}/${b.whatsapp_phone_id}?fields=${fields}`, { headers: metaHeaders() });
+    return res.json({ status: r.status, body: await r.json() });
+  } catch (err) {
+    return res.status(500).json({ error: 'Phone-details failed', detail: err.message });
+  }
+});
+
+/**
  * GET /webhook-status
  *
  * Diagnostic: returns the current webhook plumbing state so we can debug
