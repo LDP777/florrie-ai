@@ -1407,27 +1407,45 @@ router.post('/test-send', async (req, res) => {
     }
 
     const recipient = to.startsWith('+') ? to.slice(1) : to;
-    const sendRes = await fetch(`${GRAPH}/${b.whatsapp_phone_id}/messages`, {
-      method: 'POST',
-      headers: metaHeaders(),
-      body: JSON.stringify({
-        messaging_product: 'whatsapp',
-        to: recipient,
-        type: 'template',
-        template: { name: 'hello_world', language: { code: 'en_US' } },
-      }),
-    });
-    const sendData = await sendRes.json();
+
+    // hello_world ships pre-approved on every WABA, but the language code
+    // varies. Try the most common UK/international variants in order.
+    const languageCandidates = ['en_US', 'en', 'en_GB'];
+    let sendRes;
+    let sendData;
+    let usedLanguage = null;
+    let lastMeta = null;
+
+    for (const lang of languageCandidates) {
+      sendRes = await fetch(`${GRAPH}/${b.whatsapp_phone_id}/messages`, {
+        method: 'POST',
+        headers: metaHeaders(),
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to: recipient,
+          type: 'template',
+          template: { name: 'hello_world', language: { code: lang } },
+        }),
+      });
+      sendData = await sendRes.json();
+      if (sendRes.ok) {
+        usedLanguage = lang;
+        break;
+      }
+      lastMeta = extractMetaError(sendData);
+      // Only retry on the "template language not found" path; abort on real errors.
+      if (lastMeta?.code !== 132001) break;
+    }
 
     if (!sendRes.ok) {
-      const meta = extractMetaError(sendData);
-      logger.warn({ meta, beauticianId, to }, 'Test send failed');
+      logger.warn({ meta: lastMeta, beauticianId, to }, 'Test send failed');
       return res.status(400).json({
         ok: false,
-        error: meta.userMsg || meta.message || 'Meta rejected the send',
-        meta_code: meta.code,
-        meta_subcode: meta.subcode,
-        meta_user_msg: meta.userMsg,
+        error: lastMeta?.userMsg || lastMeta?.message || 'Meta rejected the send',
+        meta_code: lastMeta?.code,
+        meta_subcode: lastMeta?.subcode,
+        meta_user_msg: lastMeta?.userMsg,
+        tried_languages: languageCandidates,
         raw: sendData,
       });
     }
@@ -1437,6 +1455,7 @@ router.post('/test-send', async (req, res) => {
       message_id: sendData?.messages?.[0]?.id || null,
       to: `+${recipient}`,
       template: 'hello_world',
+      language: usedLanguage,
       raw: sendData,
     });
   } catch (err) {
