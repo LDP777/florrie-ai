@@ -1492,6 +1492,60 @@ router.post('/webhook-self-test', async (req, res) => {
 });
 
 /**
+ * GET /full-meta-state
+ *
+ * One-shot diagnostic that pulls every relevant Meta state field for
+ * Florrie's WABA + Ellie's phone + the App. Used when webhook delivery
+ * silently fails despite every individual probe looking healthy.
+ */
+router.get('/full-meta-state', async (req, res) => {
+  const beauticianId = req.beautician.id;
+  const out = {};
+
+  try {
+    const { data: b } = await supabase
+      .from('beauticians')
+      .select('whatsapp_phone_id')
+      .eq('id', beauticianId)
+      .single();
+
+    if (WA_TOKEN && WABA_ID) {
+      const wabaRes = await fetch(
+        `${GRAPH}/${WABA_ID}?fields=id,name,timezone_id,message_template_namespace,currency,on_behalf_of_business_info,business_verification_status,account_review_status,health_status,country,phone_numbers{id,display_phone_number,verified_name,status,code_verification_status,name_status,quality_rating,account_mode,messaging_limit_tier,platform_type,throughput}`,
+        { headers: metaHeaders() }
+      );
+      out.waba = await wabaRes.json();
+
+      if (b?.whatsapp_phone_id) {
+        const phoneRes = await fetch(
+          `${GRAPH}/${b.whatsapp_phone_id}?fields=id,display_phone_number,verified_name,status,code_verification_status,name_status,quality_rating,account_mode,messaging_limit_tier,platform_type,throughput,is_official_business_account,is_pin_enabled,certificate,new_certificate`,
+          { headers: metaHeaders() }
+        );
+        out.phone = await phoneRes.json();
+      }
+
+      const subAppsRes = await fetch(`${GRAPH}/${WABA_ID}/subscribed_apps`, { headers: metaHeaders() });
+      out.waba_subscribed_apps = await subAppsRes.json();
+    }
+
+    const appId = out.waba_subscribed_apps?.data?.[0]?.whatsapp_business_api_data?.id;
+    const appSecret = process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET;
+    if (appId && appSecret) {
+      const appToken = `${appId}|${appSecret}`;
+      const subRes = await fetch(`${GRAPH}/${appId}/subscriptions?access_token=${encodeURIComponent(appToken)}`);
+      out.app_subscriptions = await subRes.json();
+
+      const appRes = await fetch(`${GRAPH}/${appId}?fields=id,name,namespace,app_type,category,link,migrations&access_token=${encodeURIComponent(appToken)}`);
+      out.app_info = await appRes.json();
+    }
+
+    return res.json(out);
+  } catch (err) {
+    return res.status(500).json({ error: 'Full state probe failed', detail: err.message, partial: out });
+  }
+});
+
+/**
  * POST /resubscribe-app-webhook
  *
  * Force-reverify the App-level webhook subscription. Meta sometimes leaves
