@@ -1365,6 +1365,133 @@ router.post('/reconcile', async (req, res) => {
 });
 
 /**
+ * POST /webhook-self-test
+ *
+ * Bypasses the webhook signature check and pushes a synthetic inbound
+ * WhatsApp message directly into Florrie's processing pipeline. Used to
+ * isolate whether inbound delivery is failing because of:
+ *   (a) Meta isn't calling Florrie at all   → this endpoint succeeds, inbox shows message
+ *   (b) Signature verification fails        → this endpoint succeeds, inbox shows message
+ *   (c) Florrie's processing logic is broken → this endpoint fails
+ *
+ * Body: { from: "+447...", text: "test message" }
+ * Requires the beautician calling it to have whatsapp_phone_id set; uses
+ * their phone id so the synthetic message routes to their account.
+ */
+router.post('/webhook-self-test', async (req, res) => {
+  const beauticianId = req.beautician.id;
+  const from = String(req.body?.from || '').trim();
+  const text = String(req.body?.text || 'self-test message').trim();
+
+  if (!from || !/^\+?\d{10,15}$/.test(from)) {
+    return res.status(400).json({ error: 'from required (E.164)' });
+  }
+
+  try {
+    const { data: b } = await supabase
+      .from('beauticians')
+      .select('whatsapp_phone_id, whatsapp_phone')
+      .eq('id', beauticianId)
+      .single();
+    if (!b?.whatsapp_phone_id) {
+      return res.status(400).json({ error: 'No whatsapp_phone_id on beautician' });
+    }
+
+    // Dynamic import to avoid circular requires; mirror the real webhook shape
+    const { processInboundMessage } = await import('../services/ai-front-desk.js');
+
+    const senderDigits = from.startsWith('+') ? from.slice(1) : from;
+    const fakeBody = {
+      object: 'whatsapp_business_account',
+      entry: [{
+        id: WABA_ID,
+        changes: [{
+          field: 'messages',
+          value: {
+            messaging_product: 'whatsapp',
+            metadata: {
+              display_phone_number: b.whatsapp_phone,
+              phone_number_id: b.whatsapp_phone_id,
+            },
+            contacts: [{
+              profile: { name: 'Self Test' },
+              wa_id: senderDigits,
+            }],
+            messages: [{
+              from: senderDigits,
+              id: `wamid.self_test_${Date.now()}`,
+              timestamp: String(Math.floor(Date.now() / 1000)),
+              type: 'text',
+              text: { body: text },
+            }],
+          },
+        }],
+      }],
+    };
+
+    // Run the same logic the real webhook would run
+    const change = fakeBody.entry[0].changes[0].value;
+    const message = change.messages[0];
+    const contact = change.contacts?.[0];
+    const phoneNumberId = change.metadata.phone_number_id;
+
+    const { data: beautician } = await supabase
+      .from('beauticians')
+      .select('*')
+      .eq('whatsapp_phone_id', phoneNumberId)
+      .single();
+
+    if (!beautician) {
+      return res.status(404).json({ error: 'No beautician matched phone_number_id', phoneNumberId });
+    }
+
+    const waId = message.from;
+    let { data: client } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('beautician_id', beautician.id)
+      .eq('whatsapp_id', waId)
+      .single();
+
+    if (!client) {
+      const { data: newClient } = await supabase
+        .from('clients')
+        .insert({
+          beautician_id: beautician.id,
+          first_name: contact?.profile?.name || 'WhatsApp User',
+          last_name: '',
+          phone: `+${waId}`,
+          whatsapp_id: waId,
+          source: 'whatsapp',
+        })
+        .select()
+        .single();
+      client = newClient;
+    }
+
+    await processInboundMessage({
+      beautician,
+      client,
+      messageText: message.text.body,
+      whatsappMessageId: message.id,
+    });
+
+    return res.json({
+      ok: true,
+      processed: true,
+      beautician_id: beautician.id,
+      client_id: client?.id,
+      message_text: message.text.body,
+      note: 'If this saved a row in messages and triggered a reply, the inbound pipeline works and the issue is at the webhook delivery layer (likely signature verification or Meta not actually delivering).',
+    });
+  } catch (err) {
+    logger.error({ err }, 'webhook-self-test failed');
+    Sentry.captureException(err, { tags: { route: 'whatsapp/webhook-self-test' } });
+    return res.status(500).json({ error: 'Self-test failed', detail: err.message, stack: err.stack?.split('\n').slice(0, 5) });
+  }
+});
+
+/**
  * GET /webhook-status
  *
  * Diagnostic: returns the current webhook plumbing state so we can debug
