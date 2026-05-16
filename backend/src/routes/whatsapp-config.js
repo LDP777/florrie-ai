@@ -1492,6 +1492,54 @@ router.post('/webhook-self-test', async (req, res) => {
 });
 
 /**
+ * POST /resubscribe-app-webhook
+ *
+ * Force-reverify the App-level webhook subscription. Meta sometimes leaves
+ * a subscription in "configured" state (active:true) but stops delivering
+ * because the initial verify handshake never completed or got invalidated.
+ * Re-POSTing the subscription forces Meta to re-issue the GET hub.challenge
+ * handshake against our callback URL.
+ *
+ * Uses APP_ID|WHATSAPP_APP_SECRET as the access token (app token).
+ * Re-uses existing WHATSAPP_VERIFY_TOKEN so the handshake passes.
+ */
+router.post('/resubscribe-app-webhook', async (req, res) => {
+  try {
+    // Derive app id from WABA subscribed_apps (env doesn't have META_APP_ID).
+    const subRes = await fetch(`${GRAPH}/${WABA_ID}/subscribed_apps`, { headers: metaHeaders() });
+    const subData = await subRes.json();
+    const appId = subData?.data?.[0]?.whatsapp_business_api_data?.id || process.env.META_APP_ID;
+    if (!appId) return res.status(500).json({ error: 'Cannot determine app id' });
+
+    const appSecret = process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET;
+    const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
+    if (!appSecret) return res.status(500).json({ error: 'WHATSAPP_APP_SECRET not set' });
+    if (!verifyToken) return res.status(500).json({ error: 'WHATSAPP_VERIFY_TOKEN not set' });
+
+    const appToken = `${appId}|${appSecret}`;
+    const callbackUrl = 'https://florriebackend-production.up.railway.app/api/webhooks/whatsapp';
+
+    const params = new URLSearchParams({
+      object: 'whatsapp_business_account',
+      callback_url: callbackUrl,
+      verify_token: verifyToken,
+      fields: 'messages',
+      access_token: appToken,
+    });
+
+    const r = await fetch(`${GRAPH}/${appId}/subscriptions?${params.toString()}`, {
+      method: 'POST',
+    });
+    const text = await r.text();
+    let body;
+    try { body = JSON.parse(text); } catch (e) { body = text; }
+    return res.json({ ok: r.ok, status: r.status, app_id: appId, callback_url: callbackUrl, body });
+  } catch (err) {
+    return res.status(500).json({ error: 'Resubscribe failed', detail: err.message });
+  }
+});
+
+/**
  * POST /subscribe-phone
  *
  * Subscribes Florrie's app to the specific phone_number_id (in addition to
