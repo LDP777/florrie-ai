@@ -1365,6 +1365,58 @@ router.post('/reconcile', async (req, res) => {
 });
 
 /**
+ * GET /webhook-status
+ *
+ * Diagnostic: returns the current webhook plumbing state so we can debug
+ * why inbound WhatsApp messages aren't reaching Florrie's webhook handler.
+ *
+ * Returns:
+ *   env: which env vars are set (without values)
+ *   waba_subscribed_apps: Meta WABA's subscribed apps (should include Florries app)
+ *   app_subscriptions: Meta App's webhook subscriptions (URL + fields)
+ */
+router.get('/webhook-status', async (req, res) => {
+  const out = {
+    env: {
+      WHATSAPP_TOKEN: !!WA_TOKEN,
+      WHATSAPP_WABA_ID: !!WABA_ID,
+      WHATSAPP_VERIFY_TOKEN: !!process.env.WHATSAPP_VERIFY_TOKEN,
+      WHATSAPP_APP_SECRET: !!process.env.WHATSAPP_APP_SECRET,
+      META_APP_ID: !!process.env.META_APP_ID,
+      META_APP_SECRET: !!process.env.META_APP_SECRET,
+      WHATSAPP_API_VERSION: API_VER,
+    },
+    waba_id: WABA_ID || null,
+    meta_app_id: process.env.META_APP_ID || null,
+  };
+
+  if (WA_TOKEN && WABA_ID) {
+    try {
+      const r = await fetch(`${GRAPH}/${WABA_ID}/subscribed_apps`, { headers: metaHeaders() });
+      out.waba_subscribed_apps = await r.json();
+    } catch (err) {
+      out.waba_subscribed_apps_error = err.message;
+    }
+  }
+
+  const appId = process.env.META_APP_ID;
+  const appSecret = process.env.META_APP_SECRET;
+  if (appId && appSecret) {
+    const appToken = `${appId}|${appSecret}`;
+    try {
+      const r = await fetch(`${GRAPH}/${appId}/subscriptions?access_token=${appToken}`);
+      out.app_subscriptions = await r.json();
+    } catch (err) {
+      out.app_subscriptions_error = err.message;
+    }
+  } else {
+    out.app_subscriptions_skipped = 'META_APP_ID or META_APP_SECRET not set';
+  }
+
+  return res.json(out);
+});
+
+/**
  * POST /subscribe-webhook
  *
  * Subscribes Florrie's app to receive inbound WhatsApp webhooks for this
