@@ -1399,18 +1399,22 @@ router.get('/webhook-status', async (req, res) => {
     }
   }
 
-  const appId = process.env.META_APP_ID;
-  const appSecret = process.env.META_APP_SECRET;
+  // Derive app id from the subscribed_apps response (Meta returns it under
+  // whatsapp_business_api_data.id). Fall back to env if those vars exist.
+  const derivedAppId = out.waba_subscribed_apps?.data?.[0]?.whatsapp_business_api_data?.id || null;
+  const appId = process.env.META_APP_ID || derivedAppId;
+  const appSecret = process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET;
+  out.using_app_id = appId;
   if (appId && appSecret) {
     const appToken = `${appId}|${appSecret}`;
     try {
-      const r = await fetch(`${GRAPH}/${appId}/subscriptions?access_token=${appToken}`);
+      const r = await fetch(`${GRAPH}/${appId}/subscriptions?access_token=${encodeURIComponent(appToken)}`);
       out.app_subscriptions = await r.json();
     } catch (err) {
       out.app_subscriptions_error = err.message;
     }
   } else {
-    out.app_subscriptions_skipped = 'META_APP_ID or META_APP_SECRET not set';
+    out.app_subscriptions_skipped = 'no app id (META_APP_ID + WABA subscribed_apps both empty) or no app secret';
   }
 
   return res.json(out);
