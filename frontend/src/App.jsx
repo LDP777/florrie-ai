@@ -93,6 +93,7 @@ const ClientManagePage = lazy(() => import('./pages/ClientManagePage.jsx'));
 // All unauthenticated visitors are redirected to /landing.html below.
 const TermsPage = lazy(() => import('./pages/TermsPage.jsx'));
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage.jsx'));
+const DataDeletionPage = lazy(() => import('./pages/DataDeletionPage.jsx'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy.jsx'));
 const Support = lazy(() => import('./pages/Support.jsx'));
 const NotFound = lazy(() => import('./pages/NotFound.jsx'));
@@ -204,6 +205,8 @@ export default function App() {
           <Route path="/update-password" element={<UpdatePassword supabase={supabase} />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/data-deletion" element={<DataDeletionPage />} />
+          <Route path="/help/data-deletion" element={<DataDeletionPage />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Suspense>
@@ -362,6 +365,8 @@ export default function App() {
             <Route path="/update-password" element={<UpdatePassword supabase={supabase} />} />
             <Route path="/terms" element={<TermsPage />} />
             <Route path="/privacy" element={<PrivacyPage />} />
+            <Route path="/data-deletion" element={<DataDeletionPage />} />
+            <Route path="/help/data-deletion" element={<DataDeletionPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
