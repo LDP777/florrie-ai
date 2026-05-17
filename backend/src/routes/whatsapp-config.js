@@ -1492,6 +1492,50 @@ router.post('/webhook-self-test', async (req, res) => {
 });
 
 /**
+ * POST /test-email
+ *
+ * Diagnostic that sends a real Resend email to the authenticated beautician's
+ * own email address. Used to verify email-confirmation plumbing is live end-
+ * to-end: env var set, Resend reachable, FROM domain verified, payload accepted.
+ *
+ * Returns ok:true with Resend's message id on success.
+ */
+router.post('/test-email', async (req, res) => {
+  const beauticianId = req.beautician.id;
+  if (!process.env.RESEND_API_KEY) {
+    return res.status(503).json({ ok: false, code: 'no_resend_key', error: 'RESEND_API_KEY not set on Railway' });
+  }
+  try {
+    const { data: b } = await supabase
+      .from('beauticians')
+      .select('email, first_name, business_name')
+      .eq('id', beauticianId)
+      .single();
+    if (!b?.email) return res.status(400).json({ ok: false, error: 'No email on beautician' });
+
+    const { sendEmail } = await import('../services/notifications.js');
+    const result = await sendEmail({
+      to: b.email,
+      subject: 'Florrie email diagnostic — confirmation plumbing live',
+      text: `Hi ${b.first_name || ''}, this is an automated test to confirm Florrie can send you booking confirmations via Resend. If this lands, email confirmation for appointments is fully wired up.`,
+      html: `<p>Hi ${b.first_name || ''},</p><p>This is an automated test to confirm Florrie can send you booking confirmations via Resend.</p><p>If this lands, email confirmation for appointments is fully wired up.</p><p>Business: <strong>${b.business_name || 'n/a'}</strong></p>`,
+    });
+    if (!result) {
+      return res.status(500).json({ ok: false, code: 'send_failed', error: 'sendEmail returned null — see Sentry for Resend error' });
+    }
+    return res.json({
+      ok: true,
+      to: b.email,
+      from: process.env.FROM_EMAIL || 'Florrie <noreply@florrie.ai>',
+      resend_response: result,
+      next_step: 'Check your inbox. If nothing arrives within 60s, FROM domain (florrie.ai) likely isnt verified at Resend.',
+    });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: 'Test email failed', detail: err.message });
+  }
+});
+
+/**
  * GET /full-meta-state
  *
  * One-shot diagnostic that pulls every relevant Meta state field for
