@@ -20,10 +20,18 @@ const TURNSTILE_VERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/sit
  */
 export async function verifyTurnstile(req, res, next) {
   const secretKey = process.env.TURNSTILE_SECRET_KEY;
+  const enforce = process.env.TURNSTILE_ENFORCE === 'true';
+
+  // Feature flag: only enforce when explicitly enabled. The frontend booking page
+  // does not yet ship a Turnstile widget, so enforcing by default would reject all
+  // public booking submissions. Flip TURNSTILE_ENFORCE=true once the widget is wired.
+  if (!enforce) {
+    return next();
+  }
 
   // Dev mode: skip if no secret key configured
   if (!secretKey) {
-    logger.warn('Turnstile secret key not set — skipping CAPTCHA verification (dev mode)');
+    logger.warn('Turnstile secret key not set, skipping CAPTCHA verification (dev mode)');
     return next();
   }
 
