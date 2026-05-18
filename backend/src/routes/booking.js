@@ -1635,10 +1635,13 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   // If deposit required but Stripe isn't configured, return booking with deposit_pending flag
   // so the frontend can show an appropriate message instead of silently skipping payment.
   if (depositRequired && (!stripe || !beautician.stripe_account_id || !beautician.stripe_onboarding_complete)) {
-    // Booking created as 'pending' — beautician needs to complete Stripe setup or collect deposit manually
-    notifyBookingConfirmed(appointment.id).catch(err =>
-      logger.warn({ err }, 'Booking confirmation notification failed (non-fatal)')
-    );
+    // Booking created as 'pending' (beautician needs to complete Stripe setup or collect deposit manually).
+    // Don't fire the confirmation notification yet; the booking isn't actually confirmed until payment lands.
+    if (appointment.status === 'confirmed') {
+      notifyBookingConfirmed(appointment.id).catch(err =>
+        logger.warn({ err }, 'Booking confirmation notification failed (non-fatal)')
+      );
+    }
 
     // Send consultation form to first-time clients (non-blocking)
     if (isNewClient && client_phone) {
@@ -1799,10 +1802,13 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
         deposit_status: 'pending',
       }).eq('id', appointment.id);
 
-      // Fire confirmation notification for pending deposit booking (non-blocking)
-      notifyBookingConfirmed(appointment.id).catch(err =>
-        logger.warn({ err }, 'Booking confirmation notification failed (non-fatal)')
-      );
+      // Don't fire confirmation here. The booking is still 'pending' until the Stripe webhook
+      // (checkout.session.completed) marks the deposit paid and triggers notifyBookingConfirmed.
+      if (appointment.status === 'confirmed') {
+        notifyBookingConfirmed(appointment.id).catch(err =>
+          logger.warn({ err }, 'Booking confirmation notification failed (non-fatal)')
+        );
+      }
 
       // Send consultation form to first-time clients (non-blocking)
       if (isNewClient && client_phone) {
