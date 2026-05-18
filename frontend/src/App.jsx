@@ -74,6 +74,7 @@ const CommsLog = lazy(() => import('./pages/CommsLog.jsx'));
 const EndOfDay = lazy(() => import('./pages/EndOfDay.jsx'));
 const AutomationRules = lazy(() => import('./pages/AutomationRules.jsx'));
 const WhatsAppConfig = lazy(() => import('./pages/WhatsAppConfig.jsx'));
+const WhatsAppTemplates = lazy(() => import('./pages/WhatsAppTemplates.jsx'));
 const ClientPortal = lazy(() => import('./pages/ClientPortal.jsx'));
 const AIInsights = lazy(() => import('./pages/AIInsights.jsx'));
 const ClientSegments = lazy(() => import('./pages/ClientSegments.jsx'));
@@ -345,6 +346,7 @@ export default function App() {
             <Route path="/end-of-day" element={<EndOfDay />} />
             <Route path="/automations" element={<AutomationRules />} />
             <Route path="/whatsapp" element={<PlanGate feature="whatsapp"><WhatsAppConfig /></PlanGate>} />
+            <Route path="/whatsapp/templates" element={<PlanGate feature="whatsapp"><WhatsAppTemplates /></PlanGate>} />
             <Route path="/portal" element={<ClientPortal />} />
             <Route path="/ai-insights" element={<PlanGate feature="ai_insights"><AIInsights /></PlanGate>} />
             <Route path="/client-intel" element={<ClientIntelDashboard />} />

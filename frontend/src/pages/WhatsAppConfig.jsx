@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useBeautician, fetchRows } from '../lib/supabase.js';
 import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
@@ -1099,6 +1100,16 @@ export default function WhatsAppConfig() {
 
           {activeTab === 'templates' && (
             <div>
+              <Link
+                to="/whatsapp/templates"
+                style={styles.manageTemplatesLink}
+              >
+                Manage WhatsApp templates &rarr;
+              </Link>
+              <div style={styles.manageTemplatesHint}>
+                Create, review, and remove the message templates Meta uses
+                outside the 24-hour conversation window.
+              </div>
               <button style={styles.newTemplateBtn}>+ Create Template</button>
               {templates.map(tmpl => (
                 <div key={tmpl.id} style={styles.templateCard}>
@@ -1325,6 +1336,8 @@ const styles = {
   insightCard: { display: 'flex', gap: 10, background: '#FFF8F0', border: '1px solid #FFE8CC', borderRadius: 12, padding: 14, marginBottom: 16 },
 
   newTemplateBtn: { width: '100%', padding: '12px 0', borderRadius: 12, border: '2px dashed var(--border, #E8E4E0)', background: 'none', fontSize: 14, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)', cursor: 'pointer', fontFamily: 'inherit', marginBottom: 12 },
+  manageTemplatesLink: { display: 'block', padding: '12px 14px', borderRadius: 12, background: 'var(--accent, #92405e)', color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none', textAlign: 'center', marginBottom: 8 },
+  manageTemplatesHint: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)', textAlign: 'center', marginBottom: 14, lineHeight: 1.5 },
   templateCard: { background: 'var(--bg-card, #fff)', borderRadius: 14, border: '1px solid var(--border, #F0ECE8)', marginBottom: 8, overflow: 'hidden' },
   templateHeader: { display: 'flex', alignItems: 'center', gap: 8, padding: 14, cursor: 'pointer' },
   templateName: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },

@@ -1536,6 +1536,187 @@ router.post('/test-email', async (req, res) => {
 });
 
 /**
+ * GET /meta-templates
+ *
+ * Lists all WhatsApp message templates registered on Florrie's WABA via
+ * Meta's Graph API. Returns the lean shape the UI needs: name, language,
+ * status (APPROVED / PENDING_REVIEW / REJECTED etc.), category, components.
+ *
+ * Wraps the whatsapp_business_management permission so the demo screencast
+ * for Meta App Review has a real, audited surface to exercise.
+ */
+router.get('/meta-templates', async (req, res) => {
+  if (!WA_TOKEN || !WABA_ID) {
+    return res.status(503).json({ error: 'WhatsApp env not configured', code: 'whatsapp_env_missing' });
+  }
+  try {
+    const url = `${GRAPH}/${WABA_ID}/message_templates?fields=name,language,status,category,components&limit=100`;
+    const r = await fetch(url, { headers: metaHeaders() });
+    const data = await r.json();
+    if (!r.ok) {
+      const meta = extractMetaError(data);
+      Sentry.captureMessage('meta-templates list failed', {
+        level: 'warning',
+        tags: { route: 'whatsapp/meta-templates', op: 'list' },
+        extra: { meta, status: r.status },
+      });
+      return res.status(r.status).json({
+        error: meta.userMsg || meta.message || 'Meta rejected the request',
+        meta_code: meta.code,
+        meta_subcode: meta.subcode,
+        fbtrace_id: meta.fbtraceId,
+      });
+    }
+    const templates = (data?.data || []).map((t) => ({
+      name: t.name,
+      language: t.language,
+      status: t.status,
+      category: t.category,
+      components: t.components || [],
+    }));
+    return res.json({ templates });
+  } catch (err) {
+    logger.error({ err }, 'meta-templates list threw');
+    Sentry.captureException(err, { tags: { route: 'whatsapp/meta-templates', op: 'list' } });
+    return res.status(500).json({ error: 'List templates failed', detail: err.message });
+  }
+});
+
+/**
+ * POST /meta-templates
+ *
+ * Creates a new WhatsApp message template on Florrie's WABA. Meta queues it
+ * for review (usually approved within a few hours) and the template becomes
+ * sendable once status flips to APPROVED.
+ *
+ * Body: { name, category, language, body_text, header_text?, footer_text? }
+ *   name        lowercase + underscores only, no spaces (Meta requirement)
+ *   category    UTILITY | MARKETING | AUTHENTICATION
+ *   language    e.g. en, en_GB, en_US
+ *   body_text   required, the main message body
+ *   header_text optional, plain-text header
+ *   footer_text optional, plain-text footer
+ */
+router.post('/meta-templates', async (req, res) => {
+  if (!WA_TOKEN || !WABA_ID) {
+    return res.status(503).json({ error: 'WhatsApp env not configured', code: 'whatsapp_env_missing' });
+  }
+
+  const name = String(req.body?.name || '').trim();
+  const category = String(req.body?.category || '').trim().toUpperCase();
+  const language = String(req.body?.language || '').trim();
+  const bodyText = String(req.body?.body_text || '').trim();
+  const headerText = req.body?.header_text ? String(req.body.header_text).trim() : '';
+  const footerText = req.body?.footer_text ? String(req.body.footer_text).trim() : '';
+
+  if (!name) return res.status(400).json({ error: 'name required', code: 'missing_name' });
+  if (!/^[a-z0-9_]+$/.test(name)) {
+    return res.status(400).json({
+      error: 'name must be lowercase letters, numbers, and underscores only (no spaces)',
+      code: 'invalid_name_format',
+    });
+  }
+  const validCategories = ['UTILITY', 'MARKETING', 'AUTHENTICATION'];
+  if (!validCategories.includes(category)) {
+    return res.status(400).json({
+      error: `category must be one of ${validCategories.join(', ')}`,
+      code: 'invalid_category',
+    });
+  }
+  if (!language) return res.status(400).json({ error: 'language required', code: 'missing_language' });
+  if (!bodyText) return res.status(400).json({ error: 'body_text required', code: 'missing_body' });
+
+  const components = [];
+  if (headerText) {
+    components.push({ type: 'HEADER', format: 'TEXT', text: headerText });
+  }
+  components.push({ type: 'BODY', text: bodyText });
+  if (footerText) {
+    components.push({ type: 'FOOTER', text: footerText });
+  }
+
+  const payload = { name, category, language, components };
+
+  try {
+    const r = await fetch(`${GRAPH}/${WABA_ID}/message_templates`, {
+      method: 'POST',
+      headers: metaHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      const meta = extractMetaError(data);
+      Sentry.captureMessage('meta-templates create failed', {
+        level: 'warning',
+        tags: { route: 'whatsapp/meta-templates', op: 'create' },
+        extra: { meta, status: r.status, payload },
+      });
+      return res.status(r.status).json({
+        error: meta.userMsg || meta.message || 'Meta rejected the template',
+        meta_code: meta.code,
+        meta_subcode: meta.subcode,
+        fbtrace_id: meta.fbtraceId,
+      });
+    }
+    return res.status(201).json({
+      ok: true,
+      id: data?.id || null,
+      status: data?.status || 'PENDING_REVIEW',
+      category: data?.category || category,
+      name,
+      language,
+    });
+  } catch (err) {
+    logger.error({ err }, 'meta-templates create threw');
+    Sentry.captureException(err, { tags: { route: 'whatsapp/meta-templates', op: 'create' } });
+    return res.status(500).json({ error: 'Create template failed', detail: err.message });
+  }
+});
+
+/**
+ * DELETE /meta-templates/:name
+ *
+ * Removes a template by name from Florrie's WABA. Meta deletes every
+ * language variant that shares the name. Templates already sent to users
+ * are unaffected (the message stays in their chat history).
+ */
+router.delete('/meta-templates/:name', async (req, res) => {
+  if (!WA_TOKEN || !WABA_ID) {
+    return res.status(503).json({ error: 'WhatsApp env not configured', code: 'whatsapp_env_missing' });
+  }
+  const name = String(req.params.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'name required', code: 'missing_name' });
+
+  try {
+    const url = `${GRAPH}/${WABA_ID}/message_templates?name=${encodeURIComponent(name)}`;
+    const r = await fetch(url, {
+      method: 'DELETE',
+      headers: metaHeaders(),
+    });
+    const data = await r.json();
+    if (!r.ok) {
+      const meta = extractMetaError(data);
+      Sentry.captureMessage('meta-templates delete failed', {
+        level: 'warning',
+        tags: { route: 'whatsapp/meta-templates', op: 'delete' },
+        extra: { meta, status: r.status, name },
+      });
+      return res.status(r.status).json({
+        error: meta.userMsg || meta.message || 'Meta rejected the delete',
+        meta_code: meta.code,
+        meta_subcode: meta.subcode,
+        fbtrace_id: meta.fbtraceId,
+      });
+    }
+    return res.json({ ok: true, name, success: data?.success !== false });
+  } catch (err) {
+    logger.error({ err }, 'meta-templates delete threw');
+    Sentry.captureException(err, { tags: { route: 'whatsapp/meta-templates', op: 'delete' } });
+    return res.status(500).json({ error: 'Delete template failed', detail: err.message });
+  }
+});
+
+/**
  * GET /full-meta-state
  *
  * One-shot diagnostic that pulls every relevant Meta state field for
@@ -1814,6 +1995,7 @@ router.post('/test-send', async (req, res) => {
   const to = String(req.body?.to || '').trim();
   const explicitTemplate = String(req.body?.template || '').trim() || null;
   const explicitLang = String(req.body?.language || '').trim() || null;
+  const freeText = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
 
   if (!to || !/^\+?\d{10,15}$/.test(to)) {
     return res.status(400).json({
@@ -1841,6 +2023,49 @@ router.post('/test-send', async (req, res) => {
     }
 
     const recipient = to.startsWith('+') ? to.slice(1) : to;
+
+    // Free-form text path. Only works inside the 24h customer-service
+    // window (i.e., the recipient has sent the beautician a message in the
+    // last 24h). Outside that window Meta returns code 131047.
+    if (freeText) {
+      if (freeText.length > 4096) {
+        return res.status(400).json({
+          ok: false,
+          error: 'Message body too long (4096 char max)',
+          code: 'text_too_long',
+        });
+      }
+      const sendRes = await fetch(`${GRAPH}/${b.whatsapp_phone_id}/messages`, {
+        method: 'POST',
+        headers: metaHeaders(),
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to: recipient,
+          type: 'text',
+          text: { body: freeText },
+        }),
+      });
+      const sendData = await sendRes.json();
+      if (!sendRes.ok) {
+        const meta = extractMetaError(sendData);
+        return res.status(400).json({
+          ok: false,
+          error: meta?.userMsg || meta?.message || 'Meta rejected the send',
+          meta_code: meta?.code,
+          meta_subcode: meta?.subcode,
+          meta_user_title: meta?.userTitle,
+          fbtrace_id: meta?.fbtraceId,
+          raw: sendData,
+        });
+      }
+      return res.json({
+        ok: true,
+        message_id: sendData?.messages?.[0]?.id || null,
+        to: `+${recipient}`,
+        type: 'text',
+        raw: sendData,
+      });
+    }
 
     // Try hello_world first across common UK/intl locales. If it's not on the
     // WABA, auto-discover an APPROVED template with zero required parameters
@@ -2372,7 +2597,6 @@ router.get('/template-debug', async (req, res) => {
     return res.status(500).json({ error: 'template-debug failed', detail: err.message, partial: out });
   }
 });
-
 
 // Expose helpers for the retry worker. Kept at the bottom so the public
 // route surface stays readable above.
