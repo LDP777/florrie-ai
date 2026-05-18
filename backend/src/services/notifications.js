@@ -438,7 +438,7 @@ export async function sendMessage({ client, body, beauticianId, beauticianPrefs 
   }
 
   if (channel === 'whatsapp' || (channel === 'instagram')) {
-    const result = await sendWhatsAppText({ to: client.whatsapp_id || client.phone, body });
+    const result = await sendWhatsAppText({ to: client.whatsapp_id || client.phone, body, beauticianId });
     if (result) {
       await logComms(beauticianId, client.id, 'whatsapp', 'outbound', body);
       return { channel: 'whatsapp', result };

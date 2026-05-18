@@ -673,7 +673,7 @@ async function sendResponse(beautician, client, responseText, originalMessage) {
     }
   } else if (inboundChannel === 'whatsapp' && beautician.whatsapp_phone_id && client?.whatsapp_id) {
     try {
-      const result = await sendWhatsAppText({ to: client.whatsapp_id, body: responseText });
+      const result = await sendWhatsAppText({ to: client.whatsapp_id, body: responseText, beauticianId: beautician.id });
       if (result) sent = true;
     } catch (err) {
       logger.error({ err }, 'WhatsApp send error in Front Desk');
