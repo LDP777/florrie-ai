@@ -2149,6 +2149,231 @@ router.delete('/disconnect', async (req, res) => {
   }
 });
 
+/**
+ * GET /template-debug
+ *
+ * Read-only deep-dive for Meta error 132001 ("Template name does not exist
+ * in the translation"). The error fires even when the template shows
+ * APPROVED on /{WABA_ID}/message_templates, so we need a way to compare
+ * the WABA the templates live on, the WABA the phone reports as parent,
+ * and what exact language enum Meta will accept on a real send.
+ *
+ * Query params:
+ *   name      template name (defaults to "generic_message" for the Ellie pilot)
+ *   language  optional. If supplied, only this exact language code is tried.
+ *             If omitted, we try a sweep: ["en", "en_US", "en_GB"] plus
+ *             whatever language(s) the WABA list reports for that template.
+ *   to        optional E.164 recipient. If absent we use the beautician's
+ *             own whatsapp_phone (the Cloud API allows self-send for tests).
+ *
+ * Returns:
+ *   env_waba_id              the WHATSAPP_WABA_ID Florrie expects to own this phone
+ *   beautician_phone_id      what we stored in the DB
+ *   phone_meta               Meta's view of the phone, including whatsapp_business_account
+ *                            (so we can detect if the phone is on a different WABA)
+ *   phone_parent_waba_id     the WABA id Meta reports for this phone
+ *   waba_match               true if phone_parent_waba_id === env_waba_id
+ *   name_status_warning      true if Meta shows name_status === DECLINED (may gate sends)
+ *   template_in_list         the matching template object from
+ *                            /{env_waba_id}/message_templates?name=...
+ *                            (or null if not present on env WABA)
+ *   template_in_phone_waba   if waba_match=false, the same lookup against the
+ *                            phone's actual parent WABA (this is usually the
+ *                            real fix when the env is mis-set)
+ *   send_attempts            array of { language, http_status, ok, meta_error,
+ *                            request_body, response_body } for every language
+ *                            code we tried
+ *   verdict                  best-guess root cause (waba_mismatch | name_status_declined |
+ *                            template_not_on_waba | language_enum_mismatch | unknown)
+ *
+ * No DB writes. No production-affecting side effects. Safe to hammer.
+ */
+router.get('/template-debug', async (req, res) => {
+  const beauticianId = req.beautician.id;
+  const templateName = String(req.query?.name || 'generic_message').trim();
+  const explicitLang = req.query?.language ? String(req.query.language).trim() : null;
+  const explicitTo = req.query?.to ? String(req.query.to).trim() : null;
+
+  if (!WA_TOKEN || !WABA_ID) {
+    return res.status(503).json({ error: 'WhatsApp env not configured', code: 'whatsapp_env_missing' });
+  }
+
+  const out = {
+    template_name: templateName,
+    env_waba_id: WABA_ID,
+    api_version: API_VER,
+    beautician_phone_id: null,
+    phone_meta: null,
+    phone_parent_waba_id: null,
+    waba_match: null,
+    name_status_warning: false,
+    template_in_list: null,
+    template_in_phone_waba: null,
+    send_attempts: [],
+    verdict: 'unknown',
+    notes: [],
+  };
+
+  try {
+    // 1. Load beautician phone id + a sensible default recipient (self-send).
+    const { data: b, error: bErr } = await supabase
+      .from('beauticians')
+      .select('whatsapp_phone_id, whatsapp_phone')
+      .eq('id', beauticianId)
+      .single();
+    if (bErr || !b) return res.status(404).json({ error: 'Beautician not found' });
+    if (!b.whatsapp_phone_id) {
+      return res.status(400).json({ error: 'Connect WhatsApp first', code: 'whatsapp_not_connected' });
+    }
+    out.beautician_phone_id = b.whatsapp_phone_id;
+
+    const recipientRaw = explicitTo || b.whatsapp_phone || '';
+    const recipient = recipientRaw.startsWith('+') ? recipientRaw.slice(1) : recipientRaw;
+    if (!/^\d{10,15}$/.test(recipient)) {
+      out.notes.push('No valid recipient available. Send attempts skipped.');
+    }
+
+    // 2. Phone meta with whatsapp_business_account so we can compare parent WABA.
+    const phoneFields = [
+      'id',
+      'display_phone_number',
+      'verified_name',
+      'status',
+      'code_verification_status',
+      'name_status',
+      'account_mode',
+      'messaging_limit_tier',
+      'platform_type',
+      'whatsapp_business_account{id,name,message_template_namespace}',
+    ].join(',');
+    const phoneRes = await fetch(`${GRAPH}/${b.whatsapp_phone_id}?fields=${phoneFields}`, {
+      headers: metaHeaders(),
+    });
+    const phoneJson = await phoneRes.json();
+    out.phone_meta = phoneJson;
+    out.phone_parent_waba_id = phoneJson?.whatsapp_business_account?.id || null;
+    out.waba_match = out.phone_parent_waba_id ? out.phone_parent_waba_id === WABA_ID : null;
+
+    if (phoneJson?.name_status && phoneJson.name_status !== 'APPROVED') {
+      out.name_status_warning = true;
+      out.notes.push(
+        `name_status is ${phoneJson.name_status}. Meta sometimes blocks template sends until a verified_name is APPROVED, even on otherwise CONNECTED numbers.`
+      );
+    }
+
+    // 3. Template lookup against env WABA (filter by name).
+    const listEnvRes = await fetch(
+      `${GRAPH}/${WABA_ID}/message_templates?name=${encodeURIComponent(templateName)}&fields=name,language,status,category,id,components&limit=50`,
+      { headers: metaHeaders() }
+    );
+    const listEnv = await listEnvRes.json();
+    const envMatches = (listEnv?.data || []).filter((t) => t.name === templateName);
+    out.template_in_list = {
+      raw_query_status: listEnvRes.status,
+      raw_query_error: listEnv?.error || null,
+      matches: envMatches,
+      match_count: envMatches.length,
+    };
+
+    // 4. If the phone reports a different parent WABA, look the template up
+    //    there too. This is the smoking gun for hypothesis 1.
+    if (out.phone_parent_waba_id && out.phone_parent_waba_id !== WABA_ID) {
+      const listPhoneRes = await fetch(
+        `${GRAPH}/${out.phone_parent_waba_id}/message_templates?name=${encodeURIComponent(templateName)}&fields=name,language,status,category,id,components&limit=50`,
+        { headers: metaHeaders() }
+      );
+      const listPhone = await listPhoneRes.json();
+      const phoneMatches = (listPhone?.data || []).filter((t) => t.name === templateName);
+      out.template_in_phone_waba = {
+        raw_query_status: listPhoneRes.status,
+        raw_query_error: listPhone?.error || null,
+        matches: phoneMatches,
+        match_count: phoneMatches.length,
+      };
+    }
+
+    // 5. Build the language sweep. Always probe what the WABA list told us
+    //    the template's language is, then top up with common UK/intl codes.
+    const fromList = envMatches.map((t) => t.language).filter(Boolean);
+    const langs = explicitLang
+      ? [explicitLang]
+      : Array.from(new Set([...fromList, 'en', 'en_US', 'en_GB']));
+
+    if (/^\d{10,15}$/.test(recipient)) {
+      for (const lang of langs) {
+        const requestBody = {
+          messaging_product: 'whatsapp',
+          to: recipient,
+          type: 'template',
+          template: { name: templateName, language: { code: lang } },
+        };
+        let sendRes, sendJson;
+        try {
+          sendRes = await fetch(`${GRAPH}/${b.whatsapp_phone_id}/messages`, {
+            method: 'POST',
+            headers: metaHeaders(),
+            body: JSON.stringify(requestBody),
+          });
+          sendJson = await sendRes.json();
+        } catch (sendErr) {
+          out.send_attempts.push({
+            language: lang,
+            ok: false,
+            http_status: null,
+            request_body: requestBody,
+            transport_error: sendErr.message,
+          });
+          continue;
+        }
+        out.send_attempts.push({
+          language: lang,
+          ok: sendRes.ok,
+          http_status: sendRes.status,
+          meta_error: sendRes.ok ? null : extractMetaError(sendJson),
+          request_body: requestBody,
+          response_body: sendJson,
+        });
+        // Stop early on first success so we don't spam Ellie's phone.
+        if (sendRes.ok) break;
+      }
+    }
+
+    // 6. Best-guess verdict the UI can render in one line.
+    const anySuccess = out.send_attempts.some((a) => a.ok);
+    if (anySuccess) {
+      out.verdict = 'send_succeeded';
+    } else if (out.waba_match === false) {
+      out.verdict = 'waba_mismatch';
+      out.notes.push(
+        `Phone is on WABA ${out.phone_parent_waba_id} but env WHATSAPP_WABA_ID is ${WABA_ID}. Update the env var or move the phone.`
+      );
+    } else if (out.template_in_list.match_count === 0) {
+      out.verdict = 'template_not_on_waba';
+      out.notes.push(
+        `No template named "${templateName}" exists on env WABA ${WABA_ID}. Check spelling or create it.`
+      );
+    } else if (out.name_status_warning) {
+      out.verdict = 'name_status_declined';
+    } else {
+      // Templates exist, WABA matches, name is fine, but every send still
+      // fails with 132001. That's the language-enum mismatch case.
+      const tried = out.send_attempts.map((a) => a.language);
+      const listed = fromList;
+      out.verdict = 'language_enum_mismatch';
+      out.notes.push(
+        `Template language(s) per Meta list: [${listed.join(', ') || 'none'}]. Tried: [${tried.join(', ')}]. None accepted.`
+      );
+    }
+
+    return res.json(out);
+  } catch (err) {
+    logger.error({ err }, 'template-debug threw');
+    Sentry.captureException(err, { tags: { route: 'whatsapp/template-debug' } });
+    return res.status(500).json({ error: 'template-debug failed', detail: err.message, partial: out });
+  }
+});
+
+
 // Expose helpers for the retry worker. Kept at the bottom so the public
 // route surface stays readable above.
 export const _whatsappInternals = {
