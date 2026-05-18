@@ -839,6 +839,260 @@ function ConnectFlow({ onConnected, onPending, onReset }) {
   );
 }
 
+
+/**
+ * In-app send panel. Lets a connected beautician send either a free-form
+ * text (inside the 24h customer-service window) or a pre-approved template
+ * to any recipient. Used to demonstrate the whatsapp_business_messaging
+ * permission for Meta App Review, and as a manual send tool day to day.
+ */
+function SendMessagePanel() {
+  const [mode, setMode] = useState('text'); // 'text' | 'template'
+  const [to, setTo] = useState('');
+  const [text, setText] = useState('');
+  const [templateName, setTemplateName] = useState('');
+  const [language, setLanguage] = useState('en');
+  const [templates, setTemplates] = useState(null); // null = not yet loaded / unavailable
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+
+  const TEXT_MAX = 200;
+
+  // Pull templates from /meta-templates (Agent A's endpoint). If it's not
+  // deployed yet, fall back gracefully to a plain text input for the
+  // template name.
+  useEffect(() => {
+    let cancelled = false;
+    async function loadTemplates() {
+      setTemplatesLoading(true);
+      try {
+        const data = await apiFetch('/meta-templates');
+        if (cancelled) return;
+        const list = Array.isArray(data?.templates)
+          ? data.templates
+          : Array.isArray(data?.data)
+            ? data.data
+            : Array.isArray(data)
+              ? data
+              : [];
+        const approved = list.filter(t => !t.status || t.status === 'APPROVED');
+        setTemplates(approved);
+      } catch (err) {
+        logger.warn('meta-templates unavailable, falling back to text input', err);
+        setTemplates(null);
+      } finally {
+        if (!cancelled) setTemplatesLoading(false);
+      }
+    }
+    loadTemplates();
+    return () => { cancelled = true; };
+  }, []);
+
+  function resetFeedback() {
+    setResult(null);
+    setError(null);
+  }
+
+  async function handleSend(e) {
+    e.preventDefault();
+    resetFeedback();
+    const recipient = to.trim();
+    if (!recipient) {
+      setError({ message: 'Add a recipient phone number first.' });
+      return;
+    }
+    if (mode === 'text' && !text.trim()) {
+      setError({ message: 'Type a message to send.' });
+      return;
+    }
+    if (mode === 'template' && !templateName.trim()) {
+      setError({ message: 'Pick a template first.' });
+      return;
+    }
+    setSending(true);
+    try {
+      const body = mode === 'text'
+        ? { to: recipient, text: text.trim() }
+        : { to: recipient, template: templateName.trim(), language: language.trim() || 'en' };
+      const data = await apiFetch('/test-send', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      setResult(data);
+      if (mode === 'text') setText('');
+    } catch (err) {
+      setError({
+        message: err.message || 'Send failed',
+        body: err.body || null,
+      });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  const charsLeft = TEXT_MAX - text.length;
+  const tabBtn = (id, label) => ({
+    flex: 1,
+    padding: '8px 12px',
+    fontSize: 12,
+    fontWeight: 600,
+    border: 'none',
+    borderRadius: 8,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    background: mode === id ? 'var(--bg-card, #fff)' : 'transparent',
+    color: mode === id ? 'var(--text, #2D2A26)' : 'var(--text-secondary, #8B6F5E)',
+    boxShadow: mode === id ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+  });
+
+  return (
+    <div style={styles.sendCard}>
+      <div style={styles.sendHeader}>
+        <div style={styles.sendTitle}>Send a message</div>
+        <div style={styles.sendSubtitle}>
+          Reply to a live conversation, or send a pre-approved template.
+        </div>
+      </div>
+
+      <div style={styles.sendTabs}>
+        <button type="button" onClick={() => { setMode('text'); resetFeedback(); }} style={tabBtn('text', 'Free-form text')}>
+          Free-form text
+        </button>
+        <button type="button" onClick={() => { setMode('template'); resetFeedback(); }} style={tabBtn('template', 'Template')}>
+          Template
+        </button>
+      </div>
+
+      <form onSubmit={handleSend}>
+        <label style={styles.inputLabel}>Recipient</label>
+        <input
+          style={styles.input}
+          type="tel"
+          placeholder="+447951413513"
+          value={to}
+          onChange={e => setTo(e.target.value)}
+          disabled={sending}
+        />
+
+        {mode === 'text' ? (
+          <>
+            <label style={styles.inputLabel}>Message</label>
+            <textarea
+              style={{ ...styles.input, minHeight: 100, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
+              placeholder="Hey, just confirming your appointment tomorrow at 2pm. See you then!"
+              value={text}
+              onChange={e => setText(e.target.value.slice(0, TEXT_MAX))}
+              maxLength={TEXT_MAX}
+              disabled={sending}
+            />
+            <div style={{ fontSize: 11, color: charsLeft < 20 ? '#E65100' : 'var(--text-muted, #AAA5A0)', textAlign: 'right', marginTop: -8, marginBottom: 10 }}>
+              {charsLeft} characters left
+            </div>
+          </>
+        ) : (
+          <>
+            <label style={styles.inputLabel}>Template</label>
+            {templatesLoading ? (
+              <div style={{ ...styles.input, color: 'var(--text-muted, #AAA5A0)' }}>Loading templates...</div>
+            ) : Array.isArray(templates) && templates.length > 0 ? (
+              <select
+                style={styles.input}
+                value={templateName}
+                onChange={e => {
+                  const name = e.target.value;
+                  setTemplateName(name);
+                  const match = templates.find(t => t.name === name);
+                  if (match?.language) setLanguage(match.language);
+                }}
+                disabled={sending}
+              >
+                <option value="">Pick a template</option>
+                {templates.map(t => (
+                  <option key={`${t.name}-${t.language || 'en'}`} value={t.name}>
+                    {t.name}{t.language ? ` (${t.language})` : ''}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                style={styles.input}
+                type="text"
+                placeholder="hello_world"
+                value={templateName}
+                onChange={e => setTemplateName(e.target.value)}
+                disabled={sending}
+              />
+            )}
+
+            <label style={styles.inputLabel}>Language</label>
+            <select
+              style={styles.input}
+              value={language}
+              onChange={e => setLanguage(e.target.value)}
+              disabled={sending}
+            >
+              <option value="en">en</option>
+              <option value="en_US">en_US</option>
+              <option value="en_GB">en_GB</option>
+            </select>
+          </>
+        )}
+
+        <button
+          type="submit"
+          style={{
+            ...styles.connectBtn,
+            background: 'var(--accent, #C76B8A)',
+            opacity: sending ? 0.7 : 1,
+          }}
+          disabled={sending}
+        >
+          {sending ? 'Sending...' : mode === 'text' ? 'Send WhatsApp message' : 'Send template'}
+        </button>
+      </form>
+
+      {result?.ok && (
+        <div style={styles.sendSuccess}>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>Sent</div>
+          <div>To {result.to}</div>
+          {result.message_id && (
+            <div style={{ fontFamily: '"SF Mono", ui-monospace, monospace', fontSize: 11, marginTop: 4, wordBreak: 'break-all' }}>
+              ID: {result.message_id}
+            </div>
+          )}
+          {result.template && (
+            <div style={{ fontSize: 11, marginTop: 4 }}>
+              Template: {result.template} ({result.language})
+            </div>
+          )}
+        </div>
+      )}
+
+      {error && (
+        <div style={styles.sendError}>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>Send failed</div>
+          <div>{error.message}</div>
+          {error.body?.meta_user_title && (
+            <div style={{ fontSize: 11, marginTop: 4 }}>{error.body.meta_user_title}</div>
+          )}
+          {error.body?.meta_code && (
+            <div style={{ fontFamily: '"SF Mono", ui-monospace, monospace', fontSize: 11, marginTop: 4 }}>
+              Meta code: {error.body.meta_code}{error.body.meta_subcode ? ` / ${error.body.meta_subcode}` : ''}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={styles.sendNote}>
+        Free-form messages only work if the recipient has messaged you within the last 24 hours.
+        For first-contact messages use an approved template.
+      </div>
+    </div>
+  );
+}
+
 export default function WhatsAppConfig() {
   const { beautician, loading: bLoading } = useBeautician();
   const [status, setStatus] = useState(null);
@@ -1044,6 +1298,8 @@ export default function WhatsAppConfig() {
           </div>
 
           <UsageBar usage={status?.usage} />
+
+          <SendMessagePanel />
 
           <div style={styles.tabs}>
             {tabs.map(tab => (
@@ -1355,6 +1611,15 @@ const styles = {
 
   toggle: { width: 42, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s' },
   toggleDot: { width: 20, height: 20, borderRadius: 10, background: 'var(--bg-card, #fff)', position: 'absolute', top: 2, left: 2, transition: 'transform 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.15)' },
+
+  sendCard: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16, border: '1px solid var(--border, #F0ECE8)', marginBottom: 16 },
+  sendHeader: { marginBottom: 12 },
+  sendTitle: { fontSize: 15, fontWeight: 700, color: 'var(--text, #2D2A26)', marginBottom: 2 },
+  sendSubtitle: { fontSize: 12, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.5 },
+  sendTabs: { display: 'flex', gap: 4, marginBottom: 14, background: 'var(--border, #F0ECE8)', borderRadius: 10, padding: 4 },
+  sendSuccess: { background: '#E8F5E9', border: '1px solid #C8E6C9', borderRadius: 10, padding: 12, marginTop: 12, fontSize: 12, color: '#2E7D32', lineHeight: 1.5 },
+  sendError: { background: '#FDECEA', border: '1px solid #F5C6C0', borderRadius: 10, padding: 12, marginTop: 12, fontSize: 12, color: '#8A2A1C', lineHeight: 1.5 },
+  sendNote: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)', lineHeight: 1.5, marginTop: 12, padding: '8px 10px', background: 'var(--bg, #FAF8F5)', borderRadius: 8 },
 
   settingRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '14px 0', borderBottom: '1px solid var(--border, #F0ECE8)' },
   dangerZone: { marginTop: 24, padding: 16, background: 'var(--danger-bg, #FDF0EF)', borderRadius: 14, border: '1px solid var(--danger, #D4605C)' },
