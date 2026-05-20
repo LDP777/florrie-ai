@@ -69,3 +69,7 @@ frontend/tests/.auth/
 docs/.app-review-credentials.local.md
 docs/*.local.md
 docs/.*.local.md
+
+# Local secret keys (Apple Sign In .p8, etc.), never commit
+secrets/
+*.p8
