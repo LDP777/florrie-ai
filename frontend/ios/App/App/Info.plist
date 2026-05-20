@@ -20,16 +20,20 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Florrie needs camera access to take before and after appointment photos when you choose to add them to a client's record.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Florrie needs photo library access to add existing photos to a client's record when you choose to do so.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Florrie needs permission to save appointment photos to your photo library when you choose to export them.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
-	<key>UIRequiredDeviceCapabilities</key>
-	<array>
-		<string>armv7</string>
-	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
