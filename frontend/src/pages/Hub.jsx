@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useBeautician } from '../lib/supabase.js';
 import { hasFeature, getRequiredPlan } from '../lib/subscription.js';
 import { API_BASE } from '../lib/config.js';
+import { isIOSNative } from '../lib/platform.js';
 
 const AGENTS = [
   { id: 'front_desk',      name: 'Desk',    label: 'Front Desk',      colour: '#C76B8A' },
@@ -686,10 +687,20 @@ export default function Hub() {
   const { beautician } = useBeautician();
   const plan = beautician?.subscription_plan || 'trial';
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return CATEGORIES;
-    const q = search.toLowerCase();
+  // iOS App Store compliance (Guideline 3.1.3(b)): strip the /pricing entry
+  // from the Hub on native iOS so the reviewer never sees a path to plans.
+  const visibleCategories = useMemo(() => {
+    if (!isIOSNative()) return CATEGORIES;
     return CATEGORIES.map(cat => ({
+      ...cat,
+      items: cat.items.filter(i => i.path !== '/pricing'),
+    })).filter(cat => cat.items.length > 0);
+  }, []);
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return visibleCategories;
+    const q = search.toLowerCase();
+    return visibleCategories.map(cat => ({
       ...cat,
       items: cat.items.filter(i =>
         i.label.toLowerCase().includes(q) ||
@@ -697,7 +708,7 @@ export default function Hub() {
         cat.label.toLowerCase().includes(q)
       ),
     })).filter(cat => cat.items.length > 0);
-  }, [search]);
+  }, [search, visibleCategories]);
 
   function toggleCat(id) {
     setExpandedCats(prev => {
@@ -794,7 +805,7 @@ export default function Hub() {
       {/* ── Category accordions ── */}
       {!search && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {CATEGORIES.map(cat => {
+          {visibleCategories.map(cat => {
             const isExpanded = expandedCats.has(cat.id);
             // When collapsed, just show the header row
             // When expanded, show 2-col grid of square item cards

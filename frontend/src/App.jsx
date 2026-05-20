@@ -8,6 +8,7 @@ import PlanGate from './components/PlanGate.jsx';
 import InstallPrompt from './components/InstallPrompt.jsx';
 import CoachNudge from './components/CoachNudge.jsx';
 import { CoachProvider } from './contexts/CoachContext.jsx';
+import { isIOSNative } from './lib/platform.js';
 
 // Lazy-loaded pages (code splitting — each becomes its own chunk)
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
@@ -239,8 +240,11 @@ export default function App() {
   const showTrialWarning = !subActive && daysLeft !== null && daysLeft <= 5 && daysLeft > 0;
   const showTrialExpired = !subActive && trialExpired;
 
-  // Soft paywall — expired trial and no active subscription
+  // Soft paywall, expired trial and no active subscription.
+  // On native iOS we show a benign read-only state with no purchase CTA,
+  // per App Store Guideline 3.1.3(b) Multiplatform Services.
   if (showTrialExpired) {
+    const iosNative = isIOSNative();
     return (
       <div style={{ minHeight: '100vh', background: 'var(--bg, #FAF8F6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
         <div style={{ maxWidth: 440, width: '100%', background: '#fff', borderRadius: 20, padding: '48px 40px', textAlign: 'center', boxShadow: '0 4px 32px rgba(0,0,0,0.08)' }}>
@@ -249,14 +253,18 @@ export default function App() {
             Your free trial has ended
           </h1>
           <p style={{ color: 'var(--text-secondary, #6B6460)', fontSize: 15, lineHeight: 1.6, marginBottom: 32 }}>
-            Thanks for trying Florrie! We're still in early access. Drop us a message and we'll get you set up on a plan.
+            {iosNative
+              ? 'Your trial is no longer active on this account.'
+              : "Thanks for trying Florrie! We're still in early access. Drop us a message and we'll get you set up on a plan."}
           </p>
-          <a
-            href="mailto:hello@florrie.ai?subject=I want to continue using Florrie"
-            style={{ display: 'block', background: 'var(--accent, #C76B8A)', color: '#fff', borderRadius: 12, padding: '14px 24px', fontSize: 15, fontWeight: 600, textDecoration: 'none', marginBottom: 12 }}
-          >
-            Get in touch to continue →
-          </a>
+          {!iosNative && (
+            <a
+              href="mailto:hello@florrie.ai?subject=I want to continue using Florrie"
+              style={{ display: 'block', background: 'var(--accent, #C76B8A)', color: '#fff', borderRadius: 12, padding: '14px 24px', fontSize: 15, fontWeight: 600, textDecoration: 'none', marginBottom: 12 }}
+            >
+              Get in touch to continue →
+            </a>
+          )}
           <button
             onClick={async () => { if (supabase) await supabase.auth.signOut(); setSession(null); }}
             style={{ background: 'none', border: 'none', color: 'var(--text-muted, #9E9790)', fontSize: 13, cursor: 'pointer', padding: 8 }}
@@ -272,7 +280,7 @@ export default function App() {
     <ErrorBoundary>
       <CoachProvider>
       <div style={styles.appShell}>
-        {showTrialWarning && (
+        {showTrialWarning && !isIOSNative() && (
           <div style={{ background: 'var(--gold, #C9A96E)', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 13, fontWeight: 500 }}>
             ⏳ Your free trial ends in {daysLeft} day{daysLeft === 1 ? '' : 's'}.{' '}
             <a href="mailto:hello@florrie.ai?subject=Florrie plan" style={{ color: '#fff', fontWeight: 700, textDecoration: 'underline' }}>

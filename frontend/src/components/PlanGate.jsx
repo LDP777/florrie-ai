@@ -14,11 +14,13 @@ import { useNavigate } from 'react-router-dom';
 import { useBeautician } from '../lib/supabase.js';
 import { hasFeature, getRequiredPlan, PLAN, TEAM_ADDON, getPlanName } from '../lib/subscription.js';
 import { ds, type } from '../lib/designSystem.js';
+import { isIOSNative } from '../lib/platform.js';
 
 export default function PlanGate({ feature, children }) {
   const { beautician } = useBeautician();
   const navigate = useNavigate();
   const currentPlan = beautician?.subscription_plan || 'trial';
+  const iosNative = isIOSNative();
 
   // If the user has access, render the page normally
   if (hasFeature(currentPlan, feature)) {
@@ -54,6 +56,32 @@ export default function PlanGate({ feature, children }) {
   };
 
   const featureName = featureNames[feature] || feature;
+
+  // iOS App Store compliance (Guideline 3.1.3(b)): never offer a path to
+  // pricing or external purchase from a gated screen on native iOS.
+  if (iosNative) {
+    return (
+      <div style={styles.container}>
+        <div style={styles.card}>
+          <div style={styles.iconWrap}>
+            <span className="material-symbols-outlined" style={styles.icon}>lock</span>
+          </div>
+
+          <h2 style={styles.title}>{featureName}</h2>
+          <p style={styles.subtitle}>
+            This feature isn't part of your current plan.
+          </p>
+
+          <button
+            onClick={() => navigate(-1)}
+            style={styles.backBtn}
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={styles.container}>

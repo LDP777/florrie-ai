@@ -9,10 +9,27 @@ import { useBeautician, supabase } from '../lib/supabase.js';
 import { PLAN, TEAM_ADDON, getPlanName, isPaidPlan } from '../lib/subscription.js';
 import { ds, type } from '../lib/designSystem.js';
 import CheckoutModal from '../components/CheckoutModal.jsx';
+import { isIOSNative } from '../lib/platform.js';
 
 const API = import.meta.env.VITE_API_URL || '';
 
 export default function Pricing() {
+  // iOS App Store compliance (Guideline 3.1.3(b) Multiplatform Services):
+  // We must not show pricing, signup CTAs, or links to external purchase flows
+  // inside the native iOS app. Render a benign placeholder instead.
+  if (isIOSNative()) {
+    return (
+      <div style={S.iosWrap}>
+        <div style={S.iosCard}>
+          <div style={S.iosTitle}>Plans &amp; Billing</div>
+          <p style={S.iosBody}>
+            To view plans or manage your subscription, visit florrie.ai on the web.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const { beautician } = useBeautician();
   const currentPlan = beautician?.subscription_plan || 'trial';
   const status = beautician?.subscription_status || 'trial';
@@ -350,4 +367,37 @@ const S = {
   faqItem: { background: 'var(--card, #fff)', borderRadius: 12, padding: 14 },
   faqQ: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)', marginBottom: 4 },
   faqA: { fontSize: 13, color: 'var(--text-secondary, #7A756F)', lineHeight: 1.4 },
+
+  // iOS-only placeholder styles (App Store Guideline 3.1.3(b) compliant)
+  iosWrap: {
+    padding: '60px 20px',
+    fontFamily: '"DM Sans", -apple-system, sans-serif',
+    maxWidth: 480,
+    margin: '0 auto',
+    minHeight: '60vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iosCard: {
+    background: 'var(--card, #fff)',
+    borderRadius: 16,
+    padding: '32px 24px',
+    textAlign: 'center',
+    border: '1px solid var(--border, #EDE9E4)',
+    width: '100%',
+  },
+  iosTitle: {
+    fontSize: 20,
+    fontWeight: 700,
+    color: 'var(--text, #2D2A26)',
+    marginBottom: 12,
+    fontFamily: '"Playfair Display", Georgia, serif',
+  },
+  iosBody: {
+    fontSize: 14,
+    color: 'var(--text-secondary, #7A756F)',
+    lineHeight: 1.5,
+    margin: 0,
+  },
 };

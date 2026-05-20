@@ -8,6 +8,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import { isIOSNative } from '../lib/platform.js';
 
 /**
  * Settings, beautician profile and app configuration.
@@ -590,8 +591,9 @@ export default function Settings({ onLogout }) {
             )}
           </div>
 
-          {/* Subscription management */}
-          {beautician.stripe_customer_id && (
+          {/* Subscription management, hidden on native iOS for App Store
+              Guideline 3.1.3(b) compliance (no external purchasing surfaces). */}
+          {beautician.stripe_customer_id && !isIOSNative() && (
             <SubscriptionManager beautician={beautician} />
           )}
 
