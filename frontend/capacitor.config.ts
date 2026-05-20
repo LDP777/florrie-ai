@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'ai.florrie.app',
-  appName: 'florrie.ai',
+  appName: 'Florrie',
   webDir: 'dist',
   server: {
     // In dev, point to the Vite dev server for live reload
@@ -16,7 +16,7 @@ const config: CapacitorConfig = {
       launchShowDuration: 2000,
       launchAutoHide: true,
       launchFadeOutDuration: 300,
-      backgroundColor: '#FAF8F5',
+      backgroundColor: '#fef8f4',
       showSpinner: false,
       androidSplashResourceName: 'splash',
       androidScaleType: 'CENTER_CROP',
@@ -28,17 +28,17 @@ const config: CapacitorConfig = {
     },
     StatusBar: {
       style: 'LIGHT',
-      backgroundColor: '#FAF8F5',
+      backgroundColor: '#fef8f4',
     },
   },
   ios: {
-    scheme: 'florrie.ai',
+    scheme: 'Florrie',
     contentInset: 'always',
     preferredContentMode: 'mobile',
-    backgroundColor: '#FAF8F5',
+    backgroundColor: '#fef8f4',
   },
   android: {
-    backgroundColor: '#FAF8F5',
+    backgroundColor: '#fef8f4',
     allowMixedContent: false,
     captureInput: true,
   },
