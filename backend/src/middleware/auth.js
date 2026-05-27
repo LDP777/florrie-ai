@@ -1,4 +1,4 @@
-import { supabaseAnon } from '../config.js';
+import { supabase, supabaseAnon } from '../config.js';
 import logger from '../lib/logger.js';
 
 /**
@@ -105,7 +105,13 @@ export async function requireAuth(req, res, next) {
 
     // Get the full beautician record — routes that need tokens (e.g. Google Calendar)
     // read from req.beautician directly. Never forward the full object to res.json().
-    const { data: beautician, error: bError } = await supabaseAnon
+    //
+    // IMPORTANT: must use service-role client here because migration 047 revoked
+    // anon SELECT on beauticians. Anon can still validate the user's JWT (above),
+    // but anon cannot read the beauticians row. Service role bypasses RLS; this
+    // is safe because we've already verified the user via the JWT and gate the
+    // query on auth_id = user.id (so a user can only ever fetch their own row).
+    const { data: beautician, error: bError } = await supabase
       .from('beauticians')
       .select('*')
       .eq('auth_id', user.id)

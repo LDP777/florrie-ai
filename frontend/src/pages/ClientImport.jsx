@@ -17,7 +17,7 @@ import { API_BASE } from '../lib/config.js';
 
 const PLATFORMS = [
   { id: 'fresha', name: 'Fresha', icon: '💜', desc: 'Export → Clients → Download CSV' },
-  { id: 'timely', name: 'Timely', icon: '⏱️', desc: 'Reports → Clients → Export' },
+  { id: 'timely', name: 'GetTimely', icon: '⏱️', desc: 'Reports → Clients → Export' },
   { id: 'vagaro', name: 'Vagaro', icon: '💅', desc: 'Customers → Export List' },
   { id: 'other', name: 'Other / CSV', icon: '📄', desc: 'Any spreadsheet or CSV file' },
 ];
@@ -197,7 +197,7 @@ export default function ClientImport() {
           <div style={styles.helpCard}>
             <div style={styles.helpTitle}>How to export from your current system</div>
             <div style={styles.helpStep}><strong>Fresha:</strong> Clients → ⋯ menu → Export → Download CSV</div>
-            <div style={styles.helpStep}><strong>Timely:</strong> Clients → Export → CSV</div>
+            <div style={styles.helpStep}><strong>GetTimely:</strong> Settings → Account → Data exports → Clients → CSV</div>
             <div style={styles.helpStep}><strong>Vagaro:</strong> Customers → All Customers → Export</div>
             <div style={styles.helpStep}><strong>Other:</strong> Export a CSV with names, phones, and emails</div>
           </div>
