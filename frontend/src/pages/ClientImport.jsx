@@ -3,14 +3,14 @@ import { useBeautician } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 
 /**
- * Client Import — one-click migration from Fresha, Timely, Vagaro, or any CSV.
+ * Client Import: one-click migration from Fresha, Timely, Vagaro, or any CSV.
  *
  * Flow:
  *   1. User picks platform (or "other")
  *   2. User uploads ONE file
  *   3. Backend auto-detects format, returns preview
  *   4. User sees summary → presses "Import everything"
- *   5. Done — all clients, treatments, and appointments land in Florrie
+ *   5. Done. All clients, treatments, and appointments land in Florrie.
  *
  * This is the #1 onboarding selling point: "Switch in 60 seconds."
  */
@@ -23,7 +23,7 @@ const PLATFORMS = [
 ];
 
 function getToken() {
-  // Supabase stores session under sb-<project-ref>-auth-token — find it by pattern
+  // Supabase stores session under sb-<project-ref>-auth-token, find it by pattern
   const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
   if (!key) return null;
   const raw = localStorage.getItem(key);
@@ -85,7 +85,7 @@ export default function ClientImport() {
         setPreview(data);
         setStep('preview');
       } catch (err) {
-        setError('Network error — check your connection');
+        setError('Network error. Check your connection.');
         setStep('platform');
       }
     };
@@ -171,7 +171,7 @@ export default function ClientImport() {
       {step === 'platform' && (
         <>
           <p style={styles.intro}>
-            Where are your clients right now? Pick your platform and upload the export file — we handle the rest.
+            Where are your clients right now? Pick your platform and upload the export file. We handle the rest.
           </p>
 
           <div style={styles.platformGrid}>
@@ -227,7 +227,25 @@ export default function ClientImport() {
           {/* Detection badge */}
           {detectedLabel && (
             <div style={styles.detectedBadge}>
-              ✓ Detected as <strong>{detectedLabel}</strong> export
+              Detected as <strong>{detectedLabel}</strong> export
+            </div>
+          )}
+
+          {/* Warnings from the parser */}
+          {preview.warnings && preview.warnings.length > 0 && (
+            <div style={styles.warnBlock}>
+              {preview.warnings.map((w, i) => (
+                <div key={i} style={styles.warnLine}>{w}</div>
+              ))}
+            </div>
+          )}
+
+          {/* Nothing came through */}
+          {totalItems === 0 && (
+            <div style={styles.warnBlock}>
+              <div style={styles.warnLine}>
+                We read the file but didn't find any clients, treatments, or appointments. Make sure you exported the customer list (not bookings), then try again.
+              </div>
             </div>
           )}
 
@@ -296,8 +314,12 @@ export default function ClientImport() {
           )}
 
           {/* CTA */}
-          <button onClick={executeImport} style={styles.importBtn}>
-            Import everything ({totalItems} items)
+          <button
+            onClick={executeImport}
+            disabled={totalItems === 0}
+            style={{ ...styles.importBtn, opacity: totalItems === 0 ? 0.5 : 1, cursor: totalItems === 0 ? 'not-allowed' : 'pointer' }}
+          >
+            {totalItems === 0 ? 'Nothing to import' : `Import everything (${totalItems} items)`}
           </button>
           <button onClick={reset} style={styles.backBtn}>Start over</button>
         </div>
@@ -360,7 +382,7 @@ export default function ClientImport() {
 }
 
 /**
- * Manual paste sub-component — paste names from notes/contacts.
+ * Manual paste sub-component. Paste names from notes/contacts.
  */
 function ManualPaste({ beautician, onDone, onBack }) {
   const [text, setText] = useState('');
@@ -457,6 +479,15 @@ const styles = {
     marginBottom: 12,
   },
   errorText: { fontSize: 13, color: 'var(--danger, #D4605C)' },
+
+  // Parser warnings
+  warnBlock: {
+    padding: '10px 14px', borderRadius: 10,
+    background: 'var(--warning-bg, #FFF7E6)',
+    border: '1px solid var(--warning, #D4943A)',
+    display: 'flex', flexDirection: 'column', gap: 6,
+  },
+  warnLine: { fontSize: 12, color: 'var(--warning-text, #8A5A1A)', lineHeight: 1.5 },
 
   // Platform picker
   platformGrid: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 },

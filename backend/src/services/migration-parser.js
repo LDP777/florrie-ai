@@ -1,5 +1,5 @@
 /**
- * Migration Parser — auto-detects and parses exports from Fresha, Timely, Vagaro, or generic CSV.
+ * Migration Parser , auto-detects and parses exports from Fresha, Timely, Vagaro, or generic CSV.
  *
  * The goal is ONE UPLOAD, ONE CLICK. User drops a file, we figure out the rest.
  *
@@ -52,29 +52,35 @@ const PLATFORM_SIGNATURES = {
   },
 
   timely: {
-    // Timely uses "Phone Number" and has "VIP" column
-    required: ['phone number'],
-    bonus: ['vip', 'date of birth', 'timely'],
+    // GetTimely / Timely uses many shapes. The "Customer list" report ships as
+    // customers.csv with headers like FirstName, LastName, Mobile, Email,
+    // CompanyName, SMS Number, Date of Birth, VIP, Last Visit, Total Spend.
+    // The customer import template uses FirstName / LastName / SMS Number.
+    // Older exports use "First Name" / "Last Name" / "Phone Number".
+    // We list every variant so detection survives whichever shape comes in.
+    required: ['firstname', 'first name', 'sms number', 'phone number'],
+    bonus: ['vip', 'date of birth', 'lastvisit', 'last visit', 'companyname', 'timely', 'gettimely'],
     clientMap: {
-      first_name: ['first name', 'firstname', 'name'],
-      last_name: ['last name', 'lastname', 'surname'],
+      first_name: ['firstname', 'first name', 'name'],
+      last_name: ['lastname', 'last name', 'surname'],
       email: ['email', 'email address'],
-      phone: ['phone number', 'phone', 'mobile'],
-      notes: ['notes', 'comments'],
+      phone: ['sms number', 'mobile', 'mobile number', 'phone number', 'phone'],
+      notes: ['notes', 'comments', 'client notes'],
       dob: ['date of birth', 'dob', 'birthday'],
       vip: ['vip'],
+      gender: ['gender', 'pronouns'],
       external_id: ['customer id', 'client id', 'id'],
     },
     appointmentMap: {
-      date: ['date', 'appointment date'],
-      time: ['start time', 'time', 'start'],
-      end_time: ['end time', 'end', 'finish'],
+      date: ['date', 'appointment date', 'booking date'],
+      time: ['start time', 'starttime', 'time', 'start'],
+      end_time: ['end time', 'endtime', 'end', 'finish'],
       client_name: ['customer', 'client', 'customer name', 'client name'],
       service: ['service', 'service name', 'treatment'],
       duration: ['duration', 'duration (mins)', 'hours'],
-      price: ['revenue', 'price', 'total', 'amount'],
+      price: ['revenue', 'price', 'total', 'amount', 'paid'],
       status: ['status'],
-      staff: ['staff', 'team member', 'employee', 'user'],
+      staff: ['staff', 'team member', 'employee', 'user', 'with'],
     },
     treatmentMap: {
       name: ['service', 'service name', 'treatment'],
@@ -144,7 +150,7 @@ export function parseCSV(text) {
       }
       if (lines.length) {
         // We've accumulated a full row
-        break; // Just kidding — we need a proper approach
+        break; // Just kidding , we need a proper approach
       }
     } else {
       current += char;
@@ -221,38 +227,37 @@ export function detectPlatform(headers) {
   const normalised = headers.map(h => h.toLowerCase().trim());
   let bestMatch = { platform: 'generic', confidence: 0, fileType: 'clients' };
 
+  // Hard wins by uniquely-identifying headers
+  if (normalised.some(h => h === 'firstname' || h === 'sms number' || h === 'lastvisit')) {
+    return { platform: 'timely', confidence: 1, fileType: detectFileType(normalised) };
+  }
+  if (normalised.some(h => h === 'mobile number') && normalised.some(h => h === 'first name')) {
+    return { platform: 'fresha', confidence: 1, fileType: detectFileType(normalised) };
+  }
+  if (normalised.some(h => h === 'cell phone') && normalised.some(h => h === 'client first name')) {
+    return { platform: 'vagaro', confidence: 1, fileType: detectFileType(normalised) };
+  }
+
   for (const [platform, sig] of Object.entries(PLATFORM_SIGNATURES)) {
     let score = 0;
     let maxScore = sig.required.length + sig.bonus.length;
 
-    // Check required columns
+    // Check required columns (any single hit gives some confidence)
     const requiredHits = sig.required.filter(r => normalised.some(h => h.includes(r)));
-    score += requiredHits.length * 2; // Required columns worth double
+    score += requiredHits.length * 2;
 
     // Check bonus columns
     const bonusHits = sig.bonus.filter(b => normalised.some(h => h.includes(b)));
     score += bonusHits.length;
 
-    const confidence = score / (maxScore + sig.required.length); // normalise
+    const confidence = score / (maxScore + sig.required.length);
 
     if (confidence > bestMatch.confidence) {
       bestMatch = { platform, confidence };
     }
   }
 
-  // Detect file type: clients vs appointments vs treatments
-  const hasDateCol = normalised.some(h => ['date', 'appointment date', 'start time'].includes(h));
-  const hasClientCol = normalised.some(h => ['first name', 'firstname', 'client first name', 'name'].includes(h));
-  const hasDurationCol = normalised.some(h => h.includes('duration'));
-  const hasServiceCol = normalised.some(h => ['service', 'service name', 'treatment', 'treatment name'].includes(h));
-
-  if (hasDateCol && (hasServiceCol || hasDurationCol)) {
-    bestMatch.fileType = 'appointments';
-  } else if (hasServiceCol && !hasDateCol && (hasDurationCol || normalised.some(h => h.includes('price')))) {
-    bestMatch.fileType = 'treatments';
-  } else {
-    bestMatch.fileType = 'clients';
-  }
+  bestMatch.fileType = detectFileType(normalised);
 
   // If we couldn't match a specific platform, default to generic with basic mapping
   if (bestMatch.confidence < 0.3) {
@@ -260,6 +265,31 @@ export function detectPlatform(headers) {
   }
 
   return bestMatch;
+}
+
+/**
+ * Decide whether the file is a client list, an appointment schedule, or a treatment list.
+ * Important: a clients export can have "Last Visit" or even a "Last Booked" date column
+ * (GetTimely's Customer list does) , that does NOT make it an appointment file.
+ * We require both a service column AND a date column, plus no obvious client column.
+ */
+function detectFileType(normalised) {
+  const hasServiceCol = normalised.some(h => ['service', 'service name', 'treatment', 'treatment name'].includes(h));
+  const hasStartTimeCol = normalised.some(h => ['start time', 'starttime', 'appointment date'].includes(h));
+  const hasDateCol = normalised.some(h => ['date', 'appointment date', 'booking date'].includes(h));
+  const hasDurationCol = normalised.some(h => h.includes('duration'));
+  const hasClientNameCol = normalised.some(h => ['first name', 'firstname', 'client first name'].includes(h));
+  const hasPhoneCol = normalised.some(h => ['mobile', 'mobile number', 'cell phone', 'phone', 'phone number', 'sms number'].includes(h));
+
+  // Appointments need a service AND a real start-time signal AND no client first-name col
+  if (hasServiceCol && (hasStartTimeCol || (hasDateCol && hasDurationCol)) && !hasClientNameCol) {
+    return 'appointments';
+  }
+  // Treatments: service + price/duration, no date, no client name, no phone
+  if (hasServiceCol && !hasDateCol && (hasDurationCol || normalised.some(h => h.includes('price'))) && !hasClientNameCol && !hasPhoneCol) {
+    return 'treatments';
+  }
+  return 'clients';
 }
 
 function mapRow(row, columnMap, headers) {
@@ -293,7 +323,7 @@ export function extractClients(headers, rows, platform) {
     first_name: ['first name', 'firstname', 'first', 'name', 'client name', 'client', 'client first name'],
     last_name: ['last name', 'lastname', 'surname', 'last', 'client last name'],
     email: ['email', 'email address', 'e-mail'],
-    phone: ['phone', 'mobile', 'telephone', 'phone number', 'cell', 'tel', 'cell phone', 'mobile number'],
+    phone: ['phone', 'mobile', 'telephone', 'phone number', 'cell', 'tel', 'cell phone', 'mobile number', 'sms number'],
     notes: ['notes', 'comments', 'memo', 'special notes', 'client notes'],
     dob: ['date of birth', 'birthday', 'dob'],
     external_id: ['client id', 'id', 'customer id'],
@@ -355,7 +385,7 @@ export function extractTreatments(headers, rows, platform) {
     const mapped = mapRow(row, useMap, headers);
     if (!mapped.name) return null;
 
-    // Parse price — handle "£25.00", "25", "25.00", "$25"
+    // Parse price , handle "£25.00", "25", "25.00", "$25"
     let priceCents = 0;
     if (mapped.price) {
       const cleaned = mapped.price.replace(/[^0-9.]/g, '');
@@ -363,7 +393,7 @@ export function extractTreatments(headers, rows, platform) {
       if (!isNaN(parsed)) priceCents = Math.round(parsed * 100);
     }
 
-    // Parse duration — handle "60", "60 mins", "1h", "1:00"
+    // Parse duration , handle "60", "60 mins", "1h", "1:00"
     let durationMins = 0;
     if (mapped.duration) {
       const cleaned = mapped.duration.replace(/[^0-9.:h]/gi, '');
@@ -441,7 +471,7 @@ export function extractAppointments(headers, rows, platform) {
       }
     }
 
-    // Parse status — normalise to Florrie statuses
+    // Parse status , normalise to Florrie statuses
     const rawStatus = (mapped.status || '').toLowerCase();
     let status = 'completed';
     if (rawStatus.includes('cancel')) status = 'cancelled';
@@ -462,7 +492,7 @@ export function extractAppointments(headers, rows, platform) {
 }
 
 /**
- * Master migration function — takes raw CSV text, returns everything.
+ * Master migration function , takes raw CSV text, returns everything.
  *
  * Returns: {
  *   platform: string,
@@ -476,13 +506,14 @@ export function extractAppointments(headers, rows, platform) {
  */
 export function parseMigrationFile(csvText) {
   const { headers, rows } = parseCSVProper(csvText);
+  const warnings = [];
 
   if (!headers.length || !rows.length) {
     return { error: 'Could not parse the file. Make sure it has headers and data.' };
   }
 
   const detection = detectPlatform(headers);
-  logger.info({ platform: detection.platform, confidence: detection.confidence, fileType: detection.fileType, rows: rows.length }, 'Migration file detected');
+  logger.info({ platform: detection.platform, confidence: detection.confidence, fileType: detection.fileType, rows: rows.length, headers }, 'Migration file detected');
 
   const result = {
     platform: detection.platform,
@@ -498,6 +529,9 @@ export function parseMigrationFile(csvText) {
   // Extract based on file type
   if (detection.fileType === 'clients') {
     result.clients = extractClients(headers, rows, detection.platform);
+    if (result.clients.length === 0 && rows.length > 0) {
+      warnings.push(`Read ${rows.length} rows but no client names came through. Header row is: ${headers.slice(0, 6).join(', ')}${headers.length > 6 ? '...' : ''}. Make sure the export has a First Name column.`);
+    }
   } else if (detection.fileType === 'appointments') {
     result.appointments = extractAppointments(headers, rows, detection.platform);
     // Also extract unique clients and treatments from appointment data
@@ -510,8 +544,19 @@ export function parseMigrationFile(csvText) {
       return { first_name: parts[0], last_name: parts.slice(1).join(' '), email: '', phone: '', notes: '' };
     });
     result.treatments = extractTreatments(headers, rows, detection.platform);
+    if (result.appointments.length === 0 && rows.length > 0) {
+      warnings.push(`This looks like an appointment schedule but no rows had both a date and a service. If you wanted to import clients, export the Customer list report instead.`);
+    }
   } else if (detection.fileType === 'treatments') {
     result.treatments = extractTreatments(headers, rows, detection.platform);
+  }
+
+  // Report rows without contact info as a soft warning
+  if (result.clients.length > 0) {
+    const noContact = result.clients.filter(c => !c.phone && !c.email).length;
+    if (noContact > 0) {
+      warnings.push(`${noContact} of ${result.clients.length} clients have no phone or email. We'll still import them so you can backfill later.`);
+    }
   }
 
   result.summary = {
@@ -519,6 +564,8 @@ export function parseMigrationFile(csvText) {
     treatments: result.treatments.length,
     appointments: result.appointments.length,
   };
+
+  if (warnings.length) result.warnings = warnings;
 
   return result;
 }

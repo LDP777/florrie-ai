@@ -8,9 +8,33 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
- * Clients — view, search, add, and manage the client list.
+ * Clients: view, search, filter, sort, multi-select, add, and manage the client list.
  * Wired to Supabase.
  */
+
+const FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'active', label: 'Active' },
+  { id: 'cooling', label: 'Cooling' },
+  { id: 'dormant', label: 'Dormant' },
+  { id: 'new', label: 'New' },
+];
+
+const SORTS = [
+  { id: 'recent', label: 'Recently visited' },
+  { id: 'az', label: 'A to Z' },
+  { id: 'visits', label: 'Most visits' },
+  { id: 'added', label: 'Recently added' },
+];
+
+// Compute the bucket a client falls into based on last visit date.
+function bucketFor(c) {
+  if (!c.last_visit_at) return 'new';
+  const days = Math.floor((Date.now() - new Date(c.last_visit_at).getTime()) / 86400000);
+  if (days < 30) return 'active';
+  if (days < 60) return 'cooling';
+  return 'dormant';
+}
 
 export default function Clients() {
   const navigate = useNavigate();
@@ -18,6 +42,11 @@ export default function Clients() {
   const { beautician, loading: bLoading } = useBeautician();
   const [clients, setClients] = useState([]);
   const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('all');
+  const [sort, setSort] = useState('recent');
+  const [sortOpen, setSortOpen] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selected, setSelected] = useState(null);
@@ -39,7 +68,7 @@ export default function Clients() {
     }
   }, [location.state?.clientId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Debounced search
+  // Debounced search, server-side for text, client-side for filter chips.
   useEffect(() => {
     if (!beautician) return;
     const timer = setTimeout(() => { setLoading(true); loadClients(); }, 300);
@@ -57,7 +86,18 @@ export default function Clients() {
         .order('last_visit_at', { ascending: false, nullsFirst: false });
 
       if (search) {
-        q = q.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%`);
+        // Search across name, email AND phone digits. We strip non-digits from
+        // the search input and only run the phone match if there's something
+        // numeric left, otherwise Postgres complains about an empty pattern.
+        const digits = search.replace(/\D/g, '');
+        const escaped = search.replace(/[%,]/g, '');
+        const parts = [
+          `first_name.ilike.%${escaped}%`,
+          `last_name.ilike.%${escaped}%`,
+          `email.ilike.%${escaped}%`,
+        ];
+        if (digits.length >= 3) parts.push(`phone.ilike.%${digits}%`);
+        q = q.or(parts.join(','));
       }
 
       const { data, error: qError } = await q;
@@ -74,6 +114,51 @@ export default function Clients() {
       setLoading(false);
     }
   }
+
+  // Apply filter chip + sort on top of the loaded list (client-side).
+  function applyFilterSort(list) {
+    let out = list;
+    if (filter !== 'all') {
+      out = out.filter(c => bucketFor(c) === filter);
+    }
+    const sorted = [...out];
+    if (sort === 'az') {
+      sorted.sort((a, b) => `${a.first_name} ${a.last_name || ''}`.localeCompare(`${b.first_name} ${b.last_name || ''}`));
+    } else if (sort === 'visits') {
+      sorted.sort((a, b) => (b.total_visits || 0) - (a.total_visits || 0));
+    } else if (sort === 'added') {
+      sorted.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    } // 'recent' is already the default order from the query
+    return sorted;
+  }
+
+  function toggleSelect(id) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }
+
+  function messageSelected() {
+    const ids = Array.from(selectedIds);
+    if (!ids.length) return;
+    const recipients = clients.filter(c => selectedIds.has(c.id));
+    navigate('/messaging', { state: { recipients, prefilledFrom: 'clients' } });
+  }
+
+  // Count summary across the *full* loaded list, not the filtered one.
+  const counts = clients.reduce((acc, c) => {
+    const b = bucketFor(c);
+    acc[b] = (acc[b] || 0) + 1;
+    return acc;
+  }, {});
+  const filtered = applyFilterSort(clients);
 
   async function loadClientDetail(id) {
     try {
@@ -159,16 +244,41 @@ export default function Clients() {
       <div style={styles.header}>
         <h1 style={styles.title}>Clients</h1>
         <div style={styles.headerActions}>
-          <button onClick={handleExportCSV} style={styles.exportBtn}>⬇ Export</button>
-          <button onClick={() => setShowAdd(!showAdd)} style={styles.addBtn}>+ Add</button>
+          {!selectMode && (
+            <>
+              <button
+                onClick={() => setSelectMode(true)}
+                style={styles.exportBtn}
+                aria-label="Select multiple clients"
+              >Select</button>
+              <button onClick={handleExportCSV} style={styles.exportBtn}>Export</button>
+              <button onClick={() => setShowAdd(!showAdd)} style={styles.addBtn}>+ Add</button>
+            </>
+          )}
+          {selectMode && (
+            <button onClick={exitSelectMode} style={styles.addBtn}>Done</button>
+          )}
         </div>
       </div>
+
+      {/* Count summary across the full loaded list */}
+      {clients.length > 0 && (
+        <div style={styles.countRow}>
+          <span style={styles.countTotal}>{clients.length} total</span>
+          <span style={styles.countSep}>·</span>
+          <span style={styles.countActive}>{counts.active || 0} active</span>
+          <span style={styles.countSep}>·</span>
+          <span style={styles.countCooling}>{counts.cooling || 0} cooling</span>
+          <span style={styles.countSep}>·</span>
+          <span style={styles.countDormant}>{counts.dormant || 0} dormant</span>
+        </div>
+      )}
 
       {/* Search */}
       <div style={styles.searchWrap}>
         <input
           type="text"
-          placeholder="Search by name or email..."
+          placeholder="Search by name, phone, or email..."
           value={search}
           onChange={e => setSearch(e.target.value)}
           style={styles.searchInput}
@@ -176,6 +286,58 @@ export default function Clients() {
         {search && (
           <button onClick={() => setSearch('')} style={styles.clearBtn}>×</button>
         )}
+      </div>
+
+      {/* Filter chips + sort menu */}
+      <div style={styles.controlsRow}>
+        <div style={styles.chipsWrap}>
+          {FILTERS.map(f => {
+            const count = f.id === 'all' ? clients.length : (counts[f.id] || 0);
+            const active = filter === f.id;
+            return (
+              <button
+                key={f.id}
+                onClick={() => setFilter(f.id)}
+                style={{
+                  ...styles.chip,
+                  background: active ? 'var(--accent)' : 'var(--bg-card)',
+                  color: active ? '#fff' : 'var(--text-secondary)',
+                  borderColor: active ? 'var(--accent)' : 'var(--border)',
+                }}
+              >
+                {f.label} <span style={{ opacity: 0.75, fontWeight: 500 }}>{count}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div style={styles.sortWrap}>
+          <button
+            onClick={() => setSortOpen(o => !o)}
+            style={styles.sortBtn}
+            aria-haspopup="menu"
+            aria-expanded={sortOpen}
+          >
+            Sort: {SORTS.find(s => s.id === sort)?.label || 'Recent'}
+          </button>
+          {sortOpen && (
+            <div style={styles.sortMenu} role="menu">
+              {SORTS.map(s => (
+                <button
+                  key={s.id}
+                  onClick={() => { setSort(s.id); setSortOpen(false); }}
+                  style={{
+                    ...styles.sortItem,
+                    background: sort === s.id ? 'var(--accent-light)' : 'transparent',
+                    color: sort === s.id ? 'var(--accent)' : 'var(--text-primary)',
+                  }}
+                  role="menuitem"
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Add client form */}
@@ -220,33 +382,60 @@ export default function Clients() {
           icon="👥"
           title={search ? 'No matches' : 'No clients yet'}
           subtitle={search ? 'Try a different search.' : 'Add clients manually or import from your old scheduler.'}
+          actionLabel={search ? null : 'Import clients'}
+          onAction={search ? null : () => navigate('/clients/import')}
+        />
+      ) : filtered.length === 0 ? (
+        <EmptyState
+          icon="🔍"
+          title="No clients in this view"
+          subtitle={`Nothing matches ${FILTERS.find(f => f.id === filter)?.label || filter}${search ? ' and the current search' : ''}. Try a different filter.`}
+          actionLabel="Show all"
+          onAction={() => { setFilter('all'); setSearch(''); }}
         />
       ) : (
-        <div style={styles.list}>
-          {clients.map(c => (
-            <button
-              key={c.id}
-              onClick={() => loadClientDetail(c.id)}
-              style={{
-                ...styles.clientCard,
-                borderLeftColor: selected === c.id ? 'var(--accent)' : 'transparent'
-              }}
-            >
-              <div style={styles.clientAvatar}>
-                {(c.first_name?.[0] || '?').toUpperCase()}
-              </div>
-              <div style={styles.clientInfo}>
-                <span style={styles.clientName}>{c.first_name} {c.last_name || ''}</span>
-                <span style={styles.clientMeta}>{visitCount(c)} visits · Last: {lastVisit(c)}</span>
-              </div>
-              <span style={styles.chevron}>›</span>
-            </button>
-          ))}
+        <div style={{ ...styles.list, paddingBottom: selectMode && selectedIds.size > 0 ? 80 : 0 }}>
+          {filtered.map(c => {
+            const isChecked = selectedIds.has(c.id);
+            return (
+              <button
+                key={c.id}
+                onClick={() => selectMode ? toggleSelect(c.id) : loadClientDetail(c.id)}
+                style={{
+                  ...styles.clientCard,
+                  borderLeftColor: (selected === c.id || isChecked) ? 'var(--accent)' : 'transparent',
+                  background: isChecked ? 'var(--accent-light)' : 'var(--bg-card)',
+                }}
+              >
+                {selectMode && (
+                  <div style={{ ...styles.checkbox, background: isChecked ? 'var(--accent)' : 'transparent', borderColor: isChecked ? 'var(--accent)' : 'var(--border)' }}>
+                    {isChecked && <span style={styles.checkmark}>✓</span>}
+                  </div>
+                )}
+                <div style={styles.clientAvatar}>
+                  {(c.first_name?.[0] || '?').toUpperCase()}
+                </div>
+                <div style={styles.clientInfo}>
+                  <span style={styles.clientName}>{c.first_name} {c.last_name || ''}</span>
+                  <span style={styles.clientMeta}>{visitCount(c)} visits · Last: {lastVisit(c)}</span>
+                </div>
+                {!selectMode && <span style={styles.chevron}>›</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Floating action bar for multi-select */}
+      {selectMode && selectedIds.size > 0 && (
+        <div style={styles.actionBar}>
+          <span style={styles.actionCount}>{selectedIds.size} selected</span>
+          <button onClick={messageSelected} style={styles.actionBtnPrimary}>Message all</button>
         </div>
       )}
 
       {/* Client detail panel */}
-      {clientDetail && selected && (
+      {clientDetail && selected && !selectMode && (
         <ClientDetailPanel
           detail={clientDetail}
           onClose={() => { setSelected(null); setClientDetail(null); }}
@@ -259,9 +448,9 @@ export default function Clients() {
 
 /**
  * Enhanced client detail panel with tabs:
- * Overview — stats + tags + quick actions
- * History  — appointment timeline
- * Notes    — client notes + preferences
+ * Overview: stats + tags + quick actions
+ * History:  appointment timeline
+ * Notes:    client notes + preferences
  */
 function ClientDetailPanel({ detail, onClose, onNavigate }) {
   const [detailTab, setDetailTab] = useState('overview');
@@ -370,7 +559,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate }) {
                 <span style={styles.statLabel}>Spent</span>
               </div>
               <div style={styles.statBox}>
-                <span style={styles.statNum}>{client?.avg_rebooking_days || '—'}</span>
+                <span style={styles.statNum}>{client?.avg_rebooking_days || '...'}</span>
                 <span style={styles.statLabel}>Rebook days</span>
               </div>
             </div>
@@ -390,7 +579,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate }) {
               <span style={styles.aiInsightText}>
                 {healthLabel === 'Dormant' ? `${client?.first_name} hasn't been in for ${daysSinceVisit} days. Send a comeback message?`
                   : healthLabel === 'Cooling' ? `${client?.first_name}'s visits are slowing down. A rebook nudge might help.`
-                  : client?.total_visits >= 5 ? `${client?.first_name} is a loyal regular — ${client?.total_visits} visits. Consider a loyalty treat.`
+                  : client?.total_visits >= 5 ? `${client?.first_name} is a loyal regular, ${client?.total_visits} visits. Consider a loyalty treat.`
                   : `${client?.first_name} is building a habit. Keep the experience great.`}
               </span>
             </div>
@@ -523,6 +712,74 @@ const styles = {
   headerActions: { display: 'flex', gap: 8, alignItems: 'center' },
   exportBtn: { padding: '8px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   addBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent)', color: 'var(--bg-card)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  // Count summary
+  countRow: {
+    display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+    fontSize: 12, color: 'var(--text-muted)', marginBottom: 10,
+  },
+  countTotal: { fontWeight: 600, color: 'var(--text-secondary)' },
+  countActive: { color: 'var(--success, #5BA97B)', fontWeight: 600 },
+  countCooling: { color: 'var(--warning, #D4943A)', fontWeight: 600 },
+  countDormant: { color: 'var(--danger, #D4605C)', fontWeight: 600 },
+  countSep: { color: 'var(--text-muted)' },
+
+  // Filter chips + sort
+  controlsRow: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' },
+  chipsWrap: { display: 'flex', gap: 6, flexWrap: 'wrap', flex: 1, minWidth: 0, overflowX: 'auto' },
+  chip: {
+    padding: '6px 12px', borderRadius: 20,
+    border: '1px solid var(--border)',
+    fontSize: 12, fontWeight: 600, cursor: 'pointer',
+    fontFamily: 'inherit', whiteSpace: 'nowrap',
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    transition: 'background 0.15s, color 0.15s',
+  },
+  sortWrap: { position: 'relative', flexShrink: 0 },
+  sortBtn: {
+    padding: '6px 10px', borderRadius: 10,
+    border: '1px solid var(--border)', background: 'var(--bg-card)',
+    color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+  },
+  sortMenu: {
+    position: 'absolute', top: '110%', right: 0, zIndex: 50,
+    background: 'var(--bg-card)', borderRadius: 10,
+    boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+    minWidth: 180, padding: 4,
+  },
+  sortItem: {
+    display: 'block', width: '100%', textAlign: 'left',
+    padding: '8px 10px', borderRadius: 8, border: 'none',
+    fontSize: 13, fontFamily: 'inherit', cursor: 'pointer',
+  },
+
+  // Multi-select
+  checkbox: {
+    width: 22, height: 22, borderRadius: 6,
+    border: '2px solid var(--border)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+    transition: 'background 0.12s, border-color 0.12s',
+  },
+  checkmark: { color: '#fff', fontSize: 14, fontWeight: 700, lineHeight: 1 },
+
+  // Floating action bar
+  actionBar: {
+    position: 'fixed', bottom: 16, left: '50%', transform: 'translateX(-50%)',
+    width: 'calc(100% - 32px)', maxWidth: 448,
+    background: 'var(--bg-card)', borderRadius: 14,
+    padding: '10px 14px',
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    boxShadow: '0 6px 24px rgba(0,0,0,0.16)',
+    zIndex: 100,
+  },
+  actionCount: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
+  actionBtnPrimary: {
+    padding: '8px 16px', borderRadius: 10, border: 'none',
+    background: 'var(--accent)', color: '#fff',
+    fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+  },
+
   searchWrap: { position: 'relative', marginBottom: 14 },
   searchInput: { width: '100%', padding: '12px 36px 12px 14px', borderRadius: 12, border: '1.5px solid var(--border)', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: 'var(--bg-card)' },
   clearBtn: { position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', fontSize: 20, color: 'var(--text-muted)', cursor: 'pointer' },
