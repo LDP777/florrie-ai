@@ -1,11 +1,22 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useBeautician, insertRow, supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+
+function getToken() {
+  const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
+  if (!key) return null;
+  const raw = localStorage.getItem(key);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed?.access_token || parsed?.session?.access_token || raw;
+  } catch { return raw; }
+}
 
 /**
  * Clients: view, search, filter, sort, multi-select, add, and manage the client list.
@@ -39,6 +50,7 @@ function bucketFor(c) {
 export default function Clients() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { beautician, loading: bLoading } = useBeautician();
   const [clients, setClients] = useState([]);
   const [search, setSearch] = useState('');
@@ -56,6 +68,18 @@ export default function Clients() {
     first_name: '', last_name: '', phone: '', email: '', notes: ''
   });
   const [saving, setSaving] = useState(false);
+  const [undoing, setUndoing] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  // Just-imported filter, read from URL so a deep-link from the import flow
+  // keeps working after a refresh.
+  const justImportedBatchId = searchParams.get('just_imported') || null;
+  const justImportedAtRaw = searchParams.get('imported_at');
+  const justImportedAt = justImportedAtRaw ? new Date(justImportedAtRaw) : null;
+  const justImportedExpectedCount = parseInt(searchParams.get('count') || '0', 10) || null;
+  const undoWindowOpen = justImportedAt
+    ? (Date.now() - justImportedAt.getTime()) < 60 * 60 * 1000
+    : false;
 
   useEffect(() => {
     if (beautician) loadClients();
@@ -116,13 +140,20 @@ export default function Clients() {
   }
 
   // Apply filter chip + sort on top of the loaded list (client-side).
+  // The just-imported URL filter wins over the bucket chip so the user sees
+  // exactly what just landed.
   function applyFilterSort(list) {
     let out = list;
-    if (filter !== 'all') {
+    if (justImportedBatchId) {
+      out = out.filter(c => c.import_batch_id === justImportedBatchId);
+    } else if (filter !== 'all') {
       out = out.filter(c => bucketFor(c) === filter);
     }
     const sorted = [...out];
-    if (sort === 'az') {
+    if (justImportedBatchId) {
+      // Imported batch: newest first inside the batch.
+      sorted.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    } else if (sort === 'az') {
       sorted.sort((a, b) => `${a.first_name} ${a.last_name || ''}`.localeCompare(`${b.first_name} ${b.last_name || ''}`));
     } else if (sort === 'visits') {
       sorted.sort((a, b) => (b.total_visits || 0) - (a.total_visits || 0));
@@ -130,6 +161,48 @@ export default function Clients() {
       sorted.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
     } // 'recent' is already the default order from the query
     return sorted;
+  }
+
+  function clearJustImported() {
+    const next = new URLSearchParams(searchParams);
+    next.delete('just_imported');
+    next.delete('imported_at');
+    next.delete('count');
+    setSearchParams(next, { replace: true });
+  }
+
+  async function undoLastImport() {
+    if (!justImportedBatchId) return;
+    const expected = justImportedExpectedCount || filtered.length;
+    if (!window.confirm(`Permanently remove ${expected} ${expected === 1 ? 'client' : 'clients'}?`)) return;
+
+    setUndoing(true);
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE}/api/migrate/undo`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ batch_id: justImportedBatchId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Could not undo the import');
+        setUndoing(false);
+        return;
+      }
+      setToast(`Import undone. ${data.undone || 0} ${data.undone === 1 ? 'client' : 'clients'} removed.`);
+      setTimeout(() => setToast(null), 4000);
+      clearJustImported();
+      await loadClients();
+    } catch (err) {
+      logger.error('Undo error:', err);
+      setError('Could not reach the server to undo this import.');
+    } finally {
+      setUndoing(false);
+    }
   }
 
   function toggleSelect(id) {
@@ -261,8 +334,35 @@ export default function Clients() {
         </div>
       </div>
 
+      {/* Just-imported banner: shown above the list whenever a batch_id is in the URL */}
+      {justImportedBatchId && (
+        <div style={styles.justImportedBanner}>
+          <div style={styles.justImportedTitle}>
+            {filtered.length || justImportedExpectedCount || 0} just landed
+          </div>
+          <div style={styles.justImportedSub}>Tap any to add notes or correct mistakes.</div>
+          <div style={styles.justImportedActions}>
+            <button onClick={clearJustImported} style={styles.bannerLinkBtn}>Show all clients</button>
+            {undoWindowOpen && (
+              <button
+                onClick={undoLastImport}
+                disabled={undoing}
+                style={{ ...styles.bannerLinkBtn, color: 'var(--danger, #D4605C)' }}
+              >
+                {undoing ? 'Undoing...' : 'Undo this import'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Toast for undo confirmation */}
+      {toast && (
+        <div style={styles.toast}>{toast}</div>
+      )}
+
       {/* Count summary across the full loaded list */}
-      {clients.length > 0 && (
+      {clients.length > 0 && !justImportedBatchId && (
         <div style={styles.countRow}>
           <span style={styles.countTotal}>{clients.length} total</span>
           <span style={styles.countSep}>·</span>
@@ -416,7 +516,10 @@ export default function Clients() {
                   {(c.first_name?.[0] || '?').toUpperCase()}
                 </div>
                 <div style={styles.clientInfo}>
-                  <span style={styles.clientName}>{c.first_name} {c.last_name || ''}</span>
+                  <span style={styles.clientName}>
+                    {c.first_name} {c.last_name || ''}
+                    {c.imported_from && <span style={styles.importedChip}>imported</span>}
+                  </span>
                   <span style={styles.clientMeta}>{visitCount(c)} visits · Last: {lastVisit(c)}</span>
                 </div>
                 {!selectMode && <span style={styles.chevron}>›</span>}
@@ -886,4 +989,68 @@ const styles = {
   prefIcon: { fontSize: 16, flexShrink: 0 },
   prefText: { fontSize: 13, color: 'var(--text-secondary)' },
   clientSince: { textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', paddingTop: 8 },
+
+  // Just-imported banner
+  justImportedBanner: {
+    background: 'var(--accent-light, #FFF0F3)',
+    borderRadius: 12,
+    padding: '12px 14px',
+    marginBottom: 12,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 4,
+  },
+  justImportedTitle: {
+    fontSize: 14,
+    fontWeight: 700,
+    color: 'var(--accent, #C76B8A)',
+  },
+  justImportedSub: {
+    fontSize: 12,
+    color: 'var(--text-secondary, #8B6F5E)',
+    lineHeight: 1.4,
+  },
+  justImportedActions: {
+    display: 'flex',
+    gap: 14,
+    marginTop: 6,
+  },
+  bannerLinkBtn: {
+    background: 'none',
+    border: 'none',
+    padding: 0,
+    color: 'var(--accent, #C76B8A)',
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    textDecoration: 'underline',
+  },
+  importedChip: {
+    display: 'inline-block',
+    marginLeft: 6,
+    padding: '1px 6px',
+    borderRadius: 4,
+    fontSize: 9,
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.04em',
+    background: 'var(--accent-light, #FFF0F3)',
+    color: 'var(--accent, #C76B8A)',
+    verticalAlign: 'middle',
+  },
+  toast: {
+    position: 'fixed',
+    bottom: 80,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    background: 'var(--text-primary, #2D2A26)',
+    color: '#fff',
+    padding: '10px 16px',
+    borderRadius: 10,
+    fontSize: 13,
+    fontWeight: 500,
+    zIndex: 300,
+    boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+  },
 };

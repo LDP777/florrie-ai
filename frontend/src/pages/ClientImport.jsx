@@ -1,24 +1,28 @@
 import { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 import { useBeautician } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 
 /**
- * Client Import: one-click migration from Fresha, Timely, Vagaro, or any CSV.
+ * Client Import: one-click migration from Fresha, Timely, Vagaro, or any CSV/XLSX.
  *
  * Flow:
  *   1. User picks platform (or "other")
- *   2. User uploads ONE file
- *   3. Backend auto-detects format, returns preview
- *   4. User sees summary → presses "Import everything"
- *   5. Done. All clients, treatments, and appointments land in Florrie.
+ *   2. User uploads ONE file (csv, tsv, xls, xlsx)
+ *   3. Backend auto-detects format, returns preview with warnings + skipped counts
+ *   4. User can inline-edit any row before importing
+ *   5. After import, user lands on /clients?just_imported=<batch_id>
  *
- * This is the #1 onboarding selling point: "Switch in 60 seconds."
+ * XLSX is decoded in the browser via SheetJS, converted to CSV, then sent
+ * through the existing /api/migrate/preview endpoint. This avoids a separate
+ * multipart route on the backend.
  */
 
 const PLATFORMS = [
-  { id: 'fresha', name: 'Fresha', icon: '💜', desc: 'Export → Clients → Download CSV' },
-  { id: 'timely', name: 'GetTimely', icon: '⏱️', desc: 'Reports → Clients → Export' },
-  { id: 'vagaro', name: 'Vagaro', icon: '💅', desc: 'Customers → Export List' },
+  { id: 'fresha', name: 'Fresha', icon: '💜', desc: 'Export, Clients, Download CSV' },
+  { id: 'timely', name: 'GetTimely', icon: '⏱️', desc: 'Reports, Clients, Export' },
+  { id: 'vagaro', name: 'Vagaro', icon: '💅', desc: 'Customers, Export List' },
   { id: 'other', name: 'Other / CSV', icon: '📄', desc: 'Any spreadsheet or CSV file' },
 ];
 
@@ -34,8 +38,38 @@ function getToken() {
   } catch { return raw; }
 }
 
+/**
+ * Read a file as ArrayBuffer for XLSX, or text for CSV.
+ */
+function readFile(file, asArrayBuffer) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target.result);
+    reader.onerror = () => reject(new Error('Could not read the file'));
+    if (asArrayBuffer) reader.readAsArrayBuffer(file);
+    else reader.readAsText(file);
+  });
+}
+
+/**
+ * Convert an XLSX arrayBuffer to CSV text. Picks the first sheet that has rows.
+ */
+function xlsxToCsv(arrayBuffer) {
+  const wb = XLSX.read(arrayBuffer, { type: 'array' });
+  // First sheet with any rows wins.
+  let sheetName = wb.SheetNames[0];
+  for (const name of wb.SheetNames) {
+    const sheet = wb.Sheets[name];
+    const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1:A1');
+    if (range.e.r > 0) { sheetName = name; break; }
+  }
+  const sheet = wb.Sheets[sheetName];
+  return XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
+}
+
 export default function ClientImport() {
   const { beautician } = useBeautician();
+  const navigate = useNavigate();
   const fileRef = useRef(null);
 
   const [step, setStep] = useState('platform'); // platform | uploading | preview | importing | done
@@ -44,6 +78,8 @@ export default function ClientImport() {
   const [csvText, setCsvText] = useState('');
   const [error, setError] = useState(null);
   const [importResult, setImportResult] = useState(null);
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [removedIdx, setRemovedIdx] = useState(new Set());
 
   function pickPlatform(platformId) {
     setSelectedPlatform(platformId);
@@ -59,44 +95,82 @@ export default function ClientImport() {
     setStep('uploading');
     setError(null);
 
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const text = ev.target.result;
-      setCsvText(text);
+    const name = file.name.toLowerCase();
+    const isXlsx = name.endsWith('.xlsx') || name.endsWith('.xls');
 
-      try {
-        const token = getToken();
-        const res = await fetch(`${API_BASE}/api/migrate/preview`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ csv: text }),
-        });
-
-        const data = await res.json();
-        if (!res.ok) {
-          setError(data.error || 'Could not parse the file');
+    try {
+      let text;
+      if (isXlsx) {
+        const buf = await readFile(file, true);
+        text = xlsxToCsv(buf);
+        if (!text || text.trim().split('\n').length < 2) {
+          setError('That spreadsheet looks empty. Try the file with your client list.');
           setStep('platform');
+          e.target.value = '';
           return;
         }
-
-        setPreview(data);
-        setStep('preview');
-      } catch (err) {
-        setError('Network error. Check your connection.');
-        setStep('platform');
+      } else {
+        text = await readFile(file, false);
       }
-    };
-    reader.readAsText(file);
-    // Reset input so same file can be re-selected
-    e.target.value = '';
+
+      setCsvText(text);
+
+      const token = getToken();
+      const res = await fetch(`${API_BASE}/api/migrate/preview`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ csv: text }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Could not parse the file');
+        setStep('platform');
+        return;
+      }
+
+      setPreview(data);
+      setRemovedIdx(new Set());
+      setEditingIndex(null);
+      setStep('preview');
+    } catch (err) {
+      setError(err.message || 'Network error. Check your connection.');
+      setStep('platform');
+    } finally {
+      // Reset input so same file can be re-selected
+      e.target.value = '';
+    }
+  }
+
+  function updateClient(i, patch) {
+    setPreview(prev => {
+      if (!prev) return prev;
+      const next = { ...prev, clients: prev.clients.map((c, idx) => idx === i ? { ...c, ...patch } : c) };
+      return next;
+    });
+  }
+
+  function removeClient(i) {
+    setRemovedIdx(prev => {
+      const next = new Set(prev);
+      next.add(i);
+      return next;
+    });
+    if (editingIndex === i) setEditingIndex(null);
   }
 
   async function executeImport() {
     setStep('importing');
     setError(null);
+
+    // Build the final clients list from the (possibly edited) preview state,
+    // dropping any rows the user removed. Send pre-parsed so edits stick.
+    const finalClients = preview.clients
+      .map((c, i) => removedIdx.has(i) ? null : c)
+      .filter(Boolean);
 
     try {
       const token = getToken();
@@ -106,7 +180,12 @@ export default function ClientImport() {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ csv: csvText }),
+        body: JSON.stringify({
+          clients: finalClients,
+          treatments: preview.treatments || [],
+          appointments: preview.appointments || [],
+          platform: preview.platform || 'csv',
+        }),
       });
 
       const data = await res.json();
@@ -117,6 +196,13 @@ export default function ClientImport() {
       }
 
       setImportResult(data);
+
+      // If we got a batch ID, hop straight to the filtered Clients view so the
+      // user sees what landed and can edit or undo immediately.
+      if (data.batch_id) {
+        navigate(`/clients?just_imported=${encodeURIComponent(data.batch_id)}&imported_at=${encodeURIComponent(data.imported_at || new Date().toISOString())}&count=${data.imported?.clients || 0}`);
+        return;
+      }
       setStep('done');
     } catch (err) {
       setError('Network error during import');
@@ -131,6 +217,8 @@ export default function ClientImport() {
     setCsvText('');
     setError(null);
     setImportResult(null);
+    setEditingIndex(null);
+    setRemovedIdx(new Set());
   }
 
   const platformLabel = PLATFORMS.find(p => p.id === selectedPlatform)?.name || 'your file';
@@ -139,9 +227,18 @@ export default function ClientImport() {
     ? detected.charAt(0).toUpperCase() + detected.slice(1)
     : null;
 
-  const totalItems = preview
-    ? (preview.summary.clients + preview.summary.treatments + preview.summary.appointments)
+  const liveClientCount = preview
+    ? preview.clients.filter((_, i) => !removedIdx.has(i)).length
     : 0;
+  const totalItems = preview
+    ? (liveClientCount + (preview.summary.treatments || 0) + (preview.summary.appointments || 0))
+    : 0;
+
+  // Build a "skipped" summary line if the parser gave us counts.
+  const skippedBits = [];
+  if (preview?.skipped?.no_name) skippedBits.push(`${preview.skipped.no_name} had no name`);
+  if (preview?.skipped?.duplicate_in_file) skippedBits.push(`${preview.skipped.duplicate_in_file} ${preview.skipped.duplicate_in_file === 1 ? 'was a duplicate of an earlier row' : 'were duplicates of earlier rows'} in your file`);
+  const skippedTotal = (preview?.skipped?.no_name || 0) + (preview?.skipped?.duplicate_in_file || 0);
 
   return (
     <div style={styles.page}>
@@ -167,7 +264,7 @@ export default function ClientImport() {
         </div>
       )}
 
-      {/* ── STEP 1: Platform picker ── */}
+      {/* STEP 1: Platform picker */}
       {step === 'platform' && (
         <>
           <p style={styles.intro}>
@@ -196,10 +293,10 @@ export default function ClientImport() {
           {/* How to export guides */}
           <div style={styles.helpCard}>
             <div style={styles.helpTitle}>How to export from your current system</div>
-            <div style={styles.helpStep}><strong>Fresha:</strong> Clients → ⋯ menu → Export → Download CSV</div>
-            <div style={styles.helpStep}><strong>GetTimely:</strong> Settings → Account → Data exports → Clients → CSV</div>
-            <div style={styles.helpStep}><strong>Vagaro:</strong> Customers → All Customers → Export</div>
-            <div style={styles.helpStep}><strong>Other:</strong> Export a CSV with names, phones, and emails</div>
+            <div style={styles.helpStep}><strong>Fresha:</strong> Clients, ⋯ menu, Export, Download CSV</div>
+            <div style={styles.helpStep}><strong>GetTimely:</strong> Settings, Account, Data exports, Clients, CSV</div>
+            <div style={styles.helpStep}><strong>Vagaro:</strong> Customers, All Customers, Export</div>
+            <div style={styles.helpStep}><strong>Other:</strong> Export a CSV or Excel file with names, phones, and emails</div>
           </div>
 
           {/* Manual paste fallback */}
@@ -209,10 +306,10 @@ export default function ClientImport() {
         </>
       )}
 
-      {/* ── STEP: Manual paste ── */}
-      {step === 'manual' && <ManualPaste beautician={beautician} onDone={(result) => { setImportResult(result); setStep('done'); }} onBack={reset} />}
+      {/* STEP: Manual paste */}
+      {step === 'manual' && <ManualPaste beautician={beautician} navigate={navigate} onDone={(result) => { setImportResult(result); setStep('done'); }} onBack={reset} />}
 
-      {/* ── STEP 2: Uploading / parsing ── */}
+      {/* STEP 2: Uploading / parsing */}
       {step === 'uploading' && (
         <div style={styles.centreCard}>
           <div style={styles.spinner} />
@@ -221,7 +318,7 @@ export default function ClientImport() {
         </div>
       )}
 
-      {/* ── STEP 3: Preview ── */}
+      {/* STEP 3: Preview */}
       {step === 'preview' && preview && (
         <div style={styles.previewContainer}>
           {/* Detection badge */}
@@ -251,10 +348,10 @@ export default function ClientImport() {
 
           {/* Summary cards */}
           <div style={styles.summaryGrid}>
-            {preview.summary.clients > 0 && (
+            {liveClientCount > 0 && (
               <div style={styles.summaryCard}>
                 <span style={styles.summaryIcon}>👤</span>
-                <span style={styles.summaryNum}>{preview.summary.clients}</span>
+                <span style={styles.summaryNum}>{liveClientCount}</span>
                 <span style={styles.summaryLabel}>Clients</span>
               </div>
             )}
@@ -274,23 +371,72 @@ export default function ClientImport() {
             )}
           </div>
 
-          {/* Client preview list */}
+          {/* Client preview list (editable) */}
           {preview.clients.length > 0 && (
             <div style={styles.previewSection}>
-              <div style={styles.sectionTitle}>Client preview</div>
+              <div style={styles.sectionTitle}>Client preview · tap to edit</div>
               <div style={styles.previewList}>
-                {preview.clients.slice(0, 8).map((c, i) => (
-                  <div key={i} style={styles.previewRow}>
-                    <div style={styles.avatar}>{(c.first_name?.[0] || '?').toUpperCase()}</div>
-                    <div style={{ flex: 1 }}>
-                      <div style={styles.clientName}>{c.first_name} {c.last_name}</div>
-                      <div style={styles.clientMeta}>{c.phone || c.email || 'No contact info'}</div>
+                {preview.clients.map((c, i) => {
+                  if (removedIdx.has(i)) return null;
+                  const isEditing = editingIndex === i;
+                  return (
+                    <div key={i} style={styles.previewRow}>
+                      {isEditing ? (
+                        <div style={styles.editGrid}>
+                          <div style={styles.editRowTop}>
+                            <div style={styles.avatar}>{(c.first_name?.[0] || '?').toUpperCase()}</div>
+                            <button
+                              onClick={() => removeClient(i)}
+                              style={styles.removeBtn}
+                              aria-label="Remove this client from the import"
+                            >Remove</button>
+                          </div>
+                          <div style={styles.editPair}>
+                            <input
+                              value={c.first_name || ''}
+                              onChange={e => updateClient(i, { first_name: e.target.value })}
+                              placeholder="First name"
+                              style={styles.editInput}
+                            />
+                            <input
+                              value={c.last_name || ''}
+                              onChange={e => updateClient(i, { last_name: e.target.value })}
+                              placeholder="Last name"
+                              style={styles.editInput}
+                            />
+                          </div>
+                          <input
+                            value={c.phone || ''}
+                            onChange={e => updateClient(i, { phone: e.target.value })}
+                            placeholder="Phone"
+                            type="tel"
+                            style={styles.editInput}
+                          />
+                          <input
+                            value={c.email || ''}
+                            onChange={e => updateClient(i, { email: e.target.value })}
+                            placeholder="Email"
+                            type="email"
+                            style={styles.editInput}
+                          />
+                          <button onClick={() => setEditingIndex(null)} style={styles.doneBtn}>Done</button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setEditingIndex(i)}
+                          style={styles.previewRowBtn}
+                        >
+                          <div style={styles.avatar}>{(c.first_name?.[0] || '?').toUpperCase()}</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={styles.clientName}>{c.first_name} {c.last_name}</div>
+                            <div style={styles.clientMeta}>{c.phone || c.email || 'No contact info'}</div>
+                          </div>
+                          <span style={styles.pencil} aria-hidden>✎</span>
+                        </button>
+                      )}
                     </div>
-                  </div>
-                ))}
-                {preview.clients.length > 8 && (
-                  <div style={styles.moreLabel}>+ {preview.clients.length - 8} more</div>
-                )}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -313,6 +459,13 @@ export default function ClientImport() {
             </div>
           )}
 
+          {/* Skipped-row footer */}
+          {skippedTotal > 0 && (
+            <div style={styles.skippedFooter}>
+              {skippedTotal} {skippedTotal === 1 ? 'row' : 'rows'} skipped: {skippedBits.join(', ')}.
+            </div>
+          )}
+
           {/* CTA */}
           <button
             onClick={executeImport}
@@ -325,7 +478,7 @@ export default function ClientImport() {
         </div>
       )}
 
-      {/* ── STEP 4: Importing ── */}
+      {/* STEP 4: Importing */}
       {step === 'importing' && (
         <div style={styles.centreCard}>
           <div style={styles.spinner} />
@@ -334,7 +487,7 @@ export default function ClientImport() {
         </div>
       )}
 
-      {/* ── STEP 5: Done ── */}
+      {/* STEP 5: Done (fallback path when there's no batch_id, e.g. manual paste) */}
       {step === 'done' && importResult && (
         <div style={styles.doneCard}>
           <span style={styles.doneEmoji}>🎉</span>
@@ -384,7 +537,7 @@ export default function ClientImport() {
 /**
  * Manual paste sub-component. Paste names from notes/contacts.
  */
-function ManualPaste({ beautician, onDone, onBack }) {
+function ManualPaste({ beautician, navigate, onDone, onBack }) {
   const [text, setText] = useState('');
   const [importing, setImporting] = useState(false);
 
@@ -418,6 +571,10 @@ function ManualPaste({ beautician, onDone, onBack }) {
         body: JSON.stringify({ clients, platform: 'manual' }),
       });
       const data = await res.json();
+      if (data.batch_id && navigate) {
+        navigate(`/clients?just_imported=${encodeURIComponent(data.batch_id)}&imported_at=${encodeURIComponent(data.imported_at || new Date().toISOString())}&count=${data.imported?.clients || 0}`);
+        return;
+      }
       onDone(data);
     } catch {
       setImporting(false);
@@ -557,11 +714,18 @@ const styles = {
   previewList: {
     background: 'var(--bg-card, #fff)', borderRadius: 14,
     padding: '4px 14px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+    maxHeight: 360, overflowY: 'auto',
   },
   previewRow: {
-    display: 'flex', alignItems: 'center', gap: 10,
-    padding: '10px 0',
+    display: 'flex', alignItems: 'stretch', gap: 10,
+    padding: '8px 0',
     borderBottom: '1px solid var(--bg-hover, #F5F2EF)',
+  },
+  previewRowBtn: {
+    display: 'flex', alignItems: 'center', gap: 10,
+    flex: 1, border: 'none', background: 'transparent',
+    padding: 0, textAlign: 'left', cursor: 'pointer',
+    fontFamily: 'inherit',
   },
   avatar: {
     width: 32, height: 32, borderRadius: 16,
@@ -571,7 +735,31 @@ const styles = {
   },
   clientName: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
   clientMeta: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)', marginTop: 1 },
-  moreLabel: { textAlign: 'center', fontSize: 12, color: 'var(--accent, #C76B8A)', padding: '10px 0' },
+  pencil: { fontSize: 14, color: 'var(--text-muted, #B5AFA8)', flexShrink: 0, paddingLeft: 4 },
+
+  // Inline-edit state
+  editGrid: {
+    display: 'flex', flexDirection: 'column', gap: 8,
+    width: '100%', padding: '4px 0',
+  },
+  editRowTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+  editPair: { display: 'flex', gap: 8 },
+  editInput: {
+    flex: 1, padding: '8px 10px', borderRadius: 8,
+    border: '1.5px solid var(--border, #EDE9E4)',
+    fontSize: 13, fontFamily: 'inherit', outline: 'none',
+    boxSizing: 'border-box',
+  },
+  removeBtn: {
+    padding: '4px 10px', borderRadius: 8, border: 'none',
+    background: 'var(--danger-bg, #FDF0EF)', color: 'var(--danger, #D4605C)',
+    fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+  },
+  doneBtn: {
+    padding: '8px 0', borderRadius: 8, border: 'none',
+    background: 'var(--accent-light, #FFF0F3)', color: 'var(--accent, #C76B8A)',
+    fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+  },
 
   chipGrid: { display: 'flex', flexWrap: 'wrap', gap: 6 },
   chip: {
@@ -581,6 +769,11 @@ const styles = {
     display: 'flex', alignItems: 'center', gap: 6,
   },
   chipPrice: { color: 'var(--text-muted, #B5AFA8)', fontWeight: 400 },
+
+  skippedFooter: {
+    fontSize: 11, color: 'var(--text-muted, #B5AFA8)',
+    padding: '4px 4px 0', lineHeight: 1.5,
+  },
 
   importBtn: {
     display: 'block', width: '100%', padding: '16px 0', borderRadius: 14,

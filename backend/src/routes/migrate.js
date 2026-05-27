@@ -5,6 +5,7 @@
  * POST /api/migrate/execute  , bulk insert clients + treatments + appointments
  */
 import { Router } from 'express';
+import crypto from 'crypto';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { parseMigrationFile } from '../services/migration-parser.js';
@@ -65,6 +66,10 @@ router.post('/execute', requireAuth, async (req, res) => {
   const beauticianId = req.beautician.id;
   let clients, treatments, appointments, platform;
 
+  // One batch ID per import call. Tagged on every inserted client row so we
+  // can offer "undo last import" inside a short window after the call.
+  const batchId = crypto.randomUUID();
+
   // Accept either raw CSV or pre-parsed data
   if (req.body.csv) {
     const parsed = parseMigrationFile(req.body.csv);
@@ -85,6 +90,7 @@ router.post('/execute', requireAuth, async (req, res) => {
   }
 
   const errors = [];
+  const skipped = [];
   const imported = { clients: 0, treatments: 0, appointments: 0 };
 
   try {
@@ -111,10 +117,11 @@ router.post('/execute', requireAuth, async (req, res) => {
       });
 
       let skippedDup = 0;
+      let skippedNoName = 0;
       const fresh = [];
       for (const c of clients) {
         const first = (c.first_name || '').trim().substring(0, 100);
-        if (!first) continue;
+        if (!first) { skippedNoName++; continue; }
         const last = (c.last_name || '').trim().substring(0, 100);
         const email = (c.email || '').trim().toLowerCase().substring(0, 255);
         const rawPhone = (c.phone || '').trim().substring(0, 30);
@@ -140,10 +147,14 @@ router.post('/execute', requireAuth, async (req, res) => {
           phone: rawPhone || null,
           notes: c.notes ? String(c.notes).substring(0, 2000) : null,
           imported_from: platform || 'csv',
+          import_batch_id: batchId,
           external_id: c.external_id ? String(c.external_id).substring(0, 100) : null,
           status: 'active',
         });
       }
+
+      if (skippedNoName > 0) skipped.push({ reason: 'no_name', count: skippedNoName });
+      if (skippedDup > 0) skipped.push({ reason: 'duplicate', count: skippedDup });
 
       // Plain insert in batches. A single row failure won't kill the batch
       // because we already filtered duplicates. Anything that still fails
@@ -332,17 +343,91 @@ router.post('/execute', requireAuth, async (req, res) => {
       }
     }
 
-    logger.info({ beauticianId, imported, platform }, 'Migration complete');
+    logger.info({ beauticianId, imported, platform, batchId }, 'Migration complete');
 
     res.json({
       success: true,
       platform,
       imported,
+      batch_id: batchId,
+      imported_at: new Date().toISOString(),
+      skipped: skipped.length ? skipped : undefined,
       errors: errors.length ? errors : undefined,
     });
   } catch (err) {
     logger.error({ err }, 'Migration execution failed');
     res.status(500).json({ error: 'Migration failed , your existing data is safe' });
+  }
+});
+
+/**
+ * POST /api/migrate/undo
+ * Body: { batch_id }
+ *
+ * Removes every client (and their dependent rows) tagged with the given
+ * import_batch_id, scoped to the authenticated beautician. Only allowed for
+ * batches created within the last hour to avoid stale undo offers.
+ *
+ * Returns: { undone: <count> }
+ */
+router.post('/undo', requireAuth, async (req, res) => {
+  const beauticianId = req.beautician.id;
+  const { batch_id } = req.body || {};
+
+  if (!batch_id || typeof batch_id !== 'string') {
+    return res.status(400).json({ error: 'batch_id is required' });
+  }
+
+  try {
+    // Pull every client in the batch, plus its created_at so we can enforce
+    // the 1-hour window. RLS-safe because we filter on beautician_id directly.
+    const { data: rows, error: lookupErr } = await supabase
+      .from('clients')
+      .select('id, created_at')
+      .eq('beautician_id', beauticianId)
+      .eq('import_batch_id', batch_id);
+
+    if (lookupErr) {
+      logger.error({ err: lookupErr, batch_id }, 'Undo lookup failed');
+      return res.status(500).json({ error: 'Could not look up the import batch' });
+    }
+
+    if (!rows || rows.length === 0) {
+      return res.json({ undone: 0 });
+    }
+
+    // 1-hour staleness check based on the oldest row in the batch.
+    const oldest = rows.reduce((min, r) => {
+      const t = new Date(r.created_at).getTime();
+      return t < min ? t : min;
+    }, Date.now());
+    if (Date.now() - oldest > 60 * 60 * 1000) {
+      return res.status(410).json({ error: 'Undo window expired. Delete clients manually if needed.' });
+    }
+
+    // The clients table has ON DELETE CASCADE for appointments, messages,
+    // client_intelligence, ai_actions, voice_notes, photo_consents, patch_tests,
+    // consultations, loyalty_points, client_packages, etc. So a single delete
+    // here propagates. Tables with ON DELETE SET NULL (transactions,
+    // payment_links, referrals) keep their record but null out client_id,
+    // which is the right call for accounting history.
+    const { error: delErr, count } = await supabase
+      .from('clients')
+      .delete({ count: 'exact' })
+      .eq('beautician_id', beauticianId)
+      .eq('import_batch_id', batch_id);
+
+    if (delErr) {
+      logger.error({ err: delErr, batch_id }, 'Undo client delete failed');
+      return res.status(500).json({ error: 'Could not undo the import' });
+    }
+
+    const undone = count ?? rows.length;
+    logger.info({ beauticianId, batch_id, undone }, 'Migration undone');
+    res.json({ undone });
+  } catch (err) {
+    logger.error({ err }, 'Undo failed');
+    res.status(500).json({ error: 'Undo failed' });
   }
 });
 

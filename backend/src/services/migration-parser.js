@@ -507,6 +507,7 @@ export function extractAppointments(headers, rows, platform) {
 export function parseMigrationFile(csvText) {
   const { headers, rows } = parseCSVProper(csvText);
   const warnings = [];
+  const skipped = { no_name: 0, duplicate_in_file: 0 };
 
   if (!headers.length || !rows.length) {
     return { error: 'Could not parse the file. Make sure it has headers and data.' };
@@ -528,7 +529,26 @@ export function parseMigrationFile(csvText) {
 
   // Extract based on file type
   if (detection.fileType === 'clients') {
-    result.clients = extractClients(headers, rows, detection.platform);
+    const raw = extractClients(headers, rows, detection.platform);
+    skipped.no_name = rows.length - raw.length;
+
+    // In-file dedup so the preview count matches what will actually land.
+    const seenEmail = new Set();
+    const seenPhone = new Set();
+    const seenNameKey = new Set();
+    for (const c of raw) {
+      const email = (c.email || '').toLowerCase();
+      const phoneDigits = (c.phone || '').replace(/\D/g, '');
+      const nameKey = `${(c.first_name || '').toLowerCase()}|${(c.last_name || '').toLowerCase()}`;
+      if (email && seenEmail.has(email)) { skipped.duplicate_in_file++; continue; }
+      if (phoneDigits && seenPhone.has(phoneDigits)) { skipped.duplicate_in_file++; continue; }
+      if (!email && !phoneDigits && seenNameKey.has(nameKey)) { skipped.duplicate_in_file++; continue; }
+      if (email) seenEmail.add(email);
+      if (phoneDigits) seenPhone.add(phoneDigits);
+      seenNameKey.add(nameKey);
+      result.clients.push(c);
+    }
+
     if (result.clients.length === 0 && rows.length > 0) {
       warnings.push(`Read ${rows.length} rows but no client names came through. Header row is: ${headers.slice(0, 6).join(', ')}${headers.length > 6 ? '...' : ''}. Make sure the export has a First Name column.`);
     }
@@ -559,6 +579,15 @@ export function parseMigrationFile(csvText) {
     }
   }
 
+  // Generic-platform fallback warnings: help the user spot a wrong export.
+  if (detection.platform === 'generic') {
+    if (result.clients.length === 0 && result.appointments.length > 0) {
+      warnings.push(`This looks like an appointment schedule. To migrate clients, export the Customers list instead.`);
+    } else if (result.clients.length === 0 && rows.length > 0) {
+      warnings.push(`Your file was read but no client-shaped columns were found. Make sure you exported the Clients or Customers list (not a Bookings or Reports file).`);
+    }
+  }
+
   result.summary = {
     clients: result.clients.length,
     treatments: result.treatments.length,
@@ -566,6 +595,7 @@ export function parseMigrationFile(csvText) {
   };
 
   if (warnings.length) result.warnings = warnings;
+  if (skipped.no_name || skipped.duplicate_in_file) result.skipped = skipped;
 
   return result;
 }
