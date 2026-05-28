@@ -454,12 +454,17 @@ function BottomNav({ current, session }) {
         <NavTab key={tab.path} tab={tab} onNav={() => navigate(tab.path)} />
       ))}
 
-      {/* Decorative centre petal , no tap behaviour. */}
-      <div aria-hidden="true" style={styles.navPetalWrap}>
+      {/* Centre petal: tap = jump home to Today. Brand AND quick-home in one. */}
+      <button
+        type="button"
+        aria-label="Go to Today"
+        onClick={() => navigate('/today')}
+        style={styles.navPetalWrap}
+      >
         <div style={styles.navPetal}>
           <img src="/florrie-petal.svg" alt="" style={{ width: 22, height: 22, filter: 'brightness(0) invert(1)' }} />
         </div>
-      </div>
+      </button>
 
       {rightTabs.map(tab => (
         <NavTab key={tab.path} tab={tab} onNav={() => navigate(tab.path)} />
@@ -620,7 +625,11 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    pointerEvents: 'none',
+    background: 'transparent',
+    border: 'none',
+    padding: 0,
+    cursor: 'pointer',
+    WebkitTapHighlightColor: 'transparent',
   },
   navPetal: {
     width: 40,
