@@ -3,6 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useBeautician } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import ActivityFeed from '../components/ActivityFeed.jsx';
+import SuggestionCards from '../components/SuggestionCards.jsx';
+import MorningCatchup from '../components/MorningCatchup.jsx';
 
 const CalendarView = lazy(() => import('./CalendarView.jsx'));
 const SmartSchedule = lazy(() => import('./SmartSchedule.jsx'));
@@ -70,6 +72,9 @@ export default function Hub() {
 
   return (
     <div style={S.page}>
+      {/* Morning catch-up bottom sheet, only fires before 10am and once per day */}
+      <MorningCatchup beautician={beautician} />
+
       {/* 1. Greeting + date pill */}
       <header style={S.header}>
         <h1 style={S.greeting}>{greeting}, {name}</h1>
@@ -98,6 +103,9 @@ export default function Hub() {
         <>
           {/* Today summary , the hero card */}
           <TodaySummary beautician={beautician} onNav={navigate} />
+
+          {/* Florrie suggestions , Day 4 wow moment */}
+          <SuggestionCards />
 
           {/* Activity feed , the proof of work */}
           <ActivityFeed limit={50} />
