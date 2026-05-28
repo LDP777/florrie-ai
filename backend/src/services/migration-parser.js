@@ -52,24 +52,35 @@ const PLATFORM_SIGNATURES = {
   },
 
   timely: {
-    // GetTimely / Timely uses many shapes. The "Customer list" report ships as
-    // customers.csv with headers like FirstName, LastName, Mobile, Email,
-    // CompanyName, SMS Number, Date of Birth, VIP, Last Visit, Total Spend.
-    // The customer import template uses FirstName / LastName / SMS Number.
-    // Older exports use "First Name" / "Last Name" / "Phone Number".
+    // GetTimely / Timely has several real export shapes.
+    //
+    // 1) "Customer overview" report (the file Ellie actually uses):
+    //    Full name, Mobile, Phone, Email address, Address 1, Address 2, Suburb,
+    //    Last appt. date, Date added, # of appts., Date of birth
+    //
+    // 2) "Customer list" CSV: FirstName, LastName, Mobile, Email, CompanyName,
+    //    SMS Number, Date of Birth, VIP, Last Visit, Total Spend
+    //
+    // 3) Customer import template: FirstName / LastName / SMS Number
+    //
+    // 4) Older exports: "First Name" / "Last Name" / "Phone Number"
+    //
     // We list every variant so detection survives whichever shape comes in.
-    required: ['firstname', 'first name', 'sms number', 'phone number'],
-    bonus: ['vip', 'date of birth', 'lastvisit', 'last visit', 'companyname', 'timely', 'gettimely'],
+    required: ['full name', 'firstname', 'first name', 'sms number', 'phone number', 'last appt. date', '# of appts.'],
+    bonus: ['vip', 'date of birth', 'lastvisit', 'last visit', 'companyname', 'timely', 'gettimely', 'date added', 'suburb', 'address 1'],
     clientMap: {
-      first_name: ['firstname', 'first name', 'name'],
+      first_name: ['firstname', 'first name', 'full name', 'name'],
       last_name: ['lastname', 'last name', 'surname'],
-      email: ['email', 'email address'],
-      phone: ['sms number', 'mobile', 'mobile number', 'phone number', 'phone'],
+      email: ['email address', 'email'],
+      phone: ['mobile', 'sms number', 'mobile number', 'phone number', 'phone'],
       notes: ['notes', 'comments', 'client notes'],
       dob: ['date of birth', 'dob', 'birthday'],
       vip: ['vip'],
       gender: ['gender', 'pronouns'],
       external_id: ['customer id', 'client id', 'id'],
+      total_visits: ['# of appts.', 'no. of appts.', 'visits', 'total visits', 'appointments'],
+      last_visit_at: ['last appt. date', 'last visit', 'lastvisit', 'last appointment'],
+      address: ['address 1', 'address', 'suburb'],
     },
     appointmentMap: {
       date: ['date', 'appointment date', 'booking date'],
@@ -320,13 +331,16 @@ export function extractClients(headers, rows, platform) {
 
   // For generic, build a map from common column names
   const genericMap = {
-    first_name: ['first name', 'firstname', 'first', 'name', 'client name', 'client', 'client first name'],
+    first_name: ['first name', 'firstname', 'first', 'full name', 'name', 'client name', 'client', 'client first name', 'customer name', 'customer'],
     last_name: ['last name', 'lastname', 'surname', 'last', 'client last name'],
-    email: ['email', 'email address', 'e-mail'],
-    phone: ['phone', 'mobile', 'telephone', 'phone number', 'cell', 'tel', 'cell phone', 'mobile number', 'sms number'],
+    email: ['email address', 'email', 'e-mail'],
+    phone: ['mobile', 'phone', 'telephone', 'phone number', 'cell', 'tel', 'cell phone', 'mobile number', 'sms number'],
     notes: ['notes', 'comments', 'memo', 'special notes', 'client notes'],
     dob: ['date of birth', 'birthday', 'dob'],
     external_id: ['client id', 'id', 'customer id'],
+    total_visits: ['# of appts.', 'no. of appts.', 'visits', 'total visits', 'appointments'],
+    last_visit_at: ['last appt. date', 'last visit', 'lastvisit', 'last appointment'],
+    address: ['address 1', 'address', 'suburb'],
   };
 
   const useMap = platform === 'generic' ? genericMap : map;
@@ -334,22 +348,60 @@ export function extractClients(headers, rows, platform) {
   return rows.map(row => {
     const mapped = mapRow(row, useMap, headers);
 
-    // Handle single "name" column (split into first/last)
+    // Split a combined name field ("Full name" / "Name") into first + last.
+    // Handles GetTimely's "Full name" column AND generic single-column exports.
+    if (mapped.first_name && !mapped.last_name && /\s/.test(mapped.first_name)) {
+      const parts = mapped.first_name.split(/\s+/);
+      mapped.first_name = parts[0];
+      mapped.last_name = parts.slice(1).join(' ');
+    }
+
+    // Handle a separate "name" column that wasn't picked up (rare fallback)
     if (!mapped.first_name && mapped.name) {
       const parts = mapped.name.split(/\s+/);
       mapped.first_name = parts[0];
       mapped.last_name = parts.slice(1).join(' ');
     }
 
-    // Handle "Client Name" or "Customer" column (common in appointment exports)
+    // Last-resort fallback for appointment exports
     if (!mapped.first_name) {
       const nameCol = headers.find(h =>
-        ['client name', 'customer', 'client', 'name'].includes(h.toLowerCase().trim())
+        ['client name', 'customer', 'client', 'name', 'full name'].includes(h.toLowerCase().trim())
       );
       if (nameCol && row[nameCol]) {
         const parts = row[nameCol].split(/\s+/);
         mapped.first_name = parts[0];
         mapped.last_name = parts.slice(1).join(' ');
+      }
+    }
+
+    // Parse visit count to integer (handles "21", " 5 ", or empty)
+    let totalVisits = null;
+    if (mapped.total_visits !== undefined && mapped.total_visits !== '') {
+      const n = parseInt(String(mapped.total_visits).replace(/[^0-9]/g, ''), 10);
+      if (!isNaN(n)) totalVisits = n;
+    }
+
+    // Parse last-visit date. GetTimely emits "2024-04-26 2:30pm".
+    // Postgres accepts ISO-like with timezone; convert pm/am.
+    let lastVisitAt = null;
+    if (mapped.last_visit_at) {
+      const raw = String(mapped.last_visit_at).trim();
+      // Try ISO first
+      const iso = new Date(raw);
+      if (!isNaN(iso.getTime())) {
+        lastVisitAt = iso.toISOString();
+      } else {
+        // "2024-04-26 2:30pm" style
+        const m = raw.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2})(am|pm)$/i);
+        if (m) {
+          let [, date, hh, mm, ap] = m;
+          let h = parseInt(hh, 10);
+          if (/pm/i.test(ap) && h < 12) h += 12;
+          if (/am/i.test(ap) && h === 12) h = 0;
+          const dt = new Date(`${date}T${String(h).padStart(2, '0')}:${mm}:00`);
+          if (!isNaN(dt.getTime())) lastVisitAt = dt.toISOString();
+        }
       }
     }
 
@@ -361,6 +413,9 @@ export function extractClients(headers, rows, platform) {
       notes: (mapped.notes || '').trim(),
       dob: mapped.dob || null,
       external_id: mapped.external_id || null,
+      total_visits: totalVisits,
+      last_visit_at: lastVisitAt,
+      address: (mapped.address || '').trim() || null,
     };
   }).filter(c => c.first_name); // Must have at least a first name
 }

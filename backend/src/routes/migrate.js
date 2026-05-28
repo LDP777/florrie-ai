@@ -139,6 +139,11 @@ router.post('/execute', requireAuth, async (req, res) => {
         if (phone) seenPhone.add(phone);
         seenNameKey.add(nameKey);
 
+        // Pull through visit-count + last-visit if parser found them. These power
+        // auto-tagging (VIP/Regular/New/Cooling/Dormant) immediately on import.
+        const totalVisits = (typeof c.total_visits === 'number' && c.total_visits >= 0) ? c.total_visits : null;
+        const lastVisitAt = c.last_visit_at || null;
+
         fresh.push({
           beautician_id: beauticianId,
           first_name: first,
@@ -150,6 +155,8 @@ router.post('/execute', requireAuth, async (req, res) => {
           import_batch_id: batchId,
           external_id: c.external_id ? String(c.external_id).substring(0, 100) : null,
           status: 'active',
+          ...(totalVisits !== null ? { total_visits: totalVisits } : {}),
+          ...(lastVisitAt ? { last_visit_at: lastVisitAt } : {}),
         });
       }
 
