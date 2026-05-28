@@ -1,0 +1,139 @@
+import { Router } from 'express';
+import { supabase } from '../config.js';
+import { requireAuth } from '../middleware/auth.js';
+import logger from '../lib/logger.js';
+
+const router = Router();
+
+/**
+ * GET /api/activity/feed?limit=50
+ *
+ * Day 1 of the 2026-05-28 refactor sprint. Returns the user-facing activity
+ * feed surfaced on the Hub. Each row is a single thing Florrie did for the
+ * beautician, ordered newest first.
+ *
+ * The underlying ai_actions table already has summary + action_type +
+ * client_id + appointment_id, so we compute link_to + icon hint server-side
+ * rather than adding new columns. Keeps schema churn at zero.
+ */
+router.get('/feed', requireAuth, async (req, res) => {
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+
+  const { data, error } = await supabase
+    .from('ai_actions')
+    .select(`
+      id,
+      action_type,
+      digital_employee,
+      summary,
+      details,
+      client_id,
+      appointment_id,
+      message_id,
+      outcome,
+      created_at,
+      clients ( first_name, last_name )
+    `)
+    .eq('beautician_id', req.beautician.id)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    logger.error({ err: error }, 'Failed to fetch activity feed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+
+  const rows = (data || []).map(shape);
+
+  res.json({ rows, count: rows.length });
+});
+
+/**
+ * Shape an ai_actions row into the lightweight activity-feed contract.
+ * Keep this pure so it's easy to unit-test later.
+ */
+function shape(row) {
+  return {
+    id: row.id,
+    type: row.action_type,
+    digital_employee: row.digital_employee,
+    summary: row.summary || friendlySummary(row),
+    created_at: row.created_at,
+    client_id: row.client_id,
+    appointment_id: row.appointment_id,
+    link_to: resolveLink(row),
+    outcome: row.outcome || null,
+  };
+}
+
+function friendlySummary(row) {
+  const who = clientName(row);
+  switch (row.action_type) {
+    case 'message_replied':       return `Florrie replied to ${who || 'a client'}`;
+    case 'message_escalated':     return `Florrie escalated a message to you`;
+    case 'booking_created':       return who ? `Booked ${who}` : 'New booking created';
+    case 'booking_rescheduled':   return who ? `Rescheduled ${who}` : 'Booking moved';
+    case 'cancellation_filled':   return 'Filled a cancelled slot';
+    case 'waitlist_offered':      return `Offered a slot to ${who || 'someone on the waitlist'}`;
+    case 'client_reactivated':    return who ? `Re-engaged ${who}` : 'Re-engaged a dormant client';
+    case 'content_drafted':       return 'Drafted a social post for you';
+    case 'content_posted':        return 'Posted to social';
+    case 'expense_logged':        return 'Logged an expense';
+    case 'review_requested':      return who ? `Asked ${who} for a review` : 'Asked a client for a review';
+    case 'campaign_drafted':      return 'Drafted a campaign';
+    case 'campaign_sent':         return 'Sent a campaign';
+    case 'price_suggestion':      return 'Suggested a price change';
+    case 'voice_note_processed':  return 'Processed a voice note';
+    case 'client_profile_updated':return who ? `Updated ${who}'s profile` : 'Updated a client profile';
+    case 'dormant_detected':      return who ? `Spotted ${who} going quiet` : 'Spotted a dormant client';
+    case 'quiet_week_detected':   return 'Spotted a quiet week ahead';
+    case 'contraindication_flagged': return who ? `Flagged a contraindication on ${who}` : 'Flagged a contraindication';
+    case 'appointment_padded':    return 'Padded a booking';
+    case 'bundle_suggested':      return who ? `Suggested a bundle for ${who}` : 'Suggested a bundle';
+    default:                      return 'Florrie did something';
+  }
+}
+
+function clientName(row) {
+  const c = row.clients;
+  if (!c) return null;
+  const first = c.first_name?.trim();
+  const last  = c.last_name?.trim();
+  if (first && last) return `${first} ${last}`;
+  return first || last || null;
+}
+
+function resolveLink(row) {
+  if (row.appointment_id) {
+    const day = (row.created_at || '').slice(0, 10);
+    return day ? `/calendar?date=${day}` : '/calendar';
+  }
+  if (row.client_id) {
+    return `/clients/${row.client_id}`;
+  }
+  switch (row.action_type) {
+    case 'message_replied':
+    case 'message_escalated':
+      return '/inbox';
+    case 'content_drafted':
+    case 'content_posted':
+      return '/content';
+    case 'campaign_drafted':
+    case 'campaign_sent':
+      return '/campaigns';
+    case 'expense_logged':
+      return '/expenses';
+    case 'review_requested':
+      return '/reviews';
+    case 'price_suggestion':
+      return '/treatments';
+    case 'quiet_week_detected':
+      return '/calendar';
+    case 'voice_note_processed':
+      return '/voice';
+    default:
+      return null;
+  }
+}
+
+export default router;

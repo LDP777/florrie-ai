@@ -1,4 +1,4 @@
-// v0.1.1 — 2026-04-10 redeploy
+// v0.1.1 , 2026-04-10 redeploy
 import * as Sentry from '@sentry/node';
 import express from 'express';
 import cors from 'cors';
@@ -7,7 +7,7 @@ import rateLimit from 'express-rate-limit';
 import logger from './lib/logger.js';
 
 // Initialise Sentry before anything else so it captures startup errors too.
-// If SENTRY_DSN is not set the SDK is a no-op — safe in all environments.
+// If SENTRY_DSN is not set the SDK is a no-op , safe in all environments.
 if (process.env.SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.SENTRY_DSN,
@@ -40,6 +40,7 @@ import clientRoutes from './routes/clients.js';
 import appointmentRoutes from './routes/appointments.js';
 import bookingRoutes from './routes/booking.js';
 import aiActionRoutes from './routes/ai-actions.js';
+import activityRoutes from './routes/activity.js';
 import webhookRoutes from './routes/webhooks.js';
 import escalationRoutes from './routes/escalations.js';
 import contentRoutes from './routes/content.js';
@@ -166,11 +167,12 @@ app.use('/api/clients', apiLimiter, clientRoutes);
 app.use('/api/appointments', apiLimiter, appointmentRoutes);
 app.use('/api/booking', bookingLimiter, bookingRoutes); // public booking page API
 app.use('/api/ai-actions', apiLimiter, aiActionRoutes);
+app.use('/api/activity', apiLimiter, activityRoutes);
 app.use('/api/webhooks', webhookLimiter, webhookRoutes); // WhatsApp + Twilio + Bird SMS inbound webhooks
 app.use('/api/escalations', apiLimiter, escalationRoutes);
 app.use('/api/content', apiLimiter, contentRoutes);
 app.use('/api/money', apiLimiter, moneyRoutes);
-// Stripe webhook must bypass rate limiter + idempotency guard — Stripe retries
+// Stripe webhook must bypass rate limiter + idempotency guard , Stripe retries
 // from many IPs and doesn't send Idempotency-Key headers. The webhook handler
 // does its own idempotency check via the stripe_events table.
 app.use('/api/stripe', (req, res, next) => {
@@ -213,7 +215,7 @@ app.use('/api/coach', apiLimiter, coachRoutes);
 app.use('/api/instagram', apiLimiter, instagramRoutes);
 app.use('/api/courses', bookingLimiter, courseRoutes); // public course enrollment API
 
-// Sentry error handler — must come after all routes, before the generic handler
+// Sentry error handler , must come after all routes, before the generic handler
 if (process.env.SENTRY_DSN) {
   Sentry.setupExpressErrorHandler(app);
 }
@@ -264,7 +266,7 @@ app.listen(PORT, () => {
     if (r?.cancelled > 0) logger.info({ cancelled: r.cancelled }, 'Startup: cancelled stale bookings');
   }).catch(() => {});
 
-  // Florrie autonomous scheduler — rebook nudges, gap posts, unanswered messages
+  // Florrie autonomous scheduler , rebook nudges, gap posts, unanswered messages
   const AUTONOMOUS_INTERVAL = 2 * 60 * 60 * 1000; // every 2 hours
   setInterval(async () => {
     try {
@@ -281,7 +283,7 @@ app.listen(PORT, () => {
     });
   }, 30_000);
 
-  // Predictive nudges — daily at startup, then every 24 hours
+  // Predictive nudges , daily at startup, then every 24 hours
   const PREDICTIVE_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
   setInterval(async () => {
     try {
@@ -298,7 +300,7 @@ app.listen(PORT, () => {
     });
   }, 60_000);
 
-  // Email sequence queue — process due emails every 15 minutes
+  // Email sequence queue , process due emails every 15 minutes
   const EMAIL_QUEUE_INTERVAL = 15 * 60 * 1000; // 15 minutes
   setInterval(async () => {
     try {
@@ -309,7 +311,7 @@ app.listen(PORT, () => {
     }
   }, EMAIL_QUEUE_INTERVAL);
 
-  // Trial expiry check — daily, triggers warning emails for expiring trials
+  // Trial expiry check , daily, triggers warning emails for expiring trials
   const TRIAL_CHECK_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
   setInterval(async () => {
     try {

@@ -10,7 +10,7 @@ import CoachNudge from './components/CoachNudge.jsx';
 import { CoachProvider } from './contexts/CoachContext.jsx';
 import { isIOSNative } from './lib/platform.js';
 
-// Lazy-loaded pages (code splitting — each becomes its own chunk)
+// Lazy-loaded pages (code splitting , each becomes its own chunk)
 const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
 const CalendarView = lazy(() => import('./pages/CalendarView.jsx'));
 const Escalations = lazy(() => import('./pages/Escalations.jsx'));
@@ -28,7 +28,7 @@ const Treatments = lazy(() => import('./pages/Treatments.jsx'));
 const Settings = lazy(() => import('./pages/Settings.jsx'));
 const Team = lazy(() => import('./pages/Team.jsx'));
 const Analytics = lazy(() => import('./pages/Analytics.jsx'));
-// Waitlist removed — use WaitlistPro (/waitlist-pro) instead
+// Waitlist removed , use WaitlistPro (/waitlist-pro) instead
 const WeeklyDigest = lazy(() => import('./pages/WeeklyDigest.jsx'));
 const Campaigns = lazy(() => import('./pages/Campaigns.jsx'));
 const VoiceCommander = lazy(() => import('./pages/VoiceCommander.jsx'));
@@ -41,8 +41,8 @@ const GiftVouchers = lazy(() => import('./pages/GiftVouchers.jsx'));
 const Notifications = lazy(() => import('./pages/Notifications.jsx'));
 const HoursExceptions = lazy(() => import('./pages/HoursExceptions.jsx'));
 const PatchTests = lazy(() => import('./pages/PatchTests.jsx'));
-// IntakeForms removed — duplicate of ConsultationFormBuilder (/consultation-forms)
-// Reports removed — merged into Analytics (/analytics → Export tab)
+// IntakeForms removed , duplicate of ConsultationFormBuilder (/consultation-forms)
+// Reports removed , merged into Analytics (/analytics → Export tab)
 const Policies = lazy(() => import('./pages/Policies.jsx'));
 const BusinessProfile = lazy(() => import('./pages/BusinessProfile.jsx'));
 const RebookReminders = lazy(() => import('./pages/RebookReminders.jsx'));
@@ -67,7 +67,7 @@ const DailyChecklist = lazy(() => import('./pages/DailyChecklist.jsx'));
 const ProductInventory = lazy(() => import('./pages/ProductInventory.jsx'));
 const RevenueGoals = lazy(() => import('./pages/RevenueGoals.jsx'));
 const PriceList = lazy(() => import('./pages/PriceList.jsx'));
-// TreatmentStats removed — merged into Analytics (/analytics → Treatments tab)
+// TreatmentStats removed , merged into Analytics (/analytics → Treatments tab)
 const StaffPerformance = lazy(() => import('./pages/StaffPerformance.jsx'));
 
 const ClientMemberships = lazy(() => import('./pages/ClientMemberships.jsx'));
@@ -90,8 +90,9 @@ const Messaging = lazy(() => import('./pages/Messaging.jsx'));
 const APISettings = lazy(() => import('./pages/APISettings.jsx'));
 const Pricing = lazy(() => import('./pages/Pricing.jsx'));
 const Hub = lazy(() => import('./pages/Hub.jsx'));
+const More = lazy(() => import('./pages/More.jsx'));
 const ClientManagePage = lazy(() => import('./pages/ClientManagePage.jsx'));
-// LandingPage.jsx removed — landing.html (in public/) is the single source of truth.
+// LandingPage.jsx removed , landing.html (in public/) is the single source of truth.
 // All unauthenticated visitors are redirected to /landing.html below.
 const TermsPage = lazy(() => import('./pages/TermsPage.jsx'));
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage.jsx'));
@@ -317,7 +318,7 @@ export default function App() {
             <Route path="/hours" element={<HoursExceptions />} />
             <Route path="/compliance" element={<Compliance />} />
             <Route path="/patch-tests" element={<PatchTests />} />
-            {/* /forms removed — use /consultation-forms instead */}
+            {/* /forms removed , use /consultation-forms instead */}
             <Route path="/reports" element={<Navigate to="/analytics" replace />} />
             <Route path="/policies" element={<Policies />} />
             <Route path="/business" element={<BusinessProfile />} />
@@ -368,6 +369,7 @@ export default function App() {
             <Route path="/api-settings" element={<APISettings />} />
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/hub" element={<Hub />} />
+            <Route path="/more" element={<More />} />
             <Route path="/onboarding" element={
               <Onboarding onComplete={(destination) => navigate(destination || '/')} />
             } />
@@ -392,7 +394,7 @@ export default function App() {
 }
 
 /**
- * Mobile bottom navigation — 5 tabs with notification badges.
+ * Mobile bottom navigation , 5 tabs with notification badges.
  * Centre FAB uses the florrie petal SVG. Inbox + Hub show live badge counts.
  */
 function BottomNav({ current, session }) {
@@ -418,7 +420,7 @@ function BottomNav({ current, session }) {
           inbox: d.inbox || 0,
           hub:   (d.content || 0) + (d.churn || 0) + (d.compliance || 0) + (d.insights || 0),
         });
-      } catch { /* silent — badges are non-critical */ }
+      } catch { /* silent , badges are non-critical */ }
     }
     fetchCounts();
     intervalRef.current = setInterval(fetchCounts, 60_000);
@@ -449,7 +451,7 @@ function BottomNav({ current, session }) {
             style={styles.navItem}
           >
             {tab.isPetal ? (
-              /* Raised centre FAB — florrie petal SVG */
+              /* Raised centre FAB , florrie petal SVG */
               <div style={{
                 width: 52, height: 52, borderRadius: '50%',
                 background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
@@ -501,7 +503,7 @@ function BottomNav({ current, session }) {
 }
 
 /**
- * FloatingInbox — persistent floating chat bubble above the nav.
+ * FloatingInbox , persistent floating chat bubble above the nav.
  * Always accessible, shows unread badge, taps to /inbox.
  * Hidden when already on /inbox.
  */
@@ -611,7 +613,7 @@ const styles = {
     paddingBottom: 76,
   },
 
-  // Bottom nav — Stitch glass morphism
+  // Bottom nav , Stitch glass morphism
   nav: {
     position: 'fixed',
     bottom: 0,
