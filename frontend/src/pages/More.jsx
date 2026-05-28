@@ -17,17 +17,31 @@ import { isIOSNative } from '../lib/platform.js';
 
 const CATEGORIES = [
   {
+    id: 'ai-team',
+    label: 'AI team',
+    matIcon: 'auto_awesome',
+    items: [
+      { path: '/inbox',       label: 'Front Desk',  matIcon: 'forum',         desc: 'Handles every message'        },
+      { path: '/content',     label: 'Content',     matIcon: 'auto_fix_high', desc: 'Captions and posts',           gate: 'content_autopilot' },
+      { path: '/money',       label: 'Bookkeeper',  matIcon: 'account_balance_wallet', desc: 'Tracks revenue and expenses' },
+      { path: '/ai-insights', label: 'Biz',         matIcon: 'psychology',    desc: 'Spots trends and risks',       gate: 'ai_insights' },
+      { path: '/compliance',  label: 'Guardian',    matIcon: 'verified_user', desc: 'Patch tests and consent'      },
+      { path: '/client-intel',label: 'Client',      matIcon: 'diversity_3',   desc: 'Knows every client'           },
+    ],
+  },
+  {
     id: 'daily',
     label: 'Your Day',
     matIcon: 'wb_sunny',
     items: [
-      { path: '/calendar',       label: "Today's List",    matIcon: 'event_note',           desc: 'Appointments & schedule'       },
+      { path: '/calendar',       label: "Today's List",    matIcon: 'event_note',           desc: 'Appointments and schedule'     },
+      { path: '/calendar/week',  label: 'Week view',       matIcon: 'calendar_view_week',   desc: 'Whole week at a glance'        },
       { path: '/smart-schedule', label: 'Smart Schedule',  matIcon: 'schedule_send',        desc: 'AI-optimised slots',            gate: 'smart_schedule' },
       { path: '/waitlist-pro',   label: 'Waitlist',        matIcon: 'history',              desc: 'Manage waiting clients'        },
-      { path: '/checklist',      label: 'Checklist',       matIcon: 'checklist',            desc: 'Daily opening & closing'       },
+      { path: '/checklist',      label: 'Checklist',       matIcon: 'checklist',            desc: 'Daily opening and closing'     },
       { path: '/end-of-day',     label: 'End of Day',      matIcon: 'nightlight',           desc: 'Cash-up and close'             },
-      { path: '/notifications',  label: 'Notifications',   matIcon: 'notifications',        desc: 'Alerts & reminders'            },
-      { path: '/hours',          label: 'Hours & Time Off', matIcon: 'beach_access',        desc: 'Exceptions & closures'         },
+      { path: '/notifications',  label: 'Notifications',   matIcon: 'notifications',        desc: 'Alerts and reminders'          },
+      { path: '/hours',          label: 'Hours and Time Off', matIcon: 'beach_access',      desc: 'Exceptions and closures'       },
     ],
   },
   {
@@ -158,7 +172,7 @@ function MIcon({ name, size = 24, color, style }) {
 
 export default function More() {
   const [search, setSearch] = useState('');
-  const [expandedCats, setExpandedCats] = useState(new Set(['daily', 'clients', 'messaging']));
+  const [expandedCats, setExpandedCats] = useState(new Set(['ai-team', 'daily', 'clients', 'messaging']));
   const [recents, setRecents] = useState(getRecents);
   const navigate = useNavigate();
   const location = useLocation();

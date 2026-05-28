@@ -1,21 +1,42 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useBeautician } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import ActivityFeed from '../components/ActivityFeed.jsx';
 
+const CalendarView = lazy(() => import('./CalendarView.jsx'));
+const SmartSchedule = lazy(() => import('./SmartSchedule.jsx'));
+
 /**
- * Hub , slimmed down on Day 1 of the 2026-05-28 refactor sprint.
+ * Hub (Today) , the new home of the 3-tab nav.
  *
- * Four blocks, top to bottom:
- *   1. Greeting + date pill
- *   2. TodaySummary (mauve hero card: revenue, next client, messages, WA status)
- *   3. ActivityFeed (the proof Florrie actually does the work)
- *   4. Ask Florrie pill (sticky last element)
+ * Day 3 of the refactor sprint folds Calendar + Smart Schedule into Today
+ * as sub-tabs. The pathname picks the default sub-tab so deep links keep
+ * working:
+ *   /hub, /today                 -> Day
+ *   /calendar                    -> Day
+ *   /calendar/week               -> Week
+ *   /smart-schedule              -> Smart Schedule
+ *
+ * Day view (the default) is the original slim Hub: greeting + today summary
+ * + activity feed + Ask Florrie pill. Week embeds CalendarView in week
+ * mode. Smart Schedule embeds the existing page.
  *
  * Everything else (search, recently visited, four feature cards, the agent
- * team grid) moved to More.jsx. Day 3 will wire that into the bottom nav.
+ * team grid) lives in More.jsx behind the new "More" affordance.
  */
+
+const SUB_TABS = [
+  { id: 'day',   label: 'Day',            path: '/today' },
+  { id: 'week',  label: 'Week',           path: '/calendar/week' },
+  { id: 'smart', label: 'Smart Schedule', path: '/smart-schedule' },
+];
+
+function subTabFromPath(pathname) {
+  if (pathname === '/calendar/week') return 'week';
+  if (pathname === '/smart-schedule') return 'smart';
+  return 'day';
+}
 
 function getToken() {
   const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
@@ -37,6 +58,8 @@ function greetingFor(now = new Date()) {
 export default function Hub() {
   const { beautician } = useBeautician();
   const navigate = useNavigate();
+  const location = useLocation();
+  const activeTab = subTabFromPath(location.pathname);
 
   const now      = new Date();
   const greeting = greetingFor(now);
@@ -53,22 +76,74 @@ export default function Hub() {
         <span style={S.datePill}>{dayPill}</span>
       </header>
 
-      {/* 2. Today summary , the hero card */}
-      <TodaySummary beautician={beautician} onNav={navigate} />
+      {/* 2. Sub-tab strip , Day / Week / Smart Schedule */}
+      <div role="tablist" aria-label="Today views" style={S.subTabs}>
+        {SUB_TABS.map(tab => {
+          const active = tab.id === activeTab;
+          return (
+            <button
+              key={tab.id}
+              role="tab"
+              aria-selected={active}
+              onClick={() => navigate(tab.path)}
+              style={{ ...S.subTab, ...(active ? S.subTabActive : {}) }}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
 
-      {/* 3. Activity feed , the proof of work */}
-      <ActivityFeed limit={50} />
+      {activeTab === 'day' && (
+        <>
+          {/* Today summary , the hero card */}
+          <TodaySummary beautician={beautician} onNav={navigate} />
 
-      {/* 4. Ask Florrie , last, not first */}
-      <button
-        onClick={() => navigate('/voice')}
-        style={S.askPill}
-        aria-label="Ask Florrie anything"
-      >
-        <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#92405e' }}>mic</span>
-        <span style={S.askText}>Ask Florrie anything</span>
-        <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#C5B8B2' }}>chevron_right</span>
-      </button>
+          {/* Activity feed , the proof of work */}
+          <ActivityFeed limit={50} />
+
+          {/* Ask Florrie , last, not first */}
+          <button
+            onClick={() => navigate('/voice')}
+            style={S.askPill}
+            aria-label="Ask Florrie anything"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#92405e' }}>mic</span>
+            <span style={S.askText}>Ask Florrie anything</span>
+            <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#C5B8B2' }}>chevron_right</span>
+          </button>
+        </>
+      )}
+
+      {activeTab === 'week' && (
+        <div style={S.subPane}>
+          <Suspense fallback={<SubPaneLoader />}>
+            <CalendarView initialView="week" />
+          </Suspense>
+        </div>
+      )}
+
+      {activeTab === 'smart' && (
+        <div style={S.subPane}>
+          <Suspense fallback={<SubPaneLoader />}>
+            <SmartSchedule />
+          </Suspense>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SubPaneLoader() {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
+      <div style={{
+        width: 28, height: 28,
+        border: '2.5px solid #EDE9E4',
+        borderTopColor: '#C76B8A',
+        borderRadius: '50%',
+        animation: 'spin 0.8s linear infinite',
+      }} />
     </div>
   );
 }
@@ -299,6 +374,42 @@ const S = {
     marginTop: 8,
   },
   askText: { flex: 1, fontSize: 14, color: '#534247', textAlign: 'left', fontWeight: 500 },
+
+  subTabs: {
+    display: 'flex',
+    gap: 6,
+    padding: 4,
+    background: '#fff',
+    borderRadius: 999,
+    marginBottom: 14,
+    boxShadow: '0 1px 3px rgba(146,64,94,0.06)',
+  },
+  subTab: {
+    flex: 1,
+    padding: '8px 10px',
+    borderRadius: 999,
+    border: 'none',
+    background: 'transparent',
+    color: '#867277',
+    fontSize: 12,
+    fontWeight: 600,
+    fontFamily: 'inherit',
+    cursor: 'pointer',
+    WebkitTapHighlightColor: 'transparent',
+    transition: 'background 0.15s ease, color 0.15s ease',
+  },
+  subTabActive: {
+    background: '#ffd9e2',
+    color: '#92405e',
+  },
+  subPane: {
+    marginTop: 4,
+    background: '#fff',
+    borderRadius: 16,
+    overflow: 'hidden',
+    border: '1px solid rgba(146,64,94,0.07)',
+    boxShadow: '0 1px 4px rgba(146,64,94,0.05)',
+  },
 };
 
 const TS = {

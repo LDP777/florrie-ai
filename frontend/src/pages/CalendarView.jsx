@@ -23,11 +23,11 @@ const COLORS = {
   outlineVariant: '#d8c1c6',
   stone400: '#78716b',
 };
-export default function CalendarView() {
+export default function CalendarView({ initialView } = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const { beautician, loading: bLoading } = useBeautician();
-  const [view, setView] = useState('day');
+  const [view, setView] = useState(initialView === 'week' ? 'week' : 'day');
   // Accept a date from location.state so other pages can deep-link to a specific day
   const [currentDate, setCurrentDate] = useState(() => {
     const d = location.state?.date;

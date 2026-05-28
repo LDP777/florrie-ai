@@ -293,8 +293,11 @@ export default function App() {
         <div style={styles.pageContainer}>
           <Suspense fallback={<PageLoader />}>
             <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/calendar" element={<CalendarView />} />
+            <Route path="/" element={<Hub />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/calendar" element={<Hub />} />
+            <Route path="/calendar/week" element={<Hub />} />
+            <Route path="/today" element={<Hub />} />
             <Route path="/escalations" element={<Escalations />} />
             <Route path="/approval-queue" element={<ApprovalQueue />} />
             <Route path="/content" element={<PlanGate feature="content_autopilot"><ContentAutopilot /></PlanGate>} />
@@ -312,7 +315,7 @@ export default function App() {
             <Route path="/import" element={<ClientImport />} />
             <Route path="/loyalty" element={<PlanGate feature="loyalty"><Loyalty /></PlanGate>} />
             <Route path="/aftercare" element={<PlanGate feature="aftercare"><Aftercare /></PlanGate>} />
-            <Route path="/smart-schedule" element={<PlanGate feature="smart_schedule"><SmartSchedule /></PlanGate>} />
+            <Route path="/smart-schedule" element={<PlanGate feature="smart_schedule"><Hub /></PlanGate>} />
             <Route path="/vouchers" element={<GiftVouchers />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/hours" element={<HoursExceptions />} />
@@ -385,7 +388,7 @@ export default function App() {
       </div>
 
       {showNav && <BottomNav current={location.pathname} session={session} />}
-      {showNav && <FloatingInbox current={location.pathname} session={session} />}
+      {showNav && <FloatingMore current={location.pathname} />}
       <CoachNudge />
       </div>
       </CoachProvider>
@@ -394,12 +397,17 @@ export default function App() {
 }
 
 /**
- * Mobile bottom navigation , 5 tabs with notification badges.
- * Centre FAB uses the florrie petal SVG. Inbox + Hub show live badge counts.
+ * Mobile bottom navigation , Day 3 of the refactor sprint.
+ *
+ * Three tabs only: Today, Inbox, Money. A decorative florrie petal sits in
+ * the middle for brand presence (no tap behaviour). The Inbox badge stays
+ * because unread message counts are the one number the salon owner needs
+ * at a glance. Everything else lives behind the FloatingMore affordance
+ * above the strip.
  */
 function BottomNav({ current, session }) {
   const navigate = useNavigate();
-  const [navCounts, setNavCounts] = useState({ inbox: 0, hub: 0 });
+  const [inboxCount, setInboxCount] = useState(0);
   const intervalRef = useRef(null);
 
   useEffect(() => {
@@ -416,10 +424,7 @@ function BottomNav({ current, session }) {
         const res = await fetch('/api/agents/counts', { headers });
         if (!res.ok) return;
         const d = await res.json();
-        setNavCounts({
-          inbox: d.inbox || 0,
-          hub:   (d.content || 0) + (d.churn || 0) + (d.compliance || 0) + (d.insights || 0),
-        });
+        setInboxCount(d.inbox || 0);
       } catch { /* silent , badges are non-critical */ }
     }
     fetchCounts();
@@ -427,159 +432,114 @@ function BottomNav({ current, session }) {
     return () => clearInterval(intervalRef.current);
   }, [session]);
 
-  const hubPaths = ['/hub', '/money', '/analytics', '/clients', '/treatments', '/team', '/waitlist', '/digest', '/campaigns', '/reviews', '/loyalty', '/aftercare', '/import', '/smart-schedule', '/vouchers', '/notifications', '/hours', '/patch-tests', '/compliance', '/reports', '/policies', '/business', '/rebook', '/packages', '/templates', '/referrals', '/portfolio', '/notes', '/feedback', '/expenses', '/sequences', '/photo-consent', '/waitlist-pro', '/client-timeline', '/rota', '/deposits', '/addons', '/cancellations', '/tags', '/promos', '/checklist', '/inventory', '/goals', '/price-list', '/treatment-stats', '/staff-performance', '/memberships', '/comms', '/end-of-day', '/automations', '/whatsapp', '/portal', '/ai-insights', '/segments', '/churn', '/client-intel', '/demand', '/locations', '/integrations', '/sms', '/messaging', '/api-settings', '/escalations', '/settings'];
-  const isHubActive = hubPaths.includes(current) && current !== '/inbox';
+  // Paths that count as the Today tab being active.
+  const todayPaths = ['/', '/hub', '/today', '/calendar', '/calendar/week', '/smart-schedule'];
+  const isTodayActive = todayPaths.includes(current);
+  const isInboxActive = current === '/inbox';
+  const isMoneyActive = current === '/money';
 
-  const tabs = [
-    { path: '/',        label: 'Home',      icon: 'home',           isPetal: false, badge: 0 },
-    { path: '/calendar',label: 'Calendar',  icon: 'calendar_today', isPetal: false, badge: 0 },
-    { path: '/voice',   label: 'florrie.ai',icon: null,             isPetal: true,  badge: 0 },
-    { path: '/money',   label: 'Money',     icon: 'payments',       isPetal: false, badge: 0 },
-    { path: '/hub',     label: 'Hub',       icon: 'explore',        isPetal: false, badge: navCounts.hub },
+  const leftTabs = [
+    { path: '/today', label: 'Today', icon: 'today',    active: isTodayActive, badge: 0 },
+    { path: '/inbox', label: 'Inbox', icon: 'forum',    active: isInboxActive, badge: inboxCount },
+  ];
+  const rightTabs = [
+    { path: '/money', label: 'Money', icon: 'payments', active: isMoneyActive, badge: 0 },
   ];
 
   return (
     <nav style={styles.nav}>
-      {tabs.map(tab => {
-        const active = tab.path === '/hub' ? isHubActive : current === tab.path;
-        const color = active ? '#92405e' : '#867277';
-        const showBadge = tab.badge > 0;
-        return (
-          <button
-            key={tab.path}
-            onClick={() => navigate(tab.path)}
-            style={styles.navItem}
-          >
-            {tab.isPetal ? (
-              /* Raised centre FAB , florrie petal SVG */
-              <div style={{
-                width: 52, height: 52, borderRadius: '50%',
-                background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 4px 16px rgba(146, 64, 94, 0.35)',
-                marginTop: -24,
-                border: '3px solid #fef8f4',
-                overflow: 'hidden',
-              }}>
-                <img src="/florrie-petal.svg" alt="" style={{ width: 28, height: 28, filter: 'brightness(0) invert(1)' }} />
-              </div>
-            ) : (
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span className="material-symbols-outlined" style={{
-                  fontSize: 22, color,
-                  fontVariationSettings: active ? "'FILL' 1, 'wght' 300" : "'FILL' 0, 'wght' 300",
-                  transition: 'color 0.15s ease',
-                }}>{tab.icon}</span>
-                {showBadge && (
-                  <span style={{
-                    position: 'absolute', top: -4, right: -6,
-                    minWidth: 16, height: 16, borderRadius: 8,
-                    background: '#E85D75', color: '#fff',
-                    fontSize: 9, fontWeight: 700, lineHeight: '16px',
-                    textAlign: 'center', padding: '0 3px',
-                    border: '1.5px solid #fef8f4',
-                    fontFamily: 'inherit',
-                  }}>
-                    {tab.badge > 99 ? '99+' : tab.badge}
-                  </span>
-                )}
-              </div>
-            )}
-            <span style={{
-              fontSize: 10, lineHeight: 1, letterSpacing: '0.01em',
-              fontWeight: active ? 600 : 400,
-              color,
-              fontFamily: tab.isPetal ? "'Playfair Display', Georgia, serif" : 'inherit',
-              fontStyle: tab.isPetal ? 'italic' : 'normal',
-            }}>
-              {tab.label}
-            </span>
-            {active && !tab.isPetal && <div style={styles.navDot} />}
-          </button>
-        );
-      })}
+      {leftTabs.map(tab => (
+        <NavTab key={tab.path} tab={tab} onNav={() => navigate(tab.path)} />
+      ))}
+
+      {/* Decorative centre petal , no tap behaviour. */}
+      <div aria-hidden="true" style={styles.navPetalWrap}>
+        <div style={styles.navPetal}>
+          <img src="/florrie-petal.svg" alt="" style={{ width: 22, height: 22, filter: 'brightness(0) invert(1)' }} />
+        </div>
+      </div>
+
+      {rightTabs.map(tab => (
+        <NavTab key={tab.path} tab={tab} onNav={() => navigate(tab.path)} />
+      ))}
     </nav>
   );
 }
 
+function NavTab({ tab, onNav }) {
+  const color = tab.active ? '#92405e' : '#867277';
+  const showBadge = tab.badge > 0;
+  return (
+    <button onClick={onNav} style={styles.navItem} aria-label={tab.label} aria-current={tab.active ? 'page' : undefined}>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span className="material-symbols-outlined" style={{
+          fontSize: 24, color,
+          fontVariationSettings: tab.active ? "'FILL' 1, 'wght' 300" : "'FILL' 0, 'wght' 300",
+          transition: 'color 0.15s ease',
+        }}>{tab.icon}</span>
+        {showBadge && (
+          <span style={{
+            position: 'absolute', top: -4, right: -6,
+            minWidth: 16, height: 16, borderRadius: 8,
+            background: '#E85D75', color: '#fff',
+            fontSize: 9, fontWeight: 700, lineHeight: '16px',
+            textAlign: 'center', padding: '0 3px',
+            border: '1.5px solid #fef8f4',
+            fontFamily: 'inherit',
+          }}>
+            {tab.badge > 99 ? '99+' : tab.badge}
+          </span>
+        )}
+      </div>
+      <span style={{
+        fontSize: 10, lineHeight: 1, letterSpacing: '0.01em',
+        fontWeight: tab.active ? 600 : 500,
+        color,
+      }}>
+        {tab.label}
+      </span>
+      {tab.active && <div style={styles.navDot} />}
+    </button>
+  );
+}
+
 /**
- * FloatingInbox , persistent floating chat bubble above the nav.
- * Always accessible, shows unread badge, taps to /inbox.
- * Hidden when already on /inbox.
+ * FloatingMore , the discoverability backstop above the 3-tab nav.
+ *
+ * Small pill, top-right of the safe-area. Opens /more, where every
+ * secondary page is indexed and searchable. Hidden when already on /more.
  */
-function FloatingInbox({ current, session }) {
+function FloatingMore({ current }) {
   const navigate = useNavigate();
-  const [unread, setUnread] = useState(0);
-
-  useEffect(() => {
-    if (!session) return;
-    async function fetchUnread() {
-      try {
-        const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
-        let token = null;
-        if (key) {
-          const raw = localStorage.getItem(key);
-          try { const p = JSON.parse(raw); token = p?.access_token || p?.session?.access_token || raw; } catch { token = raw; }
-        }
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        const res = await fetch('/api/agents/counts', { headers });
-        if (!res.ok) return;
-        const d = await res.json();
-        setUnread(d.inbox || 0);
-      } catch { /* silent */ }
-    }
-    fetchUnread();
-    const id = setInterval(fetchUnread, 60_000);
-    return () => clearInterval(id);
-  }, [session]);
-
-  if (current === '/inbox') return null;
+  if (current === '/more') return null;
 
   return (
     <button
-      onClick={() => navigate('/inbox')}
+      onClick={() => navigate('/more')}
+      aria-label="More features"
       style={{
         position: 'fixed',
-        bottom: 80,
-        right: 16,
-        width: 48,
-        height: 48,
-        borderRadius: '50%',
-        background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
-        border: '2.5px solid #fef8f4',
-        boxShadow: '0 4px 16px rgba(146, 64, 94, 0.3)',
+        top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
+        right: 14,
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
+        gap: 6,
+        height: 34,
+        padding: '0 12px 0 10px',
+        borderRadius: 999,
+        background: 'rgba(255,255,255,0.94)',
+        border: '1px solid rgba(146,64,94,0.12)',
+        boxShadow: '0 2px 8px rgba(146,64,94,0.1)',
+        backdropFilter: 'blur(10px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(10px) saturate(180%)',
         cursor: 'pointer',
         zIndex: 900,
-        transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+        fontFamily: 'inherit',
+        WebkitTapHighlightColor: 'transparent',
       }}
-      onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.08)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(146, 64, 94, 0.4)'; }}
-      onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(146, 64, 94, 0.3)'; }}
     >
-      <span className="material-symbols-outlined" style={{ fontSize: 22, color: '#fff', fontVariationSettings: "'FILL' 1, 'wght' 300" }}>chat_bubble</span>
-      {unread > 0 && (
-        <span style={{
-          position: 'absolute',
-          top: -2,
-          right: -2,
-          minWidth: 17,
-          height: 17,
-          borderRadius: 9,
-          background: '#E85D75',
-          color: '#fff',
-          fontSize: 9,
-          fontWeight: 700,
-          lineHeight: '17px',
-          textAlign: 'center',
-          padding: '0 3px',
-          border: '1.5px solid #fef8f4',
-          fontFamily: 'inherit',
-        }}>
-          {unread > 99 ? '99+' : unread}
-        </span>
-      )}
+      <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#92405e' }}>apps</span>
+      <span style={{ fontSize: 12, fontWeight: 600, color: '#92405e', letterSpacing: '0.01em' }}>More</span>
     </button>
   );
 }
@@ -652,6 +612,25 @@ const styles = {
     background: '#92405e',
     position: 'absolute',
     bottom: -1,
+  },
+
+  navPetalWrap: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    pointerEvents: 'none',
+  },
+  navPetal: {
+    width: 40,
+    height: 40,
+    borderRadius: '50%',
+    background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: '0 3px 10px rgba(146, 64, 94, 0.25)',
+    border: '2.5px solid #fef8f4',
+    opacity: 0.92,
   },
 
 };
