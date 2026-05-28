@@ -1,4 +1,4 @@
-# Cron Job Setup — Florrie Backend
+# Cron Job Setup, Florrie Backend
 
 All Florrie cron jobs run as Railway-native cron services in the **florrie**
 production project. Each job is a one-shot Node script under `src/jobs/`.
@@ -27,7 +27,7 @@ For each job above, in the Railway dashboard:
    - **Custom Start Command**: `node src/jobs/<script>.js`
    - **Cron Schedule**: paste the cron expression from the table above (Railway uses standard 5-field cron)
    - **Restart Policy**: `Never` (one-shot)
-6. **Variables** → reference variables from `florrie-backend` so the job sees the same `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `STRIPE_SECRET_KEY`, `BIRD_*`, etc. (Railway variable references avoid copy-paste drift.)
+6. **Variables** → reference variables from `florrie-backend` so the job sees the same `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `STRIPE_SECRET_KEY`, `BIRD_*`, etc. (Railway variable references avoid copy-paste drift.)
 7. Deploy. The first run will trigger immediately, subsequent runs follow the cron schedule.
 
 ## Local testing
@@ -49,7 +49,7 @@ correct status.
 All three jobs are safe to rerun:
 
 - **Comeback** checks `client_nudges` for recent entries within the rebooking window.
-- **Stripe cleanup** uses a date filter — re-running just deletes the same already-deleted slice.
+- **Stripe cleanup** uses a date filter, re-running just deletes the same already-deleted slice.
 - **SMS billing** filters on `billed = false` and flips the row to `billed = true` once invoiced. A second run finds nothing to process.
 
 ## Monitoring

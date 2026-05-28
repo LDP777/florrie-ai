@@ -16,7 +16,7 @@ const cleanDistPlugin = {
         console.log('Cleaned dist directory');
       } catch (err) {
         console.warn('Warning: Could not clean dist directory:', err.message);
-        // Continue anyway — Vite's emptyOutDir should still work
+        // Continue anyway, Vite's emptyOutDir should still work
       }
     }
   },
@@ -26,6 +26,26 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: false,
+    // Raise the chunk-size warning ceiling now that we manually split heavy
+    // libs into their own chunks. The biggest user-facing chunk is the React
+    // app shell, sitting around 320 KB after splitting.
+    chunkSizeWarningLimit: 750,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // @sentry/react + Replay weighs ~150 KB on its own
+          sentry: ['@sentry/react'],
+          // PostHog ~70 KB
+          posthog: ['posthog-js'],
+          // xlsx parser ~120 KB, only loads on the migration page
+          xlsx: ['xlsx'],
+          // React + React-DOM + react-router-dom into a stable vendor chunk
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          // Supabase JS client ~80 KB
+          supabase: ['@supabase/supabase-js'],
+        },
+      },
+    },
   },
   plugins: [
     cleanDistPlugin,
@@ -42,9 +62,9 @@ export default defineConfig({
         'og-image.png',
       ],
       manifest: {
-        name: 'florrie.ai — Your AI Beauty Business Team',
+        name: 'florrie.ai, Your AI Beauty Business Team',
         short_name: 'florrie.ai',
-        description: 'AI-powered beauty business management. Bookings, payments, messaging, content — all handled by your AI team.',
+        description: 'AI-powered beauty business management. Bookings, payments, messaging, content, all handled by your AI team.',
         start_url: '/',
         display: 'standalone',
         orientation: 'portrait',
@@ -118,7 +138,7 @@ export default defineConfig({
             },
           },
         ],
-        // Precache the app shell (exclude landing page — it's served separately)
+        // Precache the app shell (exclude landing page, it's served separately)
         globPatterns: ['**/*.{js,css,ico,png,svg,woff2}', 'index.html'],
         globIgnores: ['landing.html', 'landing-v2.html'],
         // Don't intercept navigation to landing page

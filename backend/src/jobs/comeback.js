@@ -1,7 +1,7 @@
 /**
  * Client Comeback Engine
  * Detects lapsed clients and sends personalised re-engagement SMS.
- * Run daily via cron. Idempotent — tracks nudges in client_nudges table.
+ * Run daily via cron. Idempotent, tracks nudges in client_nudges table.
  *
  * Usage: node src/jobs/comeback.js
  */
@@ -15,9 +15,12 @@ import logger from '../lib/logger.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, '../../.env') });
 
+// Use SUPABASE_SERVICE_KEY to match the rest of the codebase (config.js,
+// index.js REQUIRED_ENV, lib/crypto.js). Fall back to SUPABASE_SERVICE_ROLE_KEY
+// for any Railway cron service still provisioned with the older variable name.
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 const DEFAULT_REBOOKING_DAYS = 42;
@@ -78,7 +81,7 @@ async function run() {
       const firstName = client.first_name || 'there';
       const businessName = beautician.business_name || 'the salon';
 
-      const message = `Hi ${firstName}! It's been a while since we've seen you at ${businessName}. We'd love to have you back — book your next appointment at florrie.ai 💫`;
+      const message = `Hi ${firstName}! It's been a while since we've seen you at ${businessName}. We'd love to have you back, book your next appointment at florrie.ai 💫`;
 
       // Send SMS via Bird API (same pattern as notifications.js)
       try {
@@ -109,6 +112,11 @@ async function run() {
     }
   }
 
+  logger.info(
+    { sent: totalNudged, skipped: totalSkipped, failed: totalFailed },
+    `Comeback engine done. ${totalNudged} sent, ${totalSkipped} skipped, ${totalFailed} failed`
+  );
+  process.exit(0);
 }
 
 run().catch(err => {

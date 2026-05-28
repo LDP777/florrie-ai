@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 process.env.WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN || 'test-token';
 process.env.WHATSAPP_WABA_ID = process.env.WHATSAPP_WABA_ID || 'test-waba';
 process.env.SUPABASE_URL = process.env.SUPABASE_URL || 'http://localhost';
-process.env.SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'test';
+process.env.SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || 'test';
 
 const { _whatsappInternals } = await import('../../src/routes/whatsapp-config.js');
 const {
