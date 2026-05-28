@@ -7,6 +7,7 @@ import ErrorBoundary from './components/ErrorBoundary.jsx';
 import PlanGate from './components/PlanGate.jsx';
 import InstallPrompt from './components/InstallPrompt.jsx';
 import CoachNudge from './components/CoachNudge.jsx';
+import FloatingMic from './components/FloatingMic.jsx';
 import { CoachProvider } from './contexts/CoachContext.jsx';
 import { isIOSNative } from './lib/platform.js';
 
@@ -389,6 +390,7 @@ export default function App() {
 
       {showNav && <BottomNav current={location.pathname} session={session} />}
       {showNav && <FloatingMore current={location.pathname} />}
+      {showNav && <FloatingMic />}
       <CoachNudge />
       </div>
       </CoachProvider>

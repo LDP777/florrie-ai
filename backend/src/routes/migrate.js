@@ -28,6 +28,81 @@ function normalisePhone(p) {
 }
 
 /**
+ * Auto-tag starter set, Day 5 of the 2026-05-28 sprint. Seeded once per
+ * beautician, idempotent on the (beautician_id, name) unique constraint.
+ * Colours stay inside the Florrie palette: mauve/peach/gold/amber/rose.
+ */
+const STARTER_TAGS = [
+  { name: 'VIP',     color: '#C76B8A' }, // primary mauve
+  { name: 'Regular', color: '#E8A87C' }, // peachy
+  { name: 'New',     color: '#D4A857' }, // soft gold
+  { name: 'Cooling', color: '#E0A554' }, // warm amber
+  { name: 'Dormant', color: '#B5879A' }, // dusty rose
+];
+
+/**
+ * Map a freshly-imported client row to a tag name. Priority order, first
+ * match wins. last_visit_at trumps total_visits so we never tag a 6-visit
+ * client who hasn't been in for a year as "VIP".
+ */
+function tagNameFor(row) {
+  const visits = typeof row.total_visits === 'number' ? row.total_visits : 0;
+  const last = row.last_visit_at ? new Date(row.last_visit_at) : null;
+  if (last && !isNaN(last.getTime())) {
+    const days = Math.floor((Date.now() - last.getTime()) / 86400000);
+    if (days > 60) return 'Dormant';
+    if (days >= 30) return 'Cooling';
+  }
+  if (visits >= 5) return 'VIP';
+  if (visits >= 3) return 'Regular';
+  return 'New';
+}
+
+/**
+ * Ensure the 5 starter tag rows exist for this beautician. Returns a map
+ * { name -> tag_id }. Safe to call on every import (upsert on the unique
+ * constraint). Logs but does not throw on partial failure.
+ */
+async function ensureStarterTags(supabase, beauticianId, logger) {
+  // Read what's already there. We avoid an unconditional upsert so we don't
+  // touch a tag row the user has already renamed by hand.
+  const { data: existing, error: readErr } = await supabase
+    .from('client_tags')
+    .select('id, name')
+    .eq('beautician_id', beauticianId);
+
+  if (readErr) {
+    logger?.warn?.({ err: readErr, beauticianId }, 'starter tag read failed');
+    return {};
+  }
+
+  const byName = {};
+  (existing || []).forEach(t => { byName[t.name] = t.id; });
+
+  const missing = STARTER_TAGS.filter(t => !byName[t.name]);
+  if (missing.length === 0) return byName;
+
+  const rows = missing.map(t => ({
+    beautician_id: beauticianId,
+    name: t.name,
+    color: t.color,
+  }));
+
+  const { data: inserted, error: insErr } = await supabase
+    .from('client_tags')
+    .insert(rows)
+    .select('id, name');
+
+  if (insErr) {
+    logger?.warn?.({ err: insErr, beauticianId }, 'starter tag seed failed');
+    return byName;
+  }
+
+  (inserted || []).forEach(t => { byName[t.name] = t.id; });
+  return byName;
+}
+
+/**
  * POST /api/migrate/preview
  * Body: { csv: "<raw csv text>" }
  * Returns: { platform, confidence, fileType, summary, clients[], treatments[], appointments[] }
@@ -193,6 +268,61 @@ router.post('/execute', requireAuth, async (req, res) => {
 
       if (skippedDup > 0) {
         logger.info({ skippedDup, beauticianId }, 'Skipped duplicate clients');
+      }
+
+      // Auto-tag, Day 5 of the 2026-05-28 sprint. Score every newly-inserted
+      // client (we identify them via import_batch_id) and drop them into one
+      // of five starter tags so the salon owner sees structured chips from
+      // minute one.
+      if (imported.clients > 0) {
+        try {
+          const tagsByName = await ensureStarterTags(supabase, beauticianId, logger);
+          const tagNames = Object.keys(tagsByName);
+
+          if (tagNames.length > 0) {
+            // Pull back the rows we just inserted so we can score them.
+            const { data: freshRows, error: rErr } = await supabase
+              .from('clients')
+              .select('id, total_visits, last_visit_at')
+              .eq('beautician_id', beauticianId)
+              .eq('import_batch_id', batchId);
+
+            if (rErr) {
+              logger.warn({ err: rErr, batchId }, 'auto-tag fresh-row lookup failed');
+              errors.push('Auto-tagging skipped (could not re-read imported clients)');
+            } else {
+              const assignments = [];
+              for (const row of freshRows || []) {
+                const name = tagNameFor(row);
+                const tagId = tagsByName[name];
+                if (tagId) assignments.push({ client_id: row.id, tag_id: tagId });
+              }
+
+              if (assignments.length > 0) {
+                const ASSIGN_BATCH = 200;
+                let tagged = 0;
+                for (let i = 0; i < assignments.length; i += ASSIGN_BATCH) {
+                  const slice = assignments.slice(i, i + ASSIGN_BATCH);
+                  const { data: aData, error: aErr } = await supabase
+                    .from('client_tag_assignments')
+                    .insert(slice)
+                    .select('id');
+                  if (aErr) {
+                    logger.warn({ err: aErr, batchStart: i }, 'tag assignment batch failed');
+                    errors.push(`Auto-tagging partially failed: ${aErr.message}`);
+                  } else {
+                    tagged += (aData || []).length;
+                  }
+                }
+                logger.info({ tagged, beauticianId, batchId }, 'Auto-tagged imported clients');
+              }
+            }
+          }
+        } catch (tagErr) {
+          // Tagging is a nice-to-have, never block the import on a tag failure.
+          logger.error({ err: tagErr, batchId }, 'Auto-tag step threw');
+          errors.push('Auto-tagging hit an unexpected error and was skipped');
+        }
       }
     }
 

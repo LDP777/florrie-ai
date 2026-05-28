@@ -19,6 +19,21 @@ function getToken() {
 }
 
 /**
+ * Wrap a #rrggbb hex with an alpha value. Used by tag chips so each chip
+ * gets a soft tinted background that respects the parent palette.
+ */
+function hexWithAlpha(hex, alpha) {
+  if (!hex || typeof hex !== 'string' || !hex.startsWith('#')) return hex;
+  const trimmed = hex.replace('#', '');
+  if (trimmed.length !== 6) return hex;
+  const r = parseInt(trimmed.slice(0, 2), 16);
+  const g = parseInt(trimmed.slice(2, 4), 16);
+  const b = parseInt(trimmed.slice(4, 6), 16);
+  if ([r, g, b].some(n => isNaN(n))) return hex;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/**
  * Clients: view, search, filter, sort, multi-select, add, and manage the client list.
  * Wired to Supabase.
  */
@@ -53,6 +68,9 @@ export default function Clients() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { beautician, loading: bLoading } = useBeautician();
   const [clients, setClients] = useState([]);
+  // Day 5: { client_id: [{ id, name, color }] } so each card can render up
+  // to 2 tag chips. Built from a single client_tag_assignments query.
+  const [tagMap, setTagMap] = useState({});
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [sort, setSort] = useState('recent');
@@ -99,6 +117,42 @@ export default function Clients() {
     return () => clearTimeout(timer);
   }, [search]);
 
+  /**
+   * Day 5: hydrate tagMap from client_tag_assignments + client_tags.
+   * Fails silent: an empty tag map just hides the chips, doesn't break
+   * the list.
+   */
+  async function loadTagsFor(clientList) {
+    if (!beautician) return;
+    const ids = clientList.map(c => c.id);
+    if (!ids.length) { setTagMap({}); return; }
+    try {
+      const { data, error: tagErr } = await supabase
+        .from('client_tag_assignments')
+        .select('client_id, tag_id, client_tags ( id, name, color )')
+        .in('client_id', ids);
+      if (tagErr) {
+        logger.warn('Load tags:', tagErr);
+        setTagMap({});
+        return;
+      }
+      const next = {};
+      (data || []).forEach(row => {
+        const tag = row.client_tags;
+        if (!tag) return;
+        if (!next[row.client_id]) next[row.client_id] = [];
+        // Cap each card at 2 chips so it stays scannable.
+        if (next[row.client_id].length < 2) {
+          next[row.client_id].push({ id: tag.id, name: tag.name, color: tag.color });
+        }
+      });
+      setTagMap(next);
+    } catch (err) {
+      logger.warn('Tag map build failed:', err);
+      setTagMap({});
+    }
+  }
+
   async function loadClients() {
     try {
       setError(null);
@@ -130,6 +184,8 @@ export default function Clients() {
         setError(qError.message);
       } else {
         setClients(data || []);
+        // Day 5: pull tags for these clients. Single roundtrip, joined.
+        loadTagsFor(data || []);
       }
     } catch (err) {
       logger.error('Load clients error:', err);
@@ -521,6 +577,23 @@ export default function Clients() {
                     {c.imported_from && <span style={styles.importedChip}>imported</span>}
                   </span>
                   <span style={styles.clientMeta}>{visitCount(c)} visits · Last: {lastVisit(c)}</span>
+                  {(tagMap[c.id]?.length || 0) > 0 && (
+                    <span style={styles.tagChipRow}>
+                      {tagMap[c.id].slice(0, 2).map(tag => (
+                        <span
+                          key={tag.id}
+                          style={{
+                            ...styles.tagChip,
+                            background: hexWithAlpha(tag.color || '#C76B8A', 0.16),
+                            color: tag.color || '#92405e',
+                            borderColor: hexWithAlpha(tag.color || '#C76B8A', 0.32),
+                          }}
+                        >
+                          {tag.name}
+                        </span>
+                      ))}
+                    </span>
+                  )}
                 </div>
                 {!selectMode && <span style={styles.chevron}>›</span>}
               </button>
@@ -554,12 +627,92 @@ export default function Clients() {
  * Overview: stats + tags + quick actions
  * History:  appointment timeline
  * Notes:    client notes + preferences
+ * Messages: embedded conversation (Day 5)
  */
 function ClientDetailPanel({ detail, onClose, onNavigate }) {
   const [detailTab, setDetailTab] = useState('overview');
   const client = detail.client;
   const appointments = detail.appointments || [];
   const messages = detail.messages || [];
+
+  // Day 5: full thread loaded lazily when the Messages tab opens.
+  const [thread, setThread] = useState(null); // { messages, default_channel }
+  const [threadLoading, setThreadLoading] = useState(false);
+  const [threadError, setThreadError] = useState(null);
+  const [replyText, setReplyText] = useState('');
+  const [replyChannel, setReplyChannel] = useState(null);
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    if (detailTab !== 'messages' || !client?.id) return;
+    let cancelled = false;
+    async function load() {
+      setThreadLoading(true);
+      setThreadError(null);
+      try {
+        const token = getToken();
+        const res = await fetch(`${API_BASE}/api/inbox/thread/${encodeURIComponent(client.id)}`, {
+          headers: { Authorization: token ? `Bearer ${token}` : '' },
+        });
+        if (!res.ok) {
+          setThreadError('Could not load the thread.');
+          return;
+        }
+        const json = await res.json();
+        if (cancelled) return;
+        setThread(json);
+        setReplyChannel(json.default_channel || 'sms');
+      } catch {
+        if (!cancelled) setThreadError('Could not reach the server.');
+      } finally {
+        if (!cancelled) setThreadLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [detailTab, client?.id]);
+
+  async function sendReply() {
+    if (!replyText.trim() || !client?.id || !replyChannel) return;
+    setSending(true);
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE}/api/inbox/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          client_id: client.id,
+          channel: replyChannel,
+          body: replyText.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setThreadError(data.error || 'Could not send.');
+        return;
+      }
+      // Append the new bubble so the user sees it land instantly.
+      setThread(prev => prev ? ({
+        ...prev,
+        messages: [...(prev.messages || []), {
+          id: data.message?.id || `local-${Date.now()}`,
+          channel: replyChannel,
+          direction: 'outbound',
+          body: replyText.trim(),
+          content: replyText.trim(),
+          created_at: new Date().toISOString(),
+        }],
+      }) : prev);
+      setReplyText('');
+    } catch {
+      setThreadError('Could not reach the server.');
+    } finally {
+      setSending(false);
+    }
+  }
 
   // Client health score (simple heuristic)
   const daysSinceVisit = client?.last_visit_at
@@ -634,7 +787,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate }) {
 
         {/* Detail tabs */}
         <div style={styles.detailTabs}>
-          {['overview', 'history', 'notes'].map(t => (
+          {['overview', 'history', 'notes', 'messages'].map(t => (
             <button
               key={t}
               onClick={() => setDetailTab(t)}
@@ -644,7 +797,10 @@ function ClientDetailPanel({ detail, onClose, onNavigate }) {
                 color: detailTab === t ? 'var(--accent)' : 'var(--text-muted)',
               }}
             >
-              {t === 'overview' ? 'Overview' : t === 'history' ? 'History' : 'Notes'}
+              {t === 'overview' ? 'Overview'
+                : t === 'history' ? 'History'
+                : t === 'notes' ? 'Notes'
+                : 'Messages'}
             </button>
           ))}
         </div>
@@ -788,6 +944,130 @@ function ClientDetailPanel({ detail, onClose, onNavigate }) {
             </div>
           </div>
         )}
+
+        {/* Messages tab, Day 5: embedded conversation */}
+        {detailTab === 'messages' && (
+          <div style={styles.messagesTab}>
+            {threadLoading && (
+              <div style={styles.threadLoading}>Loading conversation</div>
+            )}
+            {threadError && !threadLoading && (
+              <div style={styles.threadError}>{threadError}</div>
+            )}
+            {!threadLoading && !threadError && thread && (
+              <>
+                <div style={styles.bubbleStack}>
+                  {(thread.messages || []).slice(-20).length === 0 ? (
+                    <p style={styles.noHistory}>No messages yet.</p>
+                  ) : (
+                    (thread.messages || []).slice(-20).map(msg => (
+                      <ClientBubble key={msg.id} msg={msg} />
+                    ))
+                  )}
+                </div>
+
+                <div style={styles.replyComposer}>
+                  <div style={styles.channelToggle}>
+                    {['whatsapp', 'sms', 'email'].map(ch => {
+                      const active = replyChannel === ch;
+                      const icon = ch === 'whatsapp' ? '💬' : ch === 'sms' ? '📱' : '✉️';
+                      return (
+                        <button
+                          key={ch}
+                          type="button"
+                          onClick={() => setReplyChannel(ch)}
+                          style={{
+                            ...styles.channelChip,
+                            background: active ? 'var(--accent)' : 'transparent',
+                            color: active ? '#fff' : 'var(--text-muted)',
+                            borderColor: active ? 'var(--accent)' : 'var(--border)',
+                          }}
+                        >
+                          <span aria-hidden>{icon}</span>
+                          <span style={{ textTransform: 'capitalize' }}>{ch}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div style={styles.composerRow}>
+                    <textarea
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      placeholder="Type a reply"
+                      rows={2}
+                      style={styles.composerInput}
+                    />
+                    <button
+                      type="button"
+                      disabled={!replyText.trim() || sending}
+                      onClick={sendReply}
+                      style={{
+                        ...styles.composerSend,
+                        opacity: !replyText.trim() || sending ? 0.5 : 1,
+                      }}
+                    >
+                      {sending ? '...' : 'Send'}
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => { onClose(); onNavigate && onNavigate(`/inbox?client=${encodeURIComponent(client.id)}`); }}
+                    style={styles.fullThreadLink}
+                  >
+                    See full thread
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Day 5: chat bubble inside the client detail Messages tab. Mirrors the
+ * styling on /inbox so the experience feels like one conversation regardless
+ * of where the user opens it from.
+ */
+function ClientBubble({ msg }) {
+  const out = msg.direction === 'outbound';
+  const icon = msg.channel === 'whatsapp' ? '💬'
+    : msg.channel === 'sms' ? '📱'
+    : msg.channel === 'email' ? '✉️'
+    : '·';
+  const body = msg.body || msg.content || '';
+  const time = msg.created_at ? new Date(msg.created_at).toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' }) : '';
+  return (
+    <div style={{ display: 'flex', justifyContent: out ? 'flex-end' : 'flex-start', marginBottom: 6 }}>
+      <div style={{
+        maxWidth: '78%',
+        padding: '8px 12px',
+        borderRadius: 14,
+        background: out ? '#92405e' : '#fff',
+        color: out ? '#fff' : '#1d1b19',
+        border: out ? '1px solid #92405e' : '1px solid #f0d2dd',
+        borderBottomLeftRadius: out ? 14 : 4,
+        borderBottomRightRadius: out ? 4 : 14,
+        fontSize: 13,
+        lineHeight: 1.4,
+        wordBreak: 'break-word',
+      }}>
+        <div>{body}</div>
+        <div style={{
+          marginTop: 4,
+          fontSize: 10,
+          opacity: 0.78,
+          display: 'flex',
+          gap: 5,
+          alignItems: 'center',
+        }}>
+          <span aria-hidden>{icon}</span>
+          <span>{time}</span>
+        </div>
       </div>
     </div>
   );
@@ -1038,6 +1318,112 @@ const styles = {
     background: 'var(--accent-light, #FFF0F3)',
     color: 'var(--accent, #C76B8A)',
     verticalAlign: 'middle',
+  },
+  tagChipRow: {
+    display: 'inline-flex',
+    flexWrap: 'wrap',
+    gap: 4,
+    marginTop: 4,
+  },
+  tagChip: {
+    display: 'inline-block',
+    padding: '2px 7px',
+    borderRadius: 999,
+    fontSize: 10,
+    fontWeight: 600,
+    letterSpacing: '0.02em',
+    border: '1px solid transparent',
+    lineHeight: 1.3,
+  },
+  messagesTab: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 12,
+    paddingTop: 8,
+  },
+  threadLoading: {
+    fontSize: 12,
+    color: 'var(--text-muted, #B5AFA8)',
+    textAlign: 'center',
+    padding: '14px 0',
+  },
+  threadError: {
+    fontSize: 12,
+    color: 'var(--danger, #c0464e)',
+    textAlign: 'center',
+    padding: '14px 0',
+  },
+  bubbleStack: {
+    display: 'flex',
+    flexDirection: 'column',
+    background: 'var(--bg, #fef8f4)',
+    border: '1px solid rgba(146,64,94,0.08)',
+    borderRadius: 14,
+    padding: '12px 10px',
+    maxHeight: 260,
+    overflowY: 'auto',
+  },
+  replyComposer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+  },
+  channelToggle: {
+    display: 'flex',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  channelChip: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    padding: '4px 10px',
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: 600,
+    border: '1px solid',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  },
+  composerRow: {
+    display: 'flex',
+    gap: 8,
+    alignItems: 'flex-end',
+  },
+  composerInput: {
+    flex: 1,
+    minWidth: 0,
+    padding: '8px 10px',
+    border: '1px solid rgba(146,64,94,0.18)',
+    borderRadius: 10,
+    fontFamily: 'inherit',
+    fontSize: 13,
+    resize: 'vertical',
+    background: '#fff',
+    color: '#1d1b19',
+  },
+  composerSend: {
+    padding: '8px 14px',
+    background: 'var(--accent, #C76B8A)',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 10,
+    fontFamily: 'inherit',
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: 'pointer',
+  },
+  fullThreadLink: {
+    alignSelf: 'flex-end',
+    background: 'transparent',
+    border: 'none',
+    color: 'var(--accent, #92405e)',
+    fontSize: 11,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    padding: '4px 0',
+    textDecoration: 'underline',
   },
   toast: {
     position: 'fixed',

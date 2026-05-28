@@ -5,6 +5,7 @@ import { API_BASE } from '../lib/config.js';
 import ActivityFeed from '../components/ActivityFeed.jsx';
 import SuggestionCards from '../components/SuggestionCards.jsx';
 import MorningCatchup from '../components/MorningCatchup.jsx';
+import UsagePanel from '../components/UsagePanel.jsx';
 
 const CalendarView = lazy(() => import('./CalendarView.jsx'));
 const SmartSchedule = lazy(() => import('./SmartSchedule.jsx'));
@@ -103,6 +104,9 @@ export default function Hub() {
         <>
           {/* Today summary , the hero card */}
           <TodaySummary beautician={beautician} onNav={navigate} />
+
+          {/* Usage panel, Day 5: slim line showing message quota for the month */}
+          <UsagePanel />
 
           {/* Florrie suggestions , Day 4 wow moment */}
           <SuggestionCards />

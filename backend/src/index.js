@@ -68,6 +68,7 @@ import agentStatusRoutes from './routes/agent-status.js';
 import hmrcRoutes from './routes/hmrc.js';
 import productRoutes from './routes/products.js';
 import migrateRoutes from './routes/migrate.js';
+import usageRoutes from './routes/usage.js';
 import whatsappConfigRoutes from './routes/whatsapp-config.js';
 import coachRoutes from './routes/coach.js';
 import courseRoutes from './routes/courses.js';
@@ -152,7 +153,16 @@ app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }), (req, 
 });
 app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
 
-app.use(express.json({ limit: '1mb' }));
+// Stash the raw request body on req.rawBody for routes that need to verify
+// HMAC signatures against the exact bytes the sender signed. Meta (WhatsApp,
+// Instagram) signs the raw JSON; re-serialising via JSON.stringify(req.body)
+// is unreliable because key ordering and number formatting can drift.
+app.use(express.json({
+  limit: '1mb',
+  verify: (req, _res, buf) => {
+    if (buf && buf.length) req.rawBody = buf;
+  },
+}));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(sanitiseBody);
 app.use(locationScope);
@@ -211,6 +221,7 @@ app.use('/api/agents', apiLimiter, agentStatusRoutes);
 app.use('/api/hmrc', apiLimiter, hmrcRoutes);
 app.use('/api/products', apiLimiter, productRoutes);
 app.use('/api/migrate', apiLimiter, migrateRoutes);
+app.use('/api/usage', apiLimiter, usageRoutes);
 app.use('/api/whatsapp', apiLimiter, whatsappConfigRoutes);
 app.use('/api/widget-state', apiLimiter, widgetRoutes);
 app.use('/api/webhooks/instagram', webhookLimiter, instagramWebhookRoutes);
