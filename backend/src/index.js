@@ -41,6 +41,7 @@ import appointmentRoutes from './routes/appointments.js';
 import bookingRoutes from './routes/booking.js';
 import aiActionRoutes from './routes/ai-actions.js';
 import activityRoutes from './routes/activity.js';
+import inboxRoutes from './routes/inbox.js';
 import webhookRoutes from './routes/webhooks.js';
 import escalationRoutes from './routes/escalations.js';
 import contentRoutes from './routes/content.js';
@@ -168,6 +169,7 @@ app.use('/api/appointments', apiLimiter, appointmentRoutes);
 app.use('/api/booking', bookingLimiter, bookingRoutes); // public booking page API
 app.use('/api/ai-actions', apiLimiter, aiActionRoutes);
 app.use('/api/activity', apiLimiter, activityRoutes);
+app.use('/api/inbox', apiLimiter, inboxRoutes);
 app.use('/api/webhooks', webhookLimiter, webhookRoutes); // WhatsApp + Twilio + Bird SMS inbound webhooks
 app.use('/api/escalations', apiLimiter, escalationRoutes);
 app.use('/api/content', apiLimiter, contentRoutes);
