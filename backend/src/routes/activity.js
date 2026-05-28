@@ -111,6 +111,21 @@ function resolveLink(row) {
   if (row.client_id) {
     return `/clients/${row.client_id}`;
   }
+  // Some daily-heartbeat rows tell us which check ran via details.check,
+  // so we can route to the page that proves the count.
+  const check = row.details?.check;
+  switch (check) {
+    case 'calendar_lookahead':
+    case 'overnight_booking_watch':
+      return '/calendar';
+    case 'dormant_scan':
+      return '/clients?filter=dormant';
+    case 'client_list_scan':
+      return '/clients';
+    case 'inbox_watch':
+      return '/inbox';
+  }
+
   switch (row.action_type) {
     case 'message_replied':
     case 'message_escalated':
@@ -129,6 +144,10 @@ function resolveLink(row) {
       return '/treatments';
     case 'quiet_week_detected':
       return '/calendar';
+    case 'dormant_detected':
+      return '/clients?filter=dormant';
+    case 'client_profile_updated':
+      return '/clients';
     case 'voice_note_processed':
       return '/voice';
     default:

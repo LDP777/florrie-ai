@@ -30,6 +30,7 @@ import { processReminders } from './services/notifications.js';
 import { cleanupStaleBookings } from './services/cleanup.js';
 import { runAutonomousCycle } from './services/autonomous-scheduler.js';
 import { runPredictiveNudges } from './services/predictive-nudge.js';
+import { runDailyHeartbeats } from './services/florrie-heartbeat.js';
 import { processEmailQueue, checkTrialExpiry } from './services/email-sequences.js';
 import { processRetryQueue as processWhatsAppRetryQueue } from './services/whatsapp-retry.js';
 
@@ -314,6 +315,27 @@ app.listen(PORT, () => {
       logger.error({ err }, 'Startup: predictive nudge scan failed');
     });
   }, 60_000);
+
+  // Florrie heartbeat: once-daily passive checks that log real numbers to
+  // ai_actions so the Hub "What Florrie did" feed stays populated with truthful
+  // entries. See backend/src/services/florrie-heartbeat.js for the five checks.
+  // Idempotent — a beautician only gets one heartbeat per calendar day.
+  const HEARTBEAT_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
+  setInterval(async () => {
+    try {
+      await runDailyHeartbeats();
+    } catch (err) {
+      logger.error({ err }, 'Heartbeat cron: failed');
+    }
+  }, HEARTBEAT_INTERVAL);
+
+  // Run first heartbeat 30s after startup, so the feed gets fresh real rows
+  // shortly after a Railway deploy/restart.
+  setTimeout(() => {
+    runDailyHeartbeats().catch(err => {
+      logger.error({ err }, 'Startup: heartbeat run failed');
+    });
+  }, 30_000);
 
   // Email sequence queue , process due emails every 15 minutes
   const EMAIL_QUEUE_INTERVAL = 15 * 60 * 1000; // 15 minutes
