@@ -3,7 +3,7 @@ import { useBeautician, supabase, fetchRows, insertRow, updateRow, deleteRow } f
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 function getToken() {
-  // Supabase stores session under sb-<project-ref>-auth-token — find it by pattern
+  // Supabase stores session under sb-<project-ref>-auth-token, find it by pattern
   const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
   if (!key) return null;
   const raw = localStorage.getItem(key);
@@ -17,12 +17,12 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 /**
- * Content Autopilot — Ellie's #1 pain point.
+ * Content Autopilot, Ellie's #1 pain point.
  *
  * Three tabs:
- *   Ideas   — template captions grouped by type, one-tap to draft
- *   Drafts  — posts waiting for approval (edit, approve, discard)
- *   Posted  — published posts with engagement stats
+ *   Ideas  , template captions grouped by type, one-tap to draft
+ *   Drafts , posts waiting for approval (edit, approve, discard)
+ *   Posted , published posts with engagement stats
  *
  * Quick-post flow:
  *   Pick type → write or use template → optional photo → save draft → approve
@@ -32,23 +32,23 @@ import ErrorCard from '../components/ErrorCard.jsx';
  */
 const CAPTION_TEMPLATES = {
   before_after: [
-    "Cannot get over this set {treatment} — the definition is unreal. DM me to book yours {emoji}",
+    "Cannot get over this set {treatment}, the definition is unreal. DM me to book yours {emoji}",
     "Before ➡️ After. This is why I love what I do. {treatment} looking fresh {emoji}",
     "Happy Friday with this gorgeous {treatment} glow-up. Slots going fast for next week, grab one {emoji}",
     "Obsessed isn't even the word. {treatment} results that speak for themselves {emoji}",
     "That crisp, fluffy finish {emoji} Love a good {treatment} transformation. DM to book xx",
-    "Before and after a {treatment} session — she left buzzing and honestly same {emoji}",
+    "Before and after a {treatment} session, she left buzzing and honestly same {emoji}",
   ],
   last_minute_availability: [
-    "Gap alert {emoji} I've had a cancellation on {day} — who wants it? DM me quick xx",
+    "Gap alert {emoji} I've had a cancellation on {day}, who wants it? DM me quick xx",
     "Last minute slot just opened up {day} afternoon. Perfect for a {treatment}. First to DM gets it {emoji}",
     "Cancellation = your lucky day {emoji} {day} is free. Grab it before it goes xx",
     "Unexpected gap on {day}! If you've been putting off rebooking, this is your sign {emoji} DM me xx",
   ],
   promotion: [
-    "Treat yourself this week — {offer}. Book via DM or the link in my bio {emoji}",
+    "Treat yourself this week, {offer}. Book via DM or the link in my bio {emoji}",
     "Something special for my regulars {emoji} {offer}. Limited slots, don't sleep on it xx",
-    "{offer} — because you deserve it {emoji} DM to book xx",
+    "{offer}, because you deserve it {emoji} DM to book xx",
   ],
   testimonial: [
     "When your client sends you this {emoji} Best feeling ever. If you want results like this, you know where I am xx",
@@ -58,7 +58,7 @@ const CAPTION_TEMPLATES = {
   general: [
     "Morning from the studio {emoji} Ready for a full day of gorgeous {treatment} bookings. Love this job xx",
     "New week, fresh brows {emoji} Let's get you booked in. Link in bio or DM me xx",
-    "That feeling when every slot this week is full {emoji} If you want in next week, book now — they go fast xx",
+    "That feeling when every slot this week is full {emoji} If you want in next week, book now, they go fast xx",
   ],
 };
 const EMOJIS = ['✨', '💫', '🤍', '🫶', '💕', '👏'];
@@ -414,7 +414,7 @@ export default function ContentAutopilot() {
         beautician_id: beautician.id,
         post_type: 'gallery',
         image_url: afterUrl,
-        caption: `Before/After: ${galleryForm.treatment}${galleryForm.notes ? ' — ' + galleryForm.notes : ''}`,
+        caption: `Before/After: ${galleryForm.treatment}${galleryForm.notes ? ', ' + galleryForm.notes : ''}`,
         status: 'draft',
       });
       setGallery(prev => [item, ...prev]);
@@ -486,7 +486,7 @@ export default function ContentAutopilot() {
   async function handleApprove(postId) {
     setPublishing(postId);
     try {
-      // Call backend publish endpoint — handles Instagram Graph API if connected
+      // Call backend publish endpoint, handles Instagram Graph API if connected
       const token = getToken();
       const res = await fetch(`${API_BASE}/api/content/${postId}/publish`, {
         method: 'POST',
@@ -689,7 +689,7 @@ export default function ContentAutopilot() {
       {/* ═══ IDEAS TAB ═══ */}
       {tab === 'ideas' && (
         <div style={styles.postList}>
-          {/* AI suggestions — from recent appointments */}
+          {/* AI suggestions, from recent appointments */}
           {(loadingSuggestions || suggestions.length > 0) && (
             <div style={styles.aiSuggestionsSection}>
               <div style={styles.aiSuggestionsHeader}>
@@ -1000,7 +1000,7 @@ export default function ContentAutopilot() {
         <div style={styles.postList}>
           <div style={styles.galleryHeaderRow}>
             <p style={styles.ideaIntro}>
-              Before & after photos. Your best portfolio — clients love seeing results.
+              Before & after photos. Your best portfolio, clients love seeing results.
             </p>
             <button onClick={() => setShowGalleryAdd(true)} style={styles.galleryAddBtn}>+ Add</button>
           </div>
@@ -1111,7 +1111,7 @@ const DEV_GALLERY = [
     before_url: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23F0ECE8" width="200" height="200"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%23AAA5A0" font-size="14"%3EBefore%3C/text%3E%3C/svg%3E',
     after_url: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23FBF0F3" width="200" height="200"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%23C76B8A" font-size="14"%3EAfter%3C/text%3E%3C/svg%3E',
     treatment_name: 'Lamination & Hybrid Dye',
-    caption: 'First-time client — blown away by the result',
+    caption: 'First-time client, blown away by the result',
     created_at: '2026-03-22T14:00:00Z',
   },
   {
@@ -1127,7 +1127,7 @@ const DEV_DRAFTS = [
   {
     id: 'dev-draft-1',
     post_type: 'before_after',
-    caption: "Cannot get over this lamination & hybrid dye set — the definition is unreal. DM me to book yours ✨",
+    caption: "Cannot get over this lamination & hybrid dye set, the definition is unreal. DM me to book yours ✨",
     hashtags: ['#brows', '#browlamination', '#browgoals', '#beautysalon', '#browsonfleek'],
     image_url: null,
     status: 'draft',
@@ -1136,7 +1136,7 @@ const DEV_DRAFTS = [
   {
     id: 'dev-draft-2',
     post_type: 'last_minute_availability',
-    caption: "Gap alert 💫 I've had a cancellation on Thursday — who wants it? DM me quick xx",
+    caption: "Gap alert 💫 I've had a cancellation on Thursday, who wants it? DM me quick xx",
     hashtags: ['#lastminute', '#availabilitydrop', '#booknow'],
     image_url: null,
     status: 'draft',

@@ -3,10 +3,10 @@ import { supabase } from '../lib/supabase.js'
 import { useParams, useLocation } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
 /**
- * BookingPage — the public-facing branded booking link.
+ * BookingPage, the public-facing branded booking link.
  * URL: florrie.ai/book/{slug}
  *
- * PUBLIC page — no auth required.
+ * PUBLIC page, no auth required.
  * Uses Supabase anon client directly.
  * NOTE: Needs public READ policies on beauticians + treatments tables
  *       and public INSERT on appointments + clients for prod use.
@@ -16,7 +16,7 @@ import { API_BASE } from '../lib/config.js';
  */
 const STEPS = ['Treatment', 'Date & Time', 'Your Details', 'Confirm'];
 /**
- * PaymentCountdown — shows a live countdown to the payment deadline.
+ * PaymentCountdown, shows a live countdown to the payment deadline.
  * If the slot will be released in <10min, client sees how long they have.
  */
 function PaymentCountdown({ expiresAt, brand, brandLight }) {
@@ -44,7 +44,7 @@ function PaymentCountdown({ expiresAt, brand, brandLight }) {
         Your slot is held for {mins}:{secs.toString().padStart(2, '0')}
       </p>
       <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>
-        Complete payment to confirm — if the timer runs out your slot will be released so you can grab a card if needed.
+        Complete payment to confirm, if the timer runs out your slot will be released so you can grab a card if needed.
       </p>
     </div>
   );
@@ -57,14 +57,14 @@ export default function BookingPage() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState(isCancelled ? 'Payment was cancelled. Your booking slot is held for 15 minutes — you can try again.' : null);
+  const [error, setError] = useState(isCancelled ? 'Payment was cancelled. Your booking slot is held for 15 minutes, you can try again.' : null);
   const [success, setSuccess] = useState(isConfirmedReturn ? { depositPaid: true } : null);
   const [fieldErrors, setFieldErrors] = useState({});
   // Data
   const [beautician, setBeautician] = useState(null);
   const [treatments, setTreatments] = useState([]);
   const [slots, setSlots] = useState([]);
-  // User selections — multi-treatment support
+  // User selections, multi-treatment support
   const [selectedTreatments, setSelectedTreatments] = useState([]);
   const selectedTreatment = selectedTreatments[0] || null; // primary treatment for backwards compat
   const [selectedDate, setSelectedDate] = useState('');
@@ -83,7 +83,7 @@ export default function BookingPage() {
   const [paymentType, setPaymentType] = useState('deposit');
   // Payment method: 'card', 'cash', 'bank_transfer'
   const [paymentMethod, setPaymentMethod] = useState('card');
-  // Client recognition — returning client lookup
+  // Client recognition, returning client lookup
   const [recognisedClient, setRecognisedClient] = useState(null); // { name, email, phone, hasPendingPatchTest, hasPendingForm }
   const [lookingUpClient, setLookingUpClient] = useState(false);
   // Membership detection
@@ -110,7 +110,7 @@ export default function BookingPage() {
   ];
   const needsConsultation = selectedTreatments.some(t => t.requires_consultation);
   const needsPatchTest = selectedTreatments.some(t => t.requires_patch_test);
-  // The questions to render — dynamic form fields if available, else defaults
+  // The questions to render, dynamic form fields if available, else defaults
   // Filter out the patch_test question for treatments that don't require it (wax, microblading, etc.)
   const consultationQuestions = consultationForm?.consultation_form_fields?.length
     ? consultationForm.consultation_form_fields.map(f => ({
@@ -188,7 +188,7 @@ export default function BookingPage() {
         const data = await res.json();
         if (res.ok && data.form) setConsultationForm(data.form);
       } catch {
-        // Fall back to default questions — non-blocking
+        // Fall back to default questions, non-blocking
       }
     }
     loadForm();
@@ -227,7 +227,7 @@ export default function BookingPage() {
     }, 600);
     return () => clearTimeout(timer);
   }, [clientDetails.phone, slug, selectedTreatment?.id]);
-  // Client recognition — trigger when email field loses focus
+  // Client recognition, trigger when email field loses focus
   async function handleEmailBlur() {
     const email = clientDetails.email?.trim();
     setLookingUpClient(true);
@@ -251,7 +251,7 @@ export default function BookingPage() {
         setRecognisedClient(null);
       }
     } catch {
-      // silent — never block the booking flow
+      // silent, never block the booking flow
     } finally {
       setLookingUpClient(false);
     }
@@ -318,7 +318,7 @@ export default function BookingPage() {
           .eq('is_active', true)
           .order('name');
         setAddOns(ao || []);
-        // Unblock the page now — products are optional retail items, never block booking
+        // Unblock the page now, products are optional retail items, never block booking
         setLoading(false);
         // Fetch retail products in the background with a hard timeout
         try {
@@ -329,7 +329,7 @@ export default function BookingPage() {
             const products = await res.json();
             setRetailProducts(products);
           }
-        } catch { /* products are optional — fail silently */ }
+        } catch { /* products are optional, fail silently */ }
       } catch (err) {
         setError("Something went wrong loading this page.");
         setLoading(false);
@@ -379,7 +379,7 @@ export default function BookingPage() {
         const h = Math.floor(m / 60);
         const min = m % 60;
         const display = `${h.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
-        // No Z suffix — times are in the beautician's local timezone, not UTC.
+        // No Z suffix, times are in the beautician's local timezone, not UTC.
         // Backend stores as-is and the beautician's timezone field handles conversion.
         const startsAt = `${selectedDate}T${display}:00`;
         generated.push({ starts_at: startsAt, display });
@@ -394,7 +394,7 @@ export default function BookingPage() {
     setSubmitting(true);
     setError(null);
     try {
-      // Call backend API — handles client lookup/creation, RLS, conflict check, deposit flow
+      // Call backend API, handles client lookup/creation, RLS, conflict check, deposit flow
       const res = await fetch(`${API_BASE}/api/booking/${slug}/book`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -536,7 +536,7 @@ export default function BookingPage() {
         <div style={styles.card}>
           <div style={{ ...styles.successIcon, background: brandLight, color: brand }}>✓</div>
           <h2 style={styles.successTitle}>
-            {success.depositPaid ? "You're booked — deposit paid" : success.depositPending ? "Almost there — deposit needed" : "You're booked"}
+            {success.depositPaid ? "You're booked, deposit paid" : success.depositPending ? "Almost there, deposit needed" : "You're booked"}
           </h2>
           <div style={styles.successDetails}>
             {success.depositPaid ? (
@@ -567,7 +567,7 @@ export default function BookingPage() {
             {success.depositPaid
               ? 'Your card has been saved for faster checkout next time.'
               : success.depositPending
-              ? "Your slot is held — we'll confirm once the deposit is received."
+              ? "Your slot is held, we'll confirm once the deposit is received."
               : "You'll receive a confirmation message shortly."}
           </p>
           {/* Payment buffer countdown */}
@@ -731,7 +731,7 @@ export default function BookingPage() {
                 )}
               </div>
             )}
-            {/* Retail Products — shown after treatment selected */}
+            {/* Retail Products, shown after treatment selected */}
             {selectedTreatment && retailProducts.length > 0 && (
               <div style={{ marginTop: 20 }}>
                 <h3 style={{ fontSize: 15, fontWeight: 600, marginBottom: 4, color: 'var(--text-primary)', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" }}>
@@ -844,7 +844,7 @@ export default function BookingPage() {
             {selectedDate && (
               <div style={styles.slotGrid}>
                 {slots.length === 0 ? (
-                  <p style={styles.noSlots}>No available slots on this day — try another date</p>
+                  <p style={styles.noSlots}>No available slots on this day, try another date</p>
                 ) : (
                   slots.map(s => (
                     <button
@@ -940,7 +940,7 @@ export default function BookingPage() {
                     <span style={{ color: '#666' }}> We've filled in your details.</span>
                     {recognisedClient.hasPendingPatchTest && needsPatchTest && (
                       <p style={{ margin: '6px 0 0', fontSize: 12, color: '#D4943A', fontWeight: 500 }}>
-                        ⚠️ You have a patch test pending — your beautician will be in touch.
+                        ⚠️ You have a patch test pending, your beautician will be in touch.
                       </p>
                     )}
                     {recognisedClient.hasPendingForm && (
@@ -1211,7 +1211,7 @@ export default function BookingPage() {
                 </div>
               )}
             </div>
-            {/* Payment method picker — shown when multiple methods are accepted */}
+            {/* Payment method picker, shown when multiple methods are accepted */}
             {(() => {
               const paySettings = beautician?.payment_settings || {};
               const accepted = paySettings.accepted_methods || ['cash'];
@@ -1263,7 +1263,7 @@ export default function BookingPage() {
                 border: '1px solid var(--gold, #C9A96E)', fontSize: 13, fontWeight: 500,
                 color: 'var(--gold, #C9A96E)',
               }}>
-                ★ {memberInfo.plan_name} member — any benefits will be applied by your beautician
+                ★ {memberInfo.plan_name} member, any benefits will be applied by your beautician
               </div>
             )}
             {/* Package redemption */}
@@ -1299,7 +1299,7 @@ export default function BookingPage() {
                 })}
                 {selectedPackage && (
                   <p style={{ fontSize: 12, color: 'var(--success, #38A169)', marginTop: 4 }}>
-                    No payment needed — using a session from your {selectedPackage.package_name} package
+                    No payment needed, using a session from your {selectedPackage.package_name} package
                   </p>
                 )}
               </div>
@@ -1313,7 +1313,7 @@ export default function BookingPage() {
                   border: '1px solid var(--success, #38A169)', fontSize: 13,
                 }}>
                   <span style={{ color: 'var(--success, #38A169)', fontWeight: 600 }}>
-                    ✓ {appliedDiscount.code} — saving £{(discountCents / 100).toFixed(2)}
+                    ✓ {appliedDiscount.code}, saving £{(discountCents / 100).toFixed(2)}
                   </span>
                   <button onClick={removeDiscount} style={{
                     background: 'none', border: 'none', fontSize: 16, color: 'var(--text-muted)',
@@ -1329,7 +1329,7 @@ export default function BookingPage() {
                       cursor: 'pointer', padding: 0, fontFamily: 'inherit', fontWeight: 500,
                     }}
                   >
-                    {discountOpen ? '— Hide' : '+ Got a code?'}
+                    {discountOpen ? 'Hide' : '+ Got a code?'}
                   </button>
                   {discountOpen && (
                     <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>

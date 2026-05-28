@@ -6,15 +6,15 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
- * Campaigns — AI-powered client outreach.
+ * Campaigns, AI-powered client outreach.
  *
  * Types:
- *   Reactivation  — "We miss you" messages to dormant clients
- *   Rescue         — Saves cancellations / no-shows with rebooking offer
- *   Weather        — "Rain = pamper day" triggered by forecast
- *   Bank Holiday   — Holiday promo blasts
- *   Event          — Christmas, Valentine's, Mother's Day, etc
- *   Custom         — One-off campaign from scratch
+ *   Reactivation , "We miss you" messages to dormant clients
+ *   Rescue        , Saves cancellations / no-shows with rebooking offer
+ *   Weather       , "Rain = pamper day" triggered by forecast
+ *   Bank Holiday  , Holiday promo blasts
+ *   Event         , Christmas, Valentine's, Mother's Day, etc
+ *   Custom        , One-off campaign from scratch
  *
  * Flow: AI drafts → beautician approves → sent via WhatsApp/SMS
  */
@@ -39,21 +39,21 @@ const STATUS_LABELS = {
 // Message templates per type (Ellie's tone)
 const MESSAGE_TEMPLATES = {
   reactivation: [
-    "Hey {name} 💕 It's been a while since your last appointment! I'd love to get you booked back in. I've got availability this week if you fancy it — DM me or book via my link xx",
+    "Hey {name} 💕 It's been a while since your last appointment! I'd love to get you booked back in. I've got availability this week if you fancy it, DM me or book via my link xx",
     "Hey {name}, miss your face! ✨ Fancy getting your brows done? I've got a few slots open this week. Let me know xx",
     "Hey lovely, just checking in! It's been {days} days since your last visit. Shall I pop you in for your usual? xx",
   ],
   rescue: [
-    "Hey {name}, I saw your cancellation — no worries at all! If you want to rebook for another day this week I can squeeze you in. Let me know xx",
+    "Hey {name}, I saw your cancellation, no worries at all! If you want to rebook for another day this week I can squeeze you in. Let me know xx",
     "No stress about cancelling {name} 💕 Want me to move you to later this week instead? I've got {day} free xx",
   ],
   weather: [
     "Rainy day = perfect pamper day ☔✨ I've got last-minute slots today and tomorrow. Fancy treating yourself? DM me xx",
-    "This weather is grim but at least your brows can look incredible 😂 Got availability today — grab it while you can xx",
+    "This weather is grim but at least your brows can look incredible 😂 Got availability today, grab it while you can xx",
   ],
   bank_holiday: [
-    "Bank holiday weekend sorted? ✨ Get your brows done before the long weekend — limited slots left! Book now xx",
-    "Long weekend coming up! Make sure your brows are on point 💕 I've got a few slots left — first come first served xx",
+    "Bank holiday weekend sorted? ✨ Get your brows done before the long weekend, limited slots left! Book now xx",
+    "Long weekend coming up! Make sure your brows are on point 💕 I've got a few slots left, first come first served xx",
   ],
   event: [
     "Christmas party season is here ✨ Get your brows looking perfect for all those dos! Booking up fast xx",
@@ -101,7 +101,7 @@ export default function Campaigns() {
     else targetCount = 5;
 
     setForm({
-      name: `${cfg.label} — ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`,
+      name: `${cfg.label}, ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`,
       message: template,
       targetCount,
     });
@@ -156,7 +156,7 @@ export default function Campaigns() {
   const nextBankHoliday = (() => {
     const now = new Date();
     const year = now.getFullYear();
-    // UK bank holidays (approximate — covers the common ones)
+    // UK bank holidays (approximate, covers the common ones)
     const holidays = [
       new Date(year, 0, 1), new Date(year, 3, 18), new Date(year, 3, 21),
       new Date(year, 4, 5), new Date(year, 4, 26), new Date(year, 7, 25),

@@ -1,11 +1,11 @@
 /**
- * Policies — Deposits, cancellation rules, no-show fees.
+ * Policies, Deposits, cancellation rules, no-show fees.
  *
  * Sections:
- *   Deposits     — require deposit on booking, amount, which treatments
- *   Cancellation — cancellation window, fee structure
- *   No-shows     — fee, strike system, auto-block
- *   Client-facing — preview of the policy clients see at booking
+ *   Deposits    , require deposit on booking, amount, which treatments
+ *   Cancellation, cancellation window, fee structure
+ *   No-shows    , fee, strike system, auto-block
+ *   Client-facing, preview of the policy clients see at booking
  */
 import { useState, useEffect } from 'react';
 import { useBeautician, supabase, updateRow } from '../lib/supabase.js';
@@ -49,7 +49,7 @@ export default function Policies() {
   const [cancelFeeFixed, setCancelFeeFixed] = useState(10);
   const [cancelFeePercent, setCancelFeePercent] = useState(50);
   const [lateCancelMessage, setLateCancelMessage] = useState(
-    "Hey lovely, just so you know we need at least 24 hours notice for cancellations — otherwise a fee may apply. No stress, just a heads up xx"
+    "Hey lovely, just so you know we need at least 24 hours notice for cancellations, otherwise a fee may apply. No stress, just a heads up xx"
   );
 
   // No-show settings
@@ -95,7 +95,7 @@ export default function Policies() {
           setCancelFeeType(data.cancel_fee_type ?? 'deposit');
           setCancelFeeFixed(data.cancel_fee_fixed ?? 10);
           setCancelFeePercent(data.cancel_fee_percent ?? 50);
-          setLateCancelMessage(data.late_cancel_message ?? "Hey lovely, just so you know we need at least 24 hours notice for cancellations — otherwise a fee may apply. No stress, just a heads up xx");
+          setLateCancelMessage(data.late_cancel_message ?? "Hey lovely, just so you know we need at least 24 hours notice for cancellations, otherwise a fee may apply. No stress, just a heads up xx");
           setNoshowAction(data.noshow_action ?? 'strike');
           setNoshowFee(data.noshow_fee ?? 20);
           setNoshowStrikesMax(data.noshow_strikes_max ?? 2);
@@ -194,7 +194,7 @@ export default function Policies() {
       const feeType = freq === 'rarely' ? 'deposit' : 'percent';
       const feePercent = freq === 'constantly' ? 75 : 50;
       const summary = freq === 'rarely'
-        ? `Keep things light — just hold the deposit if someone cancels late. Your ${windowHours}h window means they have fair warning.`
+        ? `Keep things light, just hold the deposit if someone cancels late. Your ${windowHours}h window means they have fair warning.`
         : freq === 'sometimes'
           ? `A deposit plus a ${feePercent}% late fee sends a clear message without feeling harsh. Clients who book properly won't even notice.`
           : `You need proper protection. ${windowHours}h window, ${feePercent}% late cancel fee, and deposit required. Once clients know you mean it, it usually stops.`;
@@ -226,7 +226,7 @@ export default function Policies() {
       const blockWanted = ans.block; // yes | no
       const strikesMax = severity === 'mild' ? 3 : severity === 'moderate' ? 2 : 1;
       const summary = severity === 'serious'
-        ? `One strike and they're on notice. After ${strikesMax} no-show${strikesMax !== 1 ? 's' : ''} they can't book online — that's the line.`
+        ? `One strike and they're on notice. After ${strikesMax} no-show${strikesMax !== 1 ? 's' : ''} they can't book online, that's the line.`
         : `A strike system with ${blockWanted === 'yes' ? 'auto-blocking' : 'manual follow-up'} gives repeat offenders fair warning. Most will shape up fast.`;
       return {
         changes: {
@@ -283,7 +283,7 @@ export default function Policies() {
       const trust = ans.trust; // mostly regular | lots of new
       const depositAmt = volume === 'high' ? 15 : 10;
       const cancelWindowHrs = trust === 'mostly regular' ? 24 : 48;
-      const summary = `A solid starter set — nothing aggressive, but enough to protect yourself. You can always tighten things up later once you see how clients respond.`;
+      const summary = `A solid starter set, nothing aggressive, but enough to protect yourself. You can always tighten things up later once you see how clients respond.`;
       return {
         changes: {
           depositEnabled: true,
@@ -732,14 +732,14 @@ export default function Policies() {
               {wizStep === 0 && "Hey! Let me help you set up policies that actually fit how you work. What's your biggest headache right now?"}
               {wizStep === 1 && wizPath === 'late_cancel' && "Ugh, the worst. How often would you say it happens?"}
               {wizStep === 1 && wizPath === 'noshow' && "That's proper disrespectful of people's time. How bad has it got?"}
-              {wizStep === 1 && wizPath === 'income' && "Smart thinking — let me understand your situation a bit more. How's your margin holding up?"}
-              {wizStep === 1 && wizPath === 'fresh' && "Love it — clean slate. How busy are you on average?"}
+              {wizStep === 1 && wizPath === 'income' && "Smart thinking. Let me understand your situation a bit more. How's your margin holding up?"}
+              {wizStep === 1 && wizPath === 'fresh' && "Love it. Clean slate. How busy are you on average?"}
               {wizStep === 2 && wizPath === 'late_cancel' && "Got it. And how much notice do you realistically need to fill a slot?"}
               {wizStep === 2 && wizPath === 'noshow' && "Would you want to automatically block them from booking online after too many?"}
               {wizStep === 2 && wizPath === 'income' && "Makes sense. What does your client mix look like?"}
               {wizStep === 2 && wizPath === 'fresh' && "And are most of your clients regulars, or do you get a lot of new people?"}
               {wizStep === 'result' && (wizApplied
-                ? "Done — settings applied. You can fine-tune anything in the other tabs."
+                ? "Done. Settings applied. You can fine-tune anything in the other tabs."
                 : `Here's what I'd suggest based on what you told me.`)}
             </div>
           </div>
@@ -807,7 +807,7 @@ export default function Policies() {
           {wizStep === 1 && wizPath === 'fresh' && (
             <div style={s.wizOptions}>
               {[
-                { key: 'low', label: 'Quieter — building up', sub: 'Under 10 appointments a week' },
+                { key: 'low', label: 'Quieter, building up', sub: 'Under 10 appointments a week' },
                 { key: 'medium', label: 'Steady', sub: '10–20 a week' },
                 { key: 'high', label: 'Fully booked most weeks', sub: '20+ appointments' },
               ].map(opt => (
@@ -837,8 +837,8 @@ export default function Policies() {
           {wizStep === 2 && wizPath === 'noshow' && (
             <div style={s.wizOptions}>
               {[
-                { key: 'yes', label: 'Yes — block them automatically', sub: 'After enough strikes they can\'t book online' },
-                { key: 'no', label: 'No — I\'ll handle it manually', sub: 'Florrie flags it, I decide what to do' },
+                { key: 'yes', label: 'Yes, block them automatically', sub: 'After enough strikes they can\'t book online' },
+                { key: 'no', label: 'No, I\'ll handle it manually', sub: 'Florrie flags it, I decide what to do' },
               ].map(opt => (
                 <button key={opt.key} onClick={() => wizAnswer('block', opt.key)} style={s.wizOpt}>
                   <span style={s.wizOptLabel}>{opt.label}</span>

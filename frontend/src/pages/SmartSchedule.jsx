@@ -7,7 +7,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 
 /**
- * Smart Schedule — Gap Finder & Fill Assistant.
+ * Smart Schedule, Gap Finder & Fill Assistant.
  *
  * Scans the calendar for empty slots and suggests:
  *   1. Clients who are due for a rebook
@@ -15,9 +15,9 @@ import EmptyState from '../components/EmptyState.jsx';
  *   3. One-tap message to offer the slot
  *
  * Three views:
- *   Gaps     — this week's empty slots ranked by fillability
- *   Suggest  — AI-powered fill suggestions per gap
- *   Insights — schedule utilisation stats
+ *   Gaps    , this week's empty slots ranked by fillability
+ *   Suggest , AI-powered fill suggestions per gap
+ *   Insights, schedule utilisation stats
  */
 
 const FILLABILITY = {
@@ -59,14 +59,14 @@ function computeSuggestions(clients, treatments) {
         client: clientObj,
         last_visit_days: daysSince,
         treatment: matchingTreatment,
-        reason: `Hasn't been in ${daysSince} days — send a comeback offer?`,
+        reason: `Hasn't been in ${daysSince} days, send a comeback offer?`,
       });
     } else if (daysSince > avgInterval) {
       rebook_due.push({
         client: clientObj,
         treatment: matchingTreatment,
         days_overdue: daysSince - avgInterval,
-        reason: `${lastTreatment} overdue by ${daysSince - avgInterval} days — usually rebooks every ${avgInterval} days`,
+        reason: `${lastTreatment} overdue by ${daysSince - avgInterval} days, usually rebooks every ${avgInterval} days`,
       });
     }
   });
@@ -157,7 +157,7 @@ export default function SmartSchedule() {
         const totalGapMins = computedGaps.reduce((s, g) => s + g.duration_minutes, 0);
         const totalWorkMins = computeTotalWorkMinutes(beautician.working_hours);
         const utilisation = totalWorkMins > 0 ? Math.round(((totalWorkMins - totalGapMins) / totalWorkMins) * 100) : 0;
-        const avgApptValue = 3500; // £35 fallback — backend enriches with real data
+        const avgApptValue = 3500; // £35 fallback, backend enriches with real data
         const revenueAtRisk = Math.round((totalGapMins / 60) * (avgApptValue / 100));
         triggerNudge('calendar_gaps', {
           gap_count: computedGaps.length,
@@ -289,21 +289,21 @@ export default function SmartSchedule() {
     setMessageSent(prev => ({ ...prev, [key]: true }));
 
     if (!suggestion.client.id) {
-      // Dev mode or waitlist entry with no real ID — nothing to send
+      // Dev mode or waitlist entry with no real ID, nothing to send
       return;
     }
 
     try {
       let message;
       if (isGapContext) {
-        // Slot offer — "I have a slot free on X at Y, want it?"
+        // Slot offer, "I have a slot free on X at Y, want it?"
         const day = context.dayLabel || context.date;
-        message = `Hi ${suggestion.client.first_name}! I have a ${context.duration_minutes}-min slot free on ${day} at ${context.start}${suggestion.treatment?.name ? ` — perfect for your ${suggestion.treatment.name}` : ''}. Want to grab it? Just reply YES and I'll book you in 💕`;
+        message = `Hi ${suggestion.client.first_name}! I have a ${context.duration_minutes}-min slot free on ${day} at ${context.start}${suggestion.treatment?.name ? `, perfect for your ${suggestion.treatment.name}` : ''}. Want to grab it? Just reply YES and I'll book you in 💕`;
       } else if (context === 'dormant') {
-        message = `Hi ${suggestion.client.first_name}! It's been a while and we miss you 💕 We have some slots coming up — want to come back in for your ${suggestion.treatment?.name || 'treatment'}?`;
+        message = `Hi ${suggestion.client.first_name}! It's been a while and we miss you 💕 We have some slots coming up, want to come back in for your ${suggestion.treatment?.name || 'treatment'}?`;
       } else {
-        // 'sugg' — rebook nudge
-        message = `Hi ${suggestion.client.first_name}! Just a little nudge — your ${suggestion.treatment?.name || 'appointment'} is due! Would you like to book in? Just reply and I'll sort a time for you 🌸`;
+        // 'sugg', rebook nudge
+        message = `Hi ${suggestion.client.first_name}! Just a little nudge, your ${suggestion.treatment?.name || 'appointment'} is due! Would you like to book in? Just reply and I'll sort a time for you 🌸`;
       }
 
       const token = (await supabase?.auth.getSession())?.data?.session?.access_token;
@@ -327,7 +327,7 @@ export default function SmartSchedule() {
     }
   }
 
-  // Utilisation stats — computed from actual working hours
+  // Utilisation stats, computed from actual working hours
   const totalWorkMinutes = computeTotalWorkMinutes(beautician?.working_hours);
   const totalGapMinutes = gaps.reduce((sum, g) => sum + g.duration_minutes, 0);
   const bookedMins = Math.max(0, totalWorkMinutes - totalGapMinutes);
@@ -421,7 +421,7 @@ export default function SmartSchedule() {
                     <div style={styles.gapHeader}>
                       <div style={styles.gapTime}>
                         <span style={styles.gapDay}>{gap.dayLabel}</span>
-                        <span style={styles.gapSlot}>{gap.start} — {gap.end}</span>
+                        <span style={styles.gapSlot}>{gap.start} to {gap.end}</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={styles.gapDuration}>{gap.duration_minutes}min</span>
@@ -476,7 +476,7 @@ export default function SmartSchedule() {
                               </div>
                               <div style={styles.suggInfo}>
                                 <span style={styles.suggName}>{suggestions.waitlist_match[0].client.first_name} {suggestions.waitlist_match[0].client.last_name}</span>
-                                <span style={styles.suggReason}>On waitlist — wants {suggestions.waitlist_match[0].preferred_day} {suggestions.waitlist_match[0].preferred_time}</span>
+                                <span style={styles.suggReason}>On waitlist, wants {suggestions.waitlist_match[0].preferred_day} {suggestions.waitlist_match[0].preferred_time}</span>
                               </div>
                             </div>
                             {messageSent[`${suggestions.waitlist_match[0].client.first_name}-${gap.id}`] ? (
@@ -530,7 +530,7 @@ export default function SmartSchedule() {
 
           <div style={styles.suggSection}>
             <h3 style={styles.suggSectionTitle}>💤 Dormant rescue</h3>
-            <p style={styles.suggSectionDesc}>Clients going cold — win them back</p>
+            <p style={styles.suggSectionDesc}>Clients going cold, win them back</p>
             {suggestions.dormant_rescue.map((s, i) => (
               <div key={`dr-${i}`} style={styles.suggFullCard}>
                 <div style={styles.suggestionTop}>
@@ -568,7 +568,7 @@ export default function SmartSchedule() {
                     <span style={styles.suggDetail}>Wants {s.preferred_day} {s.preferred_time}</span>
                   </div>
                 </div>
-                <p style={styles.suggReasonText}>{s.treatment.name} — {s.treatment.duration_minutes}min</p>
+                <p style={styles.suggReasonText}>{s.treatment.name}, {s.treatment.duration_minutes}min</p>
               </div>
             ))}
           </div>
@@ -615,7 +615,7 @@ export default function SmartSchedule() {
           <div style={styles.insightSection}>
             <h3 style={styles.insightSectionTitle}>This week's hard slots</h3>
             {hardSlots.length === 0 ? (
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>No gaps this week — fully booked 🎉</p>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>No gaps this week, fully booked 🎉</p>
             ) : (
               <div style={styles.hardSlotList}>
                 {hardSlots.map(s => (
