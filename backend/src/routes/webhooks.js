@@ -627,11 +627,20 @@ function normalisePhoneNumber(raw) {
 async function findBeauticianByBirdNumber(phoneNumber) {
   if (phoneNumber) {
     const sanitised = phoneNumber.toString().replace(/[^0-9+\-() ]/g, '').substring(0, 30);
-    const { data: beautician } = await supabase
+    let { data: beautician } = await supabase
       .from('beauticians')
       .select('*')
       .eq('sms_originator', sanitised)
       .maybeSingle();
+    // New tenants may not have sms_originator set yet; also match on phone so
+    // their inbound SMS isn't silently dropped (M6).
+    if (!beautician) {
+      ({ data: beautician } = await supabase
+        .from('beauticians')
+        .select('*')
+        .eq('phone', sanitised)
+        .maybeSingle());
+    }
     if (beautician) return beautician;
 
     logger.warn({ phoneNumber }, 'Bird number not matched to beautician, falling back to first');

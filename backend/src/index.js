@@ -221,7 +221,13 @@ app.use('/api/photo-consent', apiLimiter, photoConsentRoutes);
 app.use('/api/locations', apiLimiter, locationsRoutes);
 app.use('/api/voice', apiLimiter, voiceRoutes);
 app.use('/api/consultation-forms', apiLimiter, consultationFormRoutes);
-app.use('/api/billing', apiLimiter, billingRoutes);
+app.use('/api/billing', (req, res, next) => {
+  // Stripe webhook retries from many IPs without Idempotency-Key headers; skip
+  // the limiter for it exactly like /api/stripe does (M15). The handler does
+  // its own idempotency check.
+  if (req.path === '/webhook') return next();
+  apiLimiter(req, res, next);
+}, billingRoutes);
 app.use('/api/waitlist', apiLimiter, waitlistRoutes);
 app.use('/api/referrals', apiLimiter, referralRoutes);
 app.use('/api/push', apiLimiter, pushRoutes);
@@ -341,7 +347,7 @@ app.listen(PORT, () => {
     runDailyHeartbeats().catch(err => {
       logger.error({ err }, 'Startup: heartbeat run failed');
     });
-  }, 30_000);
+  }, 75_000); // M8: sits between predictive (60s) and WhatsApp retry (90s) to avoid a startup CPU/pool spike
 
   // Email sequence queue , process due emails every 15 minutes
   const EMAIL_QUEUE_INTERVAL = 15 * 60 * 1000; // 15 minutes

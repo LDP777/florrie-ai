@@ -249,16 +249,21 @@ router.post('/webhook', async (req, res) => {
       case 'customer.subscription.updated': {
         const sub = event.data.object;
         const beauticianId = sub.metadata?.beautician_id;
-        const plan = sub.metadata?.plan;
+        // M2: routes/stripe.js is the canonical subscription webhook. This
+        // handler is kept so a Stripe dashboard pointing here doesn't 404, but
+        // its status/plan mapping is aligned with stripe.js so that if BOTH
+        // URLs are configured the double-write converges instead of flip-
+        // flopping (e.g. trialing -> active). Long-term: remove one webhook URL
+        // in the Stripe dashboard.
+        const plan = sub.metadata?.plan || sub.metadata?.plan_id;
         if (beauticianId) {
-          const status = sub.status === 'active' ? 'active' : sub.status === 'past_due' ? 'past_due' : sub.status;
+          const status = sub.status === 'active' || sub.status === 'trialing' ? 'active' : sub.status;
           const updates = {
             subscription_status: status,
             subscription_current_period_end: sub.current_period_end
               ? new Date(sub.current_period_end * 1000).toISOString()
               : null,
           };
-          // Update plan if metadata contains it (upgrade/downgrade)
           if (plan) updates.subscription_plan = plan;
           await supabase
             .from('beauticians')

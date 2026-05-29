@@ -53,8 +53,11 @@ export const paymentLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
-    // Use X-Forwarded-For + booking slug to limit per client per beautician
-    return `${req.ip}:${req.params.slug || 'global'}`;
+    // Key by authenticated user when present so a beautician testing their own
+    // Stripe connection isn't throttled against a shared 'global' bucket;
+    // fall back to IP + booking slug for public booking-page traffic.
+    const who = req.user?.id || req.ip;
+    return `${who}:${req.params.slug || 'global'}`;
   },
   message: { error: 'Too many payment attempts. Please wait 15 minutes before trying again.' },
   handler: (req, res) => {

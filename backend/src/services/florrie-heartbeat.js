@@ -279,14 +279,15 @@ async function clientListScan(beauticianId) {
 }
 
 async function inboxWatch(beauticianId) {
-  // Count unread inbound messages from the messages table.
-  // Treat 'unread' as direction='inbound' AND no replied_at (or status != 'replied').
+  // Count unread inbound messages: direction='inbound' AND not yet resolved.
+  // (Earlier code filtered a non-existent replied_at column and always 42703'd
+  // into the soft fallback below - H14.)
   const { count, error } = await supabase
     .from('messages')
     .select('id', { count: 'exact', head: true })
     .eq('beautician_id', beauticianId)
     .eq('direction', 'inbound')
-    .is('replied_at', null);
+    .eq('resolved', false);
 
   if (error) {
     // Fall back to a softer summary if the schema doesn't expose replied_at.
@@ -300,10 +301,10 @@ async function inboxWatch(beauticianId) {
 
   const n = count || 0;
   const summary = n === 0
-    ? "Florrie watched your inbox overnight — all caught up"
+    ? "Florrie watched your inbox overnight - all caught up"
     : n === 1
-    ? "Florrie watched your inbox — 1 message waiting for you"
-    : `Florrie watched your inbox — ${n} messages waiting for you`;
+    ? "Florrie watched your inbox - 1 message waiting for you"
+    : `Florrie watched your inbox - ${n} messages waiting for you`;
 
   return {
     action_type: 'quiet_week_detected',

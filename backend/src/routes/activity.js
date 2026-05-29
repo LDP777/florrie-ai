@@ -90,6 +90,16 @@ function friendlySummary(row) {
     case 'contraindication_flagged': return who ? `Flagged a contraindication on ${who}` : 'Flagged a contraindication';
     case 'appointment_padded':    return 'Padded a booking';
     case 'bundle_suggested':      return who ? `Suggested a bundle for ${who}` : 'Suggested a bundle';
+    case 'predictive_nudge':      return who ? `Nudged ${who} to rebook` : 'Sent a rebook nudge';
+    case 'rebook_nudge':          return who ? `Reminded ${who} to rebook` : 'Sent a rebook reminder';
+    case 'value_coaching':        return 'Spotted a pricing opportunity';
+    case 'booking_auto_cancelled':return 'Auto-cancelled an unpaid booking';
+    case 'referral_rewarded':     return who ? `Rewarded ${who}'s referral` : 'Issued a referral reward';
+    case 'gap_post':              return 'Drafted a post to fill a gap';
+    case 'gap_fill':
+    case 'gap_fill_waitlist':
+    case 'gap_fill_rebook':
+    case 'gap_fill_dormant':      return who ? `Offered ${who} a freed-up slot` : 'Filled a calendar gap';
     default:                      return 'Florrie did something';
   }
 }
@@ -150,6 +160,20 @@ function resolveLink(row) {
       return '/clients';
     case 'voice_note_processed':
       return '/voice';
+    case 'predictive_nudge':
+    case 'rebook_nudge':
+      return '/clients';
+    case 'value_coaching':
+      return '/money';
+    case 'referral_rewarded':
+      return '/referrals';
+    case 'booking_auto_cancelled':
+    case 'gap_post':
+    case 'gap_fill':
+    case 'gap_fill_waitlist':
+    case 'gap_fill_rebook':
+    case 'gap_fill_dormant':
+      return '/calendar';
     default:
       return null;
   }
