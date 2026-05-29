@@ -329,6 +329,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
   const [channel, setChannel] = useState(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState(null);
+  const [suggestions, setSuggestions] = useState([]);
   const scrollerRef = useRef(null);
   const composerRef = useRef(null);
 
@@ -356,6 +357,21 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
     if (!el) return;
     el.scrollTop = el.scrollHeight;
   }, [state?.messages?.length]);
+
+  // Pre-draft 3 candidate replies when the client has the last word, so the
+  // owner never starts from a blank box. Tapping a chip loads it to send or edit.
+  useEffect(() => {
+    if (state.status !== 'ready') { setSuggestions([]); return; }
+    const msgs = state.messages || [];
+    const last = msgs[msgs.length - 1];
+    if (!last || last.direction !== 'inbound') { setSuggestions([]); return; }
+    let cancelled = false;
+    setSuggestions([]);
+    authFetch(`/api/inbox/suggestions/${encodeURIComponent(clientId)}`)
+      .then(json => { if (!cancelled) setSuggestions(json.suggestions || []); })
+      .catch(() => { if (!cancelled) setSuggestions([]); });
+    return () => { cancelled = true; };
+  }, [state.status, state.messages, clientId]);
 
   async function handleSend() {
     const body = composer.trim();
@@ -504,6 +520,22 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
           </div>
 
           {sendError && <div style={S.sendError}>{sendError}</div>}
+
+          {suggestions.length > 0 && (
+            <div style={S.suggestionRow}>
+              {suggestions.map(s => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => { setComposer(s.text); composerRef.current?.focus(); }}
+                  style={S.suggestionChip}
+                  title={s.text}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div style={S.composerRow}>
             <textarea
@@ -977,6 +1009,13 @@ const S = {
     gap: 5,
     whiteSpace: 'nowrap',
     flexShrink: 0,
+  },
+  suggestionRow: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 },
+  suggestionChip: {
+    background: '#fff', border: '1.5px solid #f0d2dd', color: '#92405e',
+    borderRadius: 999, padding: '7px 14px', fontSize: 13, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1.2, maxWidth: '100%',
+    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
   },
   composerRow: {
     display: 'flex',

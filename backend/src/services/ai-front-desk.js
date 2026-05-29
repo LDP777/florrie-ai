@@ -747,3 +747,52 @@ function truncate(str, len) {
   if (!str) return '';
   return str.length > len ? str.slice(0, len) + '...' : str;
 }
+
+
+/**
+ * Generate up to 3 short, distinct candidate replies for the salon owner to
+ * pick from in the Inbox. She taps one to load it into her reply box, then
+ * sends or edits it - she is always the one who sends (the "never start from
+ * blank, but every send is a human tap" thesis). One cheap Haiku call.
+ *
+ * @returns {Promise<Array<{id:string,label:string,text:string}>>}
+ */
+export async function generateReplySuggestions(beautician, client, lastInboundMessage) {
+  if (!lastInboundMessage || !process.env.ANTHROPIC_API_KEY) return [];
+
+  const context = await gatherContext(beautician, client);
+  const toneGuide = buildToneGuide(beautician.tone_model);
+  const firstName = context.client?.name || 'the client';
+
+  const response = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 400,
+    system: `You draft 3 SHORT candidate replies for ${context.beautician.name} to choose from, written in her voice. She taps one to load into her reply box, then sends or edits it. Write as her, to her client ${firstName}.
+
+${toneGuide}
+
+Rules:
+- Give 3 genuinely DIFFERENT useful options for this exact message (for example: a direct confirm, an alternative or offer, and an info/aftercare reply). No near-duplicates.
+- WhatsApp style, 1 to 2 sentences each.
+- British English. Never use em dashes or en dashes; use commas, full stops or line breaks.
+- Each option needs a 2 to 3 word chip label summarising it (for example "Confirm Friday", "Offer alt time", "Send price").
+- Use the client's real first name (${firstName}) where natural, not a placeholder.
+
+Treatments: ${context.treatments.map(t => `${t.name} (£${(t.price_cents/100).toFixed(2)})`).join(', ') || 'none listed'}.
+
+Respond with ONLY a JSON array of exactly 3 objects: [{"label":"...","text":"..."}].`,
+    messages: [{ role: 'user', content: lastInboundMessage }],
+  });
+
+  let raw = (response.content?.[0]?.text || '').trim();
+  raw = raw.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+  let parsed;
+  try { parsed = JSON.parse(raw); } catch { return []; }
+  if (!Array.isArray(parsed)) return [];
+
+  return parsed.slice(0, 3).map((sug, i) => ({
+    id: `sg_${i}`,
+    label: String(sug.label || `Option ${i + 1}`).replace(/[\u2013\u2014]/g, '-').slice(0, 28),
+    text: String(sug.text || '').replace(/[\u2013\u2014]/g, '-').trim(),
+  })).filter(s => s.text);
+}

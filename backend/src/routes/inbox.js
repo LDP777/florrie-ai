@@ -3,6 +3,7 @@ import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
 import { sendOnChannel, shapeMessage } from '../services/messaging.js';
+import { generateReplySuggestions } from '../services/ai-front-desk.js';
 
 const router = Router();
 
@@ -205,6 +206,43 @@ router.post('/send', requireAuth, async (req, res) => {
   }
 
   res.json({ ok: true, message: result.message });
+});
+
+/**
+ * GET /api/inbox/suggestions/:client_id
+ * 3 tap-to-send candidate replies for the latest inbound message. Fails soft
+ * (returns an empty list) so the Inbox never breaks if generation hiccups.
+ */
+router.get('/suggestions/:client_id', requireAuth, async (req, res) => {
+  const clientId = req.params.client_id;
+  if (!clientId) return res.status(400).json({ error: 'client_id required' });
+  try {
+    const { data: client } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('id', clientId)
+      .eq('beautician_id', req.beautician.id)
+      .maybeSingle();
+    if (!client) return res.status(404).json({ error: 'client not found' });
+
+    const { data: lastInbound } = await supabase
+      .from('messages')
+      .select('content, created_at')
+      .eq('client_id', clientId)
+      .eq('beautician_id', req.beautician.id)
+      .eq('direction', 'inbound')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!lastInbound?.content) return res.json({ suggestions: [] });
+
+    const suggestions = await generateReplySuggestions(req.beautician, client, lastInbound.content);
+    res.json({ suggestions });
+  } catch (err) {
+    logger.warn({ err, clientId }, 'inbox.suggestions failed');
+    res.json({ suggestions: [] });
+  }
 });
 
 export default router;
