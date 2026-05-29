@@ -33,6 +33,9 @@ import { runPredictiveNudges } from './services/predictive-nudge.js';
 import { runDailyHeartbeats } from './services/florrie-heartbeat.js';
 import { processEmailQueue, checkTrialExpiry } from './services/email-sequences.js';
 import { processRetryQueue as processWhatsAppRetryQueue } from './services/whatsapp-retry.js';
+import { runComeback } from './jobs/comeback.js';
+import { cleanupStripeEvents } from './services/stripe-cleanup.js';
+import { billSurplusSMS } from './services/sms-metering.js';
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -386,4 +389,35 @@ app.listen(PORT, () => {
       logger.error({ err }, 'Startup: WhatsApp retry queue pass failed');
     });
   }, 90_000);
+
+  // ── Revenue + maintenance crons (ported off Railway/Cowork scheduling, C5) ──
+  const REVENUE_CRON_INTERVAL = 24 * 60 * 60 * 1000; // daily; all three are idempotent
+
+  // Comeback engine — re-engage lapsed clients.
+  setInterval(() => {
+    runComeback().catch(err => logger.error({ err }, 'Comeback cron: failed'));
+  }, REVENUE_CRON_INTERVAL);
+  setTimeout(() => {
+    runComeback().catch(err => logger.error({ err }, 'Startup: comeback pass failed'));
+  }, 120_000);
+
+  // Surplus SMS billing — bill completed weeks over the included allowance.
+  setInterval(() => {
+    billSurplusSMS()
+      .then(r => { if (r) logger.info({ r }, 'Surplus SMS billing cron: done'); })
+      .catch(err => logger.error({ err }, 'Surplus SMS billing cron: failed'));
+  }, REVENUE_CRON_INTERVAL);
+  setTimeout(() => {
+    billSurplusSMS().catch(err => logger.error({ err }, 'Startup: surplus SMS billing failed'));
+  }, 150_000);
+
+  // Stripe events cleanup — prune stripe_events rows past TTL.
+  setInterval(() => {
+    cleanupStripeEvents()
+      .then(r => { if (r) logger.info({ r }, 'Stripe cleanup cron: done'); })
+      .catch(err => logger.error({ err }, 'Stripe cleanup cron: failed'));
+  }, REVENUE_CRON_INTERVAL);
+  setTimeout(() => {
+    cleanupStripeEvents().catch(err => logger.error({ err }, 'Startup: stripe cleanup failed'));
+  }, 180_000);
 });

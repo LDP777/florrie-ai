@@ -7,7 +7,7 @@
  */
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname, join } from 'path';
 import { sendSMS } from '../services/notifications.js';
 import logger from '../lib/logger.js';
@@ -25,7 +25,7 @@ const supabase = createClient(
 
 const DEFAULT_REBOOKING_DAYS = 42;
 
-async function run() {
+export async function runComeback() {
 
   // Get all beauticians
   const { data: beauticians, error: bErr } = await supabase
@@ -116,11 +116,14 @@ async function run() {
     { sent: totalNudged, skipped: totalSkipped, failed: totalFailed },
     `Comeback engine done. ${totalNudged} sent, ${totalSkipped} skipped, ${totalFailed} failed`
   );
-  process.exit(0);
+  return { sent: totalNudged, skipped: totalSkipped, failed: totalFailed };
 }
 
-run().catch(err => {
-  logger.error({ err }, 'Fatal comeback engine error');
-  logger.error('Fatal error:', err);
-  process.exit(1);
-});
+// CLI entrypoint: `node src/jobs/comeback.js`. When imported (e.g. by the
+// in-process scheduler in index.js) this guard prevents an auto-run + exit.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  runComeback().then(() => process.exit(0)).catch(err => {
+    logger.error({ err }, 'Fatal comeback engine error');
+    process.exit(1);
+  });
+}
