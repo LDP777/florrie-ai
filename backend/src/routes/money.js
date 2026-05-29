@@ -511,4 +511,85 @@ function getCurrentTaxYear() {
   return getTaxYear(new Date());
 }
 
+router.get('/reports', requireAuth, async (req, res) => {
+  try {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const ninetyAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    const INCOME_TYPES = ['payment', 'deposit', 'no_show_fee', 'tip'];
+
+    // Revenue: this month vs last month
+    const { data: tx } = await supabase
+      .from('transactions')
+      .select('amount_cents, created_at')
+      .eq('beautician_id', req.beautician.id)
+      .eq('status', 'completed')
+      .in('type', INCOME_TYPES)
+      .gte('created_at', startOfLastMonth.toISOString());
+
+    let thisMonth = 0, lastMonth = 0;
+    for (const t of tx || []) {
+      const d = new Date(t.created_at);
+      if (d >= startOfMonth) thisMonth += t.amount_cents || 0;
+      else if (d >= startOfLastMonth) lastMonth += t.amount_cents || 0;
+    }
+    const changePct = lastMonth > 0 ? Math.round(((thisMonth - lastMonth) / lastMonth) * 100) : null;
+
+    // Appointments: last 90 days + all future (future bookings prove rebooking)
+    const { data: appts } = await supabase
+      .from('appointments')
+      .select('id, client_id, starts_at, status')
+      .eq('beautician_id', req.beautician.id)
+      .gte('starts_at', ninetyAgo.toISOString());
+
+    const all = appts || [];
+    const past = all.filter(a => new Date(a.starts_at) <= now);
+
+    // No-show rate over the last 90 days of terminal appointments
+    const terminal = past.filter(a => ['completed', 'no_show', 'cancelled', 'rescheduled'].includes(a.status));
+    const noShows = terminal.filter(a => a.status === 'no_show').length;
+    const noShowRate = terminal.length > 0 ? Math.round((noShows / terminal.length) * 100) : null;
+
+    // Rebooking rate: of completed appts, % whose client has a later booking
+    const completed = past.filter(a => a.status === 'completed');
+    let rebooked = 0;
+    for (const a of completed) {
+      const t = new Date(a.starts_at).getTime();
+      if (all.some(b => b.client_id === a.client_id && b.id !== a.id
+          && new Date(b.starts_at).getTime() > t
+          && ['confirmed', 'completed', 'pending'].includes(b.status))) {
+        rebooked++;
+      }
+    }
+    const rebookingRate = completed.length > 0 ? Math.round((rebooked / completed.length) * 100) : null;
+
+    // One plain-English insight, rule-based so the numbers are never invented
+    let insight;
+    if (terminal.length >= 5 && noShowRate != null && noShowRate >= 10) {
+      insight = `${noShowRate}% of your appointments were no-shows over the last 90 days. Taking a deposit on booking would cut that.`;
+    } else if (completed.length >= 5 && rebookingRate != null && rebookingRate < 50) {
+      insight = `Only ${rebookingRate}% of clients rebook. A quick nudge after each visit could lift that.`;
+    } else if (changePct != null && changePct >= 5) {
+      insight = `You are up ${changePct}% on last month. Nice work.`;
+    } else if (changePct != null && changePct <= -5) {
+      insight = `You are down ${Math.abs(changePct)}% on last month. Filling a couple of gaps would close it.`;
+    } else if ((tx || []).length === 0 && all.length === 0) {
+      insight = `Once you have logged a few appointments, Florrie will spot patterns here.`;
+    } else {
+      insight = `Steady month. Florrie will flag anything worth a look as the numbers build.`;
+    }
+
+    res.json({
+      revenue: { this_month_cents: thisMonth, last_month_cents: lastMonth, change_pct: changePct },
+      rebooking_rate: { pct: rebookingRate, completed: completed.length, rebooked },
+      no_show_rate: { pct: noShowRate, total: terminal.length, no_shows: noShows },
+      insight,
+    });
+  } catch (err) {
+    logger.error({ err }, 'money.reports failed');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
 export default router;

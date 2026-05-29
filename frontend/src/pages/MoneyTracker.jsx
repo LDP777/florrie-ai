@@ -85,6 +85,7 @@ export default function MoneyTracker() {
   const { beautician, loading: bLoading } = useBeautician();
   const [expenses, setExpenses] = useState([]);
   const [transactions, setTransactions] = useState([]);
+  const [reports, setReports] = useState(null);
   const [tab, setTab] = useState('pulse');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -133,6 +134,15 @@ export default function MoneyTracker() {
 
       setExpenses(expRes.data || []);
       setTransactions(txRes.data || []);
+
+      // Reports: revenue MoM, rebooking + no-show rate, one insight (server-computed)
+      try {
+        const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+        const rep = await fetch(`${API_BASE}/api/money/reports`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (rep.ok) setReports(await rep.json());
+      } catch { /* non-critical, the rest of the page still works */ }
     } catch (err) {
       logger.error({ err }, 'Money load error');
       setError('Something went wrong loading your money data');
@@ -555,6 +565,28 @@ export default function MoneyTracker() {
       {/* ═══ PULSE TAB ═══ */}
       {tab === 'pulse' && (
         <div>
+          {reports && (
+            <div style={S.reportsCard}>
+              <div style={S.reportsTitle}>Your numbers</div>
+              <div style={S.reportsRow}>
+                <div style={S.reportStat}>
+                  <span style={S.reportValue}>{`\u00A3${Math.round((reports.revenue.this_month_cents || 0) / 100).toLocaleString('en-GB')}`}</span>
+                  <span style={S.reportLabel}>
+                    this month{reports.revenue.change_pct != null ? ` \u00B7 ${reports.revenue.change_pct >= 0 ? '+' : ''}${reports.revenue.change_pct}%` : ''}
+                  </span>
+                </div>
+                <div style={S.reportStat}>
+                  <span style={S.reportValue}>{reports.rebooking_rate.pct != null ? `${reports.rebooking_rate.pct}%` : '-'}</span>
+                  <span style={S.reportLabel}>rebook (90d)</span>
+                </div>
+                <div style={S.reportStat}>
+                  <span style={S.reportValue}>{reports.no_show_rate.pct != null ? `${reports.no_show_rate.pct}%` : '-'}</span>
+                  <span style={S.reportLabel}>no-shows (90d)</span>
+                </div>
+              </div>
+              {reports.insight && <div style={S.reportInsight}>{reports.insight}</div>}
+            </div>
+          )}
           {pulse ? (
             <>
               {/* Period selector */}
@@ -1320,6 +1352,22 @@ const S = {
   },
 
   // Period selector
+  reportsCard: {
+    background: '#fff', borderRadius: 18, padding: '18px 16px', marginBottom: 16,
+    boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)',
+  },
+  reportsTitle: {
+    fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
+    color: '#b08a98', marginBottom: 14,
+  },
+  reportsRow: { display: 'flex', gap: 12, justifyContent: 'space-between' },
+  reportStat: { display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0 },
+  reportValue: { fontSize: 24, fontWeight: 700, color: '#1d1b19', lineHeight: 1.1 },
+  reportLabel: { fontSize: 11, color: '#867277', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  reportInsight: {
+    marginTop: 14, paddingTop: 14, borderTop: '1px solid #f3e8ec',
+    fontSize: 13.5, lineHeight: 1.5, color: '#534247',
+  },
   periodBar: {
     display: 'flex', gap: 8, marginBottom: 16,
   },
