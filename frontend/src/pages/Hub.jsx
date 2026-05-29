@@ -114,16 +114,6 @@ export default function Hub() {
           {/* Activity feed , the proof of work */}
           <ActivityFeed limit={50} />
 
-          {/* Ask Florrie , last, not first */}
-          <button
-            onClick={() => navigate('/voice')}
-            style={S.askPill}
-            aria-label="Ask Florrie anything"
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#92405e' }}>mic</span>
-            <span style={S.askText}>Ask Florrie anything</span>
-            <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#C5B8B2' }}>chevron_right</span>
-          </button>
         </>
       )}
 

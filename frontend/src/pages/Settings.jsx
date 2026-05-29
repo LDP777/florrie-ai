@@ -747,51 +747,6 @@ export default function Settings({ onLogout }) {
             </div>
           </div>
 
-          {/* ICS Subscription Feed */}
-          <div style={styles.card}>
-            <div style={styles.cardTitle}>Subscribe from any calendar app</div>
-            <p style={styles.cardHint}>
-              Paste this URL into Apple Calendar, Google Calendar, or Outlook to see all your Florrie bookings automatically.
-            </p>
-            {beautician?.booking_slug ? (
-              <div>
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  background: 'var(--bg, #FAF8F5)', border: '1.5px solid var(--border, #E8E4E0)',
-                  borderRadius: 10, padding: '10px 12px', marginBottom: 10, wordBreak: 'break-all',
-                }}>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)', flex: 1, fontFamily: 'monospace' }}>
-                    {`${API_BASE}/api/cal/${beautician.booking_slug}/feed.ics`}
-                  </span>
-                </div>
-                <button
-                  onClick={() => {
-                    const url = `${API_BASE}/api/cal/${beautician.booking_slug}/feed.ics`;
-                    navigator.clipboard.writeText(url);
-                    alert('Calendar URL copied!');
-                  }}
-                  style={{
-                    ...styles.connectBtn,
-                    width: '100%', textAlign: 'center', padding: '10px 0',
-                    background: 'var(--accent, #C76B8A)', color: '#fff', border: 'none',
-                  }}
-                >
-                  Copy calendar URL
-                </button>
-                <div style={{ fontSize: 11, color: 'var(--text-muted, #AAA5A0)', marginTop: 10, lineHeight: 1.6 }}>
-                  <p style={{ margin: '0 0 6px', fontWeight: 600, color: 'var(--text-secondary, #6B6560)' }}>🍎 iPhone / Apple Calendar</p>
-                  <p style={{ margin: '0 0 10px' }}>Settings → Calendar → Accounts → Add Account → Other → Add Subscribed Calendar → paste URL</p>
-                  <p style={{ margin: '0 0 6px', fontWeight: 600, color: 'var(--text-secondary, #6B6560)' }}>📅 Google Calendar</p>
-                  <p style={{ margin: 0 }}>On desktop: calendar.google.com → Other calendars (+) → From URL → paste URL</p>
-                </div>
-              </div>
-            ) : (
-              <p style={{ fontSize: 13, color: 'var(--text-muted, #AAA5A0)' }}>
-                Set up your booking slug first to get your calendar URL.
-              </p>
-            )}
-          </div>
-
           {/* Sync settings */}
           <div style={styles.card}>
             <div style={styles.cardTitle}>Sync behaviour</div>

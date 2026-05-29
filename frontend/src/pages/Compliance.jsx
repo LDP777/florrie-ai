@@ -66,16 +66,10 @@ export default function Compliance() {
       return;
     }
     async function load() {
-      const token   = getToken();
-      const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const safe    = async (url) => {
-        try { const r = await fetch(url, { headers }); return r.ok ? r.json() : null; }
-        catch { return null; }
-      };
-      const [pt, cf] = await Promise.all([
-        safe(`${API_BASE}/api/patch-tests/stats`),
-        safe(`${API_BASE}/api/consultation-forms/stats`),
-      ]);
+      // The /api/patch-tests/stats and /api/consultation-forms/stats endpoints
+      // were never shipped; compute the figures directly from Supabase below.
+      const pt = null;
+      const cf = null;
       // Fallback: count rows directly from Supabase if stats endpoint doesn't exist
       if (!pt) {
         const rows = await fetchRows('patch_tests', beautician.id, {}).catch(() => []);
