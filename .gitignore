@@ -73,3 +73,6 @@ docs/.*.local.md
 # Local secret keys (Apple Sign In .p8, etc.), never commit
 secrets/
 *.p8
+
+# stray editor backups
+*.bak
