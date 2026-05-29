@@ -39,6 +39,7 @@ import crypto from 'crypto';
 import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
+import { getAppSecret } from '../lib/env.js';
 import { requireAuth } from '../middleware/auth.js';
 import { getMonthlyUsage } from '../services/whatsapp-metering.js';
 
@@ -1754,7 +1755,7 @@ router.get('/full-meta-state', async (req, res) => {
     }
 
     const appId = out.waba_subscribed_apps?.data?.[0]?.whatsapp_business_api_data?.id;
-    const appSecret = process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET;
+    const appSecret = getAppSecret();
     if (appId && appSecret) {
       const appToken = `${appId}|${appSecret}`;
       const subRes = await fetch(`${GRAPH}/${appId}/subscriptions?access_token=${encodeURIComponent(appToken)}`);
@@ -1790,7 +1791,7 @@ router.post('/resubscribe-app-webhook', async (req, res) => {
     const appId = subData?.data?.[0]?.whatsapp_business_api_data?.id || process.env.META_APP_ID;
     if (!appId) return res.status(500).json({ error: 'Cannot determine app id' });
 
-    const appSecret = process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET;
+    const appSecret = getAppSecret();
     const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
     if (!appSecret) return res.status(500).json({ error: 'WHATSAPP_APP_SECRET not set' });
     if (!verifyToken) return res.status(500).json({ error: 'WHATSAPP_VERIFY_TOKEN not set' });
@@ -1911,7 +1912,7 @@ router.get('/webhook-status', async (req, res) => {
   // whatsapp_business_api_data.id). Fall back to env if those vars exist.
   const derivedAppId = out.waba_subscribed_apps?.data?.[0]?.whatsapp_business_api_data?.id || null;
   const appId = process.env.META_APP_ID || derivedAppId;
-  const appSecret = process.env.META_APP_SECRET || process.env.WHATSAPP_APP_SECRET;
+  const appSecret = getAppSecret();
   out.using_app_id = appId;
   if (appId && appSecret) {
     const appToken = `${appId}|${appSecret}`;

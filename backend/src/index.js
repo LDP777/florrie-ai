@@ -96,6 +96,7 @@ const REQUIRED_ENV = [
 const WHATSAPP_ENV = [
   ['WHATSAPP_TOKEN', 'WHATSAPP_ACCESS_TOKEN'],
   ['WHATSAPP_WABA_ID', 'WHATSAPP_BUSINESS_ACCOUNT_ID'],
+  ['WHATSAPP_VERIFY_TOKEN'], // webhook handshake; unset => verify endpoint 503s
 ];
 const OPTIONAL_ENV = [
   'STRIPE_SECRET_KEY',
@@ -108,6 +109,10 @@ const OPTIONAL_ENV = [
   'BIRD_API_KEY',        // outbound SMS via MessageBird
   'BIRD_ORIGINATOR',     // default sender (phone number for 2-way, alpha for 1-way)
   'BIRD_WEBHOOK_TOKEN',  // query-param auth for inbound POST /api/webhooks/bird-sms
+  'WHATSAPP_APP_SECRET', // (or META_APP_SECRET) HMAC verify for WhatsApp webhooks
+  'META_APP_SECRET',     // Facebook/Instagram app secret
+  'INSTAGRAM_APP_SECRET',// HMAC verify for Instagram webhooks
+  'TWILIO_AUTH_TOKEN',   // Twilio webhook signature verification
 ];
 
 const missing = REQUIRED_ENV.filter(k => !process.env[k]);

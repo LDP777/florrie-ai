@@ -4,6 +4,7 @@ import { supabase } from '../config.js';
 import { processInboundMessage } from '../services/ai-front-desk.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
+import { getAppSecret, getWhatsAppVerifyToken } from '../lib/env.js';
 import Anthropic from '@anthropic-ai/sdk';
 
 const router = Router();
@@ -28,11 +29,19 @@ router.get('/whatsapp/_debug-hits', requireAuth, (req, res) => {
  * WhatsApp webhook verification (Meta sends a challenge).
  */
 router.get('/whatsapp', (req, res) => {
+  const verifyToken = getWhatsAppVerifyToken();
+  if (!verifyToken) {
+    // Without a configured token, both sides would be undefined and any caller
+    // could re-verify the webhook. Refuse rather than compare undefined.
+    logger.error('WHATSAPP_VERIFY_TOKEN not set; refusing webhook verification');
+    return res.status(503).send('Webhook verification not configured');
+  }
+
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
-  if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
+  if (mode === 'subscribe' && token === verifyToken) {
     logger.info('WhatsApp webhook verified');
     return res.status(200).send(challenge);
   }
@@ -72,7 +81,7 @@ router.post('/whatsapp', async (req, res) => {
   };
 
   // Verify HMAC-SHA256 signature from Meta (WhatsApp)
-  const secret = process.env.WHATSAPP_APP_SECRET;
+  const secret = getAppSecret();
   if (secret) {
     const signature = req.headers['x-hub-signature-256'];
     if (!signature) {
