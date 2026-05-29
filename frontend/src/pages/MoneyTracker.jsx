@@ -600,7 +600,9 @@ export default function MoneyTracker() {
               {/* ─── Mini Bar Chart ─── */}
               <section style={S.chartCard}>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 80 }}>
-                  {dailyRevenue.map((d, i) => {
+                  {!dailyRevenue.some(d => d.total > 0) ? (
+                    <div style={{ flex: 1, alignSelf: 'center', textAlign: 'center', fontSize: 12, color: '#867277' }}>No takings logged this week yet</div>
+                  ) : dailyRevenue.map((d, i) => {
                     const isToday = i === dailyRevenue.length - 1;
                     const h = Math.max(4, (d.total / maxDayRevenue) * 72);
                     return (

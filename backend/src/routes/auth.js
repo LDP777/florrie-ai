@@ -64,6 +64,8 @@ router.post('/signup', validate(signupSchema), async (req, res) => {
  * Returns the current beautician's profile.
  */
 router.get('/me', requireAuth, (req, res) => {
+  // Hit on every nav; a short private cache cuts redundant Supabase reads (L3).
+  res.set('Cache-Control', 'private, max-age=30');
   res.json({ beautician: sanitizeBeautician(req.beautician) });
 });
 

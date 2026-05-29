@@ -239,7 +239,7 @@ export default function More() {
         <div style={{ marginBottom: 20 }}>
           <div style={S.sectionLabel}>Recently visited</div>
           <div style={S.recentRow}>
-            {recents.map(r => (
+            {recents.filter(r => r.path !== '/settings').map(r => (
               <button
                 key={r.path}
                 onClick={() => handleNav(r.path, r.label, r.matIcon)}

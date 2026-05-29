@@ -68,6 +68,9 @@ export const paymentLimiter = rateLimit({
 
 // Strips dangerous keys from request bodies before they hit route handlers
 export function sanitiseBody(req, res, next) {
+  // Raw webhook bodies arrive as Buffers (typeof === 'object'); iterating their
+  // byte indices is a pointless ~1MB scan per Stripe webhook, so skip them (L1).
+  if (Buffer.isBuffer(req.body)) return next();
   if (req.body && typeof req.body === 'object') {
     stripDangerousKeys(req.body);
   }
