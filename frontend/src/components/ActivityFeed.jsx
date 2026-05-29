@@ -57,9 +57,13 @@ function startOfDay(d) {
 }
 
 function bucketFor(when, now = new Date()) {
+  const t = new Date(when).getTime();
+  // Anything within the last 12h reads as "just happened", so keep it under
+  // Today even if it crossed midnight - otherwise a "6h ago" row sits under a
+  // Yesterday header and looks broken.
+  if (now.getTime() - t < 12 * 60 * 60 * 1000) return 'today';
   const today = startOfDay(now).getTime();
   const yesterday = today - 24 * 60 * 60 * 1000;
-  const t = new Date(when).getTime();
   if (t >= today) return 'today';
   if (t >= yesterday) return 'yesterday';
   return 'earlier';

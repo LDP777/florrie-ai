@@ -34,7 +34,6 @@ const CATEGORIES = [
     label: 'Your Day',
     matIcon: 'wb_sunny',
     items: [
-      { path: '/calendar',       label: "Today's List",    matIcon: 'event_note',           desc: 'Appointments and schedule'     },
       { path: '/calendar/week',  label: 'Week view',       matIcon: 'calendar_view_week',   desc: 'Whole week at a glance'        },
       { path: '/smart-schedule', label: 'Smart Schedule',  matIcon: 'schedule_send',        desc: 'AI-optimised slots',            gate: 'smart_schedule' },
       { path: '/waitlist-pro',   label: 'Waitlist',        matIcon: 'history',              desc: 'Manage waiting clients'        },

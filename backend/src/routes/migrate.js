@@ -48,14 +48,19 @@ const STARTER_TAGS = [
 function tagNameFor(row) {
   const visits = typeof row.total_visits === 'number' ? row.total_visits : 0;
   const last = row.last_visit_at ? new Date(row.last_visit_at) : null;
-  if (last && !isNaN(last.getTime())) {
+  const hasLast = last && !isNaN(last.getTime());
+  if (hasLast) {
     const days = Math.floor((Date.now() - last.getTime()) / 86400000);
     if (days > 60) return 'Dormant';
     if (days >= 30) return 'Cooling';
   }
   if (visits >= 5) return 'VIP';
   if (visits >= 3) return 'Regular';
-  return 'New';
+  // A genuine new client has at least one visit or a known last-visit date.
+  // Bulk imports with no history signal shouldn't masquerade as fresh leads,
+  // so leave them untagged rather than inflating the "New" count.
+  if (visits >= 1 || hasLast) return 'New';
+  return null;
 }
 
 /**

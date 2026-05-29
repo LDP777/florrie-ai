@@ -390,6 +390,7 @@ export default function CalendarView({ initialView } = {}) {
       )}
       {/* Week View */}
       {view === 'week' && (
+        weekDays.some(d => getAppointmentsForDate(d).length > 0) ? (
         <div style={styles.weekBody}>
           {weekDays.map(day => {
             const dayAppts = getAppointmentsForDate(day);
@@ -415,12 +416,15 @@ export default function CalendarView({ initialView } = {}) {
                     </button>
                   );
                 })}
-                {dayAppts.length === 0 && <div style={styles.weekEmpty} />}
               </div>
             );
           })}
         </div>
+        ) : (
+          <div style={styles.weekEmptyState}>No appointments this week</div>
+        )
       )}
+
       {/* Floating Insights Pill (day view only) */}
       {showInsightsPill && (
         <div style={styles.insightsPill}>
@@ -847,6 +851,7 @@ const styles = {
   weekApptTime: { fontSize: 9, fontWeight: 700, color: COLORS.stone400, lineHeight: 1 },
   weekApptName: { fontSize: 10, color: COLORS.onSurface, fontWeight: 600, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   weekEmpty: { height: 40, borderRadius: 8, background: COLORS.surfaceContainerLow },
+  weekEmptyState: { textAlign: 'center', padding: '48px 16px', color: COLORS.stone400, fontSize: 14, background: '#fff', borderRadius: 16, boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)' },
   // Floating Insights Pill
   insightsPill: { position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)', background: `rgba(116, 90, 39, 0.9)`, backdropFilter: 'blur(10px)', borderRadius: 24, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)', zIndex: 20, color: '#fff' },
   insightsPillIcon: { fontSize: 14 },

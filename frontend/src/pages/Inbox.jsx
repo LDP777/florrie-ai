@@ -305,7 +305,7 @@ function EmptyInbox() {
         Send a template
       </Link>
       <p style={S.emptyHint}>
-        Try booking_confirmation to break the ice with a new client.
+        A friendly hello is all it takes to get the conversation started.
       </p>
     </div>
   );

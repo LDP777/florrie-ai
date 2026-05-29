@@ -355,7 +355,7 @@ export default function Clients() {
 
   const visitCount = (c) => c.total_visits || 0;
   const lastVisit = (c) => {
-    if (!c.last_visit_at) return 'Never';
+    if (!c.last_visit_at) return 'No visits yet';
     const d = new Date(c.last_visit_at);
     const now = new Date();
     const days = Math.floor((now - d) / 86400000);

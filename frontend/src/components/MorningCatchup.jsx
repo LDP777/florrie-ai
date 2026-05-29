@@ -176,7 +176,11 @@ async function loadData(beautician) {
     const sj = await suggRes.json();
     const list = sj.suggestions || [];
     suggestionCount = list.length;
-    if (list[0]) headsUp = list[0].summary;
+    // Don't echo the first suggestion verbatim - the cards below carry the
+    // detail. The brief just previews how many things need a look.
+    if (list.length) headsUp = list.length === 1
+      ? '1 thing worth a look below.'
+      : `${list.length} things worth a look below.`;
   }
 
   return {

@@ -138,14 +138,20 @@ async function fromBookingSuggestions(beauticianId) {
 }
 
 async function fromRebookReminders(beauticianId) {
-  const cutoff = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString();
+  // Only surface clients who are lapsed but still re-engageable. A 4-week lower
+  // bound stops nagging about recent visits; a ~6-month upper bound kills the
+  // absurd "208 weeks" suggestions - past 6 months the relationship has ended,
+  // not lapsed, and a comeback offer reads as out of touch.
+  const minCutoff = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString();   // 4 weeks
+  const maxCutoff = new Date(Date.now() - 182 * 24 * 60 * 60 * 1000).toISOString();  // ~6 months
 
   const { data, error } = await supabase
     .from('clients')
     .select('id, first_name, last_name, last_visit_at')
     .eq('beautician_id', beauticianId)
-    .lt('last_visit_at', cutoff)
-    .order('last_visit_at', { ascending: true })
+    .lt('last_visit_at', minCutoff)
+    .gte('last_visit_at', maxCutoff)
+    .order('last_visit_at', { ascending: false }) // freshest lapses first - best re-engagement odds
     .limit(3);
 
   if (error || !data) return [];
@@ -155,11 +161,15 @@ async function fromRebookReminders(beauticianId) {
       (Date.now() - new Date(client.last_visit_at).getTime()) / (7 * 24 * 60 * 60 * 1000)
     );
     const first = client.first_name?.trim() || 'A client';
+    // Tier the tone: a recent lapse is a gentle nudge, a longer one is a comeback.
+    const summary = weeks <= 8
+      ? `${first} is due a rebook (last in ${weeks} weeks ago). Send a friendly nudge?`
+      : `${first} hasn't been in for ${weeks} weeks. Send a comeback offer?`;
     return {
       id: `rebook-${client.id}`,
       type: 'rebook_reminder',
       icon: '💕',
-      summary: `${first} hasn't been in for ${weeks} weeks. Send a comeback offer?`,
+      summary,
       action_label: 'Send offer',
       payload: { client_id: client.id, weeks_since: weeks },
       link_to: `/clients/${client.id}`,
