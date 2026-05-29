@@ -11,6 +11,7 @@
  *   - Below threshold → queue to approval inbox (escalations), log as pending
  */
 import { supabase } from '../config.js';
+import { normaliseOutcome } from '../lib/ai-actions.js';
 import { refreshAllIntelligence } from './client-intelligence.js';
 import { draftAvailabilityPost } from './content-autopilot.js';
 import { processInboundMessage } from './ai-front-desk.js';
@@ -414,11 +415,10 @@ async function logAction(beauticianId, actionType, status, summary, confidence, 
     await supabase.from('ai_actions').insert({
       beautician_id: beauticianId,
       action_type: actionType,
-      status,
+      outcome: normaliseOutcome(status),
       summary,
       confidence,
       client_id: clientId,
-      agent_name: 'Florrie',
       digital_employee: actionType.includes('nudge') ? 'comeback'
         : actionType.includes('gap') ? 'calendar'
         : actionType.includes('message') ? 'front_desk'

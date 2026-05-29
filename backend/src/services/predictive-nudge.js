@@ -11,6 +11,7 @@
  * overdue, but reaching out *before* they even think about rebooking.
  */
 import { supabase } from '../config.js';
+import { normaliseOutcome } from '../lib/ai-actions.js';
 import { sendNudge } from './notifications.js';
 import { shouldAutoSend } from './sms-metering.js';
 import logger from '../lib/logger.js';
@@ -251,11 +252,10 @@ async function logNudge(beauticianId, status, summary, confidence, clientId) {
     await supabase.from('ai_actions').insert({
       beautician_id: beauticianId,
       action_type: 'predictive_nudge',
-      status,
+      outcome: normaliseOutcome(status),
       summary,
       confidence,
       client_id: clientId,
-      agent_name: 'Florrie',
       digital_employee: 'comeback',
       created_at: new Date().toISOString(),
     });

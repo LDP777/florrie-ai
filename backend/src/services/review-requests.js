@@ -26,7 +26,7 @@ export async function scheduleReviewRequest(beauticianId, appointmentId, clientI
     .from('ai_actions')
     .select('id')
     .eq('beautician_id', beauticianId)
-    .eq('action_type', 'review_request')
+    .eq('action_type', 'review_requested')
     .eq('client_id', clientId)
     .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
     .maybeSingle();
@@ -37,7 +37,7 @@ export async function scheduleReviewRequest(beauticianId, appointmentId, clientI
 
   await supabase.from('ai_actions').insert({
     beautician_id: beauticianId,
-    action_type: 'review_request',
+    action_type: 'review_requested',
     digital_employee: 'marketing',
     summary: 'Review request scheduled',
     details: {
@@ -47,7 +47,6 @@ export async function scheduleReviewRequest(beauticianId, appointmentId, clientI
     client_id: clientId,
     confidence: 0.95,
     autonomous: true,
-    status: 'scheduled',
     outcome: 'pending',
   });
 }
@@ -62,7 +61,7 @@ export async function processReviewRequests() {
   const { data: due } = await supabase
     .from('ai_actions')
     .select('*')
-    .eq('action_type', 'review_request')
+    .eq('action_type', 'review_requested')
     .eq('status', 'scheduled')
     .lte('details->>send_at', now)
     .limit(20);

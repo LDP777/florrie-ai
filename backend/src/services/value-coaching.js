@@ -132,12 +132,11 @@ async function analyseBeautician(beautician) {
     await supabase.from('ai_actions').insert({
       beautician_id: bid,
       action_type: 'value_coaching',
-      status: 'info', // Not actionable, just insight
+      outcome: 'success',
       summary: insight.summary,
       confidence: insight.confidence,
-      agent_name: 'Florrie',
       digital_employee: 'scout',
-      metadata: { coaching_type: insight.type },
+      details: { coaching_type: insight.type },
       created_at: new Date().toISOString(),
     });
   }

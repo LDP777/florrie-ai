@@ -14,6 +14,7 @@
  * Called by autonomous-scheduler.js every 2 hours as a 4th check.
  */
 import { supabase } from '../config.js';
+import { normaliseOutcome } from '../lib/ai-actions.js';
 import { sendNudge } from './notifications.js';
 import { shouldAutoSend } from './sms-metering.js';
 import logger from '../lib/logger.js';
@@ -561,11 +562,10 @@ async function logGapFillAction(beauticianId, actionType, status, summary, confi
     await supabase.from('ai_actions').insert({
       beautician_id: beauticianId,
       action_type: actionType,
-      status,
+      outcome: normaliseOutcome(status),
       summary,
       confidence,
       client_id: clientId,
-      agent_name: 'Florrie',
       digital_employee: 'calendar',
       created_at: new Date().toISOString(),
     });
