@@ -517,7 +517,7 @@ function emailTemplate({ bizName, brandColor, content }) {
 export async function notifyBookingConfirmed(appointmentId) {
   const { data: appt } = await supabase
     .from('appointments')
-    .select('*, clients(first_name, phone, email), treatments(name, duration_minutes), beauticians(business_name, first_name, client_reminder_prefs, brand_color)')
+    .select('*, clients(first_name, phone, email), treatments(name, duration_minutes), beauticians(business_name, first_name, client_reminder_prefs, brand_color, booking_slug)')
     .eq('id', appointmentId)
     .single();
 
@@ -532,7 +532,10 @@ export async function notifyBookingConfirmed(appointmentId) {
   const timeStr = new Date(appt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   const shortDate = new Date(appt.starts_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 
-  const textMsg = `Hi ${client.first_name}, your ${treatment.name} with ${bizName} is confirmed for ${shortDate} at ${timeStr}.`;
+  const manageUrl = (appt.management_token && biz?.booking_slug && process.env.FRONTEND_URL)
+    ? `${process.env.FRONTEND_URL}/book/${biz.booking_slug}/manage/${appt.management_token}`
+    : null;
+  const textMsg = `Hi ${client.first_name}, your ${treatment.name} with ${bizName} is confirmed for ${shortDate} at ${timeStr}.${manageUrl ? ` Manage or reschedule: ${manageUrl}` : ''}`;
 
   // SMS/WhatsApp — only if beautician has opted in
   if (prefs.booking_confirmation !== false) {
@@ -571,7 +574,7 @@ export async function notifyBookingConfirmed(appointmentId) {
             ${depositLine}
           </td></tr>
         </table>
-        <p style="margin:20px 0 0;color:#6b6560;font-size:14px">Need to cancel or reschedule? Get in touch with ${bizName} directly.</p>
+        <p style="margin:20px 0 0;color:#6b6560;font-size:14px">Need to cancel or reschedule? ${manageUrl ? `<a href="${manageUrl}" style="color:${biz.brand_color || '#C76B8A'};font-weight:600">Manage your booking</a>.` : `Get in touch with ${bizName} directly.`}</p>
       `,
     });
 

@@ -58,7 +58,8 @@ export default function BookingPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(isCancelled ? 'Payment was cancelled. Your booking slot is held for 15 minutes, you can try again.' : null);
-  const [success, setSuccess] = useState(isConfirmedReturn ? { depositPaid: true } : null);
+  const confirmedManageToken = new URLSearchParams(location.search).get('mt');
+  const [success, setSuccess] = useState(isConfirmedReturn ? { depositPaid: true, manageUrl: confirmedManageToken ? `/book/${slug}/manage/${confirmedManageToken}` : null } : null);
   const [fieldErrors, setFieldErrors] = useState({});
   // Data
   const [beautician, setBeautician] = useState(null);

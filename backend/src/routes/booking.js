@@ -546,7 +546,7 @@ router.post('/:slug/manage/:token/resend-payment', async (req, res) => {
           payment_type: 'deposit_resend',
         },
       },
-      success_url: `${FRONTEND_URL}/book/${req.params.slug}/confirmed?resent=true`,
+      success_url: `${FRONTEND_URL}/book/${req.params.slug}/confirmed?resent=true&mt=${req.params.token}`,
       cancel_url: `${FRONTEND_URL}/book/${req.params.slug}/manage/${req.params.token}`,
       metadata: { appointment_id: appt.id, payment_type: 'deposit_resend' },
     });
@@ -1785,7 +1785,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
             payment_type: isFullPayment ? 'full' : 'deposit',
           },
         },
-        success_url: `${FRONTEND_URL}/book/${bookingSlug}/confirmed?session_id={CHECKOUT_SESSION_ID}`,
+        success_url: `${FRONTEND_URL}/book/${bookingSlug}/confirmed?session_id={CHECKOUT_SESSION_ID}&mt=${appointment.management_token}`,
         cancel_url: `${FRONTEND_URL}/book/${bookingSlug}?cancelled=true`,
         metadata: {
           appointment_id: appointment.id,
