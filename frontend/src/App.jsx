@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from './lib/supabase.js';
+import { API_BASE } from './lib/config.js';
 import { useTheme } from './lib/theme.jsx';
 import { useBeautician } from './lib/supabase.js';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
@@ -423,7 +424,7 @@ function BottomNav({ current, session }) {
           try { const p = JSON.parse(raw); token = p?.access_token || p?.session?.access_token || raw; } catch { token = raw; }
         }
         const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        const res = await fetch('/api/agents/counts', { headers });
+        const res = await fetch(`${API_BASE}/api/agents/counts`, { headers });
         if (!res.ok) return;
         const d = await res.json();
         setInboxCount(d.inbox || 0);

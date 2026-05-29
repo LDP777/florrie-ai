@@ -4,7 +4,7 @@ import { useBeautician, supabase, updateRow, insertRow } from '../lib/supabase.j
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 /**
- * CalendarView — Day and Week view of appointments.
+ * CalendarView - Day and Week view of appointments.
  * Wired to Supabase with client/treatment joins.
  * Redesigned to match Stitch design reference.
  */
@@ -186,7 +186,7 @@ export default function CalendarView({ initialView } = {}) {
             <h1 style={styles.dateTitle}>
               {view === 'day'
                 ? currentDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
-                : `${getWeekStart(currentDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} — ${getWeekEnd(currentDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`}
+                : `${getWeekStart(currentDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} - ${getWeekEnd(currentDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`}
             </h1>
             <button onClick={() => setCurrentDate(new Date())} style={styles.todayBtn}>Today</button>
           </div>
@@ -399,7 +399,7 @@ export default function CalendarView({ initialView } = {}) {
                   const statusCol = getStatusColor(appt.status);
                   const firstName = appt.clients?.first_name || '';
                   const lastInitial = appt.clients?.last_name ? appt.clients.last_name.charAt(0) + '.' : '';
-                  const clientLabel = firstName ? `${firstName}${lastInitial ? ' ' + lastInitial : ''}` : '—';
+                  const clientLabel = firstName ? `${firstName}${lastInitial ? ' ' + lastInitial : ''}` : '-';
                   return (
                     <button
                       key={appt.id}
@@ -464,7 +464,7 @@ export default function CalendarView({ initialView } = {}) {
   );
 }
 /**
- * AppointmentDetail — detail panel with completion flow.
+ * AppointmentDetail - detail panel with completion flow.
  * Mark done → log payment → add notes → rebook prompt → before/after photo.
  */
 function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStatusColor, onViewClient }) {
@@ -543,7 +543,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           amount_cents: amount,
-          description: `${appointment.treatments?.name} — ${appointment.clients?.first_name}`,
+          description: `${appointment.treatments?.name} - ${appointment.clients?.first_name}`,
           client_id: appointment.client_id,
           appointment_id: appointment.id,
         }),
@@ -577,7 +577,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
         amount_cents: appointment.price_cents,
         type: 'service',
         payment_method: paymentMethod,
-        description: `${appointment.treatments?.name} — ${appointment.clients?.first_name}`
+        description: `${appointment.treatments?.name} - ${appointment.clients?.first_name}`
       });
       setMode('done');
     } catch (err) {
@@ -630,7 +630,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
         <>
           <div style={styles.detailGrid}>
             <div style={styles.detailRow}><span style={styles.detailLabel}>Treatment</span><span style={styles.detailValue}>{appointment.treatments?.name}</span></div>
-            <div style={styles.detailRow}><span style={styles.detailLabel}>Time</span><span style={styles.detailValue}>{new Date(appointment.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} — {appointment.ends_at ? new Date(appointment.ends_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''}</span></div>
+            <div style={styles.detailRow}><span style={styles.detailLabel}>Time</span><span style={styles.detailValue}>{new Date(appointment.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} - {appointment.ends_at ? new Date(appointment.ends_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''}</span></div>
             <div style={styles.detailRow}><span style={styles.detailLabel}>Price</span><span style={styles.detailValue}>£{(appointment.price_cents / 100).toFixed(2)}</span></div>
             <div style={styles.detailRow}>
               <span style={styles.detailLabel}>Status</span>
@@ -641,7 +641,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
             )}
             {appointment.ai_booked && <div style={styles.detailRow}><span style={styles.detailLabel}>Booked by</span><span style={styles.aiTag}>Florrie</span></div>}
           </div>
-          {/* Persistent notes — always visible, save without completing */}
+          {/* Persistent notes - always visible, save without completing */}
           <div style={{ marginTop: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #888)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Notes</span>
@@ -763,7 +763,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
             )}
           </div>
           <button onClick={handleComplete} disabled={saving} style={styles.confirmCompleteBtn}>
-            {saving ? 'Saving...' : `Complete — £${(appointment.price_cents / 100).toFixed(2)} ${paymentMethod}`}
+            {saving ? 'Saving...' : `Complete - £${(appointment.price_cents / 100).toFixed(2)} ${paymentMethod}`}
           </button>
         </div>
       )}
@@ -881,7 +881,7 @@ const styles = {
   rebookSendBtn: { width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   doneCloseBtn: { width: '100%', padding: '10px 0', borderRadius: 8, border: 'none', background: `${COLORS.outlineVariant}33`, color: COLORS.stone400, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
 };
-// BlockTimeModal — create a new time block
+// BlockTimeModal - create a new time block
 const BLOCK_REASONS = [
   { key: 'lunch', label: '🍽️ Lunch' },
   { key: 'holiday', label: '🏖️ Holiday' },
@@ -986,7 +986,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
             <div style={{ width: 20, height: 20, borderRadius: 10, background: '#fff', position: 'absolute', top: 2, transition: 'transform 0.2s', transform: type === 'closed' ? 'translateX(20px)' : 'translateX(2px)' }} />
           </button>
         </div>
-        {/* Time range — only when not all day */}
+        {/* Time range - only when not all day */}
         {type !== 'closed' && (
           <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'center' }}>
             <div style={{ flex: 1 }}>
@@ -1047,7 +1047,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
     </div>
   );
 }
-// BlockDetailSheet — shows an existing block + remove option
+// BlockDetailSheet - shows an existing block + remove option
 function BlockDetailSheet({ block, onDelete, onClose }) {
   const [confirming, setConfirming] = useState(false);
   const isClosed = block.type === 'closed' || block.is_closed;
@@ -1074,7 +1074,7 @@ function BlockDetailSheet({ block, onDelete, onClose }) {
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: block.note ? 8 : 0 }}>
             <span style={{ fontSize: 12, color: COLORS.stone400 }}>Reason</span>
-            <span style={{ fontSize: 13, fontWeight: 600, textTransform: 'capitalize' }}>{block.reason || '—'}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, textTransform: 'capitalize' }}>{block.reason || '-'}</span>
           </div>
           {block.note && (
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
