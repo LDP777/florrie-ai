@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Fragment } from 'react';
 import { supabase } from '../lib/supabase.js'
 import { useParams, useLocation } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
@@ -294,7 +294,7 @@ export default function BookingPage() {
         // Look up beautician by booking slug
         const { data: b, error: bErr } = await supabase
           .from('beauticians')
-          .select('id, first_name, business_name, booking_slug, brand_color, working_hours, payment_settings, stripe_onboarding_complete')
+          .select('id, first_name, business_name, booking_slug, brand_color, working_hours, payment_settings, stripe_onboarding_complete, avatar_url, logo_url, tagline, description')
           .eq('booking_slug', slug)
           .maybeSingle();
         if (bErr || !b) {
@@ -515,6 +515,10 @@ export default function BookingPage() {
   const brand = beautician?.brand_color || '#C76B8A';
   const brandLight = brand + '18';
   const brandMedium = brand + '40';
+  const bizName = beautician?.business_name || beautician?.first_name || 'Book';
+  const logoUrl = beautician?.logo_url || beautician?.avatar_url || null;
+  const monogram = bizName.trim().charAt(0).toUpperCase();
+  const headerTagline = beautician?.tagline || beautician?.description || 'Book your appointment';
   if (loading) {
     return (
       <div style={styles.loadingContainer}>
@@ -606,9 +610,12 @@ export default function BookingPage() {
   return (
     <div style={styles.page}>
       {/* Header */}
-      <div style={styles.header}>
-        <h1 style={styles.businessName}>{beautician?.business_name || beautician?.first_name}</h1>
-        <p style={styles.subtitle}>Book your appointment</p>
+      <div style={{ ...styles.brandBand, background: `linear-gradient(160deg, ${brand}16 0%, ${brand}07 55%, transparent 100%)` }}>
+        {logoUrl
+          ? <img src={logoUrl} alt={bizName} style={styles.brandLogo} />
+          : <div style={{ ...styles.brandMonogram, background: brand }}>{monogram}</div>}
+        <h1 style={styles.businessName}>{bizName}</h1>
+        <p style={styles.subtitle}>{headerTagline}</p>
       </div>
       {/* Progress */}
       <div style={styles.progressContainer}>
@@ -645,11 +652,14 @@ export default function BookingPage() {
               <div style={styles.inlineError}>{fieldErrors.treatment}</div>
             )}
             <div style={styles.treatmentList}>
-              {treatments.map(t => {
+              {[...treatments].sort((a, b) => (a.category || '').localeCompare(b.category || '')).map((t, _i, _arr) => {
                 const isSelected = selectedTreatments.some(st => st.id === t.id);
+                const _distinctCats = new Set(_arr.map(x => x.category).filter(Boolean));
+                const _showCat = _distinctCats.size > 1 && t.category && t.category !== _arr[_i - 1]?.category;
                 return (
+                  <Fragment key={t.id}>
+                    {_showCat && <div style={styles.categoryLabel}>{t.category}</div>}
                   <button
-                    key={t.id}
                     onClick={() => {
                       setSelectedTreatments(prev => {
                         const exists = prev.find(st => st.id === t.id);
@@ -676,6 +686,7 @@ export default function BookingPage() {
                       £{(t.price_cents / 100).toFixed(2)}
                     </span>
                   </button>
+                  </Fragment>
                 );
               })}
             </div>
@@ -1460,6 +1471,10 @@ const styles = {
     animation: 'spin 0.8s linear infinite'
   },
   header: { textAlign: 'center', paddingTop: 48, paddingBottom: 24 },
+  brandBand: { textAlign: 'center', padding: '36px 20px 28px', marginTop: 24, marginBottom: 20, borderRadius: 18 },
+  brandLogo: { maxHeight: 64, maxWidth: 180, objectFit: 'contain', margin: '0 auto 12px', display: 'block' },
+  brandMonogram: { width: 60, height: 60, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', color: '#fff', fontSize: 26, fontWeight: 700, fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
+  categoryLabel: { fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', margin: '4px 0 10px' },
   businessName: { fontSize: 24, fontWeight: 700, margin: '0 0 4px', letterSpacing: '-0.02em', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
   subtitle: { fontSize: 14, color: 'var(--text-secondary)', margin: 0 },
   progressContainer: { display: 'flex', justifyContent: 'center', gap: 24, marginBottom: 24 },
