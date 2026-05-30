@@ -15,6 +15,7 @@ import { API_BASE } from '../lib/config.js';
 import { useTheme } from '../lib/theme.jsx';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
@@ -191,10 +192,7 @@ export default function RebookReminders() {
 
   return (
     <div style={s.page}>
-      <div style={s.header}>
-        <h1 style={s.title}>Rebook Reminders</h1>
-        <p style={s.sub}>Keep your clients coming back</p>
-      </div>
+      <PageHeader title="Rebook Reminders" subtitle="Keep your clients coming back" />
 
       {/* Summary stats */}
       <div style={s.statsRow}>

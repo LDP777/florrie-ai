@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useBeautician, supabase, fetchRows } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
@@ -67,10 +68,7 @@ export default function Reviews() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Reviews</h1>
-        <p style={styles.subtitle}>Your Reputation</p>
-      </div>
+      <PageHeader title="Reviews" subtitle="Your Reputation" />
 
       {/* Rating hero */}
       <div style={styles.heroCard}>

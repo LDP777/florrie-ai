@@ -3,6 +3,7 @@ import { useBeautician, fetchRows, insertRow, updateRow } from '../lib/supabase.
 import { formatCurrency, formatDuration } from '../lib/formatting.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
@@ -144,12 +145,14 @@ export default function Treatments() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Treatments</h1>
-        <button onClick={() => { setShowAdd(!showAdd); setEditing(null); setForm(blank); }} style={styles.addBtn}>
-          + Add
-        </button>
-      </div>
+      <PageHeader
+        title="Treatments"
+        action={(
+          <button onClick={() => { setShowAdd(!showAdd); setEditing(null); setForm(blank); }} style={styles.addBtn}>
+            + Add
+          </button>
+        )}
+      />
 
       {/* Add / Edit form */}
       {showAdd && (
