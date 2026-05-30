@@ -145,11 +145,13 @@ export default function BookingPage() {
       : Math.min(appliedDiscount.discount_value, combinedTreatmentCents + addOnTotal)
     : 0;
   const grandTotalCents = Math.max(0, combinedTreatmentCents + addOnTotal - discountCents);
-  // Smart add-on suggestions: filter to add-ons that suggest_with includes selected treatment
+  // Smart add-on suggestions: show add-ons compatible with the selected treatment.
+  // compatible_treatment_ids empty/missing = compatible with every treatment.
   const suggestedAddOns = selectedTreatment
     ? addOns.filter(ao => {
-        if (!ao.suggest_with || !Array.isArray(ao.suggest_with)) return ao.auto_suggest;
-        return ao.suggest_with.includes(selectedTreatment.id) || ao.auto_suggest;
+        const compat = ao.compatible_treatment_ids;
+        if (!Array.isArray(compat) || compat.length === 0) return true;
+        return compat.includes(selectedTreatment.id);
       })
     : addOns;
   function toggleAddOn(addOn) {
@@ -314,7 +316,7 @@ export default function BookingPage() {
         // Fetch active add-ons for this beautician
         const { data: ao } = await supabase
           .from('add_ons')
-          .select('id, name, description, price_cents, duration_minutes, suggest_with, auto_suggest, is_active')
+          .select('id, name, description, price_cents, duration_minutes, compatible_treatment_ids, is_active')
           .eq('beautician_id', b.id)
           .eq('is_active', true)
           .order('name');
