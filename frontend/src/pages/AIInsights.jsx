@@ -16,13 +16,6 @@ import EmptyState from '../components/EmptyState.jsx';
  *   - Live Feed (activity)
  */
 
-const TIPS = [
-  { text: 'Emma tends to purchase \'Velvet Shine Serum\' every 3 appointments. She\'s due today—mention the loyalty discount for a likely upsell.' },
-  { text: 'Thursday–Saturday is your money window. You\'re under-booked Mondays — consider a "Monday Glow" promo.' },
-  { text: 'Lip Filler bookings are up 34% this month. Might be time for a dedicated Instagram reel.' },
-  { text: '3 clients haven\'t rebooked in 40+ days. Sending a "we miss you" message could recover £2,100/yr.' },
-];
-
 function MIcon({ name, fill, size, style }) {
   return (
     <span className="material-symbols-outlined" style={{
@@ -76,7 +69,6 @@ export default function AIInsights() {
     }
   }
 
-  const todaysTip = useMemo(() => TIPS[Math.floor(Math.random() * TIPS.length)], []);
 
   const stats = useMemo(() => {
     const confirmed = appointments.filter(a => a.status === 'confirmed' || a.status === 'completed');
@@ -88,7 +80,6 @@ export default function AIInsights() {
 
   if (bLoading || loading) return <PageLoader />;
 
-  const optimPct = stats.total > 0 ? Math.min(95, Math.round((stats.confirmed / stats.total) * 100 + (stats.total > 3 ? 10 : 0))) : 0;
 
   const now = new Date();
   const upcoming = [...appointments]
@@ -109,11 +100,13 @@ export default function AIInsights() {
             <span style={S.pulseLabel}>Today's Pulse</span>
           </div>
           <h2 style={S.pulseHeading}>
-            Your day is {optimPct}%<br />optimized.
+            {stats.total > 0
+              ? <>{stats.total} appointment{stats.total !== 1 ? 's' : ''}<br />booked today.</>
+              : <>Nothing booked in<br />today yet.</>}
           </h2>
           {focusAppt && (
             <p style={S.pulseSub}>
-              Focus on the {focusAppt.treatment_name || 'next appointment'} at {new Date(focusAppt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}—client high-value window identified.
+              Next: {focusAppt.treatment_name || 'appointment'} at {new Date(focusAppt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}.
             </p>
           )}
         </div>
@@ -126,19 +119,20 @@ export default function AIInsights() {
       <section style={S.statsGrid}>
         <div style={S.statPill}>
           <span style={S.statPillLabel}>Completed</span>
-          <span style={S.statPillValue}>{String(stats.completed).padStart(2, '0')}</span>
+          <span style={S.statPillValue}>{stats.completed}</span>
         </div>
         <div style={S.statPill}>
           <span style={S.statPillLabel}>Pending</span>
-          <span style={S.statPillValue}>{String(stats.pending).padStart(2, '0')}</span>
+          <span style={S.statPillValue}>{stats.pending}</span>
         </div>
         <div style={{ ...S.statPill, borderColor: 'rgba(116, 90, 39, 0.1)' }}>
           <span style={S.statPillLabel}>Revenue</span>
-          <span style={{ ...S.statPillValue, color: '#745a27' }}>£{(stats.revenue / 100 / 1000).toFixed(1)}k</span>
+          <span style={{ ...S.statPillValue, color: '#745a27' }}>£{Math.round(stats.revenue / 100).toLocaleString('en-GB')}</span>
         </div>
       </section>
 
-      {/* ─── AI Recommendation ─── */}
+      {/* ─── AI Recommendation (real coaching insight, hidden until one exists) ─── */}
+      {coachingCards[0] && (
       <section style={S.tipCard}>
         <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
           <div style={S.tipIconWrap}>
@@ -146,21 +140,22 @@ export default function AIInsights() {
           </div>
           <div>
             <h4 style={S.tipTitle}>AI Recommendation</h4>
-            <p style={S.tipText}>"{todaysTip.text}"</p>
+            <p style={S.tipText}>{coachingCards[0].summary}</p>
           </div>
         </div>
       </section>
+      )}
 
       {/* ─── Value Coaching ─── */}
-      {coachingCards.length > 0 && (
+      {coachingCards.length > 1 && (
         <section style={{ marginBottom: 24 }}>
           <div style={S.sectionHeader}>
             <h3 style={S.sectionHeading}>Revenue Opportunities</h3>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {coachingCards.map((card, i) => {
+            {coachingCards.slice(1).map((card, i) => {
               const icons = { high_demand: '📈', price_stale: '💰', upsell: '✨' };
-              const coachType = card.metadata?.coaching_type || 'upsell';
+              const coachType = card.details?.coaching_type || 'upsell';
               return (
                 <div key={card.id || i} style={S.coachingCard}>
                   <span style={{ fontSize: 22, flexShrink: 0 }}>{icons[coachType] || '💡'}</span>
