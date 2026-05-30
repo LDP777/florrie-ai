@@ -16,3 +16,4 @@ export { default as EmptyState } from './EmptyState';
 export { default as Skeleton } from './Skeleton';
 export { default as Badge } from './Badge';
 export { useToast, ToastContainer, default as Toast } from './Toast';
+export { default as PageHeader } from './PageHeader';

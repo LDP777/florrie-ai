@@ -3,6 +3,7 @@ import { useBeautician, fetchRows, insertRow, updateRow } from '../lib/supabase.
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
@@ -176,12 +177,7 @@ export default function Campaigns() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.header}>
-        <div>
-          <h1 style={styles.title}>Campaigns</h1>
-          <p style={styles.subtitle}>Your Growth Engine</p>
-        </div>
-      </div>
+      <PageHeader title="Campaigns" subtitle="Your Growth Engine" />
 
       {/* Tabs */}
       <div style={styles.tabs}>

@@ -15,6 +15,7 @@ function getToken() {
 }
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 /**
  * Content Autopilot, Ellie's #1 pain point.
@@ -549,15 +550,15 @@ export default function ContentAutopilot() {
   return (
     <div style={styles.page}>
       {error && <ErrorCard message={error} onDismiss={() => setError(null)} />}
-      <div style={styles.header}>
-        <div>
-          <h1 style={styles.title}>Florrie Content</h1>
-          <p style={styles.subtitle}>Florrie writes your captions and posts</p>
-        </div>
-        <button onClick={() => startCompose('before_after', '')} style={styles.uploadBtn}>
-          + New Post
-        </button>
-      </div>
+      <PageHeader
+        title="Content"
+        subtitle="Florrie writes your captions and posts"
+        action={(
+          <button onClick={() => startCompose('before_after', '')} style={styles.uploadBtn}>
+            + New Post
+          </button>
+        )}
+      />
       {/* Stream selector pills */}
       <div style={styles.streamSelector}>
         <button

@@ -4,6 +4,7 @@ import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 /**
  * Escalations — the "needs your attention" inbox.
@@ -119,12 +120,10 @@ export default function Escalations() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Needs Your Attention</h1>
-        {escalations.length > 0 && (
-          <span style={styles.badge}>{escalations.length}</span>
-        )}
-      </div>
+      <PageHeader
+        title="Needs Your Attention"
+        action={escalations.length > 0 ? <span style={styles.badge}>{escalations.length}</span> : null}
+      />
 
       {escalations.length === 0 ? (
         <div style={styles.emptyState}>

@@ -107,7 +107,7 @@ export default function Compliance() {
         <GuardianAvatar size={52} />
         <div style={S.heroText}>
           <h1 style={S.heroTitle}>Compliance</h1>
-          <p style={S.heroSub}>Patch tests &amp; consultation forms — keeping you and your clients protected.</p>
+          <p style={S.heroSub}>Patch tests &amp; consultation forms, keeping you and your clients protected.</p>
         </div>
         {totalPending > 0 && (
           <span style={S.pendingBadge}>{totalPending} pending</span>
