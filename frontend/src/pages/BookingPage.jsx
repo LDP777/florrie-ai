@@ -294,7 +294,7 @@ export default function BookingPage() {
         // Look up beautician by booking slug
         const { data: b, error: bErr } = await supabase
           .from('beauticians')
-          .select('id, first_name, business_name, booking_slug, brand_color, working_hours, payment_settings, stripe_onboarding_complete, avatar_url, logo_url, tagline, description')
+          .select('id, first_name, business_name, booking_slug, brand_color, working_hours, payment_settings, stripe_onboarding_complete, avatar_url, logo_url, tagline')
           .eq('booking_slug', slug)
           .maybeSingle();
         if (bErr || !b) {
@@ -518,7 +518,7 @@ export default function BookingPage() {
   const bizName = beautician?.business_name || beautician?.first_name || 'Book';
   const logoUrl = beautician?.logo_url || beautician?.avatar_url || null;
   const monogram = bizName.trim().charAt(0).toUpperCase();
-  const headerTagline = beautician?.tagline || beautician?.description || 'Book your appointment';
+  const headerTagline = beautician?.tagline || 'Book your appointment';
   if (loading) {
     return (
       <div style={styles.loadingContainer}>
