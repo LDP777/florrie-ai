@@ -6,6 +6,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import EmptyState from '../components/EmptyState.jsx';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 /**
  * Money & Revenue — Stitch reference rebuild.
@@ -544,7 +545,7 @@ export default function MoneyTracker() {
   return (
     <div style={S.page}>
       {/* ─── Page Title ─── */}
-      <h1 style={S.pageTitle}>Money & Revenue</h1>
+      <PageHeader title="Money & Revenue" />
 
       {/* ─── Tab Bar (pill style) ─── */}
       <div style={S.tabBar}>

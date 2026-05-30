@@ -1088,9 +1088,11 @@ const styles = {
   title: {
     fontSize: 22,
     fontWeight: 700,
+    fontStyle: 'italic',
     margin: 0,
-    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
-    letterSpacing: '-0.02em',
+    fontFamily: "'Noto Serif', Georgia, serif",
+    color: 'var(--text-primary, #1d1b19)',
+    lineHeight: 1.2,
   },
   headerActions: { display: 'flex', gap: 8, alignItems: 'center' },
   exportBtn: { padding: '8px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
