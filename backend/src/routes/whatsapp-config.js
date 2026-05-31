@@ -1850,6 +1850,28 @@ router.post('/subscribe-phone', async (req, res) => {
 });
 
 /**
+ * POST /subscribe-waba
+ *
+ * Subscribes Florrie's app to the configured WABA's webhooks at the WABA level
+ * (POST /{WABA_ID}/subscribed_apps). This is what makes inbound customer messages
+ * reach the /api/webhooks/whatsapp handler. Phone-level subscribe is not always
+ * supported, so this is the reliable path. Idempotent: re-subscribing is a no-op.
+ */
+router.post('/subscribe-waba', async (req, res) => {
+  if (!WA_TOKEN || !WABA_ID) return res.status(503).json({ error: 'WhatsApp env not configured' });
+  try {
+    const r = await fetch(`${GRAPH}/${WABA_ID}/subscribed_apps`, {
+      method: 'POST',
+      headers: metaHeaders(),
+    });
+    const data = await r.json();
+    return res.json({ ok: r.ok, status: r.status, waba_id: WABA_ID, body: data });
+  } catch (err) {
+    return res.status(500).json({ error: 'Subscribe-waba failed', detail: err.message });
+  }
+});
+
+/**
  * GET /phone-details
  *
  * Returns Meta's full state for the beautician's phone, including
