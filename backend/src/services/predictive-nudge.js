@@ -135,7 +135,7 @@ async function nudgeForBeautician(beautician) {
         const sent = await sendNudge({
           client,
           body: message,
-          templateName: 'rebook_nudge',           // pre-approved WhatsApp template
+          templateName: 'rebook_nudge_v2',           // pre-approved WhatsApp template
           templateParams: [client.first_name, slotLabel || 'soon'],
           beauticianId: bid,
           beauticianPrefs,

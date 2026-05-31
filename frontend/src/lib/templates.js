@@ -8,15 +8,15 @@
  * this is display only.
  */
 const KNOWN = {
-  booking_confirmation: { label: 'Booking confirmation', blurb: 'Confirms an appointment',
+  booking_confirmation_v2: { label: 'Booking confirmation', blurb: 'Confirms an appointment',
     preview: "Hi Sarah, your appointment is confirmed for Friday at 2pm. We can't wait to see you." },
-  reminder_24h: { label: '24-hour reminder', blurb: 'Reminds a client the day before',
+  reminder_24h_v2: { label: '24-hour reminder', blurb: 'Reminds a client the day before',
     preview: "Hi Sarah, just a reminder your appointment is tomorrow at 2pm. See you then. Reply to reschedule if needed." },
-  gap_fill_offer: { label: 'Last-minute gap offer', blurb: 'Offers a freed-up slot',
+  gap_fill_offer_v2: { label: 'Last-minute gap offer', blurb: 'Offers a freed-up slot',
     preview: "Hi Sarah, we have a last-minute gap on Friday at 2pm. Want to grab it? Reply YES to book, or let me know if you'd prefer another time." },
-  rebook_nudge: { label: 'Rebook invite', blurb: 'Invites a client to book again',
+  rebook_nudge_v2: { label: 'Rebook invite', blurb: 'Invites a client to book again',
     preview: "Hi Sarah, it's been a little while. Fancy getting booked back in? Reply and I'll find you a time." },
-  generic_message: { label: 'Quick hello', blurb: 'A friendly general message',
+  generic_message_v2: { label: 'Quick hello', blurb: 'A friendly general message',
     preview: "Hi Sarah, hope to see you soon." },
 };
 const HIDDEN = new Set(['hello_world']);

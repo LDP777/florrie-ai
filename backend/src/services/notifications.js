@@ -541,7 +541,7 @@ export async function notifyBookingConfirmed(appointmentId) {
   if (prefs.booking_confirmation !== false) {
     const channel = prefs.channel || 'whatsapp';
     if (channel === 'whatsapp' && client.phone) {
-      const waResult = await sendWhatsApp({ to: client.phone, templateName: 'booking_confirmation', templateParams: [client.first_name, treatment.name, shortDate, timeStr] });
+      const waResult = await sendWhatsApp({ to: client.phone, templateName: 'booking_confirmation_v2', templateParams: [client.first_name, treatment.name, shortDate, timeStr] });
       // Fall through to SMS if WhatsApp not available
       if (!waResult && client.phone && BIRD_API_KEY) {
         await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'booking_confirmation' });
@@ -614,7 +614,7 @@ export async function notifyReminder24h(appointmentId) {
   if (prefs.reminder_24h !== false) {
     const channel = prefs.channel || 'whatsapp';
     if (channel === 'whatsapp' && client.phone) {
-      const waResult = await sendWhatsApp({ to: client.phone, templateName: 'reminder_24h', templateParams: [client.first_name, treatment.name, timeStr] });
+      const waResult = await sendWhatsApp({ to: client.phone, templateName: 'reminder_24h_v2', templateParams: [client.first_name, treatment.name, timeStr] });
       // Fall through to SMS if WhatsApp not available
       if (!waResult && client.phone && BIRD_API_KEY) {
         await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'appointment_reminder' });
