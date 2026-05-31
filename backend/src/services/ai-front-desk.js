@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
-import { deDash } from '../lib/text.js';
+import { cleanReply } from '../lib/text.js';
 import { createBookingSuggestion } from './automations.js';
 import { sendMessage, sendInstagramDM, sendWhatsAppText, sendSMS } from './notifications.js';
 import { pushEscalation, pushTeamUpdate } from './push-notifications.js';
@@ -367,7 +367,7 @@ Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`,
     messages: [{ role: 'user', content: message }]
   });
 
-  const replyText = deDash(response.content[0].text.trim());
+  const replyText = cleanReply(response.content[0].text.trim());
 
   // Calculate tone match score by comparing against beautician's correction history
   const toneScore = await calculateToneScore(beautician, replyText);
@@ -477,7 +477,7 @@ Respond with the suggested message only.`,
     messages: [{ role: 'user', content: message }]
   });
 
-  return deDash(response.content[0].text.trim());
+  return cleanReply(response.content[0].text.trim());
 }
 
 // INTENT-SPECIFIC PROMPT BUILDERS

@@ -12,3 +12,22 @@ export function deDash(text) {
     .replace(/\s*—\s*/g, ', ')
     .replace(/\s*–\s*/g, '-');
 }
+
+/**
+ * Strip basic markdown emphasis so it never reaches a chat bubble, an SMS, or
+ * a WhatsApp message as literal asterisks/backticks. Models love to bold things.
+ */
+export function stripMarkdown(text) {
+  if (typeof text !== 'string') return text;
+  return text
+    .replace(/\*\*\*([^*]+)\*\*\*/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*\n]+)\*/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '');
+}
+
+/** One call for cleaning any AI text shown to a user: no markdown, no dashes. */
+export function cleanReply(text) {
+  return deDash(stripMarkdown(text));
+}

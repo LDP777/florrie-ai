@@ -45,7 +45,11 @@ router.get('/feed', requireAuth, async (req, res) => {
 
   const rows = (data || []).map(shape);
 
-  res.json({ rows, count: rows.length });
+  // Dedupe by summary: the heartbeat can log the same line repeatedly.
+  const seen = new Set();
+  const deduped = rows.filter(r => (seen.has(r.summary) ? false : (seen.add(r.summary), true)));
+
+  res.json({ rows: deduped, count: deduped.length });
 });
 
 /**
