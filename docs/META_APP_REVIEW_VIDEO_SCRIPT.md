@@ -1,8 +1,10 @@
-# Meta App Review Video Script (v3, refactor-sprint UI)
+# Meta App Review Video Script (v4, masked-template UI)
 
-**Updated:** 2026-05-28
+**Updated:** 2026-05-31
 **Source research:** [docs/META_APP_REVIEW_PITFALLS_2026.md](./META_APP_REVIEW_PITFALLS_2026.md)
-**Supersedes:** v2 (2026-05-19), which was written against the pre-sprint cluttered Hub UI.
+**Supersedes:** v3 (2026-05-28). v3 was written against the old technical template screen (snake_case names, UTILITY/APPROVED badges, a Delete button). Since then the template UI was deliberately masked for beauticians: friendly names, plain-English status ("Ready to send" / "In review"), a "Remove" button, and a friendly Create modal. Video B below is rewritten to match the live UI. The underlying API calls (GET/POST/DELETE /message_templates) are unchanged, so the permission is still demonstrated, just through the production UI rather than a technical one.
+
+**Why the UI is friendly, not technical:** Florrie's customers are solo beauticians, not developers, so the template manager hides Meta plumbing. This is the real shipped product. The whatsapp_business_management permission is proven by the create/list/remove actions and the network calls they fire, not by showing raw snake_case names on screen. If a reviewer queries it, the create modal still exposes the template name (snake_case), category and language, and the DevTools Network panel shows the live Graph API calls.
 
 Two videos required, one per permission. Both ~90 seconds. Both must use the **reviewer test account** (meta-reviewer@florrie.ai), NOT Ellie's real account. Both must have on-screen captions (Meta reviewers watch muted).
 
@@ -13,7 +15,7 @@ The UI has changed since v2. The new IA is three bottom-nav tabs (Today, Inbox, 
 ## Pre-recording checklist (do once)
 
 1. **Log into the reviewer account** (meta-reviewer@florrie.ai) in an **incognito Chrome window** at exactly 1280x720 viewport. Do NOT use Ellie's real account in the demo video.
-2. **Confirm 4 templates are pre-staged** on the WABA: booking_confirmation, reminder_24h, generic_message, and **test_template_for_deletion_demo** (this last one needs to be created before recording so Video B has something safe to delete).
+2. **Confirm the templates are pre-staged** on the reviewer account's WABA. The real Meta names still need to exist (booking_confirmation, reminder_24h, generic_message), but on screen they now show as friendly labels (Booking confirmation, 24-hour reminder, Quick hello). Also create **test_template_for_deletion_demo** before recording so Video B has a safe row to delete, it will appear in the list as "Test Template For Deletion Demo / Your custom template" with a Remove button.
 3. **Confirm the TestClient conversation is open** in the new unified Inbox (last inbound message timestamp within the last 23 hours). If not, send a WhatsApp from a personal phone to Ellindigo's number to open the window, then have the reviewer test account see it appear in `/inbox`.
 4. **Have a second physical phone in hand** with WhatsApp installed, with a clean chat thread ready. Or use QuickTime + iPhone-over-USB mirroring on the same Mac for higher-quality recording.
 5. **Mute system notifications.** Close all other tabs. Hide menubar work-app badges.
@@ -81,52 +83,54 @@ This still demonstrates POST /{phone_number_id}/messages and stays inside Meta's
 
 ## Video B: whatsapp_business_management (target ~90 seconds)
 
-Demonstrates: list templates -> create a new template -> delete a template. Uses the new More catalogue to reach `/whatsapp/templates`.
+Demonstrates: list templates -> create a new template -> delete a template, through Florrie's production template manager at `/whatsapp/templates`. The UI uses friendly labels, the Graph API calls underneath are the permission in use.
 
 ### Shot list
 
 **0:00 to 0:05, Title card**
 - "Florrie, Meta App 1472063194315529"
 - "Permission demo: whatsapp_business_management"
-- "Use case: salon owner manages her own Utility templates"
+- "Use case: salon owner manages her own message templates"
 
 **0:05 to 0:20, Login + navigate to Templates via More**
-- Login as reviewer account (can be a faster cut than Video A).
+- Login as reviewer account (faster cut than Video A is fine).
 - Land on Today.
 - Tap the floating More button (top-right pill). The More catalogue opens at `/more`.
-- Scroll or use the search field to find the Messaging section. Tap WhatsApp -> `/whatsapp` opens, then tap the Templates tab inside `/whatsapp` (it links to `/whatsapp/templates`).
-- Alternative direct route: paste `/whatsapp/templates` into the URL bar. Either path is acceptable. Pick whichever reads cleaner on camera.
-- **Caption overlay:** "Templates live behind More -> Messaging -> WhatsApp -> Templates."
+- Under Messaging, tap WhatsApp -> `/whatsapp` opens, then tap the Templates tab (it routes to `/whatsapp/templates`).
+- Alternative direct route: type `/whatsapp/templates` in the URL bar. Either is acceptable, pick whichever reads cleaner.
+- **Caption overlay:** "Template manager, behind More -> Messaging -> WhatsApp -> Templates."
 
 **0:20 to 0:40, Show templates list (READ demonstration)**
-- The list shows 4 templates: booking_confirmation, reminder_24h, generic_message, test_template_for_deletion_demo.
-- Each row shows category (UTILITY), language (en), status (APPROVED, green badge), and a preview of body text.
+- The page header reads "Message templates" with a "+ Create new template" button.
+- The list shows the salon's templates as cards: a friendly name (e.g. "Quick hello", "Last-minute gap offer"), a one-line description, a plain-English status badge ("Ready to send" = Meta-approved, "In review" = pending), and a preview of the message body.
 - **Caption overlay:** "GET /WABA_ID/message_templates via whatsapp_business_management."
-- Hover over booking_confirmation to highlight. **Caption:** "Salon owner sees Meta approval status for each template."
+- Optional: open DevTools Network panel briefly to show the live `message_templates` GET call. **Caption:** "Live Graph API call listing the salon's approved templates."
 
 **0:40 to 1:10, Create new template (CREATE demonstration)**
-- Click "+ Create new template".
-- Modal opens. Fill in:
-  - Name: `review_screencast_test`
-  - Category: UTILITY (dropdown)
-  - Language: English (en)
-  - Body: `Hi {{name}}, thanks for visiting Ellindigo on {{date}}. We would love your feedback at {{review_link}}.`
+- Click "+ Create new template". A modal titled "Create WhatsApp template" opens.
+- Fill in:
+  - Template name: `review_screencast_test` (the field hint reads "Lowercase, no spaces. Spaces become underscores automatically.")
+  - Category: Utility (dropdown, labelled "Utility (booking, reminders, receipts)")
+  - Language: English
+  - Body: `Hi {{1}}, thanks for visiting Ellindigo. We would love your feedback: {{2}}.` (the hint explains the `{{1}}`, `{{2}}` placeholders)
 - Click Create template.
-- Modal closes. New template appears at top of list with PENDING_REVIEW (amber badge).
-- **Caption overlay:** "POST /WABA_ID/message_templates via whatsapp_business_management."
+- Modal closes. The new template appears in the list with an amber "In review" badge.
+- **Caption overlay:** "POST /WABA_ID/message_templates via whatsapp_business_management. New template submitted to Meta for approval (shown as In review)."
 
 **1:10 to 1:25, Delete a template (DELETE demonstration)**
-- Scroll to test_template_for_deletion_demo (pre-staged to be safe to delete).
-- Click its Delete button.
-- Confirmation dialog: "Delete test_template_for_deletion_demo?"
-- Click Confirm.
-- Template disappears from list.
+- Scroll to "Test Template For Deletion Demo" (the pre-staged `test_template_for_deletion_demo`, safe to delete).
+- Click its Remove button.
+- Confirm the deletion in the dialog.
+- The card disappears from the list.
 - **Caption overlay:** "DELETE /WABA_ID/message_templates via whatsapp_business_management."
 
 **1:25 to 1:35, Outro title card**
 - "Permission demo complete."
-- "whatsapp_business_management verified: read, create, delete templates."
-- "Salon owner controls all write actions through Florrie's UI."
+- "whatsapp_business_management verified: list, create, delete templates."
+- "Salon owner controls all template actions through Florrie's UI."
+
+### Note on the friendly labels (if a reviewer asks)
+The on-screen names ("Quick hello") are display labels for a non-technical salon owner. The real Meta template name is preserved and used in every API call. The create modal shows the actual template name, category and language, and the Network panel shows the raw Graph API requests, so nothing is hidden from a reviewer who wants the technical detail.
 
 ---
 
