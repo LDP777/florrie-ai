@@ -33,6 +33,9 @@ router.get('/', requireAuth, async (req, res) => {
       suggestions.push(...await fromRebookReminders(beauticianId));
     }
     if (suggestions.length < MAX_SUGGESTIONS) {
+      suggestions.push(...await fromValueCoaching(beauticianId));
+    }
+    if (suggestions.length < MAX_SUGGESTIONS) {
       suggestions.push(...await fromEmptyTomorrow(beauticianId));
     }
     if (suggestions.length < MAX_SUGGESTIONS) {
@@ -152,7 +155,7 @@ async function fromRebookReminders(beauticianId) {
     .lt('last_visit_at', minCutoff)
     .gte('last_visit_at', maxCutoff)
     .order('last_visit_at', { ascending: false }) // freshest lapses first - best re-engagement odds
-    .limit(3);
+    .limit(2); // cap rebook so it doesn't flood "Florrie thinks" - leave room for variety
 
   if (error || !data) return [];
 
@@ -175,6 +178,30 @@ async function fromRebookReminders(beauticianId) {
       link_to: `/inbox?client=${client.id}`,
     };
   });
+}
+
+async function fromValueCoaching(beauticianId) {
+  // Pricing / revenue insights Florrie has spotted. Different flavour from
+  // rebook nudges, so "Florrie thinks" feels varied rather than all-rebook.
+  const { data, error } = await supabase
+    .from('ai_actions')
+    .select('id, summary, created_at')
+    .eq('beautician_id', beauticianId)
+    .eq('action_type', 'value_coaching')
+    .order('created_at', { ascending: false })
+    .limit(2);
+
+  if (error || !data) return [];
+
+  return data.map(row => ({
+    id: `coaching-${row.id}`,
+    type: 'value_coaching',
+    icon: '💡',
+    summary: row.summary,
+    action_label: 'See',
+    payload: { ai_action_id: row.id },
+    link_to: '/money',
+  }));
 }
 
 async function fromEmptyTomorrow(beauticianId) {
