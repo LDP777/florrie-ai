@@ -1,5 +1,5 @@
 /**
- * Florrie heartbeat — runs once daily per tenant.
+ * Florrie heartbeat, runs once daily per tenant.
  *
  * The activity feed on the Hub ("What Florrie did") was originally seeded with
  * synthetic rows so it wouldn't render empty for Ellie on Day 1 of the sprint.
@@ -11,7 +11,7 @@
  *   - Inbox watch (counts unread inbound messages)
  *
  * Each pass writes ONE row to ai_actions with the real numbers in details, so
- * if anyone — Ellie, App Review, a journalist — taps a row, the link_to lands
+ * if anyone, Ellie, App Review, a journalist, taps a row, the link_to lands
  * on the page that proves the count. The seed is now obsolete and gets cleaned
  * up by supabase/seeds/051_remove_florrie_activity_seed.sql.
  *
@@ -136,7 +136,7 @@ export async function runHeartbeatFor(beautician) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Individual checks. Each returns a partial ai_actions row or null.
-// All counts come straight from the DB — no fiction.
+// All counts come straight from the DB, no fiction.
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function calendarLookahead(beauticianId) {
@@ -158,10 +158,10 @@ async function calendarLookahead(beauticianId) {
 
   const n = count || 0;
   const summary = n === 0
-    ? "Florrie checked tomorrow's calendar — nothing booked yet"
+    ? "Florrie checked tomorrow's calendar, nothing booked yet"
     : n === 1
-    ? "Florrie checked tomorrow's calendar — 1 appointment booked"
-    : `Florrie checked tomorrow's calendar — ${n} appointments booked`;
+    ? "Florrie checked tomorrow's calendar, 1 appointment booked"
+    : `Florrie checked tomorrow's calendar, ${n} appointments booked`;
 
   return {
     action_type: 'quiet_week_detected',
@@ -190,7 +190,7 @@ async function dormantScan(beauticianId) {
 
   const n = count || 0;
   const summary = n === 0
-    ? "Florrie scanned your client list for dormant regulars — none yet"
+    ? "Florrie scanned your client list for dormant regulars, none yet"
     : n === 1
     ? "Florrie spotted 1 dormant client to consider re-engaging"
     : `Florrie spotted ${n} dormant clients to consider re-engaging`;
@@ -221,10 +221,10 @@ async function overnightBookingWatch(beauticianId) {
 
   const n = count || 0;
   const summary = n === 0
-    ? "Florrie watched for new bookings overnight — all quiet"
+    ? "Florrie watched for new bookings overnight, all quiet"
     : n === 1
-    ? "Florrie watched overnight — 1 new booking came in"
-    : `Florrie watched overnight — ${n} new bookings came in`;
+    ? "Florrie watched overnight, 1 new booking came in"
+    : `Florrie watched overnight, ${n} new bookings came in`;
 
   return {
     action_type: 'quiet_week_detected',
@@ -260,10 +260,10 @@ async function clientListScan(beauticianId) {
   const t = total || 0;
   const f = fresh || 0;
   const summary = f === 0
-    ? `Florrie reviewed your client list — ${t} on the books`
+    ? `Florrie reviewed your client list, ${t} on the books`
     : f === 1
-    ? `Florrie reviewed your client list — 1 new this week, ${t} total`
-    : `Florrie reviewed your client list — ${f} new this week, ${t} total`;
+    ? `Florrie reviewed your client list, 1 new this week, ${t} total`
+    : `Florrie reviewed your client list, ${f} new this week, ${t} total`;
 
   return {
     action_type: 'client_profile_updated',

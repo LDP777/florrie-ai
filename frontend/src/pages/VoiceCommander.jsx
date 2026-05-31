@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useBeautician, supabase, fetchRows } from '../lib/supabase.js'
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
+import { deDash } from '../lib/text.js';
 /**
  * Voice Commander — Talk to florrie.ai.
  *
@@ -289,7 +290,7 @@ export default function VoiceCommander() {
         const mapped = aiOnly.map(action => ({
           id: action.id,
           role: 'assistant',
-          text: action.summary || action.notification_text || action.action_type || 'Action completed',
+          text: deDash(action.summary || action.notification_text || action.action_type || 'Action completed'),
           agent: action.digital_employee || 'general',
           timestamp: action.created_at,
         }));

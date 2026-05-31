@@ -1,5 +1,5 @@
 /**
- * Cleanup service — handles stale bookings and expired data.
+ * Cleanup service, handles stale bookings and expired data.
  *
  * Runs on an interval from index.js. Each function is idempotent
  * and safe to call multiple times.
@@ -60,7 +60,7 @@ export async function cleanupStaleBookings() {
         beautician_id: appt.beautician_id,
         action_type: 'booking_auto_cancelled',
         digital_employee: 'front_desk',
-        summary: `Auto-cancelled unpaid booking — payment window expired`,
+        summary: `Auto-cancelled unpaid booking, payment window expired`,
         details: {
           appointment_id: appt.id,
           reason: 'deposit_not_paid',
@@ -71,7 +71,7 @@ export async function cleanupStaleBookings() {
         confidence: 1.0,
         autonomous: true,
         outcome: 'success',
-      }); // non-fatal — ignore _logErr
+      }); // non-fatal, ignore _logErr
     }
   }
 
@@ -104,7 +104,7 @@ async function removeFromGoogleCalendar(beauticianId, eventId) {
 
   let res = await del(accessToken);
 
-  // Token expired — try to refresh
+  // Token expired, try to refresh
   if (res.status === 401 && b.google_calendar_refresh_token) {
     const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -132,7 +132,7 @@ async function removeFromGoogleCalendar(beauticianId, eventId) {
   }
 
   if (res.status === 204 || res.status === 404) {
-    // 204 = deleted, 404 = already gone — both are fine
+    // 204 = deleted, 404 = already gone, both are fine
     logger.info({ beauticianId, eventId }, 'GCal event removed after auto-cancel');
   } else {
     const body = await res.text().catch(() => '');

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
+import { deDash } from '../lib/text.js';
 
 /**
  * ActivityFeed , Day 1 of the 2026-05-28 refactor.
@@ -210,7 +211,7 @@ function ActivityRow({ row, now, navigate }) {
         }}
       >
         <span style={F.icon} aria-hidden>{iconFor(row.type)}</span>
-        <span style={F.summary}>{row.summary}</span>
+        <span style={F.summary}>{deDash(row.summary)}</span>
         <span style={F.time}>{relativeTime(row.created_at, now)}</span>
         {clickable && (
           <span className="material-symbols-outlined" style={F.chev} aria-hidden>
