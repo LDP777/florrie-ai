@@ -88,11 +88,10 @@ export default function SuggestionCards() {
     }));
     setPendingId(null);
 
-    if (response === 'yes') {
-      setToast('Done');
-      setTimeout(() => setToast(null), 1600);
-      if (s.link_to) navigate(s.link_to);
-    } else if (response === 'tweak') {
+    if (response === 'yes' || response === 'tweak') {
+      // Both open the place to act (e.g. the client's conversation). The page
+      // change is the feedback, so no misleading "Done" toast for something
+      // that hasn't been sent yet.
       if (s.link_to) navigate(s.link_to);
     } else {
       setToast('Got it');

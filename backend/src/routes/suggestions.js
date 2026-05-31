@@ -172,7 +172,7 @@ async function fromRebookReminders(beauticianId) {
       summary,
       action_label: 'Send offer',
       payload: { client_id: client.id, weeks_since: weeks },
-      link_to: `/clients/${client.id}`,
+      link_to: `/inbox?client=${client.id}`,
     };
   });
 }
@@ -274,7 +274,7 @@ function syntheticDefaults(beautician) {
       summary: 'Got an existing client list? Import it so Florrie can start learning.',
       action_label: 'Import',
       payload: {},
-      link_to: '/clients/import',
+      link_to: '/import',
     },
     {
       id: 'synth-templates',
@@ -292,7 +292,7 @@ function syntheticDefaults(beautician) {
       summary: `Share your booking link, ${firstName}. Clients book in, Florrie does the rest.`,
       action_label: 'Copy link',
       payload: {},
-      link_to: '/business-profile',
+      link_to: '/business',
     },
   ];
 }
