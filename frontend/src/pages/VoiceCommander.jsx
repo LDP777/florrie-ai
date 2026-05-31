@@ -470,11 +470,11 @@ export default function VoiceCommander() {
       action = { label: 'View Money', path: '/money' };
     } else if (lower.includes('comeback') || lower.includes('dormant') || lower.includes('send') || lower.includes('message') || lower.includes('campaign')) {
       agent = 'campaigns';
-      text = "Campaign commands work when you're logged in — I'll find dormant clients, draft messages in your voice, and queue them for your approval.";
+      text = "Campaign commands work when you're logged in. I'll find dormant clients, draft messages in your voice, and queue them for your approval.";
       action = { label: 'View Inbox', path: '/inbox' };
     } else if (lower.includes('post') || lower.includes('instagram') || lower.includes('content') || lower.includes('draft')) {
       agent = 'content';
-      text = "Content drafting is live when connected — I generate captions, hashtags, and schedule posts. Type or say what you want and I'll draft it.";
+      text = "Content drafting is live when connected. I generate captions, hashtags, and schedule posts. Type or say what you want and I'll draft it.";
       action = { label: 'View Content', path: '/content' };
     } else if (lower.includes('schedule') || lower.includes('today') || lower.includes('tomorrow')) {
       agent = 'calendar';
@@ -482,10 +482,10 @@ export default function VoiceCommander() {
       action = { label: 'View Calendar', path: '/calendar' };
     } else if (lower.includes('loyal') || lower.includes('client') || lower.includes('who')) {
       agent = 'clients';
-      text = "Client lookups need your real data. Log in and ask me again — I'll tell you visit counts, spend totals, and when they're due back.";
+      text = "Client lookups need your real data. Log in and ask me again. I'll tell you visit counts, spend totals, and when they're due back.";
       action = { label: 'View Clients', path: '/clients' };
     } else {
-      text = "I'm in demo mode so I can't take real actions yet. Once you're logged in, I handle bookings, schedule, messages, notes, and more — just speak naturally.";
+      text = "I'm in demo mode so I can't take real actions yet. Once you're logged in, I handle bookings, schedule, messages, notes, and more. Just speak naturally.";
     }
     return {
       id: crypto.randomUUID(),
@@ -509,7 +509,7 @@ export default function VoiceCommander() {
       <div style={styles.header}>
         <h1 style={styles.title}>Ask Florrie</h1>
         <p style={styles.subtitle}>
-          {speechSupported ? 'Tap the mic or type — I handle everything.' : 'Type anything — I handle everything.'}
+          {speechSupported ? 'Tap the mic or type, I handle everything.' : 'Type anything, I handle everything.'}
         </p>
       </div>
       {/* Messages */}
