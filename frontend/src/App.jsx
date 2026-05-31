@@ -455,11 +455,12 @@ function BottomNav({ current, session }) {
         <NavTab key={tab.path} tab={tab} onNav={() => navigate(tab.path)} />
       ))}
 
-      {/* Centre petal: tap = jump home to Today. Brand AND quick-home in one. */}
+      {/* Centre petal: tap = talk to Florrie (the voice/command page). The brand
+          mark itself is the way to reach Florrie; Today is still the left tab. */}
       <button
         type="button"
-        aria-label="Go to Today"
-        onClick={() => navigate('/today')}
+        aria-label="Talk to Florrie"
+        onClick={() => navigate('/voice')}
         style={styles.navPetalWrap}
       >
         <div style={styles.navPetal}>

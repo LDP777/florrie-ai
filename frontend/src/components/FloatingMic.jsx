@@ -329,9 +329,12 @@ export default function FloatingMic() {
     setResult(null);
   }
 
-  function openInbox() {
+  function continueWithFlorrie() {
+    // Voice commands often need a follow-up (e.g. "move appointments" -> which
+    // client, what time). Send them to the conversational /voice page rather
+    // than a dead-end empty Inbox.
     setResult(null);
-    navigate('/inbox');
+    navigate('/voice');
   }
 
   if (hide) return null;
@@ -354,7 +357,7 @@ export default function FloatingMic() {
           <div style={S.resultTranscript}>"{result.transcript}"</div>
           <div style={S.resultReply}>{result.reply}</div>
           <div style={S.resultActions}>
-            <button onClick={openInbox} style={S.resultBtnPrimary}>Open Inbox</button>
+            <button onClick={continueWithFlorrie} style={S.resultBtnPrimary}>Continue with Florrie</button>
             <button onClick={dismissResult} style={S.resultBtnGhost}>Dismiss</button>
           </div>
         </div>
