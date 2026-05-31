@@ -155,7 +155,7 @@ export async function processVoiceCommand({ audioBase64, text, mimeType, beautic
     } else if (executedActions.length > 1) {
       finalReply = executedActions.map(a => a.result).join('\n\n');
     } else {
-      finalReply = "I'm not sure what to do with that. Try something like 'what's my schedule today?' or 'block next week for a holiday'.";
+      finalReply = "I can't do that one by voice just yet. Try asking me to check your schedule, book someone in, block time off, send a message, or check your revenue. For anything else, tap More to find it in the app.";
     }
   }
 
@@ -203,6 +203,8 @@ IMPORTANT RULES:
 8. Keep your final response concise and warm. This appears in a small voice UI.
 9. NEVER mention tool names in your response to the user.
 10. NEVER use em dashes (—) or en dashes (–). Use commas, full stops, colons or line breaks instead.
+11. If the user asks for something you do NOT have a tool for (changing prices, editing settings, building a campaign, anything outside the actions below), never dead-end with a flat "I can't." Warmly acknowledge it, say it is not something you can do by voice just yet, then EITHER point them to where in the app they can do it (for example "you can set that under More") OR suggest the closest thing you CAN do. Always leave them a clear next step.
+12. What you can do by voice: check the schedule, book, reschedule or cancel appointments, block time off, look up a client, find lapsed clients, add a client note, send a message to one client or in bulk, send a payment link or rebook reminder, check revenue, check outstanding payments, and log an expense. When a request is out of scope, offer two or three of these as friendly alternatives.
 
 Examples of good compound commands you should handle:
 - "Book Megan in for HD Brows next Thursday at 11 and send her a payment link for £20" → book_appointment + send_payment_link
