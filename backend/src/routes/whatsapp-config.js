@@ -1627,11 +1627,26 @@ router.post('/meta-templates', async (req, res) => {
   if (!language) return res.status(400).json({ error: 'language required', code: 'missing_language' });
   if (!bodyText) return res.status(400).json({ error: 'body_text required', code: 'missing_body' });
 
+  // Meta REJECTS any template whose text contains {{n}} placeholders unless we
+  // also supply example values for them. Derive realistic samples per placeholder.
+  const sampleValues = ['Sarah', 'Friday 6 June', '2pm', 'Brow Lamination', 'Ellindigo', 'Monday', '10am'];
+  const placeholderCount = (t) => {
+    const nums = [...String(t).matchAll(/\{\{\s*(\d+)\s*\}\}/g)].map((m) => parseInt(m[1], 10));
+    return nums.length ? Math.max(...nums) : 0;
+  };
+  const exampleList = (n) => Array.from({ length: n }, (_, i) => sampleValues[i] || `Example ${i + 1}`);
+
   const components = [];
   if (headerText) {
-    components.push({ type: 'HEADER', format: 'TEXT', text: headerText });
+    const hc = { type: 'HEADER', format: 'TEXT', text: headerText };
+    const hn = placeholderCount(headerText);
+    if (hn > 0) hc.example = { header_text: exampleList(hn) };
+    components.push(hc);
   }
-  components.push({ type: 'BODY', text: bodyText });
+  const bodyComp = { type: 'BODY', text: bodyText };
+  const bn = placeholderCount(bodyText);
+  if (bn > 0) bodyComp.example = { body_text: [exampleList(bn)] };
+  components.push(bodyComp);
   if (footerText) {
     components.push({ type: 'FOOTER', text: footerText });
   }
