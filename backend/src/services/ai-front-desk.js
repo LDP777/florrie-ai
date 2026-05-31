@@ -77,24 +77,30 @@ export async function processInboundMessage(messageId, beautician, client, messa
         messageContent, classification, context, beautician, client
       );
 
-      // 5a. Update message record
+      // 5a. Try to deliver. Returns true ONLY if the message was actually sent.
+      // Florrie never silently auto-sends a phantom message; if delivery does not
+      // happen the reply is surfaced as a one-tap draft (the "every send is one
+      // human tap" thesis), and we never record it as sent.
+      const sent = await sendResponse(beautician, client, result.response, classification, messageId);
+
+      // 6a. Update message record honestly based on whether it actually sent.
       await supabase.from('messages').update({
-        ai_handled: true,
+        ai_handled: sent,
         ai_confidence: classification.confidence,
         ai_intent: classification.intent,
         ai_response: result.response,
         tone_match_score: result.toneScore,
+        escalated: !sent,
         digital_employee: 'front_desk'
       }).eq('id', messageId);
 
-      // 6a. Log AI action
-      await logAiAction(beautician.id, client?.id, messageId, classification, result);
+      // 7a. Only log it as a completed action if it was genuinely delivered.
+      if (sent) {
+        await logAiAction(beautician.id, client?.id, messageId, classification, result);
+      }
 
-      // 7a. Send the response
-      await sendResponse(beautician, client, result.response, messageContent);
-
-      logger.info({ handled: true, intent: classification.intent }, 'AI Front Desk handled message');
-      return { handled: true, intent: classification.intent, response: result.response };
+      logger.info({ handled: sent, drafted: !sent, intent: classification.intent }, sent ? 'AI Front Desk sent reply' : 'AI Front Desk drafted reply for one-tap send');
+      return { handled: sent, drafted: !sent, intent: classification.intent, response: result.response };
 
     } else {
       // 4b. Escalate — still generate a suggested response
@@ -656,7 +662,7 @@ function getAvailableDays(existingAppointments, workingHours) {
   return days;
 }
 
-async function sendResponse(beautician, client, responseText, originalMessage) {
+async function sendResponse(beautician, client, responseText, classification, messageId) {
   // Detect which channel the client came in on
   const inboundChannel = client?.preferred_channel || 'sms';
   let sent = false;
@@ -688,21 +694,47 @@ async function sendResponse(beautician, client, responseText, originalMessage) {
     }
   }
 
-  if (!sent) {
-    logger.warn({ clientId: client?.id, channel: inboundChannel }, 'Front Desk: could not send response on any channel');
+  if (sent) {
+    // Genuinely delivered — safe to record it as a sent outbound message.
+    await supabase.from('messages').insert({
+      beautician_id: beautician.id,
+      client_id: client?.id,
+      channel: inboundChannel,
+      direction: 'outbound',
+      content: responseText,
+      ai_handled: true,
+      ai_confidence: 1.0,
+      digital_employee: 'front_desk'
+    });
+  } else {
+    // NOT delivered. Previously we inserted the message anyway, so the inbox showed
+    // it as sent when the client never received it (the phantom-send bug). Instead,
+    // surface the reply as a one-tap draft the beautician can review and send.
+    logger.warn({ clientId: client?.id, channel: inboundChannel }, 'Front Desk: reply not delivered, surfacing as one-tap draft');
+    await supabase.from('ai_actions').insert({
+      beautician_id: beautician.id,
+      action_type: 'message_escalated',
+      digital_employee: 'front_desk',
+      summary: `Reply ready for ${client?.first_name || 'a client'}, tap to send`,
+      details: {
+        intent: classification?.intent,
+        confidence: classification?.confidence,
+        suggested_response: responseText,
+        channel: inboundChannel,
+        reason: 'draft_ready_not_auto_sent'
+      },
+      client_id: client?.id,
+      message_id: messageId,
+      confidence: classification?.confidence ?? 1.0,
+      autonomous: false,
+      outcome: 'escalated',
+      notification_sent: true,
+      notification_text: `A reply to ${client?.first_name || 'a client'} is ready, tap to send`
+    });
+    pushEscalation(beautician.id, client?.first_name || 'Someone', responseText).catch(() => {});
   }
 
-  // Store outbound message
-  await supabase.from('messages').insert({
-    beautician_id: beautician.id,
-    client_id: client?.id,
-    channel: inboundChannel,
-    direction: 'outbound',
-    content: responseText,
-    ai_handled: true,
-    ai_confidence: 1.0,
-    digital_employee: 'front_desk'
-  });
+  return sent;
 }
 
 async function logAiAction(beauticianId, clientId, messageId, classification, result) {
