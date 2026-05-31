@@ -293,7 +293,10 @@ export default function VoiceCommander() {
           agent: action.digital_employee || 'general',
           timestamp: action.created_at,
         }));
-        setMessages([greeting, ...mapped]);
+        // Dedupe the feed: the heartbeat can log the same summary repeatedly.
+        const seen = new Set();
+        const deduped = mapped.filter(m => (seen.has(m.text) ? false : (seen.add(m.text), true)));
+        setMessages([greeting, ...deduped]);
       }
     } catch (err) {
       logger.error('Load action history error:', err);

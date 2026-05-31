@@ -22,6 +22,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { TOOL_DEFINITIONS, executeTool, findClient } from './voice-tools.js';
 import logger from '../lib/logger.js';
+import { deDash } from '../lib/text.js';
 
 const MAX_TOOL_ROUNDS = 5; // Safety limit on agentic loops
 
@@ -160,7 +161,7 @@ export async function processVoiceCommand({ audioBase64, text, mimeType, beautic
 
   return {
     transcript,
-    reply: finalReply,
+    reply: deDash(finalReply),
     actions: executedActions,
     status: executedActions.length > 0 ? 'ok' : 'unknown',
   };

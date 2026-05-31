@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { deDash } from '../lib/text.js';
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 
@@ -69,7 +70,7 @@ Return ONLY the caption text. No quotes, no explanation, no hashtag suggestions 
     }]
   });
 
-  const caption = response.content[0].text.trim();
+  const caption = deDash(response.content[0].text.trim());
 
   // Generate hashtags separately
   const hashtags = await generateHashtags(treatmentType, businessName);
@@ -134,7 +135,7 @@ ${bookingLink ? `Include booking link: ${bookingLink}` : 'Tell them to DM to boo
     }]
   });
 
-  const caption = response.content[0].text.trim();
+  const caption = deDash(response.content[0].text.trim());
 
   // Store as draft
   const { data: post } = await supabase

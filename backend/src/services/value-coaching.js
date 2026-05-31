@@ -78,7 +78,7 @@ async function analyseBeautician(beautician) {
       const increasePounds = suggestedIncrease / 100;
       insights.push({
         type: 'high_demand',
-        summary: `Your ${top.label} fills ${Math.round(top.fillRate * 100)}% of the time. You could increase ${topTreatment.name} by £${increasePounds} — demand supports it.`,
+        summary: `Your ${top.label} fills ${Math.round(top.fillRate * 100)}% of the time. You could increase ${topTreatment.name} by £${increasePounds}, demand supports it.`,
         confidence: 0.88,
       });
     }
@@ -110,7 +110,7 @@ async function analyseBeautician(beautician) {
     const best = treatmentCombos[0];
     insights.push({
       type: 'upsell',
-      summary: `Clients who add ${best.addon} spend £${best.extraPounds} more per visit. Mention it when rebooking ${best.base} clients — it could mean £${best.monthlyGainPounds}/month extra.`,
+      summary: `Clients who add ${best.addon} spend £${best.extraPounds} more per visit. Mention it when rebooking ${best.base} clients, it could mean £${best.monthlyGainPounds}/month extra.`,
       confidence: 0.82,
     });
   }
