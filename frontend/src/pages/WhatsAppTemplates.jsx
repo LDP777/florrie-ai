@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
+import { templateDisplay, isClientTemplate } from '../lib/templates.js';
 
 /**
  * WhatsAppTemplates
@@ -79,19 +80,20 @@ function footerPreview(components) {
 
 function TemplateCard({ template, onDelete, deleting }) {
   const s = statusStyle(template.status);
-  const body = bodyPreview(template.components);
-  const header = headerPreview(template.components);
-  const footer = footerPreview(template.components);
+  const { label, blurb, preview } = templateDisplay(template);
+  const status = (template.status || '').toUpperCase();
+  const statusLabel = status === 'APPROVED'
+    ? 'Ready to send'
+    : ['PENDING', 'PENDING_REVIEW', 'IN_APPEAL', 'SUBMITTED'].includes(status)
+      ? 'In review'
+      : 'Unavailable';
 
   return (
     <div style={styles.card}>
       <div style={styles.cardHeader}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={styles.cardName}>{template.name}</div>
-          <div style={styles.cardMeta}>
-            <span style={styles.metaPill}>{template.category || 'UTILITY'}</span>
-            <span style={styles.metaPill}>{template.language}</span>
-          </div>
+          <div style={styles.cardName}>{label}</div>
+          {blurb && <div style={styles.cardBlurb}>{blurb}</div>}
         </div>
         <span style={{
           ...styles.statusBadge,
@@ -99,21 +101,13 @@ function TemplateCard({ template, onDelete, deleting }) {
           border: `1px solid ${s.border}`,
           color: s.color,
         }}>
-          {template.status || 'UNKNOWN'}
+          {statusLabel}
         </span>
       </div>
 
-      {(header || body || footer) && (
+      {preview && (
         <div style={styles.previewBlock}>
-          {header && (
-            <div style={styles.previewHeader}>{header}</div>
-          )}
-          {body && (
-            <div style={styles.previewBody}>{body}</div>
-          )}
-          {footer && (
-            <div style={styles.previewFooter}>{footer}</div>
-          )}
+          <div style={styles.previewBody}>{preview}</div>
         </div>
       )}
 
@@ -124,7 +118,7 @@ function TemplateCard({ template, onDelete, deleting }) {
           disabled={deleting}
           style={styles.deleteBtn}
         >
-          {deleting ? 'Deleting...' : 'Delete'}
+          {deleting ? 'Removing...' : 'Remove'}
         </button>
       </div>
     </div>
@@ -388,9 +382,9 @@ export default function WhatsAppTemplates() {
       </div>
 
       <div style={styles.explainer}>
-        These are your approved WhatsApp message templates. Meta reviews each one
-        and approves it within a few hours. Approved templates can be sent to
-        clients outside the 24-hour conversation window.
+        Ready-made messages you can send to a client anytime, even if they
+        haven't messaged you in the last 24 hours. New ones are checked before
+        they go live, which usually takes a few hours.
       </div>
 
       {loading && <PageLoader />}
@@ -429,7 +423,7 @@ export default function WhatsAppTemplates() {
 
       {!loading && !error && templates.length > 0 && (
         <div style={styles.list}>
-          {templates.map((t) => (
+          {templates.filter((t) => isClientTemplate(t.name)).map((t) => (
             <TemplateCard
               key={`${t.name}__${t.language}`}
               template={t}
@@ -560,10 +554,14 @@ const styles = {
     marginBottom: 10,
   },
   cardName: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: 700,
     color: 'var(--text, #2D2A26)',
-    wordBreak: 'break-all',
+  },
+  cardBlurb: {
+    fontSize: 13,
+    color: 'var(--text-secondary, #8B6F5E)',
+    marginTop: 2,
   },
   cardMeta: {
     display: 'flex',

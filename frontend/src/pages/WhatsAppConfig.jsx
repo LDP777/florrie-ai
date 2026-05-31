@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { templateDisplay, isClientTemplate } from '../lib/templates.js';
 import { Link } from 'react-router-dom';
 import { useBeautician, fetchRows } from '../lib/supabase.js';
 import { supabase } from '../lib/supabase.js';
@@ -1009,9 +1010,11 @@ function SendMessagePanel() {
                 disabled={sending}
               >
                 <option value="">Pick a template</option>
-                {templates.map(t => (
+                {templates
+                  .filter(t => isClientTemplate(t.name) && (!t.status || (t.status || '').toUpperCase() === 'APPROVED'))
+                  .map(t => (
                   <option key={`${t.name}-${t.language || 'en'}`} value={t.name}>
-                    {t.name}{t.language ? ` (${t.language})` : ''}
+                    {templateDisplay(t).label}
                   </option>
                 ))}
               </select>
@@ -1019,7 +1022,7 @@ function SendMessagePanel() {
               <input
                 style={styles.input}
                 type="text"
-                placeholder="hello_world"
+                placeholder="booking_confirmation"
                 value={templateName}
                 onChange={e => setTemplateName(e.target.value)}
                 disabled={sending}
