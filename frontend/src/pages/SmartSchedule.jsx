@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useBeautician, fetchRows, supabase } from '../lib/supabase.js';
 import { useCoach } from '../contexts/CoachContext.jsx';
 import { API_BASE } from '../lib/config.js';
@@ -122,6 +123,46 @@ export default function SmartSchedule() {
   const [loading, setLoading] = useState(true);
   const [selectedGap, setSelectedGap] = useState(null);
   const [messageSent, setMessageSent] = useState({});
+  const [copied, setCopied] = useState(false);
+  const navigate = useNavigate();
+
+  function copyBookingLink() {
+    const slug = beautician?.booking_slug;
+    if (!slug) { navigate('/business'); return; }
+    const url = `https://florrie.ai/book/${slug}`;
+    try {
+      navigator.clipboard?.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (e) {
+      navigate('/content');
+    }
+  }
+
+  // Shown when a gap (or the whole Fill Ideas tab) has no client to chase.
+  // A gap with nobody due is not a dead end, you advertise it.
+  function FillFallback({ compact }) {
+    const slug = beautician?.booking_slug;
+    return (
+      <div style={compact ? styles.fillFallbackCompact : styles.fillFallback}>
+        <p style={styles.fillFallbackText}>
+          No clients are due for this yet. Fill it by getting the slot in front of people:
+        </p>
+        <button
+          style={styles.offerBtn}
+          onClick={e => { e.stopPropagation(); navigate('/content'); }}
+        >
+          Post this opening
+        </button>
+        <button
+          style={styles.fillSecondaryBtn}
+          onClick={e => { e.stopPropagation(); copyBookingLink(); }}
+        >
+          {copied ? 'Booking link copied' : (slug ? 'Copy booking link' : 'Set up booking link')}
+        </button>
+      </div>
+    );
+  }
 
   useEffect(() => {
     loadData();
@@ -491,6 +532,12 @@ export default function SmartSchedule() {
                             )}
                           </div>
                         )}
+
+                        {/* No client due, offer to advertise the gap instead */}
+                        {suggestions.rebook_due.slice(0, gap.fillability === 'high' ? 2 : 1).length === 0 &&
+                          !(suggestions.waitlist_match.length > 0 && gap.fillability !== 'low') && (
+                          <FillFallback compact />
+                        )}
                       </div>
                     )}
                   </div>
@@ -504,6 +551,21 @@ export default function SmartSchedule() {
       {/* === SUGGESTIONS TAB === */}
       {tab === 'suggestions' && (
         <div>
+          {suggestions.rebook_due.length === 0 &&
+           suggestions.dormant_rescue.length === 0 &&
+           suggestions.waitlist_match.length === 0 && (
+            <div style={styles.fillHeroCard}>
+              <span style={styles.fillHeroTitle}>Nobody's due to chase right now</span>
+              <p style={styles.fillHeroText}>
+                As soon as clients are overdue or go quiet, Florrie lists them here ready to nudge.
+                Until then, the fastest way to fill {gaps.length > 0 ? `your ${gaps.length} open gap${gaps.length > 1 ? 's' : ''}` : 'your week'} is to put your slots out there.
+              </p>
+              <button style={styles.offerBtn} onClick={() => navigate('/content')}>Post your availability</button>
+              <button style={styles.fillSecondaryBtn} onClick={copyBookingLink}>
+                {copied ? 'Booking link copied' : (beautician?.booking_slug ? 'Copy booking link' : 'Set up booking link')}
+              </button>
+            </div>
+          )}
           <div style={styles.suggSection}>
             <h3 style={styles.suggSectionTitle}>🔄 Rebook due</h3>
             <p style={styles.suggSectionDesc}>Clients overdue for their regular appointment</p>
@@ -526,6 +588,9 @@ export default function SmartSchedule() {
                 </button>
               </div>
             ))}
+            {suggestions.rebook_due.length === 0 && (
+              <p style={styles.suggEmpty}>No clients are overdue right now.</p>
+            )}
           </div>
 
           <div style={styles.suggSection}>
@@ -552,6 +617,9 @@ export default function SmartSchedule() {
                 </button>
               </div>
             ))}
+            {suggestions.dormant_rescue.length === 0 && (
+              <p style={styles.suggEmpty}>No clients have gone quiet. Nice work keeping them coming back.</p>
+            )}
           </div>
 
           <div style={styles.suggSection}>
@@ -571,6 +639,9 @@ export default function SmartSchedule() {
                 <p style={styles.suggReasonText}>{s.treatment.name}, {s.treatment.duration_minutes}min</p>
               </div>
             ))}
+            {suggestions.waitlist_match.length === 0 && (
+              <p style={styles.suggEmpty}>Nobody on the waitlist yet. Clients who ask for a full slot land here.</p>
+            )}
           </div>
         </div>
       )}
@@ -728,6 +799,34 @@ const styles = {
   sentBadge: {
     display: 'block', textAlign: 'center', padding: '8px 0',
     fontSize: 12, fontWeight: 600, color: '#4CAF50',
+  },
+
+  // Fill fallback (gap with nobody due) + Fill Ideas empty states
+  fillFallback: {
+    marginTop: 4, display: 'flex', flexDirection: 'column', gap: 8,
+  },
+  fillFallbackCompact: {
+    display: 'flex', flexDirection: 'column', gap: 8,
+  },
+  fillFallbackText: {
+    fontSize: 12, color: '#6b6560', lineHeight: 1.45, margin: 0,
+  },
+  fillSecondaryBtn: {
+    width: '100%', padding: '8px 0', borderRadius: 8,
+    border: '1px solid var(--accent, #C76B8A)', background: 'transparent',
+    color: 'var(--accent, #C76B8A)', fontSize: 12, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'inherit',
+  },
+  fillHeroCard: {
+    background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16,
+    boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 20,
+    display: 'flex', flexDirection: 'column', gap: 8,
+  },
+  fillHeroTitle: { fontSize: 15, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
+  fillHeroText: { fontSize: 12.5, color: '#6b6560', lineHeight: 1.5, margin: 0 },
+  suggEmpty: {
+    fontSize: 12.5, color: 'var(--text-muted, #7a7470)', lineHeight: 1.4,
+    margin: 0, padding: '4px 2px',
   },
 
   // Full suggestion cards
