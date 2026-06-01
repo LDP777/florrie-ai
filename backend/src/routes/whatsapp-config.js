@@ -1812,7 +1812,7 @@ router.post('/resubscribe-app-webhook', async (req, res) => {
     if (!verifyToken) return res.status(500).json({ error: 'WHATSAPP_VERIFY_TOKEN not set' });
 
     const appToken = `${appId}|${appSecret}`;
-    const callbackUrl = 'https://florriebackend-production.up.railway.app/api/webhooks/whatsapp';
+    const callbackUrl = `${process.env.API_URL || 'https://florriebackend-production.up.railway.app'}/api/webhooks/whatsapp`;
 
     const params = new URLSearchParams({
       object: 'whatsapp_business_account',
