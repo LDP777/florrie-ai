@@ -495,7 +495,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
       {channels.length === 0 ? (
         <div style={S.noContact}>
           No contact info on file for this client. Add a phone or email on their profile.
-          <Link to={client?.id ? `/clients/${client.id}` : '/clients'} style={S.waHintLink}>Open profile</Link>
+          <Link to="/clients" state={client?.id ? { clientId: client.id } : undefined} style={S.waHintLink}>Open profile</Link>
         </div>
       ) : (
         <div style={S.composerBar}>
@@ -581,7 +581,7 @@ function ConvoHeader({ onBack, embedded, clientName, navigate, clientId }) {
         <span style={S.convoName}>{clientName}</span>
         {clientId && (
           <button
-            onClick={() => navigate(`/clients/${clientId}`)}
+            onClick={() => navigate('/clients', { state: { clientId } })}
             style={S.viewProfileBtn}
           >
             View profile
