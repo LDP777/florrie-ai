@@ -152,48 +152,6 @@ router.post('/send-sms', requireAuth, async (req, res) => {
 });
 
 /**
- * POST /api/notifications/sms/diag
- * TEMP DIAGNOSTIC: hits the new Bird Channels API directly and returns the raw
- * status + body so we can see the exact result instead of a swallowed null.
- * Auth-only. Remove once SMS is confirmed live.
- */
-router.post('/sms/diag', requireAuth, async (req, res) => {
-  try {
-    const ws0 = process.env.BIRD_WORKSPACE_ID || 'eb945934-eb5f-42af-954b-86be8f6381e9';
-    const key0 = process.env.BIRD_API_KEY;
-    if (req.body.action === 'channels') {
-      const base = process.env.BIRD_API_BASE || 'https://api.bird.com';
-      const r0 = await fetch(`${base}/workspaces/${ws0}/channels`, {
-        headers: { 'Authorization': `AccessKey ${key0}`, 'Content-Type': 'application/json' },
-      });
-      const t0 = await r0.text();
-      return res.json({ list_status: r0.status, list_body: t0.slice(0, 1500) });
-    }
-    const { to } = req.body;
-    if (!to) return res.status(400).json({ error: 'to required' });
-    const key = process.env.BIRD_API_KEY;
-    if (!key) return res.json({ bird_configured: false });
-    const ws = process.env.BIRD_WORKSPACE_ID || 'eb945934-eb5f-42af-954b-86be8f6381e9';
-    const ch = process.env.BIRD_SMS_CHANNEL_ID || '7e8e2014-98b9-508d-be22-6dde76d0dd0e';
-    const url = `${process.env.BIRD_API_BASE || 'https://api.bird.com'}/workspaces/${ws}/channels/${ch}/messages`;
-    const digits = String(to).replace(/[^0-9]/g, '');
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Authorization': `AccessKey ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        receiver: { contacts: [{ identifierKey: 'phonenumber', identifierValue: '+' + digits }] },
-        body: { type: 'text', text: { text: 'Florrie Bird diagnostic' } },
-      }),
-    });
-    const text = await r.text();
-    return res.json({ bird_configured: true, workspace: ws, channel: ch, bird_status: r.status, bird_body: text.slice(0, 800) });
-  } catch (err) {
-    logger.error({ err }, 'sms/diag failed');
-    return res.status(500).json({ error: String(err?.message || err) });
-  }
-});
-
-/**
  * POST /api/notifications/send-email
  * Send a manual email to a client.
  */
