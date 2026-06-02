@@ -159,6 +159,16 @@ router.post('/send-sms', requireAuth, async (req, res) => {
  */
 router.post('/sms/diag', requireAuth, async (req, res) => {
   try {
+    const ws0 = process.env.BIRD_WORKSPACE_ID || 'eb945934-eb5f-42af-954b-86be8f6381e9';
+    const key0 = process.env.BIRD_API_KEY;
+    if (req.body.action === 'channels') {
+      const base = process.env.BIRD_API_BASE || 'https://api.bird.com';
+      const r0 = await fetch(`${base}/workspaces/${ws0}/channels`, {
+        headers: { 'Authorization': `AccessKey ${key0}`, 'Content-Type': 'application/json' },
+      });
+      const t0 = await r0.text();
+      return res.json({ list_status: r0.status, list_body: t0.slice(0, 1500) });
+    }
     const { to } = req.body;
     if (!to) return res.status(400).json({ error: 'to required' });
     const key = process.env.BIRD_API_KEY;
