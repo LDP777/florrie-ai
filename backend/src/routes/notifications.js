@@ -152,6 +152,36 @@ router.post('/send-sms', requireAuth, async (req, res) => {
 });
 
 /**
+ * POST /api/notifications/sms/diag
+ * TEMP DIAGNOSTIC: hits Bird directly and returns the raw status + body so we
+ * can see the exact rejection reason instead of a swallowed null. Auth-only.
+ */
+router.post('/sms/diag', requireAuth, async (req, res) => {
+  try {
+    const { to } = req.body;
+    if (!to) return res.status(400).json({ error: 'to required' });
+    const key = process.env.BIRD_API_KEY;
+    if (!key) return res.json({ bird_configured: false });
+    const { data: b } = await supabase
+      .from('beauticians')
+      .select('sms_originator')
+      .eq('id', req.beautician.id)
+      .maybeSingle();
+    const originator = b?.sms_originator || process.env.BIRD_ORIGINATOR || 'Florrie';
+    const r = await fetch('https://rest.messagebird.com/messages', {
+      method: 'POST',
+      headers: { 'Authorization': `AccessKey ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ originator, recipients: [String(to).replace(/[^0-9]/g, '')], body: 'Florrie Bird diagnostic' }),
+    });
+    const text = await r.text();
+    return res.json({ bird_configured: true, originator, bird_status: r.status, bird_body: text });
+  } catch (err) {
+    logger.error({ err }, 'sms/diag failed');
+    return res.status(500).json({ error: String(err?.message || err) });
+  }
+});
+
+/**
  * POST /api/notifications/send-email
  * Send a manual email to a client.
  */
