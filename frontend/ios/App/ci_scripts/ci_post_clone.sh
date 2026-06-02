@@ -1,13 +1,14 @@
 #!/bin/sh
 
 # Xcode Cloud post-clone script for the Florrie Capacitor app.
-# The bundled web assets (ios/App/App/public) are gitignored, so Xcode Cloud
-# must build the Vite web app and copy it into the iOS project before the
-# native build. Runs after the repo is cloned, before dependency resolution.
+# The bundled web assets (ios/App/App/public) and the CocoaPods workspace pieces
+# are gitignored, so Xcode Cloud must build the Vite web app, copy it into the
+# iOS project, and run pod install before the native build. Runs after clone,
+# before dependency resolution.
 
 set -e
 
-echo "=== ci_post_clone: building Florrie web bundle for the iOS app ==="
+echo "=== ci_post_clone: building Florrie web bundle + pods for the iOS app ==="
 
 # Node is not preinstalled on Xcode Cloud images — install via Homebrew.
 brew install node
@@ -19,4 +20,13 @@ npm install
 npm run build
 npx cap copy ios
 
-echo "=== ci_post_clone: web assets synced into ios/App/App/public ==="
+# Ensure CocoaPods is available, then install so Pods/Pods.xcodeproj and the
+# workspace are fully resolved before xcodebuild runs.
+cd "$CI_PRIMARY_REPOSITORY_PATH/frontend/ios/App"
+if ! command -v pod >/dev/null 2>&1; then
+  echo "CocoaPods not found, installing via Homebrew..."
+  brew install cocoapods
+fi
+pod install
+
+echo "=== ci_post_clone: web assets + pods ready ==="
