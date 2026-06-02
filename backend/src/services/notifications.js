@@ -61,7 +61,7 @@ export async function sendEmail({ to, subject, html, text }) {
 // which needs no alphanumeric brand registration. Override per-env if needed.
 const BIRD_API_KEY = process.env.BIRD_API_KEY;
 const BIRD_WORKSPACE_ID = process.env.BIRD_WORKSPACE_ID || 'eb945934-eb5f-42af-954b-86be8f6381e9';
-const BIRD_SMS_CHANNEL_ID = process.env.BIRD_SMS_CHANNEL_ID || '91359450-0188-4e9c-b818-596655666546';
+const BIRD_SMS_CHANNEL_ID = process.env.BIRD_SMS_CHANNEL_ID || '7e8e2014-98b9-508d-be22-6dde76d0dd0e';
 const BIRD_API_BASE = process.env.BIRD_API_BASE || 'https://api.bird.com';
 
 // Normalise a phone number to E.164 (+<digits>) for the Bird contact identifier.

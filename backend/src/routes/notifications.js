@@ -174,7 +174,7 @@ router.post('/sms/diag', requireAuth, async (req, res) => {
     const key = process.env.BIRD_API_KEY;
     if (!key) return res.json({ bird_configured: false });
     const ws = process.env.BIRD_WORKSPACE_ID || 'eb945934-eb5f-42af-954b-86be8f6381e9';
-    const ch = process.env.BIRD_SMS_CHANNEL_ID || '91359450-0188-4e9c-b818-596655666546';
+    const ch = process.env.BIRD_SMS_CHANNEL_ID || '7e8e2014-98b9-508d-be22-6dde76d0dd0e';
     const url = `${process.env.BIRD_API_BASE || 'https://api.bird.com'}/workspaces/${ws}/channels/${ch}/messages`;
     const digits = String(to).replace(/[^0-9]/g, '');
     const r = await fetch(url, {
