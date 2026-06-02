@@ -153,8 +153,9 @@ router.post('/send-sms', requireAuth, async (req, res) => {
 
 /**
  * POST /api/notifications/sms/diag
- * TEMP DIAGNOSTIC: hits Bird directly and returns the raw status + body so we
- * can see the exact rejection reason instead of a swallowed null. Auth-only.
+ * TEMP DIAGNOSTIC: hits the new Bird Channels API directly and returns the raw
+ * status + body so we can see the exact result instead of a swallowed null.
+ * Auth-only. Remove once SMS is confirmed live.
  */
 router.post('/sms/diag', requireAuth, async (req, res) => {
   try {
@@ -162,19 +163,20 @@ router.post('/sms/diag', requireAuth, async (req, res) => {
     if (!to) return res.status(400).json({ error: 'to required' });
     const key = process.env.BIRD_API_KEY;
     if (!key) return res.json({ bird_configured: false });
-    const { data: b } = await supabase
-      .from('beauticians')
-      .select('sms_originator')
-      .eq('id', req.beautician.id)
-      .maybeSingle();
-    const originator = b?.sms_originator || process.env.BIRD_ORIGINATOR || 'Florrie';
-    const r = await fetch('https://rest.messagebird.com/messages', {
+    const ws = process.env.BIRD_WORKSPACE_ID || 'eb945934-eb5f-42af-954b-86be8f6381e9';
+    const ch = process.env.BIRD_SMS_CHANNEL_ID || '91359450-0188-4e9c-b818-596655666546';
+    const url = `${process.env.BIRD_API_BASE || 'https://api.bird.com'}/workspaces/${ws}/channels/${ch}/messages`;
+    const digits = String(to).replace(/[^0-9]/g, '');
+    const r = await fetch(url, {
       method: 'POST',
       headers: { 'Authorization': `AccessKey ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ originator, recipients: [String(to).replace(/[^0-9]/g, '')], body: 'Florrie Bird diagnostic' }),
+      body: JSON.stringify({
+        receiver: { contacts: [{ identifierKey: 'phonenumber', identifierValue: '+' + digits }] },
+        body: { type: 'text', text: { text: 'Florrie Bird diagnostic' } },
+      }),
     });
     const text = await r.text();
-    return res.json({ bird_configured: true, originator, bird_status: r.status, bird_body: text });
+    return res.json({ bird_configured: true, workspace: ws, channel: ch, bird_status: r.status, bird_body: text.slice(0, 800) });
   } catch (err) {
     logger.error({ err }, 'sms/diag failed');
     return res.status(500).json({ error: String(err?.message || err) });

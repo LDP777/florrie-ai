@@ -54,14 +54,30 @@ export async function sendEmail({ to, subject, html, text }) {
   }
 }
 
-// Bird (MessageBird) provides SMS delivery — no regulatory bundle required for UK,
-// and more cost-effective than Twilio. Twilio inbound webhooks still active for fallback SMS routing.
+// SMS delivery via the Bird platform (app.bird.com) Channels API.
+// NOTE: this account is on the NEW Bird platform — the legacy rest.messagebird.com
+// endpoint + AccessKey no longer authenticate (returns 401). We send through a
+// workspace channel instead. Default channel is the UK long-code +44 7418 313493,
+// which needs no alphanumeric brand registration. Override per-env if needed.
 const BIRD_API_KEY = process.env.BIRD_API_KEY;
-const BIRD_ORIGINATOR_DEFAULT = process.env.BIRD_ORIGINATOR || 'Florrie';
+const BIRD_WORKSPACE_ID = process.env.BIRD_WORKSPACE_ID || 'eb945934-eb5f-42af-954b-86be8f6381e9';
+const BIRD_SMS_CHANNEL_ID = process.env.BIRD_SMS_CHANNEL_ID || '91359450-0188-4e9c-b818-596655666546';
+const BIRD_API_BASE = process.env.BIRD_API_BASE || 'https://api.bird.com';
+
+// Normalise a phone number to E.164 (+<digits>) for the Bird contact identifier.
+function toE164(raw) {
+  if (!raw) return raw;
+  const digits = String(raw).replace(/[^0-9]/g, '');
+  return '+' + digits;
+}
 
 export async function sendSMS({ to, body, beauticianId, originator, messageType = 'general' }) {
   if (!BIRD_API_KEY) {
     logger.debug('Bird not configured, skipping SMS');
+    return null;
+  }
+  if (!BIRD_WORKSPACE_ID || !BIRD_SMS_CHANNEL_ID) {
+    logger.error('Bird workspace/channel not configured, cannot send SMS');
     return null;
   }
 
@@ -71,39 +87,57 @@ export async function sendSMS({ to, body, beauticianId, originator, messageType 
     usageInfo = await trackSMSUsage(beauticianId);
   }
 
-  // Resolve per-beautician originator: caller can pass it directly,
-  // or we look it up from the DB, falling back to the platform default.
-  let senderName = originator || BIRD_ORIGINATOR_DEFAULT;
-  if (!originator && beauticianId) {
+  // On the new Bird platform the *channel* is the sender. The legacy per-beautician
+  // alphanumeric originator ("Florrie"/"FlorrieAI") is brand-gated and currently
+  // rejected, so we route through the long-code channel by default. We still allow
+  // a per-beautician channel override via sms_originator when it looks like a
+  // Bird channel id (UUID); plain alphanumeric values are ignored for sending.
+  let channelId = BIRD_SMS_CHANNEL_ID;
+  const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (originator && uuidRe.test(originator)) {
+    channelId = originator;
+  } else if (!originator && beauticianId) {
     const { data: b } = await supabase
       .from('beauticians')
       .select('sms_originator')
       .eq('id', beauticianId)
       .maybeSingle();
-    if (b?.sms_originator) senderName = b.sms_originator;
+    if (b?.sms_originator && uuidRe.test(b.sms_originator)) channelId = b.sms_originator;
   }
+
+  const url = `${BIRD_API_BASE}/workspaces/${BIRD_WORKSPACE_ID}/channels/${channelId}/messages`;
+  const payload = {
+    receiver: {
+      contacts: [{ identifierKey: 'phonenumber', identifierValue: toE164(to) }],
+    },
+    body: {
+      type: 'text',
+      text: { text: body },
+    },
+  };
 
   const maxRetries = 2;
   const retryDelay = 1000;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      const res = await fetch('https://rest.messagebird.com/messages', {
+      const res = await fetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `AccessKey ${BIRD_API_KEY}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          originator: senderName,
-          recipients: [to.replace(/[^0-9]/g, '')],
-          body,
-        }),
+        body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.errors?.[0]?.description || 'Bird error');
-      logger.info({ to, originator: senderName }, 'SMS sent via Bird');
+      const text = await res.text();
+      let data = {};
+      try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
+      if (!res.ok) {
+        const desc = data?.message || data?.errors?.[0]?.description || data?.raw || `HTTP ${res.status}`;
+        throw new Error(`Bird ${res.status}: ${desc}`);
+      }
+      logger.info({ to, channelId, id: data?.id }, 'SMS sent via Bird');
       return { ...data, usageInfo };
     } catch (err) {
       if (attempt < maxRetries) {
