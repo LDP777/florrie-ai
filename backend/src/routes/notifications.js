@@ -390,3 +390,5 @@ router.post('/sms/test', requireAuth, async (req, res) => {
 });
 
 export default router;
+
+// touch: redeploy to refresh DB schema cache after sms_originator/sms_enabled column add (2026-06-02)
