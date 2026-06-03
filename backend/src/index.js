@@ -144,7 +144,26 @@ app.set('trust proxy', 1);
 
 // Middleware
 app.use(securityHeaders);
-app.use(cors({ origin: process.env.FRONTEND_URL }));
+// CORS: allow the web app plus the Capacitor native shells (iOS uses
+// capacitor://localhost, Android uses https://localhost). Auth is enforced by
+// the Bearer token, not CORS, so a permissive-but-explicit allowlist is safe.
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  process.env.APP_URL,
+  'https://florrie.ai',
+  'https://www.florrie.ai',
+  'capacitor://localhost',
+  'ionic://localhost',
+  'https://localhost',
+  'http://localhost',
+].filter(Boolean);
+app.use(cors({
+  origin(origin, cb) {
+    // No Origin header (native webviews sometimes omit it, health checks, curl) -> allow.
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    return cb(null, false);
+  },
+}));
 
 // Webhook limiter (stricter than general API)
 const webhookLimiter = rateLimit({
