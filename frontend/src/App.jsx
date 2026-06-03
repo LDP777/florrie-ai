@@ -165,6 +165,29 @@ export default function App() {
     }
   }, [session, beautician]);
 
+  // Warm the main route chunks in the background once signed in, so tapping a
+  // tab navigates instantly instead of showing the lazy-load spinner each time.
+  useEffect(() => {
+    if (!session) return;
+    const warm = () => {
+      import('./pages/Hub.jsx');
+      import('./pages/CalendarView.jsx');
+      import('./pages/SmartSchedule.jsx');
+      import('./pages/Inbox.jsx');
+      import('./pages/MoneyTracker.jsx');
+      import('./pages/VoiceCommander.jsx');
+      import('./pages/Clients.jsx');
+      import('./pages/Settings.jsx');
+      import('./pages/Escalations.jsx');
+    };
+    const ric = typeof window !== 'undefined' ? window.requestIdleCallback : null;
+    const id = ric ? ric(warm, { timeout: 2500 }) : setTimeout(warm, 1500);
+    return () => {
+      if (ric && window.cancelIdleCallback) window.cancelIdleCallback(id);
+      else clearTimeout(id);
+    };
+  }, [session]);
+
   const isPublicRoute = location.pathname.startsWith('/book/') || location.pathname.startsWith('/form/') || location.pathname.includes('/manage/') || location.pathname === '/privacy' || location.pathname === '/support';
   const isAuthRoute = location.pathname === '/login' || location.pathname === '/update-password';
   const isLandingRoute = location.pathname === '/';
