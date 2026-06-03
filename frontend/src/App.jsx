@@ -200,6 +200,10 @@ export default function App() {
   if (!session) {
     // All unauthenticated root hits → static landing.html (faster load, better SEO, single source of truth)
     if (isLandingRoute) {
+      // Native app has no marketing site bundled -> go straight to login.
+      if (isIOSNative()) {
+        return <Navigate to="/login" replace />;
+      }
       window.location.replace('/landing.html');
       return null;
     }
