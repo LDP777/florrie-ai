@@ -32,7 +32,7 @@ const SmartSchedule = lazy(() => import('./SmartSchedule.jsx'));
 const SUB_TABS = [
   { id: 'day',   label: 'Day',            path: '/today' },
   { id: 'week',  label: 'Week',           path: '/calendar/week' },
-  { id: 'smart', label: 'Smart Schedule', path: '/smart-schedule' },
+  { id: 'smart', label: 'Schedule', path: '/smart-schedule' },
 ];
 
 function subTabFromPath(pathname) {
@@ -381,6 +381,7 @@ const S = {
     display: 'flex',
     gap: 6,
     padding: 4,
+    marginRight: 100,
     background: '#fff',
     borderRadius: 999,
     marginBottom: 14,
