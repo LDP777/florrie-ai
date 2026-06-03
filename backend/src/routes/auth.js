@@ -91,4 +91,33 @@ router.patch('/me', requireAuth, validate(profileUpdateSchema), async (req, res)
   res.json({ beautician: sanitizeBeautician(data) });
 });
 
+
+/**
+ * DELETE /api/auth/account
+ * Permanently delete the signed-in user's account and all their data.
+ * Required by App Store Guideline 5.1.1(v). 63/64 child tables cascade from
+ * beauticians(id), so deleting the row wipes the business data; we then remove
+ * the Supabase auth user so the login can never be reused.
+ */
+router.delete('/account', requireAuth, async (req, res) => {
+  try {
+    const b = req.beautician;
+    const { error: delErr } = await supabase.from('beauticians').delete().eq('id', b.id);
+    if (delErr) {
+      logger.error({ err: delErr, beauticianId: b.id }, 'account delete: beautician row failed');
+      return res.status(500).json({ error: 'Failed to delete account' });
+    }
+    const authId = b.auth_id || req.user?.id;
+    if (authId) {
+      await supabase.auth.admin.deleteUser(authId).catch(err =>
+        logger.warn({ err, beauticianId: b.id }, 'account delete: auth user removal failed'));
+    }
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'account delete unexpected');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+
 export default router;

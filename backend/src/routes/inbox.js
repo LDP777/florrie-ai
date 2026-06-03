@@ -245,4 +245,28 @@ router.get('/suggestions/:client_id', requireAuth, async (req, res) => {
   }
 });
 
+
+// DELETE /api/inbox/thread/:client_id
+// Remove an entire conversation from the inbox (declutter). Threads are derived
+// from the messages table, so deleting this client's messages removes the thread.
+router.delete('/thread/:client_id', requireAuth, async (req, res) => {
+  const { client_id } = req.params;
+  try {
+    const { error } = await supabase
+      .from('messages')
+      .delete()
+      .eq('beautician_id', req.beautician.id)
+      .eq('client_id', client_id);
+    if (error) {
+      logger.error({ err: error, client_id }, 'inbox.deleteThread failed');
+      return res.status(500).json({ error: 'Failed to delete conversation' });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    logger.error({ err }, 'inbox.deleteThread unexpected');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+
 export default router;
