@@ -36,7 +36,6 @@ const FEATURES = [
   { path: '/expenses', name: 'Expenses', desc: 'Track outgoings', icon: '💳', cat: 'Money' },
   { path: '/deposits', name: 'Deposits', desc: 'Held payments', icon: '🔒', cat: 'Money' },
   { path: '/cancellations', name: 'Cancellations', desc: 'No-shows and late cancels', icon: '❌', cat: 'Money' },
-  { path: '/goals', name: 'Revenue Goals', desc: 'Targets and progress', icon: '🎯', cat: 'Money' },
   { path: '/vouchers', name: 'Gift Vouchers', desc: 'Create and track', icon: '🎁', cat: 'Money' },
   { path: '/memberships', name: 'Client Memberships', desc: 'Recurring packages', icon: '💎', cat: 'Clients' },
   { path: '/reports', name: 'Reports', desc: 'Business reports', icon: '📊', cat: 'Money' },

@@ -92,7 +92,6 @@ const CATEGORIES = [
       { path: '/analytics',     label: 'Analytics',        matIcon: 'analytics',              desc: 'Performance & reports'     },
       { path: '/expenses',      label: 'Expenses',         matIcon: 'receipt_long',           desc: 'Track outgoings'           },
       { path: '/deposits',      label: 'Deposits',         matIcon: 'savings',                desc: 'Held payments'             },
-      { path: '/goals',         label: 'Goals',            matIcon: 'flag',                   desc: 'Revenue targets'           },
       { path: '/vouchers',      label: 'Vouchers',         matIcon: 'card_giftcard',          desc: 'Gift vouchers'             },
       { path: '/promos',        label: 'Promo Codes',      matIcon: 'local_offer',            desc: 'Discount codes'            },
       { path: '/inventory',     label: 'Inventory',        matIcon: 'category',               desc: 'Product stock'             },
