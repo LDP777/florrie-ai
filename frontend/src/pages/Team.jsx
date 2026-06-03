@@ -3,6 +3,7 @@ import { useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../li
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import { isIOSNative } from '../lib/platform.js';
 
 const ROLES = [
   { key: 'stylist', label: 'Stylist', desc: 'Books & manages their own clients' },
@@ -97,7 +98,7 @@ export default function Team() {
       </div>
 
       {/* Pricing summary */}
-      {activeCount > 0 && (
+      {!isIOSNative() && activeCount > 0 && (
         <div style={styles.pricingCard}>
           <div style={styles.pricingRow}>
             <span style={styles.pricingLabel}>Your plan</span>
@@ -122,7 +123,7 @@ export default function Team() {
           <div style={styles.emptyIcon}>👥</div>
           <p style={styles.emptyTitle}>No team members yet</p>
           <p style={styles.emptyDesc}>
-            Add stylists or assistants who work with you. Each seat is £25/mo — they get their own calendar, client list, and bookings.
+            Add stylists or assistants who work with you. They get their own calendar, client list, and bookings.{!isIOSNative() && ' Each seat is £25/mo.'}
           </p>
           <button onClick={() => setShowAdd(true)} style={styles.emptyBtn}>Add your first team member</button>
         </div>
@@ -232,7 +233,7 @@ export default function Team() {
             </div>
 
             <p style={styles.pricingNote}>
-              Each team seat adds £25/mo to your plan. They get their own calendar and client list.
+              {!isIOSNative() && 'Each team seat adds £25/mo to your plan. '}They get their own calendar and client list.
             </p>
 
             <button
@@ -243,7 +244,7 @@ export default function Team() {
                 opacity: form.first_name.trim() ? 1 : 0.5
               }}
             >
-              Add to team — £25/mo
+              Add to team{!isIOSNative() ? ' — £25/mo' : ''}
             </button>
           </div>
         </div>
