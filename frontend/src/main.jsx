@@ -43,6 +43,18 @@ if (import.meta.env.VITE_SENTRY_DSN) {
   }
 }
 
+// Native status bar: render as a solid bar (no overlay) so page content never
+// sits under the clock / Dynamic Island and doesn't bleed under it on scroll.
+// This also lifts the global "More" pill into the top-right corner instead of
+// landing on the Today sub-tabs.
+import('./lib/platform.js').then(({ isNativeApp }) => {
+  if (!isNativeApp()) return;
+  import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
+    StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {});
+    StatusBar.setStyle({ style: Style.Light }).catch(() => {});
+  }).catch(() => {});
+}).catch(() => {});
+
 const rootEl = document.getElementById('root');
 try {
   createRoot(rootEl).render(
