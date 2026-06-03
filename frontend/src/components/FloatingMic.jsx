@@ -458,8 +458,6 @@ const S = {
     left: 16,
     right: 84,
     background: 'rgba(255, 217, 226, 0.96)',
-    backdropFilter: 'blur(10px)',
-    WebkitBackdropFilter: 'blur(10px)',
     padding: '10px 14px',
     borderRadius: 14,
     boxShadow: '0 4px 14px rgba(146,64,94,0.18)',

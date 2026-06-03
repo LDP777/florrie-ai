@@ -291,8 +291,6 @@ const S = {
     inset: 0,
     zIndex: 200,
     background: 'rgba(45, 42, 38, 0.4)',
-    backdropFilter: 'blur(12px)',
-    WebkitBackdropFilter: 'blur(12px)',
     display: 'flex',
     flexDirection: 'column',
     animation: 'fadeIn 0.15s ease',

@@ -333,8 +333,6 @@ const S = {
     background: 'rgba(29, 27, 25, 0.65)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     zIndex: 9999,
-    backdropFilter: 'blur(6px)',
-    WebkitBackdropFilter: 'blur(6px)',
     padding: '16px',
     animation: 'fadeIn 0.2s ease',
   },

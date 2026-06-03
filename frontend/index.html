@@ -153,6 +153,9 @@
 
       * { margin: 0; padding: 0; box-sizing: border-box; }
 
+      /* Remove the double-tap-zoom wait so taps register instantly */
+      a, button, [role="button"], [role="tab"], input, select, textarea, label, .florrie-card { touch-action: manipulation; }
+
       body {
         font-family: var(--font-body);
         background: var(--bg);

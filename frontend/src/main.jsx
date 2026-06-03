@@ -21,11 +21,8 @@ if (import.meta.env.VITE_SENTRY_DSN) {
       environment: import.meta.env.MODE,
       integrations: [
         Sentry.browserTracingIntegration(),
-        Sentry.replayIntegration({ maskAllText: false, blockAllMedia: false }),
       ],
       tracesSampleRate: 0.1,
-      replaysOnErrorSampleRate: 1.0,
-      replaysSessionSampleRate: 0.05,
       beforeSend(event, hint) {
         const error = hint?.originalException;
         const message = error?.message || event?.message || '';

@@ -853,7 +853,6 @@ const styles = {
   weekEmpty: { height: 40, borderRadius: 8, background: COLORS.surfaceContainerLow },
   weekEmptyState: { textAlign: 'center', padding: '48px 16px', color: COLORS.stone400, fontSize: 14, background: '#fff', borderRadius: 16, boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)' },
   // Floating Insights Pill
-  insightsPill: { position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)', background: `rgba(116, 90, 39, 0.9)`, backdropFilter: 'blur(10px)', borderRadius: 24, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 10px 30px rgba(0, 0, 0, 0.15)', zIndex: 20, color: '#fff' },
   insightsPillIcon: { fontSize: 14 },
   insightsPillText: { fontSize: 12, fontWeight: 600 },
   // Detail Panel
