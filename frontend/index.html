@@ -315,6 +315,21 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      (function () {
+        function show(title, detail) {
+          var r = document.getElementById('root');
+          if (!r || r.childElementCount > 0) return;
+          r.innerHTML = '<div style="padding:24px;font:13px/1.5 -apple-system,monospace;color:#900;white-space:pre-wrap;word-break:break-word"><b>' + title + '</b>\n\n' + detail + '</div>';
+        }
+        window.addEventListener('error', function (e) {
+          show('Startup error', (e.message || '') + '\n' + (e.filename || '') + ':' + (e.lineno || '') + '\n' + ((e.error && e.error.stack) || ''));
+        });
+        window.addEventListener('unhandledrejection', function (e) {
+          var rsn = e.reason; show('Unhandled promise rejection', (rsn && (rsn.stack || rsn.message)) || String(rsn));
+        });
+      })();
+    </script>
     <!-- Stripe.js — loaded async, available as window.Stripe -->
     <script src="https://js.stripe.com/v3/" async></script>
     <script type="module" src="/src/main.jsx"></script>
