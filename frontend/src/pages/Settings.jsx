@@ -120,6 +120,23 @@ export default function Settings({ onLogout }) {
     if (onLogout) onLogout();
   }
 
+  async function handleDeleteAccount() {
+    if (!window.confirm('Delete your Florrie account?\n\nThis permanently erases your account and ALL your data \u2014 clients, messages, appointments, everything. This cannot be undone.')) return;
+    if (window.prompt('This is permanent. Type DELETE to confirm.') !== 'DELETE') return;
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/auth/account`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (!res.ok) { window.alert('Could not delete your account. Please try again, or email hello@florrie.ai.'); return; }
+      if (supabase) await supabase.auth.signOut();
+      if (onLogout) onLogout();
+    } catch {
+      window.alert('Could not delete your account. Please try again, or email hello@florrie.ai.');
+    }
+  }
+
   async function handleConnectGoogleCal() {
     setGcalConnecting(true);
     setGcalBanner(null);
@@ -1367,6 +1384,7 @@ export default function Settings({ onLogout }) {
             </div>
           </div>
           <button onClick={handleLogout} style={styles.logoutBtn}>Sign out</button>
+          <button onClick={handleDeleteAccount} style={styles.deleteAccountBtn}>Delete account</button>
         </div>
       )}
     </div>
@@ -1644,6 +1662,7 @@ const styles = {
   toneLabel: { fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 },
   toneValue: { fontSize: 13, color: 'var(--text-primary)', textAlign: 'right', maxWidth: '60%' },
   logoutBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: '1.5px solid var(--danger)', background: 'transparent', color: 'var(--danger)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
+  deleteAccountBtn: { width: '100%', padding: '10px 0', borderRadius: 12, border: 'none', background: 'transparent', color: 'var(--danger, #ba1a1a)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 6, textDecoration: 'underline', textUnderlineOffset: 3 },
 
   // Notification styles
   notifRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border-light)' },

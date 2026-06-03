@@ -145,6 +145,17 @@ export default function Inbox() {
     loadThreads();
   }
 
+  async function deleteThread(clientId) {
+    setThreads(prev => (prev ? prev.filter(t => t.client_id !== clientId) : prev));
+    if (activeClientId === clientId) { setActiveClientId(null); setClientInUrl(null); }
+    try {
+      await authFetch(`/api/inbox/thread/${clientId}`, { method: 'DELETE' });
+    } catch (err) {
+      logger.error({ err }, 'inbox deleteThread failed');
+      loadThreads();
+    }
+  }
+
   // Mobile: show conversation full-screen when active; thread list when not.
   if (!isWide && activeClientId) {
     return (
@@ -166,6 +177,7 @@ export default function Inbox() {
             search={search}
             onSearch={setSearch}
             onOpen={openThread}
+            onDelete={deleteThread}
             activeId={activeClientId}
           />
         </aside>
@@ -188,12 +200,13 @@ export default function Inbox() {
         search={search}
         onSearch={setSearch}
         onOpen={openThread}
+        onDelete={deleteThread}
       />
     </div>
   );
 }
 
-function ThreadList({ threads, error, search, onSearch, onOpen, activeId }) {
+function ThreadList({ threads, error, search, onSearch, onOpen, onDelete, activeId }) {
   return (
     <>
       <header style={S.header}>
@@ -227,6 +240,7 @@ function ThreadList({ threads, error, search, onSearch, onOpen, activeId }) {
               thread={t}
               active={t.client_id === activeId}
               onOpen={onOpen}
+              onDelete={onDelete}
             />
           ))}
         </ul>
@@ -235,20 +249,76 @@ function ThreadList({ threads, error, search, onSearch, onOpen, activeId }) {
   );
 }
 
-function ThreadRow({ thread, active, onOpen }) {
+function ThreadRow({ thread, active, onOpen, onDelete }) {
   const name = clientFullName(thread);
   const isUnread = thread.unread_count > 0;
   const channelIcon = CHANNEL_ICON[thread.last_channel] || '💬';
   const directionPrefix = thread.last_message_direction === 'outbound' ? 'You: ' : '';
 
+  const REVEAL = 84;
+  const [dx, setDx] = useState(0);
+  const start = useRef(null);
+  const horiz = useRef(false);
+
+  function onTouchStart(e) {
+    const t = e.touches[0];
+    start.current = { x: t.clientX, y: t.clientY, base: dx };
+    horiz.current = false;
+  }
+  function onTouchMove(e) {
+    if (!start.current) return;
+    const t = e.touches[0];
+    const ddx = t.clientX - start.current.x;
+    const ddy = t.clientY - start.current.y;
+    if (!horiz.current) {
+      if (Math.abs(ddx) > Math.abs(ddy) + 6) horiz.current = true;
+      else if (Math.abs(ddy) > 8) { start.current = null; return; }
+      else return;
+    }
+    let next = start.current.base + ddx;
+    if (next > 0) next = 0;
+    if (next < -REVEAL) next = -REVEAL;
+    setDx(next);
+  }
+  function onTouchEnd() {
+    if (!start.current) return;
+    setDx(dx < -REVEAL / 2 ? -REVEAL : 0);
+    start.current = null;
+  }
+  function handleRowClick() {
+    if (dx < 0) { setDx(0); return; }
+    onOpen(thread.client_id);
+  }
+
   return (
-    <li>
+    <li style={{ position: 'relative', overflow: 'hidden' }}>
       <button
-        onClick={() => onOpen(thread.client_id)}
+        type="button"
+        aria-label={`Delete conversation with ${name}`}
+        onClick={() => { setDx(0); onDelete && onDelete(thread.client_id); }}
+        style={{
+          position: 'absolute', top: 0, right: 0, bottom: 0, width: REVEAL,
+          background: '#ba1a1a', color: '#fff', border: 'none', cursor: 'pointer',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+          fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
+        }}
+      >
+        <span className="material-symbols-outlined" style={{ fontSize: 20 }}>delete</span>
+        Delete
+      </button>
+      <button
+        onClick={handleRowClick}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
         style={{
           ...S.row,
-          background: active ? '#ffe5ec' : isUnread ? '#fff' : 'transparent',
+          position: 'relative',
+          background: active ? '#ffe5ec' : isUnread ? '#fff' : 'var(--bg, #fef8f4)',
           borderColor: active ? '#ffd1de' : 'transparent',
+          transform: `translateX(${dx}px)`,
+          transition: start.current ? 'none' : 'transform 0.2s ease',
+          touchAction: 'pan-y',
         }}
       >
         <span style={S.avatar} aria-hidden>{initialOf(name)}</span>
