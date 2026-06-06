@@ -40,6 +40,20 @@ if (import.meta.env.VITE_SENTRY_DSN) {
   }
 }
 
+// Native app ships fresh bundled assets each build; a leftover service worker can
+// serve stale chunks ("old look" pages). Clear any SW + caches on native startup.
+import('./lib/platform.js').then(({ isNativeApp }) => {
+  if (!isNativeApp()) return;
+  try {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
+    }
+    if (typeof caches !== 'undefined' && caches.keys) {
+      caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
+    }
+  } catch { /* noop */ }
+}).catch(() => {});
+
 // Native status bar: render as a solid bar (no overlay) so page content never
 // sits under the clock / Dynamic Island and doesn't bleed under it on scroll.
 // This also lifts the global "More" pill into the top-right corner instead of

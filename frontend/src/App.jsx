@@ -188,6 +188,13 @@ export default function App() {
     };
   }, [session]);
 
+  // Reset scroll to the top on every route change — otherwise the document keeps
+  // the previous page's scroll position, so pages like Inbox/Money open part-way down.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+  }, [location.pathname]);
+
   const isPublicRoute = location.pathname.startsWith('/book/') || location.pathname.startsWith('/form/') || location.pathname.includes('/manage/') || location.pathname === '/privacy' || location.pathname === '/support';
   const isAuthRoute = location.pathname === '/login' || location.pathname === '/update-password';
   const isLandingRoute = location.pathname === '/';
