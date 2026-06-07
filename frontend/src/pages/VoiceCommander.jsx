@@ -274,31 +274,11 @@ export default function VoiceCommander() {
         agent: 'general',
         timestamp: new Date().toISOString(),
       };
-      if (!beautician) {
-        setMessages([greeting]);
-      } else {
-        const todayStr = new Date().toISOString().slice(0, 10);
-        const data = await fetchRows('ai_actions', beautician.id, {
-          order: 'created_at', ascending: false, limit: 20,
-          filters: { created_at: `gte.${todayStr}T00:00:00` },
-        });
-        const BOOKING_TYPES = ['booking_confirmed', 'booking_created', 'appointment_booked', 'booking_reminder'];
-        const aiOnly = (data || []).filter(action =>
-          !BOOKING_TYPES.includes(action.action_type) &&
-          !(action.summary || '').match(/booked .+ for \d/)
-        );
-        const mapped = aiOnly.map(action => ({
-          id: action.id,
-          role: 'assistant',
-          text: deDash(action.summary || action.notification_text || action.action_type || 'Action completed'),
-          agent: action.digital_employee || 'general',
-          timestamp: action.created_at,
-        }));
-        // Dedupe the feed: the heartbeat can log the same summary repeatedly.
-        const seen = new Set();
-        const deduped = mapped.filter(m => (seen.has(m.text) ? false : (seen.add(m.text), true)));
-        setMessages([greeting, ...deduped]);
-      }
+      // Open clean: just the greeting. Florrie's activity log lives on the Hub
+      // ("What Florrie did") — replaying it here as chat history cluttered the
+      // page and hid the "Try saying" prompts. The voice screen is for asking,
+      // not for re-reading what she already did.
+      setMessages([greeting]);
     } catch (err) {
       logger.error('Load action history error:', err);
       setMessages([{
