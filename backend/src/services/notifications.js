@@ -7,7 +7,7 @@
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 import { trackSMSUsage } from './sms-metering.js';
-import { checkWhatsAppQuota, trackWhatsAppMessage } from './whatsapp-metering.js';
+import { checkWhatsAppQuota, trackWhatsAppMessage, trackSmsInMonthlyQuota } from './whatsapp-metering.js';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || 'Florrie <noreply@florrie.ai>';
@@ -81,11 +81,9 @@ export async function sendSMS({ to, body, beauticianId, originator, messageType 
     return null;
   }
 
-  // Track usage — always sends, surcharge applies if over free limit
+  // Usage is metered only AFTER a confirmed send (see the success branch below),
+  // so failed/rejected messages never count against the allowance or get billed.
   let usageInfo = null;
-  if (beauticianId) {
-    usageInfo = await trackSMSUsage(beauticianId);
-  }
 
   // On the new Bird platform the *channel* is the sender. The legacy per-beautician
   // alphanumeric originator ("Florrie"/"FlorrieAI") is brand-gated and currently
@@ -138,6 +136,16 @@ export async function sendSMS({ to, body, beauticianId, originator, messageType 
         throw new Error(`Bird ${res.status}: ${desc}`);
       }
       logger.info({ to, channelId, id: data?.id }, 'SMS sent via Bird');
+      // Meter the confirmed send: weekly counter (legacy/display) + the monthly
+      // combined quota (message_usage), which is the meter we actually bill from.
+      if (beauticianId) {
+        try {
+          usageInfo = await trackSMSUsage(beauticianId);
+          await trackSmsInMonthlyQuota(beauticianId);
+        } catch (mErr) {
+          logger.error({ err: mErr, beauticianId }, 'SMS metering failed (send already succeeded)');
+        }
+      }
       return { ...data, usageInfo };
     } catch (err) {
       if (attempt < maxRetries) {

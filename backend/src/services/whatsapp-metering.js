@@ -248,3 +248,100 @@ export async function getMonthlyUsage(beauticianId) {
     return null;
   }
 }
+
+
+/**
+ * Mark a message_usage row billed (idempotency guard for billMonthlySurplus).
+ */
+async function markUsageBilled(rowId, stripeInvoiceId) {
+  await supabase
+    .from('message_usage')
+    .update({ billed: true, stripe_invoice_id: stripeInvoiceId, updated_at: new Date().toISOString() })
+    .eq('id', rowId);
+}
+
+/**
+ * Bill surplus over the 120/month COMBINED (SMS + WhatsApp) allowance.
+ *
+ * Source of truth: message_usage.overage_total_pence — accumulated live by
+ * trackWhatsAppMessage + trackSmsInMonthlyQuota as messages are sent. Only
+ * COMPLETED months (month < current month) are billed, so a month's total is
+ * final before we charge.
+ *
+ * Idempotent two ways: only rows with billed=false are fetched, and each Stripe
+ * call carries an idempotencyKey keyed to the row id (so a double-run before the
+ * billed flag flips still can't double-charge). After charging, the row flips to
+ * billed=true.
+ *
+ * Stripe: creates a pending invoiceItem on the customer; Stripe auto-attaches it to
+ * their next subscription invoice and charges the saved card. Trial / no-Stripe
+ * customers are flagged billed with nothing charged (overage is free on trial).
+ *
+ * Replaces the old weekly sms_usage billing (billSurplusSMS) — do not run both.
+ */
+export async function billMonthlySurplus() {
+  const currentMonth = getMonthStart();
+  try {
+    const { data: rows, error } = await supabase
+      .from('message_usage')
+      .select('*, beauticians(stripe_customer_id, plan)')
+      .eq('billed', false)
+      .gt('overage_total_pence', 0)
+      .lt('month', currentMonth);
+
+    if (error) {
+      logger.error({ err: error }, 'billMonthlySurplus: fetch failed');
+      return { processed: 0, charged: 0, skipped: 0, failed: 0 };
+    }
+    if (!rows?.length) {
+      logger.info('billMonthlySurplus: nothing to bill');
+      return { processed: 0, charged: 0, skipped: 0, failed: 0 };
+    }
+
+    const Stripe = (await import('stripe')).default;
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+    let charged = 0, skipped = 0, failed = 0;
+    for (const row of rows) {
+      const b = row.beauticians;
+      const amount = row.overage_total_pence;
+      try {
+        // Trial or no Stripe customer: overage is free — flag billed so we don't reprocess.
+        if (!b?.stripe_customer_id || !b?.plan || b.plan === 'trial') {
+          await markUsageBilled(row.id, null);
+          skipped++;
+          continue;
+        }
+
+        const count = (row.overage_sms_count || 0) + (row.overage_wa_count || 0);
+        const label = new Date(row.month).toLocaleString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+        const item = await stripe.invoiceItems.create(
+          {
+            customer: b.stripe_customer_id,
+            amount,
+            currency: 'gbp',
+            description: `Florrie message overage for ${label} (${count} over your 120 allowance)`,
+          },
+          { idempotencyKey: `msgusage_${row.id}` }
+        );
+
+        await markUsageBilled(row.id, item.invoice || item.id);
+        charged++;
+        logger.info(
+          { beauticianId: row.beautician_id, month: row.month, amount, count, invoiceItem: item.id },
+          'Monthly message surplus billed'
+        );
+      } catch (err) {
+        logger.error({ err, rowId: row.id }, 'billMonthlySurplus: row failed');
+        failed++;
+      }
+    }
+
+    logger.info({ processed: rows.length, charged, skipped, failed }, 'billMonthlySurplus done');
+    return { processed: rows.length, charged, skipped, failed };
+  } catch (err) {
+    logger.error({ err }, 'billMonthlySurplus error');
+    return { processed: 0, charged: 0, skipped: 0, failed: 0 };
+  }
+}

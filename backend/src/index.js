@@ -35,7 +35,7 @@ import { processEmailQueue, checkTrialExpiry } from './services/email-sequences.
 import { processRetryQueue as processWhatsAppRetryQueue } from './services/whatsapp-retry.js';
 import { runComeback } from './jobs/comeback.js';
 import { cleanupStripeEvents } from './services/stripe-cleanup.js';
-import { billSurplusSMS } from './services/sms-metering.js';
+import { billMonthlySurplus } from './services/whatsapp-metering.js';
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -431,14 +431,15 @@ app.listen(PORT, () => {
     runComeback().catch(err => logger.error({ err }, 'Startup: comeback pass failed'));
   }, 120_000);
 
-  // Surplus SMS billing — bill completed weeks over the included allowance.
+  // Message surplus billing — bill completed months over the 120/month combined
+  // (SMS + WhatsApp) allowance, charged via Stripe invoice items. Idempotent.
   setInterval(() => {
-    billSurplusSMS()
-      .then(r => { if (r) logger.info({ r }, 'Surplus SMS billing cron: done'); })
-      .catch(err => logger.error({ err }, 'Surplus SMS billing cron: failed'));
+    billMonthlySurplus()
+      .then(r => { if (r) logger.info({ r }, 'Monthly surplus billing cron: done'); })
+      .catch(err => logger.error({ err }, 'Monthly surplus billing cron: failed'));
   }, REVENUE_CRON_INTERVAL);
   setTimeout(() => {
-    billSurplusSMS().catch(err => logger.error({ err }, 'Startup: surplus SMS billing failed'));
+    billMonthlySurplus().catch(err => logger.error({ err }, 'Startup: monthly surplus billing failed'));
   }, 150_000);
 
   // Stripe events cleanup — prune stripe_events rows past TTL.
