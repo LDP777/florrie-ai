@@ -435,7 +435,7 @@ export default function EndOfDay() {
 }
 
 const styles = {
-  page: { padding: '16px 16px 100px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
+  page: { padding: '16px 16px 24px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: 0 },
   dateChip: { fontSize: 12, color: '#6B6560', background: '#F0ECE8', padding: '4px 10px', borderRadius: 12 },

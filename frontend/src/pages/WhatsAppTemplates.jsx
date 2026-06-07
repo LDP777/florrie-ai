@@ -445,7 +445,7 @@ export default function WhatsAppTemplates() {
 
 const styles = {
   page: {
-    padding: '16px 16px 100px',
+    padding: '16px 16px 24px',
     maxWidth: 720,
     margin: '0 auto',
     fontFamily: '"DM Sans", -apple-system, sans-serif',

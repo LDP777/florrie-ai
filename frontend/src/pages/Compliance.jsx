@@ -218,7 +218,7 @@ export default function Compliance() {
 
 const S = {
   page: {
-    padding: '16px 16px 100px',
+    padding: '16px 16px 24px',
     maxWidth: 480, margin: '0 auto',
     fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
     color: '#1d1b19',

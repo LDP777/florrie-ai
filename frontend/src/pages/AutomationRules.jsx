@@ -347,7 +347,7 @@ export default function AutomationRules() {
   );
 }
 const styles = {
-  page: { padding: '16px 16px 100px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
+  page: { padding: '16px 16px 24px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: 0 },
   subtitle: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #7a7470))', marginTop: 2 },

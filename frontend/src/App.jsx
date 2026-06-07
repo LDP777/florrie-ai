@@ -614,7 +614,7 @@ const styles = {
   },
   pageContainer: {
     flex: 1,
-    paddingBottom: 'calc(env(safe-area-inset-bottom, 8px) + 92px)',
+    paddingBottom: 'calc(env(safe-area-inset-bottom, 8px) + 80px)',
   },
 
   // Bottom nav , Stitch glass morphism

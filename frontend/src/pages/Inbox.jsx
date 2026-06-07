@@ -701,7 +701,7 @@ const S = {
     minHeight: '100vh',
     background: '#fef8f4',
     fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
-    padding: '16px 16px 120px',
+    padding: '16px 16px 24px',
     maxWidth: 480,
     margin: '0 auto',
     color: '#1d1b19',

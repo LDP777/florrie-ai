@@ -1,0 +1,9 @@
+# Build config for the @florrie/frontend Railway service.
+#
+# Railway's default Nixpacks runs `npm ci`, which HARD-FAILS when package-lock.json
+# is out of sync with package.json. Our lock has drifted (xlsx is pinned to a CDN
+# tarball, and apple-sign-in/scriptjs were added without refreshing the lock), so we
+# install with `npm install`, which reconciles the lock at build time instead of
+# failing the whole deploy.
+[phases.install]
+cmds = ["npm install --no-audit --no-fund"]

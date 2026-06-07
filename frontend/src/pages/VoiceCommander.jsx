@@ -660,7 +660,7 @@ export default function VoiceCommander() {
 }
 const styles = {
   page: {
-    display: 'flex', flexDirection: 'column', minHeight: '100vh',
+    display: 'flex', flexDirection: 'column',
     background: 'var(--bg)', fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)",
     maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)',
     animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -669,7 +669,7 @@ const styles = {
   title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
   subtitle: { fontSize: 13, color: 'var(--accent)', margin: 0, fontWeight: 500 },
   messagesContainer: {
-    flex: 1, overflowY: 'auto', padding: '8px 16px 16px',
+    padding: '8px 16px 16px',
     display: 'flex', flexDirection: 'column', gap: 12,
   },
   msgRow: { display: 'flex', gap: 8, alignItems: 'flex-end' },

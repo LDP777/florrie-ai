@@ -1503,7 +1503,7 @@ export default function WhatsAppConfig() {
 }
 
 const styles = {
-  page: { padding: '16px 16px 100px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
+  page: { padding: '16px 16px 24px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },
   statusBadge: { padding: '4px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600 },
