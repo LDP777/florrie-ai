@@ -117,6 +117,9 @@ export default function SuggestionCards() {
     return null;
   }
 
+  const featured = state.suggestions.filter(s => s.featured);
+  const rest = state.suggestions.filter(s => !s.featured);
+
   return (
     <section style={SC.wrap}>
       <div style={SC.header}>
@@ -124,16 +127,27 @@ export default function SuggestionCards() {
         <span style={SC.count}>{state.suggestions.length}</span>
       </div>
 
-      <div style={SC.row}>
-        {state.suggestions.map(s => (
-          <Card
-            key={s.id}
-            s={s}
-            pending={pendingId === s.id}
-            onRespond={respond}
-          />
-        ))}
-      </div>
+      {featured.map(s => (
+        <FeaturedCard
+          key={s.id}
+          s={s}
+          pending={pendingId === s.id}
+          onRespond={respond}
+        />
+      ))}
+
+      {rest.length > 0 && (
+        <div style={SC.row}>
+          {rest.map(s => (
+            <Card
+              key={s.id}
+              s={s}
+              pending={pendingId === s.id}
+              onRespond={respond}
+            />
+          ))}
+        </div>
+      )}
 
       {toast && (
         <div style={SC.toast} role="status" aria-live="polite">{toast}</div>
@@ -170,6 +184,35 @@ function Card({ s, pending, onRespond }) {
           style={{ ...SC.btn, ...SC.btnTweak }}
         >
           Tweak
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function FeaturedCard({ s, pending, onRespond }) {
+  return (
+    <article style={SC.featured}>
+      <div style={SC.featuredTop}>
+        <span style={SC.featuredIcon} aria-hidden>{s.icon || '\u{1F4C5}'}</span>
+        <span style={SC.featuredPill}>Bank holiday</span>
+      </div>
+      <p style={SC.featuredTitle}>{s.title || 'Upcoming bank holiday'}</p>
+      <p style={SC.featuredSummary}>{s.summary}</p>
+      <div style={SC.featuredActions}>
+        <button
+          onClick={() => onRespond(s, 'yes')}
+          disabled={pending}
+          style={{ ...SC.featuredBtn, ...SC.featuredBtnPrimary }}
+        >
+          {s.action_label || 'Block it off'}
+        </button>
+        <button
+          onClick={() => onRespond(s, 'no')}
+          disabled={pending}
+          style={{ ...SC.featuredBtn, ...SC.featuredBtnSecondary }}
+        >
+          {s.secondary_label || 'Keep it open'}
         </button>
       </div>
     </article>
@@ -216,6 +259,79 @@ const SC = {
     padding: '2px 8px',
     borderRadius: 20,
     letterSpacing: '0.04em',
+  },
+  featured: {
+    background: 'linear-gradient(135deg, #fff6ec 0%, #ffeede 100%)',
+    border: '1px solid rgba(201,169,110,0.45)',
+    borderRadius: 18,
+    boxShadow: '0 4px 16px rgba(201,169,110,0.18)',
+    padding: '14px 16px',
+    marginBottom: 12,
+  },
+  featuredTop: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  featuredIcon: {
+    width: 34,
+    height: 34,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 20,
+    lineHeight: 1,
+    borderRadius: 11,
+    background: 'rgba(201,169,110,0.18)',
+  },
+  featuredPill: {
+    fontSize: 10,
+    fontWeight: 800,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    color: '#8a6d2f',
+    background: 'rgba(201,169,110,0.22)',
+    padding: '3px 9px',
+    borderRadius: 20,
+  },
+  featuredTitle: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: '#1d1b19',
+    fontFamily: "'Noto Serif', Georgia, serif",
+    margin: '2px 0 4px',
+  },
+  featuredSummary: {
+    fontSize: 13,
+    lineHeight: 1.45,
+    color: '#5c5450',
+    fontWeight: 500,
+    margin: '0 0 12px',
+  },
+  featuredActions: {
+    display: 'flex',
+    gap: 8,
+  },
+  featuredBtn: {
+    flex: 1,
+    padding: '11px 8px',
+    borderRadius: 12,
+    border: 'none',
+    fontSize: 13,
+    fontWeight: 700,
+    fontFamily: 'inherit',
+    cursor: 'pointer',
+    WebkitTapHighlightColor: 'transparent',
+  },
+  featuredBtnPrimary: {
+    background: '#92405e',
+    color: '#fff',
+  },
+  featuredBtnSecondary: {
+    background: 'rgba(255,255,255,0.7)',
+    color: '#92405e',
+    border: '1px solid rgba(146,64,94,0.30)',
   },
   row: {
     display: 'flex',

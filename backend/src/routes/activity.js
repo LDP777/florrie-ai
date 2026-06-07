@@ -118,67 +118,84 @@ function clientName(row) {
 }
 
 function resolveLink(row) {
-  if (row.appointment_id) {
-    const day = (row.created_at || '').slice(0, 10);
-    return day ? `/calendar?date=${day}` : '/calendar';
-  }
-  if (row.client_id) {
-    return `/clients/${row.client_id}`;
-  }
-  // Some daily-heartbeat rows tell us which check ran via details.check,
-  // so we can route to the page that proves the count.
+  const cid = row.client_id;
+  const day = (row.created_at || '').slice(0, 10);
+  const calendarDay = day ? `/calendar?date=${day}` : '/calendar';
+  // Florrie is conversation-first: one thread per client, so the client's thread
+  // is the right landing for anything message/relationship related. There is no
+  // /clients/:id page, so never link there.
+  const thread = cid ? `/inbox?client=${cid}` : '/inbox';
+
+  // Daily-heartbeat "check" rows route to the page that proves the count.
   const check = row.details?.check;
   switch (check) {
     case 'calendar_lookahead':
-    case 'overnight_booking_watch':
-      return '/calendar';
-    case 'dormant_scan':
-      return '/clients?filter=dormant';
-    case 'client_list_scan':
-      return '/clients';
-    case 'inbox_watch':
-      return '/inbox';
+    case 'overnight_booking_watch': return '/calendar';
+    case 'dormant_scan':            return '/clients?filter=dormant';
+    case 'client_list_scan':        return '/clients';
+    case 'inbox_watch':             return '/inbox';
   }
 
   switch (row.action_type) {
+    // → the actual conversation
     case 'message_replied':
     case 'message_escalated':
-      return '/inbox';
-    case 'content_drafted':
-    case 'content_posted':
-      return '/content';
-    case 'campaign_drafted':
-    case 'campaign_sent':
-      return '/campaigns';
-    case 'expense_logged':
-      return '/expenses';
-    case 'review_requested':
-      return '/reviews';
-    case 'price_suggestion':
-      return '/treatments';
-    case 'quiet_week_detected':
-      return '/calendar';
-    case 'dormant_detected':
-      return '/clients?filter=dormant';
-    case 'client_profile_updated':
-      return '/clients';
-    case 'voice_note_processed':
-      return '/voice';
+    case 'client_reactivated':
     case 'predictive_nudge':
     case 'rebook_nudge':
-      return '/clients';
-    case 'value_coaching':
-      return '/money';
-    case 'referral_rewarded':
-      return '/referrals';
+      return thread;
+    case 'review_requested':
+      return cid ? thread : '/reviews';
+
+    // → the calendar (on the action's day when it concerns a booking)
+    case 'booking_created':
+    case 'booking_rescheduled':
+    case 'cancellation_filled':
+    case 'waitlist_offered':
+    case 'appointment_padded':
     case 'booking_auto_cancelled':
-    case 'gap_post':
     case 'gap_fill':
     case 'gap_fill_waitlist':
     case 'gap_fill_rebook':
     case 'gap_fill_dormant':
+      return row.appointment_id ? calendarDay : '/calendar';
+    case 'quiet_week_detected':
       return '/calendar';
+
+    // → content / marketing
+    case 'content_drafted':
+    case 'content_posted':
+    case 'gap_post':
+      return '/content';
+    case 'campaign_drafted':
+    case 'campaign_sent':
+      return '/campaigns';
+
+    // → money / pricing
+    case 'expense_logged':
+      return '/expenses';
+    case 'price_suggestion':
+      return '/treatments';
+    case 'value_coaching':
+      return '/money';
+
+    // → clients
+    case 'dormant_detected':
+      return '/clients?filter=dormant';
+    case 'client_profile_updated':
+    case 'contraindication_flagged':
+      return cid ? thread : '/clients';
+    case 'bundle_suggested':
+      return '/packages';
+    case 'referral_rewarded':
+      return '/referrals';
+    case 'voice_note_processed':
+      return '/voice';
+
     default:
+      // Sensible fallback based on what the row references.
+      if (row.appointment_id) return calendarDay;
+      if (cid) return thread;
       return null;
   }
 }

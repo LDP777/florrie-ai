@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
+import { nextBankHoliday, postcodeToDivision } from '../lib/bank-holidays.js';
 
 const router = Router();
 
@@ -28,6 +29,9 @@ router.get('/', requireAuth, async (req, res) => {
   const suggestions = [];
 
   try {
+    // Calendar-aware: an upcoming bank holiday is the most time-sensitive thing
+    // Florrie can surface, so it leads the feed as a featured card.
+    suggestions.push(...await fromUpcomingBankHoliday(beauticianId));
     suggestions.push(...await fromBookingSuggestions(beauticianId));
     if (suggestions.length < MAX_SUGGESTIONS) {
       suggestions.push(...await fromRebookReminders(beauticianId));
@@ -112,6 +116,66 @@ router.post('/respond', requireAuth, async (req, res) => {
 // ============================================================
 // Sources
 // ============================================================
+
+async function fromUpcomingBankHoliday(beauticianId) {
+  try {
+    const { data: b } = await supabase
+      .from('beauticians')
+      .select('postcode')
+      .eq('id', beauticianId)
+      .single();
+
+    const division = postcodeToDivision(b?.postcode);
+    const next = nextBankHoliday(division);
+    if (!next) return [];
+
+    // Never re-prompt once Ellie has decided (blocked or kept open) for this date,
+    // or if that day is already blocked in her diary.
+    const { data: decided } = await supabase
+      .from('florrie_decisions')
+      .select('id')
+      .eq('beautician_id', beauticianId)
+      .eq('suggestion_type', 'bank_holiday')
+      .contains('suggestion_payload', { date: next.date })
+      .limit(1);
+    if (decided && decided.length) return [];
+
+    const { data: exc } = await supabase
+      .from('hours_exceptions')
+      .select('id')
+      .eq('beautician_id', beauticianId)
+      .eq('date', next.date)
+      .maybeSingle();
+    if (exc) return [];
+
+    return [{
+      id: `bankholiday-${next.date}`,
+      type: 'bank_holiday',
+      featured: true,
+      icon: '\u{1F4C5}',
+      title: next.title,
+      date: next.date,
+      summary: `${next.title} is ${friendlyWhen(next.date, next.daysAway)}. Want me to block the day off, or keep it open for bookings?`,
+      action_label: 'Block it off',
+      secondary_label: 'Keep it open',
+      payload: { date: next.date, name: next.title },
+      link_to: '/hours',
+    }];
+  } catch (err) {
+    logger.error({ err }, 'fromUpcomingBankHoliday failed');
+    return [];
+  }
+}
+
+function friendlyWhen(date, daysAway) {
+  const d = new Date(`${date}T00:00:00Z`);
+  const long = d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+  const short = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+  if (daysAway <= 0) return 'today';
+  if (daysAway === 1) return `tomorrow (${short})`;
+  if (daysAway <= 21) return `on ${short}, just ${daysAway} days away`;
+  return `coming up on ${long}`;
+}
 
 async function fromBookingSuggestions(beauticianId) {
   const { data, error } = await supabase
@@ -330,6 +394,31 @@ function syntheticDefaults(beautician) {
 
 async function runSideEffect({ beauticianId, suggestionId, suggestionType, payload }) {
   switch (suggestionType) {
+    case 'bank_holiday': {
+      const date = payload?.date;
+      if (!date) return { ok: false, reason: 'Missing date' };
+      // Idempotent: don't double-block the same day.
+      const { data: existing } = await supabase
+        .from('hours_exceptions')
+        .select('id')
+        .eq('beautician_id', beauticianId)
+        .eq('date', date)
+        .maybeSingle();
+      if (existing) return { ok: true, action: 'already_blocked' };
+      const { error } = await supabase
+        .from('hours_exceptions')
+        .insert([{
+          beautician_id: beauticianId,
+          date,
+          type: 'closed',
+          reason: 'bank_holiday',
+          note: payload?.name ? `${payload.name} (bank holiday)` : 'Bank holiday',
+          notify_clients: false,
+          created_at: new Date().toISOString(),
+        }]);
+      return { ok: !error, action: 'day_blocked' };
+    }
+
     case 'booking_suggestion': {
       const id = payload?.booking_suggestion_id;
       if (!id) return { ok: false, reason: 'Missing booking_suggestion_id' };
