@@ -473,14 +473,16 @@ function BottomNav({ current, session }) {
   const todayPaths = ['/', '/hub', '/today', '/calendar', '/calendar/week', '/smart-schedule'];
   const isTodayActive = todayPaths.includes(current);
   const isInboxActive = current === '/inbox';
+  const isContentActive = current === '/content';
   const isMoneyActive = current === '/money';
 
   const leftTabs = [
-    { path: '/today', label: 'Today', icon: 'today',    active: isTodayActive, badge: 0 },
-    { path: '/inbox', label: 'Inbox', icon: 'forum',    active: isInboxActive, badge: inboxCount },
+    { path: '/today', label: 'Today', icon: 'today', active: isTodayActive, badge: 0 },
+    { path: '/inbox', label: 'Inbox', icon: 'forum', active: isInboxActive, badge: inboxCount },
   ];
   const rightTabs = [
-    { path: '/money', label: 'Money', icon: 'payments', active: isMoneyActive, badge: 0 },
+    { path: '/content', label: 'Content', icon: 'auto_fix_high', active: isContentActive, badge: 0 },
+    { path: '/money',   label: 'Money',   icon: 'payments',      active: isMoneyActive,   badge: 0 },
   ];
 
   return (
@@ -498,8 +500,9 @@ function BottomNav({ current, session }) {
         style={styles.navPetalWrap}
       >
         <div style={styles.navPetal}>
-          <img src="/florrie-petal.svg" alt="" style={{ width: 22, height: 22, filter: 'brightness(0) invert(1)' }} />
+          <img src="/florrie-petal.svg" alt="" style={{ width: 24, height: 24, filter: 'brightness(0) invert(1)' }} />
         </div>
+        <span style={styles.navPetalLabel}>Florrie</span>
       </button>
 
       {rightTabs.map(tab => (
@@ -611,24 +614,29 @@ const styles = {
   },
   pageContainer: {
     flex: 1,
-    paddingBottom: 76,
+    paddingBottom: 'calc(env(safe-area-inset-bottom, 8px) + 92px)',
   },
 
   // Bottom nav , Stitch glass morphism
   nav: {
     position: 'fixed',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    bottom: 'calc(env(safe-area-inset-bottom, 8px) + 10px)',
+    left: '50%',
+    transform: 'translateX(-50%)',
     display: 'flex',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    background: 'rgba(254, 248, 244, 0.96)',
-    borderTop: '1px solid rgba(146, 64, 94, 0.1)',
-    padding: '5px 0 env(safe-area-inset-bottom, 8px)',
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+    gap: 2,
+    maxWidth: 'calc(100vw - 24px)',
+    background: 'rgba(255, 255, 255, 0.88)',
+    backdropFilter: 'blur(16px) saturate(1.3)',
+    WebkitBackdropFilter: 'blur(16px) saturate(1.3)',
+    border: '1px solid rgba(146, 64, 94, 0.10)',
+    borderRadius: 34,
+    padding: '6px 8px',
     zIndex: 100,
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
-    boxShadow: '0 -1px 12px rgba(146, 64, 94, 0.04)',
+    boxShadow: '0 6px 22px rgba(146, 64, 94, 0.16)',
   },
   navItem: {
     display: 'flex',
@@ -638,7 +646,7 @@ const styles = {
     background: 'none',
     border: 'none',
     cursor: 'pointer',
-    padding: '6px 14px',
+    padding: '5px 11px',
     position: 'relative',
     fontFamily: 'inherit',
     WebkitTapHighlightColor: 'transparent',
@@ -655,25 +663,34 @@ const styles = {
 
   navPetalWrap: {
     display: 'flex',
+    flexDirection: 'column',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
+    gap: 2,
     background: 'transparent',
     border: 'none',
-    padding: 0,
+    padding: '0 6px',
     cursor: 'pointer',
     WebkitTapHighlightColor: 'transparent',
   },
   navPetal: {
-    width: 40,
-    height: 40,
+    width: 48,
+    height: 48,
     borderRadius: '50%',
     background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: '0 3px 10px rgba(146, 64, 94, 0.25)',
-    border: '2.5px solid #fef8f4',
-    opacity: 0.92,
+    boxShadow: '0 4px 12px rgba(146, 64, 94, 0.35)',
+    border: '3px solid #fef8f4',
+    marginTop: -20,
+  },
+  navPetalLabel: {
+    fontSize: 10,
+    lineHeight: 1,
+    letterSpacing: '0.01em',
+    fontWeight: 500,
+    color: '#867277',
   },
 
 };
