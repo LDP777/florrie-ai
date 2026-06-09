@@ -51,6 +51,10 @@ export default defineConfig({
     cleanDistPlugin,
     react(),
     VitePWA({
+      // Self-destruct the service worker: it kept precaching the app JS and serving
+      // stale bundles after every deploy (the recurring 'old version' bug). The app
+      // ships native via the App Store, so the web PWA SW is more trouble than worth.
+      selfDestroying: true,
       registerType: 'autoUpdate',
       includeAssets: [
         'favicon.svg',
