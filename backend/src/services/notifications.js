@@ -196,6 +196,15 @@ async function resolveTemplateLanguage(templateName) {
         }
         _tplLangCache = map;
         _tplLangCacheAt = Date.now();
+        logger.info(
+          { templates: data.data.map((t) => `${t.name}:${t.language}:${t.status}`) },
+          'resolveTemplateLanguage: template list loaded'
+        );
+      } else {
+        logger.warn(
+          { status: r.status, body: data, wabaIdSet: !!WA_WABA_ID },
+          'resolveTemplateLanguage: template list fetch non-ok'
+        );
       }
     } catch (err) {
       logger.warn({ err }, 'resolveTemplateLanguage: template list fetch failed');
@@ -239,6 +248,7 @@ export async function sendWhatsApp({ to, templateName, templateParams, beauticia
   // live + cached), then fall back to the English locales as a safety net.
   const resolvedLang = await resolveTemplateLanguage(templateName);
   const languages = [...new Set([resolvedLang, 'en_GB', 'en', 'en_US'].filter(Boolean))];
+  logger.info({ templateName, resolvedLang, languages }, 'sendWhatsApp: locale candidates');
   let lastErr = null;
   for (const lang of languages) {
     try {
