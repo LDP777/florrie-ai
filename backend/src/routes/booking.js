@@ -33,6 +33,31 @@ const stripe = process.env.STRIPE_SECRET_KEY
  * client to the confirmation page. This makes confirmations reliable even when
  * the Stripe webhook does not fire. Idempotent (skips if already paid).
  */
+/**
+ * GET /api/booking/:slug/manage/:token/resend-confirmation
+ * Re-send a booking confirmation to the client (used when the original did not
+ * go out). Authed by the unguessable per-appointment management token.
+ */
+router.get('/:slug/manage/:token/resend-confirmation', async (req, res) => {
+  try {
+    const { data: appt } = await supabase
+      .from('appointments')
+      .select('id, beauticians(booking_slug)')
+      .eq('management_token', req.params.token)
+      .maybeSingle();
+    if (!appt || appt.beauticians?.booking_slug !== req.params.slug) {
+      return res.status(404).json({ error: 'not_found' });
+    }
+    const { notifyBookingConfirmed } = await import('../services/notifications.js');
+    await notifyBookingConfirmed(appt.id);
+    logger.info({ appointmentId: appt.id }, 'Booking confirmation re-sent manually');
+    return res.json({ ok: true, sent: true });
+  } catch (err) {
+    logger.error({ err }, 'resend-confirmation failed');
+    return res.status(500).json({ error: 'failed' });
+  }
+});
+
 router.get('/confirm/:sessionId', async (req, res) => {
   const { sessionId } = req.params;
   const slug = req.query.slug || '';
