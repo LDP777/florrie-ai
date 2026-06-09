@@ -284,7 +284,7 @@ export async function billMonthlySurplus() {
   try {
     const { data: rows, error } = await supabase
       .from('message_usage')
-      .select('*, beauticians(stripe_customer_id, plan)')
+      .select('*, beauticians(stripe_customer_id, subscription_plan)')
       .eq('billed', false)
       .gt('overage_total_pence', 0)
       .lt('month', currentMonth);
