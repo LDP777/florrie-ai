@@ -25,6 +25,54 @@ const stripe = process.env.STRIPE_SECRET_KEY
  * Public endpoint — returns the beautician's booking page data.
  * This powers the branded booking link (florrie.ai/book/ellie-brows).
  */
+/**
+ * GET /api/booking/confirm/:sessionId
+ * Stripe redirects the client here after a successful deposit payment
+ * (this is the checkout success_url). We verify the payment server-side, mark
+ * the booking confirmed and send the confirmation email, THEN forward the
+ * client to the confirmation page. This makes confirmations reliable even when
+ * the Stripe webhook does not fire. Idempotent (skips if already paid).
+ */
+router.get('/confirm/:sessionId', async (req, res) => {
+  const { sessionId } = req.params;
+  const slug = req.query.slug || '';
+  const mt = req.query.mt;
+  const done = `${FRONTEND_URL}/book/${slug}/confirmed?session_id=${sessionId}${mt ? `&mt=${mt}` : ''}`;
+  try {
+    if (stripe && sessionId) {
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      const appointmentId = session?.metadata?.appointment_id;
+      const paid = session?.payment_status === 'paid' || session?.status === 'complete';
+      if (appointmentId && paid) {
+        const { data: appt } = await supabase
+          .from('appointments')
+          .select('id, deposit_paid')
+          .eq('id', appointmentId)
+          .maybeSingle();
+        if (appt && !appt.deposit_paid) {
+          await supabase
+            .from('appointments')
+            .update({
+              deposit_paid: true,
+              deposit_status: 'paid',
+              status: 'confirmed',
+              stripe_payment_intent_id: session.payment_intent || null,
+            })
+            .eq('id', appointmentId);
+          const { notifyBookingConfirmed } = await import('../services/notifications.js');
+          notifyBookingConfirmed(appointmentId).catch(err =>
+            logger.warn({ err, appointmentId }, 'confirm-redirect: notification failed (non-fatal)')
+          );
+          logger.info({ appointmentId, sessionId }, 'Booking confirmed via success-redirect (webhook fallback)');
+        }
+      }
+    }
+  } catch (err) {
+    logger.error({ err, sessionId }, 'confirm-redirect failed');
+  }
+  return res.redirect(302, done);
+});
+
 router.get('/:slug', async (req, res) => {
   const { data: beautician, error } = await supabase
     .from('beauticians')
@@ -1827,6 +1875,10 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
       const checkoutTotalCents = treatmentAmountCents + addOnTotalCents;
       const platformFee = calculatePlatformFee(checkoutTotalCents);
 
+      // Public base of THIS backend (the booking request came in on it), so the
+      // checkout success redirect lands on our confirm endpoint, not the SPA.
+      const apiBase = `${req.headers['x-forwarded-proto'] || 'https'}://${req.get('host')}`;
+
       const session = await stripe.checkout.sessions.create({
         mode: 'payment',
         customer: stripeCustomerId,
@@ -1845,7 +1897,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
             payment_type: isFullPayment ? 'full' : 'deposit',
           },
         },
-        success_url: `${FRONTEND_URL}/book/${bookingSlug}/confirmed?session_id={CHECKOUT_SESSION_ID}&mt=${appointment.management_token}`,
+        success_url: `${apiBase}/api/booking/confirm/{CHECKOUT_SESSION_ID}?slug=${bookingSlug}&mt=${appointment.management_token}`,
         cancel_url: `${FRONTEND_URL}/book/${bookingSlug}?cancelled=true`,
         metadata: {
           appointment_id: appointment.id,
