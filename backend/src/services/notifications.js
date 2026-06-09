@@ -202,8 +202,11 @@ export async function sendWhatsApp({ to, templateName, templateParams, beauticia
     return null;
   }
 
-  const maxRetries = 2;
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  // Templates can be registered under any English locale (en, en_GB, en_US).
+  // Try each so a locale mismatch (Meta error 132001) doesn't fail the send.
+  const languages = ['en_GB', 'en', 'en_US'];
+  let lastErr = null;
+  for (const lang of languages) {
     try {
       const res = await fetch(
         `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`,
@@ -219,10 +222,10 @@ export async function sendWhatsApp({ to, templateName, templateParams, beauticia
             type: 'template',
             template: {
               name: templateName,
-              language: { code: 'en' },
+              language: { code: lang },
               components: templateParams ? [{
                 type: 'body',
-                parameters: templateParams.map(p => ({ type: 'text', text: p })),
+                parameters: templateParams.map(p => ({ type: 'text', text: String(p) })),
               }] : undefined,
             },
           }),
@@ -230,19 +233,21 @@ export async function sendWhatsApp({ to, templateName, templateParams, beauticia
       );
 
       const data = await res.json();
-      if (!res.ok) throw new Error(JSON.stringify(data.error || data));
-      logger.info({ to, templateName }, 'WhatsApp template sent');
-      if (beauticianId) await trackWhatsAppMessage(beauticianId);
-      return data;
-    } catch (err) {
-      if (attempt < maxRetries) {
-        await new Promise(r => setTimeout(r, 1000));
-      } else {
-        logger.error({ err, attempts: maxRetries + 1 }, 'WhatsApp template send failed');
-        return null;
+      if (res.ok) {
+        logger.info({ to, templateName, lang }, 'WhatsApp template sent');
+        if (beauticianId) await trackWhatsAppMessage(beauticianId);
+        return data;
       }
+      lastErr = data?.error || data;
+      // 132001 = template/locale mismatch -> try next locale; any other error -> stop.
+      if (data?.error?.code !== 132001) break;
+    } catch (err) {
+      lastErr = err;
+      break;
     }
   }
+  logger.error({ err: lastErr, templateName }, 'WhatsApp template send failed (all locales)');
+  return null;
 }
 
 /**
