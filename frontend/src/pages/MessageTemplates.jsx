@@ -47,6 +47,8 @@ function previewMessage(body) {
   return result;
 }
 
+import MessagePreview from '../components/MessagePreview.jsx';
+
 export default function MessageTemplates() {
   const { dark } = useTheme();
   const { beautician, loading: bLoading } = useBeautician();
@@ -217,8 +219,8 @@ export default function MessageTemplates() {
           {/* Preview */}
           {newBody && (
             <div style={s.previewBox}>
-              <span style={s.previewLabel}>Preview</span>
-              <p style={s.previewText}>{previewMessage(newBody)}</p>
+              <span style={s.previewLabel}>How your client sees it</span>
+              <MessagePreview text={previewMessage(newBody)} salonName={beautician?.business_name || 'Your salon'} />
             </div>
           )}
 

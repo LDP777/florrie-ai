@@ -67,8 +67,15 @@ const BIRD_API_BASE = process.env.BIRD_API_BASE || 'https://api.bird.com';
 // Normalise a phone number to E.164 (+<digits>) for the Bird contact identifier.
 function toE164(raw) {
   if (!raw) return raw;
-  const digits = String(raw).replace(/[^0-9]/g, '');
-  return '+' + digits;
+  const s = String(raw).trim();
+  // Already international: keep the +, strip any spaces/punctuation.
+  if (s.startsWith('+')) return '+' + s.slice(1).replace(/[^0-9]/g, '');
+  const digits = s.replace(/[^0-9]/g, '');
+  if (!digits) return raw;
+  if (digits.startsWith('00')) return '+' + digits.slice(2);          // 0044... -> +44...
+  if (digits.startsWith('0'))  return '+44' + digits.replace(/^0+/, ''); // UK national 07... -> +447...
+  if (digits.startsWith('44')) return '+' + digits;                   // 447... -> +447...
+  return '+' + digits;                                                // assume already E.164 digits
 }
 
 export async function sendSMS({ to, body, beauticianId, originator, messageType = 'general' }) {

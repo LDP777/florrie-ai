@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, Fragment } from 'react';
 import { supabase } from '../lib/supabase.js'
 import { useParams, useLocation } from 'react-router-dom';
+import PhoneField from '../components/PhoneField.jsx';
 import { API_BASE } from '../lib/config.js';
 /**
  * BookingPage, the public-facing branded booking link.
@@ -901,14 +902,11 @@ export default function BookingPage() {
                 {fieldErrors.name && <span style={styles.fieldErrorText}>{fieldErrors.name}</span>}
               </div>
               <div>
-                <input
-                  type="tel" placeholder="Phone number *"
+                <PhoneField
                   value={clientDetails.phone}
-                  onChange={e => setClientDetails({ ...clientDetails, phone: e.target.value })}
-                  style={{
-                    ...styles.input,
-                    borderColor: fieldErrors.phone ? '#DC2626' : '#E8E4DF'
-                  }} required
+                  onChange={phone => setClientDetails({ ...clientDetails, phone })}
+                  style={styles.input}
+                  error={!!fieldErrors.phone}
                 />
                 {fieldErrors.phone && <span style={styles.fieldErrorText}>{fieldErrors.phone}</span>}
                 {memberInfo && (
