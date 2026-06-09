@@ -35,7 +35,7 @@ async function sendOnChannel({ beautician, client, body, beauticianId, messageTy
   if (channel === 'whatsapp' && client.phone) {
     results.push(await sendWhatsApp({
       to: client.phone,
-      templateName: 'generic_message_v2',
+      templateName: 'generic_message',
       templateParams: [client.first_name, message],
     }));
   } else if (client.phone) {
