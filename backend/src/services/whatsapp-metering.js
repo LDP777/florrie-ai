@@ -70,20 +70,20 @@ export async function checkWhatsAppQuota(beauticianId) {
     // Get beautician plan
     const { data: b, error: bErr } = await supabase
       .from('beauticians')
-      .select('plan, whatsapp_phone_id, whatsapp_connected')
+      .select('subscription_plan, whatsapp_phone_id, whatsapp_connected')
       .eq('id', beauticianId)
       .single();
 
     if (bErr || !b) {
-      logger.error({ beauticianId, err: bErr }, 'checkWhatsAppQuota: beautician not found');
-      return { allowed: false, reason: 'beautician_not_found' };
+      logger.error({ beauticianId, err: bErr }, 'checkWhatsAppQuota: lookup failed — allowing send');
+      return { allowed: true, error: true };
     }
 
     if (!b.whatsapp_connected || !b.whatsapp_phone_id) {
       return { allowed: false, reason: 'no_whatsapp_number' };
     }
 
-    const tier = getTier(b.plan);
+    const tier = getTier(b.subscription_plan);
     const freeLimit = tier.messages_per_month || 120;
     const month = getMonthStart();
     const usage = await getOrCreateUsageRow(beauticianId, month, freeLimit);
@@ -124,11 +124,11 @@ export async function trackWhatsAppMessage(beauticianId) {
   try {
     const { data: b } = await supabase
       .from('beauticians')
-      .select('plan')
+      .select('subscription_plan')
       .eq('id', beauticianId)
       .single();
 
-    const tier = getTier(b?.plan);
+    const tier = getTier(b?.subscription_plan);
     const freeLimit = tier.messages_per_month || 120;
     const month = getMonthStart();
     const usage = await getOrCreateUsageRow(beauticianId, month, freeLimit);
@@ -175,11 +175,11 @@ export async function trackSmsInMonthlyQuota(beauticianId) {
   try {
     const { data: b } = await supabase
       .from('beauticians')
-      .select('plan')
+      .select('subscription_plan')
       .eq('id', beauticianId)
       .single();
 
-    const tier = getTier(b?.plan);
+    const tier = getTier(b?.subscription_plan);
     const freeLimit = tier.messages_per_month || 120;
     const month = getMonthStart();
     const usage = await getOrCreateUsageRow(beauticianId, month, freeLimit);
@@ -225,10 +225,10 @@ export async function getMonthlyUsage(beauticianId) {
     if (!data) {
       const { data: b } = await supabase
         .from('beauticians')
-        .select('plan')
+        .select('subscription_plan')
         .eq('id', beauticianId)
         .single();
-      const tier = getTier(b?.plan);
+      const tier = getTier(b?.subscription_plan);
       return {
         sms_sent: 0,
         whatsapp_sent: 0,
@@ -307,7 +307,7 @@ export async function billMonthlySurplus() {
       const amount = row.overage_total_pence;
       try {
         // Trial or no Stripe customer: overage is free — flag billed so we don't reprocess.
-        if (!b?.stripe_customer_id || !b?.plan || b.plan === 'trial') {
+        if (!b?.stripe_customer_id || !b?.subscription_plan || b.subscription_plan === 'trial') {
           await markUsageBilled(row.id, null);
           skipped++;
           continue;
