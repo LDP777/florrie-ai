@@ -37,6 +37,7 @@ async function sendOnChannel({ beautician, client, body, beauticianId, messageTy
       to: client.phone,
       templateName: 'generic_message',
       templateParams: [client.first_name, message],
+      beauticianId,
     }));
   } else if (client.phone) {
     // Respect autopilot credit rules for AI-initiated sends
