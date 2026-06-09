@@ -77,6 +77,66 @@ router.get('/:slug', async (req, res) => {
 });
 
 /**
+ * GET /api/booking/:slug/page
+ * Public — everything the booking page needs to render, in one call, run with
+ * the service role so it works for LOGGED-OUT visitors (anon RLS would block a
+ * direct browser query). Returns only booking-safe fields.
+ */
+router.get('/:slug/page', async (req, res) => {
+  const { data: salon, error } = await supabase
+    .from('beauticians')
+    .select('id, first_name, business_name, booking_slug, brand_color, working_hours, payment_settings, stripe_onboarding_complete, avatar_url, logo_url, tagline')
+    .eq('booking_slug', req.params.slug)
+    .maybeSingle();
+
+  if (error || !salon) {
+    return res.status(404).json({ error: 'not_found' });
+  }
+
+  const { data: treatments } = await supabase
+    .from('treatments')
+    .select('id, name, description, duration_minutes, price_cents, deposit_cents, deposit_percent, category, requires_consultation, consultation_form_id')
+    .eq('beautician_id', salon.id)
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true });
+
+  const { data: addOns } = await supabase
+    .from('add_ons')
+    .select('id, name, description, price_cents, duration_minutes, compatible_treatment_ids, is_active')
+    .eq('beautician_id', salon.id)
+    .eq('is_active', true)
+    .order('name');
+
+  res.json({ salon, treatments: treatments || [], addOns: addOns || [] });
+});
+
+/**
+ * GET /api/booking/:slug/availability?date=YYYY-MM-DD
+ * Public — booked time blocks for a day so the page can grey out taken slots.
+ * Returns only timing (no client info). Service role, works logged-out.
+ */
+router.get('/:slug/availability', async (req, res) => {
+  const { date } = req.query;
+  const { data: salon } = await supabase
+    .from('beauticians')
+    .select('id')
+    .eq('booking_slug', req.params.slug)
+    .maybeSingle();
+  if (!salon) return res.status(404).json({ error: 'not_found' });
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.json({ appointments: [] });
+
+  const { data: appts } = await supabase
+    .from('appointments')
+    .select('starts_at, duration_minutes, buffer_minutes')
+    .eq('beautician_id', salon.id)
+    .gte('starts_at', `${date}T00:00:00`)
+    .lte('starts_at', `${date}T23:59:59`)
+    .neq('status', 'cancelled');
+
+  res.json({ appointments: appts || [] });
+});
+
+/**
  * GET /api/booking/:slug/policy
  * Public — returns the beautician's booking policy for display on the booking page.
  * Includes: cancellation terms, min booking window, deposit rules.

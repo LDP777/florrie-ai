@@ -294,33 +294,17 @@ export default function BookingPage() {
   useEffect(() => {
     async function load() {
       try {
-        // Look up beautician by booking slug
-        const { data: b, error: bErr } = await supabase
-          .from('beauticians')
-          .select('id, first_name, business_name, booking_slug, brand_color, working_hours, payment_settings, stripe_onboarding_complete, avatar_url, logo_url, tagline')
-          .eq('booking_slug', slug)
-          .maybeSingle();
-        if (bErr || !b) {
+        // Load everything via the public backend endpoint (runs server-side so it
+        // works for LOGGED-OUT visitors; a direct browser query is blocked by RLS).
+        const pageRes = await fetch(`${API_BASE}/api/booking/${slug}/page`);
+        if (!pageRes.ok) {
           setError("This booking page doesn't exist yet.");
           setLoading(false);
           return;
         }
+        const { salon: b, treatments: tx, addOns: ao } = await pageRes.json();
         setBeautician(b);
-        // Fetch active treatments
-        const { data: tx } = await supabase
-          .from('treatments')
-          .select('id, name, description, duration_minutes, price_cents, deposit_cents, deposit_percent, category, requires_consultation, consultation_form_id')
-          .eq('beautician_id', b.id)
-          .eq('is_active', true)
-          .order('sort_order', { ascending: true });
         setTreatments(tx || []);
-        // Fetch active add-ons for this beautician
-        const { data: ao } = await supabase
-          .from('add_ons')
-          .select('id, name, description, price_cents, duration_minutes, compatible_treatment_ids, is_active')
-          .eq('beautician_id', b.id)
-          .eq('is_active', true)
-          .order('name');
         setAddOns(ao || []);
         // Unblock the page now, products are optional retail items, never block booking
         setLoading(false);
@@ -361,17 +345,13 @@ export default function BookingPage() {
       const [endH, endM] = hours.end.split(':').map(Number);
       const startMin = startH * 60 + startM;
       const endMin = endH * 60 + endM;
-      // Fetch existing appointments for this date to exclude booked slots
+      // Booked blocks via the public backend endpoint (works logged-out).
       let bookedSlots = [];
-      const fromISO = `${selectedDate}T00:00:00`;
-      const toISO = `${selectedDate}T23:59:59`;
-      const { data: appts } = await supabase
-        .from('appointments')
-        .select('starts_at, duration_minutes, buffer_minutes')
-        .eq('beautician_id', beautician.id)
-        .gte('starts_at', fromISO)
-        .lte('starts_at', toISO)
-        .neq('status', 'cancelled');
+      let appts = [];
+      try {
+        const avRes = await fetch(`${API_BASE}/api/booking/${slug}/availability?date=${selectedDate}`);
+        if (avRes.ok) appts = (await avRes.json()).appointments || [];
+      } catch { appts = []; }
       bookedSlots = (appts || []).map(a => ({
         start: new Date(a.starts_at).getHours() * 60 + new Date(a.starts_at).getMinutes(),
         end: new Date(a.starts_at).getHours() * 60 + new Date(a.starts_at).getMinutes() + (a.duration_minutes || 60) + (a.buffer_minutes || 0),
