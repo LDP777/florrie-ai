@@ -1,4 +1,5 @@
 /**
+import { bookingUrl as publicBookingUrl } from '../lib/booking.js';
  * Price List Generator — Create & share a client-facing treatment menu.
  *
  * Pulls real treatments from Supabase, lets the beautician customise
@@ -129,7 +130,7 @@ export default function PriceList() {
   const brandName = beautician?.business_name || beautician?.first_name || 'Your Business';
   const location = beautician?.location || '';
   const slug = beautician?.booking_slug || 'your-link';
-  const shareUrl = `${window.location.origin}/book/${slug}`;
+  const shareUrl = publicBookingUrl(slug);
 
   // Toast helper
   function showToast(message) {

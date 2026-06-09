@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { bookingUrl as publicBookingUrl } from '../lib/booking.js';
 import { useNavigate } from 'react-router-dom';
 import { useBeautician, supabase } from '../lib/supabase.js';
 import { useCoach } from '../contexts/CoachContext.jsx';
@@ -374,7 +375,7 @@ export default function Dashboard() {
 
       {/* ─── Your booking link — prominent card ─── */}
       {beautician?.booking_slug && (() => {
-        const bookingUrl = `${window.location.origin}/book/${beautician.booking_slug}`;
+        const bookingUrl = publicBookingUrl(beautician.booking_slug);
         return (
           <section style={S.bookingLinkCard}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>

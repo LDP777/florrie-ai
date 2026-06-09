@@ -1,4 +1,5 @@
 /**
+import { bookingUrl as publicBookingUrl } from '../lib/booking.js';
  * BusinessProfile — Business info, branding, social links.
  *
  * Sections:
@@ -71,10 +72,10 @@ export default function BusinessProfile() {
     setSocials({ instagram: sp.instagram || '', tiktok: sp.tiktok || '', facebook: sp.facebook || '', website: sp.website || '' });
   }, [beautician]);
 
-  const bookingUrl = `florrie.ai/book/${beautician?.booking_slug || 'your-slug'}`;
+  const bookingUrl = publicBookingUrl(beautician?.booking_slug || 'your-slug');
 
   function handleCopy() {
-    navigator.clipboard?.writeText(`https://${bookingUrl}`);
+    navigator.clipboard?.writeText(bookingUrl);
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);
   }
@@ -292,7 +293,7 @@ export default function BusinessProfile() {
           <div style={s.card}>
             <span style={s.cardLabel}>Your booking link</span>
             <div style={s.urlRow}>
-              <span style={s.urlText}>{bookingUrl}</span>
+              <span style={s.urlText}>{bookingUrl.replace('https://', '')}</span>
               <button onClick={handleCopy} style={s.copyBtn}>
                 {linkCopied ? '✓ Copied' : 'Copy'}
               </button>

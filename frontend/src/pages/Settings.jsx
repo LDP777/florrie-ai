@@ -1563,9 +1563,11 @@ function ClientReminderRow({ label, enabled, onChange }) {
   );
 }
 
+import { bookingUrl as publicBookingUrl } from '../lib/booking.js';
+
 function BookingLinkCard({ slug }) {
   const [copied, setCopied] = useState(false);
-  const url = `${window.location.origin}/book/${slug}`;
+  const url = publicBookingUrl(slug);
 
   function handleCopy() {
     navigator.clipboard.writeText(url).then(() => {
