@@ -170,6 +170,39 @@ export async function sendSMS({ to, body, beauticianId, originator, messageType 
 // Each beautician has their own phone_number_id registered to Florrie's WABA.
 // Florrie pays Meta; usage is metered against the 120 msg/month plan limit.
 const WA_TOKEN = process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN;
+const WA_WABA_ID = process.env.WHATSAPP_WABA_ID || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+const WA_GRAPH = 'https://graph.facebook.com/v21.0';
+
+// Cache of templateName -> approved language code, refreshed from Meta every 10 min.
+// Templates can be approved under any locale (en, en_GB, en_US, ...). Rather than
+// guess, we read the real language Meta has each template registered under.
+let _tplLangCache = null;
+let _tplLangCacheAt = 0;
+async function resolveTemplateLanguage(templateName) {
+  if (!WA_TOKEN || !WA_WABA_ID) return null;
+  const fresh = _tplLangCache && (Date.now() - _tplLangCacheAt < 10 * 60 * 1000);
+  if (!fresh) {
+    try {
+      const r = await fetch(
+        `${WA_GRAPH}/${WA_WABA_ID}/message_templates?fields=name,language,status&limit=200`,
+        { headers: { Authorization: `Bearer ${WA_TOKEN}` } }
+      );
+      const data = await r.json();
+      if (r.ok && Array.isArray(data?.data)) {
+        const map = {};
+        for (const t of data.data) {
+          // Prefer an APPROVED entry; don't let a REJECTED/PENDING dup overwrite it.
+          if (!map[t.name] || t.status === 'APPROVED') map[t.name] = t.language;
+        }
+        _tplLangCache = map;
+        _tplLangCacheAt = Date.now();
+      }
+    } catch (err) {
+      logger.warn({ err }, 'resolveTemplateLanguage: template list fetch failed');
+    }
+  }
+  return _tplLangCache ? _tplLangCache[templateName] || null : null;
+}
 
 /**
  * Send a WhatsApp template message (for booking confirmations, reminders etc.)
@@ -202,9 +235,10 @@ export async function sendWhatsApp({ to, templateName, templateParams, beauticia
     return null;
   }
 
-  // Templates can be registered under any English locale (en, en_GB, en_US).
-  // Try each so a locale mismatch (Meta error 132001) doesn't fail the send.
-  const languages = ['en_GB', 'en', 'en_US'];
+  // Try the language Meta actually has this template approved under (looked up
+  // live + cached), then fall back to the English locales as a safety net.
+  const resolvedLang = await resolveTemplateLanguage(templateName);
+  const languages = [...new Set([resolvedLang, 'en_GB', 'en', 'en_US'].filter(Boolean))];
   let lastErr = null;
   for (const lang of languages) {
     try {
