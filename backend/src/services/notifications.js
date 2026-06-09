@@ -173,44 +173,65 @@ const WA_TOKEN = process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN
 const WA_WABA_ID = process.env.WHATSAPP_WABA_ID || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
 const WA_GRAPH = 'https://graph.facebook.com/v21.0';
 
-// Cache of templateName -> approved language code, refreshed from Meta every 10 min.
-// Templates can be approved under any locale (en, en_GB, en_US, ...). Rather than
-// guess, we read the real language Meta has each template registered under.
-let _tplLangCache = null;
-let _tplLangCacheAt = 0;
-async function resolveTemplateLanguage(templateName) {
-  if (!WA_TOKEN || !WA_WABA_ID) return null;
-  const fresh = _tplLangCache && (Date.now() - _tplLangCacheAt < 10 * 60 * 1000);
-  if (!fresh) {
+// A WABA owns the approved templates AND the phone numbers that send them.
+// The template lookup MUST happen on the SAME WABA the sending phone is parented
+// to (not a central env WABA, which may differ, e.g. a sandbox WABA). So we
+// resolve the phone's real parent WABA, then read that WABA's templates to find
+// the exact approved language for the template. Both are cached.
+
+const _phoneWabaCache = new Map(); // phoneNumberId -> { wabaId, at }
+async function getPhoneParentWaba(phoneNumberId) {
+  if (!WA_TOKEN || !phoneNumberId) return null;
+  const hit = _phoneWabaCache.get(phoneNumberId);
+  if (hit && Date.now() - hit.at < 30 * 60 * 1000) return hit.wabaId;
+  try {
+    const r = await fetch(
+      `${WA_GRAPH}/${phoneNumberId}?fields=whatsapp_business_account{id}`,
+      { headers: { Authorization: `Bearer ${WA_TOKEN}` } }
+    );
+    const data = await r.json();
+    const wabaId = data?.whatsapp_business_account?.id || null;
+    if (wabaId) _phoneWabaCache.set(phoneNumberId, { wabaId, at: Date.now() });
+    else logger.warn({ status: r.status, body: data, phoneNumberId }, 'getPhoneParentWaba: no WABA on phone node');
+    return wabaId;
+  } catch (err) {
+    logger.warn({ err, phoneNumberId }, 'getPhoneParentWaba: fetch failed');
+    return null;
+  }
+}
+
+// Cache of wabaId -> { map: templateName->approvedLanguage, at }
+const _tplLangCache = new Map();
+async function resolveTemplateLanguage(templateName, wabaId) {
+  const waba = wabaId || WA_WABA_ID;
+  if (!WA_TOKEN || !waba) return null;
+  const hit = _tplLangCache.get(waba);
+  if (!hit || Date.now() - hit.at >= 10 * 60 * 1000) {
     try {
       const r = await fetch(
-        `${WA_GRAPH}/${WA_WABA_ID}/message_templates?fields=name,language,status&limit=200`,
+        `${WA_GRAPH}/${waba}/message_templates?fields=name,language,status&limit=200`,
         { headers: { Authorization: `Bearer ${WA_TOKEN}` } }
       );
       const data = await r.json();
       if (r.ok && Array.isArray(data?.data)) {
         const map = {};
         for (const t of data.data) {
-          // Prefer an APPROVED entry; don't let a REJECTED/PENDING dup overwrite it.
           if (!map[t.name] || t.status === 'APPROVED') map[t.name] = t.language;
         }
-        _tplLangCache = map;
-        _tplLangCacheAt = Date.now();
+        _tplLangCache.set(waba, { map, at: Date.now() });
         logger.info(
-          { templates: data.data.map((t) => `${t.name}:${t.language}:${t.status}`) },
+          { waba, templates: data.data.map((t) => `${t.name}:${t.language}:${t.status}`) },
           'resolveTemplateLanguage: template list loaded'
         );
       } else {
-        logger.warn(
-          { status: r.status, body: data, wabaIdSet: !!WA_WABA_ID },
-          'resolveTemplateLanguage: template list fetch non-ok'
-        );
+        logger.warn({ waba, status: r.status, body: data }, 'resolveTemplateLanguage: template list fetch non-ok');
       }
     } catch (err) {
-      logger.warn({ err }, 'resolveTemplateLanguage: template list fetch failed');
+      logger.warn({ err, waba }, 'resolveTemplateLanguage: template list fetch failed');
     }
   }
-  return _tplLangCache ? _tplLangCache[templateName] || null : null;
+  const entry = _tplLangCache.get(waba);
+  return entry ? entry.map[templateName] || null : null;
 }
 
 /**
@@ -244,11 +265,11 @@ export async function sendWhatsApp({ to, templateName, templateParams, beauticia
     return null;
   }
 
-  // Try the language Meta actually has this template approved under (looked up
-  // live + cached), then fall back to the English locales as a safety net.
-  const resolvedLang = await resolveTemplateLanguage(templateName);
+  // Resolve the language from the WABA that actually owns this sending phone.
+  const sendingWaba = await getPhoneParentWaba(phoneNumberId);
+  const resolvedLang = await resolveTemplateLanguage(templateName, sendingWaba);
   const languages = [...new Set([resolvedLang, 'en_GB', 'en', 'en_US'].filter(Boolean))];
-  logger.info({ templateName, resolvedLang, languages }, 'sendWhatsApp: locale candidates');
+  logger.info({ templateName, phoneNumberId, sendingWaba, resolvedLang, languages }, 'sendWhatsApp: locale candidates');
   let lastErr = null;
   for (const lang of languages) {
     try {
