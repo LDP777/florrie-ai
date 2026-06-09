@@ -535,22 +535,24 @@ async function logComms(beauticianId, clientId, channel, direction, content) {
   }
 }
 
-function emailTemplate({ bizName, brandColor, content }) {
+function emailTemplate({ bizName, brandColor, tagline, content }) {
   const color = brandColor || '#C4A882';
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#faf9f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#faf9f7;padding:32px 16px">
+<body style="margin:0;padding:0;background:#fbf7f4;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#fbf7f4;padding:28px 16px">
 <tr><td align="center">
-<table width="100%" style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08)">
-  <tr><td style="background:${color};padding:24px 32px">
-    <h1 style="margin:0;color:#ffffff;font-size:20px;font-weight:600;letter-spacing:-0.3px">${bizName}</h1>
-    <p style="margin:4px 0 0;color:rgba(255,255,255,0.85);font-size:12px">Powered by Florrie</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#fbf7f4;border-radius:16px;overflow:hidden;box-shadow:0 6px 24px rgba(120,90,60,0.12)">
+  <tr><td style="background:${color};padding:30px 32px 26px;text-align:center">
+    <div style="font-size:24px;line-height:1;margin-bottom:6px">&#127800;</div>
+    <div style="font-family:Georgia,'Times New Roman',serif;font-size:24px;font-weight:700;color:#ffffff;letter-spacing:0.3px">${bizName}</div>
+    ${tagline ? `<div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,0.85);margin-top:5px">${tagline}</div>` : ''}
   </td></tr>
-  <tr><td style="padding:32px">${content}</td></tr>
-  <tr><td style="padding:16px 32px 24px;border-top:1px solid #f0eeeb">
-    <p style="margin:0;color:#a09a93;font-size:12px;text-align:center">Sent via Florrie — the AI-powered booking assistant</p>
+  <tr><td style="padding:0">${content}</td></tr>
+  <tr><td style="background:#f4eee4;padding:18px 32px;text-align:center">
+    <div style="font-size:12px;color:#8a7a5e;font-weight:600">${bizName}</div>
+    <div style="font-size:11px;color:#b3a890;margin-top:4px">Booked with Florrie</div>
   </td></tr>
 </table>
 </td></tr>
@@ -566,7 +568,7 @@ function emailTemplate({ bizName, brandColor, content }) {
 export async function notifyBookingConfirmed(appointmentId) {
   const { data: appt } = await supabase
     .from('appointments')
-    .select('*, clients(first_name, phone, email), treatments(name, duration_minutes), beauticians(business_name, first_name, client_reminder_prefs, brand_color, booking_slug)')
+    .select('*, clients(first_name, phone, email), treatments(name, duration_minutes), beauticians(business_name, first_name, client_reminder_prefs, brand_color, booking_slug, tagline)')
     .eq('id', appointmentId)
     .single();
 
@@ -590,7 +592,7 @@ export async function notifyBookingConfirmed(appointmentId) {
   if (prefs.booking_confirmation !== false) {
     const channel = prefs.channel || 'whatsapp';
     if (channel === 'whatsapp' && client.phone) {
-      const waResult = await sendWhatsApp({ to: client.phone, templateName: 'booking_confirmation', templateParams: [client.first_name, treatment.name, shortDate, timeStr] });
+      const waResult = await sendWhatsApp({ to: client.phone, templateName: 'booking_confirmation', templateParams: [client.first_name, shortDate, timeStr] });
       // Fall through to SMS if WhatsApp not available
       if (!waResult && client.phone && BIRD_API_KEY) {
         await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'booking_confirmation' });
@@ -606,24 +608,46 @@ export async function notifyBookingConfirmed(appointmentId) {
       ? `<p style="margin:12px 0 0;color:#6b6560;font-size:14px">Deposit paid: <strong>&pound;${(appt.deposit_cents / 100).toFixed(2)}</strong></p>`
       : '';
 
+    const accent = biz.brand_color || '#C4A882';
+    const depositRow = appt.deposit_cents > 0
+      ? `<tr><td style="padding:14px 20px">
+            <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#b3a890">Deposit paid</div>
+            <div style="font-size:16px;color:#2d2a26;font-weight:600;margin-top:3px">&pound;${(appt.deposit_cents / 100).toFixed(2)} <span style="font-size:12px;font-weight:400;color:#9c9388">&middot; balance on the day</span></div>
+          </td></tr>`
+      : '';
     const html = emailTemplate({
       bizName,
-      brandColor: biz.brand_color,
+      brandColor: accent,
+      tagline: biz.tagline,
       content: `
-        <h2 style="margin:0 0 8px;color:#2d2a26;font-size:18px;font-weight:600">Booking Confirmed</h2>
-        <p style="margin:0 0 20px;color:#6b6560;font-size:14px">Hi ${client.first_name}, you're all booked in.</p>
-        <table width="100%" cellpadding="0" cellspacing="0" style="background:#faf9f7;border-radius:8px;padding:20px">
-          <tr><td>
-            <p style="margin:0;color:#a09a93;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">Treatment</p>
-            <p style="margin:4px 0 16px;color:#2d2a26;font-size:16px;font-weight:600">${treatment.name}</p>
-            <p style="margin:0;color:#a09a93;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">When</p>
-            <p style="margin:4px 0 16px;color:#2d2a26;font-size:16px;font-weight:600">${dateStr} at ${timeStr}</p>
-            <p style="margin:0;color:#a09a93;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">Duration</p>
-            <p style="margin:4px 0 0;color:#2d2a26;font-size:16px;font-weight:600">${treatment.duration_minutes} minutes</p>
-            ${depositLine}
-          </td></tr>
-        </table>
-        <p style="margin:20px 0 0;color:#6b6560;font-size:14px">Need to cancel or reschedule? ${manageUrl ? `<a href="${manageUrl}" style="color:${biz.brand_color || '#C76B8A'};font-weight:600">Manage your booking</a>.` : `Get in touch with ${bizName} directly.`}</p>
+        <div style="padding:30px 32px 4px;text-align:center">
+          <div style="font-size:30px;line-height:1;margin-bottom:10px">&#9989;</div>
+          <div style="font-family:Georgia,'Times New Roman',serif;font-size:22px;color:#2d2a26;margin-bottom:6px">You're booked in, ${client.first_name}</div>
+          <p style="margin:0;font-size:14px;line-height:1.6;color:#7a716a">Can't wait to see you. Here are your details.</p>
+        </div>
+        <div style="padding:22px 32px 6px">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #efe7da;border-radius:14px">
+            <tr><td style="padding:14px 20px;border-bottom:1px solid #f4eee4">
+              <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#b3a890">Treatment</div>
+              <div style="font-size:16px;color:#2d2a26;font-weight:600;margin-top:3px">${treatment.name}</div>
+            </td></tr>
+            <tr><td style="padding:14px 20px;border-bottom:1px solid #f4eee4">
+              <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#b3a890">When</div>
+              <div style="font-size:16px;color:#2d2a26;font-weight:600;margin-top:3px">${dateStr} &middot; ${timeStr}</div>
+            </td></tr>
+            <tr><td style="padding:14px 20px;${appt.deposit_cents > 0 ? 'border-bottom:1px solid #f4eee4' : ''}">
+              <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#b3a890">Duration</div>
+              <div style="font-size:16px;color:#2d2a26;font-weight:600;margin-top:3px">${treatment.duration_minutes} minutes</div>
+            </td></tr>
+            ${depositRow}
+          </table>
+        </div>
+        ${manageUrl ? `<div style="padding:18px 32px 4px;text-align:center">
+          <a href="${manageUrl}" style="display:inline-block;background:${accent};color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:13px 30px;border-radius:999px;letter-spacing:0.2px">Manage or reschedule</a>
+        </div>` : ''}
+        <div style="padding:14px 32px 28px;text-align:center">
+          <p style="margin:0;font-size:13px;line-height:1.6;color:#9c9388">Need to change something? Just reply to this email and ${biz.first_name || bizName} will sort it.</p>
+        </div>
       `,
     });
 
