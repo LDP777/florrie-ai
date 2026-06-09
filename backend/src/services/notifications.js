@@ -290,7 +290,22 @@ export async function sendWhatsApp({ to, templateName, templateParams, beauticia
       break;
     }
   }
-  logger.error({ err: lastErr, templateName }, 'WhatsApp template send failed (all locales)');
+  logger.error({ err: lastErr, templateName, phoneNumberId, languagesTried: languages }, 'WhatsApp template send failed (all locales)');
+  // Diagnostic: is the sending phone number actually on the env WABA whose templates we read?
+  if (WA_WABA_ID && WA_TOKEN) {
+    try {
+      const pr = await fetch(
+        `${WA_GRAPH}/${WA_WABA_ID}/phone_numbers?fields=id,display_phone_number,verified_name&limit=50`,
+        { headers: { Authorization: `Bearer ${WA_TOKEN}` } }
+      );
+      const pj = await pr.json();
+      const ids = Array.isArray(pj?.data) ? pj.data.map((p) => `${p.id}:${p.display_phone_number}`) : pj;
+      const onEnvWaba = Array.isArray(pj?.data) && pj.data.some((p) => p.id === phoneNumberId);
+      logger.warn({ envWaba: WA_WABA_ID, phoneNumberId, onEnvWaba, envWabaPhones: ids }, 'WhatsApp diag: phone vs env WABA');
+    } catch (e) {
+      logger.warn({ e }, 'WhatsApp diag: phone_numbers fetch failed');
+    }
+  }
   return null;
 }
 
