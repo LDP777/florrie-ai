@@ -6,6 +6,7 @@ import ActivityFeed from '../components/ActivityFeed.jsx';
 import SuggestionCards from '../components/SuggestionCards.jsx';
 import MorningCatchup from '../components/MorningCatchup.jsx';
 import UsagePanel from '../components/UsagePanel.jsx';
+import ValueReceipt from '../components/ValueReceipt.jsx';
 
 const CalendarView = lazy(() => import('./CalendarView.jsx'));
 const SmartSchedule = lazy(() => import('./SmartSchedule.jsx'));
@@ -107,6 +108,9 @@ export default function Hub() {
 
           {/* Usage panel, Day 5: slim line showing message quota for the month */}
           <UsagePanel />
+
+          {/* Value receipt: what Florrie recovered this month */}
+          <ValueReceipt />
 
           {/* Florrie suggestions , Day 4 wow moment */}
           <SuggestionCards />

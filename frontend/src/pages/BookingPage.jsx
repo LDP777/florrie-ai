@@ -139,6 +139,7 @@ export default function BookingPage() {
   const [selectedPackage, setSelectedPackage] = useState(null);
   // Photo consent
   const [photoConsent, setPhotoConsent] = useState(false);
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   // Discount code
   const [discountOpen, setDiscountOpen] = useState(false);
   const [discountInput, setDiscountInput] = useState('');
@@ -442,6 +443,7 @@ export default function BookingPage() {
           discount_code: appliedDiscount?.code || null,
           is_member: memberInfo?.is_member || false,
           photo_consent: photoConsent,
+          marketing_opt_in: marketingOptIn,
           client_package_id: selectedPackage?.client_package_id || null,
           'cf-turnstile-response': turnstileToken || undefined,
         }),
@@ -1419,6 +1421,22 @@ export default function BookingPage() {
               />
               <span>
                 I'm happy for before & after photos to be taken and used on social media (optional)
+              </span>
+            </label>
+            <label style={{
+              display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 20,
+              padding: '12px 14px', borderRadius: 10, background: 'var(--bg-subtle, #FDFCFB)',
+              border: '1px solid var(--border-light)', cursor: 'pointer', fontSize: 13,
+              color: 'var(--text-secondary)', lineHeight: 1.5,
+            }}>
+              <input
+                type="checkbox"
+                checked={marketingOptIn}
+                onChange={e => setMarketingOptIn(e.target.checked)}
+                style={{ width: 18, height: 18, marginTop: 2, accentColor: brand, flexShrink: 0 }}
+              />
+              <span>
+                Keep me posted about offers and last-minute openings (optional, reply STOP anytime)
               </span>
             </label>
             {TURNSTILE_SITE_KEY ? <TurnstileWidget onToken={setTurnstileToken} /> : null}

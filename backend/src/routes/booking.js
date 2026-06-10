@@ -1422,7 +1422,7 @@ router.post('/:slug/validate-code', async (req, res) => {
  * Returning clients with a saved Stripe customer see their saved cards.
  */
 router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req, res) => {
-  const { treatment_id, extra_treatment_ids, starts_at, client_name, client_email, client_phone, notes, consultation, add_ons, payment_type, payment_method, discount_code, photo_consent, client_package_id } = req.body;
+  const { treatment_id, extra_treatment_ids, starts_at, client_name, client_email, client_phone, notes, consultation, add_ons, payment_type, payment_method, discount_code, photo_consent, client_package_id, marketing_opt_in } = req.body;
 
   // Get beautician from slug (include Stripe fields, booking policy, payment settings)
   const { data: beautician } = await supabase
@@ -1442,6 +1442,16 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     .single();
 
   if (!treatment) return res.status(404).json({ error: 'Treatment not found' });
+
+  // PECR: an existing client actively ticking the consent box upgrades their
+  // consent (never downgrades; leaving it unticked means "no change").
+  if (marketing_opt_in) {
+    supabase.from('clients')
+      .update({ marketing_consent: true, marketing_consent_at: new Date().toISOString(), marketing_opted_out_at: null })
+      .eq('beautician_id', beautician.id)
+      .ilike('phone', `%${String(client_phone || '').replace(/\D/g, '').slice(-9)}`)
+      .then(() => {}, () => {});
+  }
 
   // SECURITY: re-price add-ons from the DB. Never trust client-supplied price_cents —
   // a tampered request could otherwise set add-ons to 0p and underpay the deposit/total.
@@ -1551,7 +1561,9 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
         last_name: lastName,
         email: client_email || null,
         phone: client_phone,
-        status: 'new'
+        status: 'new',
+        // PECR: consent only when the box was actively ticked
+        ...(marketing_opt_in && { marketing_consent: true, marketing_consent_at: new Date().toISOString() }),
       })
       .select('id, stripe_customer_id')
       .single();

@@ -60,4 +60,102 @@ router.get('/messages', requireAuth, async (req, res) => {
   }
 });
 
+
+
+
+/**
+ * GET /api/usage/voice
+ * Voice-moat headline: of the replies that started as Florrie drafts in the
+ * last 30 days, how many went out untouched?
+ */
+router.get('/voice', requireAuth, async (req, res) => {
+  try {
+    const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+    const { data, error } = await supabase
+      .from('voice_metrics')
+      .select('untouched, similarity')
+      .eq('beautician_id', req.beautician.id)
+      .gte('created_at', since);
+    if (error) throw error;
+    const total = data?.length || 0;
+    const untouched = (data || []).filter((r) => r.untouched).length;
+    return res.json({
+      total,
+      untouched,
+      pct: total ? Math.round((untouched / total) * 100) : null,
+    });
+  } catch (err) {
+    logger.warn({ err }, 'voice stats failed');
+    return res.json({ total: 0, untouched: 0, pct: null });
+  }
+});
+
+/**
+ * GET /api/usage/value-receipt
+ * "Florrie found you £X this month": estimated money recovered by agentic
+ * actions month to date. Three honest parts:
+ *   gap_fill  appointments booked within 48h of a successful gap-fill offer
+ *   rebook    appointments booked within 7d of a rebook nudge
+ *   deposits  deposits actually collected on this month's bookings
+ */
+router.get('/value-receipt', requireAuth, async (req, res) => {
+  const bId = req.beautician.id;
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+  const monthIso = monthStart.toISOString();
+  try {
+    const [{ data: actions }, { data: appts }, { data: depositRows }] = await Promise.all([
+      supabase.from('ai_actions')
+        .select('action_type, client_id, created_at')
+        .eq('beautician_id', bId)
+        .gte('created_at', monthIso)
+        .or('action_type.like.gap_fill%,action_type.eq.rebook_nudge')
+        .not('client_id', 'is', null),
+      supabase.from('appointments')
+        .select('id, client_id, price_cents, created_at')
+        .eq('beautician_id', bId)
+        .gte('created_at', monthIso)
+        .neq('status', 'cancelled'),
+      supabase.from('appointments')
+        .select('deposit_cents')
+        .eq('beautician_id', bId)
+        .gte('created_at', monthIso)
+        .eq('deposit_paid', true),
+    ]);
+
+    const credited = new Set();
+    let gapFillPence = 0;
+    let rebookPence = 0;
+    for (const action of actions || []) {
+      const isGap = action.action_type.startsWith('gap_fill');
+      const windowMs = (isGap ? 48 : 168) * 3600 * 1000;
+      const t0 = new Date(action.created_at).getTime();
+      for (const appt of appts || []) {
+        if (appt.client_id !== action.client_id || credited.has(appt.id)) continue;
+        const dt = new Date(appt.created_at).getTime() - t0;
+        if (dt >= 0 && dt <= windowMs) {
+          credited.add(appt.id);
+          if (isGap) gapFillPence += Math.round((appt.price_cents || 0) / 1);
+          else rebookPence += Math.round((appt.price_cents || 0) / 1);
+        }
+      }
+    }
+    const depositsPence = (depositRows || []).reduce((sum, r) => sum + (r.deposit_cents || 0), 0);
+    return res.json({
+      month: monthIso.slice(0, 7),
+      total_pence: gapFillPence + rebookPence,
+      parts: {
+        gap_fill_pence: gapFillPence,
+        rebook_pence: rebookPence,
+        deposits_protected_pence: depositsPence,
+      },
+      counts: { credited_appointments: credited.size },
+    });
+  } catch (err) {
+    logger.warn({ err }, 'value receipt failed');
+    return res.json({ month: monthIso.slice(0, 7), total_pence: 0, parts: { gap_fill_pence: 0, rebook_pence: 0, deposits_protected_pence: 0 }, counts: { credited_appointments: 0 } });
+  }
+});
+
 export default router;

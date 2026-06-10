@@ -400,6 +400,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
+  const [draftOrigin, setDraftOrigin] = useState(null); // the Florrie draft this reply started from, for the voice metric
   const scrollerRef = useRef(null);
   const composerRef = useRef(null);
 
@@ -438,7 +439,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
     let cancelled = false;
     setSuggestions([]);
     authFetch(`/api/inbox/suggestions/${encodeURIComponent(clientId)}`)
-      .then(json => { if (!cancelled) setSuggestions(json.suggestions || []); })
+      .then(json => { if (!cancelled) { setSuggestions(json.suggestions || []); setDraftOrigin(null); } })
       .catch(() => { if (!cancelled) setSuggestions([]); });
     return () => { cancelled = true; };
   }, [state.status, state.messages, clientId]);
@@ -470,8 +471,9 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
     try {
       const res = await authFetch('/api/inbox/send', {
         method: 'POST',
-        body: JSON.stringify({ client_id: clientId, channel, body }),
+        body: JSON.stringify({ client_id: clientId, channel, body, draft_text: draftOrigin || undefined }),
       });
+      setDraftOrigin(null);
       // Swap the optimistic row for the real one.
       setState(prev => ({
         ...prev,
@@ -597,7 +599,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
                 <button
                   key={s.id}
                   type="button"
-                  onClick={() => { setComposer(s.text); composerRef.current?.focus(); }}
+                  onClick={() => { setComposer(s.text); setDraftOrigin(s.text); composerRef.current?.focus(); }}
                   style={S.suggestionChip}
                   title={s.text}
                 >

@@ -120,6 +120,8 @@ export const bookingSchema = z.object({
   // Cloudflare Turnstile token. validate() replaces req.body with the parsed
   // result BEFORE verifyTurnstile runs, so this must survive Zod's stripping.
   'cf-turnstile-response': z.string().max(4096).optional(),
+  // PECR: ticked consent box on the public booking form (optional, default off)
+  marketing_opt_in: z.boolean().optional().default(false),
   payment_type: z.enum(['deposit', 'full']).optional().default('deposit'),
   payment_method: z.enum(['card', 'cash', 'bank_transfer']).optional().default('card'),
   discount_code: z.preprocess(

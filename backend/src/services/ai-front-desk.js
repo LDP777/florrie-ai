@@ -62,6 +62,34 @@ export async function processInboundMessage(messageId, beautician, client, messa
   const startTime = Date.now();
 
   try {
+    // 0. PECR opt-out: STOP and friends are honoured instantly, on any channel,
+    // before any AI processing. Service messages (confirmations, reminders)
+    // still go out; marketing never does again (see lib/marketing-guard.js).
+    if (/^\s*(stop|unsubscribe|opt\s?-?out)\s*[.!]*\s*$/i.test(String(messageContent || ''))) {
+      await supabase.from('clients').update({
+        marketing_consent: false,
+        marketing_opted_out_at: new Date().toISOString(),
+      }).eq('id', client.id);
+      const confirmation = "No problem, you won't get any more promotional messages from us. Booking confirmations and reminders still come through. Reply here anytime to book.";
+      const sent = await sendResponse(beautician, client, confirmation, { intent: 'marketing_opt_out', confidence: 1.0 }, messageId);
+      try {
+        await supabase.from('ai_actions').insert({
+          beautician_id: beautician.id,
+          client_id: client?.id || null,
+          action_type: 'marketing_opt_out',
+          digital_employee: 'front_desk',
+          summary: `${client?.first_name || 'A client'} opted out of marketing messages, I've stopped offers and nudges to them`,
+          confidence: 1.0,
+          autonomous: true,
+          outcome: 'success',
+          notification_sent: false,
+        });
+      } catch (logErr) {
+        logger.warn({ err: logErr }, 'opt-out ai_action insert failed');
+      }
+      return { handled: sent, drafted: !sent, intent: 'marketing_opt_out', response: confirmation };
+    }
+
     // 1. Gather context
     const context = await gatherContext(beautician, client);
 

@@ -188,7 +188,7 @@ router.get('/thread/:client_id', requireAuth, async (req, res) => {
  * reply, regardless of which channel the conversation started on.
  */
 router.post('/send', requireAuth, async (req, res) => {
-  const { client_id, channel, body } = req.body || {};
+  const { client_id, channel, body, draft_text } = req.body || {};
 
   const result = await sendOnChannel({
     beautician: req.beautician,
@@ -205,8 +205,47 @@ router.post('/send', requireAuth, async (req, res) => {
     });
   }
 
+  // Voice-moat metric: if this reply started life as a Florrie draft, record
+  // how much of it survived. Fire and forget, never blocks the send.
+  recordVoiceMetric({ beauticianId: req.beautician.id, clientId: client_id, draft: draft_text, sent: body });
+
   res.json({ ok: true, message: result.message });
 });
+
+/** Normalised Levenshtein similarity, 0..1. Texts capped to keep it cheap. */
+function textSimilarity(a, b) {
+  const x = String(a).trim().slice(0, 600);
+  const y = String(b).trim().slice(0, 600);
+  if (x === y) return 1;
+  if (!x.length || !y.length) return 0;
+  const m = x.length, n = y.length;
+  let prev = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (x[i - 1] === y[j - 1] ? 0 : 1));
+    }
+    prev = cur;
+  }
+  return 1 - prev[n] / Math.max(m, n);
+}
+
+async function recordVoiceMetric({ beauticianId, clientId, draft, sent }) {
+  try {
+    if (!draft || !sent) return;
+    const similarity = textSimilarity(draft, sent);
+    await supabase.from('voice_metrics').insert({
+      beautician_id: beauticianId,
+      client_id: clientId || null,
+      draft_text: String(draft).slice(0, 2000),
+      sent_text: String(sent).slice(0, 2000),
+      similarity,
+      untouched: similarity >= 0.98,
+    });
+  } catch (err) {
+    logger.warn({ err }, 'voice metric insert failed');
+  }
+}
 
 /**
  * GET /api/inbox/suggestions/:client_id

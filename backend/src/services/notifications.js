@@ -6,6 +6,7 @@
  */
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
+import { isMarketingTemplate, isMarketingSmsType, canSendMarketing, findClientByPhone } from '../lib/marketing-guard.js';
 import { trackSMSUsage } from './sms-metering.js';
 import { checkWhatsAppQuota, trackWhatsAppMessage, trackSmsInMonthlyQuota } from './whatsapp-metering.js';
 
@@ -88,6 +89,15 @@ export async function sendSMS({ to, body, beauticianId, originator, messageType 
     return null;
   }
 
+  // PECR: marketing-class SMS respects opt-outs and quiet hours.
+  if (isMarketingSmsType(messageType)) {
+    const gate = await canSendMarketing(beauticianId, to);
+    if (!gate.allowed) {
+      logger.info({ messageType, reason: gate.reason, beauticianId }, 'Marketing SMS blocked by PECR guard');
+      return null;
+    }
+  }
+
   // Usage is metered only AFTER a confirmed send (see the success branch below),
   // so failed/rejected messages never count against the allowance or get billed.
   let usageInfo = null;
@@ -160,6 +170,7 @@ export async function sendSMS({ to, body, beauticianId, originator, messageType 
         await new Promise(resolve => setTimeout(resolve, retryDelay));
       } else {
         logger.error({ err, attempts: maxRetries + 1 }, 'SMS send failed after retries');
+        await logSendFailure({ beauticianId, to, channel: 'text message', detail: err?.message || err });
         return null;
       }
     }
@@ -255,6 +266,32 @@ async function resolvePersonalisedTemplate(templateName, wabaId) {
 }
 
 /**
+ * Surface a permanent send failure in "What Florrie did" so the beautician
+ * finds out from Florrie, in plain English, not from a confused client.
+ */
+async function logSendFailure({ beauticianId, to, channel, detail }) {
+  try {
+    if (!beauticianId) return;
+    const client = await findClientByPhone(beauticianId, to);
+    const who = client?.first_name || `the number ending ${String(to || '').replace(/\D/g, '').slice(-4)}`;
+    await supabase.from('ai_actions').insert({
+      beautician_id: beauticianId,
+      client_id: client?.id || null,
+      action_type: 'send_failed',
+      digital_employee: 'front_desk',
+      summary: `I couldn't reach ${who} on ${channel}, the message didn't go through`,
+      details: { channel, to_last4: String(to || '').replace(/\D/g, '').slice(-4), detail: String(detail || '').slice(0, 300) },
+      confidence: 1.0,
+      autonomous: true,
+      outcome: 'failure',
+      notification_sent: false,
+    });
+  } catch (err) {
+    logger.warn({ err }, 'logSendFailure insert failed');
+  }
+}
+
+/**
  * Send a WhatsApp template message (for booking confirmations, reminders etc.)
  * beauticianId is required — used to look up per-beautician phone_number_id and check quota.
  */
@@ -283,6 +320,15 @@ export async function sendWhatsApp({ to, templateName, templateParams, beauticia
   if (!phoneNumberId) {
     logger.debug({ beauticianId }, 'No WhatsApp phone_number_id, skipping');
     return null;
+  }
+
+  // PECR: marketing-class templates respect opt-outs and quiet hours.
+  if (isMarketingTemplate(templateName)) {
+    const gate = await canSendMarketing(beauticianId, to);
+    if (!gate.allowed) {
+      logger.info({ templateName, reason: gate.reason, beauticianId }, 'Marketing WhatsApp blocked by PECR guard');
+      return null;
+    }
   }
 
   // Resolve the language from the WABA that actually owns this sending phone.
@@ -334,6 +380,7 @@ export async function sendWhatsApp({ to, templateName, templateParams, beauticia
     }
   }
   logger.error({ err: lastErr, templateName, phoneNumberId, languagesTried: languages }, 'WhatsApp template send failed (all locales)');
+  await logSendFailure({ beauticianId, to, channel: 'WhatsApp', detail: lastErr?.message || JSON.stringify(lastErr || {}).slice(0, 200) });
   // Diagnostic: is the sending phone number actually on the env WABA whose templates we read?
   if (WA_WABA_ID && WA_TOKEN) {
     try {

@@ -1859,7 +1859,7 @@ router.post('/meta-templates/starter-pack', async (req, res) => {
             name: tpl.name,
             category: tpl.category,
             language: 'en',
-            components: buildTemplateComponents({ bodyText: tpl.body }),
+            components: buildTemplateComponents({ bodyText: tpl.body, footerText: tpl.category === 'MARKETING' ? 'Reply STOP to opt out' : undefined }),
           }),
         });
         const data = await r.json();
