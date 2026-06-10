@@ -4,27 +4,25 @@ import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
-import { templateDisplay, isClientTemplate } from '../lib/templates.js';
+import { templateDisplay, isClientTemplate, humanise, STARTER_NAMES } from '../lib/templates.js';
 
 /**
  * WhatsAppTemplates
  *
- * Manages Meta-side WhatsApp message templates on Florrie's shared WABA.
- * Distinct from /templates (Supabase-stored internal copy library). Each
- * action here calls Meta's Graph API, so it exercises the
- * whatsapp_business_management permission used in the App Review screencast.
+ * Manages the Meta-side WhatsApp templates on the WABA that owns the
+ * beautician's sending phone (resolved server-side, same as the send path).
+ *
+ * The page is built around one idea a beautician actually cares about:
+ * "what can Florrie send my clients, and does it sound like me?"
+ *  - Starter pack: one tap submits the five standard messages with the
+ *    salon's name written into every body.
+ *  - Templates are grouped by what they mean: Live / In review / Needs attention.
+ *  - Every template is shown as the WhatsApp bubble the client would see.
  */
 
 const CATEGORY_OPTIONS = [
-  { value: 'UTILITY', label: 'Utility (booking, reminders, receipts)' },
-  { value: 'MARKETING', label: 'Marketing (promos, offers, win-back)' },
-  { value: 'AUTHENTICATION', label: 'Authentication (one-time codes)' },
-];
-
-const LANGUAGE_OPTIONS = [
-  { value: 'en', label: 'English' },
-  { value: 'en_GB', label: 'English (UK)' },
-  { value: 'en_US', label: 'English (US)' },
+  { value: 'UTILITY', label: 'Booking admin (confirmations, reminders)' },
+  { value: 'MARKETING', label: 'Keeping in touch (offers, invites, hellos)' },
 ];
 
 async function apiFetch(path, options = {}) {
@@ -48,46 +46,47 @@ async function apiFetch(path, options = {}) {
   return json;
 }
 
-function statusStyle(status) {
+const STATUS_GROUPS = {
+  live: { title: 'Live', hint: 'Florrie can send these right now.' },
+  review: { title: 'In review', hint: 'Meta checks new templates, usually within a few hours.' },
+  attention: { title: 'Needs attention', hint: "Meta didn't approve these. Remove them or try different wording." },
+};
+
+function groupOf(status) {
   const s = (status || '').toUpperCase();
-  if (s === 'APPROVED') {
-    return { bg: '#E8F5E9', border: '#C8E6C9', color: '#2E7D32' };
-  }
-  if (s === 'REJECTED' || s === 'DISABLED' || s === 'PAUSED') {
-    return { bg: '#FDECEA', border: '#F5C6C0', color: '#8A2A1C' };
-  }
-  // PENDING_REVIEW, IN_APPEAL, anything else
-  return { bg: '#FFF8E1', border: '#FFE082', color: '#7B5E00' };
+  if (s === 'APPROVED') return 'live';
+  if (['REJECTED', 'DISABLED', 'PAUSED'].includes(s)) return 'attention';
+  return 'review';
 }
 
-function bodyPreview(components) {
-  if (!Array.isArray(components)) return '';
-  const body = components.find((c) => (c.type || '').toUpperCase() === 'BODY');
-  return body?.text || '';
+function chipStyle(group) {
+  if (group === 'live') return { background: 'var(--success-bg, #EDF7F0)', color: 'var(--success, #2E7D6B)' };
+  if (group === 'attention') return { background: 'var(--danger-bg, #ffdad6)', color: 'var(--danger, #8A2A1C)' };
+  return { background: '#FFF8E1', color: '#7B5E00' };
 }
 
-function headerPreview(components) {
-  if (!Array.isArray(components)) return '';
-  const header = components.find((c) => (c.type || '').toUpperCase() === 'HEADER');
-  return header?.text || '';
+function chipLabel(group) {
+  if (group === 'live') return 'Live';
+  if (group === 'attention') return 'Not approved';
+  return 'In review';
 }
 
-function footerPreview(components) {
-  if (!Array.isArray(components)) return '';
-  const footer = components.find((c) => (c.type || '').toUpperCase() === 'FOOTER');
-  return footer?.text || '';
+/** The little WhatsApp-style bubble preview every template gets. */
+function Bubble({ text }) {
+  if (!text) return null;
+  return (
+    <div style={styles.bubbleStrip}>
+      <div style={styles.bubble}>
+        {text}
+        <span style={styles.bubbleMeta}>12:30 ✓✓</span>
+      </div>
+    </div>
+  );
 }
 
 function TemplateCard({ template, onDelete, deleting }) {
-  const s = statusStyle(template.status);
   const { label, blurb, preview } = templateDisplay(template);
-  const status = (template.status || '').toUpperCase();
-  const statusLabel = status === 'APPROVED'
-    ? 'Ready to send'
-    : ['PENDING', 'PENDING_REVIEW', 'IN_APPEAL', 'SUBMITTED'].includes(status)
-      ? 'In review'
-      : 'Unavailable';
-
+  const group = groupOf(template.status);
   return (
     <div style={styles.card}>
       <div style={styles.cardHeader}>
@@ -95,32 +94,91 @@ function TemplateCard({ template, onDelete, deleting }) {
           <div style={styles.cardName}>{label}</div>
           {blurb && <div style={styles.cardBlurb}>{blurb}</div>}
         </div>
-        <span style={{
-          ...styles.statusBadge,
-          background: s.bg,
-          border: `1px solid ${s.border}`,
-          color: s.color,
-        }}>
-          {statusLabel}
-        </span>
+        <span style={{ ...styles.statusChip, ...chipStyle(group) }}>{chipLabel(group)}</span>
       </div>
-
-      {preview && (
-        <div style={styles.previewBlock}>
-          <div style={styles.previewBody}>{preview}</div>
-        </div>
-      )}
-
+      <Bubble text={preview} />
       <div style={styles.cardActions}>
         <button
           type="button"
           onClick={() => onDelete(template)}
           disabled={deleting}
-          style={styles.deleteBtn}
+          style={styles.removeBtn}
         >
-          {deleting ? 'Removing...' : 'Remove'}
+          {deleting ? 'Removing…' : 'Remove'}
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Starter pack card. Shown until all five personalised templates exist.
+ */
+function StarterPackCard({ pack, businessName, onSubmitted }) {
+  const [submitting, setSubmitting] = useState(false);
+  const [results, setResults] = useState(null);
+  const [error, setError] = useState(null);
+
+  const missing = pack.filter((t) => !t.existing_status);
+  if (missing.length === 0 && !results) return null;
+
+  async function submit() {
+    if (submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await apiFetch('/meta-templates/starter-pack', { method: 'POST' });
+      setResults(res.results || []);
+      onSubmitted();
+    } catch (err) {
+      logger.error('Starter pack failed:', err);
+      setError(err.message || 'Could not submit the starter pack, try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div style={styles.packCard}>
+      <div style={styles.packEyebrow}>Recommended</div>
+      <h2 style={styles.packTitle}>Sign every message with {businessName || 'your salon name'}</h2>
+      <p style={styles.packDesc}>
+        WhatsApp only shows your business name on your contact card, so the message itself
+        should say who it's from. This submits {missing.length === 1 ? 'the missing standard message' : `${missing.length} standard messages`} with
+        your name written in. Florrie switches over automatically once Meta approves them.
+      </p>
+
+      <div style={styles.packPreviews}>
+        {missing.slice(0, 2).map((t) => (
+          <Bubble key={t.name} text={humanise(t.body)} />
+        ))}
+        {missing.length > 2 && (
+          <div style={styles.packMore}>+ {missing.length - 2} more, same idea: confirmation, reminder, gap offer, rebook invite, quick hello</div>
+        )}
+      </div>
+
+      {error && <div style={styles.errorBox}>{error}</div>}
+
+      {results ? (
+        <div style={styles.packResults}>
+          {results.map((r) => (
+            <div key={r.name} style={styles.packResultRow}>
+              <span>{r.label}</span>
+              <span style={{
+                ...styles.statusChip,
+                ...(r.action === 'failed' ? chipStyle('attention') : chipStyle('review')),
+              }}>
+                {r.action === 'created' ? 'Sent for review' : r.action === 'skipped' ? 'Already there' : 'Failed'}
+              </span>
+            </div>
+          ))}
+          <div style={styles.packNote}>Meta usually approves within a few hours. Nothing else to do.</div>
+        </div>
+      ) : (
+        <button type="button" onClick={submit} disabled={submitting} style={styles.packBtn}>
+          {submitting ? 'Submitting to Meta…' : `Submit ${missing.length === 1 ? 'it' : `all ${missing.length}`} for review`}
+        </button>
+      )}
     </div>
   );
 }
@@ -128,10 +186,7 @@ function TemplateCard({ template, onDelete, deleting }) {
 function CreateModal({ open, onClose, onCreated }) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState('UTILITY');
-  const [language, setLanguage] = useState('en');
   const [bodyText, setBodyText] = useState('');
-  const [headerText, setHeaderText] = useState('');
-  const [footerText, setFooterText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -139,20 +194,15 @@ function CreateModal({ open, onClose, onCreated }) {
     if (!open) {
       setName('');
       setCategory('UTILITY');
-      setLanguage('en');
       setBodyText('');
-      setHeaderText('');
-      setFooterText('');
       setSubmitting(false);
       setError(null);
     }
   }, [open]);
 
   function handleNameChange(e) {
-    // Auto-normalise to Meta's naming rules: lowercase, underscores instead
-    // of spaces, strip anything that isn't a letter, number, or underscore.
-    const raw = e.target.value;
-    const normalised = raw
+    // Meta naming rules: lowercase, underscores, nothing fancy.
+    const normalised = e.target.value
       .toLowerCase()
       .replace(/\s+/g, '_')
       .replace(/[^a-z0-9_]/g, '');
@@ -163,15 +213,8 @@ function CreateModal({ open, onClose, onCreated }) {
     e.preventDefault();
     if (submitting) return;
     setError(null);
-
-    if (!name.trim()) {
-      setError('Name is required.');
-      return;
-    }
-    if (!bodyText.trim()) {
-      setError('Body text is required.');
-      return;
-    }
+    if (!name.trim()) { setError('Give it a short name.'); return; }
+    if (!bodyText.trim()) { setError('Write the message first.'); return; }
 
     setSubmitting(true);
     try {
@@ -180,17 +223,15 @@ function CreateModal({ open, onClose, onCreated }) {
         body: JSON.stringify({
           name: name.trim(),
           category,
-          language,
+          language: 'en',
           body_text: bodyText.trim(),
-          header_text: headerText.trim() || undefined,
-          footer_text: footerText.trim() || undefined,
         }),
       });
       onCreated();
       onClose();
     } catch (err) {
       logger.error('Create template failed:', err);
-      setError(err.message || 'Could not create template, try again.');
+      setError(err.message || 'Could not create the template, try again.');
     } finally {
       setSubmitting(false);
     }
@@ -202,119 +243,67 @@ function CreateModal({ open, onClose, onCreated }) {
     <div style={styles.modalBackdrop} onClick={onClose}>
       <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
         <div style={styles.modalHeader}>
-          <h2 style={styles.modalTitle}>Create WhatsApp template</h2>
-          <button type="button" onClick={onClose} style={styles.modalClose} aria-label="Close">
-            &times;
-          </button>
+          <h2 style={styles.modalTitle}>New template</h2>
+          <button type="button" onClick={onClose} style={styles.modalClose} aria-label="Close">&times;</button>
         </div>
 
         <form onSubmit={handleSubmit} style={styles.modalBody}>
           <div style={styles.fieldGroup}>
-            <label style={styles.label}>Template name</label>
+            <label style={styles.label}>Name</label>
             <input
               type="text"
               value={name}
               onChange={handleNameChange}
-              placeholder="booking_confirmation"
+              placeholder="aftercare_check_in"
               style={styles.input}
               disabled={submitting}
               autoFocus
             />
-            <div style={styles.helper}>
-              Lowercase, no spaces. Spaces become underscores automatically.
-            </div>
-          </div>
-
-          <div style={styles.row}>
-            <div style={{ ...styles.fieldGroup, flex: 1 }}>
-              <label style={styles.label}>Category</label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                style={styles.input}
-                disabled={submitting}
-              >
-                {CATEGORY_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ ...styles.fieldGroup, flex: 1 }}>
-              <label style={styles.label}>Language</label>
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                style={styles.input}
-                disabled={submitting}
-              >
-                {LANGUAGE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
+            <div style={styles.helper}>Just for you, clients never see it. Spaces become underscores.</div>
           </div>
 
           <div style={styles.fieldGroup}>
-            <label style={styles.label}>Header (optional)</label>
-            <input
-              type="text"
-              value={headerText}
-              onChange={(e) => setHeaderText(e.target.value)}
-              placeholder="Booking confirmed"
+            <label style={styles.label}>What's it for?</label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
               style={styles.input}
               disabled={submitting}
-              maxLength={60}
-            />
+            >
+              {CATEGORY_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
           </div>
 
           <div style={styles.fieldGroup}>
-            <label style={styles.label}>Body</label>
+            <label style={styles.label}>Message</label>
             <textarea
               value={bodyText}
               onChange={(e) => setBodyText(e.target.value)}
-              placeholder="Hi {{1}}, your appointment is confirmed for {{2}} at {{3}}."
-              style={{ ...styles.input, minHeight: 120, fontFamily: 'inherit', resize: 'vertical' }}
+              placeholder={"Hi {{1}}! It's Ellindigo 🌸 Just checking in after your appointment…"}
+              style={{ ...styles.input, minHeight: 110, fontFamily: 'inherit', resize: 'vertical' }}
               disabled={submitting}
               maxLength={1024}
             />
             <div style={styles.helper}>
-              Use double-curly placeholders like {'{{1}}'}, {'{{2}}'} for dynamic fields.
+              {'{{1}}'} fills in the client's name when it sends. Tip: open with who you are, names don't always show on WhatsApp.
             </div>
           </div>
 
-          <div style={styles.fieldGroup}>
-            <label style={styles.label}>Footer (optional)</label>
-            <input
-              type="text"
-              value={footerText}
-              onChange={(e) => setFooterText(e.target.value)}
-              placeholder="Reply STOP to opt out"
-              style={styles.input}
-              disabled={submitting}
-              maxLength={60}
-            />
-          </div>
-
-          {error && (
-            <div style={styles.errorBox}>{error}</div>
+          {bodyText.trim() && (
+            <div style={styles.fieldGroup}>
+              <label style={styles.label}>Your client sees</label>
+              <Bubble text={humanise(bodyText)} />
+            </div>
           )}
 
+          {error && <div style={styles.errorBox}>{error}</div>}
+
           <div style={styles.modalFooter}>
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={submitting}
-              style={styles.cancelBtn}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              style={styles.submitBtn}
-            >
-              {submitting ? 'Submitting to Meta...' : 'Submit for review'}
+            <button type="button" onClick={onClose} disabled={submitting} style={styles.cancelBtn}>Cancel</button>
+            <button type="submit" disabled={submitting} style={styles.submitBtn}>
+              {submitting ? 'Submitting to Meta…' : 'Submit for review'}
             </button>
           </div>
         </form>
@@ -325,6 +314,8 @@ function CreateModal({ open, onClose, onCreated }) {
 
 export default function WhatsAppTemplates() {
   const [templates, setTemplates] = useState([]);
+  const [waba, setWaba] = useState(null);
+  const [starter, setStarter] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -334,8 +325,13 @@ export default function WhatsAppTemplates() {
     setLoading(true);
     setError(null);
     try {
-      const data = await apiFetch('/meta-templates');
+      const [data, pack] = await Promise.all([
+        apiFetch('/meta-templates'),
+        apiFetch('/meta-templates/starter-pack').catch(() => null),
+      ]);
       setTemplates(Array.isArray(data.templates) ? data.templates : []);
+      setWaba(data.waba || null);
+      setStarter(pack);
     } catch (err) {
       logger.error('Load templates failed:', err);
       setError(err.message || 'Could not load templates.');
@@ -344,12 +340,10 @@ export default function WhatsAppTemplates() {
     }
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   async function handleDelete(template) {
-    const ok = confirm(`Delete the "${template.name}" template? This removes every language variant. Messages already sent stay in your clients chat history.`);
+    const ok = confirm(`Remove "${templateDisplay(template).label}"? Messages already sent stay in your clients' chats.`);
     if (!ok) return;
     setDeletingName(template.name);
     try {
@@ -357,11 +351,19 @@ export default function WhatsAppTemplates() {
       await load();
     } catch (err) {
       logger.error('Delete template failed:', err);
-      alert(err.message || 'Could not delete template, try again.');
+      alert(err.message || 'Could not remove it, try again.');
     } finally {
       setDeletingName(null);
     }
   }
+
+  const visible = templates.filter((t) => isClientTemplate(t.name));
+  // When a personalised _v3 exists, hide its _v2 twin: one card per message,
+  // and the personalised one is the truth of what Florrie sends.
+  const names = new Set(visible.map((t) => t.name));
+  const deduped = visible.filter((t) => !(STARTER_NAMES.includes(`${t.name.replace(/_v2$/, '_v3')}`) && /_v2$/.test(t.name) && names.has(t.name.replace(/_v2$/, '_v3'))));
+  const grouped = { live: [], review: [], attention: [] };
+  for (const t of deduped) grouped[groupOf(t.status)].push(t);
 
   return (
     <div style={styles.page}>
@@ -371,20 +373,14 @@ export default function WhatsAppTemplates() {
             <Link to="/whatsapp" style={styles.crumbLink}>&larr; WhatsApp Business</Link>
           </div>
           <h1 style={styles.title}>Message templates</h1>
+          <p style={styles.subtitle}>
+            The pre-approved messages Florrie can send anytime, even when a client
+            hasn't texted you in over 24 hours (a WhatsApp rule, not ours).
+          </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setModalOpen(true)}
-          style={styles.primaryBtn}
-        >
-          + Create new template
+        <button type="button" onClick={() => setModalOpen(true)} style={styles.primaryBtn}>
+          + New template
         </button>
-      </div>
-
-      <div style={styles.explainer}>
-        Ready-made messages you can send to a client anytime, even if they
-        haven't messaged you in the last 24 hours. New ones are checked before
-        they go live, which usually takes a few hours.
       </div>
 
       {loading && <PageLoader />}
@@ -393,159 +389,198 @@ export default function WhatsAppTemplates() {
         <div style={styles.errorBanner}>
           <div style={{ fontWeight: 600, marginBottom: 4 }}>Could not load templates</div>
           <div style={{ fontSize: 13 }}>{error}</div>
-          <button
-            type="button"
-            onClick={load}
-            style={{ ...styles.cancelBtn, marginTop: 10 }}
-          >
-            Try again
-          </button>
+          <button type="button" onClick={load} style={{ ...styles.cancelBtn, marginTop: 10 }}>Try again</button>
         </div>
       )}
 
-      {!loading && !error && templates.length === 0 && (
-        <div style={styles.emptyState}>
-          <div style={styles.emptyIcon}>?</div>
-          <div style={styles.emptyTitle}>No templates yet</div>
-          <div style={styles.emptyDesc}>
-            Create your first template to send proactive messages, like booking
-            confirmations and reminders, outside the 24-hour window.
-          </div>
-          <button
-            type="button"
-            onClick={() => setModalOpen(true)}
-            style={{ ...styles.primaryBtn, marginTop: 16 }}
-          >
-            + Create your first template
-          </button>
-        </div>
-      )}
-
-      {!loading && !error && templates.length > 0 && (
-        <div style={styles.list}>
-          {templates.filter((t) => isClientTemplate(t.name)).map((t) => (
-            <TemplateCard
-              key={`${t.name}__${t.language}`}
-              template={t}
-              onDelete={handleDelete}
-              deleting={deletingName === t.name}
+      {!loading && !error && (
+        <>
+          {starter?.pack && (
+            <StarterPackCard
+              pack={starter.pack}
+              businessName={starter.business_name}
+              onSubmitted={load}
             />
+          )}
+
+          {deduped.length === 0 && (
+            <div style={styles.emptyState}>
+              <div style={styles.emptyTitle}>No templates yet</div>
+              <div style={styles.emptyDesc}>
+                Start with the pack above, it covers confirmations, reminders and
+                rebooking invites, all signed with your name.
+              </div>
+            </div>
+          )}
+
+          {['live', 'review', 'attention'].map((g) => (
+            grouped[g].length > 0 && (
+              <section key={g} style={styles.section}>
+                <div style={styles.sectionHeader}>
+                  <h2 style={styles.sectionTitle}>{STATUS_GROUPS[g].title}</h2>
+                  <span style={styles.sectionHint}>{STATUS_GROUPS[g].hint}</span>
+                </div>
+                <div style={styles.list}>
+                  {grouped[g].map((t) => (
+                    <TemplateCard
+                      key={`${t.name}__${t.language}`}
+                      template={t}
+                      onDelete={handleDelete}
+                      deleting={deletingName === t.name}
+                    />
+                  ))}
+                </div>
+              </section>
+            )
           ))}
-        </div>
+        </>
       )}
 
-      <CreateModal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onCreated={load}
-      />
+      <CreateModal open={modalOpen} onClose={() => setModalOpen(false)} onCreated={load} />
     </div>
   );
 }
 
 const styles = {
   page: {
-    padding: '16px 16px 24px',
+    padding: '16px 16px 32px',
     maxWidth: 720,
     margin: '0 auto',
-    fontFamily: '"DM Sans", -apple-system, sans-serif',
-    color: 'var(--text, #2D2A26)',
+    fontFamily: 'var(--font-body, "Plus Jakarta Sans", sans-serif)',
+    color: 'var(--text-primary, #241B17)',
   },
   header: {
     display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
+    alignItems: 'flex-start',
     gap: 12,
-    marginBottom: 16,
+    marginBottom: 18,
     flexWrap: 'wrap',
   },
   crumb: { marginBottom: 4 },
   crumbLink: {
     fontSize: 12,
-    color: 'var(--text-muted, #AAA5A0)',
+    color: 'var(--text-muted, #8A7A72)',
     textDecoration: 'none',
     fontWeight: 500,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 700,
-    color: 'var(--text, #2D2A26)',
+    fontSize: 26,
+    fontWeight: 600,
     margin: 0,
-    fontFamily: '"Playfair Display", Georgia, serif',
+    fontFamily: 'var(--font-display, "Fraunces", Georgia, serif)',
+  },
+  subtitle: {
+    fontSize: 13.5,
+    lineHeight: 1.55,
+    color: 'var(--text-secondary, #4D423D)',
+    margin: '6px 0 0',
+    maxWidth: 440,
   },
   primaryBtn: {
     padding: '10px 16px',
-    borderRadius: 10,
+    borderRadius: 999,
     border: 'none',
     background: 'var(--accent, #92405e)',
     color: '#fff',
     fontSize: 13,
-    fontWeight: 600,
+    fontWeight: 700,
     cursor: 'pointer',
     fontFamily: 'inherit',
-    boxShadow: '0 1px 3px rgba(146, 64, 94, 0.2)',
+    boxShadow: 'var(--shadow-sm, 0 1px 3px rgba(146,64,94,.15))',
+    whiteSpace: 'nowrap',
   },
-  explainer: {
-    background: 'var(--bg-card, #fff)',
-    borderRadius: 12,
-    padding: '12px 14px',
-    border: '1px solid var(--border, #F0ECE8)',
-    fontSize: 13,
-    lineHeight: 1.55,
-    color: 'var(--text-secondary, #8B6F5E)',
-    marginBottom: 16,
+
+  // Starter pack
+  packCard: {
+    background: 'var(--accent-light, #F6E7EC)',
+    border: '1px solid var(--border, #ECD5DD)',
+    borderRadius: 18,
+    padding: '18px 18px 16px',
+    marginBottom: 22,
   },
-  errorBanner: {
-    background: '#FDECEA',
-    border: '1px solid #F5C6C0',
-    borderRadius: 12,
-    padding: 14,
-    color: '#8A2A1C',
-    marginBottom: 12,
-  },
-  emptyState: {
-    background: 'var(--bg-card, #fff)',
-    border: '1px dashed var(--border, #E8E4E0)',
-    borderRadius: 14,
-    padding: 32,
-    textAlign: 'center',
-  },
-  emptyIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    background: 'var(--bg, #FAF8F5)',
+  packEyebrow: {
+    fontSize: 10.5,
+    fontWeight: 800,
+    letterSpacing: '0.16em',
+    textTransform: 'uppercase',
     color: 'var(--accent, #92405e)',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: 22,
+    marginBottom: 8,
+  },
+  packTitle: {
+    fontSize: 19,
+    fontWeight: 600,
+    margin: '0 0 6px',
+    fontFamily: 'var(--font-display, "Fraunces", Georgia, serif)',
+  },
+  packDesc: {
+    fontSize: 13.5,
+    lineHeight: 1.6,
+    color: 'var(--text-secondary, #4D423D)',
+    margin: '0 0 14px',
+  },
+  packPreviews: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 },
+  packMore: {
+    fontSize: 12,
+    color: 'var(--text-muted, #8A7A72)',
+    paddingLeft: 4,
+  },
+  packBtn: {
+    width: '100%',
+    padding: '13px 16px',
+    borderRadius: 12,
+    border: 'none',
+    background: 'var(--accent, #92405e)',
+    color: '#fff',
+    fontSize: 14,
     fontWeight: 700,
-    marginBottom: 12,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
   },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: 700,
-    color: 'var(--text, #2D2A26)',
-    marginBottom: 6,
+  packResults: {
+    background: 'var(--bg-card, #fff)',
+    borderRadius: 12,
+    padding: '6px 12px',
   },
-  emptyDesc: {
-    fontSize: 13,
-    color: 'var(--text-secondary, #8B6F5E)',
-    lineHeight: 1.55,
-    maxWidth: 380,
-    margin: '0 auto',
-  },
-  list: {
+  packResultRow: {
     display: 'flex',
-    flexDirection: 'column',
-    gap: 10,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '8px 0',
+    fontSize: 13.5,
+    fontWeight: 600,
   },
+  packNote: {
+    fontSize: 12,
+    color: 'var(--text-muted, #8A7A72)',
+    padding: '8px 0 6px',
+    borderTop: '1px solid var(--border-light, #ede7e3)',
+  },
+
+  // Sections
+  section: { marginBottom: 22 },
+  sectionHeader: {
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: 10,
+    marginBottom: 10,
+    flexWrap: 'wrap',
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: 700,
+    margin: 0,
+  },
+  sectionHint: { fontSize: 12, color: 'var(--text-muted, #8A7A72)' },
+  list: { display: 'flex', flexDirection: 'column', gap: 10 },
+
+  // Cards
   card: {
     background: 'var(--bg-card, #fff)',
-    borderRadius: 14,
-    border: '1px solid var(--border, #F0ECE8)',
+    borderRadius: 16,
+    border: '1px solid var(--border-light, #ede7e3)',
     padding: 14,
+    boxShadow: 'var(--shadow-xs, 0 1px 2px rgba(146,64,94,.04))',
   },
   cardHeader: {
     display: 'flex',
@@ -553,91 +588,98 @@ const styles = {
     gap: 12,
     marginBottom: 10,
   },
-  cardName: {
-    fontSize: 16,
-    fontWeight: 700,
-    color: 'var(--text, #2D2A26)',
-  },
-  cardBlurb: {
-    fontSize: 13,
-    color: 'var(--text-secondary, #8B6F5E)',
-    marginTop: 2,
-  },
-  cardMeta: {
-    display: 'flex',
-    gap: 6,
-    flexWrap: 'wrap',
-    marginTop: 4,
-  },
-  metaPill: {
+  cardName: { fontSize: 15.5, fontWeight: 700 },
+  cardBlurb: { fontSize: 12.5, color: 'var(--text-muted, #8A7A72)', marginTop: 2 },
+  statusChip: {
     fontSize: 11,
-    fontWeight: 500,
-    padding: '2px 8px',
-    borderRadius: 6,
-    background: 'var(--border, #F0ECE8)',
-    color: 'var(--text-secondary, #8B6F5E)',
-    letterSpacing: '0.02em',
-  },
-  statusBadge: {
-    fontSize: 10,
     fontWeight: 700,
-    padding: '4px 8px',
-    borderRadius: 6,
-    letterSpacing: '0.04em',
+    padding: '4px 10px',
+    borderRadius: 999,
     whiteSpace: 'nowrap',
   },
-  previewBlock: {
-    background: 'var(--bg, #FAF8F5)',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 10,
-    border: '1px solid var(--border, #F0ECE8)',
+
+  // WhatsApp bubble preview
+  bubbleStrip: {
+    background: '#EAE2DA',
+    borderRadius: 12,
+    padding: '10px 12px',
   },
-  previewHeader: {
+  bubble: {
+    background: '#DCF8C6',
+    borderRadius: '12px 12px 4px 12px',
+    padding: '8px 10px',
     fontSize: 13,
-    fontWeight: 700,
-    color: 'var(--text, #2D2A26)',
-    marginBottom: 6,
-  },
-  previewBody: {
-    fontSize: 13,
-    lineHeight: 1.55,
-    color: 'var(--text, #2D2A26)',
+    lineHeight: 1.5,
+    color: '#1d1b19',
+    maxWidth: '92%',
+    marginLeft: 'auto',
     whiteSpace: 'pre-wrap',
+    boxShadow: '0 1px 1px rgba(0,0,0,.06)',
   },
-  previewFooter: {
-    fontSize: 11,
-    color: 'var(--text-muted, #AAA5A0)',
-    marginTop: 8,
-    fontStyle: 'italic',
+  bubbleMeta: {
+    display: 'inline-block',
+    fontSize: 10,
+    color: 'rgba(29,27,25,.45)',
+    marginLeft: 8,
+    transform: 'translateY(1px)',
   },
-  cardActions: {
-    display: 'flex',
-    justifyContent: 'flex-end',
-    gap: 8,
-  },
-  deleteBtn: {
-    padding: '7px 12px',
+
+  cardActions: { display: 'flex', justifyContent: 'flex-end', marginTop: 10 },
+  removeBtn: {
+    padding: '6px 12px',
     borderRadius: 8,
-    border: '1px solid #F5C6C0',
-    background: '#fff',
-    color: '#8A2A1C',
+    border: '1px solid var(--border-light, #ede7e3)',
+    background: 'transparent',
+    color: 'var(--text-muted, #8A7A72)',
     fontSize: 12,
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
   },
 
+  errorBanner: {
+    background: 'var(--danger-bg, #ffdad6)',
+    border: '1px solid #F5C6C0',
+    borderRadius: 12,
+    padding: 14,
+    color: '#8A2A1C',
+    marginBottom: 12,
+  },
+  errorBox: {
+    background: 'var(--danger-bg, #ffdad6)',
+    border: '1px solid #F5C6C0',
+    borderRadius: 10,
+    padding: 10,
+    fontSize: 13,
+    color: '#8A2A1C',
+    marginBottom: 10,
+  },
+  emptyState: {
+    background: 'var(--bg-card, #fff)',
+    border: '1px dashed var(--border, #ECD5DD)',
+    borderRadius: 16,
+    padding: 28,
+    textAlign: 'center',
+    marginBottom: 22,
+  },
+  emptyTitle: { fontSize: 16, fontWeight: 700, marginBottom: 6 },
+  emptyDesc: {
+    fontSize: 13,
+    color: 'var(--text-secondary, #4D423D)',
+    lineHeight: 1.55,
+    maxWidth: 380,
+    margin: '0 auto',
+  },
+
   // Modal
   modalBackdrop: {
     position: 'fixed',
     inset: 0,
-    background: 'rgba(45, 42, 38, 0.45)',
+    background: 'var(--overlay, rgba(29,27,25,.3))',
     display: 'flex',
     alignItems: 'flex-end',
     justifyContent: 'center',
     zIndex: 1000,
-    padding: 0,
   },
   modal: {
     background: 'var(--bg-card, #fff)',
@@ -652,82 +694,47 @@ const styles = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '16px 20px 8px',
-    borderBottom: '1px solid var(--border, #F0ECE8)',
+    padding: '16px 20px 10px',
+    borderBottom: '1px solid var(--border-light, #ede7e3)',
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: 700,
-    color: 'var(--text, #2D2A26)',
+    fontWeight: 600,
     margin: 0,
-    fontFamily: '"Playfair Display", Georgia, serif',
+    fontFamily: 'var(--font-display, "Fraunces", Georgia, serif)',
   },
   modalClose: {
     border: 'none',
     background: 'none',
     fontSize: 28,
     lineHeight: 1,
-    color: 'var(--text-muted, #AAA5A0)',
+    color: 'var(--text-muted, #8A7A72)',
     cursor: 'pointer',
     padding: 4,
   },
-  modalBody: {
-    padding: 20,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 14,
-  },
-  modalFooter: {
-    display: 'flex',
-    justifyContent: 'flex-end',
-    gap: 8,
-    marginTop: 8,
-  },
-  fieldGroup: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 6,
-  },
-  row: {
-    display: 'flex',
-    gap: 10,
-    flexWrap: 'wrap',
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: 600,
-    color: 'var(--text-secondary, #8B6F5E)',
-  },
+  modalBody: { padding: 20, display: 'flex', flexDirection: 'column', gap: 14 },
+  modalFooter: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 },
+  fieldGroup: { display: 'flex', flexDirection: 'column', gap: 6 },
+  label: { fontSize: 12, fontWeight: 700, color: 'var(--text-secondary, #4D423D)' },
   input: {
     width: '100%',
     padding: '11px 12px',
     borderRadius: 10,
-    border: '1.5px solid var(--border, #E8E4E0)',
+    border: '1.5px solid var(--border, #ECD5DD)',
     fontSize: 14,
     fontFamily: 'inherit',
-    color: 'var(--text, #2D2A26)',
-    background: 'var(--bg, #FAF8F5)',
+    color: 'var(--text-primary, #241B17)',
+    background: 'var(--bg-input, #f8f2ef)',
     outline: 'none',
     boxSizing: 'border-box',
   },
-  helper: {
-    fontSize: 11,
-    color: 'var(--text-muted, #AAA5A0)',
-  },
-  errorBox: {
-    background: '#FDECEA',
-    border: '1px solid #F5C6C0',
-    borderRadius: 10,
-    padding: 10,
-    fontSize: 13,
-    color: '#8A2A1C',
-  },
+  helper: { fontSize: 11.5, color: 'var(--text-muted, #8A7A72)', lineHeight: 1.5 },
   cancelBtn: {
     padding: '10px 16px',
     borderRadius: 10,
-    border: '1px solid var(--border, #E8E4E0)',
-    background: 'var(--bg, #FAF8F5)',
-    color: 'var(--text-secondary, #8B6F5E)',
+    border: '1px solid var(--border, #ECD5DD)',
+    background: 'var(--bg, #FBF6F1)',
+    color: 'var(--text-secondary, #4D423D)',
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
@@ -740,9 +747,8 @@ const styles = {
     background: 'var(--accent, #92405e)',
     color: '#fff',
     fontSize: 13,
-    fontWeight: 600,
+    fontWeight: 700,
     cursor: 'pointer',
     fontFamily: 'inherit',
-    boxShadow: '0 1px 3px rgba(146, 64, 94, 0.25)',
   },
 };

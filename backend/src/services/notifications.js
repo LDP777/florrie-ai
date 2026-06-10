@@ -215,10 +215,12 @@ async function resolveTemplateLanguage(templateName, wabaId) {
       const data = await r.json();
       if (r.ok && Array.isArray(data?.data)) {
         const map = {};
+        const approved = new Set();
         for (const t of data.data) {
           if (!map[t.name] || t.status === 'APPROVED') map[t.name] = t.language;
+          if (t.status === 'APPROVED') approved.add(t.name);
         }
-        _tplLangCache.set(waba, { map, at: Date.now() });
+        _tplLangCache.set(waba, { map, approved, at: Date.now() });
         logger.info(
           { waba, templates: data.data.map((t) => `${t.name}:${t.language}:${t.status}`) },
           'resolveTemplateLanguage: template list loaded'
@@ -232,6 +234,24 @@ async function resolveTemplateLanguage(templateName, wabaId) {
   }
   const entry = _tplLangCache.get(waba);
   return entry ? entry.map[templateName] || null : null;
+}
+
+/**
+ * Prefer a personalised _v3 template (salon name baked into the body via the
+ * starter pack) when one is APPROVED on the sending WABA. Falls back to the
+ * requested _v2 name so nothing breaks while v3s are still in review.
+ */
+async function resolvePersonalisedTemplate(templateName, wabaId) {
+  if (!/_v2$/.test(templateName)) return templateName;
+  const upgraded = templateName.replace(/_v2$/, '_v3');
+  await resolveTemplateLanguage(upgraded, wabaId); // warms the per-WABA cache
+  const waba = wabaId || WA_WABA_ID;
+  const hit = _tplLangCache.get(waba);
+  if (hit?.approved?.has(upgraded)) {
+    logger.info({ templateName, upgraded, waba }, 'sendWhatsApp: using personalised template');
+    return upgraded;
+  }
+  return templateName;
 }
 
 /**
@@ -267,6 +287,8 @@ export async function sendWhatsApp({ to, templateName, templateParams, beauticia
 
   // Resolve the language from the WABA that actually owns this sending phone.
   const sendingWaba = await getPhoneParentWaba(phoneNumberId);
+  // Personalised _v3 templates (salon name in the body) win when approved.
+  templateName = await resolvePersonalisedTemplate(templateName, sendingWaba);
   const resolvedLang = await resolveTemplateLanguage(templateName, sendingWaba);
   const languages = [...new Set([resolvedLang, 'en_GB', 'en', 'en_US'].filter(Boolean))];
   logger.info({ templateName, phoneNumberId, sendingWaba, resolvedLang, languages }, 'sendWhatsApp: locale candidates');

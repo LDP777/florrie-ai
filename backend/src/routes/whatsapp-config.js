@@ -1537,6 +1537,94 @@ router.post('/test-email', async (req, res) => {
 });
 
 /**
+ * ─── Template WABA resolution ───
+ * env WABA_ID can point at Florrie's sandbox WABA, but a beautician's
+ * templates live on the WABA that owns THEIR sending phone (the send path
+ * already resolves this). Template management must look at the same WABA.
+ */
+const _tplWabaCache = new Map();
+async function resolveTemplateWaba(beauticianId) {
+  const hit = _tplWabaCache.get(beauticianId);
+  if (hit && Date.now() - hit.at < 30 * 60 * 1000) return hit.val;
+  let val = { wabaId: WABA_ID, wabaName: null, source: 'env' };
+  try {
+    const { data: b } = await supabase
+      .from('beauticians')
+      .select('whatsapp_phone_id')
+      .eq('id', beauticianId)
+      .single();
+    if (b?.whatsapp_phone_id) {
+      const r = await fetch(
+        `${GRAPH}/${b.whatsapp_phone_id}?fields=whatsapp_business_account{id,name}`,
+        { headers: metaHeaders() }
+      );
+      const data = await r.json();
+      if (r.ok && data?.whatsapp_business_account?.id) {
+        val = {
+          wabaId: data.whatsapp_business_account.id,
+          wabaName: data.whatsapp_business_account.name || null,
+          source: 'phone',
+        };
+      }
+    }
+  } catch (err) {
+    logger.warn({ err, beauticianId }, 'resolveTemplateWaba failed, falling back to env WABA');
+  }
+  _tplWabaCache.set(beauticianId, { val, at: Date.now() });
+  return val;
+}
+
+/**
+ * Build Meta template components from plain text fields, attaching the
+ * example values Meta requires for every {{n}} placeholder.
+ */
+function buildTemplateComponents({ headerText, bodyText, footerText }) {
+  const sampleValues = ['Sarah', 'Friday 6 June', '2pm', 'Brow Lamination', 'Monday', '10am'];
+  const placeholderCount = (t) => {
+    const nums = [...String(t).matchAll(/\{\{\s*(\d+)\s*\}\}/g)].map((m) => parseInt(m[1], 10));
+    return nums.length ? Math.max(...nums) : 0;
+  };
+  const exampleList = (n) => Array.from({ length: n }, (_, i) => sampleValues[i] || `Example ${i + 1}`);
+  const components = [];
+  if (headerText) {
+    const hc = { type: 'HEADER', format: 'TEXT', text: headerText };
+    const hn = placeholderCount(headerText);
+    if (hn > 0) hc.example = { header_text: exampleList(hn) };
+    components.push(hc);
+  }
+  const bodyComp = { type: 'BODY', text: bodyText };
+  const bn = placeholderCount(bodyText);
+  if (bn > 0) bodyComp.example = { body_text: [exampleList(bn)] };
+  components.push(bodyComp);
+  if (footerText) components.push({ type: 'FOOTER', text: footerText });
+  return components;
+}
+
+/**
+ * The personalised starter pack: the five standard templates Florrie sends,
+ * with the salon's own name written into every body so clients always know
+ * who is messaging them (display names only show on the contact card, the
+ * message itself is what people read). Placeholder counts MUST match what
+ * the senders in notifications.js / gap-fill-engine.js / automations.js /
+ * autonomous-scheduler.js pass for the matching _v2 names.
+ */
+function starterPackFor(businessName) {
+  const biz = String(businessName || '').trim() || 'your salon';
+  return [
+    { name: 'booking_confirmation_v3', category: 'UTILITY', label: 'Booking confirmation',
+      body: `Hi {{1}}! It's ${biz} 🌸 Your appointment is confirmed for {{2}} at {{3}}. Reply here if anything needs changing. See you then!` },
+    { name: 'reminder_24h_v3', category: 'UTILITY', label: '24-hour reminder',
+      body: `Hi {{1}}, it's ${biz}! A little reminder that your {{2}} is tomorrow at {{3}}. Reply if you need to reschedule. See you soon 🌸` },
+    { name: 'gap_fill_offer_v3', category: 'MARKETING', label: 'Last-minute gap offer',
+      body: `Hi {{1}}, it's ${biz}! A spot has just opened up on {{2}} at {{3}}. Fancy it? Reply YES and it's yours, or tell me a time that suits.` },
+    { name: 'rebook_nudge_v3', category: 'MARKETING', label: 'Rebook invite',
+      body: `Hi {{1}}, it's ${biz} 🌸 It's been a little while! Fancy getting booked back in? Reply here and I'll find you a time.` },
+    { name: 'generic_message_v3', category: 'MARKETING', label: 'General message',
+      body: `Hi {{1}}! It's ${biz} 🌸 {{2}} Reply here anytime.` },
+  ];
+}
+
+/**
  * GET /meta-templates
  *
  * Lists all WhatsApp message templates registered on Florrie's WABA via
@@ -1551,7 +1639,8 @@ router.get('/meta-templates', async (req, res) => {
     return res.status(503).json({ error: 'WhatsApp env not configured', code: 'whatsapp_env_missing' });
   }
   try {
-    const url = `${GRAPH}/${WABA_ID}/message_templates?fields=name,language,status,category,components&limit=100`;
+    const waba = await resolveTemplateWaba(req.beautician.id);
+    const url = `${GRAPH}/${waba.wabaId}/message_templates?fields=name,language,status,category,components&limit=100`;
     const r = await fetch(url, { headers: metaHeaders() });
     const data = await r.json();
     if (!r.ok) {
@@ -1575,7 +1664,8 @@ router.get('/meta-templates', async (req, res) => {
       category: t.category,
       components: t.components || [],
     }));
-    return res.json({ templates });
+    const waba2 = await resolveTemplateWaba(req.beautician.id);
+    return res.json({ templates, waba: waba2 });
   } catch (err) {
     logger.error({ err }, 'meta-templates list threw');
     Sentry.captureException(err, { tags: { route: 'whatsapp/meta-templates', op: 'list' } });
@@ -1654,7 +1744,8 @@ router.post('/meta-templates', async (req, res) => {
   const payload = { name, category, language, components };
 
   try {
-    const r = await fetch(`${GRAPH}/${WABA_ID}/message_templates`, {
+    const waba = await resolveTemplateWaba(req.beautician.id);
+    const r = await fetch(`${GRAPH}/${waba.wabaId}/message_templates`, {
       method: 'POST',
       headers: metaHeaders(),
       body: JSON.stringify(payload),
@@ -1690,6 +1781,108 @@ router.post('/meta-templates', async (req, res) => {
 });
 
 /**
+ * GET /meta-templates/starter-pack
+ * Returns the personalised starter pack (named after the salon) without
+ * creating anything, plus which of the five already exist on the WABA.
+ */
+router.get('/meta-templates/starter-pack', async (req, res) => {
+  if (!WA_TOKEN || !WABA_ID) {
+    return res.status(503).json({ error: 'WhatsApp env not configured', code: 'whatsapp_env_missing' });
+  }
+  try {
+    const { data: b } = await supabase
+      .from('beauticians')
+      .select('business_name, first_name')
+      .eq('id', req.beautician.id)
+      .single();
+    const biz = b?.business_name || b?.first_name || '';
+    const pack = starterPackFor(biz);
+    const waba = await resolveTemplateWaba(req.beautician.id);
+    const r = await fetch(
+      `${GRAPH}/${waba.wabaId}/message_templates?fields=name,status&limit=200`,
+      { headers: metaHeaders() }
+    );
+    const data = await r.json();
+    const existing = new Map((data?.data || []).map((t) => [t.name, t.status]));
+    return res.json({
+      business_name: biz,
+      waba,
+      pack: pack.map((t) => ({ ...t, existing_status: existing.get(t.name) || null })),
+    });
+  } catch (err) {
+    logger.error({ err }, 'starter-pack preview threw');
+    return res.status(500).json({ error: 'Could not load starter pack', detail: err.message });
+  }
+});
+
+/**
+ * POST /meta-templates/starter-pack
+ * Creates every missing starter-pack template on the beautician's WABA and
+ * submits them to Meta for review. Idempotent: existing names are skipped.
+ */
+router.post('/meta-templates/starter-pack', async (req, res) => {
+  if (!WA_TOKEN || !WABA_ID) {
+    return res.status(503).json({ error: 'WhatsApp env not configured', code: 'whatsapp_env_missing' });
+  }
+  try {
+    const { data: b } = await supabase
+      .from('beauticians')
+      .select('business_name, first_name')
+      .eq('id', req.beautician.id)
+      .single();
+    const biz = b?.business_name || b?.first_name || '';
+    if (!biz) {
+      return res.status(400).json({
+        error: 'Set your business name in Settings first, it goes into every template.',
+        code: 'missing_business_name',
+      });
+    }
+    const waba = await resolveTemplateWaba(req.beautician.id);
+    const listRes = await fetch(
+      `${GRAPH}/${waba.wabaId}/message_templates?fields=name,status&limit=200`,
+      { headers: metaHeaders() }
+    );
+    const listData = await listRes.json();
+    const existing = new Map((listData?.data || []).map((t) => [t.name, t.status]));
+
+    const results = [];
+    for (const tpl of starterPackFor(biz)) {
+      if (existing.has(tpl.name)) {
+        results.push({ name: tpl.name, label: tpl.label, action: 'skipped', status: existing.get(tpl.name) });
+        continue;
+      }
+      try {
+        const r = await fetch(`${GRAPH}/${waba.wabaId}/message_templates`, {
+          method: 'POST',
+          headers: metaHeaders(),
+          body: JSON.stringify({
+            name: tpl.name,
+            category: tpl.category,
+            language: 'en',
+            components: buildTemplateComponents({ bodyText: tpl.body }),
+          }),
+        });
+        const data = await r.json();
+        if (r.ok) {
+          results.push({ name: tpl.name, label: tpl.label, action: 'created', status: data?.status || 'PENDING_REVIEW' });
+        } else {
+          const meta = extractMetaError(data);
+          results.push({ name: tpl.name, label: tpl.label, action: 'failed', error: meta.userMsg || meta.message || 'Meta rejected the template' });
+        }
+      } catch (err) {
+        results.push({ name: tpl.name, label: tpl.label, action: 'failed', error: err.message });
+      }
+    }
+    logger.info({ beauticianId: req.beautician.id, waba: waba.wabaId, results }, 'starter pack submitted');
+    return res.json({ ok: true, business_name: biz, waba, results });
+  } catch (err) {
+    logger.error({ err }, 'starter-pack create threw');
+    Sentry.captureException(err, { tags: { route: 'whatsapp/meta-templates', op: 'starter-pack' } });
+    return res.status(500).json({ error: 'Starter pack failed', detail: err.message });
+  }
+});
+
+/**
  * DELETE /meta-templates/:name
  *
  * Removes a template by name from Florrie's WABA. Meta deletes every
@@ -1704,7 +1897,8 @@ router.delete('/meta-templates/:name', async (req, res) => {
   if (!name) return res.status(400).json({ error: 'name required', code: 'missing_name' });
 
   try {
-    const url = `${GRAPH}/${WABA_ID}/message_templates?name=${encodeURIComponent(name)}`;
+    const waba = await resolveTemplateWaba(req.beautician.id);
+    const url = `${GRAPH}/${waba.wabaId}/message_templates?name=${encodeURIComponent(name)}`;
     const r = await fetch(url, {
       method: 'DELETE',
       headers: metaHeaders(),
