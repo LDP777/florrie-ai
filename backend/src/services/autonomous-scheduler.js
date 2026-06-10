@@ -176,7 +176,7 @@ async function checkRebookDueClients(beauticianId, threshold) {
         const sent = await sendNudge({
           client,
           body: nudgeBody,
-          templateName: 'rebook_nudge',
+          templateName: 'rebook_nudge_v2',
           templateParams: [client.first_name],
           beauticianId,
           beauticianPrefs,

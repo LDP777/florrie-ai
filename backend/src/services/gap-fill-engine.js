@@ -525,7 +525,7 @@ async function processMatch({ beauticianId, client, treatment, gap, matchType, c
       const sent = await sendNudge({
         client,
         body: message,
-        templateName: 'gap_fill_offer',
+        templateName: 'gap_fill_offer_v2',
         templateParams: [client.first_name, dayLabel, timeLabel],
         beauticianId,
         beauticianPrefs,
