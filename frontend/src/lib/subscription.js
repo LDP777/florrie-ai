@@ -102,7 +102,7 @@ export const PLAN = {
   annualPence: 29000,
   monthlyLabel: '£29/mo',
   annualLabel: '£290/yr',
-  annualSaving: 'Save £58',
+  annualSaving: '2 months free',
   features: [
     'Unlimited clients',
     'AI receptionist',
