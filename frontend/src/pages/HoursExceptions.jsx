@@ -34,7 +34,10 @@ const TYPE_CFG = {
 // ââ date helpers ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 function toYMD(d) {
-  return d.toISOString().slice(0, 10);
+  // LOCAL date, never toISOString(): in British Summer Time UTC is an hour
+  // behind, so toISOString() labelled every cell with the previous day and
+  // the whole grid sat one weekday column out.
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function addDays(dateStr, n) {
@@ -298,7 +301,7 @@ export default function HoursExceptions() {
           const thisMonth = new Date().getMonth();
           if (y < thisYear || (y === thisYear && m < thisMonth)) return p;
           return { year: y, month: m };
-        })}>â¹</button>
+        })}>‹ Earlier</button>
         <span style={S.monthRange}>
           {getMonthLabel(months[0].year, months[0].month)} â {getMonthLabel(months[2].year, months[2].month)}
         </span>
@@ -306,7 +309,7 @@ export default function HoursExceptions() {
           let m = p.month + 1; let y = p.year;
           if (m > 11) { m = 0; y += 1; }
           return { year: y, month: m };
-        })}>âº</button>
+        })}>Later ›</button>
       </div>
 
       {/* ââ Range mode toggle ââ */}

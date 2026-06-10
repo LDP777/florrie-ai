@@ -204,7 +204,7 @@ router.get('/:slug/availability', async (req, res) => {
     .eq('beautician_id', salon.id)
     .gte('starts_at', `${date}T00:00:00`)
     .lte('starts_at', `${date}T23:59:59`)
-    .neq('status', 'cancelled');
+    .not('status', 'in', '(cancelled,cancelled_by_client,cancelled_by_beautician,rescheduled)');
 
   res.json({ appointments: appts || [] });
 });
