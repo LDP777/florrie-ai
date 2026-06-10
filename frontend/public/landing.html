@@ -96,6 +96,21 @@
   @keyframes drift { 0%,100% { transform: translate(0,0); } 50% { transform: translate(0,-14px); } }
   .drift { animation: drift 9s ease-in-out infinite; }
 
+  /* Agent orbital */
+  @keyframes orbit-spin { to { transform: rotate(360deg); } }
+  @keyframes hub-pulse {
+    0%,100% { box-shadow: 0 0 34px 8px rgba(199,107,138,.4); }
+    50%     { box-shadow: 0 0 64px 22px rgba(199,107,138,.18); }
+  }
+  @keyframes node-float { 0%,100% { transform: translate(-50%,-50%) translateY(0); } 50% { transform: translate(-50%,-50%) translateY(-10px); } }
+  @keyframes dash-flow { to { stroke-dashoffset: -16; } }
+  @keyframes dot-blink { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+  .orbit-ring { animation: orbit-spin 80s linear infinite; }
+  .agent-hub  { animation: hub-pulse 3.2s ease-in-out infinite; }
+  .agent-node { animation: node-float 6s ease-in-out infinite; }
+  .agent-line { animation: dash-flow 1.3s linear infinite; }
+  .agent-dot  { animation: dot-blink 2.2s ease-in-out infinite; }
+
   details > summary { list-style: none; cursor: pointer; }
   details > summary::-webkit-details-marker { display: none; }
   details[open] .faq-plus { transform: rotate(45deg); }
@@ -103,7 +118,7 @@
 
   @media (prefers-reduced-motion: reduce) {
     .rv { opacity: 1 !important; transform: none !important; transition: none !important; }
-    .bh-card, .bh-block, .bh-done, .bh-diary, .bh-tick, .pulse-dot, .tdot, .drift { animation: none !important; }
+    .bh-card, .bh-block, .bh-done, .bh-diary, .bh-tick, .pulse-dot, .tdot, .drift, .orbit-ring, .agent-hub, .agent-node, .agent-line, .agent-dot { animation: none !important; }
     .bh-block { background: #92405E; color: #fff; border-color: #92405E; }
     .bh-done, .bh-diary { opacity: 1; }
     html { scroll-behavior: auto; }
@@ -159,7 +174,7 @@
 
   <div class="relative max-w-wrap mx-auto grid lg:grid-cols-[1.05fr_0.95fr] gap-14 lg:gap-10 items-center">
     <div class="max-w-xl">
-      <p class="eyebrow text-rose mb-6 rv in">The AI chief of staff for beauty pros</p>
+      <p class="eyebrow text-rose mb-6 rv in">The agentic AI chief of staff for beauty pros</p>
       <h1 class="text-[2.9rem] leading-[1.04] sm:text-6xl lg:text-[4.6rem] font-medium rv in">
         She doesn't wait<br/>to be <em class="italic font-serif swash px-1">asked.</em>
       </h1>
@@ -255,7 +270,7 @@
       Booking apps wait for you to open them. <em class="italic font-serif text-rose">Florrie gets on with it.</em>
     </h2>
     <p class="mt-8 text-lg lg:text-xl text-soot leading-relaxed max-w-2xl mx-auto rv rv-d2">
-      Every tool you've tried is a filing cabinet with a calendar inside. The work, replying, chasing, rebooking, thinking ahead, still lands on you at 10pm with a brush in one hand and your phone in the other. Florrie is different because she acts. You'll feel it in the first week.
+      Every tool you've tried is a filing cabinet with a calendar inside. The work, replying, chasing, rebooking, thinking ahead, still lands on you at 10pm with a brush in one hand and your phone in the other. Florrie is agentic: she acts on her own, without being prompted. You'll feel it in the first week.
     </p>
   </div>
 </section>
@@ -265,9 +280,148 @@
      ============================================================ -->
 <section id="works" class="relative py-24 lg:py-32 px-5 bg-night overflow-hidden">
   <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[40rem] h-[20rem] bg-petal/15 blur-[120px] rounded-full" aria-hidden="true"></div>
+
+  <!-- Agentic orbital: one brain, six jobs -->
+  <div class="relative max-w-wrap mx-auto mb-24 lg:mb-32">
+    <div class="text-center mb-14">
+      <p class="eyebrow text-petal mb-6 rv">She works by herself</p>
+      <h2 class="text-4xl lg:text-5xl leading-[1.1] font-medium text-white rv rv-d1">Agentic means <em class="italic font-serif text-petal">she acts.</em></h2>
+      <p class="mt-6 text-lg text-white/65 leading-relaxed max-w-2xl mx-auto rv rv-d2">
+        Most software waits for you to open it. Florrie is one AI working six jobs at once, your whole front of house, around the clock, without being told.
+      </p>
+    </div>
+
+    <!-- Desktop orbital -->
+    <div class="relative mx-auto hidden lg:block rv rv-d2" style="width:520px; height:520px;">
+      <div class="orbit-ring absolute inset-0 rounded-full border border-dashed border-white/10" aria-hidden="true"></div>
+      <svg class="absolute inset-0 w-full h-full pointer-events-none z-0" viewBox="0 0 520 520" aria-hidden="true">
+        <line x1="260" y1="260" x2="260" y2="80"  stroke="#C76B8A" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.4" class="agent-line"/>
+        <line x1="260" y1="260" x2="416" y2="170" stroke="#C9A96E" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.4" class="agent-line" style="animation-duration:1.5s"/>
+        <line x1="260" y1="260" x2="416" y2="350" stroke="#A78BFA" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.4" class="agent-line" style="animation-duration:1.1s"/>
+        <line x1="260" y1="260" x2="260" y2="440" stroke="#67B8C5" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.4" class="agent-line" style="animation-duration:1.6s"/>
+        <line x1="260" y1="260" x2="104" y2="350" stroke="#7BC8A4" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.4" class="agent-line" style="animation-duration:1.2s"/>
+        <line x1="260" y1="260" x2="104" y2="170" stroke="#FB923C" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.4" class="agent-line" style="animation-duration:1.4s"/>
+      </svg>
+
+      <div class="agent-hub absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full bg-petal flex items-center justify-center z-20">
+        <svg viewBox="0 0 100 100" fill="none" class="w-14 h-14" aria-hidden="true">
+          <ellipse cx="50" cy="30" rx="16" ry="24" fill="#fff" opacity="0.85" transform="rotate(0 50 50)"/>
+          <ellipse cx="50" cy="30" rx="16" ry="24" fill="#fff" opacity="0.75" transform="rotate(72 50 50)"/>
+          <ellipse cx="50" cy="30" rx="16" ry="24" fill="#fff" opacity="0.65" transform="rotate(144 50 50)"/>
+          <ellipse cx="50" cy="30" rx="16" ry="24" fill="#fff" opacity="0.65" transform="rotate(216 50 50)"/>
+          <ellipse cx="50" cy="30" rx="16" ry="24" fill="#fff" opacity="0.75" transform="rotate(288 50 50)"/>
+          <circle cx="50" cy="50" r="8" fill="#C9A96E"/>
+        </svg>
+      </div>
+
+      <div class="agent-node absolute text-center z-10" style="top:15.4%; left:50%; animation-delay:0s;">
+        <div class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 backdrop-blur-sm" style="background:#C76B8A33; border:1px solid #C76B8A66;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#C76B8A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M21 11a8 8 0 0 1-8 8H5l-2 3V11a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg>
+        </div>
+        <p class="text-white text-xs font-bold whitespace-nowrap">Front desk</p>
+        <p class="text-white/40 text-[10px] whitespace-nowrap">Replies in your voice</p>
+        <div class="flex items-center justify-center gap-1 mt-1">
+          <span class="agent-dot w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" style="animation-delay:0s;"></span>
+          <span class="text-white/40 text-[10px]">active</span>
+        </div>
+      </div>
+      <div class="agent-node absolute text-center z-10" style="top:32.7%; left:80%; animation-delay:.8s;">
+        <div class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 backdrop-blur-sm" style="background:#C9A96E33; border:1px solid #C9A96E66;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#C9A96E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/><path d="m9.5 14.5 2 2 3.5-3.5"/></svg>
+        </div>
+        <p class="text-white text-xs font-bold whitespace-nowrap">Diary</p>
+        <p class="text-white/40 text-[10px] whitespace-nowrap">Books, moves, confirms</p>
+        <div class="flex items-center justify-center gap-1 mt-1">
+          <span class="agent-dot w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" style="animation-delay:.8s;"></span>
+          <span class="text-white/40 text-[10px]">active</span>
+        </div>
+      </div>
+      <div class="agent-node absolute text-center z-10" style="top:67.3%; left:80%; animation-delay:1.6s;">
+        <div class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 backdrop-blur-sm" style="background:#A78BFA33; border:1px solid #A78BFA66;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#A78BFA" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6z"/><path d="M10 19a2.2 2.2 0 0 0 4 0"/></svg>
+        </div>
+        <p class="text-white text-xs font-bold whitespace-nowrap">Reminders</p>
+        <p class="text-white/40 text-[10px] whitespace-nowrap">Patch tests, no-shows</p>
+        <div class="flex items-center justify-center gap-1 mt-1">
+          <span class="agent-dot w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" style="animation-delay:1.6s;"></span>
+          <span class="text-white/40 text-[10px]">active</span>
+        </div>
+      </div>
+      <div class="agent-node absolute text-center z-10" style="top:84.6%; left:50%; animation-delay:2.4s;">
+        <div class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 backdrop-blur-sm" style="background:#67B8C533; border:1px solid #67B8C566;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#67B8C5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
+        </div>
+        <p class="text-white text-xs font-bold whitespace-nowrap">Gap-fill</p>
+        <p class="text-white/40 text-[10px] whitespace-nowrap">Waitlist on standby</p>
+        <div class="flex items-center justify-center gap-1 mt-1">
+          <span class="agent-dot w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" style="animation-delay:2.4s;"></span>
+          <span class="text-white/40 text-[10px]">active</span>
+        </div>
+      </div>
+      <div class="agent-node absolute text-center z-10" style="top:67.3%; left:20%; animation-delay:3.2s;">
+        <div class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 backdrop-blur-sm" style="background:#7BC8A433; border:1px solid #7BC8A466;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#7BC8A4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v5h-5"/></svg>
+        </div>
+        <p class="text-white text-xs font-bold whitespace-nowrap">Rebooking</p>
+        <p class="text-white/40 text-[10px] whitespace-nowrap">Win-backs, nudges</p>
+        <div class="flex items-center justify-center gap-1 mt-1">
+          <span class="agent-dot w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" style="animation-delay:3.2s;"></span>
+          <span class="text-white/40 text-[10px]">active</span>
+        </div>
+      </div>
+      <div class="agent-node absolute text-center z-10" style="top:32.7%; left:20%; animation-delay:4s;">
+        <div class="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-2 backdrop-blur-sm" style="background:#FB923C33; border:1px solid #FB923C66;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#FB923C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.8" fill="#FB923C"/><path d="M12 12 18 6"/></svg>
+        </div>
+        <p class="text-white text-xs font-bold whitespace-nowrap">Radar</p>
+        <p class="text-white/40 text-[10px] whitespace-nowrap">Holidays, quiet weeks</p>
+        <div class="flex items-center justify-center gap-1 mt-1">
+          <span class="agent-dot w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" style="animation-delay:4s;"></span>
+          <span class="text-white/40 text-[10px]">active</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile grid -->
+    <div class="grid grid-cols-2 gap-4 lg:hidden max-w-sm mx-auto">
+      <div class="bg-white/5 border border-white/10 rounded-2xl p-5 text-center rv">
+        <div class="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3" style="background:#C76B8A33;"><svg viewBox="0 0 24 24" fill="none" stroke="#C76B8A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M21 11a8 8 0 0 1-8 8H5l-2 3V11a8 8 0 0 1 8-8h2a8 8 0 0 1 8 8z"/></svg></div>
+        <p class="text-white text-sm font-bold">Front desk</p>
+        <p class="text-white/40 text-xs mt-1">Replies in your voice</p>
+      </div>
+      <div class="bg-white/5 border border-white/10 rounded-2xl p-5 text-center rv">
+        <div class="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3" style="background:#C9A96E33;"><svg viewBox="0 0 24 24" fill="none" stroke="#C9A96E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/><path d="m9.5 14.5 2 2 3.5-3.5"/></svg></div>
+        <p class="text-white text-sm font-bold">Diary</p>
+        <p class="text-white/40 text-xs mt-1">Books, moves, confirms</p>
+      </div>
+      <div class="bg-white/5 border border-white/10 rounded-2xl p-5 text-center rv">
+        <div class="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3" style="background:#A78BFA33;"><svg viewBox="0 0 24 24" fill="none" stroke="#A78BFA" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6z"/><path d="M10 19a2.2 2.2 0 0 0 4 0"/></svg></div>
+        <p class="text-white text-sm font-bold">Reminders</p>
+        <p class="text-white/40 text-xs mt-1">Patch tests, no-shows</p>
+      </div>
+      <div class="bg-white/5 border border-white/10 rounded-2xl p-5 text-center rv">
+        <div class="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3" style="background:#67B8C533;"><svg viewBox="0 0 24 24" fill="none" stroke="#67B8C5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg></div>
+        <p class="text-white text-sm font-bold">Gap-fill</p>
+        <p class="text-white/40 text-xs mt-1">Waitlist on standby</p>
+      </div>
+      <div class="bg-white/5 border border-white/10 rounded-2xl p-5 text-center rv">
+        <div class="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3" style="background:#7BC8A433;"><svg viewBox="0 0 24 24" fill="none" stroke="#7BC8A4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v5h-5"/></svg></div>
+        <p class="text-white text-sm font-bold">Rebooking</p>
+        <p class="text-white/40 text-xs mt-1">Win-backs, nudges</p>
+      </div>
+      <div class="bg-white/5 border border-white/10 rounded-2xl p-5 text-center rv">
+        <div class="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3" style="background:#FB923C33;"><svg viewBox="0 0 24 24" fill="none" stroke="#FB923C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.8" fill="#FB923C"/><path d="M12 12 18 6"/></svg></div>
+        <p class="text-white text-sm font-bold">Radar</p>
+        <p class="text-white/40 text-xs mt-1">Holidays, quiet weeks</p>
+      </div>
+    </div>
+
+    <p class="text-center text-white/40 text-sm mt-12 max-w-md mx-auto rv">One brain behind all six, sharing every detail of your business. All included, no add-ons, no tiers.</p>
+  </div>
+
   <div class="relative max-w-wrap mx-auto grid lg:grid-cols-2 gap-14 lg:gap-20 items-center">
     <div>
-      <p class="eyebrow text-petal mb-6 rv">She works by herself</p>
+      <p class="eyebrow text-petal mb-6 rv">Every action, logged</p>
       <h2 class="text-4xl lg:text-5xl leading-[1.1] font-medium text-white rv rv-d1">While you were with clients.</h2>
       <p class="mt-7 text-lg text-white/65 leading-relaxed rv rv-d2">
         This is the feed you check at the end of the day. Not a to-do list. A done list. Every line is something Florrie handled on her own, and every line taps through to the exact message or booking, so you can see her work whenever you like.
