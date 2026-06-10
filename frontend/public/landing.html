@@ -3,148 +3,128 @@
 <head>
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Florrie | AI Business Assistant for Beauty Professionals</title>
+<title>Florrie | The AI chief of staff for beauty pros</title>
+<meta name="description" content="Florrie works by herself. She answers your clients in your own words, fills your diary and thinks ahead so you don't have to. Built for UK beauty pros. £29 a month."/>
+<link rel="canonical" href="https://florrie.ai/"/>
+<meta property="og:title" content="Florrie | The AI chief of staff for beauty pros"/>
+<meta property="og:description" content="She answers clients in your own words, fills your diary and thinks ahead so you don't have to. £29 a month, 120 messages included."/>
+<meta property="og:image" content="https://florrie.ai/og-image.png"/>
+<meta property="og:url" content="https://florrie.ai/"/>
+<meta property="og:type" content="website"/>
+<meta name="twitter:card" content="summary_large_image"/>
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
-<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@1,6..72,200..800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;1,400&family=DM+Sans:wght@300;400&display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:wght@500&family=DM+Sans:wght@300&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com"></script>
 <script id="tailwind-config">
   tailwind.config = {
-    darkMode: "class",
     theme: {
       extend: {
         colors: {
-          "on-background": "#1c1c1a",
-          "tertiary-fixed-dim": "#cdc4c9",
-          "surface-container-lowest": "#ffffff",
-          "on-tertiary": "#ffffff",
-          "surface-container-high": "#eae8e5",
-          "inverse-on-surface": "#f3f0ed",
-          "outline-variant": "#d8c1c6",
-          "surface-container": "#f0edea",
-          "on-secondary-fixed-variant": "#5a4312",
-          "tertiary-fixed": "#eae0e5",
-          "on-error": "#ffffff",
-          "surface-variant": "#e5e2df",
-          "background": "#fcf9f6",
-          "primary-container": "#b05877",
-          "secondary-fixed": "#ffdea4",
-          "on-surface-variant": "#534247",
-          "on-primary-container": "#fffbff",
-          "secondary-fixed-dim": "#e4c285",
-          "on-error-container": "#93000a",
-          "primary": "#92405e",
-          "on-primary": "#ffffff",
-          "on-secondary-fixed": "#261900",
-          "primary-fixed-dim": "#ffb1c8",
-          "surface-bright": "#fcf9f6",
-          "surface-dim": "#dcdad7",
-          "error-container": "#ffdad6",
-          "primary-fixed": "#ffd9e2",
-          "secondary-container": "#fedb9b",
-          "surface-container-highest": "#e5e2df",
-          "inverse-surface": "#31302f",
-          "outline": "#867277",
-          "tertiary": "#605a5e",
-          "surface-container-low": "#f6f3f0",
-          "on-secondary": "#ffffff",
-          "on-primary-fixed": "#3e001d",
-          "on-primary-fixed-variant": "#782b49",
-          "surface-tint": "#954360",
-          "on-tertiary-container": "#fffbff",
-          "tertiary-container": "#7a7377",
-          "on-tertiary-fixed-variant": "#4b4549",
-          "on-surface": "#1c1c1a",
-          "error": "#ba1a1a",
-          "on-tertiary-fixed": "#1f1a1e",
-          "surface": "#fcf9f6",
-          "secondary": "#745a27",
-          "on-secondary-container": "#795f2b",
-          "inverse-primary": "#ffb1c8"
-        },
-        borderRadius: {
-          "DEFAULT": "0.125rem",
-          "lg": "0.25rem",
-          "xl": "0.5rem",
-          "full": "0.75rem"
+          cream: "#FBF6F1",
+          paper: "#FFFFFF",
+          ink: "#241B17",
+          soot: "#4D423D",
+          fawn: "#8A7A72",
+          rose: "#92405E",
+          rosedeep: "#7A2F4C",
+          petal: "#C76B8A",
+          blush: "#F6E7EC",
+          blushline: "#ECD5DD",
+          gold: "#C9A96E",
+          night: "#221418",
+          nightcard: "#2E1C22",
+          mint: "#2E7D6B",
+          wa: "#075E54",
+          wabubble: "#DCF8C6"
         },
         fontFamily: {
-          "headline": ["Newsreader", "serif"],
-          "body": ["Plus Jakarta Sans", "sans-serif"],
-          "label": ["Plus Jakarta Sans", "sans-serif"]
-        }
+          serif: ["Fraunces", "Georgia", "serif"],
+          sans: ["Plus Jakarta Sans", "system-ui", "sans-serif"]
+        },
+        maxWidth: { wrap: "1160px" }
       }
     }
   }
 </script>
 <style>
-  body { font-family: 'Plus Jakarta Sans', sans-serif; line-height: 1.65; font-size: 17px; background-color: #fcf9f6; color: #1c1c1a; }
-  h1, h2, h3, .font-serif { font-family: 'Newsreader', serif; }
-  .glass-nav { backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
-  .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
-  .shadow-florrie { box-shadow: 0 4px 20px rgba(146, 64, 94, 0.06); }
-  .no-scrollbar::-webkit-scrollbar { display: none; }
-
-  /* Agent hub pulse */
-  @keyframes hub-pulse {
-    0%, 100% { box-shadow: 0 0 30px 6px rgba(199,107,138,0.4); }
-    50%       { box-shadow: 0 0 60px 20px rgba(199,107,138,0.2); }
+  :root { --ease: cubic-bezier(.22,.8,.32,1); }
+  body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; background: #FBF6F1; color: #241B17; line-height: 1.65; font-size: 16.5px; -webkit-font-smoothing: antialiased; }
+  .font-serif { font-family: 'Fraunces', Georgia, serif; font-variation-settings: "opsz" 80; }
+  h1, h2, h3 { font-family: 'Fraunces', Georgia, serif; font-variation-settings: "opsz" 100; letter-spacing: -0.01em; }
+  .eyebrow { font-size: 11.5px; font-weight: 800; letter-spacing: .22em; text-transform: uppercase; }
+  .grain::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .35; mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.55 0 0 0 0 0.45 0 0 0 0 0.42 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
   }
-  /* Agent float */
-  @keyframes float-a { 0%,100% { transform: translate(-50%,-50%) translateY(0px); } 50% { transform: translate(-50%,-50%) translateY(-10px); } }
-  @keyframes float-b { 0%,100% { transform: translate(-50%,-50%) translateY(0px); } 50% { transform: translate(-50%,-50%) translateY(-8px); } }
-  @keyframes float-c { 0%,100% { transform: translate(-50%,-50%) translateY(0px); } 50% { transform: translate(-50%,-50%) translateY(-12px); } }
-  @keyframes float-d { 0%,100% { transform: translate(-50%,-50%) translateY(0px); } 50% { transform: translate(-50%,-50%) translateY(-9px); } }
-  @keyframes float-e { 0%,100% { transform: translate(-50%,-50%) translateY(0px); } 50% { transform: translate(-50%,-50%) translateY(-11px); } }
-  /* Online dot pulse */
-  @keyframes dot-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-  /* SVG line dash animation */
-  @keyframes dash-flow { to { stroke-dashoffset: -16; } }
 
-  .agent-hub {
-    animation: hub-pulse 3s ease-in-out infinite;
+  /* Scroll reveal */
+  .rv { opacity: 0; transform: translateY(22px); transition: opacity .7s var(--ease), transform .7s var(--ease); }
+  .rv.in { opacity: 1; transform: none; }
+  .rv-d1 { transition-delay: .08s; } .rv-d2 { transition-delay: .16s; } .rv-d3 { transition-delay: .24s; }
+  .rv-d4 { transition-delay: .32s; } .rv-d5 { transition-delay: .4s; }  .rv-d6 { transition-delay: .48s; }
+
+  /* ---- Hero bank-holiday card sequence (plays once on load) ---- */
+  @keyframes card-in { from { opacity: 0; transform: translateY(26px) scale(.97); } to { opacity: 1; transform: none; } }
+  @keyframes press    { 0%,100% { transform: scale(1); } 45% { transform: scale(.94); } }
+  @keyframes fill-btn { to { background: #92405E; color: #fff; border-color: #92405E; } }
+  @keyframes pop-in   { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+  @keyframes tick-pop { 0% { transform: scale(0); } 70% { transform: scale(1.25); } 100% { transform: scale(1); } }
+  @keyframes soft-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(199,107,138,.35); } 50% { box-shadow: 0 0 0 9px rgba(199,107,138,0); } }
+  .bh-card   { animation: card-in .8s .35s var(--ease) both; }
+  .bh-block  { animation: press .45s 2.5s var(--ease), fill-btn .3s 2.62s var(--ease) forwards; }
+  .bh-done   { animation: pop-in .55s 3.15s var(--ease) both; }
+  .bh-diary  { animation: pop-in .55s 3.75s var(--ease) both; }
+  .bh-tick   { display:inline-flex; animation: tick-pop .5s 3.3s var(--ease) both; }
+  .pulse-dot { animation: soft-pulse 2.4s ease-in-out infinite; }
+
+  /* Typing dots */
+  @keyframes blink { 0%,80%,100% { opacity: .25; } 40% { opacity: 1; } }
+  .tdot { width: 5px; height: 5px; border-radius: 9999px; background: #8A7A72; display: inline-block; animation: blink 1.2s infinite; }
+  .tdot:nth-child(2) { animation-delay: .2s; } .tdot:nth-child(3) { animation-delay: .4s; }
+
+  /* Feed rows stagger via .rv delays; gentle left accent */
+  .feedrow { border-left: 2px solid rgba(199,107,138,.35); }
+
+  /* Headline underline flourish */
+  .swash { background-image: linear-gradient(transparent 78%, rgba(201,169,110,.45) 78%, rgba(201,169,110,.45) 92%, transparent 92%); }
+
+  /* Nav blur */
+  .glass { backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+
+  /* Marquee-free; subtle float for hero blobs */
+  @keyframes drift { 0%,100% { transform: translate(0,0); } 50% { transform: translate(0,-14px); } }
+  .drift { animation: drift 9s ease-in-out infinite; }
+
+  details > summary { list-style: none; cursor: pointer; }
+  details > summary::-webkit-details-marker { display: none; }
+  details[open] .faq-plus { transform: rotate(45deg); }
+  .faq-plus { transition: transform .25s var(--ease); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rv { opacity: 1 !important; transform: none !important; transition: none !important; }
+    .bh-card, .bh-block, .bh-done, .bh-diary, .bh-tick, .pulse-dot, .tdot, .drift { animation: none !important; }
+    .bh-block { background: #92405E; color: #fff; border-color: #92405E; }
+    .bh-done, .bh-diary { opacity: 1; }
+    html { scroll-behavior: auto; }
   }
-  .agent-1 { animation: float-a 5s ease-in-out infinite; animation-delay: 0s; }
-  .agent-2 { animation: float-b 6s ease-in-out infinite; animation-delay: 0.8s; }
-  .agent-3 { animation: float-c 5.5s ease-in-out infinite; animation-delay: 1.6s; }
-  .agent-4 { animation: float-d 6.5s ease-in-out infinite; animation-delay: 2.4s; }
-  .agent-5 { animation: float-e 5.2s ease-in-out infinite; animation-delay: 3.2s; }
-  .online-dot { animation: dot-pulse 2s ease-in-out infinite; }
-  .online-dot-2 { animation: dot-pulse 2s ease-in-out infinite; animation-delay: 0.5s; }
-  .online-dot-3 { animation: dot-pulse 2s ease-in-out infinite; animation-delay: 1s; }
-  .online-dot-4 { animation: dot-pulse 2s ease-in-out infinite; animation-delay: 1.5s; }
-  .online-dot-5 { animation: dot-pulse 2s ease-in-out infinite; animation-delay: 0.3s; }
-  .agent-line { animation: dash-flow 1.2s linear infinite; }
-  .agent-line-2 { animation: dash-flow 1.4s linear infinite; }
-  .agent-line-3 { animation: dash-flow 1.1s linear infinite; }
-  .agent-line-4 { animation: dash-flow 1.5s linear infinite; }
-  .agent-line-5 { animation: dash-flow 1.3s linear infinite; }
-  .agent-line-6 { animation: dash-flow 1.6s linear infinite; }
-  @keyframes float-f { 0%,100% { transform: translate(-50%,-50%) translateY(0px); } 50% { transform: translate(-50%,-50%) translateY(-10px); } }
-  .agent-6 { animation: float-f 5.8s ease-in-out infinite; animation-delay: 4.0s; }
-
-  /* Chat bubbles */
-  @keyframes slide-in-left { from { opacity:0; transform: translateX(-12px); } to { opacity:1; transform: translateX(0); } }
-  @keyframes slide-in-right { from { opacity:0; transform: translateX(12px); } to { opacity:1; transform: translateX(0); } }
-  .chat-in-l { animation: slide-in-left 0.5s ease forwards; }
-  .chat-in-r { animation: slide-in-right 0.5s ease forwards; }
-  .msg-1 { animation: slide-in-left 0.5s 0.3s ease both; }
-  .msg-2 { animation: slide-in-right 0.5s 1.2s ease both; opacity: 0; }
-  .msg-3 { animation: slide-in-left 0.5s 2.2s ease both; opacity: 0; }
-  .msg-4 { animation: slide-in-right 0.5s 3.3s ease both; opacity: 0; }
 </style>
+<script type="application/ld+json">
+{ "@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Florrie",
+  "applicationCategory": "BusinessApplication", "operatingSystem": "Web, iOS",
+  "description": "Agentic AI chief of staff for UK beauty professionals. Answers clients in your own voice, fills your diary and grows your business.",
+  "offers": { "@type": "Offer", "price": "29", "priceCurrency": "GBP" } }
+</script>
 </head>
-<body class="bg-background text-on-surface selection:bg-primary-fixed selection:text-on-primary-fixed">
+<body class="bg-cream text-ink selection:bg-blush selection:text-rosedeep">
 
 <!-- ============================================================
      1. NAVIGATION
      ============================================================ -->
-<nav class="fixed top-0 w-full z-50 bg-white/70 dark:bg-stone-900/70 backdrop-blur-md shadow-[0_4px_20px_rgba(146,64,94,0.06)]">
-  <div class="flex justify-between items-center max-w-[1200px] mx-auto px-6 lg:px-10 py-4 w-full">
-    <!-- Real Florrie SVG logo -->
-    <a href="/" class="flex items-center gap-0">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 80" fill="none" class="h-10 w-auto">
+<nav class="fixed top-0 w-full z-50 bg-cream/80 glass border-b border-blushline/60">
+  <div class="flex justify-between items-center max-w-wrap mx-auto px-5 lg:px-8 py-3.5">
+    <a href="/" class="flex items-center" aria-label="Florrie home">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 80" fill="none" class="h-9 w-auto">
         <g transform="translate(8, 8) scale(0.8)">
           <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#C76B8A" opacity="0.75" transform="rotate(0 40 40)"/>
           <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#C76B8A" opacity="0.65" transform="rotate(72 40 40)"/>
@@ -157,708 +137,532 @@
         <text x="224" y="52" font-family="'DM Sans', sans-serif" font-size="24" font-weight="300" fill="#C76B8A" letter-spacing="0.5">.ai</text>
       </svg>
     </a>
-    <div class="hidden md:flex gap-8 items-center">
-      <a class="text-on-surface-variant font-medium hover:text-primary transition-colors" href="#features">Features</a>
-      <a class="text-on-surface-variant font-medium hover:text-primary transition-colors" href="#pricing">Pricing</a>
-      <a class="text-on-surface-variant font-medium hover:text-primary transition-colors" href="#how-it-works">How it works</a>
+    <div class="hidden md:flex gap-8 items-center text-[15px]">
+      <a class="text-soot font-medium hover:text-rose transition-colors" href="#works">How she works</a>
+      <a class="text-soot font-medium hover:text-rose transition-colors" href="#voice">Her voice</a>
+      <a class="text-soot font-medium hover:text-rose transition-colors" href="#pricing">Pricing</a>
+      <a class="text-soot font-medium hover:text-rose transition-colors" href="#faq">FAQ</a>
     </div>
-    <div class="flex items-center gap-4 lg:gap-6">
-      <a class="hidden sm:block text-primary font-semibold hover:opacity-80 transition-opacity" href="/login">Sign in</a>
-      <a class="bg-primary text-on-primary px-6 py-2.5 rounded-full font-semibold shadow-md hover:scale-95 transition-transform duration-200" href="#waitlist">Join waitlist</a>
+    <div class="flex items-center gap-3 lg:gap-5">
+      <a class="hidden sm:block text-rose font-semibold text-[15px] hover:opacity-80 transition-opacity" href="/login">Sign in</a>
+      <a class="bg-rose text-white px-5 py-2.5 rounded-full font-semibold text-[15px] shadow-[0_4px_16px_rgba(146,64,94,0.25)] hover:bg-rosedeep transition-colors" href="#waitlist">Join the waitlist</a>
     </div>
   </div>
 </nav>
 
 <!-- ============================================================
-     2. HERO
+     2. HERO  ·  the bank-holiday moment, live
      ============================================================ -->
-<section class="pt-32 pb-20 lg:pt-48 lg:pb-32 px-6 overflow-hidden">
-  <div class="max-w-[1200px] mx-auto grid lg:grid-cols-[1.2fr_1fr] gap-16 items-center">
-    <div class="space-y-8">
-      <div class="inline-flex items-center gap-2 px-4 py-1.5 bg-primary-fixed text-on-primary-fixed-variant rounded-full text-sm font-semibold tracking-wide">
-        <span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
-        WhatsApp AI · for beauticians
-      </div>
-      <h1 class="text-5xl lg:text-7xl font-serif italic leading-[1.1] text-on-surface">
-        Your WhatsApp does the bookings now.
+<header class="relative pt-32 pb-16 lg:pt-44 lg:pb-28 px-5 overflow-hidden grain">
+  <div class="absolute -top-32 -right-40 w-[34rem] h-[34rem] rounded-full bg-blush blur-[110px] opacity-80 drift" aria-hidden="true"></div>
+  <div class="absolute top-64 -left-48 w-[28rem] h-[28rem] rounded-full bg-gold/15 blur-[100px]" aria-hidden="true"></div>
+
+  <div class="relative max-w-wrap mx-auto grid lg:grid-cols-[1.05fr_0.95fr] gap-14 lg:gap-10 items-center">
+    <div class="max-w-xl">
+      <p class="eyebrow text-rose mb-6 rv in">The AI chief of staff for beauty pros</p>
+      <h1 class="text-[2.9rem] leading-[1.04] sm:text-6xl lg:text-[4.6rem] font-medium rv in">
+        She doesn't wait<br/>to be <em class="italic font-serif swash px-1">asked.</em>
       </h1>
-      <p class="text-xl text-on-surface-variant max-w-lg">
-        Florrie replies to clients in your voice. 24/7. Books them in, reminds them, chases no-shows. SMS reminders run in the background as backup.
+      <p class="mt-7 text-lg lg:text-xl text-soot leading-relaxed rv in rv-d1">
+        Florrie runs the business side of your beauty business, by herself. She answers clients in your own words, keeps your diary full and spots the things you'd have missed.
       </p>
-      <!-- Agent status bar -->
-      <div class="flex flex-wrap gap-3 pt-1">
-        <span class="inline-flex items-center gap-1.5 text-xs font-medium text-on-surface-variant bg-surface-container px-3 py-1.5 rounded-full">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 online-dot"></span>Booking Agent
-        </span>
-        <span class="inline-flex items-center gap-1.5 text-xs font-medium text-on-surface-variant bg-surface-container px-3 py-1.5 rounded-full">
-          <span class="w-2 h-2 rounded-full bg-yellow-400 online-dot-2"></span>Tax Agent
-        </span>
-        <span class="inline-flex items-center gap-1.5 text-xs font-medium text-on-surface-variant bg-surface-container px-3 py-1.5 rounded-full">
-          <span class="w-2 h-2 rounded-full bg-teal-400 online-dot-3"></span>Compliance Agent
-        </span>
-        <span class="inline-flex items-center gap-1.5 text-xs font-medium text-on-surface-variant bg-surface-container px-3 py-1.5 rounded-full">
-          <span class="w-2 h-2 rounded-full bg-violet-400 online-dot-4"></span>Follow-up Agent
-        </span>
-        <span class="inline-flex items-center gap-1.5 text-xs font-medium text-on-surface-variant bg-surface-container px-3 py-1.5 rounded-full">
-          <span class="w-2 h-2 rounded-full bg-sky-400 online-dot-5"></span>Insights Agent
-        </span>
-        <span class="inline-flex items-center gap-1.5 text-xs font-medium text-on-surface-variant bg-surface-container px-3 py-1.5 rounded-full">
-          <span class="w-2 h-2 rounded-full bg-orange-400 online-dot"></span>Content Agent
-        </span>
-      </div>
-      <form class="flex flex-col sm:flex-row gap-3 pt-2" id="heroForm" onsubmit="submitWaitlist(event,'heroForm')">
-        <input type="email" placeholder="Enter your email" required class="flex-1 px-5 py-4 rounded-full border border-outline-variant bg-white text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary text-base" />
-        <button type="submit" class="bg-gradient-to-r from-primary to-primary-container text-on-primary px-8 py-4 rounded-full font-bold text-lg hover:shadow-lg transition-all whitespace-nowrap">Start, 14 days free →</button>
+      <form class="mt-9 flex flex-col sm:flex-row gap-3 rv in rv-d2" id="heroForm" onsubmit="submitWaitlist(event,'heroForm')">
+        <label class="sr-only" for="heroEmail">Email address</label>
+        <input id="heroEmail" type="email" placeholder="Your email" required class="flex-1 px-5 py-4 rounded-full border border-blushline bg-white text-ink placeholder:text-fawn focus:outline-none focus:border-rose focus:ring-2 focus:ring-rose/15 text-base"/>
+        <button type="submit" class="bg-rose text-white px-7 py-4 rounded-full font-bold text-base shadow-[0_8px_24px_rgba(146,64,94,0.3)] hover:bg-rosedeep transition-colors whitespace-nowrap">Join the waitlist</button>
       </form>
-      <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 pt-1">
-        <p class="text-sm text-on-surface-variant">WhatsApp-first · SMS reminders as backup · Card required · Cancel anytime</p>
-        <a class="text-primary font-semibold text-sm hover:opacity-80 transition-opacity whitespace-nowrap" href="#how-it-works">See how it works →</a>
-      </div>
-      <div class="inline-flex items-center gap-2 px-3 py-1.5 bg-primary-fixed rounded-full">
-        <span class="material-symbols-outlined text-sm text-primary" style="font-variation-settings: 'FILL' 1;">rocket_launch</span>
-        <span class="text-sm font-semibold text-on-primary-fixed-variant">Early access. Be among the first.</span>
+      <p class="mt-4 text-sm text-fawn rv in rv-d3">£29 a month, 120 messages included · 14-day free trial at launch · Cancel anytime</p>
+      <div class="mt-8 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-soot rv in rv-d4">
+        <span class="inline-flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-mint pulse-dot"></span>Working right now for UK beauty pros</span>
+        <span class="hidden sm:inline text-blushline">|</span>
+        <span>Nails · Lashes · Brows · Hair · Barbering · Aesthetics</span>
       </div>
     </div>
 
-    <!-- WhatsApp mockup  -  fixed avatar, fixed name -->
-    <div class="relative">
-      <div class="absolute -inset-10 bg-primary/5 rounded-full blur-3xl -z-10"></div>
-      <div class="bg-white rounded-[3rem] p-4 shadow-florrie border border-white/20 max-w-[320px] mx-auto transform rotate-2">
-        <div class="bg-stone-50 rounded-[2.5rem] overflow-hidden border border-stone-200">
-          <!-- WhatsApp header -->
-          <div class="bg-[#075e54] p-4 flex items-center gap-3 text-white">
-            <span class="material-symbols-outlined">arrow_back</span>
-            <!-- CSS avatar  -  female, no AI image issues -->
-            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-rose-300 to-pink-400 flex items-center justify-center text-white font-bold text-base flex-shrink-0">E</div>
+    <!-- The flagship proof: Florrie thinks ahead -->
+    <div class="relative" aria-label="Example of Florrie suggesting you block off the bank holiday">
+      <div class="absolute -inset-8 bg-white/40 rounded-[3rem] blur-2xl" aria-hidden="true"></div>
+      <div class="relative bg-white rounded-[1.75rem] border border-blushline shadow-[0_24px_60px_-18px_rgba(146,64,94,0.25)] p-5 sm:p-6 max-w-[420px] mx-auto bh-card">
+        <div class="flex items-center justify-between pb-4 border-b border-blushline/70">
+          <div class="flex items-center gap-2.5">
+            <svg viewBox="0 0 80 80" class="w-7 h-7" aria-hidden="true">
+              <g>
+                <ellipse cx="40" cy="24" rx="11" ry="17" fill="#C76B8A" opacity="0.8" transform="rotate(0 40 40)"/>
+                <ellipse cx="40" cy="24" rx="11" ry="17" fill="#C76B8A" opacity="0.65" transform="rotate(72 40 40)"/>
+                <ellipse cx="40" cy="24" rx="11" ry="17" fill="#C76B8A" opacity="0.55" transform="rotate(144 40 40)"/>
+                <ellipse cx="40" cy="24" rx="11" ry="17" fill="#C76B8A" opacity="0.55" transform="rotate(216 40 40)"/>
+                <ellipse cx="40" cy="24" rx="11" ry="17" fill="#C76B8A" opacity="0.65" transform="rotate(288 40 40)"/>
+                <circle cx="40" cy="40" r="5.5" fill="#C9A96E"/>
+              </g>
+            </svg>
+            <span class="eyebrow text-petal">Florrie thinks</span>
+          </div>
+          <span class="text-xs text-fawn font-medium">Tue 07:42</span>
+        </div>
+
+        <p class="pt-5 text-[17px] leading-relaxed text-ink">
+          The <strong class="font-bold">August bank holiday</strong> lands on Mon 31st. Most of your regulars book that week. Want me to block the day off, or keep it open for bookings?
+        </p>
+
+        <div class="mt-5 grid grid-cols-2 gap-3">
+          <button type="button" tabindex="-1" class="bh-block px-4 py-3 rounded-xl border-2 border-rose text-rose font-bold text-sm transition-colors">Block it off</button>
+          <button type="button" tabindex="-1" class="px-4 py-3 rounded-xl border border-blushline text-soot font-semibold text-sm">Keep it open</button>
+        </div>
+
+        <div class="bh-done mt-5 flex items-start gap-3 bg-blush/70 rounded-xl px-4 py-3.5">
+          <span class="bh-tick w-5 h-5 rounded-full bg-mint text-white items-center justify-center text-[11px] font-black mt-0.5">✓</span>
+          <p class="text-sm text-soot leading-snug"><strong class="text-ink">Done.</strong> Mon 31 Aug is blocked in your diary. I'll steer bookings around it.</p>
+        </div>
+
+        <div class="bh-diary mt-3 flex items-center justify-between rounded-xl border border-blushline/70 px-4 py-3">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-cream flex flex-col items-center justify-center leading-none border border-blushline/70">
+              <span class="text-[8px] font-bold text-rose uppercase">Aug</span>
+              <span class="text-sm font-extrabold text-ink">31</span>
+            </div>
             <div>
-              <p class="text-sm font-bold leading-none">Emma</p>
-              <p class="text-[10px] opacity-80">Online</p>
+              <p class="text-sm font-bold text-ink leading-tight">Bank holiday · day off</p>
+              <p class="text-xs text-fawn">Diary updated, no taps needed from you</p>
             </div>
           </div>
-          <!-- Chat messages -->
-          <div class="p-4 space-y-4 bg-[#e5ddd5] min-h-[380px]">
-            <div class="msg-1 bg-white p-3 rounded-xl rounded-tl-none shadow-sm max-w-[80%] text-sm">
-              Hey! Do you have anything free Saturday afternoon? Two weeks time?
-            </div>
-            <div class="msg-2 bg-[#dcf8c6] p-3 rounded-xl rounded-tr-none shadow-sm ml-auto max-w-[80%] text-sm">
-              <p class="font-bold text-[#92405e] text-[10px] mb-1">Florrie AI</p>
-              Hi Emma! I've got Saturday 12 April at 2pm or 4pm free for a full set. Want me to pencil you in? 💅
-            </div>
-            <div class="msg-3 bg-white p-3 rounded-xl rounded-tl-none shadow-sm max-w-[80%] text-sm">
-              2pm please!
-            </div>
-            <div class="msg-4 bg-[#dcf8c6] p-3 rounded-xl rounded-tr-none shadow-sm ml-auto max-w-[80%] text-sm">
-              <p class="font-bold text-[#92405e] text-[10px] mb-1">Florrie AI</p>
-              Done! Booking confirmed for 2pm. I've sent your patch test reminder too. See you then! 🌸
-            </div>
-          </div>
+          <span class="text-xs font-bold text-mint">Blocked</span>
         </div>
       </div>
+      <p class="relative text-center text-[13px] text-fawn mt-5 max-w-[420px] mx-auto">A real Florrie suggestion. She watches your diary, your clients and the calendar, then comes to you first.</p>
     </div>
+  </div>
+</header>
+
+<!-- ============================================================
+     3. TRUST STRIP
+     ============================================================ -->
+<section class="bg-paper border-y border-blushline/60 py-7 px-5">
+  <div class="max-w-wrap mx-auto flex flex-wrap justify-center lg:justify-between items-center gap-x-10 gap-y-3 text-[15px] text-soot font-medium">
+    <span class="rv">Built in the UK, for UK beauty pros</span>
+    <span class="rv rv-d1">WhatsApp, SMS and email in one inbox</span>
+    <span class="rv rv-d2">GDPR compliant from day one</span>
+    <span class="rv rv-d3">Now in early access</span>
   </div>
 </section>
 
 <!-- ============================================================
-     3. SOCIAL PROOF BAR
+     4. THE SHIFT  ·  short manifesto beat
      ============================================================ -->
-<section class="bg-white py-12 border-y border-surface-container overflow-hidden">
-  <div class="max-w-[1200px] mx-auto px-6">
-    <div class="flex flex-wrap justify-center md:justify-between items-center gap-8 text-on-surface-variant font-medium opacity-80">
-      <div class="flex items-center gap-2"><span class="material-symbols-outlined text-base text-secondary">storefront</span>Built for independent beauty pros</div>
-      <div class="hidden md:block w-px h-4 bg-outline-variant/30"></div>
-      <div class="flex items-center gap-2"><span class="material-symbols-outlined text-base text-secondary">location_on</span>UK-based, UK tax rules built in</div>
-      <div class="hidden md:block w-px h-4 bg-outline-variant/30"></div>
-      <div class="flex items-center gap-2"><span class="material-symbols-outlined text-base text-secondary">lock</span>GDPR compliant from day one</div>
-      <div class="hidden md:block w-px h-4 bg-outline-variant/30"></div>
-      <div class="flex items-center gap-2"><span class="material-symbols-outlined text-base text-secondary">rocket_launch</span>Now in early access</div>
-    </div>
-  </div>
-</section>
-
-<!-- ============================================================
-     4. PROBLEM SECTION
-     ============================================================ -->
-<section class="py-24 px-6 bg-surface-container-low">
-  <div class="max-w-[1000px] mx-auto text-center mb-16">
-    <h2 class="text-4xl lg:text-5xl font-serif italic mb-6">Running a beauty business is a full-time job. Running it solo is two.</h2>
-    <p class="text-lg text-on-surface-variant max-w-2xl mx-auto">
-      You trained to do hair, nails, lashes, not to spend your evenings replying to enquiries, chasing receipts and trying to remember who needs a patch test retake. Florrie handles the admin layer so you can get back to the work you're good at.
+<section class="py-24 lg:py-32 px-5">
+  <div class="max-w-[820px] mx-auto text-center">
+    <p class="eyebrow text-rose mb-6 rv">Why Florrie exists</p>
+    <h2 class="text-4xl lg:text-[3.4rem] leading-[1.12] font-medium rv rv-d1">
+      Booking apps wait for you to open them. <em class="italic font-serif text-rose">Florrie gets on with it.</em>
+    </h2>
+    <p class="mt-8 text-lg lg:text-xl text-soot leading-relaxed max-w-2xl mx-auto rv rv-d2">
+      Every tool you've tried is a filing cabinet with a calendar inside. The work, replying, chasing, rebooking, thinking ahead, still lands on you at 10pm with a brush in one hand and your phone in the other. Florrie is different because she acts. You'll feel it in the first week.
     </p>
   </div>
-  <div class="max-w-[1200px] mx-auto grid md:grid-cols-2 gap-8">
-    <div class="bg-white p-8 rounded-xl shadow-florrie space-y-4">
-      <div class="flex items-center gap-3 text-error">
-        <span class="material-symbols-outlined">block</span>
-        <h3 class="font-bold text-xl">The old way</h3>
-      </div>
-      <ul class="space-y-4">
-        <li class="flex gap-3 text-on-surface-variant">
-          <span class="material-symbols-outlined text-sm mt-1 text-error">close</span>
-          Miss enquiries when you're with a client
-        </li>
-        <li class="flex gap-3 text-on-surface-variant">
-          <span class="material-symbols-outlined text-sm mt-1 text-error">close</span>
-          Forgot to log that cash payment for tax
-        </li>
-        <li class="flex gap-3 text-on-surface-variant">
-          <span class="material-symbols-outlined text-sm mt-1 text-error">close</span>
-          No-shows with no warning
-        </li>
-        <li class="flex gap-3 text-on-surface-variant">
-          <span class="material-symbols-outlined text-sm mt-1 text-error">close</span>
-          Patch test records on a paper notepad
-        </li>
+</section>
+
+<!-- ============================================================
+     5. PILLAR 1  ·  SHE WORKS BY HERSELF  (dark, activity feed)
+     ============================================================ -->
+<section id="works" class="relative py-24 lg:py-32 px-5 bg-night overflow-hidden">
+  <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[40rem] h-[20rem] bg-petal/15 blur-[120px] rounded-full" aria-hidden="true"></div>
+  <div class="relative max-w-wrap mx-auto grid lg:grid-cols-2 gap-14 lg:gap-20 items-center">
+    <div>
+      <p class="eyebrow text-petal mb-6 rv">She works by herself</p>
+      <h2 class="text-4xl lg:text-5xl leading-[1.1] font-medium text-white rv rv-d1">While you were with clients.</h2>
+      <p class="mt-7 text-lg text-white/65 leading-relaxed rv rv-d2">
+        This is the feed you check at the end of the day. Not a to-do list. A done list. Every line is something Florrie handled on her own, and every line taps through to the exact message or booking, so you can see her work whenever you like.
+      </p>
+      <ul class="mt-8 space-y-4 text-white/80 rv rv-d3">
+        <li class="flex gap-3"><span class="text-petal font-black">·</span>Replies go out in seconds, any hour, in your words</li>
+        <li class="flex gap-3"><span class="text-petal font-black">·</span>Cancellations get offered to your waitlist before you've even seen them</li>
+        <li class="flex gap-3"><span class="text-petal font-black">·</span>Confirmations, reminders and patch test checks run on their own</li>
       </ul>
     </div>
-    <div class="bg-primary-fixed p-8 rounded-xl shadow-florrie space-y-4 border-l-4 border-primary">
-      <div class="flex items-center gap-3 text-primary">
-        <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">check_circle</span>
-        <h3 class="font-bold text-xl">The Florrie way</h3>
-      </div>
-      <ul class="space-y-4">
-        <li class="flex gap-3 text-on-primary-fixed-variant">
-          <span class="material-symbols-outlined text-sm mt-1 text-primary">done</span>
-          Booking Agent replies instantly, 24/7
-        </li>
-        <li class="flex gap-3 text-on-primary-fixed-variant">
-          <span class="material-symbols-outlined text-sm mt-1 text-primary">done</span>
-          Tax Agent logs every payment automatically
-        </li>
-        <li class="flex gap-3 text-on-primary-fixed-variant">
-          <span class="material-symbols-outlined text-sm mt-1 text-primary">done</span>
-          Follow-up Agent sends reminders and holds deposits
-        </li>
-        <li class="flex gap-3 text-on-primary-fixed-variant">
-          <span class="material-symbols-outlined text-sm mt-1 text-primary">done</span>
-          Compliance Agent keeps digital records up to date
-        </li>
-        <li class="flex gap-3 text-on-primary-fixed-variant">
-          <span class="material-symbols-outlined text-sm mt-1 text-primary">done</span>
-          Content Agent generates posts and replies to DMs
-        </li>
-      </ul>
-    </div>
-  </div>
-</section>
 
-<!-- ============================================================
-     5. FEATURES SECTION
-     ============================================================ -->
-<section class="py-24 px-6 bg-white" id="features">
-  <div class="max-w-[1200px] mx-auto">
-    <div class="mb-16">
-      <span class="text-primary font-bold tracking-widest uppercase text-xs">What Florrie does</span>
-      <h2 class="text-4xl lg:text-5xl font-serif italic mt-4">Everything you need in one place.</h2>
-    </div>
-    <div class="grid md:grid-cols-3 gap-8 lg:gap-12">
-      <!-- AI Receptionist -->
-      <div class="group">
-        <div class="w-14 h-14 bg-primary-fixed rounded-full flex items-center justify-center mb-6 transition-transform group-hover:scale-110">
-          <span class="material-symbols-outlined text-primary text-3xl">chat_bubble</span>
-        </div>
-        <h3 class="font-bold text-xl mb-3">AI Receptionist</h3>
-        <p class="text-on-surface-variant mb-6">Reads every WhatsApp message and replies in seconds, booking appointments, answering FAQs and handling reschedules while you work.</p>
+    <!-- "What Florrie did" feed -->
+    <div class="bg-nightcard border border-white/10 rounded-[1.5rem] p-6 sm:p-7 shadow-2xl" aria-label="Example of the What Florrie did feed">
+      <div class="flex items-center justify-between mb-6">
+        <span class="eyebrow text-white/50">What Florrie did</span>
+        <span class="text-xs text-white/40 font-medium">Today</span>
       </div>
-      <!-- Smart Booking -->
-      <div class="group">
-        <div class="w-14 h-14 bg-primary-fixed rounded-full flex items-center justify-center mb-6 transition-transform group-hover:scale-110">
-          <span class="material-symbols-outlined text-primary text-3xl">calendar_month</span>
+      <div class="space-y-3">
+        <div class="feedrow rv pl-4 py-2.5">
+          <p class="text-[15px] text-white/90 leading-snug">Replied to Sophie about lash infill prices</p>
+          <p class="text-xs text-white/40 mt-1">09:12 · You were mid set with Amara</p>
         </div>
-        <h3 class="font-bold text-xl mb-3">Smart Booking</h3>
-        <p class="text-on-surface-variant mb-6">Clients book via your link or WhatsApp. Florrie checks availability, confirms appointments and sends reminders. No double-bookings, no gaps left open.</p>
-      </div>
-      <!-- Tax Dashboard -->
-      <div class="group">
-        <div class="w-14 h-14 bg-primary-fixed rounded-full flex items-center justify-center mb-6 transition-transform group-hover:scale-110">
-          <span class="material-symbols-outlined text-primary text-3xl">payments</span>
+        <div class="feedrow rv rv-d1 pl-4 py-2.5">
+          <p class="text-[15px] text-white/90 leading-snug">Confirmed Friday 2:00pm with Jade, patch test reminder sent</p>
+          <p class="text-xs text-white/40 mt-1">09:40</p>
         </div>
-        <h3 class="font-bold text-xl mb-3">Tax Dashboard</h3>
-        <p class="text-on-surface-variant mb-6">Built for UK sole traders. Log income, track expenses and see your HMRC estimate in real time. No spreadsheets, no boxes of receipts.</p>
-      </div>
-      <!-- Compliance -->
-      <div class="group">
-        <div class="w-14 h-14 bg-primary-fixed rounded-full flex items-center justify-center mb-6 transition-transform group-hover:scale-110">
-          <span class="material-symbols-outlined text-primary text-3xl">verified_user</span>
+        <div class="feedrow rv rv-d2 pl-4 py-2.5">
+          <p class="text-[15px] text-white/90 leading-snug">2:30pm cancelled. Offered the slot to your waitlist</p>
+          <p class="text-xs text-white/40 mt-1">11:05</p>
         </div>
-        <h3 class="font-bold text-xl mb-3">Compliance Tracking</h3>
-        <p class="text-on-surface-variant mb-6">Patch test records, allergy histories and consultation forms in one place. Florrie flags when a patch test is due before an appointment.</p>
-      </div>
-      <!-- Client Profiles -->
-      <div class="group">
-        <div class="w-14 h-14 bg-primary-fixed rounded-full flex items-center justify-center mb-6 transition-transform group-hover:scale-110">
-          <span class="material-symbols-outlined text-primary text-3xl">groups</span>
+        <div class="feedrow rv rv-d3 pl-4 py-2.5 bg-white/5 rounded-r-xl">
+          <p class="text-[15px] text-white leading-snug font-semibold">Maya took the 2:30. Diary full again <span class="text-mint">↗</span></p>
+          <p class="text-xs text-white/40 mt-1">11:09 · 4 minutes after the cancellation</p>
         </div>
-        <h3 class="font-bold text-xl mb-3">Client Profiles</h3>
-        <p class="text-on-surface-variant mb-6">Every client's booking history, notes, preferences and records in one card. Know exactly who's coming in before they walk through the door.</p>
-      </div>
-      <!-- Automated Follow-ups -->
-      <div class="group">
-        <div class="w-14 h-14 bg-primary-fixed rounded-full flex items-center justify-center mb-6 transition-transform group-hover:scale-110">
-          <span class="material-symbols-outlined text-primary text-3xl">send</span>
+        <div class="feedrow rv rv-d4 pl-4 py-2.5">
+          <p class="text-[15px] text-white/90 leading-snug">Nudged 3 clients who are overdue their usual rebook</p>
+          <p class="text-xs text-white/40 mt-1">13:15</p>
         </div>
-        <h3 class="font-bold text-xl mb-3">Automated Follow-ups</h3>
-        <p class="text-on-surface-variant mb-6">Thank-you messages, review requests and rebooking nudges go out after every appointment, without you touching your phone.</p>
-      </div>
-      <!-- Content Autopilot -->
-      <div class="group">
-        <div class="w-14 h-14 bg-primary-fixed rounded-full flex items-center justify-center mb-6 transition-transform group-hover:scale-110">
-          <span class="material-symbols-outlined text-primary text-3xl">auto_awesome</span>
+        <div class="feedrow rv rv-d5 pl-4 py-2.5">
+          <p class="text-[15px] text-white/90 leading-snug">Drafted tomorrow's reminders, ready for one tap</p>
+          <p class="text-xs text-white/40 mt-1">16:50</p>
         </div>
-        <h3 class="font-bold text-xl mb-3">Content Autopilot</h3>
-        <p class="text-on-surface-variant mb-6">Florrie generates post ideas based on your treatments, drafts captions in your tone and schedules them for you. You approve in five minutes. She handles the rest.</p>
-      </div>
-
-      <!-- Churn Prevention -->
-      <div class="group">
-        <div class="w-14 h-14 bg-primary-fixed rounded-full flex items-center justify-center mb-6 transition-transform group-hover:scale-110">
-          <span class="material-symbols-outlined text-primary text-3xl">insights</span>
+        <div class="rv rv-d6 pl-4 py-2.5 flex items-center gap-2">
+          <span class="tdot"></span><span class="tdot"></span><span class="tdot"></span>
+          <span class="text-xs text-white/40 ml-1">Florrie is replying to a new enquiry…</span>
         </div>
-        <h3 class="font-bold text-xl mb-3">Client Retention AI</h3>
-        <p class="text-on-surface-variant mb-6">Florrie tracks every client's rebooking pattern and reaches out the moment someone goes quiet, before they drift to a competitor. Your regulars stay yours.</p>
-      </div>
-
-      <!-- No-Show Shield -->
-      <div class="group">
-        <div class="w-14 h-14 bg-primary-fixed rounded-full flex items-center justify-center mb-6 transition-transform group-hover:scale-110">
-          <span class="material-symbols-outlined text-primary text-3xl">shield</span>
-        </div>
-        <h3 class="font-bold text-xl mb-3">No-Show Shield</h3>
-        <p class="text-on-surface-variant mb-6">Deposit requests, reminder sequences and last-minute confirmation messages, all automated. Florrie does the awkward chasing so you never have to.</p>
       </div>
     </div>
   </div>
 </section>
 
 <!-- ============================================================
-     5b. CONTENT AGENT CALLOUT
+     6. PILLAR 2  ·  SHE LEARNS YOUR VOICE
      ============================================================ -->
-<section class="py-20 px-6 bg-[#1A1A1A]">
-  <div class="max-w-[900px] mx-auto">
-    <div class="bg-[#232323] rounded-[2rem] p-10 lg:p-14 relative overflow-hidden border border-white/10">
-      <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-400 via-primary to-primary-container"></div>
-      <div class="absolute top-0 right-0 w-80 h-80 bg-orange-400/5 blur-[80px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
-      <div class="relative z-10">
-        <div class="flex items-center gap-3 mb-6">
-          <div class="w-10 h-10 rounded-full bg-orange-400/15 border border-orange-400/30 flex items-center justify-center flex-shrink-0">
-            <span class="material-symbols-outlined text-orange-400 text-xl">auto_awesome</span>
-          </div>
-          <span class="text-orange-400 font-bold tracking-widest uppercase text-xs">Content Agent</span>
-        </div>
-        <h2 class="text-3xl lg:text-4xl font-serif italic text-white mb-6 leading-tight">She generates the ideas.<br/>You just say yes or no.</h2>
-        <p class="text-white/60 text-lg mb-8 max-w-xl">Tell Florrie what treatments you offer and she builds a content calendar around them. Post ideas, caption drafts, hashtag sets, written in your voice, ready to approve in a batch every week.</p>
-        <div class="grid sm:grid-cols-2 gap-4 mb-8">
-          <div class="bg-white/5 border border-white/10 rounded-xl p-5">
-            <p class="text-white font-semibold mb-1">Weekly batch generation</p>
-            <p class="text-white/50 text-sm">Five to seven post ideas every week, drafted around your actual services and schedule. Review them in one go.</p>
-          </div>
-          <div class="bg-white/5 border border-white/10 rounded-xl p-5">
-            <p class="text-white font-semibold mb-1">Auto-schedule &amp; post</p>
-            <p class="text-white/50 text-sm">Approve what you like, skip what you don't. Florrie schedules approved posts at the best times for your audience and posts automatically.</p>
-          </div>
-          <div class="bg-white/5 border border-white/10 rounded-xl p-5">
-            <p class="text-white font-semibold mb-1">DM replies on Instagram</p>
-            <p class="text-white/50 text-sm">Enquiries that come through Instagram DMs get the same treatment as WhatsApp, answered in your tone, booking link included.</p>
-          </div>
-          <div class="bg-white/5 border border-white/10 rounded-xl p-5">
-            <p class="text-white font-semibold mb-1">Your tone, not generic AI</p>
-            <p class="text-white/50 text-sm">Florrie learns how you write from your existing messages and captions. The output reads like you, not like a chatbot.</p>
+<section id="voice" class="py-24 lg:py-32 px-5 bg-cream grain relative">
+  <div class="relative max-w-wrap mx-auto grid lg:grid-cols-2 gap-14 lg:gap-20 items-center">
+    <!-- Chat proof -->
+    <div class="order-2 lg:order-1">
+      <div class="bg-white rounded-[1.75rem] border border-blushline shadow-[0_24px_60px_-18px_rgba(146,64,94,0.18)] overflow-hidden max-w-[420px] mx-auto" aria-label="Example of a reply Florrie drafted in the beautician's own voice">
+        <div class="bg-wa px-5 py-3.5 flex items-center gap-3 text-white">
+          <div class="w-9 h-9 rounded-full bg-gradient-to-br from-rose to-petal flex items-center justify-center font-bold text-sm">G</div>
+          <div>
+            <p class="text-sm font-bold leading-none">Gemma · Lash &amp; Brow Studio</p>
+            <p class="text-[11px] opacity-75 mt-1">Florrie answering as Gemma</p>
           </div>
         </div>
-        <p class="text-white/40 text-sm">No Sunday evening caption writing. No blank page staring back at you.</p>
+        <div class="bg-[#EAE2DA] p-5 space-y-3.5">
+          <div class="bg-white p-3.5 rounded-2xl rounded-tl-md shadow-sm max-w-[85%] text-[15px]">
+            Any chance you can squeeze me in before Friday?? Lash infills 🥺
+          </div>
+          <div class="bg-wabubble p-3.5 rounded-2xl rounded-tr-md shadow-sm ml-auto max-w-[85%] text-[15px]">
+            Morning lovely!! I can do Thursday 4:15 if you're quick 😄 want it? xx
+          </div>
+          <div class="bg-white p-3.5 rounded-2xl rounded-tl-md shadow-sm max-w-[85%] text-[15px]">
+            yes!! you're a lifesaver xx
+          </div>
+          <div class="bg-wabubble p-3.5 rounded-2xl rounded-tr-md shadow-sm ml-auto max-w-[85%] text-[15px]">
+            Booked you in babe 🥰 see you Thursday xx
+          </div>
+        </div>
+        <div class="px-5 py-3.5 bg-blush/50 border-t border-blushline/60">
+          <p class="text-[13px] text-soot"><strong class="text-rose">Written by Florrie</strong>, sent with one tap. Gemma was doing a full set at the time.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="order-1 lg:order-2">
+      <p class="eyebrow text-rose mb-6 rv">She learns your voice</p>
+      <h2 class="text-4xl lg:text-5xl leading-[1.1] font-medium rv rv-d1">She sounds like you.<br/><em class="italic font-serif text-rose">Properly</em> you.</h2>
+      <p class="mt-7 text-lg text-soot leading-relaxed rv rv-d2">
+        Florrie studies how you actually talk to clients. Your phrasing, your emoji, the "babe", the double exclamation marks, the xx at the end. Then she writes replies you'd swear you typed yourself.
+      </p>
+      <p class="mt-5 text-lg text-soot leading-relaxed rv rv-d3">
+        Week one, she's polite and gets the job done. By month two, your clients can't tell the difference. The more you use her, the more she sounds like you, and your regulars never feel like they've been handed to a robot.
+      </p>
+      <div class="mt-8 flex items-center gap-4 rv rv-d4">
+        <div class="flex -space-x-2" aria-hidden="true">
+          <div class="w-9 h-9 rounded-full bg-blush border-2 border-cream flex items-center justify-center text-rose text-xs font-bold">W1</div>
+          <div class="w-9 h-9 rounded-full bg-petal/40 border-2 border-cream flex items-center justify-center text-rosedeep text-xs font-bold">M1</div>
+          <div class="w-9 h-9 rounded-full bg-rose border-2 border-cream flex items-center justify-center text-white text-xs font-bold">M2</div>
+        </div>
+        <p class="text-sm text-fawn">From "sounds professional" to "sounds exactly like me"</p>
       </div>
     </div>
   </div>
 </section>
 
 <!-- ============================================================
-     5c. WHATSAPP FOR BEAUTICIANS
+     7. PILLAR 3  ·  SHE GROWS YOUR BUSINESS
      ============================================================ -->
-<section class="py-24 px-6 bg-[#F0F9F7]">
-  <div class="max-w-[1100px] mx-auto grid lg:grid-cols-2 gap-16 items-center">
-    <div class="space-y-6">
-      <div class="inline-flex items-center gap-2 px-4 py-1.5 bg-[#25D366]/15 text-[#128C7E] rounded-full text-sm font-bold">
-        <svg viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 flex-shrink-0"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-        Built for WhatsApp
-      </div>
-      <h2 class="text-4xl lg:text-5xl font-serif italic leading-tight">Your clients already have your number. Don't make them download anything.</h2>
-      <p class="text-on-surface-variant text-lg">Beauty clients book over WhatsApp. They don't want an app, a login, or a link they have to remember. Florrie plugs straight into the number they already text you on. Your clients don't even notice there's an AI.</p>
-      <ul class="space-y-5">
-        <li class="flex gap-3 items-start">
-          <span class="material-symbols-outlined text-[#128C7E] mt-0.5 flex-shrink-0" style="font-variation-settings: 'FILL' 1;">check_circle</span>
-          <span><strong>Keep your existing number.</strong> No new SIM, no second number. Florrie works quietly in the background on the number clients already text.</span>
-        </li>
-        <li class="flex gap-3 items-start">
-          <span class="material-symbols-outlined text-[#128C7E] mt-0.5 flex-shrink-0" style="font-variation-settings: 'FILL' 1;">check_circle</span>
-          <span><strong>Replies in seconds, any hour.</strong> Saturday 11pm enquiries, Bank Holiday messages, 7am texts while you're on the school run, all answered instantly.</span>
-        </li>
-        <li class="flex gap-3 items-start">
-          <span class="material-symbols-outlined text-[#128C7E] mt-0.5 flex-shrink-0" style="font-variation-settings: 'FILL' 1;">check_circle</span>
-          <span><strong>Import your clients in 30 seconds.</strong> Bring your existing client list across from any booking tool or spreadsheet. Florrie picks up right where you left off.</span>
-        </li>
-      </ul>
-    </div>
-    <!-- WhatsApp mockup -->
-    <div class="bg-white rounded-[2rem] p-6 shadow-florrie border border-surface-container max-w-sm mx-auto w-full">
-      <div class="bg-[#075e54] text-white rounded-t-xl px-4 py-3 flex items-center gap-3 -mx-2 mt-[-1.5rem] rounded-tl-[1.5rem] rounded-tr-[1.5rem]">
-        <div class="w-9 h-9 rounded-full bg-gradient-to-br from-rose-300 to-pink-400 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">K</div>
-        <div>
-          <p class="text-sm font-bold">Kira, London Lashes</p>
-          <p class="text-[10px] opacity-70">Florrie AI · Online</p>
-        </div>
-      </div>
-      <div class="bg-[#e5ddd5] p-4 space-y-3 rounded-b-xl -mx-2">
-        <div class="bg-white p-3 rounded-xl rounded-tl-none shadow-sm max-w-[85%] text-sm">Hi! Can I book a lash lift for next Saturday?</div>
-        <div class="bg-[#dcf8c6] p-3 rounded-xl rounded-tr-none shadow-sm ml-auto max-w-[85%] text-sm">
-          <p class="font-bold text-[#128C7E] text-[10px] mb-1">Florrie AI</p>
-          Hi! I've got Saturday 13th at 10am or 2pm free. Which works? 😊
-        </div>
-        <div class="bg-white p-3 rounded-xl rounded-tl-none shadow-sm max-w-[85%] text-sm">2pm please!</div>
-        <div class="bg-[#dcf8c6] p-3 rounded-xl rounded-tr-none shadow-sm ml-auto max-w-[85%] text-sm">
-          <p class="font-bold text-[#128C7E] text-[10px] mb-1">Florrie AI</p>
-          Done! Patch test reminder goes out 48hrs before. See you then 🌸
-        </div>
-      </div>
-      <p class="text-xs text-on-surface-variant text-center mt-4 italic">Florrie replied in 4 seconds · You were with a client</p>
-    </div>
-  </div>
-</section>
-
-<!-- ============================================================
-     6. AI TEAM  -  animated agent visualisation
-     ============================================================ -->
-<section id="ai-team" class="py-24 px-6 bg-[#1A1A1A] relative overflow-hidden">
-  <!-- Background glow -->
-  <div class="absolute inset-0 pointer-events-none" style="background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(199,107,138,0.12) 0%, transparent 70%);"></div>
-
-  <div class="max-w-[1200px] mx-auto relative z-10">
-    <div class="text-center mb-16">
-      <span class="text-[#C76B8A] font-bold tracking-widest uppercase text-xs">Your AI team</span>
-      <h2 class="text-4xl lg:text-5xl font-serif italic mt-4 text-white">Six AI employees.<br/>Zero extra desks.</h2>
-      <p class="text-white/60 mt-6 max-w-2xl mx-auto text-lg">
-        Florrie isn't one AI. It's six specialised agents running in parallel, handling bookings, content, tax, compliance, follow-ups and insights. They share context and hand off to each other so nothing falls through.
+<section class="py-24 lg:py-32 px-5 bg-paper border-y border-blushline/60">
+  <div class="max-w-wrap mx-auto">
+    <div class="max-w-2xl mb-14">
+      <p class="eyebrow text-rose mb-6 rv">She grows your business</p>
+      <h2 class="text-4xl lg:text-5xl leading-[1.1] font-medium rv rv-d1">She spots the money you'd have missed.</h2>
+      <p class="mt-6 text-lg text-soot leading-relaxed rv rv-d2">
+        Quiet weeks, drifting regulars, prices that haven't moved in two years. Florrie watches the patterns in your diary and comes to you with the move, ready to send. You stay in charge. She does the noticing.
       </p>
     </div>
-
-    <!-- Desktop orbital layout -->
-    <div class="relative mx-auto hidden lg:block" style="width: 520px; height: 520px;">
-
-      <!-- Outer orbit ring (decorative, slowly spins) -->
-      <div class="absolute inset-0 rounded-full border border-dashed border-white/8" style="animation: spin 80s linear infinite;"></div>
-
-      <!-- SVG connecting lines  -  hexagonal 6-agent layout -->
-      <svg class="absolute inset-0 w-full h-full pointer-events-none z-0" viewBox="0 0 520 520">
-        <!-- Center to Booking Agent (top) -->
-        <line x1="260" y1="260" x2="260" y2="80" stroke="#C76B8A" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.4" class="agent-line"/>
-        <!-- Center to Tax Agent (upper right) -->
-        <line x1="260" y1="260" x2="416" y2="170" stroke="#C9A96E" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.4" class="agent-line-2"/>
-        <!-- Center to Follow-up Agent (lower right) -->
-        <line x1="260" y1="260" x2="416" y2="350" stroke="#A78BFA" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.4" class="agent-line-3"/>
-        <!-- Center to Compliance Agent (bottom) -->
-        <line x1="260" y1="260" x2="260" y2="440" stroke="#7BC8A4" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.4" class="agent-line-4"/>
-        <!-- Center to Insights Agent (lower left) -->
-        <line x1="260" y1="260" x2="104" y2="350" stroke="#67B8C5" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.4" class="agent-line-5"/>
-        <!-- Center to Content Agent (upper left) -->
-        <line x1="260" y1="260" x2="104" y2="170" stroke="#FB923C" stroke-width="1.5" stroke-dasharray="5 5" opacity="0.4" class="agent-line-6"/>
-      </svg>
-
-      <!-- Centre hub  -  Florrie icon -->
-      <div class="agent-hub absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 rounded-full bg-[#C76B8A] flex items-center justify-center z-20">
-        <svg viewBox="0 0 100 100" fill="none" class="w-14 h-14">
-          <ellipse cx="50" cy="30" rx="16" ry="24" fill="#fff" opacity="0.85" transform="rotate(0 50 50)"/>
-          <ellipse cx="50" cy="30" rx="16" ry="24" fill="#fff" opacity="0.75" transform="rotate(72 50 50)"/>
-          <ellipse cx="50" cy="30" rx="16" ry="24" fill="#fff" opacity="0.65" transform="rotate(144 50 50)"/>
-          <ellipse cx="50" cy="30" rx="16" ry="24" fill="#fff" opacity="0.65" transform="rotate(216 50 50)"/>
-          <ellipse cx="50" cy="30" rx="16" ry="24" fill="#fff" opacity="0.75" transform="rotate(288 50 50)"/>
-          <circle cx="50" cy="50" r="8" fill="#C9A96E"/>
-        </svg>
+    <div class="grid md:grid-cols-3 gap-6">
+      <div class="rv bg-cream rounded-2xl border border-blushline p-7">
+        <p class="eyebrow text-petal mb-4">Florrie thinks</p>
+        <p class="text-[17px] leading-relaxed text-ink">Chloe usually books every 3 weeks. It's been 5. Want me to check in with her?</p>
+        <span class="inline-block mt-5 px-4 py-2 rounded-full bg-rose text-white text-sm font-bold">Send the nudge</span>
+        <p class="mt-4 text-sm text-fawn">Rebook nudges go out before a regular becomes a stranger.</p>
       </div>
-
-      <!-- Agent 1: Booking Agent  -  top -->
-      <div class="agent-1 absolute text-center z-10" style="top:15.4%; left:50%; transform:translate(-50%,-50%);">
-        <div class="w-16 h-16 rounded-full bg-[#C76B8A]/20 border border-[#C76B8A]/40 flex items-center justify-center mx-auto mb-2 backdrop-blur-sm">
-          <span class="material-symbols-outlined text-[#C76B8A] text-2xl">chat_bubble</span>
-        </div>
-        <p class="text-white text-xs font-semibold whitespace-nowrap">Booking Agent</p>
-        <div class="flex items-center justify-center gap-1 mt-1">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 online-dot inline-block"></span>
-          <span class="text-white/40 text-[10px]">active</span>
-        </div>
+      <div class="rv rv-d1 bg-cream rounded-2xl border border-blushline p-7">
+        <p class="eyebrow text-petal mb-4">Florrie thinks</p>
+        <p class="text-[17px] leading-relaxed text-ink">Week after next looks quiet. A comeback offer to 8 lapsed clients could fill both days.</p>
+        <span class="inline-block mt-5 px-4 py-2 rounded-full bg-rose text-white text-sm font-bold">Fill the gaps</span>
+        <p class="mt-4 text-sm text-fawn">She sees the quiet patch coming while there's still time to fix it.</p>
       </div>
-
-      <!-- Agent 2: Tax Agent  -  upper right -->
-      <div class="agent-2 absolute text-center z-10" style="top:32.7%; left:80%; transform:translate(-50%,-50%);">
-        <div class="w-16 h-16 rounded-full bg-[#C9A96E]/20 border border-[#C9A96E]/40 flex items-center justify-center mx-auto mb-2 backdrop-blur-sm">
-          <span class="material-symbols-outlined text-[#C9A96E] text-2xl">receipt_long</span>
-        </div>
-        <p class="text-white text-xs font-semibold whitespace-nowrap">Tax Agent</p>
-        <div class="flex items-center justify-center gap-1 mt-1">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 online-dot-2 inline-block"></span>
-          <span class="text-white/40 text-[10px]">active</span>
-        </div>
-      </div>
-
-      <!-- Agent 3: Follow-up Agent  -  lower right -->
-      <div class="agent-3 absolute text-center z-10" style="top:67.3%; left:80%; transform:translate(-50%,-50%);">
-        <div class="w-16 h-16 rounded-full bg-[#A78BFA]/20 border border-[#A78BFA]/40 flex items-center justify-center mx-auto mb-2 backdrop-blur-sm">
-          <span class="material-symbols-outlined text-[#A78BFA] text-2xl">send</span>
-        </div>
-        <p class="text-white text-xs font-semibold whitespace-nowrap">Follow-up Agent</p>
-        <div class="flex items-center justify-center gap-1 mt-1">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 online-dot-3 inline-block"></span>
-          <span class="text-white/40 text-[10px]">active</span>
-        </div>
-      </div>
-
-      <!-- Agent 4: Compliance Agent  -  bottom -->
-      <div class="agent-4 absolute text-center z-10" style="top:84.6%; left:50%; transform:translate(-50%,-50%);">
-        <div class="w-16 h-16 rounded-full bg-[#7BC8A4]/20 border border-[#7BC8A4]/40 flex items-center justify-center mx-auto mb-2 backdrop-blur-sm">
-          <span class="material-symbols-outlined text-[#7BC8A4] text-2xl">verified_user</span>
-        </div>
-        <p class="text-white text-xs font-semibold whitespace-nowrap">Compliance Agent</p>
-        <div class="flex items-center justify-center gap-1 mt-1">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 online-dot-4 inline-block"></span>
-          <span class="text-white/40 text-[10px]">active</span>
-        </div>
-      </div>
-
-      <!-- Agent 5: Insights Agent  -  lower left -->
-      <div class="agent-5 absolute text-center z-10" style="top:67.3%; left:20%; transform:translate(-50%,-50%);">
-        <div class="w-16 h-16 rounded-full bg-[#67B8C5]/20 border border-[#67B8C5]/40 flex items-center justify-center mx-auto mb-2 backdrop-blur-sm">
-          <span class="material-symbols-outlined text-[#67B8C5] text-2xl">insights</span>
-        </div>
-        <p class="text-white text-xs font-semibold whitespace-nowrap">Insights Agent</p>
-        <div class="flex items-center justify-center gap-1 mt-1">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 online-dot-5 inline-block"></span>
-          <span class="text-white/40 text-[10px]">active</span>
-        </div>
-      </div>
-
-      <!-- Agent 6: Content Agent  -  upper left -->
-      <div class="agent-6 absolute text-center z-10" style="top:32.7%; left:20%; transform:translate(-50%,-50%);">
-        <div class="w-16 h-16 rounded-full bg-[#FB923C]/20 border border-[#FB923C]/40 flex items-center justify-center mx-auto mb-2 backdrop-blur-sm">
-          <span class="material-symbols-outlined text-[#FB923C] text-2xl">auto_awesome</span>
-        </div>
-        <p class="text-white text-xs font-semibold whitespace-nowrap">Content Agent</p>
-        <div class="flex items-center justify-center gap-1 mt-1">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 online-dot inline-block"></span>
-          <span class="text-white/40 text-[10px]">active</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Mobile grid layout -->
-    <div class="grid grid-cols-2 gap-4 lg:hidden mt-8 max-w-sm mx-auto">
-      <div class="bg-white/5 border border-white/10 rounded-2xl p-5 text-center">
-        <div class="w-12 h-12 rounded-full bg-[#C76B8A]/20 flex items-center justify-center mx-auto mb-3">
-          <span class="material-symbols-outlined text-[#C76B8A]">chat_bubble</span>
-        </div>
-        <p class="text-white text-sm font-semibold">Booking Agent</p>
-        <p class="text-white/40 text-xs mt-1">WhatsApp bookings, 24/7</p>
-      </div>
-      <div class="bg-white/5 border border-white/10 rounded-2xl p-5 text-center">
-        <div class="w-12 h-12 rounded-full bg-[#C9A96E]/20 flex items-center justify-center mx-auto mb-3">
-          <span class="material-symbols-outlined text-[#C9A96E]">receipt_long</span>
-        </div>
-        <p class="text-white text-sm font-semibold">Tax Agent</p>
-        <p class="text-white/40 text-xs mt-1">Income, expenses, HMRC</p>
-      </div>
-      <div class="bg-white/5 border border-white/10 rounded-2xl p-5 text-center">
-        <div class="w-12 h-12 rounded-full bg-[#7BC8A4]/20 flex items-center justify-center mx-auto mb-3">
-          <span class="material-symbols-outlined text-[#7BC8A4]">verified_user</span>
-        </div>
-        <p class="text-white text-sm font-semibold">Compliance Agent</p>
-        <p class="text-white/40 text-xs mt-1">Patch tests, records</p>
-      </div>
-      <div class="bg-white/5 border border-white/10 rounded-2xl p-5 text-center">
-        <div class="w-12 h-12 rounded-full bg-[#A78BFA]/20 flex items-center justify-center mx-auto mb-3">
-          <span class="material-symbols-outlined text-[#A78BFA]">send</span>
-        </div>
-        <p class="text-white text-sm font-semibold">Follow-up Agent</p>
-        <p class="text-white/40 text-xs mt-1">Reminders, rebooking</p>
-      </div>
-      <div class="bg-white/5 border border-white/10 rounded-2xl p-5 text-center">
-        <div class="w-12 h-12 rounded-full bg-[#67B8C5]/20 flex items-center justify-center mx-auto mb-3">
-          <span class="material-symbols-outlined text-[#67B8C5]">insights</span>
-        </div>
-        <p class="text-white text-sm font-semibold">Insights Agent</p>
-        <p class="text-white/40 text-xs mt-1">Revenue and performance summaries</p>
-      </div>
-      <div class="bg-white/5 border border-white/10 rounded-2xl p-5 text-center">
-        <div class="w-12 h-12 rounded-full bg-orange-400/20 flex items-center justify-center mx-auto mb-3">
-          <span class="material-symbols-outlined text-orange-400">auto_awesome</span>
-        </div>
-        <p class="text-white text-sm font-semibold">Content Agent</p>
-        <p class="text-white/40 text-xs mt-1">Post ideas, captions, Instagram DMs</p>
-      </div>
-    </div>
-
-    <!-- Caption below -->
-    <p class="text-center text-white/40 text-sm mt-12 max-w-lg mx-auto">
-      All six agents are included in every Florrie plan. No add-ons, no tiers, no switching between tools.
-    </p>
-  </div>
-</section>
-
-<!-- ============================================================
-     7. HOW IT WORKS
-     ============================================================ -->
-<section class="py-24 px-6 bg-[#F5EBF0]" id="how-it-works">
-  <div class="max-w-[1200px] mx-auto">
-    <h2 class="text-4xl lg:text-5xl font-serif italic mb-16 text-center">Up and running in 10 minutes.</h2>
-    <div class="relative flex flex-col md:flex-row gap-12 items-start">
-      <div class="hidden md:block absolute top-12 left-0 w-full h-0.5 bg-primary/20 z-0">
-        <div class="h-full bg-primary w-2/3"></div>
-      </div>
-      <div class="relative z-10 flex-1 space-y-6">
-        <div class="w-12 h-12 bg-primary text-on-primary rounded-full flex items-center justify-center font-bold text-xl border-4 border-[#F5EBF0]">1</div>
-        <h3 class="font-bold text-2xl">Sign up</h3>
-        <p class="text-on-surface-variant">Add your services, set your availability and tell Florrie how you like to work. Takes about 10 minutes. No card needed to start.</p>
-      </div>
-      <div class="relative z-10 flex-1 space-y-6">
-        <div class="w-12 h-12 bg-primary text-on-primary rounded-full flex items-center justify-center font-bold text-xl border-4 border-[#F5EBF0]">2</div>
-        <h3 class="font-bold text-2xl">Connect WhatsApp</h3>
-        <p class="text-on-surface-variant">Link your business number. Florrie sits in the background. Your clients message the same number they already have. Nothing changes for them.</p>
-      </div>
-      <div class="relative z-10 flex-1 space-y-6">
-        <div class="w-12 h-12 bg-surface-container text-on-surface-variant rounded-full flex items-center justify-center font-bold text-xl border-4 border-[#F5EBF0]">3</div>
-        <h3 class="font-bold text-2xl">Let Florrie work</h3>
-        <p class="text-on-surface-variant">From the moment it's live, your six AI agents handle replies, bookings, content and reminders. Check the dashboard when it suits you.</p>
+      <div class="rv rv-d2 bg-cream rounded-2xl border border-blushline p-7">
+        <p class="eyebrow text-petal mb-4">Florrie thinks</p>
+        <p class="text-[17px] leading-relaxed text-ink">You did 14 full sets this month at £45. Your books are full 3 weeks out. It might be time to talk about £50.</p>
+        <span class="inline-block mt-5 px-4 py-2 rounded-full bg-rose text-white text-sm font-bold">See the numbers</span>
+        <p class="mt-4 text-sm text-fawn">Gentle pricing coaching, backed by your own diary.</p>
       </div>
     </div>
   </div>
 </section>
 
 <!-- ============================================================
-     8. WHAT WE HEARD  —  real research quotes, no fake testimonials
+     8. ONE INBOX
      ============================================================ -->
-<section class="py-24 px-6 bg-white overflow-hidden">
-  <div class="max-w-[1200px] mx-auto">
-    <div class="max-w-2xl mb-16">
-      <span class="text-primary font-bold tracking-widest uppercase text-xs">Why we built this</span>
-      <h2 class="text-4xl lg:text-5xl font-serif italic mt-4 mb-6">We talked to 40+ beauty pros before writing a line of code.</h2>
-      <p class="text-lg text-on-surface-variant">The same things kept coming up. Florrie exists to fix them.</p>
+<section class="py-24 lg:py-32 px-5">
+  <div class="max-w-wrap mx-auto grid lg:grid-cols-2 gap-14 lg:gap-20 items-center">
+    <div>
+      <p class="eyebrow text-rose mb-6 rv">Everything in one place</p>
+      <h2 class="text-4xl lg:text-5xl leading-[1.1] font-medium rv rv-d1">One inbox. Every client. Zero app-hopping.</h2>
+      <p class="mt-7 text-lg text-soot leading-relaxed rv rv-d2">
+        WhatsApp, SMS and email all land in the same place, with the reply already drafted. Your clients keep messaging the number they've always used. Nothing changes for them. Everything changes for you.
+      </p>
+      <ul class="mt-8 space-y-5 rv rv-d3">
+        <li class="flex gap-4 items-start">
+          <span class="w-8 h-8 rounded-full bg-blush flex items-center justify-center text-rose font-black text-sm flex-shrink-0 mt-0.5">1</span>
+          <p class="text-soot"><strong class="text-ink">Keep your number.</strong> No new SIM, no second phone. Florrie sits quietly behind the number clients already text.</p>
+        </li>
+        <li class="flex gap-4 items-start">
+          <span class="w-8 h-8 rounded-full bg-blush flex items-center justify-center text-rose font-black text-sm flex-shrink-0 mt-0.5">2</span>
+          <p class="text-soot"><strong class="text-ink">Bring your client list.</strong> Import from any booking tool or spreadsheet in about 30 seconds. She picks up where you left off.</p>
+        </li>
+        <li class="flex gap-4 items-start">
+          <span class="w-8 h-8 rounded-full bg-blush flex items-center justify-center text-rose font-black text-sm flex-shrink-0 mt-0.5">3</span>
+          <p class="text-soot"><strong class="text-ink">Records sorted as she goes.</strong> Patch tests, allergies, notes and history filed on every client card, flagged before it matters.</p>
+        </li>
+      </ul>
+    </div>
+    <div class="rv rv-d2">
+      <div class="bg-white rounded-[1.75rem] border border-blushline shadow-[0_24px_60px_-18px_rgba(146,64,94,0.18)] p-6 max-w-[420px] mx-auto" aria-label="Example of the unified inbox">
+        <div class="flex items-center justify-between mb-5">
+          <span class="eyebrow text-fawn">Inbox</span>
+          <span class="text-xs font-bold text-mint">3 replies ready</span>
+        </div>
+        <div class="space-y-3">
+          <div class="flex items-center gap-3.5 p-3.5 rounded-xl bg-blush/50 border border-blushline/60">
+            <div class="w-10 h-10 rounded-full bg-[#25D366]/15 flex items-center justify-center flex-shrink-0">
+              <svg viewBox="0 0 24 24" fill="#128C7E" class="w-5 h-5"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-bold text-ink">Priya · WhatsApp</p>
+              <p class="text-[13px] text-soot truncate">"can I move tomorrow to 5?" · reply drafted</p>
+            </div>
+            <span class="text-xs font-bold text-rose whitespace-nowrap">Send ›</span>
+          </div>
+          <div class="flex items-center gap-3.5 p-3.5 rounded-xl border border-blushline/60">
+            <div class="w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center flex-shrink-0 text-sky-600 font-black text-xs">SMS</div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-bold text-ink">Rachel · Text</p>
+              <p class="text-[13px] text-soot truncate">"do you do brow lamination?" · reply drafted</p>
+            </div>
+            <span class="text-xs font-bold text-rose whitespace-nowrap">Send ›</span>
+          </div>
+          <div class="flex items-center gap-3.5 p-3.5 rounded-xl border border-blushline/60">
+            <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 text-amber-600 font-black text-xs">@</div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-bold text-ink">New enquiry · Email</p>
+              <p class="text-[13px] text-soot truncate">"gel manicure for a wedding party of 4…"</p>
+            </div>
+            <span class="text-xs font-bold text-rose whitespace-nowrap">Send ›</span>
+          </div>
+        </div>
+        <p class="text-[13px] text-fawn text-center mt-5">Three conversations, three channels, one place. Each reply is one tap.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     9. HOW IT WORKS
+     ============================================================ -->
+<section class="py-24 lg:py-28 px-5 bg-blush/40 border-y border-blushline/60" id="how-it-works">
+  <div class="max-w-wrap mx-auto">
+    <div class="text-center mb-16">
+      <p class="eyebrow text-rose mb-5 rv">How it works</p>
+      <h2 class="text-4xl lg:text-5xl font-medium rv rv-d1">Set up once. About 10 minutes.</h2>
+    </div>
+    <div class="grid md:grid-cols-3 gap-8 lg:gap-12 max-w-4xl mx-auto">
+      <div class="rv text-center md:text-left">
+        <div class="w-12 h-12 rounded-full bg-rose text-white flex items-center justify-center font-black text-lg mx-auto md:mx-0 mb-5">1</div>
+        <h3 class="font-bold text-xl mb-3">Tell her about you</h3>
+        <p class="text-soot">Your services, your prices, your hours, how you like to talk to clients. She's listening from the first answer.</p>
+      </div>
+      <div class="rv rv-d1 text-center md:text-left">
+        <div class="w-12 h-12 rounded-full bg-rose text-white flex items-center justify-center font-black text-lg mx-auto md:mx-0 mb-5">2</div>
+        <h3 class="font-bold text-xl mb-3">Connect your channels</h3>
+        <p class="text-soot">Link WhatsApp and bring your client list across. Your clients keep the same number. They never notice the switch.</p>
+      </div>
+      <div class="rv rv-d2 text-center md:text-left">
+        <div class="w-12 h-12 rounded-full bg-rose text-white flex items-center justify-center font-black text-lg mx-auto md:mx-0 mb-5">3</div>
+        <h3 class="font-bold text-xl mb-3">Let her loose</h3>
+        <p class="text-soot">From that moment she's answering, booking, reminding and thinking ahead. Check the done list whenever you fancy.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     10. RESEARCH QUOTES  ·  real, kept from interviews
+     ============================================================ -->
+<section class="py-24 lg:py-32 px-5">
+  <div class="max-w-wrap mx-auto">
+    <div class="max-w-2xl mb-14">
+      <p class="eyebrow text-rose mb-6 rv">Why we built her</p>
+      <h2 class="text-4xl lg:text-5xl leading-[1.1] font-medium rv rv-d1">We talked to 40+ beauty pros before writing a line of code.</h2>
+      <p class="mt-6 text-lg text-soot rv rv-d2">The same things kept coming up. Florrie exists to take them off your plate.</p>
     </div>
     <div class="grid md:grid-cols-2 gap-6">
-      <div class="p-8 bg-surface-container-low rounded-xl" style="border-left: 3px solid #C76B8A;">
-        <blockquote class="font-serif italic text-xl leading-relaxed text-on-surface mb-5">"I'm either with a client or dealing with the admin of having clients. There's no middle bit."</blockquote>
-        <p class="text-sm text-on-surface-variant font-medium">Nail tech, Bristol</p>
-      </div>
-      <div class="p-8 bg-surface-container-low rounded-xl" style="border-left: 3px solid #C76B8A;">
-        <blockquote class="font-serif italic text-xl leading-relaxed text-on-surface mb-5">"I missed an enquiry once because I was elbow-deep in a balayage. She booked somewhere else. That was an £80 appointment, gone."</blockquote>
-        <p class="text-sm text-on-surface-variant font-medium">Hair colourist, Edinburgh</p>
-      </div>
-      <div class="p-8 bg-surface-container-low rounded-xl" style="border-left: 3px solid #C76B8A;">
-        <blockquote class="font-serif italic text-xl leading-relaxed text-on-surface mb-5">"January terrifies me. I have a box of receipts and no idea what I actually owe HMRC."</blockquote>
-        <p class="text-sm text-on-surface-variant font-medium">Brow artist, Manchester</p>
-      </div>
-      <div class="p-8 bg-surface-container-low rounded-xl" style="border-left: 3px solid #C76B8A;">
-        <blockquote class="font-serif italic text-xl leading-relaxed text-on-surface mb-5">"My patch test records are on a notepad. I know it's not right but I haven't had the time to sort it."</blockquote>
-        <p class="text-sm text-on-surface-variant font-medium">Lash technician, Birmingham</p>
-      </div>
+      <figure class="rv p-8 bg-paper rounded-2xl border border-blushline border-l-[3px] border-l-petal">
+        <blockquote class="font-serif italic text-xl lg:text-2xl leading-relaxed">"I'm either with a client or dealing with the admin of having clients. There's no middle bit."</blockquote>
+        <figcaption class="mt-5 text-sm text-fawn font-medium">Nail tech, Bristol</figcaption>
+      </figure>
+      <figure class="rv rv-d1 p-8 bg-paper rounded-2xl border border-blushline border-l-[3px] border-l-petal">
+        <blockquote class="font-serif italic text-xl lg:text-2xl leading-relaxed">"I missed an enquiry once because I was elbow-deep in a balayage. She booked somewhere else. That was an £80 appointment, gone."</blockquote>
+        <figcaption class="mt-5 text-sm text-fawn font-medium">Hair colourist, Edinburgh</figcaption>
+      </figure>
+      <figure class="rv p-8 bg-paper rounded-2xl border border-blushline border-l-[3px] border-l-petal">
+        <blockquote class="font-serif italic text-xl lg:text-2xl leading-relaxed">"My regulars message at 11pm on a Sunday. If I don't answer by morning, half of them have found someone who did."</blockquote>
+        <figcaption class="mt-5 text-sm text-fawn font-medium">Brow artist, Manchester</figcaption>
+      </figure>
+      <figure class="rv rv-d1 p-8 bg-paper rounded-2xl border border-blushline border-l-[3px] border-l-petal">
+        <blockquote class="font-serif italic text-xl lg:text-2xl leading-relaxed">"My patch test records are on a notepad. I know it's not right but I haven't had the time to sort it."</blockquote>
+        <figcaption class="mt-5 text-sm text-fawn font-medium">Lash technician, Birmingham</figcaption>
+      </figure>
     </div>
-    <p class="mt-12 text-center text-on-surface-variant">If any of that sounds familiar, Florrie was built for you.</p>
+    <p class="mt-12 text-center text-soot rv">If any of that sounds familiar, Florrie was built for you.</p>
   </div>
 </section>
 
 <!-- ============================================================
-     9. PRICING
+     11. PRICING
      ============================================================ -->
-<section class="py-24 px-6 bg-background" id="pricing">
-  <div class="max-w-[1200px] mx-auto text-center">
-    <span class="text-primary font-bold tracking-widest uppercase text-xs">Simple pricing</span>
-    <h2 class="text-4xl lg:text-5xl font-serif italic mt-4 mb-4">One plan. No surprises.</h2>
-    <p class="text-on-surface-variant mb-12">No contracts. Cancel any time.</p>
-
-    <!-- Replace-tools comparison -->
-    <div class="max-w-xl mx-auto mb-12 bg-white border border-surface-container rounded-2xl p-6 text-left shadow-florrie" id="waitlist">
-      <p class="text-center text-on-surface-variant text-xs font-bold mb-5 uppercase tracking-widest">What you're replacing for £29/mo</p>
-      <div class="space-y-3">
-        <div class="flex justify-between items-center text-sm py-1">
-          <span class="text-on-surface-variant">Booking app (Fresha, Acuity, Calendly)</span>
-          <span class="font-semibold text-error">~£20/mo</span>
-        </div>
-        <div class="flex justify-between items-center text-sm py-1">
-          <span class="text-on-surface-variant">Social media scheduling tool</span>
-          <span class="font-semibold text-error">~£12/mo</span>
-        </div>
-        <div class="flex justify-between items-center text-sm py-1">
-          <span class="text-on-surface-variant">Tax / bookkeeping app</span>
-          <span class="font-semibold text-error">~£15/mo</span>
-        </div>
-        <div class="flex justify-between items-center text-sm py-1">
-          <span class="text-on-surface-variant">WhatsApp chatbot / auto-reply tool</span>
-          <span class="font-semibold text-error">~£25/mo</span>
-        </div>
-        <div class="border-t border-outline-variant/30 mt-2 pt-3 flex justify-between items-center">
-          <span class="font-semibold text-sm text-on-surface-variant">All of that, bought separately</span>
-          <span class="font-bold text-error line-through text-lg">~£72/mo</span>
-        </div>
-        <div class="bg-primary-fixed rounded-xl px-4 py-3 flex justify-between items-center">
-          <span class="font-bold text-on-primary-fixed-variant">All of it. Inside Florrie.</span>
-          <span class="font-bold text-primary text-xl">£29/mo</span>
-        </div>
-      </div>
+<section class="py-24 lg:py-32 px-5 bg-paper border-y border-blushline/60" id="pricing">
+  <div class="max-w-wrap mx-auto">
+    <div class="text-center mb-14">
+      <p class="eyebrow text-rose mb-5 rv">Pricing</p>
+      <h2 class="text-4xl lg:text-5xl font-medium rv rv-d1">One plan. Everything in it.</h2>
+      <p class="mt-5 text-lg text-soot rv rv-d2">Less than one fill-in appointment a month. No contracts, cancel anytime.</p>
     </div>
 
-    <div class="inline-flex items-center p-1 bg-surface-container rounded-full mb-12">
-      <button class="px-6 py-2 bg-white rounded-full font-bold shadow-sm" id="btn-monthly" onclick="togglePricing('monthly')">Monthly</button>
-      <button class="px-6 py-2 font-bold text-on-surface-variant" id="btn-annual" onclick="togglePricing('annual')">Annual <span class="text-primary text-xs ml-1">(2 months free)</span></button>
-    </div>
-    <div class="max-w-md mx-auto bg-white rounded-[2rem] p-10 shadow-florrie border-2 border-primary/10 relative">
-      <div class="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-on-primary px-4 py-1 rounded-full text-xs font-bold tracking-widest uppercase">All 6 AI agents included</div>
-      <h3 class="text-3xl font-serif italic mb-2">Florrie Pro</h3>
-      <div class="flex items-center justify-center gap-1 mb-1">
-        <span class="text-4xl font-bold" id="price-display">£29</span>
-        <span class="text-on-surface-variant" id="price-period">/month</span>
+    <div class="grid lg:grid-cols-[1fr_1.1fr] gap-8 max-w-4xl mx-auto items-center">
+      <!-- What you're replacing -->
+      <div class="rv bg-cream rounded-2xl border border-blushline p-7 flex flex-col">
+        <p class="eyebrow text-fawn mb-6">What Florrie replaces</p>
+        <div class="space-y-3.5 text-[15px] flex-1">
+          <div class="flex justify-between items-center"><span class="text-soot">Booking system</span><span class="font-semibold text-fawn">~£20/mo</span></div>
+          <div class="flex justify-between items-center"><span class="text-soot">WhatsApp auto-reply tool</span><span class="font-semibold text-fawn">~£25/mo</span></div>
+          <div class="flex justify-between items-center"><span class="text-soot">Rebooking and marketing tool</span><span class="font-semibold text-fawn">~£12/mo</span></div>
+          <div class="flex justify-between items-center"><span class="text-soot">The 90 minutes a day you spend on your phone</span><span class="font-semibold text-fawn">Priceless</span></div>
+        </div>
+        <div class="border-t border-blushline mt-5 pt-4 flex justify-between items-center">
+          <span class="font-bold text-soot text-sm">Bought separately</span>
+          <span class="font-bold text-fawn line-through text-lg">£57+/mo</span>
+        </div>
       </div>
-      <p class="text-on-surface-variant text-sm mb-8" id="price-note">Includes 120 AI messages/month. 7p per message after that.</p>
-      <ul class="text-left space-y-4 mb-10">
-        <li class="flex gap-3"><span class="material-symbols-outlined text-primary">check</span>AI WhatsApp Receptionist</li>
-        <li class="flex gap-3"><span class="material-symbols-outlined text-primary">check</span>Smart booking &amp; reminders</li>
-        <li class="flex gap-3"><span class="material-symbols-outlined text-primary">check</span>Tax &amp; income dashboard</li>
-        <li class="flex gap-3"><span class="material-symbols-outlined text-primary">check</span>Compliance &amp; client records</li>
-        <li class="flex gap-3"><span class="material-symbols-outlined text-primary">check</span>Unlimited clients &amp; appointments</li>
-        <li class="flex gap-3"><span class="material-symbols-outlined text-primary">check</span>Content Agent: post ideas &amp; caption drafts</li>
-        <li class="flex gap-3"><span class="material-symbols-outlined text-primary">check</span>All 6 AI agents, always on</li>
-      </ul>
-      <form id="pricingForm" onsubmit="submitWaitlist(event,'pricingForm')" class="space-y-3">
-        <input type="email" placeholder="Enter your email to join" required class="w-full px-5 py-4 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary text-base" />
-        <button type="submit" class="block w-full bg-primary text-on-primary py-4 rounded-xl font-bold text-lg hover:scale-105 transition-transform">Join the waitlist →</button>
+
+      <!-- The plan -->
+      <div class="rv rv-d1 bg-white rounded-2xl border-2 border-rose/20 shadow-[0_24px_60px_-20px_rgba(146,64,94,0.25)] p-8 relative" id="waitlist">
+        <div class="absolute -top-3.5 left-8 bg-rose text-white px-4 py-1.5 rounded-full text-[11px] font-extrabold tracking-widest uppercase">Everything included</div>
+        <div class="flex items-baseline gap-2 mt-2">
+          <span class="text-5xl font-black tracking-tight" id="price-display">£29</span>
+          <span class="text-fawn font-medium" id="price-period">/month</span>
+        </div>
+        <p class="text-sm text-fawn mt-2" id="price-note">120 messages included every month, then 7p a message.</p>
+        <div class="inline-flex items-center p-1 bg-cream rounded-full my-6 border border-blushline/70">
+          <button class="px-4 py-1.5 bg-white rounded-full font-bold text-sm shadow-sm" id="btn-monthly" onclick="togglePricing('monthly')">Monthly</button>
+          <button class="px-4 py-1.5 font-bold text-sm text-fawn rounded-full" id="btn-annual" onclick="togglePricing('annual')">Annual <span class="text-rose">· 2 months free</span></button>
+        </div>
+        <ul class="space-y-3 mb-8 text-[15px]">
+          <li class="flex gap-3"><span class="text-rose font-black">✓</span>Florrie answering WhatsApp, SMS and email, around the clock</li>
+          <li class="flex gap-3"><span class="text-rose font-black">✓</span>Your voice, learned and used in every reply</li>
+          <li class="flex gap-3"><span class="text-rose font-black">✓</span>Proactive suggestions: rebooks, gap-fills, quiet-week alerts</li>
+          <li class="flex gap-3"><span class="text-rose font-black">✓</span>Bookings, reminders, deposits and no-show defence</li>
+          <li class="flex gap-3"><span class="text-rose font-black">✓</span>Client records, patch tests and notes, kept tidy for you</li>
+          <li class="flex gap-3"><span class="text-rose font-black">✓</span>Unlimited clients and appointments</li>
+        </ul>
+        <form id="pricingForm" onsubmit="submitWaitlist(event,'pricingForm')" class="space-y-3">
+          <label class="sr-only" for="pricingEmail">Email address</label>
+          <input id="pricingEmail" type="email" placeholder="Your email" required class="w-full px-5 py-4 rounded-xl border border-blushline bg-cream text-ink placeholder:text-fawn focus:outline-none focus:border-rose focus:ring-2 focus:ring-rose/15 text-base"/>
+          <button type="submit" class="block w-full bg-rose text-white py-4 rounded-xl font-bold text-lg hover:bg-rosedeep transition-colors">Join the waitlist</button>
+        </form>
+        <p class="text-xs text-fawn mt-4 text-center">14-day free trial when we launch · Cancel anytime</p>
+      </div>
+    </div>
+    <p class="text-center text-soot text-sm mt-10 rv">Running a small team? <a href="mailto:hello@florrie.ai" class="text-rose font-semibold hover:opacity-80">Ask about seats, £15 each.</a></p>
+  </div>
+</section>
+
+<!-- ============================================================
+     12. FAQ
+     ============================================================ -->
+<section class="py-24 lg:py-28 px-5" id="faq">
+  <div class="max-w-[760px] mx-auto">
+    <div class="text-center mb-12">
+      <p class="eyebrow text-rose mb-5 rv">Questions</p>
+      <h2 class="text-4xl lg:text-5xl font-medium rv rv-d1">The things everyone asks.</h2>
+    </div>
+    <div class="space-y-3">
+      <details class="rv bg-paper rounded-2xl border border-blushline px-6 py-5 group">
+        <summary class="flex justify-between items-center font-bold text-lg">Will my clients know they're talking to an AI?
+          <span class="faq-plus text-rose text-2xl font-light leading-none ml-4">+</span></summary>
+        <p class="mt-4 text-soot leading-relaxed">Honestly, most can't tell, because Florrie writes the way you write. You decide how she introduces herself, and you can review every reply before it goes out or let her send instantly. Plenty of pros start on review mode and switch once they trust her.</p>
+      </details>
+      <details class="rv rv-d1 bg-paper rounded-2xl border border-blushline px-6 py-5">
+        <summary class="flex justify-between items-center font-bold text-lg">What if she gets something wrong?
+          <span class="faq-plus text-rose text-2xl font-light leading-none ml-4">+</span></summary>
+        <p class="mt-4 text-soot leading-relaxed">She only books what your diary actually allows, and anything unusual gets flagged to you instead of guessed at. Every action she takes is logged in the "What Florrie did" feed, so nothing happens behind your back.</p>
+      </details>
+      <details class="rv rv-d2 bg-paper rounded-2xl border border-blushline px-6 py-5">
+        <summary class="flex justify-between items-center font-bold text-lg">Do I need a new phone number?
+          <span class="faq-plus text-rose text-2xl font-light leading-none ml-4">+</span></summary>
+        <p class="mt-4 text-soot leading-relaxed">No. Florrie connects to WhatsApp Business on the number your clients already use. Texts and emails plug in alongside. Nothing changes on their side.</p>
+      </details>
+      <details class="rv rv-d3 bg-paper rounded-2xl border border-blushline px-6 py-5">
+        <summary class="flex justify-between items-center font-bold text-lg">What counts as a message?
+          <span class="faq-plus text-rose text-2xl font-light leading-none ml-4">+</span></summary>
+        <p class="mt-4 text-soot leading-relaxed">A message Florrie sends on your behalf: a reply, a confirmation, a reminder, a nudge. 120 a month covers a typical solo diary comfortably. Past that it's 7p each, and you can see your usage anytime.</p>
+      </details>
+      <details class="rv rv-d4 bg-paper rounded-2xl border border-blushline px-6 py-5">
+        <summary class="flex justify-between items-center font-bold text-lg">Is my client data safe?
+          <span class="faq-plus text-rose text-2xl font-light leading-none ml-4">+</span></summary>
+        <p class="mt-4 text-soot leading-relaxed">Yes. UK-built, GDPR compliant, and your client list is yours: export it or delete it whenever you like. We never sell data or use your clients for anything except running your business.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     13. FINAL CTA
+     ============================================================ -->
+<section class="py-20 lg:py-24 px-5">
+  <div class="max-w-wrap mx-auto bg-night rounded-[2.5rem] px-7 py-16 lg:p-24 text-center relative overflow-hidden">
+    <div class="absolute top-0 right-0 w-96 h-96 bg-petal/20 blur-[110px] rounded-full -translate-y-1/3 translate-x-1/4" aria-hidden="true"></div>
+    <div class="absolute bottom-0 left-0 w-80 h-80 bg-gold/10 blur-[100px] rounded-full translate-y-1/3 -translate-x-1/4" aria-hidden="true"></div>
+    <div class="relative z-10">
+      <p class="eyebrow text-petal mb-6 rv">Early access</p>
+      <h2 class="text-4xl lg:text-6xl font-medium text-white leading-[1.08] rv rv-d1">Your next client is already typing.<br/><em class="italic font-serif text-petal">Florrie's already answering.</em></h2>
+      <form id="finalForm" onsubmit="submitWaitlist(event,'finalForm')" class="flex flex-col sm:flex-row gap-3 pt-10 max-w-md mx-auto rv rv-d2">
+        <label class="sr-only" for="finalEmail">Email address</label>
+        <input id="finalEmail" type="email" placeholder="Your email" required class="flex-1 px-5 py-4 rounded-full border border-white/15 bg-white/10 text-white placeholder:text-white/40 focus:outline-none focus:border-petal/60 text-base"/>
+        <button type="submit" class="bg-petal text-night px-7 py-4 rounded-full font-bold text-base hover:bg-white transition-colors whitespace-nowrap">Join the waitlist</button>
       </form>
-      <p class="text-xs text-on-surface-variant mt-4">Free 14-day trial when we launch · No card required.</p>
-    </div>
-    <p class="text-on-surface-variant text-sm mt-8">Running a small team? <a href="#" class="text-primary font-semibold">Ask about our team plan →</a></p>
-  </div>
-</section>
-
-<!-- ============================================================
-     10. FINAL CTA
-     ============================================================ -->
-<section class="py-24 px-6">
-  <div class="max-w-[1200px] mx-auto bg-inverse-surface rounded-[3rem] p-12 lg:p-24 text-center relative overflow-hidden shadow-2xl">
-    <div class="absolute top-0 right-0 w-96 h-96 bg-primary/20 blur-[100px] -translate-y-1/2 translate-x-1/2"></div>
-    <div class="absolute bottom-0 left-0 w-96 h-96 bg-secondary/10 blur-[100px] translate-y-1/2 -translate-x-1/2"></div>
-    <div class="relative z-10 space-y-8">
-      <span class="text-[#C76B8A] font-bold tracking-widest uppercase text-xs">Start today</span>
-      <h2 class="text-4xl lg:text-6xl font-serif italic text-white leading-tight">Your next client is already<br/>typing a message.</h2>
-      <p class="text-white/70 text-lg max-w-xl mx-auto">Make sure Florrie's there to answer it.</p>
-      <form id="finalForm" onsubmit="submitWaitlist(event,'finalForm')" class="flex flex-col sm:flex-row gap-3 pt-4 max-w-md mx-auto">
-        <input type="email" placeholder="Your email address" required class="flex-1 px-5 py-4 rounded-full border border-white/20 bg-white/10 text-white placeholder:text-white/40 focus:outline-none focus:border-white/50 text-base" />
-        <button type="submit" class="bg-primary text-on-primary px-8 py-4 rounded-full font-bold text-lg hover:bg-primary-container transition-all whitespace-nowrap">Join waitlist →</button>
-      </form>
-      <p class="text-white/40 text-sm">Free 14-day trial · No card required · Set up in 10 minutes</p>
+      <p class="text-white/40 text-sm mt-5 rv rv-d3">£29 a month · 120 messages included · 14-day free trial at launch</p>
     </div>
   </div>
 </section>
 
 <!-- ============================================================
-     11. FOOTER
+     14. FOOTER
      ============================================================ -->
-<footer class="bg-surface-container-low pt-20 pb-10">
-  <div class="max-w-[1200px] mx-auto px-10 grid grid-cols-1 md:grid-cols-4 gap-12 mb-20">
-    <div class="space-y-6">
-      <a href="/" class="flex items-center gap-0">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 80" fill="none" class="h-9 w-auto">
+<footer class="pt-16 pb-10 px-5">
+  <div class="max-w-wrap mx-auto grid grid-cols-1 md:grid-cols-4 gap-10 mb-14">
+    <div class="space-y-5">
+      <a href="/" aria-label="Florrie home">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 80" fill="none" class="h-8 w-auto">
           <g transform="translate(8, 8) scale(0.8)">
             <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#C76B8A" opacity="0.75" transform="rotate(0 40 40)"/>
             <ellipse cx="40" cy="20" rx="12.8" ry="19.2" fill="#C76B8A" opacity="0.65" transform="rotate(72 40 40)"/>
@@ -871,45 +675,42 @@
           <text x="224" y="52" font-family="'DM Sans', sans-serif" font-size="24" font-weight="300" fill="#C76B8A" letter-spacing="0.5">.ai</text>
         </svg>
       </a>
-      <p class="text-on-surface-variant text-sm">AI for independent beauty professionals. Built in the UK.</p>
+      <p class="text-fawn text-sm">The AI chief of staff for beauty pros. Built in the UK.</p>
     </div>
     <div>
-      <h4 class="font-bold mb-6 text-sm uppercase tracking-widest text-primary">Product</h4>
-      <ul class="space-y-4 text-sm text-on-surface-variant">
-        <li><a class="hover:text-primary transition-colors" href="#features">Features</a></li>
-        <li><a class="hover:text-primary transition-colors" href="#ai-team">AI Team</a></li>
-        <li><a class="hover:text-primary transition-colors" href="#pricing">Pricing</a></li>
-        <li><a class="hover:text-primary transition-colors" href="#how-it-works">How it works</a></li>
+      <h4 class="eyebrow text-rose mb-5">Product</h4>
+      <ul class="space-y-3 text-sm text-soot">
+        <li><a class="hover:text-rose transition-colors" href="#works">How she works</a></li>
+        <li><a class="hover:text-rose transition-colors" href="#voice">Her voice</a></li>
+        <li><a class="hover:text-rose transition-colors" href="#pricing">Pricing</a></li>
+        <li><a class="hover:text-rose transition-colors" href="#faq">FAQ</a></li>
       </ul>
     </div>
     <div>
-      <h4 class="font-bold mb-6 text-sm uppercase tracking-widest text-primary">Company</h4>
-      <ul class="space-y-4 text-sm text-on-surface-variant">
-        <li><a class="hover:text-primary transition-colors" href="#">About</a></li>
-        <li><a class="hover:text-primary transition-colors" href="#">Privacy policy</a></li>
-        <li><a class="hover:text-primary transition-colors" href="#">Terms of service</a></li>
+      <h4 class="eyebrow text-rose mb-5">Company</h4>
+      <ul class="space-y-3 text-sm text-soot">
+        <li><a class="hover:text-rose transition-colors" href="/privacy">Privacy policy</a></li>
+        <li><a class="hover:text-rose transition-colors" href="/terms">Terms of service</a></li>
+        <li><a class="hover:text-rose transition-colors" href="mailto:hello@florrie.ai">Contact</a></li>
       </ul>
     </div>
     <div>
-      <h4 class="font-bold mb-6 text-sm uppercase tracking-widest text-primary">Connect</h4>
-      <ul class="space-y-4 text-sm text-on-surface-variant">
-        <li><a class="hover:text-primary transition-colors" href="#">Instagram</a></li>
-        <li><a class="hover:text-primary transition-colors" href="#">TikTok</a></li>
-        <li><a class="hover:text-primary transition-colors" href="mailto:hello@florrie.ai">hello@florrie.ai</a></li>
+      <h4 class="eyebrow text-rose mb-5">Connect</h4>
+      <ul class="space-y-3 text-sm text-soot">
+        <li><a class="hover:text-rose transition-colors" href="https://instagram.com/florrie.ai" rel="noopener">Instagram</a></li>
+        <li><a class="hover:text-rose transition-colors" href="https://tiktok.com/@florrie.ai" rel="noopener">TikTok</a></li>
+        <li><a class="hover:text-rose transition-colors" href="mailto:hello@florrie.ai">hello@florrie.ai</a></li>
       </ul>
     </div>
   </div>
-  <div class="max-w-[1200px] mx-auto px-10 pt-10 border-t border-outline-variant/20 flex flex-col md:flex-row justify-between items-center gap-6">
-    <p class="text-sm text-on-surface-variant/70">© 2026 Florrie Ltd. All rights reserved. · <a href="/login" class="hover:text-primary transition-colors">Team login</a></p>
-    <div class="flex gap-6">
-      <a class="text-on-surface-variant hover:text-primary transition-colors" href="#"><span class="material-symbols-outlined">public</span></a>
-      <a class="text-on-surface-variant hover:text-primary transition-colors" href="mailto:hello@florrie.ai"><span class="material-symbols-outlined">mail</span></a>
-    </div>
+  <div class="max-w-wrap mx-auto pt-8 border-t border-blushline/60 flex flex-col md:flex-row justify-between items-center gap-4">
+    <p class="text-sm text-fawn">© 2026 FLORRIE.AI LTD. All rights reserved.</p>
+    <a href="/login" class="text-sm text-fawn hover:text-rose transition-colors">Team login</a>
   </div>
 </footer>
 
 <script>
-  // Waitlist  -  writes directly to Supabase (anon key is public by design)
+  // Waitlist  ·  writes directly to Supabase (anon key is public by design, RLS allows insert only)
   const _SB_URL = 'https://driyreevwogxngqyshtc.supabase.co';
   const _SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRyaXlyZWV2d29neG5ncXlzaHRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQyOTk1NzgsImV4cCI6MjA4OTg3NTU3OH0.QgaZqyedVckQTZeTvArPBJUpa8MNb-mN8kBlSVqU2hQ';
 
@@ -920,7 +721,7 @@
     const btn = form.querySelector('button[type="submit"]');
     const email = emailInput.value.toLowerCase().trim();
     const origText = btn.textContent;
-    btn.textContent = 'Joining...';
+    btn.textContent = 'Joining…';
     btn.disabled = true;
     try {
       const res = await fetch(`${_SB_URL}/rest/v1/signup_waitlist`, {
@@ -933,9 +734,8 @@
         },
         body: JSON.stringify({ email, source: formId })
       });
-      // 201 = created, 409 = already on list  -  both are success
       if (res.status === 201 || res.status === 200 || res.status === 409) {
-        form.innerHTML = '<p class="text-primary font-semibold py-3 text-center">You\'re on the list 🌸 We\'ll be in touch soon.</p>';
+        form.innerHTML = '<p class="text-rose font-semibold py-3 text-center text-lg">You\'re on the list 🌸 We\'ll be in touch soon.</p>';
       } else {
         throw new Error(`status ${res.status}`);
       }
@@ -955,20 +755,48 @@
     const note = document.getElementById('price-note');
     const btnM = document.getElementById('btn-monthly');
     const btnA = document.getElementById('btn-annual');
+    const on = ['bg-white','shadow-sm'], off = ['text-fawn'];
     if (mode === 'annual') {
       price.textContent = '£290';
       period.textContent = '/year';
-      note.textContent = 'Includes 120 AI messages/month. 7p per message after that. 2 months free vs monthly.';
-      btnA.classList.add('bg-white','rounded-full','shadow-sm');
-      btnM.classList.remove('bg-white','rounded-full','shadow-sm');
+      note.textContent = '120 messages included every month, then 7p a message. Two months free against monthly.';
+      btnA.classList.add(...on); btnA.classList.remove(...off);
+      btnM.classList.remove(...on); btnM.classList.add(...off);
     } else {
       price.textContent = '£29';
       period.textContent = '/month';
-      note.textContent = 'Includes 120 AI messages/month. 7p per message after that.';
-      btnM.classList.add('bg-white','rounded-full','shadow-sm');
-      btnA.classList.remove('bg-white','rounded-full','shadow-sm');
+      note.textContent = '120 messages included every month, then 7p a message.';
+      btnM.classList.add(...on); btnM.classList.remove(...off);
+      btnA.classList.remove(...on); btnA.classList.add(...off);
     }
   }
+
+  // Scroll reveal  ·  rAF-throttled sweep, bulletproof for jumps and anchors
+  (function () {
+    const els = Array.from(document.querySelectorAll('.rv'));
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      els.forEach(el => el.classList.add('in'));
+      return;
+    }
+    let pending = els.slice(), ticking = false;
+    function sweep() {
+      ticking = false;
+      if (!pending.length) return;
+      const limit = window.innerHeight + 140;
+      pending = pending.filter(el => {
+        if (el.getBoundingClientRect().top < limit) { el.classList.add('in'); return false; }
+        return true;
+      });
+    }
+    function onScroll() {
+      if (!ticking) { ticking = true; requestAnimationFrame(sweep); }
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    window.addEventListener('load', sweep);
+    sweep();
+    setInterval(sweep, 1200);
+  })();
 </script>
 </body>
 </html>
