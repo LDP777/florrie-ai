@@ -1443,6 +1443,23 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
 
   if (!treatment) return res.status(404).json({ error: 'Treatment not found' });
 
+  // SECURITY: re-price add-ons from the DB. Never trust client-supplied price_cents —
+  // a tampered request could otherwise set add-ons to 0p and underpay the deposit/total.
+  if (add_ons && add_ons.length > 0) {
+    const { data: dbAddOns } = await supabase
+      .from('add_ons')
+      .select('id, price_cents, is_active')
+      .eq('beautician_id', beautician.id)
+      .in('id', add_ons.map(ao => ao.id));
+    const priceById = Object.fromEntries((dbAddOns || []).filter(a => a.is_active).map(a => [a.id, a.price_cents]));
+    for (const ao of add_ons) {
+      if (priceById[ao.id] === undefined) {
+        return res.status(400).json({ error: 'Invalid add-on selected' });
+      }
+      ao.price_cents = priceById[ao.id];
+    }
+  }
+
   let extraTreatments = [];
   if (extra_treatment_ids && extra_treatment_ids.length > 0) {
     const { data: extras } = await supabase
