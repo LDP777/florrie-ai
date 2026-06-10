@@ -3,6 +3,49 @@ import { supabase } from '../lib/supabase.js'
 import { useParams, useLocation } from 'react-router-dom';
 import PhoneField from '../components/PhoneField.jsx';
 import { API_BASE } from '../lib/config.js';
+
+// Cloudflare Turnstile (bot protection). Renders ONLY when VITE_TURNSTILE_SITE_KEY
+// is set, so environments without keys behave exactly as before.
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
+
+function TurnstileWidget({ onToken }) {
+  const holder = useRef(null);
+  useEffect(() => {
+    if (!TURNSTILE_SITE_KEY || !holder.current) return undefined;
+    let widgetId = null;
+    let cancelled = false;
+    function render() {
+      if (cancelled || widgetId !== null || !window.turnstile || !holder.current) return;
+      widgetId = window.turnstile.render(holder.current, {
+        sitekey: TURNSTILE_SITE_KEY,
+        callback: (token) => onToken(token),
+        'expired-callback': () => onToken(null),
+        'error-callback': () => onToken(null),
+        'refresh-expired': 'auto',
+        theme: 'light',
+      });
+    }
+    if (window.turnstile) {
+      render();
+    } else {
+      let script = document.getElementById('cf-turnstile-script');
+      if (!script) {
+        script = document.createElement('script');
+        script.id = 'cf-turnstile-script';
+        script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=__florrieTurnstileReady';
+        script.async = true;
+        document.head.appendChild(script);
+      }
+      const prev = window.__florrieTurnstileReady;
+      window.__florrieTurnstileReady = () => { if (prev) prev(); render(); };
+    }
+    return () => {
+      cancelled = true;
+      if (widgetId !== null && window.turnstile) window.turnstile.remove(widgetId);
+    };
+  }, [onToken]);
+  return <div ref={holder} style={{ marginBottom: 12, minHeight: TURNSTILE_SITE_KEY ? 65 : 0 }} />;
+}
 /**
  * BookingPage, the public-facing branded booking link.
  * URL: florrie.ai/book/{slug}
@@ -58,6 +101,7 @@ export default function BookingPage() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState(null);
   const [error, setError] = useState(isCancelled ? 'Payment was cancelled. Your booking slot is held for 15 minutes, you can try again.' : null);
   const confirmedManageToken = new URLSearchParams(location.search).get('mt');
   const [success, setSuccess] = useState(isConfirmedReturn ? { depositPaid: true, manageUrl: confirmedManageToken ? `/book/${slug}/manage/${confirmedManageToken}` : null } : null);
@@ -399,6 +443,7 @@ export default function BookingPage() {
           is_member: memberInfo?.is_member || false,
           photo_consent: photoConsent,
           client_package_id: selectedPackage?.client_package_id || null,
+          'cf-turnstile-response': turnstileToken || undefined,
         }),
       });
       const data = await res.json();
@@ -1376,6 +1421,7 @@ export default function BookingPage() {
                 I'm happy for before & after photos to be taken and used on social media (optional)
               </span>
             </label>
+            {TURNSTILE_SITE_KEY ? <TurnstileWidget onToken={setTurnstileToken} /> : null}
             <div style={styles.buttonRow}>
               <button onClick={() => setStep(2)} style={styles.backBtn}>← Back</button>
               <button
