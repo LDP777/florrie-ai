@@ -771,19 +771,31 @@
     }
   }
 
-  // Scroll reveal
+  // Scroll reveal  ·  rAF-throttled sweep, bulletproof for jumps and anchors
   (function () {
-    const els = document.querySelectorAll('.rv');
-    if (!('IntersectionObserver' in window) || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const els = Array.from(document.querySelectorAll('.rv'));
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       els.forEach(el => el.classList.add('in'));
       return;
     }
-    const io = new IntersectionObserver(entries => {
-      entries.forEach(en => {
-        if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }
+    let pending = els.slice(), ticking = false;
+    function sweep() {
+      ticking = false;
+      if (!pending.length) return;
+      const limit = window.innerHeight + 140;
+      pending = pending.filter(el => {
+        if (el.getBoundingClientRect().top < limit) { el.classList.add('in'); return false; }
+        return true;
       });
-    }, { threshold: 0, rootMargin: '0px 0px 140px 0px' });
-    els.forEach(el => io.observe(el));
+    }
+    function onScroll() {
+      if (!ticking) { ticking = true; requestAnimationFrame(sweep); }
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    window.addEventListener('load', sweep);
+    sweep();
+    setInterval(sweep, 1200);
   })();
 </script>
 </body>
