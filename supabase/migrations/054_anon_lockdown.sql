@@ -1,39 +1,40 @@
--- 054: Lock down anon grants left over from the original public-booking design.
--- The public booking page talks ONLY to the backend API (service role), so the
--- browser anon key needs none of these. Before this migration, anyone holding
--- the public anon key could:
---   * SELECT every column of beauticians via the booking_slug policy —
---     including whatsapp_token, instagram_token, google_calendar_tokens,
---     xero_tokens, stripe_account_id, stripe_customer_id
---   * INSERT arbitrary rows into appointments (diary poisoning, fake
---     deposit_paid/confirmed rows, table DoS)
---   * SELECT all treatments directly
+-- 054: Lock down anon access. APPLIED TO PROD 2026-06-10 via SQL editor.
 --
--- Note: an equivalent beauticians fix may already have been applied to prod
--- manually (the backend code references a "migration 047" that was never
--- committed). This migration makes the lockdown reproducible. Every statement
--- is idempotent.
+-- Prod state found before applying (differed from committed migrations —
+-- it had been manually patched with renamed policies, the uncommitted "047"):
+--   * beauticians: policy anon_public_booking_read USING (true), but a
+--     column-level anon SELECT grant limited reads to 11 safe columns
+--     (tokens/Stripe ids NOT readable). Closed entirely anyway.
+--   * appointments: policy anon_public_appointment_times let anon SELECT
+--     every non-cancelled appointment row (client contact details included),
+--     and appointments_insert_public_booking allowed arbitrary anon INSERTs.
+--   * treatments: treatments_select_public USING (true).
+--
+-- The public booking page talks ONLY to the backend API (service role), so
+-- the browser anon key needs none of this. signup_waitlist (landing form,
+-- anon INSERT only) is intentionally untouched. All statements idempotent.
 
 BEGIN;
 
--- 1) beauticians: kill the full-row public read
-DROP POLICY IF EXISTS "beauticians_select_public_booking" ON public.beauticians;
-REVOKE SELECT ON public.beauticians FROM anon;
-
--- 2) appointments: public bookings are inserted by the backend, never the anon key
+-- appointments: anon could read all non-cancelled rows + insert arbitrary rows
+DROP POLICY IF EXISTS "anon_public_appointment_times" ON public.appointments;
 DROP POLICY IF EXISTS "appointments_insert_public_booking" ON public.appointments;
-REVOKE INSERT ON public.appointments FROM anon;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON public.appointments FROM anon;
 
--- 3) treatments: served to the booking page by GET /api/booking/:slug/page
+-- treatments: served to the booking page by GET /api/booking/:slug/page
 DROP POLICY IF EXISTS "treatments_select_public" ON public.treatments;
-REVOKE SELECT ON public.treatments FROM anon;
+REVOKE SELECT, INSERT, UPDATE, DELETE ON public.treatments FROM anon;
+
+-- beauticians: remove the remaining anon surface entirely
+DROP POLICY IF EXISTS "anon_public_booking_read" ON public.beauticians;
+DROP POLICY IF EXISTS "beauticians_select_public_booking" ON public.beauticians;
+REVOKE SELECT, INSERT, UPDATE, DELETE, REFERENCES ON public.beauticians FROM anon;
 
 COMMIT;
 
--- Verify (run as a separate statement batch):
---   SET ROLE anon;
---   SELECT * FROM public.beauticians LIMIT 1;   -- expect: permission denied / 0 rows
---   SELECT * FROM public.treatments LIMIT 1;    -- expect: permission denied / 0 rows
---   RESET ROLE;
--- Also confirm the landing-page waitlist still works:
---   signup_waitlist must allow anon INSERT but NOT anon SELECT.
+-- Verified in prod 2026-06-10 (SET ROLE anon):
+--   select from appointments  -> 42501 permission denied  ✓
+--   select from beauticians   -> 42501 permission denied  ✓
+--   select from signup_waitlist -> 0 rows (insert-only preserved; live
+--     landing form submit re-tested OK)                   ✓
+--   florrie.ai/book/florrie-test-studio loads + lists treatments ✓
