@@ -88,7 +88,9 @@ export default function ClientManagePage() {
     setRescheduling(true);
     setRescheduleError(null);
     try {
-      const new_starts_at = new Date(`${rescheduleDate}T${rescheduleTime}:00`).toISOString();
+      // Wall-clock convention: appointments are stored as the salon's local time.
+      // Send the string raw (same as the booking page); toISOString() would shift it.
+      const new_starts_at = `${rescheduleDate}T${rescheduleTime}:00`;
       const res = await fetch(`${API_BASE}/api/booking/${slug}/manage/${token}/reschedule`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -269,9 +271,9 @@ export default function ClientManagePage() {
 
           <div style={S.metaGrid}>
             <MetaRow icon="calendar_today" label="Date"
-              value={apptDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} />
+              value={apptDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })} />
             <MetaRow icon="schedule" label="Time"
-              value={apptDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} />
+              value={apptDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} />
             <MetaRow icon="timer" label="Duration"
               value={`${appointment.treatment?.duration_minutes} min`} />
             <MetaRow icon="payments" label="Price"
@@ -335,7 +337,7 @@ export default function ClientManagePage() {
                       Patch test required
                     </p>
                     <p style={{ margin: 0, fontSize: 13, color: '#888' }}>
-                      Before your {appointment.treatment?.name} on {apptDate.toLocaleDateString('en-GB')} — must be done at least 48 hours before
+                      Before your {appointment.treatment?.name} on {apptDate.toLocaleDateString('en-GB', { timeZone: 'UTC' })} — must be done at least 48 hours before
                     </p>
                   </div>
                 </div>
@@ -372,7 +374,7 @@ export default function ClientManagePage() {
                             onMouseEnter={(e) => e.target.style.borderColor = brand}
                             onMouseLeave={(e) => e.target.style.borderColor = '#E8E4DF'}
                           >
-                            {new Date(slot).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} · {new Date(slot).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(slot).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })} · {new Date(slot).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
                           </button>
                         ))}
                       </div>
@@ -402,7 +404,7 @@ export default function ClientManagePage() {
                               Patch test required
                             </p>
                             <p style={{ margin: 0, fontSize: 13, color: '#888' }}>
-                              Before your {appointment.treatment?.name} on {apptDate.toLocaleDateString('en-GB')}
+                              Before your {appointment.treatment?.name} on {apptDate.toLocaleDateString('en-GB', { timeZone: 'UTC' })}
                             </p>
                           </div>
                         </div>
@@ -410,7 +412,7 @@ export default function ClientManagePage() {
                         {isSuggested ? (
                           <>
                             <p style={{ margin: '0 0 12px', fontSize: 13, color: '#555', lineHeight: 1.5 }}>
-                              We've pencilled in <strong>{new Date(pt.suggested_slot).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} at {new Date(pt.suggested_slot).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</strong> — does this work?
+                              We've pencilled in <strong>{new Date(pt.suggested_slot).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })} at {new Date(pt.suggested_slot).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}</strong> — does this work?
                             </p>
                             <div style={{ display: 'flex', gap: 8 }}>
                               <button
@@ -472,7 +474,7 @@ export default function ClientManagePage() {
                                 onMouseEnter={(e) => e.target.style.borderColor = brand}
                                 onMouseLeave={(e) => e.target.style.borderColor = '#E8E4DF'}
                               >
-                                {new Date(slot).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })} · {new Date(slot).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                                {new Date(slot).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })} · {new Date(slot).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
                               </button>
                             ))}
                           </div>
@@ -504,7 +506,7 @@ export default function ClientManagePage() {
                       {pt.treatments?.name || 'Patch test'}
                     </p>
                     <p style={S.patchTestMeta}>
-                      {pt.test_date ? new Date(pt.test_date).toLocaleDateString('en-GB') : pt.suggested_slot ? new Date(pt.suggested_slot).toLocaleDateString('en-GB') : 'Date TBC'}
+                      {pt.test_date ? new Date(pt.test_date).toLocaleDateString('en-GB', { timeZone: 'UTC' }) : pt.suggested_slot ? new Date(pt.suggested_slot).toLocaleDateString('en-GB', { timeZone: 'UTC' }) : 'Date TBC'}
                       {' · '}
                       <span style={{ textTransform: 'capitalize' }}>
                         {pt.confirmed_at ? 'Booked' : pt.status}
