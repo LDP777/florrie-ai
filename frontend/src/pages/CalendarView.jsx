@@ -219,9 +219,12 @@ export default function CalendarView({ initialView } = {}) {
               onClick={() => { setCurrentDate(day); setView('day'); }}
               style={{
                 ...styles.weeklyStripDay,
-                background: isToday(day) ? COLORS.primary : 'transparent',
-                color: isToday(day) ? '#fff' : COLORS.onSurface,
-                boxShadow: isToday(day) ? `0 4px 10px rgba(146, 64, 94, 0.15)` : 'none',
+                // The filled pill follows the SELECTED day; today keeps a soft
+                // outline when it isn't the one selected.
+                background: isSameDay(day, currentDate) ? COLORS.primary : 'transparent',
+                color: isSameDay(day, currentDate) ? '#fff' : isToday(day) ? COLORS.primary : COLORS.onSurface,
+                boxShadow: isSameDay(day, currentDate) ? `0 4px 10px rgba(146, 64, 94, 0.15)` : 'none',
+                border: !isSameDay(day, currentDate) && isToday(day) ? `1.5px solid rgba(146, 64, 94, 0.35)` : '1.5px solid transparent',
               }}
             >
               <span style={styles.weeklyStripDayName}>{day.toLocaleDateString('en-GB', { weekday: 'short' })}</span>
@@ -801,6 +804,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
 }
 function formatDate(d) { return d.toISOString().split('T')[0]; }
 function isToday(d) { return d.toDateString() === new Date().toDateString(); }
+function isSameDay(a, b) { return a.toDateString() === b.toDateString(); }
 function getWeekStart(d) { const s = new Date(d); const day = s.getDay(); s.setDate(s.getDate() + (day === 0 ? -6 : 1 - day)); return s; }
 function getWeekEnd(d) { const e = getWeekStart(d); e.setDate(e.getDate() + 6); return e; }
 function getNowPosition() { const now = new Date(); return ((now.getHours() * 60 + now.getMinutes() - START_HOUR * 60) / 60) * HOUR_HEIGHT; }
