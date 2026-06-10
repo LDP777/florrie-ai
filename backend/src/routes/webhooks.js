@@ -91,8 +91,10 @@ router.post('/whatsapp', async (req, res) => {
     }
 
     try {
+      // Verify over the raw request bytes (captured in index.js), not a re-serialised
+      // body — JSON.stringify can differ from what Meta actually signed.
       const expected = crypto.createHmac('sha256', secret)
-        .update(JSON.stringify(req.body))
+        .update(req.rawBody || Buffer.from(JSON.stringify(req.body)))
         .digest('hex');
 
       const signatureParts = signature.split('=');
