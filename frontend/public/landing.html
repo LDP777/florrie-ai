@@ -548,7 +548,7 @@
       <p class="mt-5 text-lg text-soot rv rv-d2">Less than one fill-in appointment a month. No contracts, cancel anytime.</p>
     </div>
 
-    <div class="grid lg:grid-cols-[1fr_1.1fr] gap-8 max-w-4xl mx-auto items-stretch">
+    <div class="grid lg:grid-cols-[1fr_1.1fr] gap-8 max-w-4xl mx-auto items-center">
       <!-- What you're replacing -->
       <div class="rv bg-cream rounded-2xl border border-blushline p-7 flex flex-col">
         <p class="eyebrow text-fawn mb-6">What Florrie replaces</p>
@@ -782,7 +782,7 @@
       entries.forEach(en => {
         if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }
       });
-    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    }, { threshold: 0, rootMargin: '0px 0px 140px 0px' });
     els.forEach(el => io.observe(el));
   })();
 </script>
