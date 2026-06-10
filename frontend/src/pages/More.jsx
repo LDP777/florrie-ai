@@ -17,30 +17,34 @@ import { isIOSNative } from '../lib/platform.js';
 
 const CATEGORIES = [
   {
-    id: 'ai-team',
-    label: 'AI team',
-    matIcon: 'auto_awesome',
+    id: 'daily',
+    label: 'Daily',
+    matIcon: 'wb_sunny',
     items: [
-      { path: '/inbox',       label: 'Front Desk',  matIcon: 'forum',         desc: 'Handles every message'        },
-      { path: '/content',     label: 'Content',     matIcon: 'auto_fix_high', desc: 'Captions and posts',           gate: 'content_autopilot' },
-      { path: '/money',       label: 'Bookkeeper',  matIcon: 'account_balance_wallet', desc: 'Tracks revenue and expenses' },
-      { path: '/ai-insights', label: 'Biz',         matIcon: 'psychology',    desc: 'Spots trends and risks',       gate: 'ai_insights' },
-      { path: '/compliance',  label: 'Guardian',    matIcon: 'verified_user', desc: 'Patch tests and consent'      },
-      { path: '/client-intel',label: 'Client',      matIcon: 'diversity_3',   desc: 'Knows every client'           },
+      { path: '/inbox',          label: 'Front Desk',       matIcon: 'forum',                  desc: 'Handles every message'        },
+      { path: '/clients',        label: 'Directory',        matIcon: 'people',                 desc: 'All client profiles'          },
+      { path: '/money',          label: 'Money Tracker',    matIcon: 'account_balance_wallet', desc: 'Revenue dashboard'            },
+      { path: '/calendar/week',  label: 'Week view',        matIcon: 'calendar_view_week',     desc: 'Whole week at a glance'       },
+      { path: '/waitlist-pro',   label: 'Waitlist',         matIcon: 'history',                desc: 'Manage waiting clients'       },
+      { path: '/end-of-day',     label: 'End of Day',       matIcon: 'nightlight',             desc: 'Cash-up and close'            },
+      { path: '/hours',          label: 'Hours and Time Off', matIcon: 'beach_access',         desc: 'Holidays and closures'        },
+      { path: '/notifications',  label: 'Notifications',    matIcon: 'notifications',          desc: 'Alerts and reminders'         },
     ],
   },
   {
-    id: 'daily',
-    label: 'Your Day',
-    matIcon: 'wb_sunny',
+    id: 'setup',
+    label: 'Setup',
+    matIcon: 'checklist',
     items: [
-      { path: '/calendar/week',  label: 'Week view',       matIcon: 'calendar_view_week',   desc: 'Whole week at a glance'        },
-      { path: '/smart-schedule', label: 'Smart Schedule',  matIcon: 'schedule_send',        desc: 'AI-optimised slots',            gate: 'smart_schedule' },
-      { path: '/waitlist-pro',   label: 'Waitlist',        matIcon: 'history',              desc: 'Manage waiting clients'        },
-      { path: '/checklist',      label: 'Checklist',       matIcon: 'checklist',            desc: 'Daily opening and closing'     },
-      { path: '/end-of-day',     label: 'End of Day',      matIcon: 'nightlight',           desc: 'Cash-up and close'             },
-      { path: '/notifications',  label: 'Notifications',   matIcon: 'notifications',        desc: 'Alerts and reminders'          },
-      { path: '/hours',          label: 'Hours and Time Off', matIcon: 'beach_access',      desc: 'Exceptions and closures'       },
+      { path: '/setup',              label: 'Setup guide',       matIcon: 'checklist',       desc: 'Everything in one place'        },
+      { path: '/settings',           label: 'Settings',          matIcon: 'settings',        desc: 'Hours, payments, preferences'   },
+      { path: '/whatsapp',           label: 'WhatsApp',          matIcon: 'smartphone',      desc: 'Business messaging',            gate: 'whatsapp' },
+      { path: '/sms',                label: 'SMS',               matIcon: 'sms',             desc: 'Text reminders and replies'     },
+      { path: '/whatsapp/templates', label: 'Message templates', matIcon: 'description',     desc: 'What Florrie sends, signed as you' },
+      { path: '/portal',             label: 'Booking Page',      matIcon: 'open_in_browser', desc: 'Your public booking link'       },
+      { path: '/policies',           label: 'Policies',          matIcon: 'policy',          desc: 'Cancellation and terms'         },
+      { path: '/automations',        label: 'Automations',       matIcon: 'bolt',            desc: 'If-this-then-that rules'        },
+      { path: '/pricing',            label: 'Plans',             matIcon: 'workspace_premium', desc: 'Subscription and billing'     },
     ],
   },
   {
@@ -48,15 +52,10 @@ const CATEGORIES = [
     label: 'Clients',
     matIcon: 'people',
     items: [
-      { path: '/clients',        label: 'Directory',       matIcon: 'people',               desc: 'All client profiles'           },
-      { path: '/churn',          label: 'Churn Risk',      matIcon: 'person_off',           desc: 'At-risk clients',               gate: 'churn_prevention' },
-      { path: '/segments',       label: 'Segments',        matIcon: 'workspaces',           desc: 'Smart RFM grouping',            gate: 'client_segments' },
-      { path: '/loyalty',        label: 'Loyalty',         matIcon: 'loyalty',              desc: 'Points & rewards',              gate: 'loyalty' },
-      { path: '/reviews',        label: 'Feedback',        matIcon: 'reviews',              desc: 'Reviews & responses'           },
-      { path: '/memberships',    label: 'Memberships',     matIcon: 'card_membership',      desc: 'Recurring packages'            },
-      { path: '/tags',           label: 'Tags & Groups',   matIcon: 'label',                desc: 'Organise & segment'            },
-      { path: '/photo-consent',  label: 'Photo Consent',   matIcon: 'photo_camera',         desc: 'Before/after consent'          },
-      { path: '/import',         label: 'Import',          matIcon: 'upload',               desc: 'CSV & bulk import'             },
+      { path: '/import',         label: 'Import',          matIcon: 'upload',          desc: 'Bring your client list across' },
+      { path: '/reviews',        label: 'Feedback',        matIcon: 'reviews',         desc: 'Reviews and responses'         },
+      { path: '/memberships',    label: 'Memberships',     matIcon: 'card_membership', desc: 'Recurring packages'            },
+      { path: '/loyalty',        label: 'Loyalty',         matIcon: 'loyalty',         desc: 'Points and rewards',            gate: 'loyalty' },
     ],
   },
   {
@@ -64,22 +63,21 @@ const CATEGORIES = [
     label: 'Treatments',
     matIcon: 'spa',
     items: [
-      { path: '/treatments',     label: 'Treatments',      matIcon: 'spa',                  desc: 'Manage services'               },
-      { path: '/aftercare',      label: 'Aftercare',       matIcon: 'self_care',            desc: 'Post-treatment messages',       gate: 'aftercare' },
-      { path: '/packages',       label: 'Courses',         matIcon: 'school',               desc: 'Training & masterclasses'      },
+      { path: '/treatments',     label: 'Treatments',      matIcon: 'spa',                  desc: 'Services and prices'           },
       { path: '/addons',         label: 'Add-ons',         matIcon: 'add_circle',           desc: 'Bolt-on extras'                },
       { path: '/price-list',     label: 'Price List',      matIcon: 'format_list_bulleted', desc: 'Public pricing page'           },
-      { path: '/notes',          label: 'Appt Notes',      matIcon: 'sticky_note_2',        desc: 'Notes per appointment'         },
+      { path: '/aftercare',      label: 'Aftercare',       matIcon: 'self_care',            desc: 'Post-treatment messages',       gate: 'aftercare' },
     ],
   },
   {
     id: 'compliance',
-    label: 'Compliance',
+    label: 'Protection',
     matIcon: 'verified_user',
     items: [
-      { path: '/compliance',          label: 'Compliance',   matIcon: 'verified_user', desc: 'Patch tests & consent forms' },
-      { path: '/patch-tests',         label: 'Patch Tests',  matIcon: 'vaccines',      desc: 'UK compliance tracking'      },
-      { path: '/consultation-forms',  label: 'Form Builder', matIcon: 'assignment',    desc: 'Consent & intake forms'      },
+      { path: '/compliance',          label: 'Guardian',      matIcon: 'verified_user', desc: 'Patch tests and consent'     },
+      { path: '/patch-tests',         label: 'Patch Tests',   matIcon: 'vaccines',      desc: 'UK compliance tracking'      },
+      { path: '/consultation-forms',  label: 'Form Builder',  matIcon: 'assignment',    desc: 'Consent and intake forms'    },
+      { path: '/photo-consent',       label: 'Photo Consent', matIcon: 'photo_camera',  desc: 'Before and after consent'    },
     ],
   },
   {
@@ -87,15 +85,12 @@ const CATEGORIES = [
     label: 'Money',
     matIcon: 'payments',
     items: [
-      { path: '/money',         label: 'Money Tracker',    matIcon: 'account_balance_wallet', desc: 'Revenue dashboard'         },
-      { path: '/ai-insights',   label: 'AI Insights',      matIcon: 'psychology',             desc: 'AI business analysis',      gate: 'ai_insights' },
-      { path: '/analytics',     label: 'Analytics',        matIcon: 'analytics',              desc: 'Performance & reports'     },
-      { path: '/expenses',      label: 'Expenses',         matIcon: 'receipt_long',           desc: 'Track outgoings'           },
-      { path: '/deposits',      label: 'Deposits',         matIcon: 'savings',                desc: 'Held payments'             },
-      { path: '/vouchers',      label: 'Vouchers',         matIcon: 'card_giftcard',          desc: 'Gift vouchers'             },
-      { path: '/promos',        label: 'Promo Codes',      matIcon: 'local_offer',            desc: 'Discount codes'            },
-      { path: '/inventory',     label: 'Inventory',        matIcon: 'category',               desc: 'Product stock'             },
-      { path: '/cancellations', label: 'Cancellations',    matIcon: 'event_busy',             desc: 'No-shows & late cancels'   },
+      { path: '/analytics',     label: 'Analytics',        matIcon: 'analytics',   desc: 'Performance and reports'   },
+      { path: '/expenses',      label: 'Expenses',         matIcon: 'receipt_long', desc: 'Track outgoings'          },
+      { path: '/deposits',      label: 'Deposits',         matIcon: 'savings',     desc: 'Held payments'             },
+      { path: '/vouchers',      label: 'Vouchers',         matIcon: 'card_giftcard', desc: 'Gift vouchers'           },
+      { path: '/promos',        label: 'Promo Codes',      matIcon: 'local_offer', desc: 'Discount codes'            },
+      { path: '/cancellations', label: 'Cancellations',    matIcon: 'event_busy',  desc: 'No-shows and late cancels' },
     ],
   },
   {
@@ -103,43 +98,33 @@ const CATEGORIES = [
     label: 'Marketing',
     matIcon: 'campaign',
     items: [
-      { path: '/content',     label: 'Content Autopilot', matIcon: 'auto_fix_high',  desc: 'AI-written captions',       gate: 'content_autopilot' },
-      { path: '/campaigns',   label: 'Campaigns',         matIcon: 'mail',           desc: 'Email & SMS blasts',        gate: 'campaigns' },
-      { path: '/rebook',      label: 'Rebook',            matIcon: 'replay',         desc: 'Bring clients back'        },
-      { path: '/referrals',   label: 'Referrals',         matIcon: 'group_add',      desc: 'Word-of-mouth tracking'    },
-      { path: '/automations', label: 'Automations',       matIcon: 'bolt',           desc: 'If-this-then-that rules'   },
-      { path: '/templates',   label: 'Templates',         matIcon: 'description',    desc: 'Reusable messages'         },
-      { path: '/portfolio',   label: 'Portfolio',         matIcon: 'photo_library',  desc: 'Showcase your work'        },
+      { path: '/content',     label: 'Content Autopilot', matIcon: 'auto_fix_high', desc: 'Captions in your voice',    gate: 'content_autopilot' },
+      { path: '/campaigns',   label: 'Campaigns',         matIcon: 'mail',          desc: 'Email and SMS blasts',      gate: 'campaigns' },
+      { path: '/rebook',      label: 'Rebook',            matIcon: 'replay',        desc: 'Bring clients back'         },
     ],
   },
   {
-    id: 'messaging',
-    label: 'Messaging',
-    matIcon: 'forum',
+    id: 'team',
+    label: 'Team',
+    matIcon: 'group',
     items: [
-      { path: '/messaging', label: 'Overview',  matIcon: 'forum',      desc: 'WhatsApp + SMS in one place'  },
-      { path: '/whatsapp',  label: 'WhatsApp',  matIcon: 'smartphone', desc: 'Business messaging',            gate: 'whatsapp' },
-      { path: '/sms',       label: 'SMS',       matIcon: 'sms',        desc: 'Text reminders + replies'      },
-    ],
-  },
-  {
-    id: 'settings',
-    label: 'Settings & Team',
-    matIcon: 'settings',
-    items: [
-      { path: '/settings',          label: 'Settings',        matIcon: 'settings',           desc: 'Account preferences'          },
-      { path: '/business',          label: 'Business',        matIcon: 'storefront',         desc: 'Name, logo & details'         },
-      { path: '/integrations',      label: 'Integrations',    matIcon: 'extension',          desc: 'Connected apps'               },
-      { path: '/pricing',           label: 'Plans',           matIcon: 'workspace_premium',  desc: 'Subscription & billing'       },
-      { path: '/policies',          label: 'Policies',        matIcon: 'policy',             desc: 'Cancellation & terms'         },
-      { path: '/portal',            label: 'Booking Page',    matIcon: 'open_in_browser',    desc: 'Public booking & magic links' },
-      { path: '/team',              label: 'Team',            matIcon: 'group',              desc: 'Staff profiles',               gate: 'team_management' },
-      { path: '/rota',              label: 'Staff Rota',      matIcon: 'calendar_view_week', desc: 'Weekly schedule',              gate: 'staff_rota' },
-      { path: '/staff-performance', label: 'Performance',     matIcon: 'trending_up',        desc: 'Team analytics',               gate: 'staff_performance' },
-      { path: '/locations',         label: 'Multi-Location',  matIcon: 'location_city',      desc: 'Branch management',            gate: 'multi_location' },
+      { path: '/team',              label: 'Team',            matIcon: 'group',              desc: 'Staff profiles',    gate: 'team_management' },
+      { path: '/rota',              label: 'Staff Rota',      matIcon: 'calendar_view_week', desc: 'Weekly schedule',   gate: 'staff_rota' },
+      { path: '/staff-performance', label: 'Performance',     matIcon: 'trending_up',        desc: 'Team analytics',    gate: 'staff_performance' },
+      { path: '/locations',         label: 'Multi-Location',  matIcon: 'location_city',      desc: 'Branch management', gate: 'multi_location' },
     ],
   },
 ];
+
+/*
+ * PARKED from the menu 2026-06-10 (pages still live at their URLs, nothing
+ * deleted; restore by adding the line back):
+ *   /messaging (Overview), /business (Business), /templates (internal copy
+ *   library, replaced by /whatsapp/templates in the menu), /integrations,
+ *   /checklist (daily opening), /ai-insights (Biz), /client-intel (Client),
+ *   /smart-schedule, /churn, /segments, /tags, /packages (Courses), /notes,
+ *   /inventory, /referrals, /portfolio
+ */
 
 const RECENT_KEY = 'florrie_recent_pages';
 const RECENT_MAX = 6;
@@ -170,7 +155,7 @@ function MIcon({ name, size = 24, color, style }) {
 
 export default function More() {
   const [search, setSearch] = useState('');
-  const [expandedCats, setExpandedCats] = useState(new Set(['ai-team', 'daily', 'clients', 'messaging']));
+  const [expandedCats, setExpandedCats] = useState(new Set(['daily', 'setup']));
   const [recents, setRecents] = useState(getRecents);
   const navigate = useNavigate();
   const location = useLocation();

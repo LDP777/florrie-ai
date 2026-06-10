@@ -28,6 +28,7 @@ const Login = lazy(() => import('./pages/Login.jsx'));
 const Clients = lazy(() => import('./pages/Clients.jsx'));
 const Treatments = lazy(() => import('./pages/Treatments.jsx'));
 const Settings = lazy(() => import('./pages/Settings.jsx'));
+const SetupHub = lazy(() => import('./pages/SetupHub.jsx'));
 const Team = lazy(() => import('./pages/Team.jsx'));
 const Analytics = lazy(() => import('./pages/Analytics.jsx'));
 // Waitlist removed , use WaitlistPro (/waitlist-pro) instead
@@ -341,6 +342,7 @@ export default function App() {
             <Route path="/clients" element={<Clients />} />
             <Route path="/treatments" element={<Treatments />} />
             <Route path="/settings" element={<Settings supabase={supabase} onLogout={async () => { if (supabase) await supabase.auth.signOut(); setSession(null); }} />} />
+            <Route path="/setup" element={<SetupHub />} />
             <Route path="/team" element={<PlanGate feature="team_management"><Team /></PlanGate>} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/waitlist" element={<Navigate to="/waitlist-pro" replace />} />

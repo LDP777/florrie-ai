@@ -7,6 +7,7 @@ import SuggestionCards from '../components/SuggestionCards.jsx';
 import MorningCatchup from '../components/MorningCatchup.jsx';
 import UsagePanel from '../components/UsagePanel.jsx';
 import ValueReceipt from '../components/ValueReceipt.jsx';
+import SetupNudge from '../components/SetupNudge.jsx';
 
 const CalendarView = lazy(() => import('./CalendarView.jsx'));
 const SmartSchedule = lazy(() => import('./SmartSchedule.jsx'));
@@ -105,6 +106,9 @@ export default function Hub() {
         <>
           {/* Today summary , the hero card */}
           <TodaySummary beautician={beautician} onNav={navigate} />
+
+          {/* Setup nudge: slim pointer to /setup while setup is incomplete */}
+          <SetupNudge />
 
           {/* Usage panel, Day 5: slim line showing message quota for the month */}
           <UsagePanel />

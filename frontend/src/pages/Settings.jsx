@@ -249,6 +249,23 @@ export default function Settings({ onLogout }) {
         {saveError && <span style={{ ...styles.savedBadge, background: 'var(--danger, #E57373)', color: '#fff' }}>{saveError}</span>}
       </div>
 
+      {/* Setup guide banner */}
+      <button
+        type="button"
+        onClick={() => navigate('/setup')}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+          background: 'var(--accent-light, #F6E7EC)',
+          border: '1px solid var(--border, #ECD5DD)',
+          borderRadius: 12, padding: '10px 14px', marginBottom: 14,
+          cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+          fontSize: 13, fontWeight: 600, color: 'var(--accent, #92405e)',
+          WebkitTapHighlightColor: 'transparent',
+        }}
+      >
+        New: the Setup guide shows everything in one place ›
+      </button>
+
       {/* Section nav */}
       <div style={styles.sectionNav}>
         {[
