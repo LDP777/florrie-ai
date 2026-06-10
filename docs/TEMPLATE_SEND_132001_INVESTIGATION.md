@@ -14,7 +14,7 @@ code: 132001
 ```
 
 This fires every time we try to send a template from `phone_number_id`
-`1073724175829484` (Ellie's `+447903881459`, verified_name `Ellindigo`) against
+`1073724175829484` (Ellie's `+44790388XXXX (redacted)`, verified_name `Ellindigo`) against
 WABA `1279846344245554`, even though `GET /1279846344245554/message_templates`
 returns six APPROVED templates including `generic_message`. Languages tried:
 `en`, `en_US`, `en_GB`. All three return 132001.
