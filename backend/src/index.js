@@ -64,6 +64,7 @@ import consultationFormRoutes from './routes/consultation-forms.js';
 import billingRoutes from './routes/billing.js';
 import waitlistRoutes from './routes/waitlist.js';
 import instagramWebhookRoutes from './routes/instagram-webhooks.js';
+import twilioWebhookRoutes from './routes/twilio-webhooks.js';
 import instagramRoutes from './routes/instagram.js';
 import referralRoutes from './routes/referrals.js';
 import pushRoutes from './routes/push.js';
@@ -113,7 +114,9 @@ const OPTIONAL_ENV = [
   'WHATSAPP_APP_SECRET', // (or META_APP_SECRET) HMAC verify for WhatsApp webhooks
   'META_APP_SECRET',     // Facebook/Instagram app secret
   'INSTAGRAM_APP_SECRET',// HMAC verify for Instagram webhooks
-  'TWILIO_AUTH_TOKEN',   // Twilio webhook signature verification
+  'TWILIO_AUTH_TOKEN',   // Twilio webhook signatures + WhatsApp BSP auth
+  'TWILIO_ACCOUNT_SID',  // Twilio WhatsApp BSP (wa_provider='twilio' tenants)
+  'TWILIO_CONTENT_SIDS', // JSON map templateName -> Twilio ContentSid (HX...)
 ];
 
 const missing = REQUIRED_ENV.filter(k => !process.env[k]);
@@ -259,6 +262,7 @@ app.use('/api/usage', apiLimiter, usageRoutes);
 app.use('/api/setup', apiLimiter, setupRoutes);
 app.use('/api/whatsapp', apiLimiter, whatsappConfigRoutes);
 app.use('/api/webhooks/instagram', webhookLimiter, instagramWebhookRoutes);
+app.use('/api/webhooks/twilio', webhookLimiter, twilioWebhookRoutes); // Twilio BSP WhatsApp inbound
 app.use('/api/coach', apiLimiter, coachRoutes);
 app.use('/api/instagram', apiLimiter, instagramRoutes);
 app.use('/api/courses', bookingLimiter, courseRoutes); // public course enrollment API

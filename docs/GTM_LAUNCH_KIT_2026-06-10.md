@@ -163,3 +163,45 @@ If you do lashes, or you know someone who does, my DMs are open. florrie.ai
 | Waitlist size | +25 | Lagging proof the content loop reaches beyond DMs. Came from a post or referral? Log the source. |
 
 Review every Friday, 20 minutes. One metric red two weeks running gets the next week's hours.
+
+---
+
+## The Fresha moment (added 10 June, hours after dissecting their launch)
+
+On 19 May Fresha launched Client Connect, Team Connect and AI Concierge:
+in-app messaging, Slack-style team channels, and a customisable AI front
+desk that captures bookings when asked. 229 likes on the announcement.
+This is free market education. Every beautician now knows AI front desks
+exist; our job is to be the answer to "yes, but one that works for ME".
+
+### The line
+**Fresha answers questions. Florrie runs your business.**
+
+### Three talking points (use everywhere)
+1. Theirs replies when spoken to. Ours acts on her own: fills cancellations
+   from the waitlist, chases overdue rebooks, blocks bank holidays, spots
+   quiet weeks. The done-list proves it every evening.
+2. Theirs is a configurable bot inside the Fresha app. Ours learns how YOU
+   talk from your real replies, and we measure it (the percent of drafts
+   sent without an edit).
+3. Theirs deepens the client's relationship with Fresha (their app, their
+   inbox, their marketplace, their new-client commission). Ours strengthens
+   your own number, your own name, your own clients.
+
+### Objection: "I already use Fresha"
+Keep it if you like, Florrie is not a booking system swap. She is the
+worker: your WhatsApp answered as you, your gaps filled, your regulars
+nudged back. Plenty of techs run Florrie for the relationship and keep a
+listing wherever they want. The moment she fills one cancellation, she has
+paid for two months.
+
+### Founding 20: go THIS WEEK
+- Today: shortlist 20 lash techs (Ellie's circle first, then local IG,
+  10k followers or fewer, active DMs, solo).
+- Tomorrow: send the first 10 DMs (template in this kit). Personal, short,
+  one screenshot of the done-list or the bank-holiday card.
+- Day 3: remaining 10, plus gentle follow-ups on opens.
+- Weekend: first 3 onboarding calls, screen-recorded (with permission),
+  clips become the first TikToks.
+- Scoreboard lives in this doc: DMs sent, replies, calls, installs,
+  first-Florrie-moment (her first autonomous action witnessed).

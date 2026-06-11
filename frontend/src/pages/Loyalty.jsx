@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useBeautician, supabase } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -6,143 +7,341 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
- * Loyalty & Rewards — keep clients coming back.
+ * Loyalty
  *
- * Points system:
- *   1 point per £1 spent
- *   Bonus points for referrals, reviews, early rebooking
- *
- * Rewards:
- *   Free treatment, % off, add-on upgrade, gift voucher
- *
- * Tiers: Bronze → Silver → Gold → VIP
+ * One earn rule, one reward. Points accrue automatically server-side when an
+ * appointment completes (backend/src/services/loyalty.js, idempotent), so this
+ * page is just the dials and the truth:
+ *  - Settings: is_active, points_per_pound, reward_name + reward_threshold.
+ *    All persisted to loyalty_config (owner-scoped RLS, migration 007).
+ *  - Members: per-client balances aggregated from the loyalty_points ledger,
+ *    with progress towards the reward and a "mark reward used" action that
+ *    writes a negative ledger row.
+ *  - Activity: the last few ledger rows, humanised.
  */
 
-const TIERS = [
-  { name: 'Bronze', min: 0, color: 'var(--text-secondary)', icon: '🥉', perks: 'Early access to new slots' },
-  { name: 'Silver', min: 200, color: 'var(--text-muted)', icon: '🥈', perks: '5% off every 5th visit' },
-  { name: 'Gold', min: 500, color: 'var(--gold)', icon: '🥇', perks: '10% off + free brow mask' },
-  { name: 'VIP', min: 1000, color: 'var(--accent)', icon: '💎', perks: 'Priority booking + birthday treat' },
-];
+const DEFAULT_THRESHOLD = 100;
 
-const REWARDS = [
-  { id: 'r1', name: 'Free Brow Jelly Mask', points: 50, icon: '🧖', type: 'addon' },
-  { id: 'r2', name: '10% Off Next Visit', points: 100, icon: '🏷️', type: 'discount' },
-  { id: 'r3', name: 'Free Lip Wax Add-on', points: 75, icon: '✨', type: 'addon' },
-  { id: 'r4', name: 'Free Lamination Maintenance', points: 250, icon: '💅', type: 'treatment' },
-  { id: 'r5', name: '£10 Gift Voucher', points: 150, icon: '🎁', type: 'voucher' },
-];
-
-const EARN_RULES = [
-  { action: 'Per £1 spent', points: 1, icon: '💰' },
-  { action: 'Leave a Google review', points: 25, icon: '⭐' },
-  { action: 'Refer a friend', points: 50, icon: '👯' },
-  { action: 'Rebook within 7 days', points: 15, icon: '📅' },
-  { action: 'Birthday bonus', points: 20, icon: '🎂' },
-];
-
-function getTier(points) {
-  return [...TIERS].reverse().find(t => points >= t.min) || TIERS[0];
+function shortDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
-function getNextTier(points) {
-  return TIERS.find(t => t.min > points);
+function clientName(row) {
+  const c = row.clients;
+  if (!c) return 'A client';
+  return [c.first_name, c.last_name].filter(Boolean).join(' ') || 'A client';
+}
+
+function firstName(row) {
+  return row.clients?.first_name || 'A client';
+}
+
+function describeRow(row) {
+  const treatment = row.appointments?.treatments?.name;
+  if (row.reason === 'reward_redeemed' || (row.points || 0) < 0) {
+    return `${firstName(row)} used their reward`;
+  }
+  const base = `${firstName(row)} earned ${row.points} pts`;
+  return treatment ? `${base} · ${treatment}` : base;
 }
 
 export default function Loyalty() {
   const { beautician, loading: bLoading } = useBeautician();
-  const [tab, setTab] = useState('overview');
-  const [showRewardDetail, setShowRewardDetail] = useState(null);
+  const navigate = useNavigate();
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [loyaltyConfig, setLoyaltyConfig] = useState(null);
-  const [pointsHistory, setPointsHistory] = useState([]);
+  const [config, setConfig] = useState(null);
+  const [ledger, setLedger] = useState([]);
+  const [tab, setTab] = useState('members');
+
+  // Settings form state
+  const [pointsPerPound, setPointsPerPound] = useState(1);
+  const [rewardName, setRewardName] = useState('');
+  const [rewardThreshold, setRewardThreshold] = useState(DEFAULT_THRESHOLD);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+  const [saved, setSaved] = useState(false);
+  const [redeemingId, setRedeemingId] = useState(null);
 
   useEffect(() => {
-    if (beautician && !bLoading) loadLoyalty();
-  }, [beautician, bLoading]);
+    if (beautician && !bLoading) load();
+  }, [beautician, bLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function loadLoyalty() {
+  async function load() {
     setLoading(true);
     setError(null);
     try {
-      {
-        const { data: config, error: configErr } = await supabase
-          .from('loyalty_config')
-          .select('*')
-          .eq('beautician_id', beautician.id)
-          .maybeSingle();
-        if (configErr) throw configErr;
-        setLoyaltyConfig(config || { enabled: true, points_per_dollar: 1 });
+      const { data: cfg, error: cfgErr } = await supabase
+        .from('loyalty_config')
+        .select('*')
+        .eq('beautician_id', beautician.id)
+        .maybeSingle();
+      if (cfgErr) throw cfgErr;
 
-        // Fetch points history
-        const { data: history, error: histErr } = await supabase
-          .from('loyalty_points')
-          .select('*, clients(first_name)')
-          .eq('beautician_id', beautician.id)
-          .order('created_at', { ascending: false });
-        if (histErr) throw histErr;
-        setPointsHistory(history || []);
-      }
+      const { data: rows, error: rowsErr } = await supabase
+        .from('loyalty_points')
+        .select('id, client_id, points, reason, created_at, clients(first_name, last_name), appointments(treatments(name))')
+        .eq('beautician_id', beautician.id)
+        .order('created_at', { ascending: false });
+      if (rowsErr) throw rowsErr;
+
+      setConfig(cfg || null);
+      setLedger(rows || []);
+      setPointsPerPound(cfg?.points_per_pound ?? 1);
+      setRewardName(cfg?.reward_name ?? '');
+      setRewardThreshold(cfg?.reward_threshold ?? DEFAULT_THRESHOLD);
     } catch (err) {
       logger.error('Load loyalty error:', err);
-      setError('Failed to load loyalty data');
+      setError('Could not load your loyalty programme. Pull to refresh or try again in a minute.');
     } finally {
       setLoading(false);
     }
   }
 
-  // Compute stats from points history
-  const clients = pointsHistory;
-  const totalPointsIssued = clients.reduce((s, c) => s + (c.points || 0), 0);
-  const activeMembers = clients.filter(c => (c.points || 0) > 0).length;
-
-  if (bLoading || loading) {
-    return <PageLoader />;
+  /** Persist a partial update to loyalty_config. Returns true on success. */
+  async function saveConfig(patch) {
+    setSaving(true);
+    setSaveError(null);
+    setSaved(false);
+    try {
+      const { data, error: upErr } = await supabase
+        .from('loyalty_config')
+        .upsert({ beautician_id: beautician.id, ...patch }, { onConflict: 'beautician_id' })
+        .select()
+        .single();
+      if (upErr) throw upErr;
+      setConfig(data);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+      return true;
+    } catch (err) {
+      logger.error('Save loyalty config error:', err);
+      setSaveError(err.message || 'Could not save. Check your connection and try again.');
+      return false;
+    } finally {
+      setSaving(false);
+    }
   }
 
+  async function toggleActive() {
+    const next = !(config?.is_active ?? false);
+    await saveConfig({ is_active: next });
+  }
+
+  async function saveSettings() {
+    const threshold = Math.max(1, parseInt(rewardThreshold, 10) || DEFAULT_THRESHOLD);
+    setRewardThreshold(threshold);
+    await saveConfig({
+      points_per_pound: pointsPerPound,
+      reward_name: rewardName.trim() || null,
+      reward_threshold: threshold,
+    });
+  }
+
+  async function markRewardUsed(member) {
+    const threshold = config?.reward_threshold ?? DEFAULT_THRESHOLD;
+    const label = config?.reward_name ? `their ${config.reward_name}` : 'their reward';
+    const ok = window.confirm(
+      `Mark ${label} as used for ${member.name}? This takes ${threshold} points off their balance.`
+    );
+    if (!ok) return;
+    setRedeemingId(member.clientId);
+    setSaveError(null);
+    try {
+      const { error: insErr } = await supabase.from('loyalty_points').insert({
+        beautician_id: beautician.id,
+        client_id: member.clientId,
+        points: -threshold,
+        reason: 'reward_redeemed',
+        balance_after: member.balance - threshold,
+      });
+      if (insErr) throw insErr;
+      await load();
+    } catch (err) {
+      logger.error('Mark reward used error:', err);
+      setSaveError(err.message || 'Could not mark the reward as used. Try again.');
+    } finally {
+      setRedeemingId(null);
+    }
+  }
+
+  // Per-client aggregation: sum of the ledger per client, sorted by balance.
+  const members = useMemo(() => {
+    const byClient = new Map();
+    for (const row of ledger) {
+      if (!row.client_id) continue;
+      const existing = byClient.get(row.client_id);
+      if (existing) {
+        existing.balance += row.points || 0;
+      } else {
+        byClient.set(row.client_id, {
+          clientId: row.client_id,
+          name: clientName(row),
+          balance: row.points || 0,
+        });
+      }
+    }
+    return [...byClient.values()]
+      .filter((m) => m.balance !== 0)
+      .sort((a, b) => b.balance - a.balance);
+  }, [ledger]);
+
+  const recent = ledger.slice(0, 10);
+  const isActive = config?.is_active ?? false;
+  const threshold = config?.reward_threshold ?? DEFAULT_THRESHOLD;
+  const rewardLabel = config?.reward_name || 'reward';
+
+  if (bLoading || loading) return <PageLoader />;
+
   if (error) {
-    return <ErrorCard message={error} onDismiss={() => setError(null)} />;
+    return (
+      <div style={styles.page}>
+        <div style={styles.header}>
+          <h1 style={styles.title}>Loyalty</h1>
+        </div>
+        <ErrorCard message={error} onDismiss={() => setError(null)} />
+        <button type="button" onClick={load} style={styles.retryBtn}>Try again</button>
+      </div>
+    );
   }
 
   return (
     <div style={styles.page}>
       <div style={styles.header}>
         <h1 style={styles.title}>Loyalty</h1>
-        <p style={styles.subtitle}>Rewards that bring them back</p>
+        <p style={styles.subtitle}>
+          Clients earn points automatically when their appointments complete. Nothing to stamp, nothing to remember.
+        </p>
       </div>
 
-      {/* Hero stats */}
-      <div style={styles.heroRow}>
-        <div style={styles.heroStat}>
-          <span style={styles.heroNum}>{activeMembers}</span>
-          <span style={styles.heroLabel}>Members</span>
+      {/* Settings */}
+      <div style={styles.card}>
+        <div style={styles.settingRow}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span style={styles.settingLabel}>Loyalty programme</span>
+            <span style={styles.settingHint}>
+              {isActive
+                ? 'On. Completed appointments earn points.'
+                : 'Off. No points are being earned right now.'}
+            </span>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={isActive}
+            onClick={toggleActive}
+            disabled={saving}
+            style={{
+              ...styles.toggle,
+              background: isActive ? 'var(--accent, #92405e)' : 'var(--border, #ECD5DD)',
+              opacity: saving ? 0.6 : 1,
+            }}
+          >
+            <span style={{ ...styles.toggleDot, transform: isActive ? 'translateX(16px)' : 'translateX(0)' }} />
+          </button>
         </div>
-        <div style={styles.heroStat}>
-          <span style={styles.heroNum}>{totalPointsIssued}</span>
-          <span style={styles.heroLabel}>Points issued</span>
+
+        <div style={styles.settingRow}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span style={styles.settingLabel}>Points per £1 spent</span>
+            <span style={styles.settingHint}>A £45 set earns {45 * (pointsPerPound || 1)} points.</span>
+          </div>
+          <div style={styles.stepper}>
+            <button
+              type="button"
+              onClick={() => setPointsPerPound((v) => Math.max(1, (v || 1) - 1))}
+              disabled={pointsPerPound <= 1}
+              style={{ ...styles.stepBtn, opacity: pointsPerPound <= 1 ? 0.4 : 1 }}
+              aria-label="Fewer points per pound"
+            >
+              &minus;
+            </button>
+            <span style={styles.stepValue}>{pointsPerPound}</span>
+            <button
+              type="button"
+              onClick={() => setPointsPerPound((v) => Math.min(10, (v || 1) + 1))}
+              disabled={pointsPerPound >= 10}
+              style={{ ...styles.stepBtn, opacity: pointsPerPound >= 10 ? 0.4 : 1 }}
+              aria-label="More points per pound"
+            >
+              +
+            </button>
+          </div>
         </div>
-        <div style={styles.heroStat}>
-          <span style={styles.heroNum}>{REWARDS.length}</span>
-          <span style={styles.heroLabel}>Rewards</span>
+
+        <div style={styles.rewardFields}>
+          <div style={{ flex: 1, minWidth: 160 }}>
+            <label htmlFor="loyalty-reward-name" style={styles.fieldLabel}>The reward</label>
+            <input
+              id="loyalty-reward-name"
+              type="text"
+              value={rewardName}
+              onChange={(e) => setRewardName(e.target.value)}
+              placeholder="Free lash infill"
+              maxLength={60}
+              style={styles.input}
+            />
+          </div>
+          <div style={{ width: 96 }}>
+            <label htmlFor="loyalty-reward-threshold" style={styles.fieldLabel}>At</label>
+            <input
+              id="loyalty-reward-threshold"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              value={rewardThreshold}
+              onChange={(e) => setRewardThreshold(e.target.value)}
+              style={styles.input}
+            />
+          </div>
+        </div>
+        <p style={styles.rewardPreview}>
+          {rewardName.trim()
+            ? `Clients see: "${rewardName.trim()} at ${parseInt(rewardThreshold, 10) || DEFAULT_THRESHOLD} points".`
+            : 'Name the reward so clients know what they are working towards.'}
+        </p>
+
+        {saveError && <div style={styles.errorBox}>{saveError}</div>}
+
+        <button type="button" onClick={saveSettings} disabled={saving} style={styles.saveBtn}>
+          {saving ? 'Saving…' : saved ? 'Saved' : 'Save changes'}
+        </button>
+      </div>
+
+      {/* How it works */}
+      <div style={styles.howStrip}>
+        <div style={styles.howLine}>
+          <span style={styles.howNum}>1</span>
+          <span>Points land automatically when a visit completes, based on what they paid.</span>
+        </div>
+        <div style={styles.howLine}>
+          <span style={styles.howNum}>2</span>
+          <span>Progress shows on each client's card and on your booking page, so the scheme sells itself.</span>
+        </div>
+        <div style={styles.howLine}>
+          <span style={styles.howNum}>3</span>
+          <span>When someone claims their reward, mark it used below and their balance resets.</span>
         </div>
       </div>
 
       {/* Tabs */}
       <div style={styles.tabs}>
         {[
-          { key: 'overview', label: 'Overview' },
-          { key: 'members', label: 'Members' },
-          { key: 'rewards', label: 'Rewards' },
-          { key: 'settings', label: 'Settings' },
-        ].map(t => (
+          { key: 'members', label: `Members${members.length ? ` (${members.length})` : ''}` },
+          { key: 'activity', label: 'Recent activity' },
+        ].map((t) => (
           <button
             key={t.key}
+            type="button"
             onClick={() => setTab(t.key)}
             style={{
               ...styles.tab,
-              borderBottomColor: tab === t.key ? '#C76B8A' : 'transparent',
-              color: tab === t.key ? '#C76B8A' : '#AAA5A0',
+              borderBottomColor: tab === t.key ? 'var(--accent, #92405e)' : 'transparent',
+              color: tab === t.key ? 'var(--accent, #92405e)' : 'var(--text-muted, #8A7A72)',
             }}
           >
             {t.label}
@@ -150,270 +349,384 @@ export default function Loyalty() {
         ))}
       </div>
 
-      {/* Overview */}
-      {tab === 'overview' && (
-        <div style={styles.body}>
-          {/* Tiers */}
-          <div style={styles.card}>
-            <h3 style={styles.cardTitle}>Loyalty tiers</h3>
-            {TIERS.map((tier, i) => (
-              <div key={tier.name} style={styles.tierRow}>
-                <span style={{ fontSize: 18 }}>{tier.icon}</span>
-                <div style={{ flex: 1 }}>
-                  <span style={{ ...styles.tierName, color: tier.color }}>{tier.name}</span>
-                  <span style={styles.tierPerks}>{tier.perks}</span>
-                </div>
-                <span style={styles.tierMin}>{tier.min}+ pts</span>
-              </div>
-            ))}
-          </div>
-
-          {/* How to earn */}
-          <div style={styles.card}>
-            <h3 style={styles.cardTitle}>How clients earn points</h3>
-            {EARN_RULES.map((rule, i) => (
-              <div key={i} style={styles.earnRow}>
-                <span style={{ fontSize: 16 }}>{rule.icon}</span>
-                <span style={styles.earnAction}>{rule.action}</span>
-                <span style={styles.earnPoints}>+{rule.points} pts</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Members */}
       {tab === 'members' && (
-        <div style={styles.body}>
-          {clients.length === 0 ? (
-            <div style={styles.emptyState}>
-              <span style={{ fontSize: 36, display: 'block', marginBottom: 12 }}>🏆</span>
-              <p style={styles.emptyTitle}>No members yet</p>
-              <p style={styles.emptyDesc}>Clients earn points automatically when they visit. Turn on loyalty in Settings.</p>
-            </div>
-          ) : (
-            clients
-              .sort((a, b) => b.loyalty_points - a.loyalty_points)
-              .map(client => {
-                const tier = getTier(client.loyalty_points);
-                const next = getNextTier(client.loyalty_points);
-                const progress = next
-                  ? ((client.loyalty_points - tier.min) / (next.min - tier.min)) * 100
-                  : 100;
-
-                return (
-                  <div key={client.id} style={styles.memberCard}>
-                    <div style={styles.memberTop}>
-                      <div style={styles.memberAvatar}>{client.first_name[0]}</div>
-                      <div style={{ flex: 1 }}>
-                        <span style={styles.memberName}>{client.first_name} {client.last_name}</span>
-                        <span style={{ ...styles.memberTier, color: tier.color }}>
-                          {tier.icon} {tier.name}
-                        </span>
+        members.length === 0 ? (
+          <EmptyState
+            icon="🪙"
+            title="No points on the books yet"
+            subtitle={isActive
+              ? 'Balances appear here as appointments complete. Nothing for you to do.'
+              : 'Turn the programme on above and completed appointments will start earning points.'}
+          />
+        ) : (
+          <div style={styles.list}>
+            {members.map((m) => {
+              const progress = Math.min((m.balance / threshold) * 100, 100);
+              const reached = m.balance >= threshold;
+              return (
+                <div key={m.clientId} style={styles.memberCard}>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/clients', { state: { clientId: m.clientId } })}
+                    style={styles.memberMain}
+                  >
+                    <div style={styles.memberAvatar}>{m.name[0]?.toUpperCase() || '?'}</div>
+                    <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                      <span style={styles.memberName}>{m.name}</span>
+                      <div style={styles.progressTrack}>
+                        <div
+                          style={{
+                            ...styles.progressFill,
+                            width: `${progress}%`,
+                            background: reached ? 'var(--success, #2E7D6B)' : 'var(--accent, #92405e)',
+                          }}
+                        />
                       </div>
-                      <div style={styles.memberPoints}>
-                        <span style={styles.memberPointsNum}>{client.loyalty_points}</span>
-                        <span style={styles.memberPointsLabel}>points</span>
-                      </div>
+                      <span style={styles.progressHint}>
+                        {reached
+                          ? `Earned their ${rewardLabel}`
+                          : `${threshold - m.balance} pts to their ${rewardLabel}`}
+                      </span>
                     </div>
-
-                    {next && (
-                      <div style={styles.progressSection}>
-                        <div style={styles.progressTrack}>
-                          <div style={{ ...styles.progressFill, width: `${Math.min(progress, 100)}%`, background: tier.color }} />
-                        </div>
-                        <span style={styles.progressHint}>
-                          {next.min - client.loyalty_points} pts to {next.name}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-          )}
-        </div>
-      )}
-
-      {/* Rewards */}
-      {tab === 'rewards' && (
-        <div style={styles.body}>
-          <p style={styles.rewardsIntro}>
-            Clients can redeem points for these rewards. Tap to edit.
-          </p>
-
-          {REWARDS.map(reward => (
-            <div
-              key={reward.id}
-              style={styles.rewardCard}
-              onClick={() => setShowRewardDetail(reward)}
-            >
-              <span style={{ fontSize: 24 }}>{reward.icon}</span>
-              <div style={{ flex: 1 }}>
-                <span style={styles.rewardName}>{reward.name}</span>
-                <span style={styles.rewardType}>{reward.type}</span>
-              </div>
-              <span style={styles.rewardCost}>{reward.points} pts</span>
-            </div>
-          ))}
-
-          <button style={styles.addRewardBtn}>+ Add reward</button>
-        </div>
-      )}
-
-      {/* Settings */}
-      {tab === 'settings' && (
-        <div style={styles.body}>
-          <div style={styles.card}>
-            <h3 style={styles.cardTitle}>Loyalty programme</h3>
-
-            <div style={styles.settingRow}>
-              <div style={{ flex: 1 }}>
-                <span style={styles.settingLabel}>Enable loyalty points</span>
-                <span style={styles.settingHint}>Clients earn points automatically on every visit</span>
-              </div>
-              <div style={{ ...styles.toggle, background: '#C76B8A' }}>
-                <div style={{ ...styles.toggleDot, transform: 'translateX(16px)' }} />
-              </div>
-            </div>
-
-            <div style={styles.settingRow}>
-              <div style={{ flex: 1 }}>
-                <span style={styles.settingLabel}>Show points on booking page</span>
-                <span style={styles.settingHint}>Clients see their balance when booking</span>
-              </div>
-              <div style={{ ...styles.toggle, background: '#C76B8A' }}>
-                <div style={{ ...styles.toggleDot, transform: 'translateX(16px)' }} />
-              </div>
-            </div>
-
-            <div style={styles.settingRow}>
-              <div style={{ flex: 1 }}>
-                <span style={styles.settingLabel}>Auto-notify on new tier</span>
-                <span style={styles.settingHint}>Message clients when they level up</span>
-              </div>
-              <div style={{ ...styles.toggle, background: '#C76B8A' }}>
-                <div style={{ ...styles.toggleDot, transform: 'translateX(16px)' }} />
-              </div>
-            </div>
-
-            <div style={styles.settingRow}>
-              <div style={{ flex: 1 }}>
-                <span style={styles.settingLabel}>Points expiry</span>
-                <span style={styles.settingHint}>Points expire if unused</span>
-              </div>
-              <span style={styles.settingValue}>12 months</span>
-            </div>
+                    <div style={styles.memberPoints}>
+                      <span style={styles.memberPointsNum}>{m.balance}</span>
+                      <span style={styles.memberPointsLabel}>pts</span>
+                    </div>
+                  </button>
+                  {reached && (
+                    <button
+                      type="button"
+                      onClick={() => markRewardUsed(m)}
+                      disabled={redeemingId === m.clientId}
+                      style={styles.redeemBtn}
+                    >
+                      {redeemingId === m.clientId ? 'Marking…' : 'Mark reward used'}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        </div>
+        )
       )}
 
-      {/* Reward detail modal */}
-      {showRewardDetail && (
-        <div style={styles.overlay} onClick={() => setShowRewardDetail(null)}>
-          <div style={styles.detailPanel} onClick={e => e.stopPropagation()}>
-            <button onClick={() => setShowRewardDetail(null)} style={styles.closeBtn}>×</button>
-            <div style={{ textAlign: 'center', paddingTop: 8 }}>
-              <span style={{ fontSize: 40, display: 'block', marginBottom: 8 }}>{showRewardDetail.icon}</span>
-              <h2 style={styles.detailTitle}>{showRewardDetail.name}</h2>
-              <span style={styles.detailCost}>{showRewardDetail.points} points to redeem</span>
-            </div>
-
-            <div style={styles.detailInfo}>
-              <div style={styles.detailInfoRow}>
-                <span style={styles.detailInfoLabel}>Type</span>
-                <span style={styles.detailInfoValue}>{showRewardDetail.type}</span>
+      {/* Recent activity */}
+      {tab === 'activity' && (
+        recent.length === 0 ? (
+          <EmptyState
+            icon="🗒️"
+            title="Nothing yet"
+            subtitle="Every point earned or reward used shows up here."
+          />
+        ) : (
+          <div style={styles.activityCard}>
+            {recent.map((row) => (
+              <div key={row.id} style={styles.activityRow}>
+                <span style={styles.activityText}>{describeRow(row)}</span>
+                <span style={styles.activityDate}>{shortDate(row.created_at)}</span>
               </div>
-              <div style={styles.detailInfoRow}>
-                <span style={styles.detailInfoLabel}>Redeemed</span>
-                <span style={styles.detailInfoValue}>0 times</span>
-              </div>
-              <div style={styles.detailInfoRow}>
-                <span style={styles.detailInfoLabel}>Status</span>
-                <span style={{ ...styles.detailInfoValue, color: '#4CAF50' }}>Active</span>
-              </div>
-            </div>
+            ))}
           </div>
-        </div>
+        )
       )}
     </div>
   );
 }
 
 const styles = {
-  page: { minHeight: '100vh', background: 'var(--bg, #FAF8F5)', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text, #2D2A26)' },
-  header: { paddingTop: 28, paddingBottom: 8 },
-  title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
-  subtitle: { fontSize: 13, color: 'var(--accent, #C76B8A)', margin: 0, fontWeight: 500 },
-
-  heroRow: { display: 'flex', gap: 8, marginBottom: 12 },
-  heroStat: { flex: 1, background: 'var(--bg-card, #fff)', borderRadius: 12, padding: '12px 8px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
-  heroNum: { display: 'block', fontSize: 20, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
-  heroLabel: { display: 'block', fontSize: 10, color: 'var(--text-muted, #B5AFA8)', textTransform: 'uppercase', marginTop: 2 },
-
-  tabs: { display: 'flex', gap: 16, borderBottom: '1px solid var(--border, #EDE9E4)', marginBottom: 14, overflowX: 'auto' },
-  tab: { padding: '10px 0', background: 'none', border: 'none', borderBottom: '2px solid transparent', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
-
-  body: { display: 'flex', flexDirection: 'column', gap: 10 },
-
-  card: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
-  cardTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: 'var(--text, #2D2A26)' },
-
-  tierRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--bg-hover, #F5F2EF)' },
-  tierName: { display: 'block', fontSize: 13, fontWeight: 700 },
-  tierPerks: { display: 'block', fontSize: 11, color: 'var(--text-secondary, #7A756F)', marginTop: 1 },
-  tierMin: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)', fontWeight: 600 },
-
-  earnRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--bg-hover, #F5F2EF)' },
-  earnAction: { flex: 1, fontSize: 13, color: 'var(--text, #2D2A26)' },
-  earnPoints: { fontSize: 13, fontWeight: 700, color: 'var(--success, #5BA97B)' },
-
-  memberCard: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 14, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
-  memberTop: { display: 'flex', alignItems: 'center', gap: 10 },
-  memberAvatar: { width: 36, height: 36, borderRadius: 18, background: 'var(--accent-light, #FFF0F3)', color: 'var(--accent, #C76B8A)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700 },
-  memberName: { display: 'block', fontSize: 14, fontWeight: 600 },
-  memberTier: { display: 'block', fontSize: 11, fontWeight: 600, marginTop: 1 },
-  memberPoints: { textAlign: 'right' },
-  memberPointsNum: { display: 'block', fontSize: 18, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
-  memberPointsLabel: { display: 'block', fontSize: 9, color: 'var(--text-muted, #B5AFA8)', textTransform: 'uppercase' },
-
-  progressSection: { marginTop: 10 },
-  progressTrack: { height: 4, borderRadius: 2, background: 'var(--bg-hover, #F5F2EF)', overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 2, transition: 'width 0.3s ease' },
-  progressHint: { display: 'block', fontSize: 10, color: 'var(--text-muted, #B5AFA8)', marginTop: 4 },
-
-  rewardsIntro: { fontSize: 13, color: 'var(--text-secondary, #7A756F)', margin: '0 0 4px', lineHeight: 1.5 },
-  rewardCard: {
-    display: 'flex', alignItems: 'center', gap: 12,
-    padding: 14, background: 'var(--bg-card, #fff)', borderRadius: 12,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)', cursor: 'pointer',
+  page: {
+    padding: '16px 16px 32px',
+    maxWidth: 720,
+    margin: '0 auto',
+    fontFamily: 'var(--font-body, "Plus Jakarta Sans", sans-serif)',
+    color: 'var(--text-primary, #241B17)',
   },
-  rewardName: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  rewardType: { display: 'block', fontSize: 10, color: 'var(--text-muted, #B5AFA8)', textTransform: 'uppercase', letterSpacing: '0.04em', marginTop: 2 },
-  rewardCost: { fontSize: 13, fontWeight: 700, color: 'var(--accent, #C76B8A)', flexShrink: 0 },
-  addRewardBtn: {
-    padding: '12px 0', borderRadius: 12, border: '1.5px dashed var(--border, #EDE9E4)',
-    background: 'transparent', color: 'var(--accent, #C76B8A)', fontSize: 13, fontWeight: 600,
-    cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
+  header: { marginBottom: 18 },
+  title: {
+    fontSize: 26,
+    fontWeight: 600,
+    margin: 0,
+    fontFamily: 'var(--font-display, "Fraunces", Georgia, serif)',
+  },
+  subtitle: {
+    fontSize: 13.5,
+    lineHeight: 1.55,
+    color: 'var(--text-secondary, #4D423D)',
+    margin: '6px 0 0',
+    maxWidth: 440,
   },
 
-  settingRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--bg-hover, #F5F2EF)' },
-  settingLabel: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  settingHint: { display: 'block', fontSize: 11, color: 'var(--text-muted, #B5AFA8)', marginTop: 2 },
-  settingValue: { fontSize: 12, fontWeight: 600, color: 'var(--accent, #C76B8A)', flexShrink: 0 },
-  toggle: { width: 40, height: 24, borderRadius: 12, padding: 2, cursor: 'pointer', flexShrink: 0 },
-  toggleDot: { width: 20, height: 20, borderRadius: 10, background: 'var(--bg-card, #fff)', boxShadow: '0 1px 3px rgba(0,0,0,0.15)', transition: 'transform 0.2s ease' },
+  card: {
+    background: 'var(--bg-card, #fff)',
+    borderRadius: 16,
+    border: '1px solid var(--border-light, #ede7e3)',
+    padding: 16,
+    boxShadow: 'var(--shadow-xs, 0 1px 2px rgba(146,64,94,.04))',
+    marginBottom: 14,
+  },
 
-  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', justifyContent: 'center', alignItems: 'flex-end' },
-  detailPanel: { background: 'var(--bg, #FAF8F5)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '20px 16px 40px', position: 'relative' },
-  closeBtn: { position: 'absolute', top: 12, right: 16, background: 'none', border: 'none', fontSize: 24, color: 'var(--text-muted, #B5AFA8)', cursor: 'pointer' },
-  detailTitle: { fontSize: 18, fontWeight: 700, margin: '0 0 4px' },
-  detailCost: { fontSize: 14, color: 'var(--accent, #C76B8A)', fontWeight: 600 },
-  detailInfo: { marginTop: 20 },
-  detailInfoRow: { display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border, #EDE9E4)' },
-  detailInfoLabel: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },
-  detailInfoValue: { fontSize: 12, fontWeight: 600, color: 'var(--text, #2D2A26)' },
+  settingRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    padding: '10px 0',
+    borderBottom: '1px solid var(--border-light, #ede7e3)',
+  },
+  settingLabel: { display: 'block', fontSize: 14, fontWeight: 700 },
+  settingHint: { display: 'block', fontSize: 12, color: 'var(--text-muted, #8A7A72)', marginTop: 2 },
 
-  emptyState: { textAlign: 'center', padding: '40px 20px' },
-  emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 6px' },
-  emptyDesc: { fontSize: 13, color: 'var(--text-muted, #B5AFA8)', margin: 0, lineHeight: 1.5 },
+  toggle: {
+    width: 40,
+    height: 24,
+    borderRadius: 12,
+    padding: 2,
+    border: 'none',
+    cursor: 'pointer',
+    flexShrink: 0,
+    transition: 'background 0.2s ease',
+  },
+  toggleDot: {
+    display: 'block',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    background: '#fff',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+    transition: 'transform 0.2s ease',
+  },
+
+  stepper: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    flexShrink: 0,
+  },
+  stepBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    border: '1.5px solid var(--border, #ECD5DD)',
+    background: 'var(--bg-input, #f8f2ef)',
+    color: 'var(--text-primary, #241B17)',
+    fontSize: 16,
+    fontWeight: 700,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    lineHeight: 1,
+  },
+  stepValue: {
+    minWidth: 28,
+    textAlign: 'center',
+    fontSize: 15,
+    fontWeight: 700,
+  },
+
+  rewardFields: { display: 'flex', gap: 10, paddingTop: 14, flexWrap: 'wrap' },
+  fieldLabel: {
+    display: 'block',
+    fontSize: 12,
+    fontWeight: 700,
+    color: 'var(--text-secondary, #4D423D)',
+    marginBottom: 6,
+  },
+  input: {
+    width: '100%',
+    padding: '11px 12px',
+    borderRadius: 10,
+    border: '1.5px solid var(--border, #ECD5DD)',
+    fontSize: 14,
+    fontFamily: 'inherit',
+    color: 'var(--text-primary, #241B17)',
+    background: 'var(--bg-input, #f8f2ef)',
+    outline: 'none',
+    boxSizing: 'border-box',
+  },
+  rewardPreview: {
+    fontSize: 11.5,
+    color: 'var(--text-muted, #8A7A72)',
+    lineHeight: 1.5,
+    margin: '8px 0 12px',
+  },
+
+  errorBox: {
+    background: 'var(--danger-bg, #ffdad6)',
+    border: '1px solid #F5C6C0',
+    borderRadius: 10,
+    padding: 10,
+    fontSize: 13,
+    color: '#8A2A1C',
+    marginBottom: 10,
+  },
+  saveBtn: {
+    width: '100%',
+    padding: '12px 16px',
+    borderRadius: 12,
+    border: 'none',
+    background: 'var(--accent, #92405e)',
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  },
+  retryBtn: {
+    padding: '10px 16px',
+    borderRadius: 10,
+    border: '1px solid var(--border, #ECD5DD)',
+    background: 'var(--bg-card, #fff)',
+    color: 'var(--text-secondary, #4D423D)',
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    marginTop: 10,
+  },
+
+  howStrip: {
+    background: 'var(--accent-light, #F6E7EC)',
+    border: '1px solid var(--border, #ECD5DD)',
+    borderRadius: 16,
+    padding: '14px 16px',
+    marginBottom: 18,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
+  },
+  howLine: {
+    display: 'flex',
+    gap: 10,
+    alignItems: 'flex-start',
+    fontSize: 13,
+    lineHeight: 1.5,
+    color: 'var(--text-secondary, #4D423D)',
+  },
+  howNum: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    background: 'var(--accent, #92405e)',
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: 700,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    marginTop: 1,
+  },
+
+  tabs: {
+    display: 'flex',
+    gap: 16,
+    borderBottom: '1px solid var(--border-light, #ede7e3)',
+    marginBottom: 12,
+  },
+  tab: {
+    padding: '10px 0',
+    background: 'none',
+    border: 'none',
+    borderBottom: '2px solid transparent',
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    whiteSpace: 'nowrap',
+  },
+
+  list: { display: 'flex', flexDirection: 'column', gap: 10 },
+
+  memberCard: {
+    background: 'var(--bg-card, #fff)',
+    borderRadius: 16,
+    border: '1px solid var(--border-light, #ede7e3)',
+    padding: 14,
+    boxShadow: 'var(--shadow-xs, 0 1px 2px rgba(146,64,94,.04))',
+  },
+  memberMain: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    width: '100%',
+    background: 'none',
+    border: 'none',
+    padding: 0,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    color: 'inherit',
+  },
+  memberAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    background: 'var(--accent-light, #F6E7EC)',
+    color: 'var(--accent, #92405e)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 15,
+    fontWeight: 700,
+    flexShrink: 0,
+  },
+  memberName: { display: 'block', fontSize: 14.5, fontWeight: 700, marginBottom: 6 },
+  memberPoints: { textAlign: 'right', flexShrink: 0 },
+  memberPointsNum: {
+    display: 'block',
+    fontSize: 19,
+    fontWeight: 700,
+    color: 'var(--accent, #92405e)',
+    fontFamily: 'var(--font-display, "Fraunces", Georgia, serif)',
+  },
+  memberPointsLabel: {
+    display: 'block',
+    fontSize: 9.5,
+    color: 'var(--text-muted, #8A7A72)',
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+  },
+
+  progressTrack: {
+    height: 5,
+    borderRadius: 3,
+    background: 'var(--bg-input, #f8f2ef)',
+    overflow: 'hidden',
+  },
+  progressFill: { height: '100%', borderRadius: 3, transition: 'width 0.3s ease' },
+  progressHint: {
+    display: 'block',
+    fontSize: 11,
+    color: 'var(--text-muted, #8A7A72)',
+    marginTop: 5,
+  },
+
+  redeemBtn: {
+    marginTop: 12,
+    width: '100%',
+    padding: '10px 14px',
+    borderRadius: 10,
+    border: '1.5px solid var(--success, #2E7D6B)',
+    background: 'var(--success-bg, #EDF7F0)',
+    color: 'var(--success, #2E7D6B)',
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  },
+
+  activityCard: {
+    background: 'var(--bg-card, #fff)',
+    borderRadius: 16,
+    border: '1px solid var(--border-light, #ede7e3)',
+    padding: '4px 14px',
+  },
+  activityRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    gap: 12,
+    padding: '11px 0',
+    borderBottom: '1px solid var(--border-light, #ede7e3)',
+  },
+  activityText: { fontSize: 13.5, lineHeight: 1.45 },
+  activityDate: { fontSize: 11.5, color: 'var(--text-muted, #8A7A72)', flexShrink: 0 },
 };

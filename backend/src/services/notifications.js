@@ -9,6 +9,7 @@ import logger from '../lib/logger.js';
 import { isMarketingTemplate, isMarketingSmsType, canSendMarketing, findClientByPhone } from '../lib/marketing-guard.js';
 import { trackSMSUsage } from './sms-metering.js';
 import { checkWhatsAppQuota, trackWhatsAppMessage, trackSmsInMonthlyQuota } from './whatsapp-metering.js';
+import { twilioConfigured, twilioSendText, twilioSendTemplate, twilioContentSid } from './whatsapp-twilio.js';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || 'Florrie <noreply@florrie.ai>';
@@ -335,43 +336,124 @@ async function logOutboundToThread({ beauticianId, to, channel, templateName, te
 }
 
 /**
- * Send a WhatsApp template message (for booking confirmations, reminders etc.)
- * beauticianId is required — used to look up per-beautician phone_number_id and check quota.
+ * Local fallback bodies for the Twilio path, mirroring the starter-pack
+ * wording in whatsapp-config.js starterPackFor(). Used ONLY when a template
+ * has no ContentSid mapped in TWILIO_CONTENT_SIDS yet: we render the same
+ * copy with params interpolated and send it free-form.
+ *
+ * CAVEAT: Twilio (like Meta) only delivers free-form WhatsApp inside the
+ * 24-hour customer service window. Outside it the send fails (Twilio error
+ * 63016). So this fallback covers reactive sends during conversations, but
+ * proactive out-of-window sends NEED the ContentSid mapping — see
+ * docs/TWILIO_GO_LIVE_CHECKLIST.md.
  */
-export async function sendWhatsApp({ to, templateName, templateParams, beauticianId }) {
-  if (!WA_TOKEN) {
-    logger.debug('WhatsApp token not configured, skipping');
-    return null;
-  }
+const TWILIO_FALLBACK_BODIES = {
+  booking_confirmation: (p, biz) => `Hi ${p[0]}! It's ${biz} 🌸 Your appointment is confirmed for ${p[1]} at ${p[2]}. Reply here if anything needs changing. See you then!`,
+  reminder_24h: (p, biz) => `Hi ${p[0]}, it's ${biz}! A little reminder that your ${p[1]} is tomorrow at ${p[2]}. Reply if you need to reschedule. See you soon 🌸`,
+  gap_fill_offer: (p, biz) => `Hi ${p[0]}, it's ${biz}! A spot has just opened up on ${p[1]} at ${p[2]}. Fancy it? Reply YES and it's yours, or tell me a time that suits.`,
+  rebook_nudge: (p, biz) => `Hi ${p[0]}, it's ${biz} 🌸 It's been a little while! Fancy getting booked back in? Reply here and I'll find you a time.`,
+  generic_message: (p, biz) => `Hi ${p[0]}! It's ${biz} 🌸 ${p[1] || ''} Reply here anytime.`,
+};
 
-  // Resolve phone_number_id from beautician record
-  let phoneNumberId = null;
-  if (beauticianId) {
-    const quota = await checkWhatsAppQuota(beauticianId);
-    if (!quota.allowed) {
-      logger.warn({ beauticianId, reason: quota.reason }, 'WhatsApp send blocked — quota or config issue');
+/**
+ * Twilio leg of sendWhatsApp. Quota + PECR are already checked by the caller;
+ * this handles ContentSid resolution (prefer the personalised _v3 name),
+ * the free-form fallback, then the same post-send wrappers as the Meta path
+ * (trackWhatsAppMessage, logOutboundToThread, logSendFailure).
+ */
+async function sendWhatsAppTemplateViaTwilio({ to, templateName, templateParams, sender, beauticianId, bizName }) {
+  // Mirror resolvePersonalisedTemplate: a mapped _v3 (salon name in the body)
+  // wins over the requested _v2 name.
+  const upgraded = /_v2$/.test(templateName) ? templateName.replace(/_v2$/, '_v3') : null;
+  const upgradedSid = upgraded ? twilioContentSid(upgraded) : null;
+  const contentSid = upgradedSid || twilioContentSid(templateName);
+  const sentAs = upgradedSid ? upgraded : templateName;
+
+  let result = null;
+  if (contentSid) {
+    result = await twilioSendTemplate({ to, contentSid, variables: templateParams || [], sender });
+  } else {
+    const base = String(templateName).replace(/_v\d+$/, '');
+    const render = TWILIO_FALLBACK_BODIES[base];
+    if (!render) {
+      logger.warn({ templateName }, 'Twilio WhatsApp: no ContentSid mapped and no local fallback body');
+      await logSendFailure({ beauticianId, to, channel: 'WhatsApp', detail: `No Twilio content template for ${templateName}` });
       return null;
     }
+    logger.info({ templateName }, 'Twilio WhatsApp: no ContentSid mapped, sending free-form fallback (24h window only)');
+    const body = render((templateParams || []).map(String), bizName || 'your salon');
+    result = await twilioSendText({ to, body, sender });
+  }
+
+  if (result) {
+    logger.info({ to, templateName: sentAs, provider: 'twilio', contentSid: contentSid || null }, 'WhatsApp template sent');
+    if (beauticianId) await trackWhatsAppMessage(beauticianId);
+    logOutboundToThread({ beauticianId, to, channel: 'whatsapp', templateName, templateParams });
+    return result;
+  }
+  await logSendFailure({ beauticianId, to, channel: 'WhatsApp', detail: `Twilio send failed (${sentAs})` });
+  return null;
+}
+
+/**
+ * Send a WhatsApp template message (for booking confirmations, reminders etc.)
+ * beauticianId is required — used to look up per-beautician provider config
+ * (wa_provider: meta | twilio), phone_number_id / twilio_wa_sender, and quota.
+ */
+export async function sendWhatsApp({ to, templateName, templateParams, beauticianId }) {
+  // Resolve provider + sender config from the beautician record. Twilio
+  // tenants don't need the Meta token at all, so this runs before the
+  // WA_TOKEN gate.
+  let phoneNumberId = null;
+  let useTwilio = false;
+  let twilioSender = null;
+  let bizName = null;
+  if (beauticianId) {
     const { data: b } = await supabase
       .from('beauticians')
-      .select('whatsapp_phone_id')
+      .select('whatsapp_phone_id, wa_provider, twilio_wa_sender, business_name, first_name')
       .eq('id', beauticianId)
       .single();
     phoneNumberId = b?.whatsapp_phone_id;
-  }
+    twilioSender = b?.twilio_wa_sender || null;
+    bizName = b?.business_name || b?.first_name || null;
+    useTwilio = b?.wa_provider === 'twilio' && !!twilioSender && twilioConfigured();
 
-  if (!phoneNumberId) {
-    logger.debug({ beauticianId }, 'No WhatsApp phone_number_id, skipping');
-    return null;
+    const quota = await checkWhatsAppQuota(beauticianId);
+    // checkWhatsAppQuota doubles as a Meta config check: it returns
+    // 'no_whatsapp_number' when whatsapp_phone_id/whatsapp_connected are
+    // unset. Twilio tenants legitimately have no Meta phone id, so that one
+    // reason is waived for them (wa_provider + twilio_wa_sender are the
+    // explicit opt-in). The allowance itself never hard-blocks — overage is
+    // billed — so all other behaviour is identical across providers.
+    if (!quota.allowed && !(useTwilio && quota.reason === 'no_whatsapp_number')) {
+      logger.warn({ beauticianId, reason: quota.reason }, 'WhatsApp send blocked — quota or config issue');
+      return null;
+    }
   }
 
   // PECR: marketing-class templates respect opt-outs and quiet hours.
+  // Provider-agnostic — guards BOTH the Meta and Twilio paths.
   if (isMarketingTemplate(templateName)) {
     const gate = await canSendMarketing(beauticianId, to);
     if (!gate.allowed) {
       logger.info({ templateName, reason: gate.reason, beauticianId }, 'Marketing WhatsApp blocked by PECR guard');
       return null;
     }
+  }
+
+  if (useTwilio) {
+    return sendWhatsAppTemplateViaTwilio({ to, templateName, templateParams, sender: twilioSender, beauticianId, bizName });
+  }
+
+  if (!WA_TOKEN) {
+    logger.debug('WhatsApp token not configured, skipping');
+    return null;
+  }
+
+  if (!phoneNumberId) {
+    logger.debug({ beauticianId }, 'No WhatsApp phone_number_id, skipping');
+    return null;
   }
 
   // Resolve the language from the WABA that actually owns this sending phone.
@@ -449,25 +531,45 @@ export async function sendWhatsApp({ to, templateName, templateParams, beauticia
  * Note: freeform messages can only be sent within the 24-hour conversation window.
  */
 export async function sendWhatsAppText({ to, body, beauticianId }) {
-  if (!WA_TOKEN) {
-    logger.debug('WhatsApp token not configured, skipping freeform');
-    return null;
-  }
-
-  // Resolve phone_number_id from beautician record
+  // Resolve provider + sender config from the beautician record (Twilio
+  // tenants don't need the Meta token, so this runs before the WA_TOKEN gate).
   let phoneNumberId = null;
   if (beauticianId) {
-    const quota = await checkWhatsAppQuota(beauticianId);
-    if (!quota.allowed) {
-      logger.warn({ beauticianId, reason: quota.reason }, 'WhatsApp text blocked — quota or config issue');
-      return null;
-    }
     const { data: b } = await supabase
       .from('beauticians')
-      .select('whatsapp_phone_id')
+      .select('whatsapp_phone_id, wa_provider, twilio_wa_sender')
       .eq('id', beauticianId)
       .single();
     phoneNumberId = b?.whatsapp_phone_id;
+    const twilioSender = b?.twilio_wa_sender || null;
+    const useTwilio = b?.wa_provider === 'twilio' && !!twilioSender && twilioConfigured();
+
+    const quota = await checkWhatsAppQuota(beauticianId);
+    // Twilio tenants have no Meta phone id, so the 'no_whatsapp_number'
+    // config half of the quota check is waived for them (see sendWhatsApp).
+    if (!quota.allowed && !(useTwilio && quota.reason === 'no_whatsapp_number')) {
+      logger.warn({ beauticianId, reason: quota.reason }, 'WhatsApp text blocked — quota or config issue');
+      return null;
+    }
+
+    if (useTwilio) {
+      // Free-form is only deliverable inside the 24h window on Twilio too —
+      // same constraint as the Meta path below, same callers, same semantics.
+      const result = await twilioSendText({ to, body, sender: twilioSender });
+      if (result) {
+        logger.info({ to, provider: 'twilio' }, 'WhatsApp text sent');
+        await trackWhatsAppMessage(beauticianId);
+        return result;
+      }
+      logger.error({ to, beauticianId }, 'WhatsApp text send failed (twilio)');
+      await logSendFailure({ beauticianId, to, channel: 'WhatsApp', detail: 'Twilio free-form send failed' });
+      return null;
+    }
+  }
+
+  if (!WA_TOKEN) {
+    logger.debug('WhatsApp token not configured, skipping freeform');
+    return null;
   }
 
   if (!phoneNumberId) {
@@ -578,8 +680,9 @@ export function pickChannel(client, beauticianPrefs = {}) {
     return 'instagram';
   }
 
-  // WhatsApp: client has an active WhatsApp ID, token is configured, and beautician has a registered number
-  if (client?.whatsapp_id && WA_TOKEN && beauticianPrefs?.whatsapp_connected) return 'whatsapp';
+  // WhatsApp: client has an active WhatsApp ID, a provider is configured
+  // (Meta token or Twilio creds), and beautician has a registered number
+  if (client?.whatsapp_id && (WA_TOKEN || twilioConfigured()) && beauticianPrefs?.whatsapp_connected) return 'whatsapp';
 
   // SMS: client has a phone and Bird is configured
   if (client?.phone && BIRD_API_KEY) return 'sms';
@@ -619,7 +722,7 @@ function inWhatsAppSession(client) {
  */
 export async function sendNudge({ client, body, templateName, templateParams, beauticianId, beauticianPrefs = {} }) {
   // Path 1: active WhatsApp session — send free-form, it'll land immediately
-  if (client?.whatsapp_id && WA_TOKEN && beauticianPrefs?.whatsapp_connected && inWhatsAppSession(client)) {
+  if (client?.whatsapp_id && (WA_TOKEN || twilioConfigured()) && beauticianPrefs?.whatsapp_connected && inWhatsAppSession(client)) {
     const result = await sendWhatsAppText({ to: client.whatsapp_id, body, beauticianId });
     if (result) {
       await logComms(beauticianId, client.id, 'whatsapp', 'outbound', body);
@@ -628,7 +731,7 @@ export async function sendNudge({ client, body, templateName, templateParams, be
   }
 
   // Path 2: WhatsApp template (client has opted in, we have a template, session not required)
-  if (client?.whatsapp_id && WA_TOKEN && beauticianPrefs?.whatsapp_connected && templateName) {
+  if (client?.whatsapp_id && (WA_TOKEN || twilioConfigured()) && beauticianPrefs?.whatsapp_connected && templateName) {
     const result = await sendWhatsApp({ to: client.whatsapp_id, templateName, templateParams, beauticianId });
     if (result) {
       await logComms(beauticianId, client.id, 'whatsapp', 'outbound', body);
