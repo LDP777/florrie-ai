@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
+import { supabase } from '../lib/supabase.js';
 import { type as t } from '../lib/designSystem.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -27,20 +28,12 @@ const FIELD_TYPES = [
   { value: 'signature', label: 'Signature', icon: '🖊️', desc: 'Ask for a digital signature' },
 ];
 
-function getToken() {
-  // Supabase stores session under sb-<project-ref>-auth-token — find it by pattern
-  const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
-  if (!key) return null;
-  const raw = localStorage.getItem(key);
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    return parsed?.access_token || parsed?.session?.access_token || raw;
-  } catch { return raw; }
-}
-
-function authHeaders() {
-  const t = getToken();
+// Always take the token from the live Supabase session, the same way every
+// working page does. The old hand-rolled localStorage parse broke when the
+// stored session shape changed, which made saves fail silently with a 401.
+async function authHeaders() {
+  const { data: { session } } = await supabase.auth.getSession();
+  const t = session?.access_token;
   return t ? { 'Authorization': `Bearer ${t}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
 }
 
@@ -51,7 +44,7 @@ function FormList() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/consultation-forms`, { headers: authHeaders() })
+    (async () => fetch(`${API_BASE}/api/consultation-forms`, { headers: await authHeaders() }))()
       .then(r => r.json())
       .then(d => setForms(d.forms || []))
       .catch(err => {
@@ -123,7 +116,7 @@ function FormEditor() {
   // Load existing form
   useEffect(() => {
     if (isNew) return;
-    fetch(`${API_BASE}/api/consultation-forms/${id}`, { headers: authHeaders() })
+    (async () => fetch(`${API_BASE}/api/consultation-forms/${id}`, { headers: await authHeaders() }))()
       .then(r => r.json())
       .then(d => {
         if (d.form) {
@@ -162,12 +155,20 @@ function FormEditor() {
 
       const res = await fetch(url, {
         method,
-        headers: authHeaders(),
+        headers: await authHeaders(),
         body: JSON.stringify(body),
       });
 
       if (res.ok) {
         navigate('/consultation-forms');
+      } else {
+        // Never fail silently: tell her exactly what went wrong.
+        const data = await res.json().catch(() => ({}));
+        alert(
+          res.status === 401
+            ? 'Your session needs a refresh. Pull down to refresh (or log in again), then save, your work is still here.'
+            : (data.error || 'Could not save the form, try again.') + (data.details?.length ? ` (${data.details.join(', ')})` : '')
+        );
       }
     } finally {
       setSaving(false);
@@ -179,7 +180,7 @@ function FormEditor() {
     if (!confirm('Remove this form? Existing responses will be kept.')) return;
     await fetch(`${API_BASE}/api/consultation-forms/${id}`, {
       method: 'DELETE',
-      headers: authHeaders(),
+      headers: await authHeaders(),
     });
     navigate('/consultation-forms');
   }

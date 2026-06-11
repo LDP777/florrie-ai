@@ -605,6 +605,12 @@ export default function BookingPage() {
               ? "Your slot is held, we'll confirm once the deposit is received."
               : "You'll receive a confirmation message shortly."}
           </p>
+          {/* Loyalty mention, only when the salon runs a programme */}
+          {beautician?.loyalty_enabled && (
+            <p style={{ fontSize: 13, color: brand, fontWeight: 600, textAlign: 'center', marginTop: 4 }}>
+              This visit earns you points with {bizName}
+            </p>
+          )}
           {/* Payment buffer countdown */}
           {success.paymentExpiresAt && (
             <PaymentCountdown expiresAt={success.paymentExpiresAt} brand={brand} brandLight={brandLight} />

@@ -153,6 +153,9 @@ export async function sendSMS({ to, body, beauticianId, originator, messageType 
         throw new Error(`Bird ${res.status}: ${desc}`);
       }
       logger.info({ to, channelId, id: data?.id }, 'SMS sent via Bird');
+      // ai_reply texts are already written to the thread by the front desk;
+      // everything else (reminders, confirmations, nudges) gets logged here.
+      if (messageType !== 'ai_reply') logOutboundToThread({ beauticianId, to, channel: 'sms', body });
       // Meter the confirmed send: weekly counter (legacy/display) + the monthly
       // combined quota (message_usage), which is the meter we actually bill from.
       if (beauticianId) {
@@ -292,6 +295,46 @@ async function logSendFailure({ beauticianId, to, channel, detail }) {
 }
 
 /**
+ * One inbox means ONE inbox: automated sends (confirmations, reminders,
+ * nudges) are written into the messages table so the client's thread shows
+ * the whole conversation, not just the chatty parts. Fail-soft.
+ */
+const TEMPLATE_LABELS = {
+  booking_confirmation: 'Booking confirmation',
+  reminder_24h: 'Reminder',
+  gap_fill_offer: 'Last-minute gap offer',
+  rebook_nudge: 'Rebook invite',
+  generic_message: null, // params[1] IS the message
+};
+async function logOutboundToThread({ beauticianId, to, channel, templateName, templateParams, body }) {
+  try {
+    if (!beauticianId) return;
+    const client = await findClientByPhone(beauticianId, to);
+    if (!client) return;
+    let content = body;
+    if (!content && templateName) {
+      const base = String(templateName).replace(/_v\d+$/, '');
+      const label = TEMPLATE_LABELS[base];
+      const params = (templateParams || []).map(String);
+      if (label === null && params[1]) content = params[1];
+      else if (label) content = `${label}${params.length > 1 ? ` · ${params.slice(1).join(' · ')}` : ''}`;
+      else content = `Automated message (${base.replace(/_/g, ' ')})`;
+    }
+    if (!content) return;
+    await supabase.from('messages').insert({
+      beautician_id: beauticianId,
+      client_id: client.id,
+      direction: 'outbound',
+      channel,
+      content,
+      ai_handled: true,
+    });
+  } catch (err) {
+    logger.warn({ err }, 'logOutboundToThread failed (send already succeeded)');
+  }
+}
+
+/**
  * Send a WhatsApp template message (for booking confirmations, reminders etc.)
  * beauticianId is required — used to look up per-beautician phone_number_id and check quota.
  */
@@ -369,6 +412,7 @@ export async function sendWhatsApp({ to, templateName, templateParams, beauticia
       if (res.ok) {
         logger.info({ to, templateName, lang }, 'WhatsApp template sent');
         if (beauticianId) await trackWhatsAppMessage(beauticianId);
+        logOutboundToThread({ beauticianId, to, channel: 'whatsapp', templateName, templateParams });
         return data;
       }
       lastErr = data?.error || data;

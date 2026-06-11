@@ -301,10 +301,27 @@ export default function Clients() {
         logger.warn('Client not found for id:', id);
         return;
       }
+
+      // Loyalty balance + progress, fail-soft: the panel works without it.
+      let loyalty = null;
+      try {
+        const [{ data: cfg }, { data: ledger }] = await Promise.all([
+          supabase.from('loyalty_config').select('is_active, reward_threshold').eq('beautician_id', beautician.id).maybeSingle(),
+          supabase.from('loyalty_points').select('points').eq('client_id', id),
+        ]);
+        if (cfg?.is_active) {
+          loyalty = {
+            balance: (ledger || []).reduce((sum, row) => sum + (row.points || 0), 0),
+            threshold: cfg.reward_threshold || 100,
+          };
+        }
+      } catch { /* loyalty is optional, never block the panel */ }
+
       setClientDetail({
         client: clientRes.data,
         appointments: apptsRes.data || [],
         messages: msgsRes.data || [],
+        loyalty,
       });
       setSelected(id);
     } catch (err) {
@@ -828,6 +845,22 @@ function ClientDetailPanel({ detail, onClose, onNavigate }) {
                 <span style={styles.lastVisitLabel}>Last visit</span>
                 <span style={styles.lastVisitValue}>
                   {daysSinceVisit === 0 ? 'Today' : daysSinceVisit === 1 ? 'Yesterday' : `${daysSinceVisit} days ago`}
+                </span>
+              </div>
+            )}
+
+            {/* Loyalty balance, only when the programme is on */}
+            {detail.loyalty && (
+              <div
+                style={{ ...styles.lastVisitCard, cursor: 'pointer' }}
+                onClick={() => { onClose(); onNavigate && onNavigate('/loyalty'); }}
+              >
+                <span style={styles.lastVisitLabel}>Loyalty</span>
+                <span style={{ ...styles.lastVisitValue, color: 'var(--accent)' }}>
+                  {detail.loyalty.balance} pts
+                  {detail.loyalty.balance >= detail.loyalty.threshold
+                    ? ' · reward earned'
+                    : ` · ${detail.loyalty.threshold - detail.loyalty.balance} to reward`}
                 </span>
               </div>
             )}

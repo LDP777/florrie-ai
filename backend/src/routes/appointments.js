@@ -5,6 +5,7 @@ import { validate } from '../middleware/validate.js';
 import { updateClientIntelligence } from '../services/client-intelligence.js';
 import { triggerSequence } from '../services/email-sequences.js';
 import { scheduleReviewRequest } from '../services/review-requests.js';
+import { awardLoyaltyPoints } from '../services/loyalty.js';
 import logger from '../lib/logger.js';
 import { parsePagination, buildPaginationMeta, handleQueryError } from '../lib/queries.js';
 import { completeDaySchema } from '../lib/schemas.js';
@@ -252,6 +253,12 @@ router.patch('/:id', requireAuth, async (req, res) => {
     logger.error({ err: error }, 'Failed to update appointment');
     return res.status(500).json({ error: 'Something went wrong' });
   }
+
+  // Fire-and-forget: award loyalty points when marked completed (idempotent)
+  if (req.body.status === 'completed') {
+    awardLoyaltyPoints(req.beautician.id, data).catch(() => {});
+  }
+
   res.json({ appointment: data });
 });
 
@@ -291,6 +298,9 @@ router.post('/:id/complete', requireAuth, async (req, res) => {
 
   // Fire-and-forget: update client intelligence
   updateClientIntelligence(req.beautician.id, appointment.client_id).catch(() => {});
+
+  // Fire-and-forget: award loyalty points (idempotent, no-op when loyalty is off)
+  awardLoyaltyPoints(req.beautician.id, appointment).catch(() => {});
 
   // Fire-and-forget: schedule review request (2hr delay, SMS/WhatsApp + email)
   if (appointment.client_id) {
@@ -383,6 +393,9 @@ router.post('/complete-day', requireAuth, validate(completeDaySchema), async (re
 
       // Fire-and-forget: update client intelligence
       updateClientIntelligence(req.beautician.id, apt.client_id).catch(() => {});
+
+      // Fire-and-forget: award loyalty points (idempotent, no-op when loyalty is off)
+      awardLoyaltyPoints(req.beautician.id, apt).catch(() => {});
     }
 
     res.json({

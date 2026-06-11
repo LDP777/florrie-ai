@@ -180,7 +180,18 @@ router.get('/:slug/page', async (req, res) => {
     .eq('is_active', true)
     .order('name');
 
-  res.json({ salon, treatments: treatments || [], addOns: addOns || [] });
+  // Loyalty flag so the public page can mention points (booking-safe boolean only)
+  const { data: loyaltyConfig } = await supabase
+    .from('loyalty_config')
+    .select('is_active')
+    .eq('beautician_id', salon.id)
+    .maybeSingle();
+
+  res.json({
+    salon: { ...salon, loyalty_enabled: loyaltyConfig?.is_active === true },
+    treatments: treatments || [],
+    addOns: addOns || [],
+  });
 });
 
 /**
