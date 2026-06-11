@@ -669,7 +669,7 @@ function mapTimelyHeaders(headerRow) {
     email: find(h => h.includes('email')),
     service: find(h => h.includes('service') || h.includes('treatment')),
     duration_minutes: find(h => h.includes('duration')),
-    price: find(h => h.includes('price') || h.includes('amount')),
+    price: find(h => h.includes('price') || h.includes('amount') || h.includes('total')),
     staff: find(h => h.includes('staff')),
     notes: find(h => h.includes('note')),
   };

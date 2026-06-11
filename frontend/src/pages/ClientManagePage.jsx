@@ -554,7 +554,7 @@ export default function ClientManagePage() {
                 </p>
                 {policy.withinCancellationWindow && policy.late_cancel_charge_percent > 0 && (
                   <div style={{ ...S.warningBanner, marginBottom: 12 }}>
-                    ⚠️ You're within the {policy.cancellation_notice_hours}-hour window. Rescheduling now may result in a {policy.late_cancel_charge_percent}% charge for this appointment — plus you'll need to pay for your new booking.
+                    ⚠️ You're within the {policy.cancellation_notice_hours}-hour window. Rescheduling now may result in a {policy.late_cancel_charge_percent}% charge for this appointment, plus you'll need to pay for your new booking.
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
@@ -604,11 +604,17 @@ export default function ClientManagePage() {
                 <p style={{ fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: '#1a1a1a' }}>
                   Are you sure you want to cancel?
                 </p>
-                {policy.withinCancellationWindow && policy.late_cancel_charge_percent > 0 && (
+                {policy.withinCancellationWindow && policy.lateCancelFeeCents > 0 ? (
+                  <p style={{ fontSize: 13, color: '#DC2626', margin: '0 0 12px' }}>
+                    {policy.cardOnFile
+                      ? `Cancelling within ${policy.cancellation_notice_hours || 48} hours of your appointment means a £${(policy.lateCancelFeeCents / 100).toFixed(2)} fee on the card you used for your deposit.`
+                      : `Cancelling within ${policy.cancellation_notice_hours || 48} hours of your appointment means a £${(policy.lateCancelFeeCents / 100).toFixed(2)} late cancellation fee may apply.`}
+                  </p>
+                ) : policy.withinCancellationWindow && policy.late_cancel_charge_percent > 0 ? (
                   <p style={{ fontSize: 13, color: '#DC2626', margin: '0 0 12px' }}>
                     A {policy.late_cancel_charge_percent}% cancellation fee may be charged as you are within the notice period.
                   </p>
-                )}
+                ) : null}
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button onClick={() => setCancelConfirm(false)} style={S.keepBtn}>
                     Keep booking

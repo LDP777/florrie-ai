@@ -8,6 +8,7 @@ import { sendConsultationFormSMS } from './consultation-forms.js';
 import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
 import { calculatePlatformFee } from '../lib/platform-fees.js';
+import { chargePolicyFee, computePolicyFee } from '../services/policy-fees.js';
 import { verifyTurnstile } from '../middleware/turnstile.js';
 import logger from '../lib/logger.js';
 import { bookingSchema } from '../lib/schemas.js';
@@ -158,7 +159,7 @@ router.get('/:slug', async (req, res) => {
 router.get('/:slug/page', async (req, res) => {
   const { data: salon, error } = await supabase
     .from('beauticians')
-    .select('id, first_name, business_name, booking_slug, brand_color, working_hours, payment_settings, stripe_onboarding_complete, avatar_url, logo_url, tagline')
+    .select('id, first_name, business_name, booking_slug, brand_color, working_hours, payment_settings, stripe_onboarding_complete, avatar_url, logo_url, tagline, booking_policy')
     .eq('booking_slug', req.params.slug)
     .maybeSingle();
 
@@ -330,8 +331,9 @@ router.get('/:slug/manage/:token', async (req, res) => {
       .select(`
         id, starts_at, ends_at, status, management_token,
         payment_expires_at, policy_snapshot, client_email,
+        price_cents, deposit_cents, deposit_paid, stripe_payment_method_id,
         treatments(id, name, duration_minutes, price_cents, category, requires_patch_test),
-        clients(id, first_name, last_name, email, phone),
+        clients(id, first_name, last_name, email, phone, stripe_customer_id),
         beauticians(id, first_name, business_name, booking_policy, booking_slug, brand_color, patch_test_expiry_months, patch_test_block_booking)
       `)
       .eq('management_token', req.params.token)
@@ -386,6 +388,12 @@ router.get('/:slug/manage/:token', async (req, res) => {
     const hoursUntil = (apptStart - now) / (1000 * 60 * 60);
     const withinCancellationWindow = hoursUntil < (policy.cancellation_notice_hours || 48);
 
+    // What a late cancellation would cost right now (percent of price minus
+    // deposit already paid) and whether we hold a card we can charge it to.
+    const { feeCents: lateCancelFeeCents } = computePolicyFee(appt, policy, 'late_cancel');
+    const cardOnFile = !!(appt.clients?.stripe_customer_id &&
+      (appt.stripe_payment_method_id || appt.deposit_paid));
+
     res.json({
       appointment: {
         id: appt.id,
@@ -408,6 +416,8 @@ router.get('/:slug/manage/:token', async (req, res) => {
         ...policy,
         withinCancellationWindow,
         hoursUntil: Math.max(0, Math.round(hoursUntil)),
+        lateCancelFeeCents,
+        cardOnFile,
       },
       patchTests: patchTests || [],
       needsPatchTest,
@@ -434,7 +444,7 @@ router.post('/:slug/manage/:token/cancel', async (req, res) => {
   try {
     const { data: appt } = await supabase
       .from('appointments')
-      .select('id, starts_at, status, policy_snapshot, client_id, beauticians(booking_policy, booking_slug)')
+      .select('id, starts_at, status, policy_snapshot, client_id, price_cents, deposit_cents, deposit_paid, stripe_payment_method_id, clients(stripe_customer_id), beauticians(booking_policy, booking_slug)')
       .eq('management_token', req.params.token)
       .single();
 
@@ -449,6 +459,9 @@ router.post('/:slug/manage/:token/cancel', async (req, res) => {
     const policy = appt.policy_snapshot || appt.beauticians?.booking_policy || {};
     const hoursUntil = (new Date(appt.starts_at) - new Date()) / (1000 * 60 * 60);
     const isLateCancel = hoursUntil < (policy.cancellation_notice_hours || 48);
+    const { feeCents } = computePolicyFee(appt, policy, 'late_cancel');
+    const cardOnFile = !!(appt.clients?.stripe_customer_id &&
+      (appt.stripe_payment_method_id || appt.deposit_paid));
 
     const { error } = await supabase
       .from('appointments')
@@ -464,12 +477,24 @@ router.post('/:slug/manage/:token/cancel', async (req, res) => {
       return res.status(500).json({ error: 'Something went wrong' });
     }
 
+    // Auto-charge the late cancellation fee to the saved card (fire-and-forget;
+    // chargePolicyFee is idempotent and only charges when the policy has a fee).
+    if (isLateCancel && feeCents > 0) {
+      chargePolicyFee(appt.id, 'late_cancel').catch(err =>
+        logger.error({ err, appointmentId: appt.id }, 'late_cancel policy fee charge failed (non-fatal)')
+      );
+    }
+
+    const willCharge = isLateCancel && feeCents > 0 && cardOnFile;
     res.json({
       success: true,
       isLateCancel,
       chargePercent: isLateCancel ? (policy.late_cancel_charge_percent || 0) : 0,
+      feeCents: isLateCancel ? feeCents : 0,
       message: isLateCancel
-        ? `Cancelled. As this is within the ${policy.cancellation_notice_hours || 48}-hour notice period, a cancellation fee may apply.`
+        ? (willCharge
+          ? `Cancelled. As this is within the ${policy.cancellation_notice_hours || 48}-hour notice period, a £${(feeCents / 100).toFixed(2)} cancellation fee will be charged to the card you used for your deposit.`
+          : `Cancelled. As this is within the ${policy.cancellation_notice_hours || 48}-hour notice period, a cancellation fee may apply.`)
         : 'Your appointment has been cancelled.',
     });
   } catch (err) {
@@ -1171,6 +1196,14 @@ router.patch('/appointments/:id/status', requireAuth, validate(statusTransitionS
 
     if (updateError) {
       return res.status(500).json({ error: 'Failed to update appointment status' });
+    }
+
+    // Auto-charge the no-show fee to the saved card when the policy has one
+    // configured (fire-and-forget; idempotent, no-op without a fee or card).
+    if (newStatus === 'no_show') {
+      chargePolicyFee(id, 'no_show').catch(err =>
+        logger.error({ err, appointmentId: id }, 'no_show policy fee charge failed (non-fatal)')
+      );
     }
 
     // If marked no-show and client has saved card, tell frontend it can charge a fee

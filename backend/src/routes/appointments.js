@@ -6,10 +6,12 @@ import { updateClientIntelligence } from '../services/client-intelligence.js';
 import { triggerSequence } from '../services/email-sequences.js';
 import { scheduleReviewRequest } from '../services/review-requests.js';
 import { awardLoyaltyPoints } from '../services/loyalty.js';
+import { chargePolicyFee } from '../services/policy-fees.js';
 import logger from '../lib/logger.js';
 import { parsePagination, buildPaginationMeta, handleQueryError } from '../lib/queries.js';
-import { completeDaySchema } from '../lib/schemas.js';
+import { completeDaySchema, manualAppointmentSchema } from '../lib/schemas.js';
 import { getTaxYear } from '../lib/time-utils.js';
+import { notifyBookingConfirmed } from '../services/notifications.js';
 
 const router = Router();
 
@@ -172,6 +174,159 @@ router.post('/', requireAuth, async (req, res) => {
 });
 
 /**
+ * POST /api/appointments/manual
+ * Beautician-entered appointment from the day calendar's plus button.
+ *
+ * Deliberately different from POST /api/appointments:
+ *   - NO working-hours check (last-minute out-of-hours clients are the point)
+ *   - NO past-date block, NO conflict check, NO Stripe, NO deposit
+ *   - Price is whatever the beautician typed (custom pricing allowed)
+ *   - Confirmation message only goes out when send_confirmation is true
+ *     (default off: mirroring bookings from an old system must stay silent)
+ *   - Quick-creates the client (name + optional phone) when no client_id,
+ *     reusing an existing client when the phone or exact name matches
+ *
+ * Times follow the wall-clock convention: date + time are stored as-is
+ * (e.g. "2026-06-12T14:00:00"), never timezone-converted.
+ */
+router.post('/manual', requireAuth, validate(manualAppointmentSchema), async (req, res) => {
+  const beauticianId = req.beautician.id;
+  const {
+    client_id, client_name, client_phone,
+    treatment_id, date, time, duration_minutes, price_cents, send_confirmation
+  } = req.body;
+
+  // Treatment must belong to this beautician (inactive/imported ones are fine)
+  const { data: treatment, error: tError } = await supabase
+    .from('treatments')
+    .select('id, name')
+    .eq('id', treatment_id)
+    .eq('beautician_id', beauticianId)
+    .single();
+
+  if (tError || !treatment) {
+    return res.status(404).json({ error: 'Treatment not found' });
+  }
+
+  // Resolve the client: existing by id, otherwise find-or-create by phone/name
+  let clientId = null;
+  if (client_id) {
+    const { data: existing } = await supabase
+      .from('clients')
+      .select('id')
+      .eq('id', client_id)
+      .eq('beautician_id', beauticianId)
+      .single();
+    if (!existing) return res.status(404).json({ error: 'Client not found' });
+    clientId = existing.id;
+  } else {
+    const digitsOf = (p) => String(p || '').replace(/\D/g, '');
+    const phone = client_phone ? String(client_phone).trim().substring(0, 30) : null;
+    const digits = digitsOf(phone);
+    const nameKey = client_name.trim().toLowerCase();
+
+    // Match against this beautician's clients: phone (last 9 digits) first, exact name second
+    const { data: clientRows } = await supabase
+      .from('clients')
+      .select('id, first_name, last_name, phone')
+      .eq('beautician_id', beauticianId);
+
+    let match = null;
+    if (digits.length >= 9) {
+      const last9 = digits.slice(-9);
+      match = (clientRows || []).find((c) => {
+        const d = digitsOf(c.phone);
+        return d.length >= 9 && d.endsWith(last9);
+      }) || null;
+    }
+    if (!match) {
+      match = (clientRows || []).find(
+        (c) => `${c.first_name || ''} ${c.last_name || ''}`.trim().toLowerCase() === nameKey
+      ) || null;
+    }
+
+    if (match) {
+      clientId = match.id;
+    } else {
+      const parts = client_name.trim().split(/\s+/);
+      const first = parts[0];
+      const last = parts.slice(1).join(' ') || null;
+      const { data: created, error: createErr } = await supabase
+        .from('clients')
+        .insert({
+          beautician_id: beauticianId,
+          first_name: first.substring(0, 100),
+          last_name: last ? last.substring(0, 100) : null,
+          phone,
+          status: 'new',
+        })
+        .select('id')
+        .single();
+
+      if (createErr) {
+        // Unique collision on (beautician_id, phone): someone with this phone
+        // already exists, re-fetch and reuse (mirrors import-appointments.js)
+        if (createErr.code === '23505' && phone) {
+          const { data: refetched } = await supabase
+            .from('clients')
+            .select('id')
+            .eq('beautician_id', beauticianId)
+            .eq('phone', phone)
+            .maybeSingle();
+          if (refetched) clientId = refetched.id;
+        }
+        if (!clientId) {
+          logger.error({ err: createErr }, 'Manual appointment client create failed');
+          return res.status(500).json({ error: 'Could not create the client' });
+        }
+      } else {
+        clientId = created.id;
+      }
+    }
+  }
+
+  // Wall-clock strings. UTC arithmetic for ends_at so no local timezone leaks in.
+  const startsAt = `${date}T${time}:00`;
+  const [y, mo, d] = date.split('-').map(Number);
+  const [hh, mm] = time.split(':').map(Number);
+  const endDate = new Date(Date.UTC(y, mo - 1, d, hh, mm + duration_minutes));
+  const pad = (n) => String(n).padStart(2, '0');
+  const endsAt = `${endDate.getUTCFullYear()}-${pad(endDate.getUTCMonth() + 1)}-${pad(endDate.getUTCDate())}T${pad(endDate.getUTCHours())}:${pad(endDate.getUTCMinutes())}:00`;
+
+  const { data: appointment, error } = await supabase
+    .from('appointments')
+    .insert({
+      beautician_id: beauticianId,
+      client_id: clientId,
+      treatment_id,
+      starts_at: startsAt,
+      ends_at: endsAt,
+      duration_minutes,
+      buffer_minutes: 0,
+      price_cents,
+      deposit_cents: 0,
+      status: 'confirmed',
+      booked_via: 'manual',
+    })
+    .select('*, clients(first_name, last_name, phone), treatments(name)')
+    .single();
+
+  if (error) {
+    logger.error({ err: error }, 'Failed to create manual appointment');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+
+  // Fire-and-forget: confirmation only when explicitly asked for
+  if (send_confirmation) {
+    notifyBookingConfirmed(appointment.id).catch((err) =>
+      logger.warn({ err, appointmentId: appointment.id }, 'Manual appointment confirmation failed')
+    );
+  }
+
+  res.status(201).json({ appointment });
+});
+
+/**
  * PATCH /api/appointments/:id
  * Update appointment status, reschedule, add notes.
  */
@@ -257,6 +412,14 @@ router.patch('/:id', requireAuth, async (req, res) => {
   // Fire-and-forget: award loyalty points when marked completed (idempotent)
   if (req.body.status === 'completed') {
     awardLoyaltyPoints(req.beautician.id, data).catch(() => {});
+  }
+
+  // Fire-and-forget: auto-charge the no-show fee to the saved card when the
+  // beautician's policy has one configured (idempotent, no-op otherwise).
+  if (req.body.status === 'no_show') {
+    chargePolicyFee(req.params.id, 'no_show').catch(err =>
+      logger.error({ err, appointmentId: req.params.id }, 'no_show policy fee charge failed (non-fatal)')
+    );
   }
 
   res.json({ appointment: data });

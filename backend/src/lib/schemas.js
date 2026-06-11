@@ -144,6 +144,42 @@ export const completeDaySchema = z.object({
   date: z.string().date().optional()
 });
 
+/**
+ * @typedef {Object} ManualAppointmentInput
+ * Beautician-entered appointment from the day calendar's plus button.
+ * Either client_id (existing client) or client_name (quick-create) is required.
+ * Times follow the wall-clock convention: date + time are stored as-is.
+ * @property {string} [client_id] - UUID of an existing client
+ * @property {string} [client_name] - Name for a quick-created client
+ * @property {string} [client_phone] - Optional phone for a quick-created client
+ * @property {string} treatment_id - UUID of the treatment (required)
+ * @property {string} date - YYYY-MM-DD
+ * @property {string} time - HH:MM (24h)
+ * @property {number} duration_minutes - Duration in minutes (5-720)
+ * @property {number} price_cents - Price in pence (editable, may differ from treatment)
+ * @property {boolean} [send_confirmation] - Send the booking confirmation (default false)
+ */
+export const manualAppointmentSchema = z.object({
+  client_id: z.string().uuid('Invalid client ID').optional().nullable(),
+  client_name: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() === '' ? null : v),
+    z.string().max(200).trim().nullable().optional().default(null)
+  ),
+  client_phone: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() === '' ? null : v),
+    z.string().max(30).trim().nullable().optional().default(null)
+  ),
+  treatment_id: z.string().uuid('Invalid treatment ID'),
+  date: z.string().date(),
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Time must be HH:MM (24h)'),
+  duration_minutes: z.number().int().min(5).max(720),
+  price_cents: z.number().int().min(0).max(1000000),
+  send_confirmation: z.boolean().optional().default(false),
+}).refine(
+  (d) => d.client_id || d.client_name,
+  { message: 'Pick a client or give a name for a new one' }
+);
+
 
 /**
  * @typedef {Object} TreatmentInput

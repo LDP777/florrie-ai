@@ -192,7 +192,17 @@ function TodaySummary({ beautician, onNav }) {
         const appts = json.data || [];
 
         const today = appts.filter(a => ['confirmed', 'booked', 'completed'].includes(a.status));
-        const revenuePence = today.reduce((sum, a) => sum + (a.price_pence || a.treatment?.price_pence || 0), 0);
+        // Takings so far: completed appointments only. (Appointments store
+        // price_cents; the old price_pence read meant this was always £0.)
+        const revenuePence = today
+          .filter(a => a.status === 'completed')
+          .reduce((sum, a) => sum + (a.price_cents || a.treatments?.price_cents || 0), 0);
+        // Potential: everything still on the books today, cancellations and
+        // no-shows excluded.
+        const DEAD = ['cancelled', 'cancelled_by_client', 'cancelled_by_beautician', 'no_show'];
+        const potentialPence = appts
+          .filter(a => !DEAD.includes(a.status))
+          .reduce((sum, a) => sum + (a.price_cents || a.treatments?.price_cents || 0), 0);
 
         const upcoming = today
           .filter(a => new Date(a.starts_at) > now)
@@ -211,6 +221,7 @@ function TodaySummary({ beautician, onNav }) {
 
         setData({
           revenuePence,
+          potentialPence,
           next,
           messagesWaiting,
           totalToday: today.length,
@@ -249,7 +260,12 @@ function TodaySummary({ beautician, onNav }) {
   return (
     <section style={TS.wrap}>
       <div style={TS.row}>
-        <Stat label="Today" value={revenue} sub={`${data.totalToday} booked`} />
+        <Stat
+          label="Today"
+          value={revenue}
+          sub={`${data.totalToday} booked`}
+          sub2={data.potentialPence > 0 ? `${formatGbp(data.potentialPence)} potential` : null}
+        />
         <div style={TS.divider} />
         <Stat label="Next" value={nextLabel} sub={nextSub} wide />
       </div>
@@ -273,7 +289,7 @@ function TodaySummary({ beautician, onNav }) {
   );
 }
 
-function Stat({ label, value, sub, wide }) {
+function Stat({ label, value, sub, sub2, wide }) {
   return (
     <div style={{ ...TS.stat, ...(wide ? { flex: 2, minWidth: 0 } : {}) }}>
       <span style={TS.statLabel}>{label}</span>
@@ -284,6 +300,7 @@ function Stat({ label, value, sub, wide }) {
         {value}
       </span>
       {sub && <span style={TS.statSub}>{sub}</span>}
+      {sub2 && <span style={TS.statSub2}>{sub2}</span>}
     </div>
   );
 }
@@ -466,6 +483,11 @@ const TS = {
   statSub: {
     fontSize: 11,
     color: 'rgba(255,255,255,0.72)',
+    fontWeight: 500,
+  },
+  statSub2: {
+    fontSize: 10.5,
+    color: 'rgba(255,255,255,0.55)',
     fontWeight: 500,
   },
   msgRow: {

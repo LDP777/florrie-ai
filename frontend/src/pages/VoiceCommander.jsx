@@ -166,6 +166,12 @@ function buildLiveSuggestions({ todayAppts, upcomingAppts, recentClients, dorman
 const SpeechRecognition = typeof window !== 'undefined'
   ? (window.SpeechRecognition || window.webkitSpeechRecognition)
   : null;
+// Inside the native iOS/Android app the "browser settings" advice is wrong;
+// the mic toggle lives in the OS Settings app under Florrie.
+const IS_NATIVE_APP = typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.();
+const MIC_DENIED_MSG = IS_NATIVE_APP
+  ? 'Mic access is off. Enable it in Settings, Florrie, Microphone. Or type your message instead.'
+  : 'Microphone access denied. Check your browser settings, or type your message instead.';
 export default function VoiceCommander() {
   const { beautician, loading: bLoading } = useBeautician();
   const [messages, setMessages] = useState([]);
@@ -333,7 +339,7 @@ export default function VoiceCommander() {
       setPulseAnim(false);
       setInterimTranscript('');
       if (event.error === 'not-allowed') {
-        addSystemMessage("Microphone access denied. Check your browser settings, or type your message instead.");
+        addSystemMessage(MIC_DENIED_MSG);
         setSpeechSupported(false);
       } else if (event.error === 'no-speech') {
         addSystemMessage("I didn't catch that. Try again or type your message.");

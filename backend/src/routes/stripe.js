@@ -748,6 +748,24 @@ router.post('/webhook', async (req, res) => {
         const beauticianId = session.metadata?.beautician_id;
         const clientId = session.metadata?.client_id;
 
+        // Capture the saved payment method for later off-session policy fees
+        // (deposit Checkout uses setup_future_usage 'off_session', so the card
+        // is attached to the customer; we pin the exact method on the appointment).
+        async function savePaymentMethodOnAppointment() {
+          if (!appointmentId || !session.payment_intent) return;
+          try {
+            const pi = await stripe.paymentIntents.retrieve(session.payment_intent);
+            const pmId = typeof pi.payment_method === 'string' ? pi.payment_method : pi.payment_method?.id;
+            if (pmId) {
+              await supabase.from('appointments')
+                .update({ stripe_payment_method_id: pmId })
+                .eq('id', appointmentId);
+            }
+          } catch (err) {
+            logger.warn({ err, appointmentId }, 'Could not store payment method for policy fees (non-fatal)');
+          }
+        }
+
         // Payment link completion (may or may not have appointment)
         if (isPaymentLink) {
           // Update payment_links table
@@ -780,6 +798,8 @@ router.post('/webhook', async (req, res) => {
               .update({ stripe_customer_id: session.customer })
               .eq('id', clientId);
           }
+
+          await savePaymentMethodOnAppointment();
           break;
         }
 
@@ -813,6 +833,8 @@ router.post('/webhook', async (req, res) => {
               .update({ stripe_customer_id: session.customer })
               .eq('id', clientId);
           }
+
+          await savePaymentMethodOnAppointment();
 
           // Send booking confirmation now that payment is confirmed
           notifyBookingConfirmed(appointmentId).catch(err =>

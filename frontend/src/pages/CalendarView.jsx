@@ -8,9 +8,85 @@ import logger from '../lib/logger.js';
  * Wired to Supabase with client/treatment joins.
  * Redesigned to match Stitch design reference.
  */
-const HOUR_HEIGHT = 60;
-const START_HOUR = 8;
-const END_HOUR = 20;
+// 112px per hour: a 30-min appointment gets 56px, enough for the card
+// content without spilling into its neighbour. Grid runs the full day
+// (06:00-23:00) so last-minute out-of-hours clients are visible and addable.
+const HOUR_HEIGHT = 112;
+const START_HOUR = 6;
+const END_HOUR = 23;
+const MIN_CARD_PX = 56;
+
+/** Wall-clock minutes since midnight, read straight off the stored string
+ *  ("2026-06-12T14:00:00..." -> 840) so no browser timezone ever shifts it. */
+function wallMinutes(isoish) {
+  const s = String(isoish || '');
+  const h = parseInt(s.slice(11, 13), 10);
+  const m = parseInt(s.slice(14, 16), 10);
+  if (isNaN(h) || isNaN(m)) {
+    const d = new Date(isoish);
+    return d.getHours() * 60 + d.getMinutes();
+  }
+  return h * 60 + m;
+}
+
+/** "14:00" from the stored wall-clock string. */
+function formatWallTime(isoish) {
+  const s = String(isoish || '');
+  const t = s.slice(11, 16);
+  return /^\d{2}:\d{2}$/.test(t)
+    ? t
+    : new Date(isoish).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+}
+
+/**
+ * Google Calendar style collision layout. Each appointment becomes a pixel
+ * rect (top from start time, height from duration with a content minimum).
+ * Rects that intersect, whether from true time overlaps or min-height spill,
+ * form a cluster; cluster members are greedily packed into columns and share
+ * the width. Returns [{ appt, top, height, col, cols }].
+ */
+function layoutDayAppointments(appts) {
+  const rects = appts
+    .map(appt => {
+      const startMin = wallMinutes(appt.starts_at);
+      const endMin = Math.max(appt.ends_at ? wallMinutes(appt.ends_at) : startMin + 30, startMin + 15);
+      const top = Math.max(0, ((startMin - START_HOUR * 60) / 60) * HOUR_HEIGHT);
+      const height = Math.max(((endMin - startMin) / 60) * HOUR_HEIGHT, MIN_CARD_PX);
+      return { appt, top, height, bottom: top + height, col: 0, cols: 1 };
+    })
+    .sort((a, b) => a.top - b.top || b.height - a.height);
+
+  let cluster = [];
+  let clusterBottom = -Infinity;
+  function flushCluster() {
+    if (cluster.length === 0) return;
+    const colBottoms = [];
+    for (const r of cluster) {
+      let placed = false;
+      for (let c = 0; c < colBottoms.length; c++) {
+        if (colBottoms[c] <= r.top + 1) {
+          r.col = c;
+          colBottoms[c] = r.bottom;
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        r.col = colBottoms.length;
+        colBottoms.push(r.bottom);
+      }
+    }
+    for (const r of cluster) r.cols = colBottoms.length;
+    cluster = [];
+  }
+  for (const r of rects) {
+    if (r.top >= clusterBottom - 1) flushCluster();
+    cluster.push(r);
+    clusterBottom = Math.max(clusterBottom, r.bottom);
+  }
+  flushCluster();
+  return rects;
+}
 // Color palette (Stitch design)
 const COLORS = {
   primary: '#92405e',
@@ -42,6 +118,11 @@ export default function CalendarView({ initialView } = {}) {
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [selectedBlock, setSelectedBlock] = useState(null); // existing block tapped
   const [savingBlock, setSavingBlock] = useState(false);
+  // Manual appointment modal (plus button)
+  const [showNewAppt, setShowNewAppt] = useState(false);
+  // Day grid scroll container + once-per-day auto-scroll tracking
+  const gridScrollRef = useRef(null);
+  const lastScrollKey = useRef(null);
   useEffect(() => {
     if (beautician) {
       loadAppointments();
@@ -56,6 +137,19 @@ export default function CalendarView({ initialView } = {}) {
       }, 50);
     }
   }, [selectedAppointment]);
+  // Auto-scroll the day grid so the first appointment (or 08:00 if none)
+  // sits near the top. Once per viewed day, not on every refresh.
+  useEffect(() => {
+    if (view !== 'day' || loading || !gridScrollRef.current) return;
+    const key = formatDate(currentDate);
+    if (lastScrollKey.current === key) return;
+    lastScrollKey.current = key;
+    const dayAppts = getAppointmentsForDate(currentDate);
+    const targetMin = dayAppts.length > 0
+      ? Math.min(...dayAppts.map(a => wallMinutes(a.starts_at)))
+      : 8 * 60;
+    gridScrollRef.current.scrollTop = Math.max(0, ((targetMin - START_HOUR * 60) / 60) * HOUR_HEIGHT - 24);
+  }, [loading, currentDate, view, appointments]); // eslint-disable-line react-hooks/exhaustive-deps
   async function loadAppointments() {
     setLoading(true);
     const from = view === 'day' ? formatDate(currentDate) : formatDate(getWeekStart(currentDate));
@@ -130,15 +224,6 @@ export default function CalendarView({ initialView } = {}) {
   function getAppointmentsForDate(date) {
     const dateStr = formatDate(date);
     return appointments.filter(a => a.starts_at?.startsWith(dateStr));
-  }
-  function getBlockStyle(appointment) {
-    const start = new Date(appointment.starts_at);
-    const end = new Date(appointment.ends_at);
-    const startMinutes = start.getHours() * 60 + start.getMinutes();
-    const endMinutes = end.getHours() * 60 + end.getMinutes();
-    const top = ((startMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT;
-    const height = ((endMinutes - startMinutes) / 60) * HOUR_HEIGHT;
-    return { top: Math.max(0, top), height: Math.max(height, 64) };
   }
   function getStatusColor(status) {
     const colors = { confirmed: '#5BA67F', pending: '#D4A843', in_progress: '#4A90D9', completed: '#8A8580', cancelled_by_client: '#DC2626', cancelled_by_beautician: '#DC2626', no_show: '#EF4444', rescheduled: '#7C6EAF' };
@@ -235,59 +320,93 @@ export default function CalendarView({ initialView } = {}) {
       </div>
       {/* Day View with Timeline Grid */}
       {view === 'day' && (
-        <div style={styles.dayGrid}>
-          <div style={styles.timeColumn}>
-            {Array.from({ length: END_HOUR - START_HOUR }, (_, i) => (
+        <div ref={gridScrollRef} style={styles.dayGrid}>
+          <div style={{ ...styles.timeColumn, height: (END_HOUR - START_HOUR) * HOUR_HEIGHT }}>
+            {Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => (
               <div key={i} style={{ ...styles.timeLabel, top: i * HOUR_HEIGHT }}>
                 {`${(START_HOUR + i).toString().padStart(2, '0')}:00`}
               </div>
             ))}
           </div>
           <div style={{ ...styles.appointmentColumn, height: (END_HOUR - START_HOUR) * HOUR_HEIGHT }}>
+            {/* Outside-working-hours dimming. Visual only, never blocks taps. */}
+            {(() => {
+              const dayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][currentDate.getDay()];
+              const wh = beautician?.working_hours?.[dayKey];
+              const fullHeight = (END_HOUR - START_HOUR) * HOUR_HEIGHT;
+              const bands = [];
+              if (wh?.start && wh?.end) {
+                const [sh, sm] = wh.start.split(':').map(Number);
+                const [eh, em] = wh.end.split(':').map(Number);
+                const startPx = Math.max(0, ((sh * 60 + (sm || 0) - START_HOUR * 60) / 60) * HOUR_HEIGHT);
+                const endPx = Math.min(fullHeight, ((eh * 60 + (em || 0) - START_HOUR * 60) / 60) * HOUR_HEIGHT);
+                if (startPx > 0) bands.push({ id: 'pre', top: 0, height: startPx });
+                if (endPx < fullHeight) bands.push({ id: 'post', top: endPx, height: fullHeight - endPx });
+              } else if (beautician?.working_hours) {
+                // Closed day: dim the lot, still fully interactive
+                bands.push({ id: 'all', top: 0, height: fullHeight });
+              }
+              return bands.map(b => (
+                <div
+                  key={b.id}
+                  style={{ position: 'absolute', left: 0, right: 0, top: b.top, height: b.height, background: 'rgba(120, 113, 107, 0.06)', pointerEvents: 'none', zIndex: 0 }}
+                />
+              ));
+            })()}
             {/* Hour lines and grid */}
-            {Array.from({ length: END_HOUR - START_HOUR }, (_, i) => (
+            {Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => (
               <div key={i} style={{ ...styles.hourLine, top: i * HOUR_HEIGHT }} />
             ))}
             {/* Now-line indicator */}
-            {isToday(currentDate) && (
+            {isToday(currentDate) && getNowPosition() >= 0 && getNowPosition() <= (END_HOUR - START_HOUR) * HOUR_HEIGHT && (
               <div style={{ ...styles.nowLine, top: getNowPosition() }}>
                 <div style={styles.nowDot} />
               </div>
             )}
-            {/* Appointment cards */}
-            {getAppointmentsForDate(currentDate).map(appt => {
-              const pos = getBlockStyle(appt);
+            {/* Appointment cards. Collision-aware: overlapping cards share the width. */}
+            {layoutDayAppointments(getAppointmentsForDate(currentDate)).map(({ appt, top, height, col, cols }) => {
               const cardStyle = getAppointmentCardStyle(appt);
               const statusColor = getStatusColor(appt.status);
               const clientInitials = `${appt.clients?.first_name?.[0] || ''}${appt.clients?.last_name?.[0] || ''}`.toUpperCase();
+              const compact = cols > 1 || height < 72;
+              const showTreatment = height >= 60 && cols < 3;
+              const showMeta = cols < 3;
               return (
                 <button
                   key={appt.id}
                   onClick={() => setSelectedAppointment(selectedAppointment?.id === appt.id ? null : appt)}
                   style={{
                     ...styles.appointmentCard,
-                    top: pos.top,
-                    height: pos.height,
+                    top,
+                    height,
+                    left: `calc(${(col / cols) * 100}% + 4px)`,
+                    width: `calc(${100 / cols}% - 8px)`,
+                    right: 'auto',
+                    minHeight: 0,
+                    overflow: 'hidden',
+                    padding: compact ? '4px 8px' : '6px 10px',
                     background: cardStyle.background,
                     borderLeftColor: statusColor,
                   }}
                 >
                   <div style={styles.appointmentCardContent}>
                     <div style={styles.appointmentCardHeader}>
-                      <div style={{ ...styles.appointmentAvatar, background: statusColor }}>
+                      <div style={{ ...styles.appointmentAvatar, background: statusColor, ...(compact ? { width: 22, height: 22, fontSize: 8 } : {}) }}>
                         {clientInitials}
                       </div>
                       <div style={styles.appointmentCardTextBlock}>
-                        <div style={styles.appointmentCardClientName}>{appt.clients?.first_name} {appt.clients?.last_name || ''}</div>
-                        <div style={styles.appointmentCardTreatment}>{appt.treatments?.name}</div>
+                        <div style={{ ...styles.appointmentCardClientName, ...(compact ? { fontSize: 12 } : {}) }}>{appt.clients?.first_name} {appt.clients?.last_name || ''}</div>
+                        {showTreatment && (
+                          <div style={styles.appointmentCardTreatment}>{appt.treatments?.name}</div>
+                        )}
                       </div>
                     </div>
-                    <div style={styles.appointmentCardMeta}>
-                      <span style={styles.appointmentCardTime}>
-                        {new Date(appt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      {appt.ai_booked && <span style={styles.aiTag}>AI</span>}
-                    </div>
+                    {showMeta && (
+                      <div style={styles.appointmentCardMeta}>
+                        <span style={styles.appointmentCardTime}>{formatWallTime(appt.starts_at)}</span>
+                        {appt.ai_booked && !compact && <span style={styles.aiTag}>AI</span>}
+                      </div>
+                    )}
                   </div>
                 </button>
               );
@@ -339,8 +458,7 @@ export default function CalendarView({ initialView } = {}) {
               const slots = [];
               // Check for gap at start of day
               if (appts.length > 0) {
-                const firstStart = new Date(appts[0].starts_at);
-                const firstStartMinutes = firstStart.getHours() * 60 + firstStart.getMinutes();
+                const firstStartMinutes = wallMinutes(appts[0].starts_at);
                 if (firstStartMinutes > START_HOUR * 60 + 30) {
                   const top = 0;
                   const height = ((firstStartMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT;
@@ -349,10 +467,8 @@ export default function CalendarView({ initialView } = {}) {
               }
               // Check for gaps between appointments
               for (let i = 0; i < appts.length - 1; i++) {
-                const end = new Date(appts[i].ends_at);
-                const nextStart = new Date(appts[i + 1].starts_at);
-                const endMinutes = end.getHours() * 60 + end.getMinutes();
-                const nextStartMinutes = nextStart.getHours() * 60 + nextStart.getMinutes();
+                const endMinutes = wallMinutes(appts[i].ends_at);
+                const nextStartMinutes = wallMinutes(appts[i + 1].starts_at);
                 const diffMinutes = (nextStartMinutes - endMinutes);
                 if (diffMinutes > 30) {
                   const top = ((endMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT;
@@ -362,8 +478,7 @@ export default function CalendarView({ initialView } = {}) {
               }
               // Check for gap at end of day
               if (appts.length > 0) {
-                const lastEnd = new Date(appts[appts.length - 1].ends_at);
-                const lastEndMinutes = lastEnd.getHours() * 60 + lastEnd.getMinutes();
+                const lastEndMinutes = wallMinutes(appts[appts.length - 1].ends_at);
                 if (lastEndMinutes < END_HOUR * 60 - 30) {
                   const top = ((lastEndMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT;
                   const height = ((END_HOUR * 60 - lastEndMinutes) / 60) * HOUR_HEIGHT;
@@ -384,7 +499,7 @@ export default function CalendarView({ initialView } = {}) {
               ));
             })()}
             {!loading && getAppointmentsForDate(currentDate).length === 0 && (
-              <div style={{ position: 'absolute', top: '40%', left: 0, right: 0, textAlign: 'center' }}>
+              <div style={{ position: 'absolute', top: (8 - START_HOUR) * HOUR_HEIGHT + 80, left: 0, right: 0, textAlign: 'center' }}>
                 <p style={{ fontSize: 13, color: COLORS.stone400 }}>No appointments</p>
               </div>
             )}
@@ -428,6 +543,17 @@ export default function CalendarView({ initialView } = {}) {
         )
       )}
 
+      {/* Floating add button (day view only). Sits above the mic FAB. */}
+      {view === 'day' && (
+        <button
+          onClick={() => setShowNewAppt(true)}
+          aria-label="New appointment"
+          title="New appointment"
+          style={styles.addFab}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 26 }}>add</span>
+        </button>
+      )}
       {/* Floating Insights Pill (day view only) */}
       {showInsightsPill && (
         <div style={styles.insightsPill}>
@@ -449,6 +575,14 @@ export default function CalendarView({ initialView } = {}) {
             onViewClient={(clientId) => navigate('/clients', { state: { clientId } })}
           />
         </div>
+      )}
+      {/* New appointment modal (plus button) */}
+      {showNewAppt && (
+        <NewAppointmentModal
+          defaultDate={formatDate(currentDate)}
+          onClose={() => setShowNewAppt(false)}
+          onSaved={() => { setShowNewAppt(false); loadAppointments(); }}
+        />
       )}
       {/* Block Time modal */}
       {showBlockModal && (
@@ -826,11 +960,14 @@ const styles = {
   weeklyStripDay: { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '8px 4px', borderRadius: 12, border: 'none', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s ease' },
   weeklyStripDayName: { fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' },
   weeklyStripDayNumber: { fontSize: 16, fontWeight: 700, marginTop: 2 },
-  // Day View Timeline
-  dayGrid: { display: 'flex', gap: 0, background: '#fff', borderRadius: 16, overflow: 'hidden', boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)' },
+  // Day View Timeline. The grid scrolls inside its own container so the
+  // full 06:00-23:00 day fits and we can auto-scroll to the first booking.
+  dayGrid: { display: 'flex', gap: 0, background: '#fff', borderRadius: 16, overflowY: 'auto', overflowX: 'hidden', maxHeight: 'calc(100dvh - 300px)', minHeight: 420, boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)', WebkitOverflowScrolling: 'touch' },
   timeColumn: { width: 56, position: 'relative', borderRight: `1px solid ${COLORS.outlineVariant}33`, flexShrink: 0 },
   timeLabel: { position: 'absolute', right: 8, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: COLORS.stone400, transform: 'translateY(-6px)' },
-  appointmentColumn: { flex: 1, position: 'relative', minHeight: 720 },
+  appointmentColumn: { flex: 1, position: 'relative' },
+  // Floating add button: 140px up keeps clear of the mic FAB at +78px
+  addFab: { position: 'fixed', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 140px)', right: 16, width: 52, height: 52, borderRadius: 26, border: 'none', background: COLORS.primary, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 18px rgba(146, 64, 94, 0.35)', zIndex: 840, fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' },
   hourLine: { position: 'absolute', left: 0, right: 0, height: 1, background: `${COLORS.outlineVariant}33` },
   nowLine: { position: 'absolute', left: -4, right: 0, height: 2, background: '#E53E3E', zIndex: 10 },
   nowDot: { width: 8, height: 8, borderRadius: '50%', background: '#E53E3E', position: 'absolute', left: -2, top: -3 },
@@ -1111,6 +1248,285 @@ function BlockDetailSheet({ block, onDelete, onClose }) {
             Remove this block
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+// NewAppointmentModal - manual entry from the day calendar's plus button.
+// Search an existing client or quick-create one (name + optional phone),
+// pick a treatment (price autofills but stays editable), any 15-min time
+// across the full 06:00-23:00 day. "Send confirmation message" defaults
+// OFF so bookings mirrored from an old system never double-message clients.
+const TIME_OPTIONS = (() => {
+  const opts = [];
+  for (let h = START_HOUR; h < END_HOUR; h++) {
+    for (let m = 0; m < 60; m += 15) {
+      opts.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+    }
+  }
+  return opts;
+})();
+function NewAppointmentModal({ defaultDate, onClose, onSaved }) {
+  const [treatments, setTreatments] = useState([]);
+  const [treatmentId, setTreatmentId] = useState('');
+  const [price, setPrice] = useState('');
+  const [duration, setDuration] = useState(60);
+  const [date, setDate] = useState(defaultDate);
+  const [time, setTime] = useState('10:00');
+  const [sendConfirmation, setSendConfirmation] = useState(false);
+  // Client picking: search an existing client, or quick-create a new one
+  const [clientMode, setClientMode] = useState('search'); // search | new
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedClient, setSelectedClient] = useState(null);
+  const [newName, setNewName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  async function authedFetch(path, opts = {}) {
+    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    return fetch(`${API_BASE}${path}`, {
+      ...opts,
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, ...(opts.headers || {}) },
+    });
+  }
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await authedFetch('/api/treatments');
+        const data = await res.json();
+        if (!cancelled) setTreatments((data.treatments || []).filter(t => t.is_active !== false));
+      } catch (err) {
+        logger.error('Load treatments error:', err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Debounced client search against /api/clients?search=
+  useEffect(() => {
+    if (selectedClient || clientMode !== 'search') return;
+    const q = query.trim();
+    if (q.length < 2) { setResults([]); return; }
+    const t = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await authedFetch(`/api/clients?search=${encodeURIComponent(q)}&per_page=8`);
+        const data = await res.json();
+        setResults(data.data || []);
+      } catch {
+        setResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [query, clientMode, selectedClient]); // eslint-disable-line react-hooks/exhaustive-deps
+  function pickTreatment(id) {
+    setTreatmentId(id);
+    const t = treatments.find(x => x.id === id);
+    if (t) {
+      setPrice(((t.price_cents || 0) / 100).toFixed(2));
+      setDuration(t.duration_minutes || 60);
+    }
+  }
+  async function handleSave() {
+    setError(null);
+    if (!selectedClient && !newName.trim()) { setError('Pick a client or enter a name'); return; }
+    if (!treatmentId) { setError('Pick a treatment'); return; }
+    const priceNum = parseFloat(price);
+    if (isNaN(priceNum) || priceNum < 0) { setError('Enter a valid price'); return; }
+    const durNum = parseInt(duration, 10);
+    if (isNaN(durNum) || durNum < 5) { setError('Enter a valid duration'); return; }
+    setSaving(true);
+    try {
+      const payload = {
+        treatment_id: treatmentId,
+        date,
+        time,
+        duration_minutes: durNum,
+        price_cents: Math.round(priceNum * 100),
+        send_confirmation: sendConfirmation,
+      };
+      if (selectedClient) {
+        payload.client_id = selectedClient.id;
+      } else {
+        payload.client_name = newName.trim();
+        if (newPhone.trim()) payload.client_phone = newPhone.trim();
+      }
+      const res = await authedFetch('/api/appointments/manual', { method: 'POST', body: JSON.stringify(payload) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not save the appointment');
+      onSaved();
+    } catch (err) {
+      logger.error('Manual appointment save error:', err);
+      setError(err.message || 'Could not save the appointment');
+    } finally {
+      setSaving(false);
+    }
+  }
+  const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 900, display: 'flex', alignItems: 'flex-end' };
+  const sheet = { background: '#fff', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif', maxHeight: '90vh', overflowY: 'auto' };
+  const labelStyle = { fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' };
+  const inputStyle = { display: 'block', width: '100%', marginTop: 4, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: '#fff', color: COLORS.onSurface };
+  return (
+    <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={sheet}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: COLORS.onSurface }}>New appointment</h3>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: COLORS.stone400 }}>×</button>
+        </div>
+        {/* Client */}
+        <span style={labelStyle}>Client</span>
+        {selectedClient ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, marginBottom: 14, padding: '9px 12px', borderRadius: 10, background: `${COLORS.outlineVariant}33` }}>
+            <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: COLORS.onSurface }}>
+              {selectedClient.first_name} {selectedClient.last_name || ''}
+            </span>
+            <button onClick={() => { setSelectedClient(null); setQuery(''); }} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: COLORS.stone400, padding: 0 }}>×</button>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', gap: 6, marginTop: 6, marginBottom: 8 }}>
+              {[{ key: 'search', label: 'Existing' }, { key: 'new', label: 'New client' }].map(opt => (
+                <button
+                  key={opt.key}
+                  onClick={() => { setClientMode(opt.key); setError(null); }}
+                  style={{
+                    padding: '7px 12px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                    background: clientMode === opt.key ? COLORS.primary : `${COLORS.outlineVariant}33`,
+                    color: clientMode === opt.key ? '#fff' : COLORS.onSurface,
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {clientMode === 'search' ? (
+              <div style={{ marginBottom: 14 }}>
+                <input
+                  type="text"
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  placeholder="Search by name..."
+                  style={inputStyle}
+                />
+                {searching && <p style={{ fontSize: 12, color: COLORS.stone400, margin: '6px 0 0' }}>Searching...</p>}
+                {!searching && results.length > 0 && (
+                  <div style={{ marginTop: 6, borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, overflow: 'hidden' }}>
+                    {results.map(c => (
+                      <button
+                        key={c.id}
+                        onClick={() => { setSelectedClient(c); setResults([]); }}
+                        style={{ display: 'block', width: '100%', padding: '10px 12px', border: 'none', borderBottom: `1px solid ${COLORS.outlineVariant}33`, background: '#fff', textAlign: 'left', fontSize: 14, fontFamily: 'inherit', cursor: 'pointer', color: COLORS.onSurface }}
+                      >
+                        <span style={{ fontWeight: 600 }}>{c.first_name} {c.last_name || ''}</span>
+                        {c.phone && <span style={{ fontSize: 12, color: COLORS.stone400, marginLeft: 8 }}>{c.phone}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {!searching && query.trim().length >= 2 && results.length === 0 && (
+                  <p style={{ fontSize: 12, color: COLORS.stone400, margin: '6px 0 0' }}>
+                    No matches. Switch to New client to add them.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div style={{ marginBottom: 14 }}>
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  placeholder="Name"
+                  style={inputStyle}
+                />
+                <input
+                  type="tel"
+                  value={newPhone}
+                  onChange={e => setNewPhone(e.target.value)}
+                  placeholder="Phone (optional)"
+                  style={{ ...inputStyle, marginTop: 8 }}
+                />
+              </div>
+            )}
+          </>
+        )}
+        {/* Treatment */}
+        <span style={labelStyle}>Treatment</span>
+        <select value={treatmentId} onChange={e => pickTreatment(e.target.value)} style={{ ...inputStyle, marginBottom: 14 }}>
+          <option value="">Pick a treatment...</option>
+          {treatments.map(t => (
+            <option key={t.id} value={t.id}>
+              {t.name} (£{((t.price_cents || 0) / 100).toFixed(0)})
+            </option>
+          ))}
+        </select>
+        {/* Date + time */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+          <div style={{ flex: 1 }}>
+            <span style={labelStyle}>Date</span>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <span style={labelStyle}>Time</span>
+            <select value={time} onChange={e => setTime(e.target.value)} style={inputStyle}>
+              {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+        </div>
+        {/* Duration + price */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+          <div style={{ flex: 1 }}>
+            <span style={labelStyle}>Duration (min)</span>
+            <input
+              type="number"
+              min={5}
+              step={5}
+              value={duration}
+              onChange={e => setDuration(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+          <div style={{ flex: 1 }}>
+            <span style={labelStyle}>Price (£)</span>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              inputMode="decimal"
+              value={price}
+              onChange={e => setPrice(e.target.value)}
+              placeholder="0.00"
+              style={inputStyle}
+            />
+          </div>
+        </div>
+        {/* Send confirmation toggle, OFF by default */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <span style={{ fontSize: 14, fontWeight: 500, color: COLORS.onSurface }}>Send confirmation message</span>
+          <button
+            onClick={() => setSendConfirmation(v => !v)}
+            aria-pressed={sendConfirmation}
+            style={{ width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', padding: 0, background: sendConfirmation ? COLORS.primary : COLORS.outlineVariant }}
+          >
+            <div style={{ width: 20, height: 20, borderRadius: 10, background: '#fff', position: 'absolute', top: 2, transition: 'transform 0.2s', transform: sendConfirmation ? 'translateX(20px)' : 'translateX(2px)' }} />
+          </button>
+        </div>
+        <p style={{ fontSize: 11, color: COLORS.stone400, margin: '0 0 18px' }}>
+          Leave off when copying over bookings from your old system, so clients don't get a duplicate message.
+        </p>
+        {error && (
+          <p style={{ fontSize: 13, color: '#B91C1C', margin: '0 0 12px', fontWeight: 600 }}>{error}</p>
+        )}
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          style={{ width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: saving ? COLORS.stone400 : COLORS.primary, color: '#fff', fontSize: 15, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
+        >
+          {saving ? 'Saving...' : 'Add appointment'}
+        </button>
       </div>
     </div>
   );

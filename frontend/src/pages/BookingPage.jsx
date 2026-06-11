@@ -1445,6 +1445,17 @@ export default function BookingPage() {
                 Keep me posted about offers and last-minute openings (optional, reply STOP anytime)
               </span>
             </label>
+            {(beautician?.booking_policy?.late_cancel_charge_percent > 0 || beautician?.booking_policy?.no_show_charge_percent > 0) && (
+              <p style={{
+                fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55,
+                margin: '0 0 16px', padding: '10px 14px', borderRadius: 10,
+                background: 'var(--bg-subtle, #FDFCFB)', border: '1px solid var(--border-light)',
+              }}>
+                Cancellation policy: free to cancel or move your appointment up to {beautician.booking_policy.cancellation_notice_hours || 48} hours
+                before. Cancelling later than that, or not showing up, may mean a fee of up to {Math.min(beautician.booking_policy.late_cancel_charge_percent || beautician.booking_policy.no_show_charge_percent || 0, 100)}% of
+                the treatment price charged to your card. By booking you agree to this.
+              </p>
+            )}
             {TURNSTILE_SITE_KEY ? <TurnstileWidget onToken={setTurnstileToken} /> : null}
             <div style={styles.buttonRow}>
               <button onClick={() => setStep(2)} style={styles.backBtn}>← Back</button>

@@ -30,6 +30,12 @@ const SpeechRecognition = typeof window !== 'undefined'
 const MAX_TAP_SECONDS = 30;
 const LONG_PRESS_MS = 350;
 
+// Inside the native app, "allow access" means the OS Settings app, not the browser.
+const IS_NATIVE_APP = typeof window !== 'undefined' && !!window.Capacitor?.isNativePlatform?.();
+const MIC_DENIED_MSG = IS_NATIVE_APP
+  ? 'Mic access is off. Enable it in Settings, Florrie, Microphone.'
+  : 'Mic blocked. Allow access and try again.';
+
 // Hide the mic on routes where it would block the UI. The Inbox conversation
 // view shows a reply composer at the bottom; the mic would sit on top of it.
 function shouldHide(pathname) {
@@ -118,7 +124,7 @@ export default function FloatingMic() {
         if (event.error === 'no-speech') {
           setError("Didn't catch that. Try again.");
         } else if (event.error === 'not-allowed') {
-          setError('Mic blocked. Allow access and try again.');
+          setError(MIC_DENIED_MSG);
         } else {
           logger.error('Speech recognition error:', event.error);
           setError("Mic didn't work. Try again.");
@@ -194,7 +200,7 @@ export default function FloatingMic() {
     } catch (err) {
       logger.error('startMediaRecorder failed:', err);
       if (err?.name === 'NotAllowedError') {
-        setError('Mic blocked. Allow access and try again.');
+        setError(MIC_DENIED_MSG);
       } else {
         setError('Voice not available. Type your command instead.');
       }
