@@ -164,8 +164,9 @@ export default function HoursExceptions() {
 
   const dateMap = buildDateMap(exceptions);
 
-  // Which 3 months to show
-  const months = [0, 1, 2].map(offset => {
+  // A full rolling year in one scroll. Ellie books December off in June;
+  // nobody should have to find a pagination button for that.
+  const months = Array.from({ length: 12 }, (_, offset) => {
     let m = baseMonth.month + offset;
     let y = baseMonth.year;
     while (m > 11) { m -= 12; y += 1; }
@@ -290,27 +291,6 @@ export default function HoursExceptions() {
           </div>
         );
       })()}
-
-      {/* ââ Month navigator ââ */}
-      <div style={S.monthNav}>
-        <button style={S.navArrow} onClick={() => setBaseMonth(p => {
-          let m = p.month - 1; let y = p.year;
-          if (m < 0) { m = 11; y -= 1; }
-          // Don't go before current month
-          const thisYear = new Date().getFullYear();
-          const thisMonth = new Date().getMonth();
-          if (y < thisYear || (y === thisYear && m < thisMonth)) return p;
-          return { year: y, month: m };
-        })}>‹ Earlier</button>
-        <span style={S.monthRange}>
-          {getMonthLabel(months[0].year, months[0].month)} â {getMonthLabel(months[2].year, months[2].month)}
-        </span>
-        <button style={S.navArrow} onClick={() => setBaseMonth(p => {
-          let m = p.month + 1; let y = p.year;
-          if (m > 11) { m = 0; y += 1; }
-          return { year: y, month: m };
-        })}>Later ›</button>
-      </div>
 
       {/* ââ Range mode toggle ââ */}
       <div style={S.rangeModeRow}>

@@ -45,6 +45,35 @@ router.post('/subscribe', requireAuth, async (req, res) => {
 });
 
 /**
+ * POST /api/push/native-token
+ * Store a native (APNs/FCM) device token for the current beautician.
+ * Upserts on token so re-registration just refreshes last_seen_at.
+ */
+router.post('/native-token', requireAuth, async (req, res) => {
+  const { token, platform } = req.body;
+
+  if (!token || typeof token !== 'string' || token.length > 512) {
+    return res.status(400).json({ error: 'token is required' });
+  }
+
+  const { error } = await supabase
+    .from('native_push_tokens')
+    .upsert({
+      beautician_id: req.beautician.id,
+      token,
+      platform: platform === 'android' ? 'android' : 'ios',
+      last_seen_at: new Date().toISOString(),
+    }, { onConflict: 'token' });
+
+  if (error) {
+    logger.error({ err: error }, 'Failed to store native push token');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+
+  res.json({ success: true });
+});
+
+/**
  * DELETE /api/push/subscribe
  * Remove a push subscription (when user disables notifications).
  */

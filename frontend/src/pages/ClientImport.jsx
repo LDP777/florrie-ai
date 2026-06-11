@@ -530,6 +530,9 @@ export default function ClientImport() {
           </div>
         </div>
       )}
+
+      {/* Timely appointment import lives below the client flow on the landing step */}
+      {step === 'platform' && <TimelyAppointmentsImport />}
     </div>
   );
 }
@@ -604,6 +607,352 @@ function ManualPaste({ beautician, navigate, onDone, onBack }) {
         {importing ? 'Importing...' : `Import ${text.split('\n').filter(l => l.trim()).length} clients`}
       </button>
       <button onClick={onBack} style={styles.backBtn}>Back</button>
+    </div>
+  );
+}
+
+/* ============================================================
+ * Appointments from Timely
+ *
+ * Parses Timely's Reports > Appointment Schedule CSV in the browser,
+ * maps its (varying) column names, previews what was found, then sends
+ * the rows to POST /api/import/appointments in chunks. Imported
+ * appointments never send confirmations, reminders, or charge anyone.
+ * ============================================================ */
+
+/** Quote-aware CSV parser. Returns an array of rows (arrays of cells). */
+function parseCsvText(text) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else {
+        field += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ',') {
+      row.push(field); field = '';
+    } else if (ch === '\n') {
+      row.push(field); rows.push(row); row = []; field = '';
+    } else if (ch !== '\r') {
+      field += ch;
+    }
+  }
+  if (field !== '' || row.length > 0) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(c => c && String(c).trim() !== ''));
+}
+
+/**
+ * Map Timely's varying header names to our fields by case-insensitive
+ * "contains" matching. Returns { field: columnIndex } with -1 for missing.
+ */
+function mapTimelyHeaders(headerRow) {
+  const lower = headerRow.map(h => String(h || '').trim().toLowerCase());
+  const find = (pred) => lower.findIndex(pred);
+  let start = find(h => h.includes('start') && !h.includes('end'));
+  if (start === -1) start = find(h => h === 'time');
+  if (start === -1) start = find(h => h.includes('time') && !h.includes('end'));
+  let name = find(h => h.includes('customer') || h.includes('client'));
+  if (name === -1) name = find(h => h.includes('name') && !h.includes('staff') && !h.includes('service') && !h.includes('business'));
+  return {
+    date: find(h => h.includes('date') && !h.includes('end')),
+    start_time: start,
+    client_name: name,
+    phone: find(h => h.includes('mobile') || h.includes('phone')),
+    email: find(h => h.includes('email')),
+    service: find(h => h.includes('service') || h.includes('treatment')),
+    duration_minutes: find(h => h.includes('duration')),
+    price: find(h => h.includes('price') || h.includes('amount')),
+    staff: find(h => h.includes('staff')),
+    notes: find(h => h.includes('note')),
+  };
+}
+
+const TIMELY_MONTHS = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+
+/** Light date check for the preview. Returns a local-midnight Date or null. */
+function parseDateLite(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  let m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+  m = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/);
+  if (m) {
+    const year = m[3].length === 2 ? 2000 + +m[3] : +m[3];
+    if (+m[2] >= 1 && +m[2] <= 12) return new Date(year, +m[2] - 1, +m[1]);
+    return null;
+  }
+  m = s.match(/(\d{1,2})\s+([A-Za-z]{3,9})\.?,?\s+(\d{4})/);
+  if (m && TIMELY_MONTHS[m[2].slice(0, 3).toLowerCase()] !== undefined) {
+    return new Date(+m[3], TIMELY_MONTHS[m[2].slice(0, 3).toLowerCase()], +m[1]);
+  }
+  m = s.match(/([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})/);
+  if (m && TIMELY_MONTHS[m[1].slice(0, 3).toLowerCase()] !== undefined) {
+    return new Date(+m[3], TIMELY_MONTHS[m[1].slice(0, 3).toLowerCase()], +m[2]);
+  }
+  return null;
+}
+
+/** Light time check for the preview. True if it looks like a readable time. */
+function looksLikeTime(raw) {
+  return /^\d{1,2}([:.]\d{2})?(:\d{2})?\s*([AaPp]\.?[Mm]\.?)?$/.test(String(raw || '').trim());
+}
+
+function TimelyAppointmentsImport() {
+  const fileRef = useRef(null);
+  const [phase, setPhase] = useState('idle'); // idle | parsed | importing | done
+  const [rows, setRows] = useState([]);
+  const [unreadable, setUnreadable] = useState(0);
+  const [pastCount, setPastCount] = useState(0);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+
+  function resetTimely() {
+    setPhase('idle');
+    setRows([]);
+    setUnreadable(0);
+    setPastCount(0);
+    setProgress({ done: 0, total: 0 });
+    setResult(null);
+    setError(null);
+  }
+
+  async function handleTimelyFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setResult(null);
+
+    try {
+      let text;
+      const lower = file.name.toLowerCase();
+      if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
+        const buf = await readFile(file, true);
+        text = xlsxToCsv(buf);
+      } else {
+        text = await readFile(file, false);
+      }
+
+      const grid = parseCsvText(text || '');
+      if (grid.length < 2) {
+        setError('That file looks empty. Export the Appointment Schedule report from Timely and try again.');
+        return;
+      }
+
+      const cols = mapTimelyHeaders(grid[0]);
+      if (cols.date === -1 || cols.client_name === -1 || cols.start_time === -1) {
+        const missing = [];
+        if (cols.date === -1) missing.push('a date column');
+        if (cols.start_time === -1) missing.push('a start time column');
+        if (cols.client_name === -1) missing.push('a customer column');
+        setError(`We could not find ${missing.join(', ')} in that file. Make sure it is the Appointment Schedule report from Timely.`);
+        return;
+      }
+
+      const cell = (r, idx) => (idx >= 0 && r[idx] !== undefined ? String(r[idx]).trim() : '');
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const good = [];
+      let bad = 0;
+      let past = 0;
+      for (const r of grid.slice(1)) {
+        const date = cell(r, cols.date);
+        const time = cell(r, cols.start_time);
+        const name = cell(r, cols.client_name);
+        const parsedDate = parseDateLite(date);
+        if (!parsedDate || !name || !looksLikeTime(time)) { bad++; continue; }
+        if (parsedDate < today) { past++; continue; }
+        good.push({
+          date,
+          start_time: time,
+          client_name: name,
+          phone: cell(r, cols.phone) || undefined,
+          email: cell(r, cols.email) || undefined,
+          service: cell(r, cols.service) || undefined,
+          duration_minutes: cell(r, cols.duration_minutes) || undefined,
+          price: cell(r, cols.price) || undefined,
+          staff: cell(r, cols.staff) || undefined,
+          notes: cell(r, cols.notes) || undefined,
+        });
+      }
+
+      setRows(good);
+      setUnreadable(bad);
+      setPastCount(past);
+      setPhase('parsed');
+    } catch (err) {
+      setError(err.message || 'Could not read that file');
+    } finally {
+      e.target.value = '';
+    }
+  }
+
+  async function runImport() {
+    setPhase('importing');
+    setError(null);
+
+    const CHUNK = 100; // backend caps at 500 per call, smaller chunks give real progress
+    const totals = { imported: 0, skipped_duplicates: 0, clients_created: 0, unmatched_services: new Set(), errors: [] };
+    setProgress({ done: 0, total: rows.length });
+
+    try {
+      const token = getToken();
+      for (let i = 0; i < rows.length; i += CHUNK) {
+        const chunk = rows.slice(i, i + CHUNK);
+        const res = await fetch(`${API_BASE}/api/import/appointments`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ rows: chunk }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data.error || 'Import failed part way through. Anything already imported is safe.');
+          setPhase('parsed');
+          return;
+        }
+        totals.imported += data.imported || 0;
+        totals.skipped_duplicates += data.skipped_duplicates || 0;
+        totals.clients_created += data.clients_created || 0;
+        (data.unmatched_services || []).forEach(s => totals.unmatched_services.add(s));
+        (data.errors || []).forEach(er => totals.errors.push({ row: (er.row || 0) + i, reason: er.reason }));
+        setProgress({ done: Math.min(i + CHUNK, rows.length), total: rows.length });
+      }
+
+      setResult({
+        imported: totals.imported,
+        skipped_duplicates: totals.skipped_duplicates,
+        clients_created: totals.clients_created,
+        unmatched_services: Array.from(totals.unmatched_services),
+        errors: totals.errors,
+      });
+      setPhase('done');
+    } catch {
+      setError('Network error during import. Anything already imported is safe.');
+      setPhase('parsed');
+    }
+  }
+
+  return (
+    <div style={styles.timelySection}>
+      <div style={styles.timelyDivider} />
+      <h2 style={styles.timelyTitle}>Appointments from Timely</h2>
+      <p style={styles.intro}>
+        Bring your upcoming bookings across so your Florrie calendar is ready from day one.
+        Imported appointments are view-only history: Florrie will not message anyone about them,
+        and nothing gets charged.
+      </p>
+
+      <div style={styles.helpCard}>
+        <div style={styles.helpTitle}>How to export from Timely</div>
+        <div style={styles.helpStep}>1. In Timely, go to Reports, then Appointment Schedule</div>
+        <div style={styles.helpStep}>2. Set the date range to today onwards</div>
+        <div style={styles.helpStep}>3. Download the CSV and upload it here</div>
+      </div>
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".csv,.tsv,.txt,.xls,.xlsx"
+        onChange={handleTimelyFile}
+        style={{ display: 'none' }}
+      />
+
+      {error && (
+        <div style={styles.errorBanner}>
+          <span style={{ fontSize: 14 }}>⚠️</span>
+          <span style={styles.errorText}>{error}</span>
+        </div>
+      )}
+
+      {phase === 'idle' && (
+        <button onClick={() => fileRef.current?.click()} style={styles.timelyUploadBtn}>
+          Upload appointment CSV
+        </button>
+      )}
+
+      {phase === 'parsed' && (
+        <div style={styles.timelyPreviewCard}>
+          <div style={styles.timelyPreviewLine}>
+            <strong>{rows.length}</strong> future {rows.length === 1 ? 'appointment' : 'appointments'} found
+            {unreadable > 0 && <>, <strong>{unreadable}</strong> {unreadable === 1 ? 'row' : 'rows'} unreadable</>}
+            {pastCount > 0 && <>, {pastCount} in the past (skipped)</>}
+          </div>
+          {rows.length > 0 ? (
+            <>
+              <div style={styles.timelyPreviewSub}>
+                First up: {rows[0].client_name}{rows[0].service ? `, ${rows[0].service}` : ''} on {rows[0].date} at {rows[0].start_time}
+              </div>
+              <button onClick={runImport} style={styles.importBtn}>
+                Import {rows.length} {rows.length === 1 ? 'appointment' : 'appointments'}
+              </button>
+            </>
+          ) : (
+            <div style={styles.timelyPreviewSub}>
+              Nothing from today onwards in that file. Check the date range on the Timely report.
+            </div>
+          )}
+          <button onClick={resetTimely} style={styles.backBtn}>Choose a different file</button>
+        </div>
+      )}
+
+      {phase === 'importing' && (
+        <div style={styles.timelyPreviewCard}>
+          <div style={styles.timelyPreviewLine}>Importing appointments...</div>
+          <div style={styles.timelyProgressTrack}>
+            <div style={{ ...styles.timelyProgressFill, width: `${progress.total ? Math.round((progress.done / progress.total) * 100) : 0}%` }} />
+          </div>
+          <div style={styles.timelyPreviewSub}>{progress.done} of {progress.total} sent</div>
+        </div>
+      )}
+
+      {phase === 'done' && result && (
+        <div style={styles.timelyPreviewCard}>
+          <div style={styles.timelyPreviewLine}>
+            {result.imported > 0
+              ? `${result.imported} ${result.imported === 1 ? 'appointment is' : 'appointments are'} now in your calendar.`
+              : 'No new appointments were imported.'}
+          </div>
+          <div style={styles.timelyResultList}>
+            {result.skipped_duplicates > 0 && (
+              <div style={styles.timelyResultLine}>{result.skipped_duplicates} skipped because {result.skipped_duplicates === 1 ? 'it was' : 'they were'} already in Florrie.</div>
+            )}
+            {result.clients_created > 0 && (
+              <div style={styles.timelyResultLine}>{result.clients_created} new {result.clients_created === 1 ? 'client was' : 'clients were'} created along the way.</div>
+            )}
+            {result.unmatched_services.length > 0 && (
+              <div style={styles.timelyResultLine}>
+                {result.unmatched_services.length} {result.unmatched_services.length === 1 ? 'service was' : 'services were'} not on your menu, so Florrie saved {result.unmatched_services.length === 1 ? 'it' : 'them'} as hidden treatments you can tidy up later: {result.unmatched_services.join(', ')}.
+              </div>
+            )}
+            {result.errors.length > 0 && (
+              <div style={styles.timelyResultLine}>
+                {result.errors.length} {result.errors.length === 1 ? 'row' : 'rows'} could not be imported:
+                {result.errors.slice(0, 8).map((er, i) => (
+                  <div key={i} style={styles.timelyErrorLine}>Row {er.row}: {er.reason}</div>
+                ))}
+                {result.errors.length > 8 && <div style={styles.timelyErrorLine}>and {result.errors.length - 8} more.</div>}
+              </div>
+            )}
+            <div style={styles.timelyResultLine}>
+              No messages were sent. Imported appointments never trigger confirmations, reminders, deposits, or charges.
+            </div>
+          </div>
+          <a href="/calendar" style={styles.importBtn}>View your calendar</a>
+          <button onClick={resetTimely} style={styles.backBtn}>Import another file</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -820,4 +1169,35 @@ const styles = {
     fontSize: 14, fontFamily: 'inherit', resize: 'vertical',
     outline: 'none', lineHeight: 1.6, boxSizing: 'border-box',
   },
+
+  // Timely appointment import
+  timelySection: { marginTop: 32, display: 'flex', flexDirection: 'column', gap: 12 },
+  timelyDivider: { height: 1, background: 'var(--border, #EDE9E4)', marginBottom: 4 },
+  timelyTitle: {
+    fontSize: 19, fontWeight: 700, margin: 0,
+    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
+  },
+  timelyUploadBtn: {
+    display: 'block', width: '100%', padding: '14px 0', borderRadius: 14,
+    border: '2px solid var(--accent, #C76B8A)', background: 'transparent',
+    color: 'var(--accent, #C76B8A)', fontSize: 15, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
+  },
+  timelyPreviewCard: {
+    background: 'var(--bg-card, #fff)', borderRadius: 14,
+    padding: '16px 18px', boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+    display: 'flex', flexDirection: 'column', gap: 12,
+  },
+  timelyPreviewLine: { fontSize: 14, color: 'var(--text-primary, #2D2A26)', lineHeight: 1.5 },
+  timelyPreviewSub: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)', lineHeight: 1.5 },
+  timelyProgressTrack: {
+    height: 8, borderRadius: 4, background: 'var(--bg-hover, #F5F2EF)', overflow: 'hidden',
+  },
+  timelyProgressFill: {
+    height: '100%', borderRadius: 4, background: 'var(--accent, #C76B8A)',
+    transition: 'width 0.3s ease',
+  },
+  timelyResultList: { display: 'flex', flexDirection: 'column', gap: 8 },
+  timelyResultLine: { fontSize: 13, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.5 },
+  timelyErrorLine: { fontSize: 12, color: 'var(--danger, #D4605C)', lineHeight: 1.6, paddingLeft: 8 },
 };

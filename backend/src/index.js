@@ -72,6 +72,7 @@ import agentStatusRoutes from './routes/agent-status.js';
 import hmrcRoutes from './routes/hmrc.js';
 import productRoutes from './routes/products.js';
 import migrateRoutes from './routes/migrate.js';
+import importAppointmentsRoutes from './routes/import-appointments.js';
 import usageRoutes from './routes/usage.js';
 import setupRoutes from './routes/setup.js';
 import whatsappConfigRoutes from './routes/whatsapp-config.js';
@@ -258,6 +259,7 @@ app.use('/api/agents', apiLimiter, agentStatusRoutes);
 app.use('/api/hmrc', apiLimiter, hmrcRoutes);
 app.use('/api/products', apiLimiter, productRoutes);
 app.use('/api/migrate', apiLimiter, migrateRoutes);
+app.use('/api/import', apiLimiter, importAppointmentsRoutes); // Timely appointment CSV import
 app.use('/api/usage', apiLimiter, usageRoutes);
 app.use('/api/setup', apiLimiter, setupRoutes);
 app.use('/api/whatsapp', apiLimiter, whatsappConfigRoutes);

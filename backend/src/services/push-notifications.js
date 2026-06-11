@@ -1,6 +1,7 @@
 import webpush from 'web-push';
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
+import { sendApnsToBeautician } from './apns.js';
 
 /**
  * Web Push Notification Service.
@@ -29,9 +30,37 @@ if (VAPID_PUBLIC && VAPID_PRIVATE) {
 
 /**
  * Send a push notification to a beautician.
- * Silently skips if they have no subscriptions or push isn't configured.
+ * Fans out to BOTH channels: web push (VAPID subscriptions) and native
+ * APNs (iOS app device tokens). Each leg is fail-soft: one channel being
+ * down or unconfigured never blocks the other, and neither ever throws.
  */
 export async function sendPush(beauticianId, { title, body, icon, url, tag, data }) {
+  let webResult = null;
+  try {
+    webResult = await sendWebPush(beauticianId, { title, body, icon, url, tag, data });
+  } catch (err) {
+    logger.warn({ err, beauticianId }, 'Web push fan-out failed');
+  }
+
+  // Native iOS (APNs): same title/body, deep-link url carried in data.
+  try {
+    await sendApnsToBeautician(beauticianId, {
+      title: title || 'florrie.ai',
+      body,
+      data: { ...(data || {}), url: url || '/' },
+    });
+  } catch (err) {
+    logger.warn({ err, beauticianId }, 'APNs fan-out failed');
+  }
+
+  return webResult;
+}
+
+/**
+ * Web push leg (VAPID). Silently skips if they have no subscriptions or
+ * push isn't configured.
+ */
+async function sendWebPush(beauticianId, { title, body, icon, url, tag, data }) {
   if (!VAPID_PUBLIC || !VAPID_PRIVATE) return null;
 
   const { data: subs } = await supabase

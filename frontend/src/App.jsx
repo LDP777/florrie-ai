@@ -166,6 +166,19 @@ export default function App() {
     }
   }, [session, beautician]);
 
+  // Native app (iOS): register for real APNs push once signed in, and send
+  // the device token to the backend. Web push stays on its existing
+  // onboarding flow; this only runs inside the Capacitor shell.
+  useEffect(() => {
+    if (!session) return;
+    import('./lib/platform.js').then(({ isNativeApp }) => {
+      if (!isNativeApp()) return;
+      import('./lib/push.js')
+        .then(({ registerNativePushToken }) => registerNativePushToken())
+        .catch(() => {});
+    }).catch(() => {});
+  }, [session]);
+
   // Warm the main route chunks in the background once signed in, so tapping a
   // tab navigates instantly instead of showing the lazy-load spinner each time.
   useEffect(() => {

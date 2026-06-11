@@ -73,6 +73,37 @@ export async function registerPush() {
   }
 }
 
+/**
+ * Native (iOS/Android) push registration. Asks for permission, registers
+ * with APNs/FCM via @capacitor/push-notifications, then stores the device
+ * token server-side so the backend can send real APNs pushes.
+ *
+ * No-ops on web. Call after a login session exists (the POST is authed).
+ */
+export async function registerNativePushToken() {
+  try {
+    const { registerNativePush, platform } = await import('./native.js');
+    const token = await registerNativePush();
+    if (!token) return false;
+
+    const res = await fetch(`${API_BASE}/api/push/native-token`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ token, platform }),
+    });
+    if (!res.ok) {
+      logger.warn('Native push token save failed:', res.status);
+      return false;
+    }
+
+    logger.info('Native push token registered');
+    return true;
+  } catch (err) {
+    logger.warn('Native push token registration failed:', err);
+    return false;
+  }
+}
+
 export async function unregisterPush() {
   try {
     const reg = await navigator.serviceWorker.ready;
