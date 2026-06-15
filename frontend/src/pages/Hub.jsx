@@ -200,9 +200,12 @@ function TodaySummary({ beautician, onNav }) {
         // Potential: everything still on the books today, cancellations and
         // no-shows excluded.
         const DEAD = ['cancelled', 'cancelled_by_client', 'cancelled_by_beautician', 'no_show'];
-        const potentialPence = appts
-          .filter(a => !DEAD.includes(a.status))
-          .reduce((sum, a) => sum + (a.price_cents || a.treatments?.price_cents || 0), 0);
+        const live = appts.filter(a => !DEAD.includes(a.status));
+        const apptPrice = a => (a.price_cents || a.treatments?.price_cents || 0);
+        const potentialPence = live.reduce((sum, a) => sum + apptPrice(a), 0);
+        // Bookings with no price attached (usually imported from another system).
+        // They silently drag "potential" down, so flag them rather than hide it.
+        const needsPrice = live.filter(a => apptPrice(a) === 0).length;
 
         const upcoming = today
           .filter(a => new Date(a.starts_at) > now)
@@ -222,6 +225,7 @@ function TodaySummary({ beautician, onNav }) {
         setData({
           revenuePence,
           potentialPence,
+          needsPrice,
           next,
           messagesWaiting,
           totalToday: today.length,
@@ -269,6 +273,16 @@ function TodaySummary({ beautician, onNav }) {
         <div style={TS.divider} />
         <Stat label="Next" value={nextLabel} sub={nextSub} wide />
       </div>
+
+      {data.needsPrice > 0 && (
+        <button onClick={() => onNav('/calendar')} style={TS.priceFlag} aria-label={`${data.needsPrice} bookings need a price`}>
+          <span className="material-symbols-outlined" style={TS.priceFlagIcon}>sell</span>
+          <span style={TS.priceFlagText}>
+            {data.needsPrice} booking{data.needsPrice === 1 ? '' : 's'} {data.needsPrice === 1 ? 'has' : 'have'} no price. Your potential is higher than it looks.
+          </span>
+          <span className="material-symbols-outlined" style={TS.priceFlagChev}>chevron_right</span>
+        </button>
+      )}
 
       <button
         onClick={() => onNav('/inbox')}
@@ -508,6 +522,25 @@ const TS = {
   msgIcon: { fontSize: 18, color: '#fff', opacity: 0.85 },
   msgText: { flex: 1, fontSize: 13, fontWeight: 600, textAlign: 'left' },
   msgChev: { fontSize: 18, color: '#fff', opacity: 0.7 },
+
+  priceFlag: {
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    background: 'rgba(255,255,255,0.16)',
+    border: '1px solid rgba(255,255,255,0.22)',
+    borderRadius: 12,
+    padding: '8px 12px',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    color: '#fff',
+    marginBottom: 10,
+    WebkitTapHighlightColor: 'transparent',
+  },
+  priceFlagIcon: { fontSize: 17, color: '#fff', opacity: 0.9 },
+  priceFlagText: { flex: 1, fontSize: 12, fontWeight: 600, textAlign: 'left', lineHeight: 1.3 },
+  priceFlagChev: { fontSize: 18, color: '#fff', opacity: 0.7 },
 
   waPill: {
     width: '100%',

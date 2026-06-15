@@ -13,14 +13,16 @@ import { deDash } from '../lib/text.js';
  *
  * Falls back to text-only input when Speech API is unavailable.
  */
+// Each agent gets a clean material symbol (no emoji) and a brand-aligned hue.
+// 'general' has no icon, so the Florrie petal renders instead.
 const AGENT_ROUTES = {
-  calendar: { label: 'Calendar', icon: '📅', color: '#4A90D9' },
-  clients: { label: 'Clients', icon: '👤', color: 'var(--accent, #C76B8A)' },
-  campaigns: { label: 'Campaigns', icon: '💌', color: '#E57373' },
-  money: { label: 'Money', icon: '💰', color: '#4CAF50' },
-  content: { label: 'Content', icon: '📸', color: '#F5A623' },
-  settings: { label: 'Settings', icon: '⚙️', color: '#6b6560' },
-  general: { label: 'florrie.ai', icon: null, color: 'var(--accent, #C76B8A)' }, // uses petal SVG
+  calendar: { label: 'Calendar', icon: 'calendar_month', color: '#7C6EAF' },
+  clients: { label: 'Clients', icon: 'person', color: '#C76B8A' },
+  campaigns: { label: 'Campaigns', icon: 'mail', color: '#B0628A' },
+  money: { label: 'Money', icon: 'payments', color: '#5BA67F' },
+  content: { label: 'Content', icon: 'photo_camera', color: '#C9A05A' },
+  settings: { label: 'Settings', icon: 'settings', color: '#8A8580' },
+  general: { label: 'Florrie', icon: null, color: 'var(--accent, #C76B8A)' }, // uses petal SVG
 };
 function FloriePetal({ size = 28, spinning = false, white = false }) {
   const colour = white ? '#fff' : '#C76B8A';
@@ -497,9 +499,12 @@ export default function VoiceCommander() {
     <div style={styles.page}>
       {/* Header */}
       <div style={styles.header}>
-        <h1 style={styles.title}>Ask Florrie</h1>
+        <div style={styles.headerTitleRow}>
+          <FloriePetal size={22} />
+          <h1 style={styles.title}>Ask Florrie</h1>
+        </div>
         <p style={styles.subtitle}>
-          {speechSupported ? 'Tap the mic or type, I handle everything.' : 'Type anything, I handle everything.'}
+          {speechSupported ? 'Tap the petal or type, I handle the rest.' : 'Type anything, I handle the rest.'}
         </p>
       </div>
       {/* Messages */}
@@ -513,10 +518,15 @@ export default function VoiceCommander() {
             }}
           >
             {msg.role === 'assistant' && (
-              <div style={styles.agentAvatar}>
+              <div style={{
+                ...styles.agentAvatar,
+                background: msg.agent === 'general' || !AGENT_ROUTES[msg.agent]?.icon
+                  ? 'var(--accent-light)'
+                  : AGENT_ROUTES[msg.agent].color + '18',
+              }}>
                 {msg.agent === 'general' || !AGENT_ROUTES[msg.agent]?.icon
-                  ? <FloriePetal size={18} />
-                  : <span style={{ fontSize: 14 }}>{AGENT_ROUTES[msg.agent].icon}</span>
+                  ? <FloriePetal size={17} />
+                  : <span className="material-symbols-outlined" style={{ fontSize: 16, color: AGENT_ROUTES[msg.agent].color, fontVariationSettings: "'FILL' 0, 'wght' 400" }}>{AGENT_ROUTES[msg.agent].icon}</span>
                 }
               </div>
             )}
@@ -535,7 +545,9 @@ export default function VoiceCommander() {
               )}
               <p style={styles.msgText}>{msg.text}</p>
               {msg.isVoice && msg.role === 'user' && (
-                <span style={styles.voiceBadge}>🎙️ Voice</span>
+                <span style={styles.voiceBadge}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 11 }}>mic</span> Voice
+                </span>
               )}
               {msg.multiStep && msg.role === 'assistant' && (
                 <span style={styles.multiStepBadge}>
@@ -652,8 +664,9 @@ const styles = {
     animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
   },
   header: { padding: '28px 16px 12px', flexShrink: 0 },
-  title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
-  subtitle: { fontSize: 13, color: 'var(--accent)', margin: 0, fontWeight: 500 },
+  headerTitleRow: { display: 'flex', alignItems: 'center', gap: 9, marginBottom: 3 },
+  title: { fontSize: 23, fontWeight: 700, margin: 0, fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
+  subtitle: { fontSize: 13, color: 'var(--text-muted, #B5AFA8)', margin: 0, fontWeight: 500 },
   messagesContainer: {
     padding: '8px 16px 16px',
     display: 'flex', flexDirection: 'column', gap: 12,
@@ -683,7 +696,7 @@ const styles = {
     letterSpacing: '0.04em', marginBottom: 6,
   },
   msgText: { fontSize: 14, lineHeight: 1.5, margin: 0, whiteSpace: 'pre-wrap' },
-  voiceBadge: { display: 'inline-block', fontSize: 10, opacity: 0.7, marginTop: 4 },
+  voiceBadge: { display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, opacity: 0.7, marginTop: 4 },
   multiStepBadge: {
     display: 'inline-flex', alignItems: 'center', gap: 4,
     fontSize: 10, fontWeight: 600, opacity: 0.65, marginTop: 4,

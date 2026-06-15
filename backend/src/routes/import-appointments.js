@@ -145,6 +145,61 @@ function phoneDigits(p) {
   return String(p || '').replace(/\D/g, '');
 }
 
+/** Lowercase, strip punctuation, collapse whitespace. "Lashes - Classic Set!" -> "lashes classic set". */
+function normaliseService(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Words that carry no identity, so they shouldn't drive a token match.
+const SERVICE_STOPWORDS = new Set(['the', 'a', 'and', 'with', 'set', 'full', 'mini', 'session', 'appointment', 'treatment', 'service', 'inc', 'including']);
+
+function serviceTokens(s) {
+  return normaliseService(s).split(' ').filter((w) => w && !SERVICE_STOPWORDS.has(w));
+}
+
+/**
+ * Best treatment for an imported service name. Tries, in order: exact normalised
+ * match, one name fully containing the other, then Jaccard token overlap. Only
+ * returns a match when it's confident enough to inherit that treatment's price.
+ * Returns null if nothing clears the bar (caller makes a placeholder instead).
+ */
+function bestTreatmentMatch(serviceName, treatments) {
+  const norm = normaliseService(serviceName);
+  if (!norm) return null;
+  const exact = treatments.find((t) => t.normKey === norm);
+  if (exact) return exact;
+
+  const tokens = serviceTokens(serviceName);
+  if (tokens.length === 0) return null;
+  const tokenSet = new Set(tokens);
+
+  let best = null;
+  let bestScore = 0;
+  for (const t of treatments) {
+    if (!t.normKey) continue;
+    // Containment either direction is a strong signal.
+    let score = 0;
+    if (t.normKey.includes(norm) || norm.includes(t.normKey)) {
+      score = 0.9;
+    } else {
+      const tt = t.tokens || [];
+      if (tt.length === 0) continue;
+      let shared = 0;
+      for (const w of tt) if (tokenSet.has(w)) shared += 1;
+      const union = new Set([...tokens, ...tt]).size;
+      score = union > 0 ? shared / union : 0;
+    }
+    if (score > bestScore) { bestScore = score; best = t; }
+  }
+  // 0.5 Jaccard ~ half the meaningful words shared. Conservative enough to avoid
+  // gluing "Brow Tint" onto "Lash Tint", generous enough to catch reorderings.
+  return bestScore >= 0.5 ? best : null;
+}
+
 /** Split 'Jane Smith' or 'Smith, Jane' into { first, last }. */
 function splitName(name) {
   const s = String(name || '').trim();
@@ -201,6 +256,8 @@ router.post('/appointments', requireAuth, async (req, res) => {
     const treatments = (treatmentRows || []).map((t) => ({
       id: t.id,
       nameKey: (t.name || '').trim().toLowerCase(),
+      normKey: normaliseService(t.name),
+      tokens: serviceTokens(t.name),
       price_cents: t.price_cents || 0,
       duration_minutes: t.duration_minutes || 60,
     }));
@@ -358,8 +415,10 @@ router.post('/appointments', requireAuth, async (req, res) => {
       const serviceKey = serviceName.toLowerCase();
       let treatment = null;
       if (serviceKey) {
-        treatment = treatments.find((t) => t.nameKey === serviceKey)
-          || treatments.find((t) => t.nameKey.includes(serviceKey) || serviceKey.includes(t.nameKey))
+        // Token-aware fuzzy match first so a real treatment's price carries over
+        // (Timely's schedule export has no price column, so without this every
+        // imported booking lands at £0 and "today's potential" reads far too low).
+        treatment = bestTreatmentMatch(serviceName, treatments)
           || createdTreatmentByName.get(serviceKey)
           || null;
       }

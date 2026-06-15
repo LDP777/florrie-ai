@@ -15,6 +15,8 @@ const HOUR_HEIGHT = 112;
 const START_HOUR = 6;
 const END_HOUR = 23;
 const MIN_CARD_PX = 56;
+// Statuses that don't count toward a day's bookings / takings / hours.
+const DEAD_STATUSES = ['cancelled', 'cancelled_by_client', 'cancelled_by_beautician', 'no_show'];
 
 /** Wall-clock minutes since midnight, read straight off the stored string
  *  ("2026-06-12T14:00:00..." -> 840) so no browser timezone ever shifts it. */
@@ -157,7 +159,7 @@ export default function CalendarView({ initialView } = {}) {
     try {
       const { data, error } = await supabase
         .from('appointments')
-        .select('*, clients(first_name, last_name), treatments(name)')
+        .select('*, clients(first_name, last_name), treatments(name, price_cents)')
         .eq('beautician_id', beautician.id)
         .gte('starts_at', `${from}T00:00:00Z`)
         .lte('starts_at', `${to}T23:59:59Z`)
@@ -506,41 +508,79 @@ export default function CalendarView({ initialView } = {}) {
           </div>
         </div>
       )}
-      {/* Week View */}
+      {/* Week View — agenda by day. Each day shows its shape at a glance:
+          how many bookings, money on the books, hours worked, then the
+          appointments themselves as readable rows. Far easier to actually
+          work from on a phone than seven thin columns of tiny chips. */}
       {view === 'week' && (
-        weekDays.some(d => getAppointmentsForDate(d).length > 0) ? (
-        <div style={styles.weekBody}>
+        <div style={styles.weekAgenda}>
           {weekDays.map(day => {
-            const dayAppts = getAppointmentsForDate(day);
+            const dayAppts = getAppointmentsForDate(day)
+              .slice()
+              .sort((a, b) => wallMinutes(a.starts_at) - wallMinutes(b.starts_at));
+            const live = dayAppts.filter(a => !DEAD_STATUSES.includes(a.status));
+            const takingsPence = live.reduce((s, a) => s + (a.price_cents || a.treatments?.price_cents || 0), 0);
+            const workedMins = live.reduce((s, a) => s + Math.max(0, wallMinutes(a.ends_at || a.starts_at) - wallMinutes(a.starts_at)), 0);
+            const hours = workedMins / 60;
+            const dayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][day.getDay()];
+            const wh = beautician?.working_hours?.[dayKey];
+            const dayOff = !!beautician?.working_hours && !(wh?.start && wh?.end);
+            const today = isToday(day);
             return (
-              <div key={day.toISOString()} style={styles.weekDayColumn}>
-                {dayAppts.map(appt => {
-                  const statusCol = getStatusColor(appt.status);
-                  const firstName = appt.clients?.first_name || '';
-                  const lastInitial = appt.clients?.last_name ? appt.clients.last_name.charAt(0) + '.' : '';
-                  const clientLabel = firstName ? `${firstName}${lastInitial ? ' ' + lastInitial : ''}` : '-';
-                  return (
-                    <button
-                      key={appt.id}
-                      onClick={() => setSelectedAppointment(selectedAppointment?.id === appt.id ? null : appt)}
-                      style={{
-                        ...styles.weekApptChip,
-                        borderLeftColor: statusCol,
-                        background: statusCol + '18',
-                      }}
-                    >
-                      <span style={styles.weekApptTime}>{new Date(appt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</span>
-                      <span style={styles.weekApptName}>{clientLabel}</span>
-                    </button>
-                  );
-                })}
+              <div key={day.toISOString()} style={{ ...styles.weekDaySection, ...(today ? styles.weekDaySectionToday : {}) }}>
+                <button
+                  onClick={() => { setCurrentDate(day); setView('day'); }}
+                  style={styles.weekDayHead}
+                >
+                  <span style={styles.weekDayHeadLeft}>
+                    <span style={{ ...styles.weekDayDow, color: today ? COLORS.primary : COLORS.onSurface }}>
+                      {day.toLocaleDateString('en-GB', { weekday: 'long' })}
+                    </span>
+                    <span style={styles.weekDayDate}>{day.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+                    {today && <span style={styles.weekTodayTag}>Today</span>}
+                  </span>
+                  {live.length > 0 ? (
+                    <span style={styles.weekDayStats}>
+                      <span style={styles.weekDayCount}>{live.length} booking{live.length === 1 ? '' : 's'}</span>
+                      {takingsPence > 0 && <span style={styles.weekDayMoney}>£{(takingsPence / 100).toFixed(0)}</span>}
+                      <span style={styles.weekDayHours}>{hours % 1 === 0 ? hours : hours.toFixed(1)}h</span>
+                    </span>
+                  ) : (
+                    <span style={styles.weekDayQuiet}>{dayOff ? 'Day off' : 'No bookings'}</span>
+                  )}
+                </button>
+                {live.length > 0 && (
+                  <div style={styles.weekDayRows}>
+                    {dayAppts.map(appt => {
+                      const statusCol = getStatusColor(appt.status);
+                      const dead = DEAD_STATUSES.includes(appt.status);
+                      const firstName = appt.clients?.first_name || '';
+                      const lastInitial = appt.clients?.last_name ? ' ' + appt.clients.last_name.charAt(0) + '.' : '';
+                      const clientLabel = firstName ? `${firstName}${lastInitial}` : 'Client';
+                      const price = appt.price_cents || appt.treatments?.price_cents || 0;
+                      return (
+                        <button
+                          key={appt.id}
+                          onClick={() => setSelectedAppointment(selectedAppointment?.id === appt.id ? null : appt)}
+                          style={{ ...styles.weekRow, opacity: dead ? 0.5 : 1 }}
+                        >
+                          <span style={styles.weekRowTime}>{formatWallTime(appt.starts_at)}</span>
+                          <span style={{ ...styles.weekRowDot, background: statusCol }} />
+                          <span style={styles.weekRowBody}>
+                            <span style={{ ...styles.weekRowName, textDecoration: dead ? 'line-through' : 'none' }}>{clientLabel}</span>
+                            {appt.treatments?.name && <span style={styles.weekRowTreatment}>{appt.treatments.name}</span>}
+                          </span>
+                          {price > 0 && <span style={styles.weekRowPrice}>£{(price / 100).toFixed(0)}</span>}
+                          {appt.ai_booked && <span style={styles.aiTag}>AI</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
-        ) : (
-          <div style={styles.weekEmptyState}>No appointments this week</div>
-        )
       )}
 
       {/* Floating add button (day view only). Sits above the mic FAB. */}
@@ -620,6 +660,24 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
   const [paymentLinkUrl, setPaymentLinkUrl] = useState(null);
   const [linkLoading, setLinkLoading] = useState(false);
   const [noteSaved, setNoteSaved] = useState(false);
+  // Inline price set for bookings imported with no price (£0).
+  const [priceEditing, setPriceEditing] = useState(false);
+  const [priceInput, setPriceInput] = useState('');
+  const [priceSaving, setPriceSaving] = useState(false);
+  async function handleSavePrice() {
+    const pounds = parseFloat(String(priceInput).replace(/[£,\s]/g, ''));
+    if (isNaN(pounds) || pounds < 0) return;
+    setPriceSaving(true);
+    try {
+      await updateRow('appointments', appointment.id, { price_cents: Math.round(pounds * 100) });
+      setPriceEditing(false);
+      onUpdate();
+    } catch (err) {
+      logger.error('Save price error:', err);
+    } finally {
+      setPriceSaving(false);
+    }
+  }
   async function handleSaveNote() {
     try {
       await updateRow('appointments', appointment.id, { beautician_notes: notes || null });
@@ -772,7 +830,33 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
           <div style={styles.detailGrid}>
             <div style={styles.detailRow}><span style={styles.detailLabel}>Treatment</span><span style={styles.detailValue}>{appointment.treatments?.name}</span></div>
             <div style={styles.detailRow}><span style={styles.detailLabel}>Time</span><span style={styles.detailValue}>{new Date(appointment.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} - {appointment.ends_at ? new Date(appointment.ends_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''}</span></div>
-            <div style={styles.detailRow}><span style={styles.detailLabel}>Price</span><span style={styles.detailValue}>£{(appointment.price_cents / 100).toFixed(2)}</span></div>
+            <div style={styles.detailRow}>
+              <span style={styles.detailLabel}>Price</span>
+              {appointment.price_cents > 0 ? (
+                <span style={styles.detailValue}>£{(appointment.price_cents / 100).toFixed(2)}</span>
+              ) : priceEditing ? (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 13, color: COLORS.stone400 }}>£</span>
+                  <input
+                    type="number" inputMode="decimal" autoFocus
+                    value={priceInput}
+                    onChange={e => setPriceInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleSavePrice(); }}
+                    placeholder="0.00"
+                    style={{ width: 72, padding: '5px 8px', borderRadius: 8, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, fontFamily: 'inherit', outline: 'none', textAlign: 'right' }}
+                  />
+                  <button onClick={handleSavePrice} disabled={priceSaving}
+                    style={{ padding: '5px 10px', borderRadius: 8, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {priceSaving ? '…' : 'Save'}
+                  </button>
+                </span>
+              ) : (
+                <button onClick={() => { setPriceInput(''); setPriceEditing(true); }}
+                  style={{ background: 'none', border: `1.5px dashed ${COLORS.outlineVariant}`, borderRadius: 8, padding: '4px 10px', fontSize: 12, fontWeight: 600, color: COLORS.primary, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Set price
+                </button>
+              )}
+            </div>
             <div style={styles.detailRow}>
               <span style={styles.detailLabel}>Status</span>
               <span style={{ ...styles.statusBadge, background: getStatusColor(appointment.status) + '20', color: getStatusColor(appointment.status) }}>{appointment.status?.replace(/_/g, ' ')}</span>
@@ -985,14 +1069,28 @@ const styles = {
   // Open Slot Cards
   openSlotCard: { position: 'absolute', left: 4, right: 4, borderRadius: 16, border: `2px dashed ${COLORS.outlineVariant}80`, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 'calc(100% - 8px)' },
   openSlotText: { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.stone400 },
-  // Week Body
-  weekBody: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, background: '#fff', borderRadius: 16, padding: 8, boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)' },
-  weekDayColumn: { display: 'flex', flexDirection: 'column', gap: 3, minHeight: 80 },
-  weekApptChip: { padding: '5px 6px', borderRadius: 8, borderLeft: '3px solid', display: 'flex', flexDirection: 'column', gap: 1, cursor: 'pointer', border: 'none', textAlign: 'left', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' },
-  weekApptTime: { fontSize: 9, fontWeight: 700, color: COLORS.stone400, lineHeight: 1 },
-  weekApptName: { fontSize: 10, color: COLORS.onSurface, fontWeight: 600, lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  weekEmpty: { height: 40, borderRadius: 8, background: COLORS.surfaceContainerLow },
-  weekEmptyState: { textAlign: 'center', padding: '48px 16px', color: COLORS.stone400, fontSize: 14, background: '#fff', borderRadius: 16, boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)' },
+  // Week View — agenda by day
+  weekAgenda: { display: 'flex', flexDirection: 'column', gap: 12 },
+  weekDaySection: { background: '#fff', borderRadius: 16, boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)', overflow: 'hidden' },
+  weekDaySectionToday: { boxShadow: `0 0 0 1.5px ${COLORS.primary}, 0 10px 30px rgba(146, 64, 94, 0.10)` },
+  weekDayHead: { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' },
+  weekDayHeadLeft: { display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 },
+  weekDayDow: { fontSize: 15, fontWeight: 700 },
+  weekDayDate: { fontSize: 12, fontWeight: 500, color: COLORS.stone400 },
+  weekTodayTag: { fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#fff', background: COLORS.primary, padding: '2px 6px', borderRadius: 5 },
+  weekDayStats: { display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 },
+  weekDayCount: { fontSize: 12, fontWeight: 600, color: COLORS.onSurface },
+  weekDayMoney: { fontSize: 12, fontWeight: 700, color: COLORS.primary },
+  weekDayHours: { fontSize: 11, fontWeight: 600, color: COLORS.stone400 },
+  weekDayQuiet: { fontSize: 12, fontWeight: 500, color: COLORS.stone400, flexShrink: 0 },
+  weekDayRows: { borderTop: `1px solid ${COLORS.outlineVariant}33`, padding: '4px 0' },
+  weekRow: { width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' },
+  weekRowTime: { fontSize: 12, fontWeight: 700, color: COLORS.onSurface, width: 42, flexShrink: 0, fontVariantNumeric: 'tabular-nums' },
+  weekRowDot: { width: 8, height: 8, borderRadius: '50%', flexShrink: 0 },
+  weekRowBody: { display: 'flex', flexDirection: 'column', gap: 1, flex: 1, minWidth: 0 },
+  weekRowName: { fontSize: 13, fontWeight: 600, color: COLORS.onSurface, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  weekRowTreatment: { fontSize: 11, color: COLORS.stone400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  weekRowPrice: { fontSize: 12, fontWeight: 700, color: COLORS.onSurface, flexShrink: 0 },
   // Floating Insights Pill
   insightsPillIcon: { fontSize: 14 },
   insightsPillText: { fontSize: 12, fontWeight: 600 },
