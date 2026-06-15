@@ -121,10 +121,21 @@ export async function sendSMS({ to, body, beauticianId, originator, messageType 
     if (b?.sms_originator && uuidRe.test(b.sms_originator)) channelId = b.sms_originator;
   }
 
+  // Validate the number before we bother Bird. A malformed/empty/landline value
+  // is the usual cause of Bird's "one or more fields are invalid" 422, and the
+  // comeback/nudge engines run over hundreds of clients, some with junk numbers.
+  // Skip cleanly (and tell the beautician) instead of throwing a cryptic error.
+  const e164 = toE164(to);
+  if (!/^\+[1-9]\d{9,14}$/.test(e164)) {
+    logger.warn({ beauticianId, last4: String(to || '').replace(/\D/g, '').slice(-4) }, 'SMS skipped: number is not a valid mobile');
+    await logSendFailure({ beauticianId, to, channel: 'text message', detail: "that number doesn't look like a valid mobile" });
+    return null;
+  }
+
   const url = `${BIRD_API_BASE}/workspaces/${BIRD_WORKSPACE_ID}/channels/${channelId}/messages`;
   const payload = {
     receiver: {
-      contacts: [{ identifierKey: 'phonenumber', identifierValue: toE164(to) }],
+      contacts: [{ identifierKey: 'phonenumber', identifierValue: e164 }],
     },
     body: {
       type: 'text',
@@ -150,7 +161,13 @@ export async function sendSMS({ to, body, beauticianId, originator, messageType 
       let data = {};
       try { data = text ? JSON.parse(text) : {}; } catch { data = { raw: text }; }
       if (!res.ok) {
-        const desc = data?.message || data?.errors?.[0]?.description || data?.raw || `HTTP ${res.status}`;
+        // Bird's useful detail lives in errors[].{parameter,description}; the
+        // top-level message is just "one or more fields are invalid". Surface the
+        // field(s) so a failure actually tells us what to fix.
+        const fieldErrs = Array.isArray(data?.errors)
+          ? data.errors.map(e => [e.parameter || e.key, e.description || e.message].filter(Boolean).join(' ')).filter(Boolean).join('; ')
+          : '';
+        const desc = fieldErrs || data?.message || data?.errors?.[0]?.description || data?.raw || `HTTP ${res.status}`;
         throw new Error(`Bird ${res.status}: ${desc}`);
       }
       logger.info({ to, channelId, id: data?.id }, 'SMS sent via Bird');
