@@ -716,7 +716,7 @@ router.post('/webhook', async (req, res) => {
     return res.status(400).json({ error: 'Invalid signature' });
   }
 
-  // Idempotency — use UPSERT for atomic duplicate detection
+  // Idempotency — use the unique event id to detect duplicates.
   try {
     const { error: insertError } = await supabase
       .from('stripe_events')
@@ -727,14 +727,15 @@ router.post('/webhook', async (req, res) => {
       return res.json({ received: true, status: 'already_processed' });
     }
     if (insertError) {
-      throw insertError;
+      // A hiccup on the dedupe/logging table must NOT fail the webhook: returning
+      // non-2xx here makes Stripe retry forever and flag the endpoint as broken
+      // (which is exactly the "trouble sending requests" email). The signature is
+      // already verified, so process the event best-effort and let any genuine
+      // duplicate be caught by the per-record guards downstream.
+      logger.error({ err: insertError, eventId: event.id }, 'Could not record stripe event, processing anyway');
     }
   } catch (err) {
-    if (err.code !== '23505') {
-      logger.error({ err }, 'Failed to record stripe event');
-      throw err;
-    }
-    return res.json({ received: true, status: 'already_processed' });
+    logger.error({ err, eventId: event.id }, 'stripe_events insert threw, processing anyway');
   }
 
   try {
@@ -988,8 +989,12 @@ router.post('/webhook', async (req, res) => {
 
     res.json({ received: true });
   } catch (err) {
-    logger.error({ err }, 'Webhook processing error');
-    res.status(500).json({ error: 'Webhook processing failed' });
+    // The event row was already inserted above, so a Stripe retry would just hit
+    // the duplicate guard and skip reprocessing — a 500 here wouldn't recover the
+    // event, it would only get the endpoint flagged as failing. Acknowledge so
+    // Stripe stops retrying, and log loudly so we can reconcile from the event row.
+    logger.error({ err, eventId: event.id, type: event.type }, 'Webhook processing error (acknowledged, needs reconcile)');
+    res.json({ received: true, processed: false });
   }
 });
 
