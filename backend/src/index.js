@@ -298,10 +298,11 @@ app.listen(PORT, () => {
     }
   }, REMINDER_INTERVAL);
 
-  // Also run once on startup (catches any missed during deploys)
-  processReminders().then(r => {
-    if (r?.sent > 0) logger.info({ sent: r.sent }, 'Startup: sent reminders');
-  }).catch(() => {});
+  // NOTE: deliberately NOT running processReminders() on startup. It used to run
+  // on every boot "to catch missed reminders", but combined with frequent deploys
+  // that re-sent the same 24h reminder repeatedly. The hourly interval (plus the
+  // per-appointment idempotency guard in notifyReminder24h) covers everything
+  // within an hour, which is fine for a reminder sent a day ahead.
 
   // Auto-cancel unpaid deposit bookings after 15 minutes
   const CLEANUP_INTERVAL = 5 * 60 * 1000; // check every 5 minutes

@@ -1025,6 +1025,31 @@ export async function notifyReminder24h(appointmentId) {
   const prefs = biz?.client_reminder_prefs || {};
   // Master pause — when on, nothing automated goes out on the beautician's behalf.
   if (prefs.paused) return;
+
+  // Idempotency: one reminder per appointment, ever. The reminder job runs hourly
+  // AND on every startup, with a 1-hour window and no guard — so each deploy re-ran
+  // it and the same client got the reminder several times. Claim the appointment
+  // with an ai_actions marker before sending; overlapping/duplicate runs then skip.
+  const { count: alreadyReminded } = await supabase
+    .from('ai_actions')
+    .select('id', { count: 'exact', head: true })
+    .eq('appointment_id', appointmentId)
+    .eq('action_type', 'appointment_reminder');
+  if (alreadyReminded && alreadyReminded > 0) return;
+  try {
+    await supabase.from('ai_actions').insert({
+      beautician_id: appt.beautician_id,
+      action_type: 'appointment_reminder',
+      digital_employee: 'calendar',
+      outcome: 'success',
+      summary: `Sent ${appt.clients?.first_name || 'the client'}'s 24-hour reminder`,
+      client_id: appt.client_id,
+      appointment_id: appointmentId,
+    });
+  } catch (err) {
+    logger.warn({ err, appointmentId }, 'Could not record reminder marker (continuing)');
+  }
+
   const bizName = biz?.business_name || biz?.first_name;
   const timeStr = new Date(appt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   const dateStr = new Date(appt.starts_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
