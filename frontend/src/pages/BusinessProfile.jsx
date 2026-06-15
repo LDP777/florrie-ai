@@ -48,6 +48,7 @@ export default function BusinessProfile() {
   const [logoPreview, setLogoPreview] = useState(null);
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoError, setLogoError] = useState(null);
+  const [emailSignOff, setEmailSignOff] = useState('');
   const logoInputRef = useRef(null);
 
   // Socials
@@ -68,6 +69,7 @@ export default function BusinessProfile() {
     setAddress(beautician.address || '');
     setBrandColor(beautician.brand_color || '#C4A882');
     setLogoPreview(beautician.logo_url || null);
+    setEmailSignOff(beautician.client_reminder_prefs?.email_sign_off || '');
     const sp = beautician.social_links || {};
     setSocials({ instagram: sp.instagram || '', tiktok: sp.tiktok || '', facebook: sp.facebook || '', website: sp.website || '' });
   }, [beautician]);
@@ -99,7 +101,7 @@ export default function BusinessProfile() {
       await refresh();
     } catch (err) {
       logger.error('Logo upload error:', err);
-      setLogoError('Upload failed — please try again');
+      setLogoError('Upload failed, please try again');
     } finally {
       setLogoUploading(false);
     }
@@ -117,6 +119,7 @@ export default function BusinessProfile() {
         brand_color: brandColor,
         logo_url: logoPreview,
         social_links: socials,
+        client_reminder_prefs: { ...(beautician.client_reminder_prefs || {}), email_sign_off: emailSignOff.trim() || null },
       });
       await refresh();
       setSaved(true);
@@ -221,7 +224,7 @@ export default function BusinessProfile() {
 
           <div style={s.card}>
             <span style={s.cardLabel}>Logo</span>
-            <span style={s.cardDesc}>Appears on your booking page and receipts</span>
+            <span style={s.cardDesc}>Shown on your booking page and at the top of client emails</span>
             <div style={s.logoUpload}>
               <div style={s.logoPlaceholder}>
                 {logoPreview ? (
@@ -249,13 +252,31 @@ export default function BusinessProfile() {
             </div>
           </div>
 
+          <div style={s.card}>
+            <span style={s.cardLabel}>Email sign-off</span>
+            <span style={s.cardDesc}>The closing line on confirmations and reminders. Leave blank to skip.</span>
+            <input
+              type="text"
+              value={emailSignOff}
+              onChange={e => setEmailSignOff(e.target.value)}
+              placeholder="With love, Ellie x"
+              maxLength={120}
+              style={s.signOffInput}
+            />
+          </div>
+
           {/* Live preview */}
           <div style={s.card}>
-            <span style={s.cardLabel}>Preview</span>
+            <span style={s.cardLabel}>Email preview</span>
             <div style={s.brandPreview}>
-              <div style={{ ...s.previewBar, background: brandColor }} />
+              <div style={{ ...s.previewBar, background: brandColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {logoPreview
+                  ? <img src={logoPreview} alt="" style={{ width: 28, height: 28, borderRadius: 7, objectFit: 'cover' }} />
+                  : <span style={{ color: '#fff', fontWeight: 700, fontSize: 13 }}>{businessName || 'Your Business'}</span>}
+              </div>
               <div style={s.previewContent}>
                 <span style={{ ...s.previewName, color: brandColor }}>{businessName}</span>
+                {emailSignOff && <span style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)', fontStyle: 'italic' }}>{emailSignOff}</span>}
                 <div style={{ ...s.previewButton, background: brandColor }}>Book Now</div>
               </div>
             </div>
@@ -539,6 +560,19 @@ const s = {
   uploadHint: {
     fontSize: 11,
     color: 'var(--text-muted, #AAA5A0)',
+  },
+  signOffInput: {
+    width: '100%',
+    marginTop: 10,
+    padding: '11px 13px',
+    borderRadius: 10,
+    border: '1.5px solid var(--border, #F0ECE8)',
+    fontSize: 14,
+    fontFamily: 'inherit',
+    outline: 'none',
+    boxSizing: 'border-box',
+    color: 'var(--text-primary, #2D2A26)',
+    background: 'var(--bg-input, #FAFAFA)',
   },
   brandPreview: {
     borderRadius: 10,

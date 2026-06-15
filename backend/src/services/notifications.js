@@ -853,8 +853,13 @@ async function logComms(beauticianId, clientId, channel, direction, content) {
   }
 }
 
-function emailTemplate({ bizName, brandColor, tagline, content }) {
+function emailTemplate({ bizName, brandColor, tagline, content, logoUrl, signOff }) {
   const color = brandColor || '#C4A882';
+  // Header: the beautician's own logo when she's uploaded one, otherwise the
+  // flower mark. Either way the brand colour is the backdrop and her name shows.
+  const header = logoUrl
+    ? `<img src="${logoUrl}" alt="${bizName}" width="60" height="60" style="display:block;margin:0 auto 8px;border-radius:14px;object-fit:cover;background:#ffffff" />`
+    : `<div style="font-size:24px;line-height:1;margin-bottom:6px">&#127800;</div>`;
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -863,14 +868,15 @@ function emailTemplate({ bizName, brandColor, tagline, content }) {
 <tr><td align="center">
 <table width="100%" cellpadding="0" cellspacing="0" style="max-width:480px;background:#fbf7f4;border-radius:16px;overflow:hidden;box-shadow:0 6px 24px rgba(120,90,60,0.12)">
   <tr><td style="background:${color};padding:30px 32px 26px;text-align:center">
-    <div style="font-size:24px;line-height:1;margin-bottom:6px">&#127800;</div>
+    ${header}
     <div style="font-family:Georgia,'Times New Roman',serif;font-size:24px;font-weight:700;color:#ffffff;letter-spacing:0.3px">${bizName}</div>
     ${tagline ? `<div style="font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,255,255,0.85);margin-top:5px">${tagline}</div>` : ''}
   </td></tr>
   <tr><td style="padding:0">${content}</td></tr>
   <tr><td style="background:#f4eee4;padding:18px 32px;text-align:center">
+    ${signOff ? `<div style="font-size:14px;color:#6b6560;font-style:italic;margin-bottom:8px">${signOff}</div>` : ''}
     <div style="font-size:12px;color:#8a7a5e;font-weight:600">${bizName}</div>
-    <div style="font-size:11px;color:#b3a890;margin-top:4px">Booked with Florrie</div>
+    <div style="font-size:10px;color:#cabfae;margin-top:6px">Powered by Florrie</div>
   </td></tr>
 </table>
 </td></tr>
@@ -886,7 +892,7 @@ function emailTemplate({ bizName, brandColor, tagline, content }) {
 export async function notifyBookingConfirmed(appointmentId) {
   const { data: appt } = await supabase
     .from('appointments')
-    .select('*, clients(first_name, phone, email), treatments(name, duration_minutes), beauticians(business_name, first_name, client_reminder_prefs, brand_color, booking_slug, tagline)')
+    .select('*, clients(first_name, phone, email), treatments(name, duration_minutes), beauticians(business_name, first_name, client_reminder_prefs, brand_color, booking_slug, tagline, logo_url)')
     .eq('id', appointmentId)
     .single();
 
@@ -939,6 +945,8 @@ export async function notifyBookingConfirmed(appointmentId) {
       bizName,
       brandColor: accent,
       tagline: biz.tagline,
+      logoUrl: biz.logo_url,
+      signOff: prefs.email_sign_off,
       content: `
         <div style="padding:30px 32px 4px;text-align:center">
           <div style="font-size:30px;line-height:1;margin-bottom:10px">&#9989;</div>
@@ -988,7 +996,7 @@ export async function notifyBookingConfirmed(appointmentId) {
 export async function notifyReminder24h(appointmentId) {
   const { data: appt } = await supabase
     .from('appointments')
-    .select('*, clients(first_name, phone, email), treatments(name, duration_minutes), beauticians(business_name, first_name, client_reminder_prefs, brand_color)')
+    .select('*, clients(first_name, phone, email), treatments(name, duration_minutes), beauticians(business_name, first_name, client_reminder_prefs, brand_color, logo_url, tagline)')
     .eq('id', appointmentId)
     .single();
 
@@ -1025,6 +1033,9 @@ export async function notifyReminder24h(appointmentId) {
     const html = emailTemplate({
       bizName,
       brandColor: biz.brand_color,
+      tagline: biz.tagline,
+      logoUrl: biz.logo_url,
+      signOff: prefs.email_sign_off,
       content: `
         <h2 style="margin:0 0 8px;color:#2d2a26;font-size:18px;font-weight:600">Appointment Tomorrow</h2>
         <p style="margin:0 0 20px;color:#6b6560;font-size:14px">Hi ${client.first_name}, just a quick reminder about your appointment.</p>
