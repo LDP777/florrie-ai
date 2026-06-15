@@ -307,24 +307,39 @@ const TEMPLATE_LABELS = {
   rebook_nudge: 'Rebook invite',
   generic_message: null, // params[1] IS the message
 };
-async function logOutboundToThread({ beauticianId, to, channel, templateName, templateParams, body }) {
+async function logOutboundToThread({ beauticianId, to, clientId, channel, templateName, templateParams, body }) {
   try {
     if (!beauticianId) return;
-    const client = await findClientByPhone(beauticianId, to);
-    if (!client) return;
+    // The email/SMS callers can hand us the client id directly; otherwise match on phone.
+    let resolvedClientId = clientId || null;
+    if (!resolvedClientId) {
+      const client = await findClientByPhone(beauticianId, to);
+      if (!client) return;
+      resolvedClientId = client.id;
+    }
     let content = body;
     if (!content && templateName) {
       const base = String(templateName).replace(/_v\d+$/, '');
-      const label = TEMPLATE_LABELS[base];
       const params = (templateParams || []).map(String);
-      if (label === null && params[1]) content = params[1];
-      else if (label) content = `${label}${params.length > 1 ? ` · ${params.slice(1).join(' · ')}` : ''}`;
-      else content = `Automated message (${base.replace(/_/g, ' ')})`;
+      // Prefer the REAL message the client received (same copy as the Twilio
+      // free-form fallback), so the thread reads like a conversation rather than
+      // a terse "Reminder · Korean lash lift · 12:20" system stub.
+      const builder = TWILIO_FALLBACK_BODIES[base];
+      if (builder) {
+        const { data: biz } = await supabase
+          .from('beauticians').select('business_name, first_name').eq('id', beauticianId).single();
+        content = builder(params, biz?.business_name || biz?.first_name || 'us');
+      } else {
+        const label = TEMPLATE_LABELS[base];
+        if (label === null && params[1]) content = params[1];
+        else if (label) content = `${label}${params.length > 1 ? ` · ${params.slice(1).join(' · ')}` : ''}`;
+        else content = `Automated message (${base.replace(/_/g, ' ')})`;
+      }
     }
     if (!content) return;
     await supabase.from('messages').insert({
       beautician_id: beauticianId,
-      client_id: client.id,
+      client_id: resolvedClientId,
       direction: 'outbound',
       channel,
       content,
@@ -721,6 +736,8 @@ function inWhatsAppSession(client) {
  * @param {object} [opts.beauticianPrefs]
  */
 export async function sendNudge({ client, body, templateName, templateParams, beauticianId, beauticianPrefs = {} }) {
+  // Master pause — no proactive outbound goes out on the beautician's behalf.
+  if (beauticianPrefs?.paused) return { skipped: 'paused' };
   // Path 1: active WhatsApp session — send free-form, it'll land immediately
   if (client?.whatsapp_id && (WA_TOKEN || twilioConfigured()) && beauticianPrefs?.whatsapp_connected && inWhatsAppSession(client)) {
     const result = await sendWhatsAppText({ to: client.whatsapp_id, body, beauticianId });
@@ -879,6 +896,8 @@ export async function notifyBookingConfirmed(appointmentId) {
   const treatment = appt.treatments;
   const biz = appt.beauticians;
   const prefs = biz?.client_reminder_prefs || {};
+  // Master pause — when on, nothing automated goes out on the beautician's behalf.
+  if (prefs.paused) return;
   const bizName = biz?.business_name || biz?.first_name;
   const dateStr = new Date(appt.starts_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
   const timeStr = new Date(appt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
@@ -958,6 +977,7 @@ export async function notifyBookingConfirmed(appointmentId) {
       text: textMsg,
       html,
     });
+    logOutboundToThread({ beauticianId: appt.beautician_id, clientId: appt.client_id, channel: 'email', body: textMsg });
   }
 }
 
@@ -978,11 +998,13 @@ export async function notifyReminder24h(appointmentId) {
   const treatment = appt.treatments;
   const biz = appt.beauticians;
   const prefs = biz?.client_reminder_prefs || {};
+  // Master pause — when on, nothing automated goes out on the beautician's behalf.
+  if (prefs.paused) return;
   const bizName = biz?.business_name || biz?.first_name;
   const timeStr = new Date(appt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   const dateStr = new Date(appt.starts_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
 
-  const textMsg = `Reminder: ${client.first_name}, your ${treatment.name} with ${bizName} is tomorrow at ${timeStr}. See you then!`;
+  const textMsg = `Hi ${client.first_name}, just a reminder your ${treatment.name} with ${bizName} is tomorrow at ${timeStr}. Reply here if you need to change anything. See you then!`;
 
   // SMS/WhatsApp — only if opted in
   if (prefs.reminder_24h !== false) {
@@ -1026,6 +1048,9 @@ export async function notifyReminder24h(appointmentId) {
       text: textMsg,
       html,
     });
+    // Show the emailed reminder in the client's thread too, so the beautician
+    // can see exactly what went out (email sends were previously invisible here).
+    logOutboundToThread({ beauticianId: appt.beautician_id, clientId: appt.client_id, channel: 'email', body: textMsg });
   }
 }
 

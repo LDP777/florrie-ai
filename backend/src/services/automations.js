@@ -21,6 +21,11 @@ import { shouldAutoSend } from './sms-metering.js';
 // shouldAutoSend() is checked before any AI-initiated SMS to respect autopilot credit rules.
 async function sendOnChannel({ beautician, client, body, beauticianId, messageType = 'general' }) {
   const prefs = beautician.client_reminder_prefs || {};
+  // Master pause — halt every automated send (gap offers, rebook nudges, aftercare…).
+  if (prefs.paused) {
+    logger.info({ beauticianId, messageType }, 'Automated send skipped — messages paused');
+    return [];
+  }
   const channel = prefs.channel || 'sms';
   const bizName = beautician.business_name || beautician.first_name;
 

@@ -884,6 +884,36 @@ export default function Settings({ onLogout }) {
           <div style={styles.card}>
             <h3 style={styles.cardTitle}>Client reminders</h3>
             <p style={styles.cardDesc}>What your clients receive automatically.</p>
+
+            {/* Master pause — one switch to stop everything going out on her behalf. */}
+            {(() => {
+              const paused = beautician.client_reminder_prefs?.paused === true;
+              return (
+                <div style={{ ...styles.pauseRow, ...(paused ? styles.pauseRowOn : {}) }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={styles.pauseTitle}>
+                      {paused ? 'Messages paused' : 'Messages on'}
+                    </div>
+                    <div style={styles.pauseDesc}>
+                      {paused
+                        ? 'Nothing is being sent to clients right now. Turn back on when you’re ready.'
+                        : 'Pause every automatic message to clients in one tap.'}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const rp = { ...(beautician.client_reminder_prefs || {}), paused: !paused };
+                      saveProfile({ client_reminder_prefs: rp });
+                    }}
+                    style={{ ...styles.toggle, background: paused ? '#D4605C' : 'var(--accent)', width: 44, height: 24 }}
+                    aria-label={paused ? 'Resume client messages' : 'Pause client messages'}
+                  >
+                    <div style={{ ...styles.toggleDot, transform: paused ? 'translateX(20px)' : 'translateX(2px)' }} />
+                  </button>
+                </div>
+              );
+            })()}
+
             <ClientReminderRow
               label="Booking confirmation"
               enabled={beautician.client_reminder_prefs?.booking_confirmation !== false}
@@ -1649,6 +1679,10 @@ const styles = {
   card: { background: 'var(--bg-card)', borderRadius: 14, padding: 16, marginBottom: 12, boxShadow: 'var(--shadow-sm)' },
   cardTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 6px', color: 'var(--text-primary)' },
   cardDesc: { fontSize: 13, color: 'var(--text-muted)', margin: '0 0 16px', lineHeight: 1.5 },
+  pauseRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', marginBottom: 14, borderRadius: 12, background: 'var(--accent-light)', border: '1px solid transparent' },
+  pauseRowOn: { background: 'rgba(212,96,92,0.10)', border: '1px solid rgba(212,96,92,0.30)' },
+  pauseTitle: { fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' },
+  pauseDesc: { fontSize: 12, color: 'var(--text-muted)', marginTop: 2, lineHeight: 1.4 },
   fieldRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border-light)' },
   fieldLabel: { fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 },
   fieldValue: { fontSize: 13, color: 'var(--text-primary)', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right', padding: 0 },
