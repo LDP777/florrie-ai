@@ -83,8 +83,8 @@ router.post('/', async (req, res) => {
       logger.warn({ err }, 'Instagram webhook: signature error');
       return res.status(403).json({ error: 'Signature verification failed' });
     }
-  } else if (process.env.NODE_ENV === 'production') {
-    logger.error('Instagram webhook: INSTAGRAM_APP_SECRET not configured; rejecting unsigned payload in production');
+  } else if (process.env.WEBHOOK_STRICT === 'true') {
+    logger.error('Instagram webhook: INSTAGRAM_APP_SECRET not configured; rejecting unsigned payload (WEBHOOK_STRICT)');
     return res.status(503).json({ error: 'Webhook not configured' });
   }
 

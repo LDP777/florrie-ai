@@ -138,15 +138,16 @@ router.post('/whatsapp', async (req, res) => {
       recordWebhookHit({ ...hitBase, result: '403_signature_error', error: err.message });
       return res.status(403).json({ error: 'Signature verification failed' });
     }
-  } else if (process.env.NODE_ENV === 'production') {
-    // Fail closed in production: without the app secret we cannot verify the
-    // sender, so an unsigned payload could spoof client messages and drive
-    // outbound sends. Reject rather than process.
-    logger.error('WhatsApp webhook: WHATSAPP_APP_SECRET not configured; rejecting unsigned payload in production');
+  } else if (process.env.WEBHOOK_STRICT === 'true') {
+    // Fail closed: without the app secret we cannot verify the sender, so an
+    // unsigned payload could spoof client messages and drive outbound sends.
+    // Opt-in via WEBHOOK_STRICT=true so enabling it can't accidentally break a
+    // live tenant whose secret isn't set yet. Turn it on once the secret is in.
+    logger.error('WhatsApp webhook: WHATSAPP_APP_SECRET not configured; rejecting unsigned payload (WEBHOOK_STRICT)');
     recordWebhookHit({ ...hitBase, result: '503_no_secret' });
     return res.status(503).json({ error: 'Webhook not configured' });
   } else {
-    logger.debug('WHATSAPP_APP_SECRET not set, skipping signature verification (non-production)');
+    logger.warn('WHATSAPP_APP_SECRET not set; processing unsigned (set the secret + WEBHOOK_STRICT=true to fail closed)');
   }
 
   recordWebhookHit({ ...hitBase, result: '200_accepted' });
@@ -330,11 +331,11 @@ router.post('/twilio-sms', async (req, res) => {
       logger.warn({ err }, 'Twilio SMS webhook: signature verification error');
       return res.status(403).json({ error: 'Signature verification failed' });
     }
-  } else if (process.env.NODE_ENV === 'production') {
-    logger.error('Twilio SMS webhook: TWILIO_AUTH_TOKEN not configured; rejecting unsigned payload in production');
+  } else if (process.env.WEBHOOK_STRICT === 'true') {
+    logger.error('Twilio SMS webhook: TWILIO_AUTH_TOKEN not configured; rejecting unsigned payload (WEBHOOK_STRICT)');
     return res.status(503).json({ error: 'Webhook not configured' });
   } else {
-    logger.debug('TWILIO_AUTH_TOKEN not set, skipping signature verification (non-production)');
+    logger.warn('TWILIO_AUTH_TOKEN not set; processing unsigned (set the token + WEBHOOK_STRICT=true to fail closed)');
   }
 
   // Signature verified or skipped — return TwiML response (empty — AI handles replies via outbound SMS)
@@ -531,13 +532,14 @@ router.post('/bird-sms', async (req, res) => {
       logger.warn('Bird SMS webhook: invalid or missing token');
       return res.status(403).json({ error: 'Forbidden' });
     }
-  } else if (process.env.NODE_ENV === 'production') {
-    // Fail closed: an unauthenticated inbound endpoint in prod would let anyone
-    // inject fake client SMS. Refuse to serve until the token is configured.
-    logger.error('Bird SMS webhook: BIRD_WEBHOOK_TOKEN not set in production, refusing request');
+  } else if (process.env.WEBHOOK_STRICT === 'true') {
+    // Fail closed: an unauthenticated inbound endpoint would let anyone inject
+    // fake client SMS. Opt-in via WEBHOOK_STRICT=true so it can't break a live
+    // tenant before the token is set; turn it on once BIRD_WEBHOOK_TOKEN is in.
+    logger.error('Bird SMS webhook: BIRD_WEBHOOK_TOKEN not set, refusing request (WEBHOOK_STRICT)');
     return res.status(503).json({ error: 'Webhook auth not configured' });
   } else {
-    logger.debug('BIRD_WEBHOOK_TOKEN not set, skipping auth check (non-production)');
+    logger.warn('BIRD_WEBHOOK_TOKEN not set; processing unauthenticated (set the token + WEBHOOK_STRICT=true to fail closed)');
   }
 
   // ACK early — Bird retries on non-2xx
