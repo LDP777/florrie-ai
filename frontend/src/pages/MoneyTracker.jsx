@@ -532,7 +532,7 @@ export default function MoneyTracker() {
     const weekStart = startOfWeek(new Date());
     const weekTx = transactions.filter(t => new Date(t.created_at) >= weekStart);
     return {
-      treatments: weekTx.filter(t => t.type === 'payment' || t.type === 'deposit' || t.type === 'no_show_fee').reduce((s, t) => s + (t.amount_cents || 0), 0),
+      treatments: weekTx.filter(t => ['service', 'payment', 'payment_link', 'deposit', 'no_show_fee', 'late_cancel_fee'].includes(t.type)).reduce((s, t) => s + (t.amount_cents || 0), 0),
       products: weekTx.filter(t => t.type === 'product_sale').reduce((s, t) => s + (t.amount_cents || 0), 0),
       tips: weekTx.filter(t => t.type === 'tip').reduce((s, t) => s + (t.amount_cents || 0), 0),
     };
@@ -573,6 +573,11 @@ export default function MoneyTracker() {
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.85 }}>Revenue today</div>
           <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1, marginTop: 2 }}>{fmt(Math.round(animatedToday))}</div>
+          {todayRevenue === 0 && (
+            <div style={{ fontSize: 11.5, opacity: 0.85, marginTop: 4, maxWidth: 220 }}>
+              Tap a client and Mark complete to log their takings here.
+            </div>
+          )}
         </div>
         {pulse && (
           <div style={{ textAlign: 'right', opacity: 0.92 }}>
