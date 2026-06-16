@@ -216,14 +216,30 @@ router.post('/webhook', async (req, res) => {
     if (endpointSecret && sig) {
       event = stripe.webhooks.constructEvent(req.rawBody || req.body, sig, endpointSecret);
     } else if (endpointSecret) {
-      // Reject if secret is configured but no signature provided
-      return res.status(503).json({ error: 'Webhook signature verification failed' });
+      // Secret configured but no signature: this is not a genuine Stripe call.
+      // Return 400 (not 5xx) so Stripe does not flag/disable the endpoint.
+      return res.status(400).json({ error: 'Missing Stripe signature' });
     } else {
       event = req.body;
     }
   } catch (err) {
     logger.error({ err }, 'Webhook signature verification failed');
     return res.status(400).json({ error: 'Webhook signature invalid' });
+  }
+
+  // Idempotency: dedupe via the shared stripe_events table (same as
+  // /api/stripe/webhook). If both webhook URLs are configured in Stripe, the
+  // first to record the event id wins and the second skips, so a subscription
+  // event is never processed twice.
+  try {
+    const { error: insErr } = await supabase
+      .from('stripe_events')
+      .insert({ id: event.id, type: event.type, processed_at: new Date().toISOString() });
+    if (insErr && insErr.code === '23505') {
+      return res.json({ received: true, duplicate: true });
+    }
+  } catch (err) {
+    logger.error({ err, eventId: event.id }, 'billing webhook: stripe_events insert threw, processing anyway');
   }
 
   try {

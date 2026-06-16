@@ -1122,6 +1122,19 @@ export default function BookingPage() {
                       style={{ ...styles.input, minHeight: 80, resize: 'vertical' }}
                     />
                   )}
+                  {/* Signature: typing your full name acts as the e-signature */}
+                  {q.type === 'signature' && (
+                    <div>
+                      <input
+                        type="text"
+                        value={consultationAnswers[q.key] || ''}
+                        onChange={e => setConsultationAnswers(p => ({ ...p, [q.key]: e.target.value }))}
+                        placeholder="Type your full name to sign"
+                        style={{ ...styles.input, fontFamily: "'Brush Script MT', 'Segoe Script', cursive", fontSize: 18 }}
+                      />
+                      <p style={{ fontSize: 11, color: '#999', margin: '4px 0 0' }}>Typing your name here counts as your signature.</p>
+                    </div>
+                  )}
                   {/* Default: text input */}
                   {(q.type === 'text' || (!['yes_no', 'single_select', 'multi_select', 'checkbox', 'text_block', 'signature'].includes(q.type))) && (
                     <input

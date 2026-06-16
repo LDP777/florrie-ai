@@ -126,8 +126,15 @@ router.post('/whatsapp', async (req, res) => {
       recordWebhookHit({ ...hitBase, result: '403_signature_error', error: err.message });
       return res.status(403).json({ error: 'Signature verification failed' });
     }
+  } else if (process.env.NODE_ENV === 'production') {
+    // Fail closed in production: without the app secret we cannot verify the
+    // sender, so an unsigned payload could spoof client messages and drive
+    // outbound sends. Reject rather than process.
+    logger.error('WhatsApp webhook: WHATSAPP_APP_SECRET not configured; rejecting unsigned payload in production');
+    recordWebhookHit({ ...hitBase, result: '503_no_secret' });
+    return res.status(503).json({ error: 'Webhook not configured' });
   } else {
-    logger.debug('WHATSAPP_APP_SECRET not set, skipping signature verification');
+    logger.debug('WHATSAPP_APP_SECRET not set, skipping signature verification (non-production)');
   }
 
   recordWebhookHit({ ...hitBase, result: '200_accepted' });
@@ -311,8 +318,11 @@ router.post('/twilio-sms', async (req, res) => {
       logger.warn({ err }, 'Twilio SMS webhook: signature verification error');
       return res.status(403).json({ error: 'Signature verification failed' });
     }
+  } else if (process.env.NODE_ENV === 'production') {
+    logger.error('Twilio SMS webhook: TWILIO_AUTH_TOKEN not configured; rejecting unsigned payload in production');
+    return res.status(503).json({ error: 'Webhook not configured' });
   } else {
-    logger.debug('TWILIO_AUTH_TOKEN not set, skipping signature verification');
+    logger.debug('TWILIO_AUTH_TOKEN not set, skipping signature verification (non-production)');
   }
 
   // Signature verified or skipped — return TwiML response (empty — AI handles replies via outbound SMS)

@@ -116,50 +116,70 @@ export async function checkWhatsAppQuota(beauticianId) {
 }
 
 /**
- * Record a sent WhatsApp message. Call AFTER a successful send.
+ * Atomically increment the monthly combined-quota row for one channel.
  *
- * Returns the updated usage row.
+ * Preferred path is the Postgres function increment_message_usage (migration
+ * 064), which does the +1 and overage maths in a single atomic UPDATE so
+ * concurrent sends never lose a count. If that function is not present yet
+ * (migration not applied), we fall back to the old non-atomic read-modify-write
+ * so sends keep being metered.
+ */
+async function incrementMonthlyUsage(beauticianId, channel) {
+  const { data: b } = await supabase
+    .from('beauticians')
+    .select('subscription_plan')
+    .eq('id', beauticianId)
+    .single();
+  const tier = getTier(b?.subscription_plan);
+  const freeLimit = tier.messages_per_month || 120;
+  const month = getMonthStart();
+
+  // Atomic path.
+  const { data, error } = await supabase.rpc('increment_message_usage', {
+    p_beautician_id: beauticianId,
+    p_month: month,
+    p_free_limit: freeLimit,
+    p_channel: channel,
+    p_overage_pence: OVERAGE_PENCE,
+  });
+  if (!error && data) {
+    return Array.isArray(data) ? data[0] : data;
+  }
+  if (error) {
+    logger.warn({ err: error, beauticianId }, 'increment_message_usage RPC unavailable; using non-atomic fallback');
+  }
+
+  // Fallback: non-atomic read-modify-write (used only until migration 064 lands).
+  const usage = await getOrCreateUsageRow(beauticianId, month, freeLimit);
+  const totalUsed = usage.sms_sent + usage.whatsapp_sent;
+  const isOverage = totalUsed >= freeLimit;
+  const field = channel === 'whatsapp' ? 'whatsapp_sent' : 'sms_sent';
+  const overageCountField = channel === 'whatsapp' ? 'overage_wa_count' : 'overage_sms_count';
+  const overagePenceField = channel === 'whatsapp' ? 'overage_wa_pence' : 'overage_sms_pence';
+  const updates = { [field]: (usage[field] || 0) + 1, updated_at: new Date().toISOString() };
+  if (isOverage) {
+    updates[overageCountField] = (usage[overageCountField] || 0) + 1;
+    updates[overagePenceField] = (usage[overagePenceField] || 0) + OVERAGE_PENCE;
+    updates.overage_total_pence = (usage.overage_total_pence || 0) + OVERAGE_PENCE;
+  }
+  const { data: updated, error: updErr } = await supabase
+    .from('message_usage')
+    .update(updates)
+    .eq('id', usage.id)
+    .select()
+    .single();
+  if (updErr) throw updErr;
+  return updated;
+}
+
+/**
+ * Record a sent WhatsApp message. Call AFTER a successful send.
+ * Returns the updated usage row (or null on error).
  */
 export async function trackWhatsAppMessage(beauticianId) {
   try {
-    const { data: b } = await supabase
-      .from('beauticians')
-      .select('subscription_plan')
-      .eq('id', beauticianId)
-      .single();
-
-    const tier = getTier(b?.subscription_plan);
-    const freeLimit = tier.messages_per_month || 120;
-    const month = getMonthStart();
-    const usage = await getOrCreateUsageRow(beauticianId, month, freeLimit);
-    const totalUsed = usage.sms_sent + usage.whatsapp_sent;
-    const isOverage = totalUsed >= freeLimit;
-
-    const updates = {
-      whatsapp_sent: usage.whatsapp_sent + 1,
-      updated_at: new Date().toISOString(),
-    };
-
-    if (isOverage) {
-      updates.overage_wa_count = usage.overage_wa_count + 1;
-      updates.overage_wa_pence = usage.overage_wa_pence + OVERAGE_PENCE;
-      updates.overage_total_pence = usage.overage_total_pence + OVERAGE_PENCE;
-    }
-
-    const { data: updated, error } = await supabase
-      .from('message_usage')
-      .update(updates)
-      .eq('id', usage.id)
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    logger.info(
-      { beauticianId, month, waTotal: updated.whatsapp_sent, isOverage },
-      'WhatsApp message tracked'
-    );
-
+    const updated = await incrementMonthlyUsage(beauticianId, 'whatsapp');
+    logger.info({ beauticianId, waTotal: updated?.whatsapp_sent }, 'WhatsApp message tracked');
     return updated;
   } catch (err) {
     logger.error({ err, beauticianId }, 'trackWhatsAppMessage error — usage not recorded');
@@ -173,34 +193,7 @@ export async function trackWhatsAppMessage(beauticianId) {
  */
 export async function trackSmsInMonthlyQuota(beauticianId) {
   try {
-    const { data: b } = await supabase
-      .from('beauticians')
-      .select('subscription_plan')
-      .eq('id', beauticianId)
-      .single();
-
-    const tier = getTier(b?.subscription_plan);
-    const freeLimit = tier.messages_per_month || 120;
-    const month = getMonthStart();
-    const usage = await getOrCreateUsageRow(beauticianId, month, freeLimit);
-    const totalUsed = usage.sms_sent + usage.whatsapp_sent;
-    const isOverage = totalUsed >= freeLimit;
-
-    const updates = {
-      sms_sent: usage.sms_sent + 1,
-      updated_at: new Date().toISOString(),
-    };
-
-    if (isOverage) {
-      updates.overage_sms_count = usage.overage_sms_count + 1;
-      updates.overage_sms_pence = usage.overage_sms_pence + OVERAGE_PENCE;
-      updates.overage_total_pence = usage.overage_total_pence + OVERAGE_PENCE;
-    }
-
-    await supabase
-      .from('message_usage')
-      .update(updates)
-      .eq('id', usage.id);
+    await incrementMonthlyUsage(beauticianId, 'sms');
   } catch (err) {
     logger.error({ err, beauticianId }, 'trackSmsInMonthlyQuota error');
   }
@@ -305,10 +298,22 @@ export async function billMonthlySurplus() {
     for (const row of rows) {
       const b = row.beauticians;
       const amount = row.overage_total_pence;
+
+      // Optimistic claim: flip billed=true ONLY if it is still false. If no row
+      // comes back, a concurrent run (or a previous boot) already claimed it, so
+      // we skip. This is the inter-instance lock that stops double-billing when
+      // the cron and a startup run overlap.
+      const { data: claimed, error: claimErr } = await supabase
+        .from('message_usage')
+        .update({ billed: true, updated_at: new Date().toISOString() })
+        .eq('id', row.id)
+        .eq('billed', false)
+        .select('id');
+      if (claimErr || !claimed?.length) { skipped++; continue; }
+
       try {
-        // Trial or no Stripe customer: overage is free — flag billed so we don't reprocess.
+        // Trial or no Stripe customer: overage is free — row already flagged billed.
         if (!b?.stripe_customer_id || !b?.subscription_plan || b.subscription_plan === 'trial') {
-          await markUsageBilled(row.id, null);
           skipped++;
           continue;
         }
@@ -333,7 +338,15 @@ export async function billMonthlySurplus() {
           'Monthly message surplus billed'
         );
       } catch (err) {
-        logger.error({ err, rowId: row.id }, 'billMonthlySurplus: row failed');
+        // Charge failed after we claimed the row: release the claim so a later
+        // run retries it. The Stripe idempotencyKey still guards against a
+        // double-charge if the create actually succeeded before throwing.
+        await supabase
+          .from('message_usage')
+          .update({ billed: false, updated_at: new Date().toISOString() })
+          .eq('id', row.id)
+          .then(() => {}, () => {});
+        logger.error({ err, rowId: row.id }, 'billMonthlySurplus: row failed, released claim for retry');
         failed++;
       }
     }

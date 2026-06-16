@@ -56,6 +56,29 @@ export async function trackSMSUsage(beauticianId) {
   try {
     const weekStart = getWeekStart();
 
+    // Atomic path (migration 064): single SQL increment so concurrent sends
+    // never lose a count. Falls through to the read-modify-write below if the
+    // function is not present yet.
+    const { data: rpcRow, error: rpcErr } = await supabase.rpc('increment_sms_usage', {
+      p_beautician_id: beauticianId,
+      p_week_start: weekStart,
+      p_free_limit: FREE_SMS_LIMIT,
+      p_surplus_pence: SURPLUS_RATE_PENCE,
+    });
+    if (!rpcErr && rpcRow) {
+      const row = Array.isArray(rpcRow) ? rpcRow[0] : rpcRow;
+      const isSurplus = row.messages_sent > FREE_SMS_LIMIT;
+      return {
+        allowed: true,
+        isSurplus,
+        weekUsage: row.messages_sent,
+        freeRemaining: Math.max(0, FREE_SMS_LIMIT - row.messages_sent),
+        surplusCount: row.surplus_count,
+        surplusTotalPence: row.surplus_total_pence,
+      };
+    }
+    if (rpcErr) logger.warn({ err: rpcErr, beauticianId }, 'increment_sms_usage RPC unavailable; using non-atomic fallback');
+
     // Upsert: get or create the usage record for this week
     const { data: existing, error: fetchErr } = await supabase
       .from('sms_usage')

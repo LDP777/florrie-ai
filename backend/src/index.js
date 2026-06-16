@@ -442,14 +442,15 @@ app.listen(PORT, () => {
 
   // Message surplus billing — bill completed months over the 120/month combined
   // (SMS + WhatsApp) allowance, charged via Stripe invoice items. Idempotent.
+  // Daily interval only. The per-boot run was removed: frequent deploys meant
+  // many billing passes a day. Rows are claimed optimistically (billed=true
+  // gated on billed=false) so an overlap can never double-bill, and a daily
+  // cadence is fine for billing a frozen past month.
   setInterval(() => {
     billMonthlySurplus()
       .then(r => { if (r) logger.info({ r }, 'Monthly surplus billing cron: done'); })
       .catch(err => logger.error({ err }, 'Monthly surplus billing cron: failed'));
   }, REVENUE_CRON_INTERVAL);
-  setTimeout(() => {
-    billMonthlySurplus().catch(err => logger.error({ err }, 'Startup: monthly surplus billing failed'));
-  }, 150_000);
 
   // Stripe events cleanup — prune stripe_events rows past TTL.
   setInterval(() => {

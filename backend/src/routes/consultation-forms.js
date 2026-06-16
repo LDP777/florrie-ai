@@ -471,7 +471,9 @@ export async function sendConsultationFormSMS({
     status: 'sent',
   }).catch(() => {}); // non-fatal
 
-  logger.info({ clientId, formId, token }, 'Consultation form SMS sent');
+  // Do not log the token: it is the only credential guarding the public
+  // consultation form (special-category health data).
+  logger.info({ clientId, formId }, 'Consultation form SMS sent');
   return response;
 }
 
