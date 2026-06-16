@@ -218,7 +218,7 @@ export default function RebookReminders() {
             style={{
               ...s.tab,
               color: tab === t.key ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #7a7470)',
-              borderBottom: tab === t.key ? '2px solid #C76B8A' : '2px solid transparent',
+              borderBottom: tab === t.key ? '2px solid var(--accent)' : '2px solid transparent',
               fontWeight: tab === t.key ? 600 : 400,
             }}
           >

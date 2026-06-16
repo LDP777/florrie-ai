@@ -565,7 +565,7 @@ export default function MoneyTracker() {
 
       {/* Today's takings, always visible at the top of the page */}
       <div style={{
-        background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
+        background: 'var(--gradient-hero)',
         borderRadius: 18, padding: '16px 18px', color: '#fff',
         boxShadow: '0 6px 20px rgba(146,64,94,0.22)', marginBottom: 14,
         display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12,
@@ -669,7 +669,7 @@ export default function MoneyTracker() {
               <section style={S.chartCard}>
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, height: 80 }}>
                   {!dailyRevenue.some(d => d.total > 0) ? (
-                    <div style={{ flex: 1, alignSelf: 'center', textAlign: 'center', fontSize: 12, color: '#867277' }}>No takings logged this week yet</div>
+                    <div style={{ flex: 1, alignSelf: 'center', textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>No takings logged this week yet</div>
                   ) : dailyRevenue.map((d, i) => {
                     const isToday = i === dailyRevenue.length - 1;
                     const h = Math.max(4, (d.total / maxDayRevenue) * 72);
@@ -687,7 +687,7 @@ export default function MoneyTracker() {
                         <span style={{
                           fontSize: 9,
                           fontWeight: isToday ? 700 : 500,
-                          color: isToday ? '#92405e' : '#867277',
+                          color: isToday ? 'var(--accent)' : 'var(--text-muted)',
                           textTransform: 'uppercase',
                         }}>{d.label}</span>
                       </div>
@@ -699,18 +699,18 @@ export default function MoneyTracker() {
               {/* ─── Breakdown Bento ─── */}
               <section style={S.bentoGrid}>
                 <div style={{ ...S.bentoCard, background: 'rgba(255, 217, 226, 0.3)', border: '1px solid rgba(146, 64, 94, 0.08)' }}>
-                  <MIcon name="content_cut" size={20} style={{ color: '#92405e' }} />
+                  <MIcon name="content_cut" size={20} style={{ color: 'var(--accent)' }} />
                   <span style={S.bentoLabel}>Treatments</span>
-                  <span style={{ ...S.bentoValue, color: '#92405e' }}>{fmtShort(breakdown.treatments)}</span>
+                  <span style={{ ...S.bentoValue, color: 'var(--accent)' }}>{fmtShort(breakdown.treatments)}</span>
                 </div>
                 <div
                   onClick={() => setShowLogSale(s => !s)}
                   style={{ ...S.bentoCard, background: 'rgba(254, 219, 155, 0.3)', border: '1px solid rgba(116, 90, 39, 0.08)', cursor: 'pointer' }}
                 >
-                  <MIcon name="shopping_bag" size={20} style={{ color: '#745a27' }} />
+                  <MIcon name="shopping_bag" size={20} style={{ color: 'var(--gold)' }} />
                   <span style={S.bentoLabel}>Products</span>
-                  <span style={{ ...S.bentoValue, color: '#745a27' }}>{fmtShort(breakdown.products)}</span>
-                  <span style={{ fontSize: 9, color: '#745a27', opacity: 0.6, marginTop: -2 }}>+ log sale</span>
+                  <span style={{ ...S.bentoValue, color: 'var(--gold)' }}>{fmtShort(breakdown.products)}</span>
+                  <span style={{ fontSize: 9, color: 'var(--gold)', opacity: 0.6, marginTop: -2 }}>+ log sale</span>
                 </div>
                 <div
                   onClick={() => setShowLogTip(s => !s)}
@@ -728,7 +728,7 @@ export default function MoneyTracker() {
                 <section style={S.quickLogCard}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                     <MIcon name="volunteer_activism" size={18} style={{ color: 'var(--success)' }} />
-                    <span style={{ fontSize: 14, fontWeight: 600, color: '#1d1b19' }}>Log a Tip</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Log a Tip</span>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <input
@@ -752,8 +752,8 @@ export default function MoneyTracker() {
               {showLogSale && (
                 <section style={S.quickLogCard}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                    <MIcon name="shopping_bag" size={18} style={{ color: '#745a27' }} />
-                    <span style={{ fontSize: 14, fontWeight: 600, color: '#1d1b19' }}>Log a Product Sale</span>
+                    <MIcon name="shopping_bag" size={18} style={{ color: 'var(--gold)' }} />
+                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Log a Product Sale</span>
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                     <input
@@ -771,7 +771,7 @@ export default function MoneyTracker() {
                       onChange={e => setSaleDesc(e.target.value)}
                       style={{ ...S.formInput, flex: 1 }}
                     />
-                    <button onClick={handleLogSale} style={{ ...S.btnPrimary, flex: 'none', padding: '11px 20px', background: '#745a27' }}>
+                    <button onClick={handleLogSale} style={{ ...S.btnPrimary, flex: 'none', padding: '11px 20px', background: 'var(--gold)' }}>
                       Save
                     </button>
                     <button onClick={() => { setShowLogSale(false); setSaleAmount(''); setSaleDesc(''); }} style={{ ...S.btnGhost, flex: 'none' }}>
@@ -829,7 +829,7 @@ export default function MoneyTracker() {
                                 tx.type === 'product_sale' ? { background: 'linear-gradient(135deg, #fedb9b 0%, #f5c563 100%)' } : {}),
                           }}>{initial}</div>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ fontSize: 14, fontWeight: 600, color: '#1d1b19', margin: 0 }}>
+                            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
                               {clientId ? (
                                 <button
                                   onClick={() => navigate('/clients', { state: { clientId } })}
@@ -839,7 +839,7 @@ export default function MoneyTracker() {
                                 </button>
                               ) : name}
                             </p>
-                            <p style={{ fontSize: 11, color: '#867277', margin: 0 }}>
+                            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
                               {treatment}{treatment ? ' · ' : ''}
                               {apptDate ? (
                                 <button
@@ -1046,9 +1046,9 @@ export default function MoneyTracker() {
                     <span style={{ fontSize: 16 }}>{catMeta.icon}</span>
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: '#1d1b19', margin: 0 }}>{exp.vendor || catMeta.label}</p>
-                    {exp.description && <p style={{ fontSize: 11, color: '#867277', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exp.description}</p>}
-                    <p style={{ fontSize: 10, color: '#867277', margin: '2px 0 0' }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{exp.vendor || catMeta.label}</p>
+                    {exp.description && <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{exp.description}</p>}
+                    <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: '2px 0 0' }}>
                       {new Date(exp.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                       {' · '}{catMeta.label}
                       {exp.hmrc_category && ` · ${HMRC_LABELS[exp.hmrc_category] || exp.hmrc_category}`}
@@ -1085,10 +1085,10 @@ export default function MoneyTracker() {
                       tx.type === 'product_sale' ? { background: 'linear-gradient(135deg, #fedb9b 0%, #f5c563 100%)' } : {}),
                 }}>{initial}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: '#1d1b19', margin: 0 }}>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
                     {name}{treatment ? ` - ${treatment}` : ''}
                   </p>
-                  <p style={{ fontSize: 11, color: '#867277', margin: 0 }}>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
                     {new Date(tx.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                     {' · '}{typeLabel}
                   </p>
@@ -1112,16 +1112,16 @@ export default function MoneyTracker() {
                 {/* Header */}
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                    <MIcon name="receipt_long" size={18} style={{ color: '#92405e' }} />
+                    <MIcon name="receipt_long" size={18} style={{ color: 'var(--accent)' }} />
                     <h3 style={S.sectionHeading}>Tax Year {t.taxYear}</h3>
                   </div>
-                  <span style={{ fontSize: 12, color: '#867277' }}>{t.period.start} to {t.period.end}</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t.period.start} to {t.period.end}</span>
 
                   {/* Year progress bar */}
                   <div style={{ marginTop: 10, background: 'var(--border, #EDE9E4)', borderRadius: 4, height: 6, overflow: 'hidden' }}>
                     <div style={{ width: `${Math.round(t.yearProgress * 100)}%`, height: '100%', background: 'var(--accent, #C76B8A)', borderRadius: 4, transition: 'width 0.3s ease' }} />
                   </div>
-                  <span style={{ fontSize: 11, color: '#867277', marginTop: 4, display: 'block' }}>{Math.round(t.yearProgress * 100)}% through tax year</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>{Math.round(t.yearProgress * 100)}% through tax year</span>
                 </div>
 
                 {/* Set aside hero card */}
@@ -1143,16 +1143,16 @@ export default function MoneyTracker() {
                   <div style={S.taxCard}>
                     <span style={S.taxCardLabel}>Total Income</span>
                     <span style={S.taxCardValue}>{fmt(t.totalIncome)}</span>
-                    <span style={{ fontSize: 11, color: '#867277' }}>{t.transactionCount} transactions</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.transactionCount} transactions</span>
                   </div>
                   <div style={S.taxCard}>
                     <span style={S.taxCardLabel}>Deductible Expenses</span>
                     <span style={S.taxCardValue}>{fmt(t.totalExpenses)}</span>
-                    <span style={{ fontSize: 11, color: '#867277' }}>{t.expenseCount} items</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.expenseCount} items</span>
                   </div>
                   <div style={{ ...S.taxCard, border: '1.5px solid rgba(146, 64, 94, 0.15)' }}>
                     <span style={S.taxCardLabel}>Taxable Profit</span>
-                    <span style={{ ...S.taxCardValue, color: '#92405e' }}>{fmt(t.taxableProfit)}</span>
+                    <span style={{ ...S.taxCardValue, color: 'var(--accent)' }}>{fmt(t.taxableProfit)}</span>
                   </div>
                 </div>
 
@@ -1187,21 +1187,21 @@ export default function MoneyTracker() {
                       </div>
                       <div style={S.breakdownRow}>
                         <div>
-                          <span style={{ fontSize: 13, color: '#534247' }}>Output tax (VAT collected)</span>
-                          <span style={{ fontSize: 11, color: '#867277', display: 'block' }}>20% on your income</span>
+                          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Output tax (VAT collected)</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block' }}>20% on your income</span>
                         </div>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1d1b19' }}>{fmt(vatCollected)}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{fmt(vatCollected)}</span>
                       </div>
                       <div style={S.breakdownRow}>
                         <div>
-                          <span style={{ fontSize: 13, color: '#534247' }}>Input tax (VAT on expenses)</span>
-                          <span style={{ fontSize: 11, color: '#867277', display: 'block' }}>Estimated - confirm with receipts</span>
+                          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Input tax (VAT on expenses)</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block' }}>Estimated - confirm with receipts</span>
                         </div>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#534247' }}>−{fmt(vatOnExpenses)}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>−{fmt(vatOnExpenses)}</span>
                       </div>
                       <div style={{ ...S.breakdownRow, borderBottom: 'none', paddingTop: 12 }}>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: '#92405e' }}>VAT owed to HMRC</span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: '#92405e' }}>{fmt(vatOwed)}</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>VAT owed to HMRC</span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>{fmt(vatOwed)}</span>
                       </div>
                       <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 10, background: daysToVat <= 30 ? '#fef3c7' : '#f0fdf4', border: `1px solid ${daysToVat <= 30 ? '#fcd34d' : '#86efac'}` }}>
                         <span style={{ fontSize: 12, fontWeight: 600, color: daysToVat <= 30 ? '#92400e' : '#166534' }}>
@@ -1223,7 +1223,7 @@ export default function MoneyTracker() {
                   <div style={S.breakdownCard}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                       <h4 style={{ ...S.breakdownTitle, margin: 0 }}>VAT Threshold</h4>
-                      <span style={{ fontSize: 11, color: '#867277' }}>Not registered</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Not registered</span>
                     </div>
                     <div style={{ background: 'var(--border, #EDE9E4)', borderRadius: 4, height: 8, overflow: 'hidden', marginBottom: 6 }}>
                       <div style={{
@@ -1233,10 +1233,10 @@ export default function MoneyTracker() {
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                       <div>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#534247' }}>{fmt(t.vat.rolling12Revenue)}</span>
-                        <span style={{ fontSize: 11, color: '#867277' }}> of £90,000 threshold (rolling 12 months)</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>{fmt(t.vat.rolling12Revenue)}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}> of £90,000 threshold (rolling 12 months)</span>
                       </div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: t.vat.vatPct >= 75 ? '#ef4444' : '#867277' }}>{t.vat.vatPct}%</span>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: t.vat.vatPct >= 75 ? '#ef4444' : 'var(--text-muted)' }}>{t.vat.vatPct}%</span>
                     </div>
                     {t.vat.vatPct >= 75 && (
                       <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 8, background: '#fef3c7', border: '1px solid #fcd34d' }}>
@@ -1265,17 +1265,17 @@ export default function MoneyTracker() {
                   {t.taxBreakdown.map((row, i) => (
                     <div key={i} style={S.breakdownRow}>
                       <div>
-                        <span style={{ fontSize: 13, color: '#534247' }}>{row.label}</span>
-                        <span style={{ fontSize: 11, color: '#867277', display: 'block' }}>{row.hint}</span>
+                        <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{row.label}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block' }}>{row.hint}</span>
                       </div>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: row.value === 0 ? '#867277' : '#1d1b19' }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: row.value === 0 ? 'var(--text-muted)' : 'var(--text-primary)' }}>
                         {row.value === 0 ? '-' : fmt(row.value)}
                       </span>
                     </div>
                   ))}
                   <div style={{ ...S.breakdownRow, borderBottom: 'none', paddingTop: 12 }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: '#92405e' }}>Total estimated liability</span>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: '#92405e' }}>{fmt(t.totalTaxLiability)}</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>Total estimated liability</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent)' }}>{fmt(t.totalTaxLiability)}</span>
                   </div>
                 </div>
 
@@ -1288,10 +1288,10 @@ export default function MoneyTracker() {
                       .map(([cat, data]) => (
                         <div key={cat} style={S.breakdownRow}>
                           <div>
-                            <span style={{ fontSize: 13, textTransform: 'capitalize', color: '#534247' }}>{cat}</span>
-                            <span style={{ fontSize: 11, color: '#867277' }}> ({data.count})</span>
+                            <span style={{ fontSize: 13, textTransform: 'capitalize', color: 'var(--text-secondary)' }}>{cat}</span>
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}> ({data.count})</span>
                           </div>
-                          <span style={{ fontSize: 13, fontWeight: 600, color: '#1d1b19' }}>{fmt(data.total_cents)}</span>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{fmt(data.total_cents)}</span>
                         </div>
                       ))
                     }
@@ -1309,8 +1309,8 @@ export default function MoneyTracker() {
                         const label = new Date(y, parseInt(m) - 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
                         return (
                           <div key={month} style={S.breakdownRow}>
-                            <span style={{ fontSize: 13, color: '#534247' }}>{label}</span>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: '#1d1b19' }}>{fmt(cents)}</span>
+                            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{label}</span>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{fmt(cents)}</span>
                           </div>
                         );
                       })
@@ -1328,7 +1328,7 @@ export default function MoneyTracker() {
                   }}
                   style={{
                     width: '100%', padding: '14px 0', borderRadius: 12,
-                    border: 'none', background: '#92405e', color: '#fff',
+                    border: 'none', background: 'var(--accent)', color: '#fff',
                     fontSize: 14, fontWeight: 600, cursor: 'pointer',
                     fontFamily: 'inherit', marginBottom: 12,
                   }}
@@ -1338,7 +1338,7 @@ export default function MoneyTracker() {
                 </button>
 
                 <p style={{
-                  fontSize: 12, color: '#867277', textAlign: 'center',
+                  fontSize: 12, color: 'var(--text-muted)', textAlign: 'center',
                   padding: '16px 20px', lineHeight: 1.5, fontStyle: 'italic',
                 }}>
                   Estimate only. Consult an accountant for your specific situation.
@@ -1355,41 +1355,41 @@ export default function MoneyTracker() {
 const S = {
   page: {
     minHeight: '100vh',
-    background: '#fef8f4',
+    background: 'var(--bg)',
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
     padding: '16px 24px 120px',
     maxWidth: 480,
     margin: '0 auto',
-    color: '#1d1b19',
+    color: 'var(--text-primary)',
     animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
   },
   pageTitle: {
     fontFamily: "var(--font-display, 'Playfair Display', serif)",
     fontSize: 24, fontStyle: 'italic', fontWeight: 400,
-    color: '#92405e', margin: '0 0 16px',
+    color: 'var(--accent)', margin: '0 0 16px',
   },
 
   // Tab bar - pill style
   tabBar: {
     display: 'flex', gap: 4,
-    background: '#f3ede9', borderRadius: 14, padding: 4,
+    background: 'var(--bg-hover)', borderRadius: 14, padding: 4,
     marginBottom: 20,
   },
   tab: {
     flex: 1, padding: '9px 0', fontSize: 13, fontWeight: 500,
     border: 'none', borderRadius: 11, cursor: 'pointer',
-    fontFamily: 'inherit', background: 'none', color: '#867277',
+    fontFamily: 'inherit', background: 'none', color: 'var(--text-muted)',
     transition: 'all 0.2s ease',
   },
   tabActive: {
-    background: '#fff', color: '#1d1b19',
+    background: 'var(--bg-card)', color: 'var(--text-primary)',
     boxShadow: '0 1px 3px rgba(146, 64, 94, 0.06), 0 1px 2px rgba(146, 64, 94, 0.04)',
     fontWeight: 600,
   },
 
   // Period selector
   reportsCard: {
-    background: '#fff', borderRadius: 18, padding: '18px 16px', marginBottom: 16,
+    background: 'var(--bg-card)', borderRadius: 18, padding: '18px 16px', marginBottom: 16,
     boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)',
   },
   reportsTitle: {
@@ -1398,11 +1398,11 @@ const S = {
   },
   reportsRow: { display: 'flex', gap: 12, justifyContent: 'space-between' },
   reportStat: { display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0 },
-  reportValue: { fontSize: 24, fontWeight: 700, color: '#1d1b19', lineHeight: 1.1 },
-  reportLabel: { fontSize: 11, color: '#867277', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  reportValue: { fontSize: 24, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.1 },
+  reportLabel: { fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   reportInsight: {
-    marginTop: 14, paddingTop: 14, borderTop: '1px solid #f3e8ec',
-    fontSize: 13.5, lineHeight: 1.5, color: '#534247',
+    marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border-light)',
+    fontSize: 13.5, lineHeight: 1.5, color: 'var(--text-secondary)',
   },
   periodBar: {
     display: 'flex', gap: 8, marginBottom: 16,
@@ -1410,19 +1410,19 @@ const S = {
   periodBtn: {
     padding: '6px 14px', borderRadius: 20,
     border: '1px solid rgba(146, 64, 94, 0.1)', background: 'transparent',
-    fontSize: 12, fontWeight: 500, color: '#867277',
+    fontSize: 12, fontWeight: 500, color: 'var(--text-muted)',
     cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s ease',
   },
   periodBtnActive: {
-    background: '#92405e', color: '#fff',
-    border: '1px solid #92405e',
+    background: 'var(--accent)', color: '#fff',
+    border: '1px solid var(--accent)',
     boxShadow: '0 2px 8px rgba(146, 64, 94, 0.2)',
   },
 
   // Hero revenue card
   heroCard: {
     position: 'relative', overflow: 'hidden',
-    background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
+    background: 'var(--gradient-hero)',
     color: '#fff', borderRadius: 24, padding: 24, marginBottom: 16,
     boxShadow: '0 8px 32px rgba(146, 64, 94, 0.15)',
   },
@@ -1450,7 +1450,7 @@ const S = {
 
   // Chart card
   chartCard: {
-    background: '#fff', borderRadius: 16, padding: 16,
+    background: 'var(--bg-card)', borderRadius: 16, padding: 16,
     border: '1px solid rgba(146, 64, 94, 0.05)',
     boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
     marginBottom: 16,
@@ -1464,7 +1464,7 @@ const S = {
   },
   bentoLabel: {
     fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em',
-    color: '#867277', fontWeight: 600,
+    color: 'var(--text-muted)', fontWeight: 600,
   },
   bentoValue: {
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
@@ -1473,7 +1473,7 @@ const S = {
 
   // Quick log card
   quickLogCard: {
-    background: '#fff', borderRadius: 16, padding: 16, marginBottom: 16,
+    background: 'var(--bg-card)', borderRadius: 16, padding: 16, marginBottom: 16,
     border: '1px solid rgba(146, 64, 94, 0.08)',
     boxShadow: '0 2px 8px rgba(146, 64, 94, 0.06)',
     animation: 'fadeIn 0.2s ease',
@@ -1482,14 +1482,14 @@ const S = {
   // Quick stats row
   quickStats: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-around',
-    background: '#fff', borderRadius: 16, padding: '14px 8px',
+    background: 'var(--bg-card)', borderRadius: 16, padding: '14px 8px',
     border: '1px solid rgba(146, 64, 94, 0.05)',
     boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
     marginBottom: 24,
   },
   qStat: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
-  qStatValue: { fontSize: 15, fontWeight: 700, color: '#1d1b19' },
-  qStatLabel: { fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#867277', fontWeight: 600 },
+  qStatValue: { fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' },
+  qStatLabel: { fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', fontWeight: 600 },
 
   // Section headers
   sectionHeader: {
@@ -1499,17 +1499,17 @@ const S = {
   sectionHeading: {
     fontFamily: "var(--font-display, 'Playfair Display', serif)",
     fontSize: 20, fontStyle: 'italic', fontWeight: 400,
-    color: '#92405e', margin: 0,
+    color: 'var(--accent)', margin: 0,
   },
   seeAll: {
-    fontSize: 10, fontWeight: 700, color: '#867277',
+    fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
     textTransform: 'uppercase', letterSpacing: '0.12em',
     background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
   },
 
   // Transaction rows
   txRow: {
-    background: '#fff', padding: 14, borderRadius: 16,
+    background: 'var(--bg-card)', padding: 14, borderRadius: 16,
     display: 'flex', alignItems: 'center', gap: 12,
     border: '1px solid rgba(146, 64, 94, 0.05)',
     boxShadow: '0 1px 2px rgba(146, 64, 94, 0.04)',
@@ -1528,19 +1528,19 @@ const S = {
 
   // Comparison card
   compCard: {
-    background: '#fff', borderRadius: 16, padding: 16,
+    background: 'var(--bg-card)', borderRadius: 16, padding: 16,
     border: '1px solid rgba(146, 64, 94, 0.05)',
     boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
   },
   compTitle: {
-    fontSize: 14, fontWeight: 700, color: '#1d1b19', margin: '0 0 12px',
+    fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 12px',
   },
   compRow: {
     display: 'flex', justifyContent: 'space-between', padding: '8px 0',
     borderBottom: '1px solid rgba(146, 64, 94, 0.05)',
   },
-  compLabel: { fontSize: 13, color: '#534247' },
-  compValue: { fontSize: 13, fontWeight: 500, color: '#1d1b19' },
+  compLabel: { fontSize: 13, color: 'var(--text-secondary)' },
+  compValue: { fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' },
 
   // Tax cards
   setAsideCard: {
@@ -1550,26 +1550,26 @@ const S = {
     textAlign: 'center',
   },
   taxCard: {
-    background: '#fff', borderRadius: 16, padding: 16,
+    background: 'var(--bg-card)', borderRadius: 16, padding: 16,
     border: '1px solid rgba(146, 64, 94, 0.05)',
     boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
   },
   taxCardLabel: {
     display: 'block', fontSize: 10, textTransform: 'uppercase',
-    letterSpacing: '0.06em', color: '#867277', marginBottom: 4, fontWeight: 600,
+    letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 4, fontWeight: 600,
   },
   taxCardValue: {
-    display: 'block', fontSize: 22, fontWeight: 700, color: '#1d1b19',
+    display: 'block', fontSize: 22, fontWeight: 700, color: 'var(--text-primary)',
     fontFamily: "var(--font-body)",
   },
 
   // Breakdown sections
   breakdownCard: {
-    background: '#fff', borderRadius: 16, padding: 16, marginBottom: 12,
+    background: 'var(--bg-card)', borderRadius: 16, padding: 16, marginBottom: 12,
     border: '1px solid rgba(146, 64, 94, 0.05)',
     boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
   },
-  breakdownTitle: { fontSize: 14, fontWeight: 700, color: '#1d1b19', margin: '0 0 12px' },
+  breakdownTitle: { fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 12px' },
   breakdownRow: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     padding: '8px 0', borderBottom: '1px solid rgba(146, 64, 94, 0.04)',
@@ -1578,39 +1578,39 @@ const S = {
   // Buttons
   btnPrimary: {
     flex: 1, padding: '11px 0', borderRadius: 12,
-    border: 'none', background: '#92405e', color: '#fff',
+    border: 'none', background: 'var(--accent)', color: '#fff',
     fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     boxShadow: '0 2px 8px rgba(146, 64, 94, 0.25)',
   },
   btnSecondary: {
     flex: 1, padding: '11px 0', borderRadius: 12,
-    border: '1.5px solid var(--border)', background: '#fff',
-    color: '#534247', fontSize: 13, fontWeight: 600,
+    border: '1.5px solid var(--border)', background: 'var(--bg-card)',
+    color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   btnGhost: {
     padding: '11px 16px', borderRadius: 12, border: 'none',
-    background: '#f3ede9', color: '#534247', fontSize: 13,
+    background: 'var(--bg-hover)', color: 'var(--text-secondary)', fontSize: 13,
     cursor: 'pointer', fontFamily: 'inherit',
   },
 
   // Form
   formCard: {
-    background: '#fff', borderRadius: 16, padding: 16, marginBottom: 16,
+    background: 'var(--bg-card)', borderRadius: 16, padding: 16, marginBottom: 16,
     border: '1px solid rgba(146, 64, 94, 0.05)',
     boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
   },
   formLabel: {
     display: 'block', fontSize: 12, fontWeight: 600,
-    color: '#534247', marginBottom: 6, letterSpacing: '0.01em',
+    color: 'var(--text-secondary)', marginBottom: 6, letterSpacing: '0.01em',
   },
   formInput: {
     width: '100%', padding: '11px 14px', borderRadius: 12,
-    border: '1.5px solid #d8c1c6', fontSize: 14,
+    border: '1.5px solid var(--border)', fontSize: 14,
     fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
-    background: '#f8f2ef', color: '#1d1b19',
+    background: 'var(--bg-input)', color: 'var(--text-primary)',
     transition: 'border-color 0.2s ease, box-shadow 0.2s ease',
   },
 };

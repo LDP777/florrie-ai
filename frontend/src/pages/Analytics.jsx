@@ -297,7 +297,7 @@ export default function Analytics() {
             style={{
               ...styles.tabBtn,
               background: tab === t.key ? 'var(--accent, #C76B8A)' : 'var(--bg-subtle, #F5F2EF)',
-              color: tab === t.key ? '#fff' : '#8A8580',
+              color: tab === t.key ? '#fff' : 'var(--text-secondary, #8A8580)',
             }}
           >
             {t.label}
@@ -570,7 +570,7 @@ function DayBarChart({ data }) {
           <div key={k} style={styles.barCol}>
             <span style={styles.barValue}>{val}</span>
             <div style={styles.barTrack}>
-              <div style={{ ...styles.barFill, height: `${Math.max(pct, 4)}%`, background: val === max ? 'var(--accent, #C76B8A)' : '#E8E4E0' }} />
+              <div style={{ ...styles.barFill, height: `${Math.max(pct, 4)}%`, background: val === max ? 'var(--accent, #C76B8A)' : 'var(--border, #E8E4E0)' }} />
             </div>
             <span style={{ ...styles.barLabel, color: val === max ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #AAA5A0)' }}>
               {days[i]}
@@ -585,8 +585,8 @@ function DayBarChart({ data }) {
 function SkeletonCard({ height = 80 }) {
   return (
     <div style={{ ...styles.card, height, display: 'flex', flexDirection: 'column', gap: 10, justifyContent: 'center' }}>
-      <div style={{ height: 14, width: '40%', borderRadius: 7, background: '#F0ECE8' }} />
-      <div style={{ height: 14, width: '65%', borderRadius: 7, background: '#F5F2EF' }} />
+      <div style={{ height: 14, width: '40%', borderRadius: 7, background: 'var(--border-light, #F0ECE8)' }} />
+      <div style={{ height: 14, width: '65%', borderRadius: 7, background: 'var(--bg-subtle, #F5F2EF)' }} />
     </div>
   );
 }
@@ -693,18 +693,18 @@ const styles = {
   statCard: { background: 'var(--bg-card, #fff)', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
   statLabel: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)', fontWeight: 500 },
   statValue: { fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' },
-  statSub: { fontSize: 11, color: '#C4BDB6' },
+  statSub: { fontSize: 11, color: 'var(--text-muted, #C4BDB6)' },
 
-  insightCard: { display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, background: '#FFF8E1', marginBottom: 12 },
+  insightCard: { display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, background: 'var(--warning-bg, #FFF8E1)', marginBottom: 12 },
   insightIcon: { fontSize: 24, flexShrink: 0 },
   insightContent: { display: 'flex', flexDirection: 'column', gap: 2 },
-  insightTitle: { fontSize: 12, fontWeight: 600, color: '#F57C00' },
-  insightText: { fontSize: 13, color: '#8A8580' },
+  insightTitle: { fontSize: 12, fontWeight: 600, color: 'var(--warning, #F57C00)' },
+  insightText: { fontSize: 13, color: 'var(--text-secondary, #8A8580)' },
 
   card: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16, marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
   cardTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: 'var(--text-primary, #2D2A26)' },
 
-  clientRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid #FAF8F5' },
+  clientRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border-light, #FAF8F5)' },
   clientRank: { width: 24, height: 24, borderRadius: 12, background: 'var(--bg-subtle, #F5F2EF)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: 'var(--text-muted, #AAA5A0)', flexShrink: 0 },
   clientInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 1 },
   clientName: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
@@ -721,7 +721,7 @@ const styles = {
   insightsList: { display: 'flex', flexDirection: 'column', gap: 8 },
   aiInsight: { display: 'flex', alignItems: 'flex-start', gap: 8 },
   aiInsightIcon: { fontSize: 16, flexShrink: 0, marginTop: 1 },
-  aiInsightText: { fontSize: 13, color: '#5A5550', lineHeight: 1.5 },
+  aiInsightText: { fontSize: 13, color: 'var(--text-secondary, #5A5550)', lineHeight: 1.5 },
 
   // Treatments tab
   filterRow: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 },

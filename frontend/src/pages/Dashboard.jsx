@@ -75,11 +75,11 @@ const DEV_SHIFT_REPORT = [
 ];
 
 const SHIFT_CATEGORIES = {
-  message: { label: 'Messages', icon: 'chat_bubble', color: '#745a27', bg: 'rgba(254,219,155,0.3)' },
-  booking: { label: 'Bookings', icon: 'event_available', color: '#5ba97b', bg: 'rgba(91,169,123,0.12)' },
-  retention: { label: 'Retention', icon: 'loyalty', color: '#92405e', bg: 'rgba(255,217,226,0.3)' },
+  message: { label: 'Messages', icon: 'chat_bubble', color: 'var(--gold)', bg: 'rgba(254,219,155,0.3)' },
+  booking: { label: 'Bookings', icon: 'event_available', color: 'var(--success)', bg: 'rgba(91,169,123,0.12)' },
+  retention: { label: 'Retention', icon: 'loyalty', color: 'var(--accent)', bg: 'rgba(255,217,226,0.3)' },
   payment: { label: 'Payments', icon: 'payments', color: '#3a7ca5', bg: 'rgba(58,124,165,0.1)' },
-  other: { label: 'Other', icon: 'auto_awesome', color: '#867277', bg: 'rgba(146,64,94,0.06)' },
+  other: { label: 'Other', icon: 'auto_awesome', color: 'var(--text-muted)', bg: 'rgba(146,64,94,0.06)' },
 };
 
 function MIcon({ name, fill, size, style }) {
@@ -352,7 +352,7 @@ export default function Dashboard() {
           <span
             className="material-symbols-outlined"
             style={{
-              fontSize: 26, color: notifCount > 0 ? '#92405e' : 'rgba(83,66,71,0.4)',
+              fontSize: 26, color: notifCount > 0 ? 'var(--accent)' : 'rgba(83,66,71,0.4)',
               fontVariationSettings: notifCount > 0 ? "'FILL' 1, 'wght' 300" : "'FILL' 0, 'wght' 300",
               transition: 'color 0.2s ease',
             }}
@@ -364,7 +364,7 @@ export default function Dashboard() {
               background: '#E85D75', color: '#fff',
               fontSize: 9, fontWeight: 700, lineHeight: '17px',
               textAlign: 'center', padding: '0 3px',
-              border: '2px solid #fef8f4',
+              border: '2px solid var(--bg)',
               fontFamily: 'inherit',
             }}>
               {notifCount > 99 ? '99+' : notifCount}
@@ -381,23 +381,23 @@ export default function Dashboard() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <div style={{
                 width: 32, height: 32, borderRadius: 10,
-                background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
+                background: 'var(--gradient-hero)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
               }}>
                 <MIcon name="link" size={18} style={{ color: '#fff' }} />
               </div>
               <div>
-                <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#1d1b19' }}>Your booking link</p>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Your booking link</p>
                 <p style={{ margin: 0, fontSize: 11, color: 'rgba(83,66,71,0.55)' }}>Share this with clients so they can book online</p>
               </div>
             </div>
             <div style={{
               display: 'flex', alignItems: 'center', gap: 8,
-              background: '#fff', borderRadius: 12, padding: '10px 12px',
+              background: 'var(--bg-card)', borderRadius: 12, padding: '10px 12px',
               border: '1px solid rgba(146,64,94,0.12)',
             }}>
               <p style={{
-                margin: 0, fontSize: 13, color: '#92405e', fontWeight: 500,
+                margin: 0, fontSize: 13, color: 'var(--accent)', fontWeight: 500,
                 flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 fontFamily: "var(--font-sans, 'DM Sans', sans-serif)",
               }}>{bookingUrl.replace('https://', '')}</p>
@@ -406,14 +406,14 @@ export default function Dashboard() {
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
               }} style={{
-                background: copied ? '#92405e' : 'rgba(146,64,94,0.08)',
+                background: copied ? 'var(--accent)' : 'rgba(146,64,94,0.08)',
                 border: 'none', borderRadius: 8, padding: '6px 12px', cursor: 'pointer',
                 fontSize: 12, fontWeight: 600,
-                color: copied ? '#fff' : '#92405e',
+                color: copied ? '#fff' : 'var(--accent)',
                 fontFamily: 'inherit', transition: 'all 0.2s ease',
                 display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
               }}>
-                <MIcon name={copied ? 'check' : 'content_copy'} size={14} style={{ color: copied ? '#fff' : '#92405e' }} />
+                <MIcon name={copied ? 'check' : 'content_copy'} size={14} style={{ color: copied ? '#fff' : 'var(--accent)' }} />
                 {copied ? 'Copied!' : 'Copy'}
               </button>
               {navigator.share && (
@@ -422,10 +422,10 @@ export default function Dashboard() {
                 }} style={{
                   background: 'rgba(146,64,94,0.08)', border: 'none', borderRadius: 8,
                   padding: '6px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-                  color: '#92405e', fontFamily: 'inherit',
+                  color: 'var(--accent)', fontFamily: 'inherit',
                   display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
                 }}>
-                  <MIcon name="share" size={14} style={{ color: '#92405e' }} />
+                  <MIcon name="share" size={14} style={{ color: 'var(--accent)' }} />
                   Share
                 </button>
               )}
@@ -456,7 +456,7 @@ export default function Dashboard() {
                 {shiftStats.totalValue > 0 && ` · £${(shiftStats.totalValue / 100).toFixed(0)} secured`}
               </p>
             </div>
-            <MIcon name={shiftExpanded ? 'expand_less' : 'expand_more'} size={20} style={{ color: '#867277' }} />
+            <MIcon name={shiftExpanded ? 'expand_less' : 'expand_more'} size={20} style={{ color: 'var(--text-muted)' }} />
           </div>
 
           {shiftExpanded && (
@@ -490,7 +490,7 @@ export default function Dashboard() {
               </div>
               <button onClick={() => navigate('/florrie')} style={S.shiftViewAll}>
                 View full activity log
-                <MIcon name="arrow_forward" size={14} style={{ color: '#92405e' }} />
+                <MIcon name="arrow_forward" size={14} style={{ color: 'var(--accent)' }} />
               </button>
             </div>
           )}
@@ -530,10 +530,10 @@ export default function Dashboard() {
       <section style={S.alertGrid}>
         <button onClick={() => navigate('/calendar')} style={S.alertCard('#fedb9b', '#745a27', '#795f2b')}>
           <div style={S.alertTop}>
-            <MIcon name={remainingCount > 0 ? 'schedule' : 'check_circle'} size={14} style={{ color: '#795f2b' }} />
-            <span style={S.alertBadge('#795f2b')}>{remainingCount > 0 ? 'Next Up' : 'Done'}</span>
+            <MIcon name={remainingCount > 0 ? 'schedule' : 'check_circle'} size={14} style={{ color: 'var(--gold-text)' }} />
+            <span style={S.alertBadge('var(--gold-text)')}>{remainingCount > 0 ? 'Next Up' : 'Done'}</span>
           </div>
-          <p style={{ fontSize: 14, fontWeight: 600, color: '#745a27', margin: 0, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" }}>
+          <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--gold)', margin: 0, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" }}>
             {remainingCount > 0 ? (today.find(a => a.status !== 'completed')?.time || 'All clear') : 'All done for today'}
           </p>
         </button>
@@ -541,18 +541,18 @@ export default function Dashboard() {
         {insights.some(i => i.type === 'action' && i.actionPath === '/clients') ? (
           <button onClick={() => navigate('/clients')} style={S.alertCard('#ffd9e2', '#92405e', '#782b49')}>
             <div style={S.alertTop}>
-              <MIcon name="history" size={14} style={{ color: '#92405e' }} />
-              <span style={S.alertBadge('#92405e')}>Retain</span>
+              <MIcon name="history" size={14} style={{ color: 'var(--accent)' }} />
+              <span style={S.alertBadge('var(--accent)')}>Retain</span>
             </div>
-            <p style={{ fontSize: 14, fontWeight: 500, color: '#782b49', margin: 0 }}>Overdue rebookings</p>
+            <p style={{ fontSize: 14, fontWeight: 500, color: 'var(--accent-hover)', margin: 0 }}>Overdue rebookings</p>
           </button>
         ) : (
           <button onClick={() => navigate('/money')} style={S.alertCard('#ffd9e2', '#92405e', '#782b49')}>
             <div style={S.alertTop}>
-              <MIcon name="payments" size={14} style={{ color: '#92405e' }} />
-              <span style={S.alertBadge('#92405e')}>Revenue</span>
+              <MIcon name="payments" size={14} style={{ color: 'var(--accent)' }} />
+              <span style={S.alertBadge('var(--accent)')}>Revenue</span>
             </div>
-            <p style={{ fontSize: 14, fontWeight: 600, color: '#782b49', margin: 0, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--accent-hover)', margin: 0, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" }}>
               {weeklyPulse.incomeChange != null
                 ? `${weeklyPulse.incomeChange >= 0 ? '↑' : '↓'} ${Math.abs(weeklyPulse.incomeChange)}% this week`
                 : fmt(weeklyPulse.income) + ' this week'}
@@ -565,7 +565,7 @@ export default function Dashboard() {
       {topInsight && (
         <section style={S.insightCard}>
           <div style={S.insightIconWrap}>
-            <MIcon name="auto_awesome" fill size={22} style={{ color: '#745a27' }} />
+            <MIcon name="auto_awesome" fill size={22} style={{ color: 'var(--gold)' }} />
           </div>
           <div>
             <p style={S.insightLabel}>Florrie Insight</p>
@@ -597,32 +597,32 @@ export default function Dashboard() {
                 >
                   <span style={{
                     width: 48, fontSize: 12, fontWeight: isActive ? 700 : 400,
-                    color: isActive ? '#92405e' : '#867277',
+                    color: isActive ? 'var(--accent)' : 'var(--text-muted)',
                     fontFamily: "var(--font-body)",
                   }}>
                     {appt.time}
                   </span>
                   <div style={{
                     flex: 1,
-                    background: isActive ? '#FFFFFF' : isPast ? '#ede7e3' : '#f8f2ef',
+                    background: isActive ? 'var(--bg-card)' : isPast ? 'var(--bg-subtle)' : 'var(--bg-input)',
                     padding: '14px 16px', borderRadius: 16,
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                    borderLeft: isActive ? '4px solid #745a27' : '4px solid transparent',
+                    borderLeft: isActive ? '4px solid var(--gold)' : '4px solid transparent',
                     boxShadow: isActive ? '0 4px 20px rgba(146, 64, 94, 0.08)' : 'none',
                   }}>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                        <p style={{ fontSize: 14, fontWeight: 700, margin: 0, color: '#1d1b19' }}>{appt.client}</p>
+                        <p style={{ fontSize: 14, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>{appt.client}</p>
                         {isActive && (
                           <span style={{
-                            background: '#745a27', color: '#fff', fontSize: 8, fontWeight: 700,
+                            background: 'var(--gold)', color: '#fff', fontSize: 8, fontWeight: 700,
                             padding: '2px 6px', borderRadius: 999, textTransform: 'uppercase', letterSpacing: '0.05em',
                           }}>Now</span>
                         )}
                       </div>
-                      <p style={{ fontSize: 12, color: '#534247', margin: 0 }}>{appt.treatment}</p>
+                      <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>{appt.treatment}</p>
                     </div>
-                    <span style={{ fontSize: 14, fontWeight: isActive ? 700 : 500, color: isActive ? '#92405e' : '#1d1b19' }}>
+                    <span style={{ fontSize: 14, fontWeight: isActive ? 700 : 500, color: isActive ? 'var(--accent)' : 'var(--text-primary)' }}>
                       {fmt(appt.price_cents)}
                     </span>
                   </div>
@@ -646,12 +646,12 @@ function getGreeting() {
 const S = {
   page: {
     minHeight: '100vh',
-    background: '#fef8f4',
+    background: 'var(--bg)',
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
     padding: '0 24px 120px',
     maxWidth: 480,
     margin: '0 auto',
-    color: '#1d1b19',
+    color: 'var(--text-primary)',
     animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
   },
 
@@ -672,13 +672,13 @@ const S = {
   greeting: {
     fontFamily: "var(--font-display, 'Playfair Display', serif)",
     fontSize: 36, fontWeight: 700, fontStyle: 'italic',
-    color: '#92405e', margin: 0, lineHeight: 1.1,
+    color: 'var(--accent)', margin: 0, lineHeight: 1.1,
   },
 
   // Hero stats card
   heroCard: {
     position: 'relative', overflow: 'hidden',
-    background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
+    background: 'var(--gradient-hero)',
     borderRadius: 24, padding: 24, color: '#fff', marginBottom: 16,
     boxShadow: '0 8px 32px rgba(146, 64, 94, 0.2)',
   },
@@ -710,7 +710,7 @@ const S = {
 
   // Shift Report
   shiftReport: {
-    background: '#fff', borderRadius: 20, marginBottom: 16,
+    background: 'var(--bg-card)', borderRadius: 20, marginBottom: 16,
     border: '1px solid rgba(146, 64, 94, 0.06)',
     boxShadow: '0 2px 12px rgba(146, 64, 94, 0.05)',
     overflow: 'hidden',
@@ -721,16 +721,16 @@ const S = {
   },
   shiftPulse: {
     width: 36, height: 36, borderRadius: 12,
-    background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
+    background: 'var(--gradient-hero)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     flexShrink: 0,
     boxShadow: '0 2px 8px rgba(146, 64, 94, 0.25)',
   },
   shiftTitle: {
-    fontSize: 14, fontWeight: 600, color: '#1d1b19', margin: 0,
+    fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0,
   },
   shiftSub: {
-    fontSize: 11, color: '#867277', margin: '2px 0 0', fontWeight: 500,
+    fontSize: 11, color: 'var(--text-muted)', margin: '2px 0 0', fontWeight: 500,
   },
   shiftBody: {
     padding: '0 18px 18px',
@@ -756,16 +756,16 @@ const S = {
     marginTop: 6,
   },
   shiftItemText: {
-    fontSize: 13, color: '#1d1b19', margin: 0, lineHeight: 1.35,
+    fontSize: 13, color: 'var(--text-primary)', margin: 0, lineHeight: 1.35,
   },
   shiftItemMeta: {
-    fontSize: 10, color: '#867277', margin: '2px 0 0',
+    fontSize: 10, color: 'var(--text-muted)', margin: '2px 0 0',
   },
   shiftViewAll: {
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
     width: '100%', padding: '10px 0', borderRadius: 12,
     border: 'none', background: 'rgba(146, 64, 94, 0.05)',
-    color: '#92405e', fontSize: 12, fontWeight: 600,
+    color: 'var(--accent)', fontSize: 12, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
 
@@ -796,13 +796,13 @@ const S = {
     marginBottom: 32, position: 'relative', overflow: 'hidden',
   },
   insightIconWrap: {
-    background: '#fff', padding: 8, borderRadius: 12,
+    background: 'var(--bg-card)', padding: 8, borderRadius: 12,
     boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     flexShrink: 0,
   },
   insightLabel: {
-    fontSize: 10, fontWeight: 700, color: '#745a27',
+    fontSize: 10, fontWeight: 700, color: 'var(--gold)',
     textTransform: 'uppercase', letterSpacing: '0.12em',
     margin: '0 0 4px',
   },
@@ -820,10 +820,10 @@ const S = {
   sectionHeading: {
     fontFamily: "var(--font-display, 'Playfair Display', serif)",
     fontSize: 22, fontWeight: 400, fontStyle: 'italic',
-    color: '#1d1b19', margin: 0,
+    color: 'var(--text-primary)', margin: 0,
   },
   viewAllBtn: {
-    fontSize: 12, fontWeight: 700, color: '#92405e',
+    fontSize: 12, fontWeight: 700, color: 'var(--accent)',
     textTransform: 'uppercase', letterSpacing: '0.1em',
     background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
   },
@@ -831,7 +831,7 @@ const S = {
   // Activity feed
   activityLabel: {
     fontFamily: "var(--font-sans, 'DM Sans')",
-    fontSize: 10, fontWeight: 700, color: '#534247',
+    fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)',
     textTransform: 'uppercase', letterSpacing: '0.2em',
     margin: '0 0 12px',
   },
@@ -844,7 +844,7 @@ const S = {
     width: '100%', padding: '14px 0', borderRadius: 16, marginTop: 24,
     border: '1.5px dashed rgba(146, 64, 94, 0.25)',
     background: 'rgba(255, 217, 226, 0.2)',
-    color: '#92405e', fontSize: 14, fontWeight: 600,
+    color: 'var(--accent)', fontSize: 14, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
   },

@@ -271,7 +271,7 @@ export default function ClientTags() {
                 <label style={S.label}>Colour</label>
                 <div style={S.colourRow}>
                   {['var(--accent, #C76B8A)', '#FF9800', '#4CAF50', '#9C27B0', '#03A9F4', '#F44336', '#FFC107', '#9E9E9E'].map(c => (
-                    <div key={c} style={{ ...S.colourDot, background: c, border: tagForm.colour === c ? '3px solid #2D2A26' : '2px solid transparent', cursor: 'pointer' }} onClick={() => setTagForm(f => ({ ...f, colour: c }))} />
+                    <div key={c} style={{ ...S.colourDot, background: c, border: tagForm.colour === c ? '3px solid var(--text-primary)' : '2px solid transparent', cursor: 'pointer' }} onClick={() => setTagForm(f => ({ ...f, colour: c }))} />
                   ))}
                 </div>
 

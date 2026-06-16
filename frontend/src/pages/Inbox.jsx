@@ -298,7 +298,7 @@ function ThreadRow({ thread, active, onOpen, onDelete }) {
         onClick={() => { setDx(0); onDelete && onDelete(thread.client_id); }}
         style={{
           position: 'absolute', top: 0, right: 0, bottom: 0, width: REVEAL,
-          background: '#ba1a1a', color: '#fff', border: 'none', cursor: 'pointer',
+          background: 'var(--danger)', color: '#fff', border: 'none', cursor: 'pointer',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
           fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
         }}
@@ -314,7 +314,7 @@ function ThreadRow({ thread, active, onOpen, onDelete }) {
         style={{
           ...S.row,
           position: 'relative',
-          background: active ? '#ffe5ec' : isUnread ? '#fff' : 'var(--bg, #fef8f4)',
+          background: active ? '#ffe5ec' : isUnread ? 'var(--bg-card)' : 'var(--bg, #fef8f4)',
           borderColor: active ? '#ffd1de' : 'transparent',
           transform: `translateX(${dx}px)`,
           transition: start.current ? 'none' : 'transform 0.2s ease',
@@ -333,7 +333,7 @@ function ThreadRow({ thread, active, onOpen, onDelete }) {
             </span>
             <span style={{
               ...S.rowPreview,
-              color: isUnread ? '#1d1b19' : '#867277',
+              color: isUnread ? 'var(--text-primary)' : 'var(--text-muted)',
               fontWeight: isUnread ? 600 : 400,
             }}>
               {directionPrefix}{thread.last_message_preview || ''}
@@ -352,7 +352,7 @@ function ThreadSkeleton() {
       {[0, 1, 2, 3].map(i => (
         <li key={i}>
           <div style={{ ...S.row, cursor: 'default' }}>
-            <span style={{ ...S.avatar, background: '#f3ede9', color: 'transparent' }}>·</span>
+            <span style={{ ...S.avatar, background: 'var(--bg-hover)', color: 'transparent' }}>·</span>
             <span style={S.rowBody}>
               <span style={S.skelLine} />
               <span style={S.skelLineShort} />
@@ -385,7 +385,7 @@ function EmptyConvoPlaceholder() {
   return (
     <div style={S.placeholder}>
       <div style={{ fontSize: 28, marginBottom: 8 }}>💌</div>
-      <div style={{ fontSize: 14, color: '#867277', fontFamily: "'Noto Serif', Georgia, serif", fontStyle: 'italic' }}>
+      <div style={{ fontSize: 14, color: 'var(--text-muted)', fontFamily: "'Noto Serif', Georgia, serif", fontStyle: 'italic' }}>
         Pick a conversation
       </div>
     </div>
@@ -506,7 +506,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
     return (
       <div style={embedded ? S.convoEmbedded : S.convoFull}>
         <ConvoHeader onBack={onBack} embedded={embedded} clientName="…" navigate={navigate} clientId={clientId} />
-        <div style={{ padding: 16, color: '#867277', fontSize: 13 }}>Loading conversation…</div>
+        <div style={{ padding: 16, color: 'var(--text-muted)', fontSize: 13 }}>Loading conversation…</div>
       </div>
     );
   }
@@ -548,7 +548,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
 
       <div ref={scrollerRef} style={S.scroller}>
         {messages.length === 0 && (
-          <div style={{ padding: '40px 16px', color: '#867277', fontSize: 13, textAlign: 'center' }}>
+          <div style={{ padding: '40px 16px', color: 'var(--text-muted)', fontSize: 13, textAlign: 'center' }}>
             No messages yet. Type below to start the conversation.
           </div>
         )}
@@ -581,9 +581,9 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
                 onClick={() => setChannel(c)}
                 style={{
                   ...S.channelPill,
-                  background: channel === c ? '#92405e' : '#fff',
-                  color: channel === c ? '#fff' : '#92405e',
-                  borderColor: channel === c ? '#92405e' : '#f0d2dd',
+                  background: channel === c ? 'var(--accent)' : 'var(--bg-card)',
+                  color: channel === c ? '#fff' : 'var(--accent)',
+                  borderColor: channel === c ? 'var(--accent)' : '#f0d2dd',
                 }}
               >
                 <span aria-hidden>{CHANNEL_ICON[c]}</span> {CHANNEL_LABEL[c]}
@@ -672,9 +672,9 @@ function Bubble({ msg }) {
       <div
         style={{
           ...S.bubble,
-          background: out ? '#92405e' : '#fff',
-          color: out ? '#fff' : '#1d1b19',
-          borderColor: out ? '#92405e' : '#f0d2dd',
+          background: out ? 'var(--accent)' : 'var(--bg-card)',
+          color: out ? '#fff' : 'var(--text-primary)',
+          borderColor: out ? 'var(--accent)' : '#f0d2dd',
           borderBottomLeftRadius: out ? 16 : 4,
           borderBottomRightRadius: out ? 4 : 16,
         }}
@@ -701,16 +701,16 @@ function Bubble({ msg }) {
 const S = {
   page: {
     minHeight: '100vh',
-    background: '#fef8f4',
+    background: 'var(--bg)',
     fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
     padding: '16px 16px 24px',
     maxWidth: 480,
     margin: '0 auto',
-    color: '#1d1b19',
+    color: 'var(--text-primary)',
   },
   pageWide: {
     minHeight: '100vh',
-    background: '#fef8f4',
+    background: 'var(--bg)',
     fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
     display: 'grid',
     gridTemplateColumns: 'minmax(320px, 380px) 1fr',
@@ -718,10 +718,10 @@ const S = {
     padding: '16px 16px 24px',
     maxWidth: 1100,
     margin: '0 auto',
-    color: '#1d1b19',
+    color: 'var(--text-primary)',
   },
   paneList: {
-    background: '#fff',
+    background: 'var(--bg-card)',
     border: '1px solid rgba(146,64,94,0.07)',
     borderRadius: 20,
     padding: '14px 12px',
@@ -730,7 +730,7 @@ const S = {
     overflowY: 'auto',
   },
   paneConvo: {
-    background: '#fff',
+    background: 'var(--bg-card)',
     border: '1px solid rgba(146,64,94,0.07)',
     borderRadius: 20,
     boxShadow: '0 1px 4px rgba(146,64,94,0.05)',
@@ -750,7 +750,7 @@ const S = {
   title: {
     fontSize: 22,
     fontWeight: 700,
-    color: '#1d1b19',
+    color: 'var(--text-primary)',
     fontFamily: "'Noto Serif', Georgia, serif",
     fontStyle: 'italic',
     margin: 0,
@@ -768,7 +768,7 @@ const S = {
     top: '50%',
     transform: 'translateY(-50%)',
     fontSize: 18,
-    color: '#B5AFA8',
+    color: 'var(--text-muted)',
   },
   searchInput: {
     width: '100%',
@@ -776,10 +776,10 @@ const S = {
     padding: '10px 12px 10px 38px',
     border: '1px solid rgba(146,64,94,0.12)',
     borderRadius: 14,
-    background: '#fff',
+    background: 'var(--bg-card)',
     fontSize: 14,
     fontFamily: 'inherit',
-    color: '#1d1b19',
+    color: 'var(--text-primary)',
     outline: 'none',
   },
 
@@ -832,7 +832,7 @@ const S = {
     justifyContent: 'space-between',
     gap: 8,
   },
-  rowName: { fontSize: 14, color: '#1d1b19' },
+  rowName: { fontSize: 14, color: 'var(--text-primary)' },
   rowTime: { fontSize: 11, color: '#9B8A8E', flexShrink: 0 },
   rowBottom: {
     display: 'flex',
@@ -853,7 +853,7 @@ const S = {
     fontSize: 11,
     fontWeight: 700,
     color: '#fff',
-    background: '#92405e',
+    background: 'var(--accent)',
     padding: '2px 8px',
     borderRadius: 20,
     minWidth: 18,
@@ -872,7 +872,7 @@ const S = {
   emptyIcon: { fontSize: 36, lineHeight: 1 },
   emptyText: {
     fontSize: 14,
-    color: '#534247',
+    color: 'var(--text-secondary)',
     lineHeight: 1.5,
     margin: 0,
     maxWidth: 280,
@@ -880,7 +880,7 @@ const S = {
   emptyCta: {
     marginTop: 6,
     padding: '10px 18px',
-    background: '#92405e',
+    background: 'var(--accent)',
     color: '#fff',
     borderRadius: 999,
     fontSize: 13,
@@ -890,7 +890,7 @@ const S = {
   },
   emptyHint: {
     fontSize: 12,
-    color: '#867277',
+    color: 'var(--text-muted)',
     margin: 0,
     maxWidth: 260,
   },
@@ -917,11 +917,11 @@ const S = {
   // Conversation
   convoFull: {
     minHeight: '100vh',
-    background: '#fef8f4',
+    background: 'var(--bg)',
     fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
     display: 'flex',
     flexDirection: 'column',
-    color: '#1d1b19',
+    color: 'var(--text-primary)',
     paddingBottom: 120,
   },
   convoEmbedded: {
@@ -935,7 +935,7 @@ const S = {
     alignItems: 'center',
     gap: 10,
     padding: '12px 14px',
-    background: '#fff',
+    background: 'var(--bg-card)',
     borderBottom: '1px solid rgba(146,64,94,0.07)',
     position: 'sticky',
     top: 0,
@@ -944,7 +944,7 @@ const S = {
   backBtn: {
     background: 'none',
     border: 'none',
-    color: '#92405e',
+    color: 'var(--accent)',
     padding: 4,
     cursor: 'pointer',
     fontFamily: 'inherit',
@@ -974,7 +974,7 @@ const S = {
   convoName: {
     fontSize: 15,
     fontWeight: 700,
-    color: '#1d1b19',
+    color: 'var(--text-primary)',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
@@ -982,7 +982,7 @@ const S = {
   viewProfileBtn: {
     background: 'none',
     border: 'none',
-    color: '#92405e',
+    color: 'var(--accent)',
     fontSize: 11,
     fontWeight: 600,
     padding: 0,
@@ -1055,7 +1055,7 @@ const S = {
 
   composerBar: {
     padding: '8px 12px 16px',
-    background: '#fff',
+    background: 'var(--bg-card)',
     borderTop: '1px solid rgba(146,64,94,0.07)',
     display: 'flex',
     flexDirection: 'column',
@@ -1084,7 +1084,7 @@ const S = {
   },
   suggestionRow: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 },
   suggestionChip: {
-    background: '#fff', border: '1.5px solid #f0d2dd', color: '#92405e',
+    background: 'var(--bg-card)', border: '1.5px solid #f0d2dd', color: 'var(--accent)',
     borderRadius: 999, padding: '7px 14px', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1.2, maxWidth: '100%',
     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
@@ -1099,12 +1099,12 @@ const S = {
     padding: '10px 14px',
     border: '1px solid rgba(146,64,94,0.18)',
     borderRadius: 18,
-    background: '#fef8f4',
+    background: 'var(--bg)',
     fontSize: 14,
     fontFamily: 'inherit',
     resize: 'none',
     maxHeight: 140,
-    color: '#1d1b19',
+    color: 'var(--text-primary)',
     outline: 'none',
     lineHeight: 1.4,
   },
@@ -1113,7 +1113,7 @@ const S = {
     height: 38,
     borderRadius: 19,
     border: 'none',
-    background: '#92405e',
+    background: 'var(--accent)',
     color: '#fff',
     cursor: 'pointer',
     display: 'flex',
@@ -1134,14 +1134,14 @@ const S = {
     height: 12,
     width: '60%',
     borderRadius: 6,
-    background: '#f3ede9',
+    background: 'var(--bg-hover)',
     display: 'block',
   },
   skelLineShort: {
     height: 10,
     width: '40%',
     borderRadius: 5,
-    background: '#f3ede9',
+    background: 'var(--bg-hover)',
     display: 'block',
     marginTop: 4,
   },

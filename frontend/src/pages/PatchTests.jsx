@@ -674,7 +674,7 @@ const styles = {
   settingsHint: { display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 },
   settingsSelect: { padding: '6px 10px', borderRadius: 8, border: '1.5px solid var(--border)', fontSize: 12, fontFamily: 'inherit', background: 'var(--bg-card)', color: 'var(--text-secondary)' },
   toggle: { width: 44, height: 26, borderRadius: 13, border: 'none', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s' },
-  toggleDot: { width: 22, height: 22, borderRadius: 11, background: '#fff', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
+  toggleDot: { width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #fff)', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
   treatmentNote: { fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' },
 
   // Empty

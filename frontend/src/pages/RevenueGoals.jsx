@@ -308,7 +308,7 @@ const S = {
   streakCard: { background: '#F9F7F4', borderRadius: 10, padding: 12, textAlign: 'center' },
   streakText: { fontSize: 13, fontWeight: 600, color: '#8B6F5E' },
 
-  setGoalBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: '1px dashed #C76B8A', background: 'transparent', fontSize: 14, fontWeight: 600, color: 'var(--accent, #C76B8A)', cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
+  setGoalBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: '1px dashed var(--accent-rose)', background: 'transparent', fontSize: 14, fontWeight: 600, color: 'var(--accent, #C76B8A)', cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
 
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
   modal: { background: 'var(--bg, var(--bg, #FAF8F5))', borderRadius: '18px 18px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', overflow: 'auto', padding: '20px 16px 32px' },

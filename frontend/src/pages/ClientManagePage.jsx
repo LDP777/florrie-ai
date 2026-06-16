@@ -194,8 +194,8 @@ export default function ClientManagePage() {
   const isPast = apptDate < new Date() && !isCancelled;
 
   const statusColour = {
-    confirmed: '#5BA67F', pending: '#D4943A', cancelled: '#DC2626',
-    completed: '#8A8580', no_show: '#EF4444',
+    confirmed: '#5BA67F', pending: 'var(--warning)', cancelled: 'var(--danger)',
+    completed: '#8A8580', no_show: 'var(--danger)',
   }[appointment.status] || '#8A8580';
 
   return (
@@ -215,9 +215,9 @@ export default function ClientManagePage() {
         {cancelResult && (
           <div style={{
             padding: '12px 16px', borderRadius: 12, marginBottom: 16,
-            background: cancelResult.isLateCancel ? '#FFF7ED' : '#F0FFF4',
+            background: cancelResult.isLateCancel ? 'var(--warning-bg)' : 'var(--success-bg)',
             border: `1px solid ${cancelResult.isLateCancel ? '#F59E0B' : '#86EFAC'}`,
-            fontSize: 14, color: cancelResult.isLateCancel ? '#92400E' : '#166534',
+            fontSize: 14, color: cancelResult.isLateCancel ? 'var(--warning-text)' : 'var(--success-text)',
           }}>
             {cancelResult.message}
           </div>
@@ -227,9 +227,9 @@ export default function ClientManagePage() {
         {rescheduleResult && (
           <div style={{
             padding: '12px 16px', borderRadius: 12, marginBottom: 16,
-            background: rescheduleResult.isLateReschedule ? '#FFF7ED' : '#F0FFF4',
+            background: rescheduleResult.isLateReschedule ? 'var(--warning-bg)' : 'var(--success-bg)',
             border: `1px solid ${rescheduleResult.isLateReschedule ? '#F59E0B' : '#86EFAC'}`,
-            fontSize: 14, color: rescheduleResult.isLateReschedule ? '#92400E' : '#166534',
+            fontSize: 14, color: rescheduleResult.isLateReschedule ? 'var(--warning-text)' : 'var(--success-text)',
             lineHeight: 1.5,
           }}>
             ✓ {rescheduleResult.message}
@@ -240,18 +240,18 @@ export default function ClientManagePage() {
         {appointment.status === 'pending' && !appointment.depositPaid && (
           <div style={{
             padding: '12px 16px', borderRadius: 12, marginBottom: 4,
-            background: '#FFF7ED', border: '1px solid #F59E0B',
-            fontSize: 13, color: '#92400E',
+            background: 'var(--warning-bg)', border: '1px solid #F59E0B',
+            fontSize: 13, color: 'var(--warning-text)',
           }}>
             <strong>Payment required</strong> - your slot is held but not confirmed until payment is received.
             {' '}
             {paymentResent ? (
-              <span style={{ color: '#166534', fontWeight: 600 }}>✓ Payment link sent to your email.</span>
+              <span style={{ color: 'var(--success-text)', fontWeight: 600 }}>✓ Payment link sent to your email.</span>
             ) : (
               <button
                 onClick={handleResendPayment}
                 disabled={resendingPayment}
-                style={{ background: 'none', border: 'none', color: '#92400E', fontWeight: 700, fontSize: 13, cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: 'inherit' }}
+                style={{ background: 'none', border: 'none', color: 'var(--warning-text)', fontWeight: 700, fontSize: 13, cursor: 'pointer', textDecoration: 'underline', padding: 0, fontFamily: 'inherit' }}
               >
                 {resendingPayment ? 'Sending…' : 'Resend payment link →'}
               </button>
@@ -314,7 +314,7 @@ export default function ClientManagePage() {
             ) : (
               <p style={S.policyText}>Free cancellation at any time before your appointment.</p>
             )}
-            <p style={{ ...S.policyText, color: '#999', marginTop: 8 }}>
+            <p style={{ ...S.policyText, color: 'var(--text-muted)', marginTop: 8 }}>
               {policy.hoursUntil > 0
                 ? `Your appointment is in ${policy.hoursUntil} hour${policy.hoursUntil !== 1 ? 's' : ''}.`
                 : 'Your appointment is very soon.'}
@@ -336,7 +336,7 @@ export default function ClientManagePage() {
                     <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 600, color: '#2D1B1B' }}>
                       Patch test required
                     </p>
-                    <p style={{ margin: 0, fontSize: 13, color: '#888' }}>
+                    <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>
                       Before your {appointment.treatment?.name} on {apptDate.toLocaleDateString('en-GB', { timeZone: 'UTC' })} - must be done at least 48 hours before
                     </p>
                   </div>
@@ -350,7 +350,7 @@ export default function ClientManagePage() {
                     >
                       {loadingSlots ? 'Loading slots…' : 'Book your patch test'}
                     </button>
-                    {slotsError && <p style={{ fontSize: 13, color: '#DC2626', marginTop: 8 }}>{slotsError}</p>}
+                    {slotsError && <p style={{ fontSize: 13, color: 'var(--danger)', marginTop: 8 }}>{slotsError}</p>}
                   </>
                 ) : (
                   <div style={S.slotPickerCard}>
@@ -366,7 +366,7 @@ export default function ClientManagePage() {
                             disabled={confirmingSlot}
                             style={{
                               padding: '12px 14px', borderRadius: 10, border: '1.5px solid #E8E4DF',
-                              background: '#fff', fontSize: 13, fontWeight: 600, color: '#2D1B1B',
+                              background: 'var(--bg-card)', fontSize: 13, fontWeight: 600, color: '#2D1B1B',
                               cursor: confirmingSlot ? 'not-allowed' : 'pointer',
                               opacity: confirmingSlot ? 0.5 : 1, textAlign: 'left',
                               fontFamily: 'inherit', transition: 'all 0.2s',
@@ -379,7 +379,7 @@ export default function ClientManagePage() {
                         ))}
                       </div>
                     ) : (
-                      <p style={{ fontSize: 13, color: '#888', marginBottom: 12 }}>No available slots - contact your beautician directly</p>
+                      <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>No available slots - contact your beautician directly</p>
                     )}
                     <button onClick={() => { setShowSlotPicker(false); setSlotsError(null); }} style={S.keepBtn}>Back</button>
                   </div>
@@ -403,7 +403,7 @@ export default function ClientManagePage() {
                             <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 600, color: '#2D1B1B' }}>
                               Patch test required
                             </p>
-                            <p style={{ margin: 0, fontSize: 13, color: '#888' }}>
+                            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>
                               Before your {appointment.treatment?.name} on {apptDate.toLocaleDateString('en-GB', { timeZone: 'UTC' })}
                             </p>
                           </div>
@@ -442,7 +442,7 @@ export default function ClientManagePage() {
                         )}
 
                         {slotsError && (
-                          <p style={{ fontSize: 13, color: '#DC2626', marginTop: 8 }}>{slotsError}</p>
+                          <p style={{ fontSize: 13, color: 'var(--danger)', marginTop: 8 }}>{slotsError}</p>
                         )}
                       </div>
                     ) : (
@@ -461,7 +461,7 @@ export default function ClientManagePage() {
                                   padding: '12px 14px',
                                   borderRadius: 10,
                                   border: '1.5px solid #E8E4DF',
-                                  background: '#fff',
+                                  background: 'var(--bg-card)',
                                   fontSize: 13,
                                   fontWeight: 600,
                                   color: '#2D1B1B',
@@ -479,7 +479,7 @@ export default function ClientManagePage() {
                             ))}
                           </div>
                         ) : (
-                          <p style={{ fontSize: 13, color: '#888', marginBottom: 12 }}>No slots available</p>
+                          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>No slots available</p>
                         )}
                         <button
                           onClick={() => { setShowSlotPicker(false); setSlotsError(null); }}
@@ -498,7 +498,7 @@ export default function ClientManagePage() {
                 <div key={pt.id} style={S.patchTestRow}>
                   <div style={{
                     width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
-                    background: pt.status === 'passed' ? '#5BA67F' : pt.status === 'failed' ? '#DC2626' : '#D4943A',
+                    background: pt.status === 'passed' ? '#5BA67F' : pt.status === 'failed' ? 'var(--danger)' : 'var(--warning)',
                   }} />
                   <div style={{ flex: 1 }}>
                     <p style={S.patchTestName}>
@@ -573,7 +573,7 @@ export default function ClientManagePage() {
                   />
                 </div>
                 {rescheduleError && (
-                  <p style={{ fontSize: 13, color: '#DC2626', margin: '0 0 10px' }}>{rescheduleError}</p>
+                  <p style={{ fontSize: 13, color: 'var(--danger)', margin: '0 0 10px' }}>{rescheduleError}</p>
                 )}
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button onClick={() => { setShowReschedule(false); setRescheduleError(null); }} style={S.keepBtn}>
@@ -605,13 +605,13 @@ export default function ClientManagePage() {
                   Are you sure you want to cancel?
                 </p>
                 {policy.withinCancellationWindow && policy.lateCancelFeeCents > 0 ? (
-                  <p style={{ fontSize: 13, color: '#DC2626', margin: '0 0 12px' }}>
+                  <p style={{ fontSize: 13, color: 'var(--danger)', margin: '0 0 12px' }}>
                     {policy.cardOnFile
                       ? `Cancelling within ${policy.cancellation_notice_hours || 48} hours of your appointment means a £${(policy.lateCancelFeeCents / 100).toFixed(2)} fee on the card you used for your deposit.`
                       : `Cancelling within ${policy.cancellation_notice_hours || 48} hours of your appointment means a £${(policy.lateCancelFeeCents / 100).toFixed(2)} late cancellation fee may apply.`}
                   </p>
                 ) : policy.withinCancellationWindow && policy.late_cancel_charge_percent > 0 ? (
-                  <p style={{ fontSize: 13, color: '#DC2626', margin: '0 0 12px' }}>
+                  <p style={{ fontSize: 13, color: 'var(--danger)', margin: '0 0 12px' }}>
                     A {policy.late_cancel_charge_percent}% cancellation fee may be charged as you are within the notice period.
                   </p>
                 ) : null}
@@ -638,7 +638,7 @@ export default function ClientManagePage() {
 
       {/* Footer */}
       <div style={S.footer}>
-        <span style={{ color: '#999', fontSize: 13 }}>Powered by </span>
+        <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Powered by </span>
         <span style={{ color: brand, fontSize: 13, fontWeight: 700, fontFamily: "'Playfair Display', Georgia, serif", fontStyle: 'italic' }}>florrie.ai</span>
       </div>
     </div>
@@ -648,7 +648,7 @@ export default function ClientManagePage() {
 function MetaRow({ icon, label, value }) {
   return (
     <div style={S.metaRow}>
-      <span className="material-symbols-outlined" style={{ fontSize: 16, color: '#B5AFA8' }}>{icon}</span>
+      <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>{icon}</span>
       <span style={S.metaLabel}>{label}</span>
       <span style={S.metaValue}>{value}</span>
     </div>
@@ -658,7 +658,7 @@ function MetaRow({ icon, label, value }) {
 const S = {
   page: {
     minHeight: '100vh',
-    background: '#FEF8F4',
+    background: 'var(--bg)',
     fontFamily: "'DM Sans', system-ui, sans-serif",
     display: 'flex',
     flexDirection: 'column',
@@ -669,12 +669,12 @@ const S = {
   },
   spinner: {
     width: 32, height: 32, borderRadius: '50%',
-    border: '3px solid #EDE9E4', borderTopColor: '#C76B8A',
+    border: '3px solid var(--border-light)', borderTopColor: 'var(--accent-rose)',
     animation: 'spin 0.8s linear infinite',
   },
-  loadingText: { fontSize: 14, color: '#B5AFA8', margin: 0 },
+  loadingText: { fontSize: 14, color: 'var(--text-muted)', margin: 0 },
   header: {
-    background: '#fff',
+    background: 'var(--bg-card)',
     padding: '20px 20px 16px',
     boxShadow: '0 1px 0 rgba(0,0,0,0.06)',
   },
@@ -684,17 +684,17 @@ const S = {
     fontFamily: "'Playfair Display', Georgia, serif",
     fontStyle: 'italic',
   },
-  headerSub: { margin: '2px 0 0', fontSize: 13, color: '#B5AFA8' },
+  headerSub: { margin: '2px 0 0', fontSize: 13, color: 'var(--text-muted)' },
   content: { flex: 1, maxWidth: 480, margin: '0 auto', width: '100%', padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: 12 },
   card: {
-    background: '#fff', borderRadius: 16,
+    background: 'var(--bg-card)', borderRadius: 16,
     padding: '18px 18px', boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
   },
   cardTitle: {
     textAlign: 'center', fontSize: 18, fontWeight: 700, margin: '0 0 8px',
     fontFamily: "'Playfair Display', Georgia, serif",
   },
-  cardBody: { textAlign: 'center', fontSize: 14, color: '#666', margin: 0 },
+  cardBody: { textAlign: 'center', fontSize: 14, color: 'var(--text-secondary)', margin: 0 },
   bookingStatus: { display: 'flex', justifyContent: 'flex-end', marginBottom: 8 },
   statusChip: {
     padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
@@ -707,31 +707,31 @@ const S = {
   },
   metaGrid: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 },
   metaRow: { display: 'flex', alignItems: 'center', gap: 8 },
-  metaLabel: { fontSize: 13, color: '#B5AFA8', width: 60, flexShrink: 0 },
+  metaLabel: { fontSize: 13, color: 'var(--text-muted)', width: 60, flexShrink: 0 },
   metaValue: { fontSize: 13, fontWeight: 600, color: '#2D1B1B', flex: 1 },
   clientSection: { borderTop: '1px solid #F0EBE6', paddingTop: 14 },
   sectionLabel: {
     margin: '0 0 8px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-    letterSpacing: '0.08em', color: '#B5AFA8',
+    letterSpacing: '0.08em', color: 'var(--text-muted)',
   },
   clientName: { margin: '0 0 2px', fontWeight: 600, fontSize: 15, color: '#2D1B1B' },
-  clientMeta: { margin: '0 0 2px', fontSize: 13, color: '#888' },
+  clientMeta: { margin: '0 0 2px', fontSize: 13, color: 'var(--text-secondary)' },
   policyCard: {
-    background: '#fff', borderRadius: 16,
+    background: 'var(--bg-card)', borderRadius: 16,
     padding: '16px 18px', boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
   },
   policyText: { margin: '0 0 4px', fontSize: 13, color: '#555', lineHeight: 1.5 },
   warningBanner: {
     marginTop: 10, padding: '10px 12px', borderRadius: 10,
     background: '#FFFBEB', border: '1px solid #F59E0B',
-    fontSize: 13, color: '#92400E', fontWeight: 500,
+    fontSize: 13, color: 'var(--warning-text)', fontWeight: 500,
   },
   patchTestRow: {
     display: 'flex', alignItems: 'center', gap: 10,
     padding: '8px 0', borderBottom: '1px solid #F5F0EB',
   },
   patchTestName: { margin: 0, fontSize: 14, fontWeight: 600, color: '#2D1B1B' },
-  patchTestMeta: { margin: '2px 0 0', fontSize: 12, color: '#888' },
+  patchTestMeta: { margin: '2px 0 0', fontSize: 12, color: 'var(--text-secondary)' },
   patchTestBooking: {
     padding: '14px', borderRadius: 12, background: '#FFFBF0',
     border: '1.5px solid #F5E6D3',
@@ -743,11 +743,11 @@ const S = {
   },
   altSlotBtn: {
     padding: '12px 14px', borderRadius: 10, border: '1.5px solid #E8E4DF',
-    background: '#fff', color: '#555', fontSize: 13, fontWeight: 600,
+    background: 'var(--bg-card)', color: '#555', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   slotPickerCard: {
-    background: '#fff', borderRadius: 16, padding: '18px 18px',
+    background: 'var(--bg-card)', borderRadius: 16, padding: '18px 18px',
     boxShadow: '0 2px 12px rgba(0,0,0,0.05)', border: '1px solid #E8E4DF',
   },
   formRow: {
@@ -755,33 +755,33 @@ const S = {
     padding: '8px 0', borderBottom: '1px solid #F5F0EB',
   },
   formName: { margin: 0, fontSize: 14, fontWeight: 600, color: '#2D1B1B' },
-  formMeta: { margin: '2px 0 0', fontSize: 12, color: '#888' },
+  formMeta: { margin: '2px 0 0', fontSize: 12, color: 'var(--text-secondary)' },
   formLink: {
     padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600,
     border: '1.5px solid', textDecoration: 'none', flexShrink: 0,
   },
   cancelBtn: {
     width: '100%', padding: '13px 0', borderRadius: 12, border: '1.5px solid #FECACA',
-    background: '#FFF5F5', color: '#DC2626', fontSize: 14, fontWeight: 600,
+    background: '#FFF5F5', color: 'var(--danger)', fontSize: 14, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   confirmCancel: {
-    background: '#fff', borderRadius: 16, padding: '18px 18px',
+    background: 'var(--bg-card)', borderRadius: 16, padding: '18px 18px',
     boxShadow: '0 2px 12px rgba(0,0,0,0.05)', border: '1px solid #FECACA',
   },
   keepBtn: {
     flex: 1, padding: '12px 0', borderRadius: 10, border: '1.5px solid #E8E4DF',
-    background: '#fff', color: '#555', fontSize: 14, fontWeight: 600,
+    background: 'var(--bg-card)', color: '#555', fontSize: 14, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   confirmCancelBtn: {
     flex: 1, padding: '12px 0', borderRadius: 10, border: 'none',
-    background: '#DC2626', color: '#fff', fontSize: 14, fontWeight: 600,
+    background: 'var(--danger)', color: '#fff', fontSize: 14, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   cancelledBanner: {
     textAlign: 'center', padding: '16px', borderRadius: 12,
-    background: '#F9F9F9', fontSize: 14, color: '#666',
+    background: '#F9F9F9', fontSize: 14, color: 'var(--text-secondary)',
     border: '1px solid #E8E4DF',
   },
   footer: {
@@ -791,15 +791,15 @@ const S = {
   rescheduleBtn: {
     width: '100%', padding: '13px 0', borderRadius: 12,
     border: '1.5px solid #C76B8A33', background: '#FFF0F4',
-    color: '#C76B8A', fontSize: 14, fontWeight: 600,
+    color: 'var(--accent-rose)', fontSize: 14, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   rescheduleCard: {
-    background: '#fff', borderRadius: 16, padding: '18px 18px',
+    background: 'var(--bg-card)', borderRadius: 16, padding: '18px 18px',
     boxShadow: '0 2px 12px rgba(0,0,0,0.05)', border: '1px solid #E8E4DF',
   },
   dateInput: {
     padding: '10px 12px', borderRadius: 10, border: '1.5px solid #E8E4DF',
-    fontSize: 14, fontFamily: 'inherit', background: '#fff', color: '#2D1B1B',
+    fontSize: 14, fontFamily: 'inherit', background: 'var(--bg-card)', color: '#2D1B1B',
   },
 };

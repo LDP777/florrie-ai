@@ -472,7 +472,7 @@ function StatusBadge({ status }) {
 function PerfStat({ label, value, color }) {
   return (
     <div style={styles.perfStatBox}>
-      <span style={{ ...styles.perfStatValue, color: color || '#2D2A26' }}>{value}</span>
+      <span style={{ ...styles.perfStatValue, color: color || 'var(--text-primary)' }}>{value}</span>
       <span style={styles.perfStatLabel}>{label}</span>
     </div>
   );

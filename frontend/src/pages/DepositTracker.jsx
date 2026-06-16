@@ -272,8 +272,8 @@ const S = {
   page: { padding: '20px 16px 32px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text, var(--text-primary, #2D2A26))', margin: '0 0 16px' },
 
-  errorBanner: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--danger-bg, #FDF0EF)', borderRadius: 10, padding: '10px 12px', marginBottom: 16, color: '#C62828', fontSize: 13 },
-  errorClose: { background: 'none', border: 'none', color: '#C62828', cursor: 'pointer', fontSize: 16, fontWeight: 600, padding: 0 },
+  errorBanner: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--danger-bg, #FDF0EF)', borderRadius: 10, padding: '10px 12px', marginBottom: 16, color: 'var(--danger-text, #C62828)', fontSize: 13 },
+  errorClose: { background: 'none', border: 'none', color: 'var(--danger-text, #C62828)', cursor: 'pointer', fontSize: 16, fontWeight: 600, padding: 0 },
 
   summaryCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 16, marginBottom: 16 },
   summaryMain: { display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))' },
@@ -295,7 +295,7 @@ const S = {
   depositCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 14, cursor: 'pointer' },
   depositHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
   depositLeft: { display: 'flex', gap: 10, alignItems: 'center' },
-  avatar: { width: 36, height: 36, borderRadius: 18, background: '#F0E6ED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: 'var(--accent, #C76B8A)', flexShrink: 0 },
+  avatar: { width: 36, height: 36, borderRadius: 18, background: 'var(--accent-light, #F0E6ED)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: 'var(--accent, #C76B8A)', flexShrink: 0 },
   depositInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
   depositClient: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
   depositTreatment: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
@@ -312,7 +312,7 @@ const S = {
   actionRow: { display: 'flex', gap: 8, marginTop: 8 },
   actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, var(--border, var(--border, #EDE9E4)))', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
 
-  policyCard: { background: '#F9F7F4', borderRadius: 12, padding: 14 },
+  policyCard: { background: 'var(--bg-subtle, #F9F7F4)', borderRadius: 12, padding: 14 },
   policyTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
   policyText: { fontSize: 12, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.4, margin: '6px 0' },
   policyLink: { background: 'none', border: 'none', color: 'var(--accent, #C76B8A)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0, fontFamily: 'inherit' },

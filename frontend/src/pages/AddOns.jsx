@@ -162,9 +162,9 @@ export default function AddOns() {
       {/* Stats */}
       <div style={S.statsRow}>
         {[
-          { label: 'Total', value: addons.length, colour: '#8B6F5E' },
-          { label: 'Active', value: active.length, colour: '#C76B8A' },
-          { label: 'Categories', value: [...new Set(addons.map(a => a.category))].length, colour: '#6B8F7B' },
+          { label: 'Total', value: addons.length, colour: 'var(--text-secondary, #8B6F5E)' },
+          { label: 'Active', value: active.length, colour: 'var(--accent, #C76B8A)' },
+          { label: 'Categories', value: [...new Set(addons.map(a => a.category))].length, colour: 'var(--success, #6B8F7B)' },
         ].map(s => (
           <div key={s.label} style={S.statCard}>
             <span style={{ ...S.statValue, color: s.colour }}>{s.value}</span>
@@ -260,7 +260,7 @@ export default function AddOns() {
                   <div style={S.rankInfo}>
                     <span style={S.rankName}>{addon.name}</span>
                     <div style={S.rankBarBg}>
-                      <div style={{ ...S.rankBarFill, width: `${pct}%`, background: cat?.colour || '#C76B8A' }} />
+                      <div style={{ ...S.rankBarFill, width: `${pct}%`, background: cat?.colour || 'var(--accent, #C76B8A)' }} />
                     </div>
                   </div>
                   <span style={S.rankValue}>{fmt(addon.price_cents || addon.price || 0)}</span>
@@ -318,7 +318,7 @@ export default function AddOns() {
 
             <div style={S.toggleRow}>
               <span style={S.toggleLabel}>Auto-suggest at booking</span>
-              <button style={{ ...S.toggle, background: form.autoSuggest ? '#C76B8A' : '#E0DCD8' }} onClick={() => setForm(f => ({ ...f, autoSuggest: !f.autoSuggest }))}>
+              <button style={{ ...S.toggle, background: form.autoSuggest ? 'var(--accent, #C76B8A)' : 'var(--border, #E0DCD8)' }} onClick={() => setForm(f => ({ ...f, autoSuggest: !f.autoSuggest }))}>
                 <div style={{ ...S.toggleDot, transform: form.autoSuggest ? 'translateX(18px)' : 'translateX(2px)' }} />
               </button>
             </div>

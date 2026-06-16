@@ -602,7 +602,7 @@ export default function Clients() {
                           style={{
                             ...styles.tagChip,
                             background: hexWithAlpha(tag.color || '#C76B8A', 0.16),
-                            color: tag.color || '#92405e',
+                            color: tag.color || 'var(--accent)',
                             borderColor: hexWithAlpha(tag.color || '#C76B8A', 0.32),
                           }}
                         >
@@ -1080,9 +1080,9 @@ function ClientBubble({ msg }) {
         maxWidth: '78%',
         padding: '8px 12px',
         borderRadius: 14,
-        background: out ? '#92405e' : '#fff',
-        color: out ? '#fff' : '#1d1b19',
-        border: out ? '1px solid #92405e' : '1px solid #f0d2dd',
+        background: out ? 'var(--accent)' : 'var(--bg-card)',
+        color: out ? '#fff' : 'var(--text-primary)',
+        border: out ? '1px solid var(--accent)' : '1px solid #f0d2dd',
         borderBottomLeftRadius: out ? 14 : 4,
         borderBottomRightRadius: out ? 4 : 14,
         fontSize: 13,
@@ -1434,8 +1434,8 @@ const styles = {
     fontFamily: 'inherit',
     fontSize: 13,
     resize: 'vertical',
-    background: '#fff',
-    color: '#1d1b19',
+    background: 'var(--bg-card)',
+    color: 'var(--text-primary)',
   },
   composerSend: {
     padding: '8px 14px',

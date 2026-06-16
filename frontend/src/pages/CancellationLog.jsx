@@ -132,16 +132,16 @@ export default function CancellationLog() {
 
       {/* Stats */}
       <div style={S.statsGrid}>
-        <div style={{ ...S.statCard, borderLeft: '3px solid #F44336' }}>
-          <span style={{ ...S.statValue, color: '#F44336' }}>{fmt(totalLost)}</span>
+        <div style={{ ...S.statCard, borderLeft: '3px solid var(--danger, #F44336)' }}>
+          <span style={{ ...S.statValue, color: 'var(--danger, #F44336)' }}>{fmt(totalLost)}</span>
           <span style={S.statLabel}>Revenue Lost</span>
         </div>
-        <div style={{ ...S.statCard, borderLeft: '3px solid #B8860B' }}>
-          <span style={{ ...S.statValue, color: '#B8860B' }}>{noShows + lateCancels}</span>
+        <div style={{ ...S.statCard, borderLeft: '3px solid var(--warning, #B8860B)' }}>
+          <span style={{ ...S.statValue, color: 'var(--warning, #B8860B)' }}>{noShows + lateCancels}</span>
           <span style={S.statLabel}>No-shows + Late</span>
         </div>
-        <div style={{ ...S.statCard, borderLeft: '3px solid #6B8F7B' }}>
-          <span style={{ ...S.statValue, color: '#6B8F7B' }}>{rebookRate}%</span>
+        <div style={{ ...S.statCard, borderLeft: '3px solid var(--success, #6B8F7B)' }}>
+          <span style={{ ...S.statValue, color: 'var(--success, #6B8F7B)' }}>{rebookRate}%</span>
           <span style={S.statLabel}>Rebooked</span>
         </div>
       </div>
@@ -256,19 +256,19 @@ export default function CancellationLog() {
             <div style={S.impactGrid}>
               <div style={S.impactItem}>
                 <span style={S.impactLabel}>Lost to no-shows</span>
-                <span style={{ ...S.impactValue, color: '#F44336' }}>{fmt(filtered.filter(c => c.type === 'no-show').reduce((s, c) => s + c.revenue_lost, 0))}</span>
+                <span style={{ ...S.impactValue, color: 'var(--danger, #F44336)' }}>{fmt(filtered.filter(c => c.type === 'no-show').reduce((s, c) => s + c.revenue_lost, 0))}</span>
               </div>
               <div style={S.impactItem}>
                 <span style={S.impactLabel}>Lost to late cancels</span>
-                <span style={{ ...S.impactValue, color: '#B8860B' }}>{fmt(filtered.filter(c => c.type === 'late-cancel').reduce((s, c) => s + c.revenue_lost, 0))}</span>
+                <span style={{ ...S.impactValue, color: 'var(--warning, #B8860B)' }}>{fmt(filtered.filter(c => c.type === 'late-cancel').reduce((s, c) => s + c.revenue_lost, 0))}</span>
               </div>
               <div style={S.impactItem}>
                 <span style={S.impactLabel}>Recovered via deposits</span>
-                <span style={{ ...S.impactValue, color: '#6B8F7B' }}>{fmt(filtered.reduce((s, c) => s + c.deposit, 0))}</span>
+                <span style={{ ...S.impactValue, color: 'var(--success, #6B8F7B)' }}>{fmt(filtered.reduce((s, c) => s + c.deposit, 0))}</span>
               </div>
               <div style={S.impactItem}>
                 <span style={S.impactLabel}>Saved via rebooks</span>
-                <span style={{ ...S.impactValue, color: '#6B8F7B' }}>{fmt(filtered.filter(c => c.rebooked).reduce((s, c) => s + c.revenue_lost, 0))}</span>
+                <span style={{ ...S.impactValue, color: 'var(--success, #6B8F7B)' }}>{fmt(filtered.filter(c => c.rebooked).reduce((s, c) => s + c.revenue_lost, 0))}</span>
               </div>
             </div>
           </div>
@@ -325,7 +325,7 @@ const S = {
   logCard: { background: 'var(--bg-card, #FFFFFF)', borderRadius: 14, padding: 14 },
   logHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
   logLeft: { display: 'flex', gap: 10, alignItems: 'center' },
-  avatar: { width: 32, height: 32, borderRadius: 16, background: '#F0E6ED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: 'var(--accent, #C76B8A)', flexShrink: 0 },
+  avatar: { width: 32, height: 32, borderRadius: 16, background: 'var(--accent-light, #F0E6ED)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: 'var(--accent, #C76B8A)', flexShrink: 0 },
   logInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
   logClient: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
   logTreatment: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },

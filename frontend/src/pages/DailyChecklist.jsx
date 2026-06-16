@@ -472,11 +472,11 @@ export default function DailyChecklist() {
           onClick={() => { setEditing(e => !e); setShowAdd(false); }}
           style={{
             ...S.editToggle,
-            background: editing ? '#92405e' : 'rgba(146, 64, 94, 0.08)',
-            color: editing ? '#fff' : '#92405e',
+            background: editing ? 'var(--accent, #92405e)' : 'rgba(146, 64, 94, 0.08)',
+            color: editing ? '#fff' : 'var(--accent, #92405e)',
           }}
         >
-          <MIcon name={editing ? 'check' : 'edit'} size={16} style={{ color: editing ? '#fff' : '#92405e' }} />
+          <MIcon name={editing ? 'check' : 'edit'} size={16} style={{ color: editing ? '#fff' : 'var(--accent, #92405e)' }} />
           {editing ? 'Done' : 'Edit'}
         </button>
       </div>
@@ -486,7 +486,7 @@ export default function DailyChecklist() {
       {/* ─── Template toast ─── */}
       {templateToast && (
         <div style={S.toast}>
-          <MIcon name="check_circle" fill size={16} style={{ color: '#5ba97b' }} />
+          <MIcon name="check_circle" fill size={16} style={{ color: 'var(--success, #5ba97b)' }} />
           {templateToast}
         </div>
       )}
@@ -525,10 +525,10 @@ export default function DailyChecklist() {
       {/* ─── Edit mode banner ─── */}
       {editing && (
         <section style={S.editBanner}>
-          <MIcon name="edit_note" size={20} style={{ color: '#92405e' }} />
+          <MIcon name="edit_note" size={20} style={{ color: 'var(--accent, #92405e)' }} />
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: '#1d1b19', margin: 0 }}>Editing Mode</p>
-            <p style={{ fontSize: 11, color: '#867277', margin: '2px 0 0' }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #1d1b19)', margin: 0 }}>Editing Mode</p>
+            <p style={{ fontSize: 11, color: 'var(--text-muted, #867277)', margin: '2px 0 0' }}>
               Add, remove, or reorder items. Save as template for future days.
             </p>
           </div>
@@ -538,7 +538,7 @@ export default function DailyChecklist() {
       {!editing && (
         <section style={S.streakRow}>
           <div style={S.streakCard}>
-            <MIcon name="local_fire_department" fill size={22} style={{ color: streakDays > 0 ? '#E8753A' : '#867277' }} />
+            <MIcon name="local_fire_department" fill size={22} style={{ color: streakDays > 0 ? '#E8753A' : 'var(--text-muted, #867277)' }} />
             <div>
               <span style={S.streakNum}>{streakDays}</span>
               <span style={S.streakLabel}> day streak</span>
@@ -563,8 +563,8 @@ export default function DailyChecklist() {
               borderColor: allClosingDone ? 'rgba(91,169,123,0.15)' : 'rgba(146,64,94,0.08)',
             }}>
               <MIcon name={allClosingDone ? 'check_circle' : 'radio_button_unchecked'} fill={allClosingDone} size={14}
-                style={{ color: allClosingDone ? 'var(--success, #5ba97b)' : '#867277' }} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: allClosingDone ? 'var(--success, #5ba97b)' : '#867277' }}>
+                style={{ color: allClosingDone ? 'var(--success, #5ba97b)' : 'var(--text-muted, #867277)' }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: allClosingDone ? 'var(--success, #5ba97b)' : 'var(--text-muted, #867277)' }}>
                 Close
               </span>
             </div>
@@ -584,12 +584,12 @@ export default function DailyChecklist() {
             style={{ ...S.tab, ...(tab === t.key ? S.tabActive : {}) }}
           >
             <MIcon name={t.icon} fill={tab === t.key} size={16}
-              style={{ color: tab === t.key ? '#fff' : '#867277' }} />
+              style={{ color: tab === t.key ? '#fff' : 'var(--text-muted, #867277)' }} />
             {t.label}
             {editing && <span style={{
               fontSize: 9, fontWeight: 700, marginLeft: 2,
               background: 'rgba(255,255,255,0.25)', borderRadius: 4,
-              padding: '1px 4px', color: tab === t.key ? '#fff' : '#867277',
+              padding: '1px 4px', color: tab === t.key ? '#fff' : 'var(--text-muted, #867277)',
             }}>{checklists[t.key]?.length || 0}</span>}
           </button>
         ))}
@@ -671,7 +671,7 @@ export default function DailyChecklist() {
             {/* ── Normal mode: icon ── */}
             {!editing && (
               <MIcon name={iconForItem(item)} size={18}
-                style={{ color: item.done ? '#867277' : 'rgba(146,64,94,0.35)' }} />
+                style={{ color: item.done ? 'var(--text-muted, #867277)' : 'rgba(146,64,94,0.35)' }} />
             )}
             {/* ── Edit mode: delete button ── */}
             {editing && (
@@ -679,7 +679,7 @@ export default function DailyChecklist() {
                 onClick={(e) => { e.stopPropagation(); handleDeleteItem(tab, item.id); }}
                 style={S.deleteBtn}
               >
-                <MIcon name="close" size={16} style={{ color: '#ba1a1a' }} />
+                <MIcon name="close" size={16} style={{ color: 'var(--danger, #ba1a1a)' }} />
               </button>
             )}
           </div>
@@ -688,7 +688,7 @@ export default function DailyChecklist() {
       {/* ─── All done celebration (normal mode) ─── */}
       {!editing && progress === 100 && totalCount > 0 && (
         <section style={S.celebrationCard}>
-          <MIcon name="celebration" fill size={24} style={{ color: '#5ba97b' }} />
+          <MIcon name="celebration" fill size={24} style={{ color: 'var(--success, #5ba97b)' }} />
           <span style={S.celebrationText}>
             {tab === 'opening' ? 'Ready for the day!' : tab === 'closing' ? 'All wrapped up - see you tomorrow!' : 'All tasks done!'}
           </span>
@@ -697,7 +697,7 @@ export default function DailyChecklist() {
       {/* ─── Add Item (available on ALL tabs now) ─── */}
       {!showAdd && (
         <button style={S.addBtn} onClick={() => setShowAdd(true)}>
-          <MIcon name="add" size={16} style={{ color: '#92405e' }} />
+          <MIcon name="add" size={16} style={{ color: 'var(--accent, #92405e)' }} />
           Add {tab === 'opening' ? 'Opening' : tab === 'closing' ? 'Closing' : ''} Item
         </button>
       )}
@@ -730,7 +730,7 @@ export default function DailyChecklist() {
       {/* ─── Template Actions (edit mode only) ─── */}
       {editing && (tab === 'opening' || tab === 'closing') && (
         <section style={S.templateActions}>
-          <p style={{ fontSize: 11, color: '#867277', margin: '0 0 10px', lineHeight: 1.4 }}>
+          <p style={{ fontSize: 11, color: 'var(--text-muted, #867277)', margin: '0 0 10px', lineHeight: 1.4 }}>
             Save your current {tab} list as a template - it'll auto-load every day instead of the defaults.
           </p>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -743,7 +743,7 @@ export default function DailyChecklist() {
               {templateSaving ? 'Saving...' : 'Save as My Default'}
             </button>
             <button onClick={handleResetToFactory} style={{ ...S.cancelBtn, flex: 'none', padding: '10px 14px' }}>
-              <MIcon name="restart_alt" size={15} style={{ color: '#534247', marginRight: 4 }} />
+              <MIcon name="restart_alt" size={15} style={{ color: 'var(--text-secondary, #534247)', marginRight: 4 }} />
               Reset
             </button>
           </div>
@@ -783,14 +783,14 @@ export default function DailyChecklist() {
               return (
                 <div key={apt.id} style={S.apptRow}>
                   <div style={{ textAlign: 'center', flexShrink: 0, width: 40 }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: '#92405e', margin: 0 }}>{time}</p>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent, #92405e)', margin: 0 }}>{time}</p>
                   </div>
                   <div style={S.apptDivider} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 14, fontWeight: 600, color: '#1d1b19', margin: 0 }}>{apt.client_name}</p>
-                    <p style={{ fontSize: 11, color: '#867277', margin: 0 }}>{apt.treatment_name}</p>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #1d1b19)', margin: 0 }}>{apt.client_name}</p>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted, #867277)', margin: 0 }}>{apt.treatment_name}</p>
                   </div>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#745a27' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--gold, #745a27)' }}>
                     £{(apt.price_cents / 100).toFixed(0)}
                   </span>
                 </div>
@@ -808,18 +808,18 @@ function formatDate(dateStr) {
 const S = {
   page: {
     minHeight: '100vh',
-    background: '#fef8f4',
+    background: 'var(--bg, #fef8f4)',
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
     padding: '16px 24px 120px',
-    maxWidth: 480, margin: '0 auto', color: '#1d1b19',
+    maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #1d1b19)',
     animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
   },
   pageTitle: {
     fontFamily: "var(--font-display, 'Playfair Display', serif)",
     fontSize: 24, fontStyle: 'italic', fontWeight: 400,
-    color: '#92405e', margin: 0,
+    color: 'var(--accent, #92405e)', margin: 0,
   },
-  dateLabel: { fontSize: 13, color: '#867277', margin: '0 0 16px' },
+  dateLabel: { fontSize: 13, color: 'var(--text-muted, #867277)', margin: '0 0 16px' },
   // Edit toggle
   editToggle: {
     display: 'flex', alignItems: 'center', gap: 5,
@@ -831,8 +831,8 @@ const S = {
   // Toast
   toast: {
     display: 'flex', alignItems: 'center', gap: 8,
-    background: '#fff', borderRadius: 12, padding: '10px 16px',
-    marginBottom: 12, fontSize: 13, fontWeight: 500, color: '#1d1b19',
+    background: 'var(--bg-card, #fff)', borderRadius: 12, padding: '10px 16px',
+    marginBottom: 12, fontSize: 13, fontWeight: 500, color: 'var(--text-primary, #1d1b19)',
     border: '1px solid rgba(91, 169, 123, 0.15)',
     boxShadow: '0 4px 12px rgba(0,0,0,0.06)',
     animation: 'fadeIn 0.2s ease',
@@ -847,7 +847,7 @@ const S = {
   // Overview card
   overviewCard: {
     position: 'relative', overflow: 'hidden',
-    background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
+    background: 'var(--gradient-hero, linear-gradient(135deg, #c76b8a 0%, #92405e 100%))',
     color: '#fff', borderRadius: 24, padding: 24, marginBottom: 16,
     boxShadow: '0 8px 32px rgba(146, 64, 94, 0.15)',
   },
@@ -874,18 +874,18 @@ const S = {
   // Streak row
   streakRow: { display: 'flex', gap: 10, marginBottom: 16, alignItems: 'stretch' },
   streakCard: {
-    flex: 1, background: '#fff', borderRadius: 16, padding: '12px 14px',
+    flex: 1, background: 'var(--bg-card, #fff)', borderRadius: 16, padding: '12px 14px',
     display: 'flex', alignItems: 'center', gap: 10,
     border: '1px solid rgba(146, 64, 94, 0.05)',
     boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
   },
   streakNum: {
-    fontSize: 18, fontWeight: 700, color: '#1d1b19',
+    fontSize: 18, fontWeight: 700, color: 'var(--text-primary, #1d1b19)',
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
   },
-  streakLabel: { fontSize: 12, color: '#867277', fontWeight: 500 },
+  streakLabel: { fontSize: 12, color: 'var(--text-muted, #867277)', fontWeight: 500 },
   streakBest: {
-    fontSize: 10, color: '#867277', marginLeft: 'auto',
+    fontSize: 10, color: 'var(--text-muted, #867277)', marginLeft: 'auto',
     background: 'rgba(146, 64, 94, 0.06)', padding: '3px 8px', borderRadius: 8,
   },
   statusPills: { display: 'flex', flexDirection: 'column', gap: 6 },
@@ -897,18 +897,18 @@ const S = {
   // Tab bar
   tabBar: {
     display: 'flex', gap: 4,
-    background: '#f3ede9', borderRadius: 14, padding: 4,
+    background: 'var(--bg-hover, #f3ede9)', borderRadius: 14, padding: 4,
     marginBottom: 16,
   },
   tab: {
     flex: 1, padding: '9px 0', fontSize: 12, fontWeight: 500,
     border: 'none', borderRadius: 11, cursor: 'pointer',
-    fontFamily: 'inherit', background: 'none', color: '#867277',
+    fontFamily: 'inherit', background: 'none', color: 'var(--text-muted, #867277)',
     transition: 'all 0.2s ease',
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
   },
   tabActive: {
-    background: '#92405e', color: '#fff',
+    background: 'var(--accent, #92405e)', color: '#fff',
     boxShadow: '0 2px 8px rgba(146, 64, 94, 0.2)',
     fontWeight: 600,
   },
@@ -920,11 +920,11 @@ const S = {
     overflow: 'hidden', marginBottom: 4,
   },
   progressFill: { height: '100%', borderRadius: 3, transition: 'width 0.3s ease' },
-  progressText: { fontSize: 11, color: '#867277', fontWeight: 500 },
+  progressText: { fontSize: 11, color: 'var(--text-muted, #867277)', fontWeight: 500 },
   // Checklist items
   checkItem: {
     display: 'flex', gap: 10, alignItems: 'center',
-    background: '#fff', borderRadius: 14, padding: '13px 14px',
+    background: 'var(--bg-card, #fff)', borderRadius: 14, padding: '13px 14px',
     transition: 'opacity 0.2s ease',
     border: '1px solid rgba(146, 64, 94, 0.04)',
     boxShadow: '0 1px 2px rgba(146, 64, 94, 0.03)',
@@ -935,16 +935,16 @@ const S = {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     flexShrink: 0, transition: 'all 0.2s ease',
   },
-  checkboxDone: { background: '#92405e', borderColor: '#92405e' },
-  checkLabel: { fontSize: 14, color: '#1d1b19', lineHeight: 1.35, display: 'block' },
-  dueDate: { fontSize: 11, color: '#867277', display: 'block', marginTop: 2 },
+  checkboxDone: { background: 'var(--accent, #92405e)', borderColor: 'var(--accent, #92405e)' },
+  checkLabel: { fontSize: 14, color: 'var(--text-primary, #1d1b19)', lineHeight: 1.35, display: 'block' },
+  dueDate: { fontSize: 11, color: 'var(--text-muted, #867277)', display: 'block', marginTop: 2 },
   // Reorder arrows
   reorderCol: {
     display: 'flex', flexDirection: 'column', gap: 0, flexShrink: 0,
   },
   arrowBtn: {
     background: 'none', border: 'none', padding: 0,
-    cursor: 'pointer', color: '#92405e', lineHeight: 1,
+    cursor: 'pointer', color: 'var(--accent, #92405e)', lineHeight: 1,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   // Delete button
@@ -963,39 +963,39 @@ const S = {
     display: 'flex', gap: 12, alignItems: 'center',
     marginBottom: 16,
   },
-  celebrationText: { fontSize: 14, fontWeight: 600, color: '#5ba97b' },
+  celebrationText: { fontSize: 14, fontWeight: 600, color: 'var(--success, #5ba97b)' },
   // Add item
   addBtn: {
     width: '100%', padding: '12px 0', borderRadius: 14,
     border: '1.5px dashed rgba(146, 64, 94, 0.15)',
     background: 'transparent', fontSize: 13, fontWeight: 600,
-    color: '#92405e', cursor: 'pointer', fontFamily: 'inherit',
+    color: 'var(--accent, #92405e)', cursor: 'pointer', fontFamily: 'inherit',
     marginBottom: 16,
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
   },
   addForm: {
-    background: '#fff', borderRadius: 16, padding: 14, marginBottom: 16,
+    background: 'var(--bg-card, #fff)', borderRadius: 16, padding: 14, marginBottom: 16,
     display: 'flex', flexDirection: 'column', gap: 8,
     border: '1px solid rgba(146, 64, 94, 0.06)',
     boxShadow: '0 2px 8px rgba(146, 64, 94, 0.06)',
   },
   formInput: {
     width: '100%', padding: '11px 14px', borderRadius: 12,
-    border: '1.5px solid #d8c1c6', fontSize: 14,
+    border: '1.5px solid var(--border, #d8c1c6)', fontSize: 14,
     fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
-    background: '#f8f2ef', color: '#1d1b19',
+    background: 'var(--bg-input, #f8f2ef)', color: 'var(--text-primary, #1d1b19)',
     transition: 'border-color 0.2s ease',
   },
   saveBtn: {
     padding: '11px 20px', borderRadius: 12, border: 'none',
-    background: '#92405e', color: '#fff', fontSize: 13, fontWeight: 600,
+    background: 'var(--accent, #92405e)', color: '#fff', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
     boxShadow: '0 2px 8px rgba(146, 64, 94, 0.25)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   cancelBtn: {
     padding: '11px 14px', borderRadius: 12, border: 'none',
-    background: '#f3ede9', color: '#534247', fontSize: 13,
+    background: 'var(--bg-hover, #f3ede9)', color: 'var(--text-secondary, #534247)', fontSize: 13,
     cursor: 'pointer', fontFamily: 'inherit',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
@@ -1013,7 +1013,7 @@ const S = {
   },
   insightsIconWrap: {
     width: 36, height: 36, borderRadius: '50%',
-    background: '#745a27',
+    background: 'var(--gold, #745a27)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     flexShrink: 0,
   },
@@ -1030,15 +1030,15 @@ const S = {
   sectionHeading: {
     fontFamily: "var(--font-display, 'Playfair Display', serif)",
     fontSize: 18, fontStyle: 'italic', fontWeight: 400,
-    color: '#92405e', margin: 0,
+    color: 'var(--accent, #92405e)', margin: 0,
   },
   seeAll: {
-    fontSize: 10, fontWeight: 700, color: '#867277',
+    fontSize: 10, fontWeight: 700, color: 'var(--text-muted, #867277)',
     textTransform: 'uppercase', letterSpacing: '0.12em',
   },
   // Appointment rows
   apptRow: {
-    background: '#f8f2ef', padding: 14, borderRadius: 14,
+    background: 'var(--bg-input, #f8f2ef)', padding: 14, borderRadius: 14,
     display: 'flex', alignItems: 'center', gap: 12,
   },
   apptDivider: {

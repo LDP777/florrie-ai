@@ -24,8 +24,8 @@ const CATEGORIES = [
 
 const STATUS_CFG = {
   ok: { label: 'In Stock', bg: 'var(--success-bg, #E8F5E9)', color: 'var(--success, #5BA97B)' },
-  low: { label: 'Low Stock', bg: '#FFF5E6', color: '#FF9800' },
-  out: { label: 'Out of Stock', bg: 'var(--danger-bg, #FDF0EF)', color: '#F44336' },
+  low: { label: 'Low Stock', bg: 'var(--warning-bg, #FFF5E6)', color: 'var(--warning, #FF9800)' },
+  out: { label: 'Out of Stock', bg: 'var(--danger-bg, #FDF0EF)', color: 'var(--danger, #F44336)' },
 };
 
 export default function ProductInventory() {
@@ -407,7 +407,7 @@ const S = {
   sortRow: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 },
   sortLabel: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontWeight: 600 },
   sortBtn: { padding: '5px 12px', borderRadius: 8, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--card, #fff)', fontSize: 11, fontWeight: 600, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', cursor: 'pointer', fontFamily: 'inherit' },
-  sortBtnActive: { background: '#F0E6ED', color: 'var(--accent, #C76B8A)', border: '1px solid var(--accent, #C76B8A)20' },
+  sortBtnActive: { background: 'var(--accent-light, #F0E6ED)', color: 'var(--accent, #C76B8A)', border: '1px solid var(--accent, #C76B8A)20' },
   list: { display: 'flex', flexDirection: 'column', gap: 8 },
   card: { background: 'var(--card, #fff)', borderRadius: 14, padding: 14, cursor: 'pointer' },
   cardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },

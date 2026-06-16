@@ -220,7 +220,7 @@ export default function Team() {
                     style={{
                       ...styles.roleCard,
                       borderColor: form.role === r.key ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, #EDE9E4))',
-                      background: form.role === r.key ? 'var(--accent-light, #FFF0F3)' : '#fff'
+                      background: form.role === r.key ? 'var(--accent-light, #FFF0F3)' : 'var(--bg-card, #fff)'
                     }}
                   >
                     <span style={{ fontSize: 13, fontWeight: 600, color: form.role === r.key ? 'var(--accent, #C76B8A)' : 'var(--text-primary, #2D2A26)' }}>
@@ -380,7 +380,7 @@ const styles = {
   addBtn: { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
 
   // Pricing summary
-  pricingCard: { background: '#fff', borderRadius: 14, padding: 16, marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  pricingCard: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16, marginBottom: 16, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
   pricingRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--bg, #FAF8F5)' },
   pricingLabel: { fontSize: 13, color: '#8A8580' },
   pricingValue: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
@@ -394,7 +394,7 @@ const styles = {
 
   // Member list
   memberList: { display: 'flex', flexDirection: 'column', gap: 8 },
-  memberCard: { display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, background: '#fff', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', width: '100%' },
+  memberCard: { display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14, background: 'var(--bg-card, #fff)', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', width: '100%' },
   memberAvatar: { width: 42, height: 42, borderRadius: 21, background: 'linear-gradient(135deg, var(--accent, #C76B8A) 0%, #D4899F 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 16, flexShrink: 0 },
   memberInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2 },
   memberName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
@@ -404,7 +404,7 @@ const styles = {
 
   // Modal
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
-  modal: { background: '#fff', borderRadius: '20px 20px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
+  modal: { background: 'var(--bg-card, #fff)', borderRadius: '20px 20px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   modalTitle: { fontSize: 18, fontWeight: 700, margin: 0 },
   closeBtn: { width: 32, height: 32, borderRadius: 16, border: 'none', background: 'var(--bg-hover, #F5F2EF)', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8A8580' },
@@ -414,7 +414,7 @@ const styles = {
   label: { display: 'block', fontSize: 12, fontWeight: 600, color: '#8A8580', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.03em' },
   input: { width: '100%', padding: '12px 14px', borderRadius: 10, border: '1.5px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: '#FAFAFA', transition: 'border-color 0.2s' },
   roleGrid: { display: 'flex', flexDirection: 'column', gap: 8 },
-  roleCard: { display: 'flex', flexDirection: 'column', gap: 2, padding: '12px 14px', borderRadius: 10, border: '1.5px solid var(--border, var(--border, #EDE9E4))', cursor: 'pointer', textAlign: 'left', background: '#fff', fontFamily: 'inherit' },
+  roleCard: { display: 'flex', flexDirection: 'column', gap: 2, padding: '12px 14px', borderRadius: 10, border: '1.5px solid var(--border, var(--border, #EDE9E4))', cursor: 'pointer', textAlign: 'left', background: 'var(--bg-card, #fff)', fontFamily: 'inherit' },
   pricingNote: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', textAlign: 'center', margin: '12px 0 16px', lineHeight: 1.5 },
   saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
@@ -430,6 +430,6 @@ const styles = {
   actionBtn: { width: '100%', padding: '12px 0', borderRadius: 10, border: '1.5px solid', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   // Skeleton
-  skeleton: { background: '#fff', borderRadius: 14, padding: 20, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 10 },
+  skeleton: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 20, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 10 },
   skeletonLine: { height: 14, borderRadius: 7, background: 'linear-gradient(90deg, var(--bg-hover, #F5F2EF) 25%, var(--bg, #FAF8F5) 50%, var(--bg-hover, #F5F2EF) 75%)', backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite' },
 };

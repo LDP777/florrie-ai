@@ -76,7 +76,7 @@ function PaymentCountdown({ expiresAt, brand, brandLight }) {
     return () => clearInterval(ref.current);
   }, [expiresAt]);
   if (secondsLeft <= 0) return (
-    <div style={{ marginTop: 16, padding: '10px 14px', borderRadius: 10, background: '#FFF0F0', border: '1px solid #FECACA', textAlign: 'center', fontSize: 13, color: '#DC2626' }}>
+    <div style={{ marginTop: 16, padding: '10px 14px', borderRadius: 10, background: '#FFF0F0', border: '1px solid var(--danger-bg)', textAlign: 'center', fontSize: 13, color: 'var(--danger)' }}>
       Your slot has been released. Please book again if you still want this appointment.
     </div>
   );
@@ -87,7 +87,7 @@ function PaymentCountdown({ expiresAt, brand, brandLight }) {
       <p style={{ margin: 0, fontSize: 13, color: brand, fontWeight: 600 }}>
         Your slot is held for {mins}:{secs.toString().padStart(2, '0')}
       </p>
-      <p style={{ margin: '4px 0 0', fontSize: 12, color: '#666' }}>
+      <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>
         Complete payment to confirm, if the timer runs out your slot will be released so you can grab a card if needed.
       </p>
     </div>
@@ -589,7 +589,7 @@ export default function BookingPage() {
                     Deposit of {success.deposit} required to confirm
                   </div>
                 )}
-                <p style={{ fontSize: 13, color: '#666', marginTop: 12 }}>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 12 }}>
                   {success.depositNote || 'Your beautician will send you a payment link to confirm your booking.'}
                 </p>
               </>
@@ -633,7 +633,7 @@ export default function BookingPage() {
               >
                 Manage my booking
               </a>
-              <p style={{ fontSize: 12, color: '#999', textAlign: 'center', marginTop: 8 }}>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginTop: 8 }}>
                 View, cancel or check patch test status
               </p>
             </div>
@@ -662,12 +662,12 @@ export default function BookingPage() {
           <div key={label} style={styles.progressStep}>
             <div style={{
               ...styles.progressDot,
-              background: i <= step ? brand : '#E5E5E5',
+              background: i <= step ? brand : 'var(--border-light)',
               transform: i === step ? 'scale(1.2)' : 'scale(1)'
             }} />
             <span style={{
               ...styles.progressLabel,
-              color: i <= step ? brand : '#999',
+              color: i <= step ? brand : 'var(--text-muted)',
               fontWeight: i === step ? 600 : 400
             }}>{label}</span>
           </div>
@@ -685,7 +685,7 @@ export default function BookingPage() {
           <div>
             <h2 style={styles.stepTitle}>Choose your treatment{selectedTreatments.length > 1 ? 's' : ''}</h2>
             {selectedTreatments.length === 0 && (
-              <p style={{ fontSize: 13, color: '#888', margin: '-12px 0 14px' }}>Tap multiple to book them together</p>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '-12px 0 14px' }}>Tap multiple to book them together</p>
             )}
             {fieldErrors.treatment && (
               <div style={styles.inlineError}>{fieldErrors.treatment}</div>
@@ -711,7 +711,7 @@ export default function BookingPage() {
                     style={{
                       ...styles.treatmentCard,
                       borderColor: isSelected ? brand : '#E8E4DF',
-                      background: isSelected ? brandLight : '#fff'
+                      background: isSelected ? brandLight : 'var(--bg-card)'
                     }}
                   >
                     <div style={styles.treatmentInfo}>
@@ -757,7 +757,7 @@ export default function BookingPage() {
                           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                           padding: '12px 14px', borderRadius: 10,
                           border: `1.5px solid ${isSelected ? brand : '#E8E4DF'}`,
-                          background: isSelected ? brandLight : '#fff',
+                          background: isSelected ? brandLight : 'var(--bg-card)',
                           cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%',
                         }}
                       >
@@ -801,7 +801,7 @@ export default function BookingPage() {
                           display: 'flex', alignItems: 'center', gap: 12,
                           padding: '12px 14px', borderRadius: 10,
                           border: `1.5px solid ${qty > 0 ? brand : '#E8E4DF'}`,
-                          background: qty > 0 ? brandLight : '#fff',
+                          background: qty > 0 ? brandLight : 'var(--bg-card)',
                         }}
                       >
                         {product.image_url && (
@@ -828,7 +828,7 @@ export default function BookingPage() {
                               onClick={() => updateCart(product.id, -1)}
                               style={{
                                 width: 28, height: 28, borderRadius: '50%', border: `1px solid ${brand}`,
-                                background: '#fff', color: brand, fontSize: 16, fontWeight: 700,
+                                background: 'var(--bg-card)', color: brand, fontSize: 16, fontWeight: 700,
                                 cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 fontFamily: 'inherit', padding: 0,
                               }}
@@ -841,7 +841,7 @@ export default function BookingPage() {
                             onClick={() => updateCart(product.id, 1)}
                             style={{
                               width: 28, height: 28, borderRadius: '50%', border: 'none',
-                              background: qty > 0 ? brand : '#E8E4DF', color: qty > 0 ? '#fff' : '#666',
+                              background: qty > 0 ? brand : '#E8E4DF', color: qty > 0 ? '#fff' : 'var(--text-secondary)',
                               fontSize: 16, fontWeight: 700, cursor: 'pointer',
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
                               fontFamily: 'inherit', padding: 0,
@@ -884,8 +884,8 @@ export default function BookingPage() {
                   style={{
                     ...styles.dateChip,
                     borderColor: selectedDate === d.value ? brand : '#E8E4DF',
-                    background: selectedDate === d.value ? brand : '#fff',
-                    color: selectedDate === d.value ? '#fff' : '#333'
+                    background: selectedDate === d.value ? brand : 'var(--bg-card)',
+                    color: selectedDate === d.value ? '#fff' : 'var(--text-primary)'
                   }}
                 >
                   {d.label}
@@ -904,8 +904,8 @@ export default function BookingPage() {
                       style={{
                         ...styles.slotChip,
                         borderColor: selectedSlot?.starts_at === s.starts_at ? brand : '#E8E4DF',
-                        background: selectedSlot?.starts_at === s.starts_at ? brand : '#fff',
-                        color: selectedSlot?.starts_at === s.starts_at ? '#fff' : '#333'
+                        background: selectedSlot?.starts_at === s.starts_at ? brand : 'var(--bg-card)',
+                        color: selectedSlot?.starts_at === s.starts_at ? '#fff' : 'var(--text-primary)'
                       }}
                     >
                       {s.display}
@@ -932,7 +932,7 @@ export default function BookingPage() {
                   onChange={e => setClientDetails({ ...clientDetails, name: e.target.value })}
                   style={{
                     ...styles.input,
-                    borderColor: fieldErrors.name ? '#DC2626' : '#E8E4DF'
+                    borderColor: fieldErrors.name ? 'var(--danger)' : '#E8E4DF'
                   }} required
                 />
                 {fieldErrors.name && <span style={styles.fieldErrorText}>{fieldErrors.name}</span>}
@@ -969,12 +969,12 @@ export default function BookingPage() {
                   onBlur={handleEmailBlur}
                   style={{
                     ...styles.input,
-                    borderColor: fieldErrors.email ? '#DC2626' : '#E8E4DF'
+                    borderColor: fieldErrors.email ? 'var(--danger)' : '#E8E4DF'
                   }}
                 />
                 {fieldErrors.email && <span style={styles.fieldErrorText}>{fieldErrors.email}</span>}
                 {lookingUpClient && (
-                  <p style={{ fontSize: 12, color: '#999', marginTop: 4 }}>Checking…</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Checking…</p>
                 )}
                 {recognisedClient?.found && (
                   <div style={{
@@ -985,9 +985,9 @@ export default function BookingPage() {
                     <span style={{ fontWeight: 600, color: brand }}>
                       Welcome back, {recognisedClient.client.name.split(' ')[0]}!
                     </span>
-                    <span style={{ color: '#666' }}> We've filled in your details.</span>
+                    <span style={{ color: 'var(--text-secondary)' }}> We've filled in your details.</span>
                     {recognisedClient.hasPendingPatchTest && needsPatchTest && (
-                      <p style={{ margin: '6px 0 0', fontSize: 12, color: '#D4943A', fontWeight: 500 }}>
+                      <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--warning)', fontWeight: 500 }}>
                         ⚠️ You have a patch test pending, your beautician will be in touch.
                       </p>
                     )}
@@ -1032,11 +1032,11 @@ export default function BookingPage() {
             <h2 style={styles.stepTitle}>
               {consultationForm?.name || 'Consultation form'}
             </h2>
-            <p style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
               Required for {selectedTreatment?.name}. This information helps your beautician prepare and is kept for insurance records.
             </p>
             {consultationForm?.consent_text && (
-              <p style={{ fontSize: 12, color: '#666', marginBottom: 16, lineHeight: 1.5, padding: '10px 12px', background: 'var(--bg-subtle, #FDFCFB)', borderRadius: 8, border: '1px solid var(--border-light)' }}>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.5, padding: '10px 12px', background: 'var(--bg-subtle, #FDFCFB)', borderRadius: 8, border: '1px solid var(--border-light)' }}>
                 {consultationForm.consent_text}
               </p>
             )}
@@ -1054,7 +1054,7 @@ export default function BookingPage() {
                           style={{
                             flex: 1, padding: '10px 0', borderRadius: 8, border: 'none', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
                             background: consultationAnswers[q.key] === opt ? brand : '#F0ECE8',
-                            color: consultationAnswers[q.key] === opt ? '#fff' : '#666'
+                            color: consultationAnswers[q.key] === opt ? '#fff' : 'var(--text-secondary)'
                           }}>
                           {opt}
                         </button>
@@ -1070,7 +1070,7 @@ export default function BookingPage() {
                             padding: '8px 14px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 500,
                             cursor: 'pointer', fontFamily: 'inherit',
                             background: consultationAnswers[q.key] === opt ? brand : '#F0ECE8',
-                            color: consultationAnswers[q.key] === opt ? '#fff' : '#666'
+                            color: consultationAnswers[q.key] === opt ? '#fff' : 'var(--text-secondary)'
                           }}>
                           {opt}
                         </button>
@@ -1093,7 +1093,7 @@ export default function BookingPage() {
                               padding: '8px 14px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 500,
                               cursor: 'pointer', fontFamily: 'inherit',
                               background: selected ? brand : '#F0ECE8',
-                              color: selected ? '#fff' : '#666'
+                              color: selected ? '#fff' : 'var(--text-secondary)'
                             }}>
                             {selected ? '✓ ' : ''}{opt}
                           </button>
@@ -1132,7 +1132,7 @@ export default function BookingPage() {
                         placeholder="Type your full name to sign"
                         style={{ ...styles.input, fontFamily: "'Brush Script MT', 'Segoe Script', cursive", fontSize: 18 }}
                       />
-                      <p style={{ fontSize: 11, color: '#999', margin: '4px 0 0' }}>Typing your name here counts as your signature.</p>
+                      <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>Typing your name here counts as your signature.</p>
                     </div>
                   )}
                   {/* Default: text input */}
@@ -1252,7 +1252,7 @@ export default function BookingPage() {
                         flex: 1, padding: '10px 0', borderRadius: 8, fontSize: 13, fontWeight: 500,
                         cursor: 'pointer', fontFamily: 'inherit', border: 'none',
                         background: paymentType === 'deposit' ? brand : '#F0ECE8',
-                        color: paymentType === 'deposit' ? '#fff' : '#666',
+                        color: paymentType === 'deposit' ? '#fff' : 'var(--text-secondary)',
                       }}
                     >
                       Pay deposit (£{(depositCents / 100).toFixed(2)})
@@ -1263,7 +1263,7 @@ export default function BookingPage() {
                         flex: 1, padding: '10px 0', borderRadius: 8, fontSize: 13, fontWeight: 500,
                         cursor: 'pointer', fontFamily: 'inherit', border: 'none',
                         background: paymentType === 'full' ? brand : '#F0ECE8',
-                        color: paymentType === 'full' ? '#fff' : '#666',
+                        color: paymentType === 'full' ? '#fff' : 'var(--text-secondary)',
                       }}
                     >
                       Pay in full (£{(grandTotalCents / 100).toFixed(2)})
@@ -1298,7 +1298,7 @@ export default function BookingPage() {
                           fontSize: 13, fontWeight: 500, cursor: 'pointer',
                           fontFamily: 'inherit', border: 'none',
                           background: paymentMethod === m.key ? brand : '#F0ECE8',
-                          color: paymentMethod === m.key ? '#fff' : '#666',
+                          color: paymentMethod === m.key ? '#fff' : 'var(--text-secondary)',
                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                         }}
                       >

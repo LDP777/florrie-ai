@@ -255,7 +255,7 @@ export default function Treatments() {
                 style={{
                   ...styles.toggleBtn,
                   background: form.requires_consultation ? 'var(--accent)' : 'var(--border)',
-                  color: form.requires_consultation ? '#fff' : '#888'
+                  color: form.requires_consultation ? '#fff' : 'var(--text-secondary, #888)'
                 }}
               >
                 {form.requires_consultation ? 'Required' : 'Not needed'}
@@ -270,7 +270,7 @@ export default function Treatments() {
                 style={{
                   ...styles.toggleBtn,
                   background: form.requires_patch_test ? 'var(--accent)' : 'var(--border)',
-                  color: form.requires_patch_test ? '#fff' : '#888'
+                  color: form.requires_patch_test ? '#fff' : 'var(--text-secondary, #888)'
                 }}
               >
                 {form.requires_patch_test ? 'Required' : 'Not needed'}
@@ -311,7 +311,7 @@ export default function Treatments() {
                 style={{
                   ...styles.toggleBtn,
                   background: form.booking_enabled !== false ? 'var(--accent)' : 'var(--border)',
-                  color: form.booking_enabled !== false ? '#fff' : '#888'
+                  color: form.booking_enabled !== false ? '#fff' : 'var(--text-secondary, #888)'
                 }}
               >
                 {form.booking_enabled !== false ? 'Visible' : 'Hidden'}

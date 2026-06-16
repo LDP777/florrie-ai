@@ -377,7 +377,7 @@ export default function StaffRota() {
 
             <div style={S.toggleRow}>
               <span style={S.toggleLabel}>All day</span>
-              <button style={{ ...S.toggle, background: timeOffForm.allDay ? '#C76B8A' : '#E0DCD8' }} onClick={() => setTimeOffForm(f => ({ ...f, allDay: !f.allDay }))}>
+              <button style={{ ...S.toggle, background: timeOffForm.allDay ? 'var(--accent-rose, #C76B8A)' : '#E0DCD8' }} onClick={() => setTimeOffForm(f => ({ ...f, allDay: !f.allDay }))}>
                 <div style={{ ...S.toggleDot, transform: timeOffForm.allDay ? 'translateX(18px)' : 'translateX(2px)' }} />
               </button>
             </div>
@@ -539,7 +539,7 @@ const S = {
   toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
   toggleLabel: { fontSize: 14, fontWeight: 500, color: 'var(--text, #2D2A26)' },
   toggle: { width: 44, height: 26, borderRadius: 13, border: 'none', padding: 0, cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 },
-  toggleDot: { width: 22, height: 22, borderRadius: 11, background: '#fff', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
+  toggleDot: { width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #fff)', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
   timeRow: { display: 'flex', gap: 12 },
   saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
   dayEditRow: { display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 },

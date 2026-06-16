@@ -26,7 +26,7 @@ const QUICK_REASONS = [
 ];
 
 const TYPE_CFG = {
-  closed:   { label: 'Day off',        color: '#E57373', bg: '#FEF2F2', dot: '#E57373' },
+  closed:   { label: 'Day off',        color: '#E57373', bg: 'var(--danger-bg, #FEF2F2)', dot: '#E57373' },
   amended:  { label: 'Changed hours',  color: '#F59E0B', bg: '#FFF8E1', dot: '#F59E0B' },
   extended: { label: 'Extra hours',    color: '#5BA97B', bg: '#E8F5E9', dot: '#5BA97B' },
 };
@@ -297,7 +297,7 @@ export default function HoursExceptions() {
         <span style={S.rangeModeLabel}>Holiday / multi-day block</span>
         <button
           onClick={() => { setRangeMode(p => !p); setSelectedDate(null); setRangeStart(null); setRangeEnd(null); }}
-          style={{ ...S.rangeToggle, background: rangeMode ? 'var(--accent, #C76B8A)' : '#EDE9E4' }}
+          style={{ ...S.rangeToggle, background: rangeMode ? 'var(--accent, #C76B8A)' : 'var(--border-light, #EDE9E4)' }}
         >
           <div style={{ ...S.rangeToggleDot, transform: rangeMode ? 'translateX(18px)' : 'translateX(2px)' }} />
         </button>
@@ -333,7 +333,7 @@ export default function HoursExceptions() {
               const dayNum   = parseInt(dateStr.slice(8), 10);
 
               let bg = 'transparent';
-              let textColor = isPast ? '#C8C3BE' : '#2D2A26';
+              let textColor = isPast ? '#C8C3BE' : 'var(--text-primary, #2D2A26)';
               let border = 'none';
               let dotColor = null;
 
@@ -398,7 +398,7 @@ export default function HoursExceptions() {
                 style={{
                   ...S.typeBtn,
                   background: blockType === k ? v.bg : 'var(--bg-card, #fff)',
-                  borderColor: blockType === k ? v.color : '#EDE9E4',
+                  borderColor: blockType === k ? v.color : 'var(--border-light, #EDE9E4)',
                   color: blockType === k ? v.color : '#8A8580',
                 }}
               >
@@ -455,7 +455,7 @@ export default function HoursExceptions() {
             </div>
             <button
               onClick={() => setNotifyClients(p => !p)}
-              style={{ ...S.toggle, background: notifyClients ? 'var(--accent, #C76B8A)' : '#EDE9E4' }}
+              style={{ ...S.toggle, background: notifyClients ? 'var(--accent, #C76B8A)' : 'var(--border-light, #EDE9E4)' }}
             >
               <div style={{ ...S.toggleDot, transform: notifyClients ? 'translateX(18px)' : 'translateX(2px)' }} />
             </button>
@@ -471,10 +471,10 @@ export default function HoursExceptions() {
       {/* ââ Upcoming exceptions ââ */}
       <h3 style={S.sectionTitle}>Coming up ({upcoming.length})</h3>
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 32, color: '#B5AFA8', fontSize: 13 }}>Loadingâ¦</div>
+        <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted, #B5AFA8)', fontSize: 13 }}>Loadingâ¦</div>
       ) : upcoming.length === 0 ? (
         <div style={S.emptyCard}>
-          <p style={{ margin: 0, fontSize: 13, color: '#B5AFA8' }}>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted, #B5AFA8)' }}>
             No upcoming blocks â your regular hours are live.
           </p>
         </div>
@@ -511,7 +511,7 @@ export default function HoursExceptions() {
       {/* ââ Past (collapsed) ââ */}
       {past.length > 0 && (
         <>
-          <h3 style={{ ...S.sectionTitle, color: '#B5AFA8', marginTop: 24 }}>Past ({past.length})</h3>
+          <h3 style={{ ...S.sectionTitle, color: 'var(--text-muted, #B5AFA8)', marginTop: 24 }}>Past ({past.length})</h3>
           <div style={S.excList}>
             {past.slice(0, 4).map(exc => (
               <div key={exc.id} style={{ ...S.excCard, opacity: 0.5 }}>
@@ -594,7 +594,7 @@ const S = {
     cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0,
   },
   rangeToggleDot: {
-    width: 22, height: 22, borderRadius: 11, background: '#fff',
+    width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #fff)',
     position: 'absolute', top: 2, transition: 'transform 0.2s',
     boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
   },
@@ -617,7 +617,7 @@ const S = {
   },
   dayHeaderCell: {
     textAlign: 'center', fontSize: 10, fontWeight: 600,
-    color: '#B5AFA8', textTransform: 'uppercase', letterSpacing: '0.04em',
+    color: 'var(--text-muted, #B5AFA8)', textTransform: 'uppercase', letterSpacing: '0.04em',
   },
   calGrid: {
     display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2,
@@ -675,16 +675,16 @@ const S = {
   },
 
   timeRow: { display: 'flex', gap: 10, marginBottom: 12 },
-  timeLabel: { display: 'block', fontSize: 11, color: '#B5AFA8', marginBottom: 4 },
+  timeLabel: { display: 'block', fontSize: 11, color: 'var(--text-muted, #B5AFA8)', marginBottom: 4 },
   timeInput: {
     width: '100%', padding: '9px 10px', borderRadius: 8,
-    border: '1.5px solid #EDE9E4', fontSize: 14, fontFamily: 'inherit',
+    border: '1.5px solid var(--border-light, #EDE9E4)', fontSize: 14, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box',
   },
 
   noteInput: {
     width: '100%', padding: '10px 12px', borderRadius: 8,
-    border: '1.5px solid #EDE9E4', fontSize: 13, fontFamily: 'inherit',
+    border: '1.5px solid var(--border-light, #EDE9E4)', fontSize: 13, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box', marginBottom: 12,
     color: 'var(--text-primary, #2D2A26)',
   },
@@ -694,13 +694,13 @@ const S = {
     padding: '8px 0', marginBottom: 12,
   },
   notifyLabel: { display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-primary, #2D2A26)' },
-  notifyHint:  { display: 'block', fontSize: 11, color: '#B5AFA8', marginTop: 2 },
+  notifyHint:  { display: 'block', fontSize: 11, color: 'var(--text-muted, #B5AFA8)', marginTop: 2 },
   toggle: {
     width: 44, height: 26, borderRadius: 13, border: 'none',
     cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0,
   },
   toggleDot: {
-    width: 22, height: 22, borderRadius: 11, background: '#fff',
+    width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #fff)',
     position: 'absolute', top: 2, transition: 'transform 0.2s',
     boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
   },
@@ -728,12 +728,12 @@ const S = {
   excBadge:    { padding: '2px 7px', borderRadius: 5, fontSize: 10, fontWeight: 600, flexShrink: 0 },
   excTimes:    { display: 'block', fontSize: 11, color: '#8A8580', marginBottom: 2 },
   excMeta:     { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
-  excAway:     { fontSize: 11, color: '#B5AFA8' },
+  excAway:     { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
   excNote:     { fontSize: 12, color: '#8A8580' },
-  notifyTag:   { display: 'block', fontSize: 10, color: '#5BA97B', marginTop: 3 },
+  notifyTag:   { display: 'block', fontSize: 10, color: 'var(--success, #5BA97B)', marginTop: 3 },
   deleteBtn: {
     width: 26, height: 26, borderRadius: 13, border: 'none',
-    background: '#FEF2F2', color: '#E57373', fontSize: 12, flexShrink: 0,
+    background: 'var(--danger-bg, #FEF2F2)', color: '#E57373', fontSize: 12, flexShrink: 0,
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
 

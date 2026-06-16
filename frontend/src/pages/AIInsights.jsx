@@ -127,7 +127,7 @@ export default function AIInsights() {
         </div>
         <div style={{ ...S.statPill, borderColor: 'rgba(116, 90, 39, 0.1)' }}>
           <span style={S.statPillLabel}>Revenue</span>
-          <span style={{ ...S.statPillValue, color: '#745a27' }}>£{Math.round(stats.revenue / 100).toLocaleString('en-GB')}</span>
+          <span style={{ ...S.statPillValue, color: 'var(--gold)' }}>£{Math.round(stats.revenue / 100).toLocaleString('en-GB')}</span>
         </div>
       </section>
 
@@ -188,20 +188,20 @@ export default function AIInsights() {
                   style={{ ...S.apptRow, cursor: 'pointer', background: 'none', border: 'none', fontFamily: 'inherit', textAlign: 'left', padding: 0, width: '100%' }}
                 >
                   <div style={{ textAlign: 'center', flexShrink: 0 }}>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#867277', margin: 0 }}>{time}</p>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: '#867277', margin: 0 }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', margin: 0 }}>{time}</p>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', margin: 0 }}>
                       {parseInt(time) >= 12 ? 'PM' : 'AM'}
                     </p>
                   </div>
                   <div style={S.apptDivider} />
                   <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: 14, fontWeight: 700, color: '#1d1b19', margin: 0 }}>{apt.client_name || 'Client'}</p>
-                    <p style={{ fontSize: 11, color: '#867277', margin: 0 }}>{apt.treatment_name || 'Appointment'}</p>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{apt.client_name || 'Client'}</p>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>{apt.treatment_name || 'Appointment'}</p>
                   </div>
                   {isFirst ? (
                     <MIcon name="star" fill size={14} style={{ color: 'rgba(116, 90, 39, 0.4)' }} />
                   ) : (
-                    <MIcon name="chevron_right" size={18} style={{ color: '#d8c1c6' }} />
+                    <MIcon name="chevron_right" size={18} style={{ color: 'var(--border)' }} />
                   )}
                 </button>
               );
@@ -223,10 +223,10 @@ export default function AIInsights() {
                   borderBottom: i < activity.length - 1 ? '1px solid rgba(146, 64, 94, 0.05)' : 'none',
                   paddingBottom: i < activity.length - 1 ? 12 : 0,
                 }}>
-                  <p style={{ fontSize: 12, color: '#1d1b19', margin: 0 }} dangerouslySetInnerHTML={{
+                  <p style={{ fontSize: 12, color: 'var(--text-primary)', margin: 0 }} dangerouslySetInnerHTML={{
                     __html: a.message.replace(/^([^.]+\.)/, '<strong>$1</strong>'),
                   }} />
-                  <p style={{ fontSize: 9, color: '#867277', textTransform: 'uppercase', margin: '4px 0 0', fontFamily: "var(--font-sans)" }}>{a.time}</p>
+                  <p style={{ fontSize: 9, color: 'var(--text-muted)', textTransform: 'uppercase', margin: '4px 0 0', fontFamily: "var(--font-sans)" }}>{a.time}</p>
                 </div>
               </div>
             ))}
@@ -240,17 +240,17 @@ export default function AIInsights() {
 const S = {
   page: {
     minHeight: '100vh',
-    background: '#fef8f4',
+    background: 'var(--bg)',
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
     padding: '16px 24px 120px',
     maxWidth: 480,
     margin: '0 auto',
-    color: '#1d1b19',
+    color: 'var(--text-primary)',
     animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
   },
   pulseCard: {
     position: 'relative', overflow: 'hidden',
-    background: '#92405e', color: '#fff',
+    background: 'var(--accent)', color: '#fff',
     borderRadius: 24, padding: 24, marginBottom: 20,
     boxShadow: '0 8px 32px rgba(146, 64, 94, 0.1)',
   },
@@ -277,18 +277,18 @@ const S = {
   },
   statsGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 24 },
   statPill: {
-    background: '#fff', padding: 12, borderRadius: 16,
+    background: 'var(--bg-card)', padding: 12, borderRadius: 16,
     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
     border: '1px solid rgba(146, 64, 94, 0.05)',
     boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
   },
   statPillLabel: {
     fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.05em',
-    color: '#867277', marginBottom: 4,
+    color: 'var(--text-muted)', marginBottom: 4,
   },
   statPillValue: {
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
-    fontSize: 20, fontStyle: 'normal', fontWeight: 700, color: '#92405e',
+    fontSize: 20, fontStyle: 'normal', fontWeight: 700, color: 'var(--accent)',
     letterSpacing: '-0.01em',
   },
   tipCard: {
@@ -300,7 +300,7 @@ const S = {
   },
   tipIconWrap: {
     width: 40, height: 40, borderRadius: '50%',
-    background: '#745a27',
+    background: 'var(--gold)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     flexShrink: 0,
   },
@@ -322,14 +322,14 @@ const S = {
   sectionHeading: {
     fontFamily: "var(--font-display, 'Playfair Display', serif)",
     fontSize: 20, fontStyle: 'italic', fontWeight: 400,
-    color: '#92405e', margin: 0,
+    color: 'var(--accent)', margin: 0,
   },
   seeAll: {
-    fontSize: 10, fontWeight: 700, color: '#867277',
+    fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
     textTransform: 'uppercase', letterSpacing: '0.12em',
   },
   apptRow: {
-    background: '#f8f2ef', padding: 16, borderRadius: 16,
+    background: 'var(--bg-input)', padding: 16, borderRadius: 16,
     display: 'flex', alignItems: 'center', gap: 16,
     transition: 'background 0.15s ease',
   },

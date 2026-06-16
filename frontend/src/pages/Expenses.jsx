@@ -209,7 +209,7 @@ export default function Expenses() {
           <span style={S.summaryLabel}>Recurring</span>
         </div>
         <div style={S.summaryCard}>
-          <span style={{ ...S.summaryValue, color: '#6B8F7B' }}>{fmt(deductibleTotal)}</span>
+          <span style={{ ...S.summaryValue, color: 'var(--success, #6B8F7B)' }}>{fmt(deductibleTotal)}</span>
           <span style={S.summaryLabel}>Deductible</span>
         </div>
       </div>
@@ -299,7 +299,7 @@ export default function Expenses() {
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                   <span style={S.expenseAmount}>{fmt(e.amount_cents)}</span>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => handleEditExpense(e)} style={{ background: 'none', border: 'none', fontSize: 11, color: '#6B8F7B', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Edit</button>
+                    <button onClick={() => handleEditExpense(e)} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--success, #6B8F7B)', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Edit</button>
                     <button onClick={() => handleDeleteExpense(e.id)} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Delete</button>
                   </div>
                 </div>
@@ -320,7 +320,7 @@ export default function Expenses() {
                 <div key={b.category} style={S.budgetCard}>
                   <div style={S.budgetHeader}>
                     <span style={S.budgetCat}>{meta.icon} {meta.label}</span>
-                    <span style={{ ...S.budgetPct, color: overBudget ? 'var(--accent, #C76B8A)' : '#6B8F7B' }}>{b.pct}%</span>
+                    <span style={{ ...S.budgetPct, color: overBudget ? 'var(--accent, #C76B8A)' : 'var(--success, #6B8F7B)' }}>{b.pct}%</span>
                   </div>
                   <div style={S.budgetBarBg}>
                     <div style={{ ...S.budgetBarFill, width: `${b.pct}%`, background: overBudget ? 'var(--accent, #C76B8A)' : meta.color }} />
@@ -529,11 +529,11 @@ const S = {
 
   // Modal
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
-  modal: { background: '#fff', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
+  modal: { background: 'var(--bg-card, #fff)', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
   modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: '0 0 16px' },
   fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #8B6F5E)', marginBottom: 6, marginTop: 12 },
   input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', outline: 'none', boxSizing: 'border-box' },
-  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', background: '#fff', outline: 'none', boxSizing: 'border-box' },
+  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', background: 'var(--bg-card, #fff)', outline: 'none', boxSizing: 'border-box' },
   catGrid: { display: 'flex', flexWrap: 'wrap', gap: 6 },
   catChip: { padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--card, #fff)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
   toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
@@ -541,7 +541,7 @@ const S = {
   toggle: { width: 44, height: 26, borderRadius: 13, border: 'none', padding: 0, cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 },
   toggleDot: { width: 22, height: 22, borderRadius: 11, background: '#fff', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
   intervalRow: { display: 'flex', gap: 8, marginTop: 8 },
-  intervalChip: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid var(--border, var(--border, #EDE9E4))', background: '#fff', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', textTransform: 'capitalize' },
+  intervalChip: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--bg-card, #fff)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', textTransform: 'capitalize' },
   intervalActive: { background: 'var(--accent, #C76B8A)', color: '#fff', border: '1px solid var(--accent, #C76B8A)' },
   saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
   saveBudgetBtn: { padding: '10px 0', borderRadius: 10, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },

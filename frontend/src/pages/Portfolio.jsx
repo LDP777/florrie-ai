@@ -135,7 +135,7 @@ export default function Portfolio() {
         {[
           { label: 'Photos', value: stats.total, colour: 'var(--accent, #C76B8A)' },
           { label: 'Before/After', value: stats.pairs, colour: 'var(--text-secondary, #8B6F5E)' },
-          { label: 'Treatments', value: stats.treatments, colour: '#6B8F7B' },
+          { label: 'Treatments', value: stats.treatments, colour: 'var(--success, #6B8F7B)' },
         ].map(s => (
           <div key={s.label} style={S.statCard}>
             <span style={{ ...S.statValue, color: s.colour }}>{s.value}</span>
@@ -181,7 +181,7 @@ export default function Portfolio() {
                 </div>
               </div>
               {p.type !== 'single' && (
-                <span style={{ ...S.typeBadge, background: p.type === 'before' ? 'var(--border, var(--border, var(--border, #EDE9E4)))' : '#F0E6ED', color: p.type === 'before' ? 'var(--text-secondary, #8B6F5E)' : 'var(--accent, #C76B8A)' }}>
+                <span style={{ ...S.typeBadge, background: p.type === 'before' ? 'var(--border, var(--border, var(--border, #EDE9E4)))' : 'var(--accent-light, #F0E6ED)', color: p.type === 'before' ? 'var(--text-secondary, #8B6F5E)' : 'var(--accent, #C76B8A)' }}>
                   {p.type}
                 </span>
               )}

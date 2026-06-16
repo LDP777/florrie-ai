@@ -6,7 +6,7 @@ import ErrorCard from '../components/ErrorCard.jsx';
 
 const STATUS_COLORS = {
   active: { bg: 'var(--success-bg, #E8F5E9)', color: 'var(--success, #5BA97B)' },
-  paused: { bg: '#FFF3E0', color: '#E65100' },
+  paused: { bg: 'var(--warning-bg, #FFF3E0)', color: 'var(--warning-text, #E65100)' },
   cancelled: { bg: 'var(--danger-bg, #FDF0EF)', color: 'var(--danger, #D4605C)' },
   expired: { bg: 'var(--danger-bg, #FDF0EF)', color: 'var(--danger, #D4605C)' },
 };

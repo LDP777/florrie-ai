@@ -170,7 +170,7 @@ export default function Aftercare() {
         <div>
           {/* Auto-send status bar */}
           <div style={styles.statusBar}>
-            <div style={{ ...styles.statusDot, background: settings.auto_send_enabled ? '#4CAF50' : '#C4BDB6' }} />
+            <div style={{ ...styles.statusDot, background: settings.auto_send_enabled ? 'var(--success, #4CAF50)' : 'var(--text-muted, #C4BDB6)' }} />
             <span style={styles.statusText}>
               Auto-send {settings.auto_send_enabled ? 'on' : 'off'} - via {settings.channel}
             </span>
@@ -205,8 +205,8 @@ export default function Aftercare() {
                       onClick={() => setNewCard(p => ({ ...p, icon }))}
                       style={{
                         ...styles.iconBtn,
-                        background: newCard.icon === icon ? '#FBF0F3' : '#fff',
-                        borderColor: newCard.icon === icon ? '#C76B8A' : '#F0ECE8',
+                        background: newCard.icon === icon ? 'var(--accent-light, #FBF0F3)' : 'var(--bg-card, #fff)',
+                        borderColor: newCard.icon === icon ? 'var(--accent, #C76B8A)' : 'var(--border-light, #F0ECE8)',
                       }}
                     >
                       {icon}
@@ -327,7 +327,7 @@ export default function Aftercare() {
                     </div>
                     <div style={{
                       ...styles.autoSendBadge,
-                      background: card.auto_send ? '#E8F5E9' : '#F5F2EF',
+                      background: card.auto_send ? 'var(--success-bg, #E8F5E9)' : 'var(--bg-hover, #F5F2EF)',
                       color: card.auto_send ? '#388E3C' : '#AAA5A0',
                     }}>
                       {card.auto_send ? 'Auto' : 'Off'}
@@ -385,7 +385,7 @@ export default function Aftercare() {
                 <div style={styles.phoneMessage}>
                   <div style={styles.phoneSender}>
                     <span style={{ fontWeight: 600, fontSize: 13 }}>florrie.ai for {beautician?.business_name || 'Ellindigo'}</span>
-                    <span style={{ fontSize: 11, color: '#AAA5A0' }}>Just now</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted, #AAA5A0)' }}>Just now</span>
                   </div>
 
                   <p style={styles.phoneText}>

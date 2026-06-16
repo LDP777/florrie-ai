@@ -262,7 +262,7 @@ export default function MessageTemplates() {
           return (
             <div key={t.id} style={s.tmplCard}>
               <button onClick={() => setExpandedId(expanded ? null : t.id)} style={s.tmplHeader}>
-                <span style={{ ...s.catDot, background: cat?.color || '#AAA' }} />
+                <span style={{ ...s.catDot, background: cat?.color || 'var(--text-muted)' }} />
                 <div style={s.tmplInfo}>
                   <span style={s.tmplName}>{t.name}</span>
                   <span style={s.tmplMeta}>

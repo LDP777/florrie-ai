@@ -92,13 +92,13 @@ function layoutDayAppointments(appts) {
 }
 // Color palette (Stitch design)
 const COLORS = {
-  primary: '#92405e',
-  secondary: '#745a27',
-  surface: '#fef8f4',
+  primary: 'var(--accent)',
+  secondary: 'var(--gold)',
+  surface: 'var(--bg)',
   primaryContainer: '#b05877',
-  secondaryContainer: '#fedb9b',
-  surfaceContainerLow: '#f8f2ef',
-  onSurface: '#1d1b19',
+  secondaryContainer: 'var(--gold-light)',
+  surfaceContainerLow: 'var(--bg-input)',
+  onSurface: 'var(--text-primary)',
   outlineVariant: '#d8c1c6',
   stone400: '#78716b',
 };
@@ -250,7 +250,7 @@ export default function CalendarView({ initialView } = {}) {
     // Determine card style based on tier/special status
     // For now, default style; can be extended with VIP/gold tier detection
     return {
-      background: '#fff',
+      background: 'var(--bg-card)',
       borderColor: COLORS.primary,
     };
   }
@@ -977,7 +977,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onCompl
               </button>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={() => { hapticTap(); handleMarkNoShow(); }} disabled={saving}
-                  style={{ ...styles.completeBtn, flex: 1, background: '#EF4444', fontSize: 12, padding: '8px 0' }}>
+                  style={{ ...styles.completeBtn, flex: 1, background: 'var(--danger)', fontSize: 12, padding: '8px 0' }}>
                   No-show
                 </button>
                 <button onClick={() => { hapticTap(); handleSendPaymentLink(); }} disabled={linkLoading}
@@ -993,15 +993,15 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onCompl
           )}
           {/* No-show fee charge prompt */}
           {noShowCharging && (
-            <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: '#FEF2F2', border: '1px solid #FECACA' }}>
-              <p style={{ fontSize: 13, color: '#991B1B', margin: '0 0 8px' }}>Client has a saved card. Charge no-show fee?</p>
+            <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: 'var(--danger-bg)', border: '1px solid var(--danger-bg)' }}>
+              <p style={{ fontSize: 13, color: 'var(--danger-text)', margin: '0 0 8px' }}>Client has a saved card. Charge no-show fee?</p>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={handleChargeNoShow} disabled={saving}
-                  style={{ flex: 1, padding: '8px', borderRadius: 8, border: 'none', background: '#EF4444', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  style={{ flex: 1, padding: '8px', borderRadius: 8, border: 'none', background: 'var(--danger)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                   {saving ? 'Charging...' : `Charge £${((appointment.deposit_cents || appointment.price_cents) / 100).toFixed(2)}`}
                 </button>
                 <button onClick={() => setNoShowCharging(false)}
-                  style={{ flex: 1, padding: '8px', borderRadius: 8, border: '1px solid #E5E5E5', background: '#fff', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  style={{ flex: 1, padding: '8px', borderRadius: 8, border: '1px solid var(--border-light)', background: 'var(--bg-card)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
                   Skip
                 </button>
               </div>
@@ -1009,20 +1009,20 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onCompl
           )}
           {/* Payment link result */}
           {paymentLinkUrl && (
-            <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: '#F0FFF4', border: '1px solid #C6F6D5' }}>
-              <p style={{ fontSize: 13, color: '#276749', margin: '0 0 8px', fontWeight: 600 }}>Payment link ready</p>
+            <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: 'var(--success-bg)', border: '1px solid #C6F6D5' }}>
+              <p style={{ fontSize: 13, color: 'var(--success-text)', margin: '0 0 8px', fontWeight: 600 }}>Payment link ready</p>
               <input readOnly value={paymentLinkUrl} style={{ width: '100%', padding: '8px', borderRadius: 6, border: '1px solid #C6F6D5', fontSize: 12, boxSizing: 'border-box' }}
                 onClick={e => { e.target.select(); navigator.clipboard?.writeText?.(paymentLinkUrl); }} />
-              <p style={{ fontSize: 11, color: '#276749', margin: '6px 0 0' }}>Tap to copy. Send to client via WhatsApp or SMS.</p>
+              <p style={{ fontSize: 11, color: 'var(--success-text)', margin: '6px 0 0' }}>Tap to copy. Send to client via WhatsApp or SMS.</p>
             </div>
           )}
           {/* Show status for already no-show or completed */}
           {appointment.status === 'no_show' && (
-            <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: '#FEF2F2', textAlign: 'center' }}>
-              <span style={{ fontSize: 13, color: '#991B1B', fontWeight: 600 }}>Marked as no-show</span>
+            <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: 'var(--danger-bg)', textAlign: 'center' }}>
+              <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 600 }}>Marked as no-show</span>
               {!appointment.no_show_fee_charged && (
                 <button onClick={handleSendPaymentLink} disabled={linkLoading}
-                  style={{ ...styles.completeBtn, marginTop: 8, background: '#EF4444', fontSize: 12, padding: '8px 0' }}>
+                  style={{ ...styles.completeBtn, marginTop: 8, background: 'var(--danger)', fontSize: 12, padding: '8px 0' }}>
                   {linkLoading ? 'Creating...' : 'Send no-show fee link'}
                 </button>
               )}
@@ -1038,7 +1038,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onCompl
             <div style={styles.paymentOptions}>
               {['card', 'cash', 'transfer', 'unpaid'].map(m => (
                 <button key={m} onClick={() => setPaymentMethod(m)}
-                  style={{ ...styles.paymentChip, background: paymentMethod === m ? 'var(--accent)' : 'var(--border-light)', color: paymentMethod === m ? '#fff' : '#666' }}>
+                  style={{ ...styles.paymentChip, background: paymentMethod === m ? 'var(--accent)' : 'var(--border-light)', color: paymentMethod === m ? '#fff' : 'var(--text-secondary)' }}>
                   {m === 'card' ? '💳' : m === 'cash' ? '💵' : m === 'transfer' ? '🏦' : '⏳'} {m}
                 </button>
               ))}
@@ -1080,7 +1080,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onCompl
         <div style={styles.doneScreen}>
           <span style={{ fontSize: 40 }}>✅</span>
           <h3 style={{ fontSize: 18, fontWeight: 700, margin: '12px 0 4px' }}>Done!</h3>
-          <p style={{ fontSize: 14, color: '#888', marginBottom: 16 }}>
+          <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 16 }}>
             £{(appointment.price_cents / 100).toFixed(2)} logged via {paymentMethod}
           </p>
           {/* Rebook prompt */}
@@ -1089,7 +1089,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onCompl
             <div style={styles.rebookOptions}>
               {[3, 4, 5, 6, 8].map(w => (
                 <button key={w} onClick={() => setRebookWeeks(w)}
-                  style={{ ...styles.rebookChip, background: rebookWeeks === w ? 'var(--accent)' : 'var(--border-light)', color: rebookWeeks === w ? '#fff' : '#666' }}>
+                  style={{ ...styles.rebookChip, background: rebookWeeks === w ? 'var(--accent)' : 'var(--border-light)', color: rebookWeeks === w ? '#fff' : 'var(--text-secondary)' }}>
                   {w} weeks
                 </button>
               ))}
@@ -1133,7 +1133,7 @@ const styles = {
   weeklyStripDayNumber: { fontSize: 16, fontWeight: 700, marginTop: 2 },
   // Day View Timeline. The grid scrolls inside its own container so the
   // full 06:00-23:00 day fits and we can auto-scroll to the first booking.
-  dayGrid: { display: 'flex', gap: 0, background: '#fff', borderRadius: 16, overflowY: 'auto', overflowX: 'hidden', maxHeight: 'calc(100dvh - 300px)', minHeight: 420, boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)', WebkitOverflowScrolling: 'touch' },
+  dayGrid: { display: 'flex', gap: 0, background: 'var(--bg-card)', borderRadius: 16, overflowY: 'auto', overflowX: 'hidden', maxHeight: 'calc(100dvh - 300px)', minHeight: 420, boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)', WebkitOverflowScrolling: 'touch' },
   timeColumn: { width: 56, position: 'relative', borderRight: `1px solid ${COLORS.outlineVariant}33`, flexShrink: 0 },
   timeLabel: { position: 'absolute', right: 8, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: COLORS.stone400, transform: 'translateY(-6px)' },
   appointmentColumn: { flex: 1, position: 'relative' },
@@ -1158,7 +1158,7 @@ const styles = {
   openSlotText: { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.stone400 },
   // Week View - agenda by day
   weekAgenda: { display: 'flex', flexDirection: 'column', gap: 12 },
-  weekDaySection: { background: '#fff', borderRadius: 16, boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)', overflow: 'hidden' },
+  weekDaySection: { background: 'var(--bg-card)', borderRadius: 16, boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)', overflow: 'hidden' },
   weekDaySectionToday: { boxShadow: `0 0 0 1.5px ${COLORS.primary}, 0 10px 30px rgba(146, 64, 94, 0.10)` },
   weekDayHead: { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' },
   weekDayHeadLeft: { display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 },
@@ -1182,7 +1182,7 @@ const styles = {
   insightsPillIcon: { fontSize: 14 },
   insightsPillText: { fontSize: 12, fontWeight: 600 },
   // Detail Panel
-  detailPanel: { background: '#fff', borderRadius: 16, padding: 20, marginTop: 16, boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)' },
+  detailPanel: { background: 'var(--bg-card)', borderRadius: 16, padding: 20, marginTop: 16, boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)' },
   detailHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   detailTitle: { fontSize: 17, fontWeight: 700, margin: 0 },
   detailClose: { background: 'none', border: 'none', fontSize: 22, color: COLORS.stone400, cursor: 'pointer' },
@@ -1278,7 +1278,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
     });
   }
   const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'flex-end' };
-  const sheet = { background: '#fff', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif', maxHeight: '90vh', overflowY: 'auto' };
+  const sheet = { background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif', maxHeight: '90vh', overflowY: 'auto' };
   return (
     <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={sheet}>
@@ -1292,7 +1292,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
             <button
               key={p.label}
               onClick={p.apply}
-              style={{ padding: '7px 12px', borderRadius: 8, border: `1.5px solid ${COLORS.outlineVariant}`, background: '#fff', color: COLORS.onSurface, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+              style={{ padding: '7px 12px', borderRadius: 8, border: `1.5px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.onSurface, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
             >
               {p.label}
             </button>
@@ -1385,7 +1385,7 @@ function BlockDetailSheet({ block, onDelete, onClose }) {
     ? 'All day'
     : `${block.start_time || block.custom_start || '?'} → ${block.end_time || block.custom_end || '?'}`;
   const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'flex-end' };
-  const sheet = { background: '#fff', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif' };
+  const sheet = { background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif' };
   return (
     <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={sheet}>
@@ -1417,7 +1417,7 @@ function BlockDetailSheet({ block, onDelete, onClose }) {
           <div>
             <p style={{ fontSize: 14, color: COLORS.onSurface, marginBottom: 12, textAlign: 'center' }}>Remove this block?</p>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setConfirming(false)} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, background: '#fff', color: COLORS.onSurface, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <button onClick={() => setConfirming(false)} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.onSurface, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                 Cancel
               </button>
               <button onClick={onDelete} style={{ flex: 1, padding: '12px 0', borderRadius: 10, border: 'none', background: '#E57373', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -1569,9 +1569,9 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], onClose, 
     }) || null;
   })();
   const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 900, display: 'flex', alignItems: 'flex-end' };
-  const sheet = { background: '#fff', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif', maxHeight: '90vh', overflowY: 'auto' };
+  const sheet = { background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif', maxHeight: '90vh', overflowY: 'auto' };
   const labelStyle = { fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' };
-  const inputStyle = { display: 'block', width: '100%', marginTop: 4, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: '#fff', color: COLORS.onSurface };
+  const inputStyle = { display: 'block', width: '100%', marginTop: 4, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: 'var(--bg-card)', color: COLORS.onSurface };
   return (
     <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={sheet}>
@@ -1621,7 +1621,7 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], onClose, 
                       <button
                         key={c.id}
                         onClick={() => { setSelectedClient(c); setResults([]); }}
-                        style={{ display: 'block', width: '100%', padding: '10px 12px', border: 'none', borderBottom: `1px solid ${COLORS.outlineVariant}33`, background: '#fff', textAlign: 'left', fontSize: 14, fontFamily: 'inherit', cursor: 'pointer', color: COLORS.onSurface }}
+                        style={{ display: 'block', width: '100%', padding: '10px 12px', border: 'none', borderBottom: `1px solid ${COLORS.outlineVariant}33`, background: 'var(--bg-card)', textAlign: 'left', fontSize: 14, fontFamily: 'inherit', cursor: 'pointer', color: COLORS.onSurface }}
                       >
                         <span style={{ fontWeight: 600 }}>{c.first_name} {c.last_name || ''}</span>
                         {c.phone && <span style={{ fontSize: 12, color: COLORS.stone400, marginLeft: 8 }}>{c.phone}</span>}
@@ -1720,9 +1720,9 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], onClose, 
           Leave off when copying over bookings from your old system, so clients don't get a duplicate message.
         </p>
         {clash && (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 10, background: '#FFF7ED', border: '1px solid #FED7AA', margin: '0 0 12px' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 10, background: 'var(--warning-bg)', border: '1px solid #FED7AA', margin: '0 0 12px' }}>
             <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#C2410C', flexShrink: 0 }}>warning</span>
-            <span style={{ fontSize: 12.5, color: '#9A3412', lineHeight: 1.45 }}>
+            <span style={{ fontSize: 12.5, color: 'var(--warning-text)', lineHeight: 1.45 }}>
               This overlaps {clash.clients?.first_name || 'another booking'} at {formatWallTime(clash.starts_at)}
               {clash.treatments?.name ? ` (${clash.treatments.name})` : ''}. You can still add it if you mean to double-book.
             </span>

@@ -651,14 +651,14 @@ export default function Onboarding({ onComplete }) {
               copy();
             };
             return (
-              <div style={{ background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)', borderRadius: 18, padding: 18, color: '#fff', marginBottom: 16, boxShadow: '0 6px 20px rgba(146,64,94,0.22)' }}>
+              <div style={{ background: 'var(--gradient-hero)', borderRadius: 18, padding: 18, color: '#fff', marginBottom: 16, boxShadow: '0 6px 20px rgba(146,64,94,0.22)' }}>
                 <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', opacity: 0.85, marginBottom: 6 }}>Your booking link is live</div>
                 <div style={{ fontSize: 15, fontWeight: 700, wordBreak: 'break-all', marginBottom: 12 }}>florrie.ai/book/{bookingSlug}</div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={copy} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                     {linkCopied ? '✓ Copied' : 'Copy link'}
                   </button>
-                  <button onClick={share} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', background: '#fff', color: '#92405e', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <button onClick={share} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', background: '#fff', color: 'var(--accent)', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                     Share
                   </button>
                 </div>

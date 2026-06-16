@@ -327,7 +327,7 @@ export default function EndOfDay() {
             <div style={styles.section}>
               <div style={styles.optionalBanner}>
                 <span style={{ fontSize: 14 }}>{'\uD83D\uDCA1'}</span>
-                <span style={{ fontSize: 12, color: '#6B6560', lineHeight: 1.4 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-secondary, #6B6560)', lineHeight: 1.4 }}>
                   This is optional. Card payments and bookings are tracked automatically -
                   use this only if you want to reconcile cash at the end of the day.
                 </span>
@@ -335,7 +335,7 @@ export default function EndOfDay() {
 
               <div style={styles.cashupCard}>
                 <div style={styles.cashupRow}>
-                  <span style={{ fontSize: 14, color: '#6B6560' }}>Expected cash (from bookings)</span>
+                  <span style={{ fontSize: 14, color: 'var(--text-secondary, #6B6560)' }}>Expected cash (from bookings)</span>
                   <span style={{ fontSize: 16, fontWeight: 600 }}>\u00A3{d.cashTaken.toFixed(2)}</span>
                 </div>
                 <div style={styles.cashupDivider} />
@@ -356,7 +356,7 @@ export default function EndOfDay() {
                 {cashDiff !== null && (
                   <div style={{
                     ...styles.diffBadge,
-                    background: parseFloat(cashDiff) === 0 ? '#E8F5E9' : '#FFF3E0',
+                    background: parseFloat(cashDiff) === 0 ? 'var(--success-bg, #E8F5E9)' : 'var(--warning-bg, #FFF3E0)',
                     color: parseFloat(cashDiff) === 0 ? '#2E7D32' : '#E65100',
                   }}>
                     {parseFloat(cashDiff) === 0
@@ -367,11 +367,11 @@ export default function EndOfDay() {
                 )}
                 <div style={styles.cashupDivider} />
                 <div style={styles.cashupRow}>
-                  <span style={{ fontSize: 14, color: '#6B6560' }}>Card payments (auto)</span>
+                  <span style={{ fontSize: 14, color: 'var(--text-secondary, #6B6560)' }}>Card payments (auto)</span>
                   <span style={{ fontSize: 14, fontWeight: 500 }}>\u00A3{d.cardTaken.toFixed(2)}</span>
                 </div>
                 <div style={styles.cashupRow}>
-                  <span style={{ fontSize: 14, color: '#6B6560' }}>Tips collected</span>
+                  <span style={{ fontSize: 14, color: 'var(--text-secondary, #6B6560)' }}>Tips collected</span>
                   <span style={{ fontSize: 14, fontWeight: 500 }}>\u00A3{d.tipsReceived.toFixed(2)}</span>
                 </div>
               </div>
@@ -381,7 +381,7 @@ export default function EndOfDay() {
                   onClick={() => setIsReconciled(true)}
                   style={{
                     ...styles.reconBtn,
-                    background: isReconciled ? '#2E7D32' : 'var(--accent, #C76B8A)'
+                    background: isReconciled ? 'var(--success, #2E7D32)' : 'var(--accent, #C76B8A)'
                   }}
                 >
                   {isReconciled ? '\u2713 Reconciled' : 'Mark as Reconciled'}
@@ -397,7 +397,7 @@ export default function EndOfDay() {
               {autoNotes.map((note, i) => (
                 <div key={i} style={styles.noteCard}>
                   <span style={{ fontSize: 14 }}>{'\uD83D\uDCCC'}</span>
-                  <span style={{ fontSize: 13, color: '#4A4540', lineHeight: 1.5 }}>{note}</span>
+                  <span style={{ fontSize: 13, color: 'var(--text-secondary, #4A4540)', lineHeight: 1.5 }}>{note}</span>
                 </div>
               ))}
 
@@ -438,9 +438,9 @@ const styles = {
   page: { padding: '16px 16px 24px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: 0 },
-  dateChip: { fontSize: 12, color: '#6B6560', background: '#F0ECE8', padding: '4px 10px', borderRadius: 12 },
+  dateChip: { fontSize: 12, color: 'var(--text-secondary, #6B6560)', background: 'var(--bg-hover, #F0ECE8)', padding: '4px 10px', borderRadius: 12 },
 
-  closedBanner: { display: 'flex', alignItems: 'center', gap: 12, background: '#E8F5E9', borderRadius: 12, padding: '12px 16px', marginBottom: 16 },
+  closedBanner: { display: 'flex', alignItems: 'center', gap: 12, background: 'var(--success-bg, #E8F5E9)', borderRadius: 12, padding: '12px 16px', marginBottom: 16 },
 
   heroCard: { background: 'linear-gradient(135deg, #C76B8A 0%, #A85575 100%)', borderRadius: 16, padding: 20, marginBottom: 16, color: 'var(--bg-card, #fff)' },
   heroLabel: { fontSize: 12, opacity: 0.8, marginBottom: 4 },
@@ -451,47 +451,47 @@ const styles = {
   heroStatValue: { fontSize: 18, fontWeight: 700 },
   heroStatLabel: { fontSize: 10, opacity: 0.7 },
 
-  emptyState: { textAlign: 'center', padding: '40px 20px', background: 'var(--bg-card, #fff)', borderRadius: 16, border: '1px solid #F0ECE8' },
+  emptyState: { textAlign: 'center', padding: '40px 20px', background: 'var(--bg-card, #fff)', borderRadius: 16, border: '1px solid var(--border-light, #F0ECE8)' },
 
-  tabs: { display: 'flex', gap: 4, marginBottom: 16, background: '#F0ECE8', borderRadius: 12, padding: 4 },
-  tab: { flex: 1, padding: '8px 0', fontSize: 13, fontWeight: 500, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', background: 'none', color: '#6B6560' },
+  tabs: { display: 'flex', gap: 4, marginBottom: 16, background: 'var(--bg-hover, #F0ECE8)', borderRadius: 12, padding: 4 },
+  tab: { flex: 1, padding: '8px 0', fontSize: 13, fontWeight: 500, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', background: 'none', color: 'var(--text-secondary, #6B6560)' },
   tabActive: { background: 'var(--bg-card, #fff)', color: 'var(--text-primary, #2D2A26)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' },
 
   section: { marginBottom: 24 },
 
   statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 },
-  statCard: { background: 'var(--bg-card, #fff)', borderRadius: 12, padding: 14, border: '1px solid #F0ECE8' },
+  statCard: { background: 'var(--bg-card, #fff)', borderRadius: 12, padding: 14, border: '1px solid var(--border-light, #F0ECE8)' },
   statIcon: { fontSize: 16, marginBottom: 6 },
   statValue: { fontSize: 20, fontWeight: 700, color: 'var(--text-primary, #2D2A26)' },
   statLabel: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)', marginTop: 2 },
-  utilBar: { height: 4, background: '#F0ECE8', borderRadius: 2, marginTop: 8 },
+  utilBar: { height: 4, background: 'var(--border-light, #F0ECE8)', borderRadius: 2, marginTop: 8 },
   utilFill: { height: '100%', background: 'var(--accent, #C76B8A)', borderRadius: 2, transition: 'width 0.3s' },
 
   timelineRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid #F0ECE8' },
   timelineTime: { fontSize: 13, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)', width: 42, flexShrink: 0 },
-  timelineDot: (status) => ({ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: status === 'completed' ? '#4CAF50' : (status === 'no-show' || status === 'no_show') ? '#E85D75' : status === 'cancelled' ? '#FFB74D' : status === 'confirmed' ? '#4CAF50' : '#BDBDBD' }),
+  timelineDot: (status) => ({ width: 8, height: 8, borderRadius: 4, flexShrink: 0, background: status === 'completed' ? 'var(--success, #4CAF50)' : (status === 'no-show' || status === 'no_show') ? 'var(--danger, #E85D75)' : status === 'cancelled' ? 'var(--warning, #FFB74D)' : status === 'confirmed' ? 'var(--success, #4CAF50)' : 'var(--text-muted, #BDBDBD)' }),
   timelineClient: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
   timelineTreatment: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)' },
   timelineAmount: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
   timelineMethod: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
-  badgeNoShow: { fontSize: 11, color: '#E85D75', background: '#FDEDF0', padding: '3px 8px', borderRadius: 8, fontWeight: 600 },
-  badgeCancelled: { fontSize: 11, color: '#F57C00', background: '#FFF3E0', padding: '3px 8px', borderRadius: 8, fontWeight: 600 },
-  badgePending: { fontSize: 11, color: '#757575', background: '#F5F5F5', padding: '3px 8px', borderRadius: 8, fontWeight: 600 },
-  badgeConfirmed: { fontSize: 11, color: '#2E7D32', background: '#E8F5E9', padding: '3px 8px', borderRadius: 8, fontWeight: 600 },
+  badgeNoShow: { fontSize: 11, color: '#E85D75', background: 'var(--danger-bg, #FDEDF0)', padding: '3px 8px', borderRadius: 8, fontWeight: 600 },
+  badgeCancelled: { fontSize: 11, color: '#F57C00', background: 'var(--warning-bg, #FFF3E0)', padding: '3px 8px', borderRadius: 8, fontWeight: 600 },
+  badgePending: { fontSize: 11, color: '#757575', background: 'var(--bg-hover, #F5F5F5)', padding: '3px 8px', borderRadius: 8, fontWeight: 600 },
+  badgeConfirmed: { fontSize: 11, color: '#2E7D32', background: 'var(--success-bg, #E8F5E9)', padding: '3px 8px', borderRadius: 8, fontWeight: 600 },
 
   optionalBanner: { display: 'flex', gap: 8, alignItems: 'flex-start', background: '#FFF8F0', border: '1px solid #FFE8CC', borderRadius: 10, padding: '10px 12px', marginBottom: 12 },
-  cashupCard: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16, border: '1px solid #F0ECE8', marginBottom: 16 },
+  cashupCard: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16, border: '1px solid var(--border-light, #F0ECE8)', marginBottom: 16 },
   cashupRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' },
-  cashupDivider: { height: 1, background: '#F0ECE8', margin: '8px 0' },
-  inputLabel: { fontSize: 12, fontWeight: 600, color: '#6B6560', display: 'block', marginBottom: 6 },
-  cashInput: { display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg, var(--bg, #FAF8F5))', border: '1.5px solid #E8E4E0', borderRadius: 10, padding: '10px 12px' },
+  cashupDivider: { height: 1, background: 'var(--border-light, #F0ECE8)', margin: '8px 0' },
+  inputLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #6B6560)', display: 'block', marginBottom: 6 },
+  cashInput: { display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg, var(--bg, #FAF8F5))', border: '1.5px solid var(--border, #E8E4E0)', borderRadius: 10, padding: '10px 12px' },
   input: { border: 'none', background: 'none', fontSize: 18, fontWeight: 600, outline: 'none', width: '100%', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
   diffBadge: { padding: '10px 14px', borderRadius: 10, fontSize: 14, fontWeight: 600, textAlign: 'center', marginBottom: 12 },
   reconBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', color: 'var(--bg-card, #fff)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   notesHeader: { fontSize: 13, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-  noteCard: { display: 'flex', gap: 8, background: 'var(--bg-card, #fff)', borderRadius: 10, padding: 12, border: '1px solid #F0ECE8', marginBottom: 8 },
-  textarea: { width: '100%', padding: 12, borderRadius: 10, border: '1.5px solid #E8E4E0', fontSize: 14, fontFamily: 'inherit', resize: 'vertical', outline: 'none', background: 'var(--bg, var(--bg, #FAF8F5))', color: 'var(--text-primary, #2D2A26)', boxSizing: 'border-box' },
+  noteCard: { display: 'flex', gap: 8, background: 'var(--bg-card, #fff)', borderRadius: 10, padding: 12, border: '1px solid var(--border-light, #F0ECE8)', marginBottom: 8 },
+  textarea: { width: '100%', padding: 12, borderRadius: 10, border: '1.5px solid var(--border, #E8E4E0)', fontSize: 14, fontFamily: 'inherit', resize: 'vertical', outline: 'none', background: 'var(--bg, var(--bg, #FAF8F5))', color: 'var(--text-primary, #2D2A26)', boxSizing: 'border-box' },
 
   closeDayWrap: { textAlign: 'center', marginTop: 8, paddingBottom: 20 },
   closeDayBtn: { width: '100%', padding: '16px 0', borderRadius: 14, border: 'none', background: 'var(--text-primary, #2D2A26)', color: 'var(--bg-card, #fff)', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },

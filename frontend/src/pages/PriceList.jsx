@@ -276,7 +276,7 @@ export default function PriceList() {
               <h3 style={S.sectionTitle}>Options</h3>
               <div style={S.optionRow} onClick={() => setShowNotes(!showNotes)}>
                 <span style={S.optionLabel}>Show treatment descriptions</span>
-                <div style={{ ...S.toggle, background: showNotes ? 'var(--accent, #C76B8A)' : '#D0CBC5' }}>
+                <div style={{ ...S.toggle, background: showNotes ? 'var(--accent, #C76B8A)' : 'var(--border, #D0CBC5)' }}>
                   <div style={{ ...S.toggleDot, transform: showNotes ? 'translateX(18px)' : 'translateX(2px)' }} />
                 </div>
               </div>

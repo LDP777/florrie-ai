@@ -691,7 +691,7 @@ export default function Settings({ onLogout }) {
                     }}
                     style={{
                       ...styles.toggle,
-                      background: isEnabled && canToggle ? '#C76B8A' : '#E0DBD5',
+                      background: isEnabled && canToggle ? 'var(--accent-rose)' : '#E0DBD5',
                       opacity: canToggle ? 1 : 0.5,
                       cursor: canToggle ? 'pointer' : 'not-allowed',
                     }}
@@ -847,7 +847,7 @@ export default function Settings({ onLogout }) {
                   onClick={() => saveProfile({ calendar_settings: { ...calSettings, buffer_minutes: opt.mins } })}
                   style={{
                     ...styles.bufferChip,
-                    background: (calSettings.buffer_minutes ?? 10) === opt.mins ? '#C76B8A' : '#F5F2EF',
+                    background: (calSettings.buffer_minutes ?? 10) === opt.mins ? 'var(--accent-rose)' : '#F5F2EF',
                     color: (calSettings.buffer_minutes ?? 10) === opt.mins ? '#fff' : '#8A8580',
                   }}
                 >
@@ -997,7 +997,7 @@ export default function Settings({ onLogout }) {
                     }}
                     style={{
                       ...styles.channelChip,
-                      background: (beautician.client_reminder_prefs?.channel || 'whatsapp') === ch ? '#C76B8A' : '#F5F2EF',
+                      background: (beautician.client_reminder_prefs?.channel || 'whatsapp') === ch ? 'var(--accent-rose)' : '#F5F2EF',
                       color: (beautician.client_reminder_prefs?.channel || 'whatsapp') === ch ? '#fff' : '#8A8580'
                     }}
                   >
@@ -1085,7 +1085,7 @@ export default function Settings({ onLogout }) {
               {
                 group: 'Always',
                 hint: 'Florrie always sends these on your behalf. They\'re time-sensitive or directly tied to a booking.',
-                color: '#22c55e',
+                color: 'var(--success)',
                 items: [
                   { key: 'booking_confirmation', label: 'Booking confirmations' },
                   { key: 'appointment_reminder', label: 'Appointment reminders' },
@@ -1110,7 +1110,7 @@ export default function Settings({ onLogout }) {
               {
                 group: 'Low priority',
                 hint: 'Florrie queues these until she\'s confident there\'s room. Never affects replies, confirmations, or reminders.',
-                color: '#ef4444',
+                color: 'var(--danger)',
                 items: [
                   { key: 'marketing', label: 'Marketing & promos' },
                   { key: 'referral', label: 'Referral messages' },
@@ -1119,9 +1119,9 @@ export default function Settings({ onLogout }) {
             ];
 
             const TIER_OPTIONS = [
-              { value: 'always', label: 'Always', color: '#22c55e' },
+              { value: 'always', label: 'Always', color: 'var(--success)' },
               { value: 'if_available', label: 'If available', color: '#f59e0b' },
-              { value: 'pause_first', label: 'Pause first', color: '#ef4444' },
+              { value: 'pause_first', label: 'Pause first', color: 'var(--danger)' },
             ];
 
             function getEffectivePriority(key) {

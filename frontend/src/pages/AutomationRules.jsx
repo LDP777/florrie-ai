@@ -474,18 +474,18 @@ function SequencesPanel({ beautician }) {
       {/* Stats strip */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         {[
-          { label: 'Active',     value: sequences.filter(s => s.active).length, color: '#5BA97B' },
-          { label: 'Msgs sent',  value: totalSent,    color: '#C76B8A' },
+          { label: 'Active',     value: sequences.filter(s => s.active).length, color: 'var(--success, #5BA97B)' },
+          { label: 'Msgs sent',  value: totalSent,    color: 'var(--accent-rose, #C76B8A)' },
           { label: 'Reply rate', value: `${replyRate}%`, color: '#7B6BA8' },
         ].map(s => (
-          <div key={s.label} style={{ flex: 1, background: '#fff', borderRadius: 12, padding: '10px 8px', border: '1px solid #EDE9E4', textAlign: 'center' }}>
+          <div key={s.label} style={{ flex: 1, background: 'var(--bg-card, #fff)', borderRadius: 12, padding: '10px 8px', border: '1px solid var(--border-light, #EDE9E4)', textAlign: 'center' }}>
             <div style={{ fontSize: 18, fontWeight: 700, color: s.color }}>{s.value}</div>
-            <div style={{ fontSize: 10, color: '#B5AFA8', marginTop: 2 }}>{s.label}</div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted, #B5AFA8)', marginTop: 2 }}>{s.label}</div>
           </div>
         ))}
         <button
           onClick={() => setShowCreate(true)}
-          style={{ padding: '10px 14px', borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
+          style={{ padding: '10px 14px', borderRadius: 12, border: 'none', background: 'var(--accent-rose, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
         >+ New</button>
       </div>
       {/* Sequence cards */}
@@ -502,51 +502,51 @@ function SequencesPanel({ beautician }) {
         const trigger  = SEQ_TRIGGERS.find(t => t.value === seq.trigger);
         const isOpen   = expanded === seq.id;
         return (
-          <div key={seq.id} style={{ background: '#fff', borderRadius: 14, border: '1px solid #EDE9E4', marginBottom: 10, overflow: 'hidden' }}>
+          <div key={seq.id} style={{ background: 'var(--bg-card, #fff)', borderRadius: 14, border: '1px solid var(--border-light, #EDE9E4)', marginBottom: 10, overflow: 'hidden' }}>
             <div
               style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, cursor: 'pointer' }}
               onClick={() => setExpanded(isOpen ? null : seq.id)}
             >
-              <div style={{ width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, background: seq.active ? '#EDF7F0' : '#F0ECE8', flexShrink: 0 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, background: seq.active ? 'var(--success-bg, #EDF7F0)' : '#F0ECE8', flexShrink: 0 }}>
                 {trigger?.icon || '📨'}
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#2D2A26', marginBottom: 2 }}>{seq.name}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)', marginBottom: 2 }}>{seq.name}</div>
                 <div style={{ fontSize: 12, color: '#8B8580' }}>{seq.steps.length} steps · {trigger?.label}</div>
               </div>
-              <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 8, background: seq.active ? '#EDF7F0' : '#F0ECE8', color: seq.active ? '#5BA97B' : '#B5AFA8' }}>
+              <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 8, background: seq.active ? 'var(--success-bg, #EDF7F0)' : '#F0ECE8', color: seq.active ? '#5BA97B' : '#B5AFA8' }}>
                 {seq.active ? 'Active' : 'Paused'}
               </span>
             </div>
             {isOpen && (
-              <div style={{ padding: '0 14px 14px', borderTop: '1px solid #EDE9E4' }}>
+              <div style={{ padding: '0 14px 14px', borderTop: '1px solid var(--border-light, #EDE9E4)' }}>
                 {/* Steps timeline */}
                 <div style={{ paddingTop: 12 }}>
                   {seq.steps.map((step, i) => (
                     <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <div style={{ width: 8, height: 8, borderRadius: 4, background: '#C76B8A', marginTop: 4, flexShrink: 0 }} />
-                        {i < seq.steps.length - 1 && <div style={{ width: 1, flex: 1, background: '#EDE9E4', marginTop: 4 }} />}
+                        <div style={{ width: 8, height: 8, borderRadius: 4, background: 'var(--accent-rose, #C76B8A)', marginTop: 4, flexShrink: 0 }} />
+                        {i < seq.steps.length - 1 && <div style={{ width: 1, flex: 1, background: 'var(--border-light, #EDE9E4)', marginTop: 4 }} />}
                       </div>
                       <div style={{ flex: 1, paddingBottom: 4 }}>
                         <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
                           <span style={{ fontSize: 10, fontWeight: 700, color: '#C76B8A', background: '#FFF0F3', padding: '2px 7px', borderRadius: 6 }}>{formatSeqDelay(step.delay)}</span>
                           <span style={{ fontSize: 10, color: '#8B8580' }}>{step.channel === 'whatsapp' ? '💬' : step.channel === 'sms' ? '📱' : '✉️'} {step.channel}</span>
                         </div>
-                        <p style={{ margin: 0, fontSize: 12, color: '#534247', lineHeight: 1.5 }}>{step.message}</p>
+                        <p style={{ margin: 0, fontSize: 12, color: 'var(--text-secondary, #534247)', lineHeight: 1.5 }}>{step.message}</p>
                       </div>
                     </div>
                   ))}
                 </div>
                 {/* Stats */}
-                <div style={{ display: 'flex', gap: 16, fontSize: 12, color: '#8B8580', padding: '8px 0', borderTop: '1px solid #EDE9E4', marginTop: 4 }}>
+                <div style={{ display: 'flex', gap: 16, fontSize: 12, color: '#8B8580', padding: '8px 0', borderTop: '1px solid var(--border-light, #EDE9E4)', marginTop: 4 }}>
                   <span>{seq.stats?.sent || 0} sent</span>
                   <span>{seq.stats?.opened || 0} opened</span>
                   <span>{seq.stats?.replied || 0} replied</span>
                 </div>
                 <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                  <button onClick={() => handleToggle(seq)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #EDE9E4', background: '#FAF8F5', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#6B6560' }}>{seq.active ? 'Pause' : 'Activate'}</button>
-                  <button onClick={() => handleDelete(seq.id)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid #EDE9E4', background: '#FAF8F5', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#E85D75' }}>Delete</button>
+                  <button onClick={() => handleToggle(seq)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border-light, #EDE9E4)', background: '#FAF8F5', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#6B6560' }}>{seq.active ? 'Pause' : 'Activate'}</button>
+                  <button onClick={() => handleDelete(seq.id)} style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border-light, #EDE9E4)', background: '#FAF8F5', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: '#E85D75' }}>Delete</button>
                 </div>
               </div>
             )}
@@ -556,16 +556,16 @@ function SequencesPanel({ beautician }) {
       {/* Create modal */}
       {showCreate && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'flex-end', zIndex: 200 }} onClick={() => setShowCreate(false)}>
-          <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '20px 16px 40px', width: '100%', maxHeight: '85vh', overflowY: 'auto', boxSizing: 'border-box' }} onClick={e => e.stopPropagation()}>
+          <div style={{ background: 'var(--bg-card, #fff)', borderRadius: '20px 20px 0 0', padding: '20px 16px 40px', width: '100%', maxHeight: '85vh', overflowY: 'auto', boxSizing: 'border-box' }} onClick={e => e.stopPropagation()}>
             <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 16px' }}>New Sequence</h2>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#8B8580', marginBottom: 6 }}>Name</div>
-            <input style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #EDE9E4', fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 14, boxSizing: 'border-box' }}
+            <input style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border-light, #EDE9E4)', fontSize: 14, fontFamily: 'inherit', outline: 'none', marginBottom: 14, boxSizing: 'border-box' }}
               placeholder="e.g. Post Lamination Care" value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))} />
             <div style={{ fontSize: 12, fontWeight: 700, color: '#8B8580', marginBottom: 6 }}>Trigger</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
               {SEQ_TRIGGERS.map(t => (
                 <button key={t.value} onClick={() => setCreateForm(f => ({ ...f, trigger: t.value }))}
-                  style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #EDE9E4', background: createForm.trigger === t.value ? '#FFF0F3' : '#FAF8F5', color: createForm.trigger === t.value ? '#C76B8A' : '#4A4540', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border-light, #EDE9E4)', background: createForm.trigger === t.value ? '#FFF0F3' : '#FAF8F5', color: createForm.trigger === t.value ? '#C76B8A' : '#4A4540', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
                   {t.icon} {t.label}
                 </button>
               ))}
@@ -575,29 +575,29 @@ function SequencesPanel({ beautician }) {
               <div key={i} style={{ background: '#FAF8F5', borderRadius: 10, padding: 10, marginBottom: 8 }}>
                 <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
                   <select value={step.delay} onChange={e => setCreateForm(f => ({ ...f, steps: f.steps.map((s, j) => j === i ? { ...s, delay: e.target.value } : s) }))}
-                    style={{ flex: 1, padding: '6px 8px', borderRadius: 8, border: '1px solid #EDE9E4', fontSize: 12, fontFamily: 'inherit', background: '#fff' }}>
+                    style={{ flex: 1, padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border-light, #EDE9E4)', fontSize: 12, fontFamily: 'inherit', background: 'var(--bg-card, #fff)' }}>
                     {SEQ_DELAYS.map(d => <option key={d} value={d}>{formatSeqDelay(d)}</option>)}
                   </select>
                   <select value={step.channel} onChange={e => setCreateForm(f => ({ ...f, steps: f.steps.map((s, j) => j === i ? { ...s, channel: e.target.value } : s) }))}
-                    style={{ flex: 1, padding: '6px 8px', borderRadius: 8, border: '1px solid #EDE9E4', fontSize: 12, fontFamily: 'inherit', background: '#fff' }}>
+                    style={{ flex: 1, padding: '6px 8px', borderRadius: 8, border: '1px solid var(--border-light, #EDE9E4)', fontSize: 12, fontFamily: 'inherit', background: 'var(--bg-card, #fff)' }}>
                     {SEQ_CHANNELS.map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                   {createForm.steps.length > 1 && (
                     <button onClick={() => setCreateForm(f => ({ ...f, steps: f.steps.filter((_, j) => j !== i) }))}
-                      style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid #EDE9E4', background: '#fff', fontSize: 12, cursor: 'pointer', color: '#E85D75', fontFamily: 'inherit' }}>✕</button>
+                      style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border-light, #EDE9E4)', background: 'var(--bg-card, #fff)', fontSize: 12, cursor: 'pointer', color: '#E85D75', fontFamily: 'inherit' }}>✕</button>
                   )}
                 </div>
                 <textarea value={step.message} onChange={e => setCreateForm(f => ({ ...f, steps: f.steps.map((s, j) => j === i ? { ...s, message: e.target.value } : s) }))}
                   placeholder="Message... use {name}, {booking_link} etc."
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid #EDE9E4', fontSize: 12, fontFamily: 'inherit', resize: 'vertical', minHeight: 72, boxSizing: 'border-box', background: '#fff' }} />
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border-light, #EDE9E4)', fontSize: 12, fontFamily: 'inherit', resize: 'vertical', minHeight: 72, boxSizing: 'border-box', background: 'var(--bg-card, #fff)' }} />
               </div>
             ))}
             <button onClick={() => setCreateForm(f => ({ ...f, steps: [...f.steps, { delay: '24h', channel: 'whatsapp', message: '' }] }))}
-              style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1px dashed #C76B8A', background: 'none', color: '#C76B8A', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 14 }}>
+              style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1px dashed var(--accent-rose, #C76B8A)', background: 'none', color: 'var(--accent-rose, #C76B8A)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 14 }}>
               + Add step
             </button>
             <button onClick={handleCreate} disabled={saving || !createForm.name.trim()}
-              style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none', background: '#C76B8A', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: saving || !createForm.name.trim() ? 0.6 : 1 }}>
+              style={{ width: '100%', padding: 14, borderRadius: 12, border: 'none', background: 'var(--accent-rose, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: saving || !createForm.name.trim() ? 0.6 : 1 }}>
               {saving ? 'Saving…' : 'Create Sequence'}
             </button>
           </div>

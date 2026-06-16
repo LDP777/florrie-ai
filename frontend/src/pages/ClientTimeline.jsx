@@ -305,7 +305,7 @@ const S = {
   page: { padding: '20px 16px 32px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 16px' },
   clientRow: { display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto' },
-  clientChip: { display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px 6px 6px', borderRadius: 20, border: '1px solid #F0ECE8', background: 'var(--card, #fff)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', whiteSpace: 'nowrap' },
+  clientChip: { display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px 6px 6px', borderRadius: 20, border: '1px solid var(--border-light, #F0ECE8)', background: 'var(--card, #fff)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', whiteSpace: 'nowrap' },
   clientActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', border: '1px solid var(--accent, #C76B8A)' },
   clientAvatar: { width: 26, height: 26, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, flexShrink: 0 },
   profileCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 16, marginBottom: 16 },

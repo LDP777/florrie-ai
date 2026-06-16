@@ -18,7 +18,7 @@ import { deDash } from '../lib/text.js';
 // 'general' has no icon, so the Florrie petal renders instead.
 const AGENT_ROUTES = {
   calendar: { label: 'Calendar', icon: 'calendar_month', color: '#7C6EAF' },
-  clients: { label: 'Clients', icon: 'person', color: '#C76B8A' },
+  clients: { label: 'Clients', icon: 'person', color: '#C76B8A' }, // literal: this colour is alpha-concatenated (color + '18'), so must stay hex
   campaigns: { label: 'Campaigns', icon: 'mail', color: '#B0628A' },
   money: { label: 'Money', icon: 'payments', color: '#5BA67F' },
   content: { label: 'Content', icon: 'photo_camera', color: '#C9A05A' },
@@ -26,7 +26,7 @@ const AGENT_ROUTES = {
   general: { label: 'Florrie', icon: null, color: 'var(--accent, #C76B8A)' }, // uses petal SVG
 };
 function FloriePetal({ size = 28, spinning = false, white = false }) {
-  const colour = white ? '#fff' : '#C76B8A';
+  const colour = white ? '#fff' : 'var(--accent-rose)';
   const gold = white ? 'rgba(255,255,255,0.6)' : '#C9A96E';
   return (
     <svg

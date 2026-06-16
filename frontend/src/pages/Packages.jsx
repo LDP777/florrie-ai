@@ -490,7 +490,7 @@ export default function Courses() {
                 >
                   {expandedCourse === course.id ? 'Hide' : `Enrolled (${course.enrolled || 0})`}
                 </button>
-                <button onClick={() => handleDelete(course.id)} style={{ ...s.actionBtn, color: '#C62828' }}>Delete</button>
+                <button onClick={() => handleDelete(course.id)} style={{ ...s.actionBtn, color: 'var(--danger-text, #C62828)' }}>Delete</button>
               </div>
 
               {/* Inline enrollment list */}
@@ -509,7 +509,7 @@ export default function Courses() {
                       </div>
                       <span style={{
                         ...s.enrollStatus,
-                        background: e.payment_status === 'paid' ? 'var(--success-bg, #E8F5E9)' : e.payment_status === 'deposit_paid' ? '#FFF8E1' : 'var(--bg, #FAF8F5)',
+                        background: e.payment_status === 'paid' ? 'var(--success-bg, #E8F5E9)' : e.payment_status === 'deposit_paid' ? 'var(--warning-bg, #FFF8E1)' : 'var(--bg, #FAF8F5)',
                         color: e.payment_status === 'paid' ? 'var(--success, #5BA97B)' : e.payment_status === 'deposit_paid' ? '#E8A838' : 'var(--text-muted, #B5AFA8)',
                       }}>
                         {e.payment_status === 'paid' ? 'Paid in full' : e.payment_status === 'deposit_paid' ? 'Deposit paid' : 'Unpaid'}
@@ -547,7 +547,7 @@ export default function Courses() {
                   </div>
                   <span style={{
                     ...s.enrollStatus,
-                    background: e.payment_status === 'paid' ? 'var(--success-bg, #E8F5E9)' : e.payment_status === 'deposit_paid' ? '#FFF8E1' : 'var(--bg, #FAF8F5)',
+                    background: e.payment_status === 'paid' ? 'var(--success-bg, #E8F5E9)' : e.payment_status === 'deposit_paid' ? 'var(--warning-bg, #FFF8E1)' : 'var(--bg, #FAF8F5)',
                     color: e.payment_status === 'paid' ? 'var(--success, #5BA97B)' : e.payment_status === 'deposit_paid' ? '#E8A838' : 'var(--text-muted, #B5AFA8)',
                   }}>
                     {e.payment_status === 'paid' ? 'Paid in full' : e.payment_status === 'deposit_paid' ? 'Deposit paid' : 'Unpaid'}

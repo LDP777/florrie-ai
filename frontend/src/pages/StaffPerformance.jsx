@@ -19,7 +19,7 @@ function memberRole(m) {
   return m.role ? m.role.charAt(0).toUpperCase() + m.role.slice(1) : 'Stylist';
 }
 
-function Bar({ value, max, color = '#C76B8A' }) {
+function Bar({ value, max, color = 'var(--accent-rose, #C76B8A)' }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
   return (
     <div style={{ height: 6, borderRadius: 3, background: 'var(--card-border, #F0ECE8)', overflow: 'hidden' }}>
