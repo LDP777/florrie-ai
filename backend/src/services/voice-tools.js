@@ -1093,24 +1093,46 @@ async function toolGetRevenueByTreatment({ from_date, to_date }, beautician, sup
 
 export async function findClient(beauticianId, name, supabase) {
   if (!name) return null;
+  const cleaned = String(name).trim().replace(/\s+/g, ' ');
+  if (!cleaned) return null;
 
-  // Try first name match first
-  const { data } = await supabase
+  const parts = cleaned.split(' ');
+  const first = parts[0];
+  const last = parts.length > 1 ? parts[parts.length - 1] : null;
+
+  const base = () => supabase
     .from('clients')
     .select('id, first_name, last_name, phone, email')
-    .eq('beautician_id', beauticianId)
-    .ilike('first_name', `%${name}%`)
-    .limit(1);
+    .eq('beautician_id', beauticianId);
 
-  if (data?.[0]) return data[0];
+  // 1) Full "First Last": match BOTH names. This is the common voice case
+  //    ("Reschedule Caitlin Clark ...") that the old single-column search
+  //    always missed, because no first_name equals the whole "Caitlin Clark".
+  if (last) {
+    const { data } = await base()
+      .ilike('first_name', `${first}%`)
+      .ilike('last_name', `${last}%`)
+      .limit(1);
+    if (data?.[0]) return data[0];
+  }
 
-  // Fall back to last name
-  const { data: byLast } = await supabase
-    .from('clients')
-    .select('id, first_name, last_name, phone, email')
-    .eq('beautician_id', beauticianId)
-    .ilike('last_name', `%${name}%`)
-    .limit(1);
+  // 2) Whole string against first name then last name (first-name-only,
+  //    nicknames stored in first_name, or a single given name).
+  const { data: byFirstWhole } = await base().ilike('first_name', `%${cleaned}%`).limit(1);
+  if (byFirstWhole?.[0]) return byFirstWhole[0];
 
-  return byLast?.[0] || null;
+  const { data: byLastWhole } = await base().ilike('last_name', `%${cleaned}%`).limit(1);
+  if (byLastWhole?.[0]) return byLastWhole[0];
+
+  // 3) Loosest: any token matches either name (e.g. "Clark", or just the
+  //    first name when the surname is slightly off).
+  const { data: byFirstTok } = await base().ilike('first_name', `%${first}%`).limit(1);
+  if (byFirstTok?.[0]) return byFirstTok[0];
+
+  if (last) {
+    const { data: byLastTok } = await base().ilike('last_name', `%${last}%`).limit(1);
+    if (byLastTok?.[0]) return byLastTok[0];
+  }
+
+  return null;
 }

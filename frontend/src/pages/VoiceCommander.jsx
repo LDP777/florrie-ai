@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useBeautician, supabase, fetchRows } from '../lib/supabase.js'
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
@@ -176,6 +177,7 @@ const MIC_DENIED_MSG = IS_NATIVE_APP
   : 'Microphone access denied. Check your browser settings, or type your message instead.';
 export default function VoiceCommander() {
   const { beautician, loading: bLoading } = useBeautician();
+  const navigate = useNavigate();
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
@@ -274,6 +276,17 @@ export default function VoiceCommander() {
   async function loadHistory() {
     setLoading(true);
     try {
+      // Restore the recent conversation so leaving and coming back to Florrie
+      // does not wipe the chat (Ellie: "doesn't remember the chat").
+      const saved = (() => {
+        try { return JSON.parse(localStorage.getItem('florrie_voice_chat') || 'null'); }
+        catch { return null; }
+      })();
+      if (Array.isArray(saved) && saved.length) {
+        setMessages(saved);
+        setLoading(false);
+        return;
+      }
       const greeting = {
         id: '0', role: 'assistant',
         text: speechSupported
@@ -301,6 +314,11 @@ export default function VoiceCommander() {
   // Auto-scroll on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+  // Persist the conversation (last 40 messages) so it survives navigating away.
+  useEffect(() => {
+    if (!messages.length) return;
+    try { localStorage.setItem('florrie_voice_chat', JSON.stringify(messages.slice(-40))); } catch {}
   }, [messages]);
   function startRecording() {
     if (!SpeechRecognition) {
@@ -493,7 +511,9 @@ export default function VoiceCommander() {
     if (textInput.trim()) processMessage(textInput, false);
   }
   function handleActionClick(path) {
-    if (path) window.location.href = path;
+    // In-app SPA navigation. window.location.href forced a full reload that
+    // dropped the user (and the chat) instead of opening the calendar.
+    if (path) navigate(path);
   }
   return (
     <div style={styles.page}>
