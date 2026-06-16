@@ -7,7 +7,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
- * Patch Test Tracker — Regulatory compliance for brow & lash treatments.
+ * Patch Test Tracker - Regulatory compliance for brow & lash treatments.
  *
  * UK law requires a patch test 24-48h before tinting/lifting treatments.
  * This page tracks:
@@ -17,9 +17,9 @@ import ErrorCard from '../components/ErrorCard.jsx';
  *   - One-tap reminder to clients who need testing
  *
  * Tabs:
- *   Alerts    — clients with upcoming appointments but no valid test
- *   All Tests — full record of every patch test
- *   Settings  — expiry period, auto-remind, treatments requiring tests
+ *   Alerts    - clients with upcoming appointments but no valid test
+ *   All Tests - full record of every patch test
+ *   Settings  - expiry period, auto-remind, treatments requiring tests
  */
 
 const PATCH_STATUS = {
@@ -75,7 +75,7 @@ export default function PatchTests() {
     result: 'pass', notes: '', treatment_id: '',
   });
 
-  // Settings — seeded from beautician profile, saved back on change
+  // Settings - seeded from beautician profile, saved back on change
   const [settings, setSettings] = useState({
     expiry_months: 6,
     auto_remind: true,
@@ -218,7 +218,7 @@ export default function PatchTests() {
         body: JSON.stringify({
           type: 'patch_test_reminder',
           client_name: clientName,
-          message: `Hi ${clientName}, just a quick reminder — you need a patch test before your next treatment. Pop in or reply to book one in!`,
+          message: `Hi ${clientName}, just a quick reminder - you need a patch test before your next treatment. Pop in or reply to book one in!`,
         }),
       });
 
@@ -317,8 +317,8 @@ export default function PatchTests() {
             <label style={styles.formLabel}>Result</label>
             <div style={styles.resultRow}>
               {[
-                { value: 'pass', label: 'Pass — no reaction', icon: '✅' },
-                { value: 'fail', label: 'Fail — reaction', icon: '❌' },
+                { value: 'pass', label: 'Pass - no reaction', icon: '✅' },
+                { value: 'fail', label: 'Fail - reaction', icon: '❌' },
                 { value: 'pending', label: 'Pending (24h)', icon: '⏳' },
               ].map(r => (
                 <button
@@ -392,7 +392,7 @@ export default function PatchTests() {
                       <div style={styles.alertInfo}>
                         <span style={styles.alertName}>{alert.client_name}</span>
                         <span style={styles.alertDetail}>
-                          {alert.treatment} — {new Date(alert.appointment_date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+                          {alert.treatment} - {new Date(alert.appointment_date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
                         </span>
                       </div>
                       <div style={{ ...styles.alertBadge, background: status.bg, color: status.color }}>
@@ -488,7 +488,7 @@ export default function PatchTests() {
             <div style={styles.settingsRow}>
               <div>
                 <span style={styles.settingsLabel}>Test validity period</span>
-                <span style={styles.settingsHint}>How long a patch test stays valid — affects booking compliance checks</span>
+                <span style={styles.settingsHint}>How long a patch test stays valid - affects booking compliance checks</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                 {settingsSaved && <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>Saved ✓</span>}

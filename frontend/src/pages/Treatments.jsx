@@ -8,7 +8,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
- * Treatments — manage treatment menu.
+ * Treatments - manage treatment menu.
  * Wired to Supabase.
  */
 
@@ -275,7 +275,7 @@ export default function Treatments() {
               >
                 {form.requires_patch_test ? 'Required' : 'Not needed'}
               </button>
-              <span style={styles.formHint}>For dye treatments — client must patch test 48h before</span>
+              <span style={styles.formHint}>For dye treatments - client must patch test 48h before</span>
             </div>
           </div>
 
@@ -285,7 +285,7 @@ export default function Treatments() {
               type="text"
               value={form.description}
               onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
-              placeholder="Optional — shown on booking page"
+              placeholder="Optional - shown on booking page"
               style={styles.formInput}
             />
           </div>

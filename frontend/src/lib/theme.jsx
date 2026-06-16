@@ -44,7 +44,7 @@ function applyTheme(dark) {
 }
 
 const lightTokens = {
-  // Backgrounds — Stitch surface scale
+  // Backgrounds - Stitch surface scale
   '--bg': '#fef8f4',
   '--bg-card': '#FFFFFF',
   '--bg-elevated': '#FFFFFF',
@@ -61,13 +61,13 @@ const lightTokens = {
   '--surface-container-high': '#ede7e3',
   '--surface-container-highest': '#e7e1de',
 
-  // Text — Stitch on-surface
+  // Text - Stitch on-surface
   '--text-primary': '#1d1b19',
   '--text-secondary': '#534247',
   '--text-muted': '#867277',
   '--text-inverse': '#FFFFFF',
 
-  // Brand accent — Stitch primary (#92405e)
+  // Brand accent - Stitch primary (#92405e)
   '--accent': '#92405e',
   '--accent-hover': '#782b49',
   '--accent-light': '#ffd9e2',
@@ -79,7 +79,7 @@ const lightTokens = {
   '--primary-fixed': '#ffd9e2',
   '--primary-fixed-dim': '#ffb1c8',
 
-  // Gold — Stitch secondary (#745a27)
+  // Gold - Stitch secondary (#745a27)
   '--gold': '#745a27',
   '--gold-hover': '#5a4312',
   '--gold-light': '#ffdea4',
@@ -104,14 +104,14 @@ const lightTokens = {
   '--danger-bg': '#ffdad6',
   '--danger-text': '#93000a',
 
-  // Borders — Stitch outline
+  // Borders - Stitch outline
   '--border': '#d8c1c6',
   '--border-light': '#ede7e3',
   '--border-focus': 'rgba(146, 64, 94, 0.4)',
   '--outline': '#867277',
   '--outline-variant': '#d8c1c6',
 
-  // Shadows — rose-tinted editorial
+  // Shadows - rose-tinted editorial
   '--shadow-xs': '0 1px 2px rgba(146, 64, 94, 0.04)',
   '--shadow-sm': '0 1px 3px rgba(146, 64, 94, 0.06), 0 1px 2px rgba(146, 64, 94, 0.04)',
   '--shadow-md': '0 4px 12px rgba(146, 64, 94, 0.06), 0 1px 3px rgba(146, 64, 94, 0.04)',
@@ -120,14 +120,14 @@ const lightTokens = {
   '--shadow-gold': '0 0 0 3px rgba(116, 90, 39, 0.1)',
   '--shadow-editorial': '0 10px 30px rgba(146, 64, 94, 0.06)',
 
-  // Nav — glass morphism
+  // Nav - glass morphism
   '--nav-bg': 'rgba(254, 248, 244, 0.9)',
   '--nav-border': 'rgba(146, 64, 94, 0.1)',
   '--overlay': 'rgba(29, 27, 25, 0.18)',
 };
 
 const darkTokens = {
-  // Backgrounds — Stitch inverse
+  // Backgrounds - Stitch inverse
   '--bg': '#161514',
   '--bg-card': '#1E1D1B',
   '--bg-elevated': '#262523',
@@ -144,13 +144,13 @@ const darkTokens = {
   '--surface-container-high': '#262523',
   '--surface-container-highest': '#32302e',
 
-  // Text — Stitch inverse-on-surface
+  // Text - Stitch inverse-on-surface
   '--text-primary': '#f5f0ec',
   '--text-secondary': '#d6c3b7',
   '--text-muted': '#867277',
   '--text-inverse': '#1d1b19',
 
-  // Brand accent — Stitch inverse-primary
+  // Brand accent - Stitch inverse-primary
   '--accent': '#ffb1c8',
   '--accent-hover': '#ffd9e2',
   '--accent-light': '#3e001d',
@@ -162,7 +162,7 @@ const darkTokens = {
   '--primary-fixed': '#ffd9e2',
   '--primary-fixed-dim': '#ffb1c8',
 
-  // Gold — secondary for dark
+  // Gold - secondary for dark
   '--gold': '#e4c285',
   '--gold-hover': '#fedb9b',
   '--gold-light': '#261900',

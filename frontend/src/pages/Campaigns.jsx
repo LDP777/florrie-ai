@@ -104,7 +104,7 @@ export default function Campaigns() {
         (c.last_visit_at && new Date(c.last_visit_at).getTime() < cutoff)
       ).length;
     }
-    // Rescue targets a single client who just cancelled — the recipient is chosen
+    // Rescue targets a single client who just cancelled - the recipient is chosen
     // at send time, so we don't claim a count up front.
     if (type === 'rescue') return null;
     // Broadcast types reach the active client base.

@@ -1,5 +1,5 @@
 /**
- * Feedback — Client satisfaction surveys & NPS tracking.
+ * Feedback - Client satisfaction surveys & NPS tracking.
  *
  * After each appointment, florrie.ai can auto-send a quick survey.
  * This page shows results, trends, and lets Ellie manage her
@@ -294,7 +294,7 @@ export default function Feedback() {
                   <span style={S.previewQText}>{q}</span>
                 </div>
               ))}
-              <span style={S.previewSignoff}>— Ellie xx</span>
+              <span style={S.previewSignoff}>- Ellie xx</span>
             </div>
           </div>
         </div>

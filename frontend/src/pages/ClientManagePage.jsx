@@ -3,11 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
 
 /**
- * ClientManagePage — public client self-service portal.
+ * ClientManagePage - public client self-service portal.
  * URL: /book/:slug/manage/:token
  *
  * Lets clients view, cancel, and check related requirements for their booking.
- * No login required — accessed via the management_token UUID from their confirmation.
+ * No login required - accessed via the management_token UUID from their confirmation.
  */
 
 export default function ClientManagePage() {
@@ -243,7 +243,7 @@ export default function ClientManagePage() {
             background: '#FFF7ED', border: '1px solid #F59E0B',
             fontSize: 13, color: '#92400E',
           }}>
-            <strong>Payment required</strong> — your slot is held but not confirmed until payment is received.
+            <strong>Payment required</strong> - your slot is held but not confirmed until payment is received.
             {' '}
             {paymentResent ? (
               <span style={{ color: '#166534', fontWeight: 600 }}>✓ Payment link sent to your email.</span>
@@ -322,7 +322,7 @@ export default function ClientManagePage() {
           </div>
         )}
 
-        {/* Patch tests section — shown when treatment requires it OR existing patch test records exist */}
+        {/* Patch tests section - shown when treatment requires it OR existing patch test records exist */}
         {(needsPatchTest || (patchTests && patchTests.length > 0)) && (
           <div style={S.card}>
             <p style={S.sectionLabel}>Patch tests</p>
@@ -337,7 +337,7 @@ export default function ClientManagePage() {
                       Patch test required
                     </p>
                     <p style={{ margin: 0, fontSize: 13, color: '#888' }}>
-                      Before your {appointment.treatment?.name} on {apptDate.toLocaleDateString('en-GB', { timeZone: 'UTC' })} — must be done at least 48 hours before
+                      Before your {appointment.treatment?.name} on {apptDate.toLocaleDateString('en-GB', { timeZone: 'UTC' })} - must be done at least 48 hours before
                     </p>
                   </div>
                 </div>
@@ -379,7 +379,7 @@ export default function ClientManagePage() {
                         ))}
                       </div>
                     ) : (
-                      <p style={{ fontSize: 13, color: '#888', marginBottom: 12 }}>No available slots — contact your beautician directly</p>
+                      <p style={{ fontSize: 13, color: '#888', marginBottom: 12 }}>No available slots - contact your beautician directly</p>
                     )}
                     <button onClick={() => { setShowSlotPicker(false); setSlotsError(null); }} style={S.keepBtn}>Back</button>
                   </div>
@@ -412,7 +412,7 @@ export default function ClientManagePage() {
                         {isSuggested ? (
                           <>
                             <p style={{ margin: '0 0 12px', fontSize: 13, color: '#555', lineHeight: 1.5 }}>
-                              We've pencilled in <strong>{new Date(pt.suggested_slot).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })} at {new Date(pt.suggested_slot).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}</strong> — does this work?
+                              We've pencilled in <strong>{new Date(pt.suggested_slot).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })} at {new Date(pt.suggested_slot).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}</strong> - does this work?
                             </p>
                             <div style={{ display: 'flex', gap: 8 }}>
                               <button

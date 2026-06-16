@@ -1,7 +1,7 @@
 /**
- * Deposit Tracker — Track all held deposits, refunds & forfeitures.
+ * Deposit Tracker - Track all held deposits, refunds & forfeitures.
  *
- * Semi-permanent treatments, no-show policies, waitlist holds —
+ * Semi-permanent treatments, no-show policies, waitlist holds -
  * deposits are everywhere. This page tracks every penny held,
  * when it was taken, and what happened to it.
  */

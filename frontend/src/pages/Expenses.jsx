@@ -1,5 +1,5 @@
 /**
- * Expenses — Dedicated expense manager with budgets & recurring items.
+ * Expenses - Dedicated expense manager with budgets & recurring items.
  *
  * MoneyTracker already handles pulse + basic expense logging. This page
  * goes deeper: recurring expenses, budget limits per category, CSV export

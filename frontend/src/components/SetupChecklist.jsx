@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBeautician, supabase, fetchRows } from '../lib/supabase.js'
 /**
- * SetupChecklist — persistent post-onboarding progress tracker.
+ * SetupChecklist - persistent post-onboarding progress tracker.
  *
  * Shows on the Dashboard until every step is done. Checks real data
  * (treatments, clients, working hours, booking slug, Stripe, first booking)
@@ -68,7 +68,7 @@ export default function SetupChecklist() {
   }, [beautician]);
   async function loadProgress() {
     try {
-      // Fetch fresh beautician data — don't rely on the cached hook value,
+      // Fetch fresh beautician data - don't rely on the cached hook value,
       // which won't reflect hours/slug/stripe changes made in Settings
       const [treatments, clients, appointments, freshB] = await Promise.all([
         fetchRows('treatments', beautician.id, {}),

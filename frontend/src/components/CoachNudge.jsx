@@ -1,8 +1,8 @@
 /**
- * CoachNudge — The Biz Coach contextual insight card.
+ * CoachNudge - The Biz Coach contextual insight card.
  *
  * Slides up from the bottom of the screen when Florrie spots an opportunity,
- * warning, or useful insight. Non-blocking — the beautician can dismiss it
+ * warning, or useful insight. Non-blocking - the beautician can dismiss it
  * instantly or tap the CTA to act on it.
  *
  * Auto-dismisses after 12 seconds (progress bar shows countdown).

@@ -1,11 +1,11 @@
 /**
- * MessageTemplates — Reusable message templates for client comms.
+ * MessageTemplates - Reusable message templates for client comms.
  *
  * Categories:
- *   Booking    — confirmation, reminder, follow-up
- *   Marketing  — promos, seasonal offers, new treatments
- *   Care       — aftercare, rebook nudge, birthday
- *   Custom     — user-created templates
+ *   Booking    - confirmation, reminder, follow-up
+ *   Marketing  - promos, seasonal offers, new treatments
+ *   Care       - aftercare, rebook nudge, birthday
+ *   Custom     - user-created templates
  *
  * Each template supports {name}, {treatment}, {date}, {time}, {link} variables.
  * Preview with mock data. Tone matches Ellie's voice model.
@@ -173,7 +173,7 @@ export default function MessageTemplates() {
           <textarea
             value={newBody}
             onChange={e => setNewBody(e.target.value)}
-            placeholder="Message body — use variables like {name}, {treatment}..."
+            placeholder="Message body - use variables like {name}, {treatment}..."
             style={s.textarea}
             rows={4}
           />

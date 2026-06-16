@@ -43,11 +43,11 @@ function computeForecast(appointments, workingHours) {
 
     let demand = 'Low';
     let suggestion = 'Run a flash promo';
-    if (pct >= 95) { demand = 'Peak'; suggestion = 'Fully booked — consider waitlist'; }
-    else if (pct >= 80) { demand = 'High'; suggestion = 'Nearly full — great day ahead'; }
+    if (pct >= 95) { demand = 'Peak'; suggestion = 'Fully booked - consider waitlist'; }
+    else if (pct >= 80) { demand = 'High'; suggestion = 'Nearly full - great day ahead'; }
     else if (pct >= 50) { demand = 'Medium'; suggestion = 'Push filler slots on socials'; }
     else if (pct >= 25) { demand = 'Low'; suggestion = 'Run a flash promo'; }
-    else { demand = 'Low'; suggestion = 'Very quiet — personal outreach day?'; }
+    else { demand = 'Low'; suggestion = 'Very quiet - personal outreach day?'; }
 
     weekForecast.push({ day: DAY_LABELS[dow], demand, bookings, capacity, pct, revenue: `£${Math.round(revenue).toLocaleString()}`, suggestion });
   }
@@ -143,9 +143,9 @@ function generateDevAppointments(workingHours) {
 }
 
 const staffingRecs = [
-  { day: 'Monday', current: 2, recommended: 1, reason: 'Overstaffed — only 33% booked', saving: '£120', icon: '⬇️' },
-  { day: 'Thursday', current: 2, recommended: 3, reason: '92% booked — need overflow capacity', cost: '£140', icon: '⬆️' },
-  { day: 'Saturday', current: 2, recommended: 3, reason: 'Full + waitlist — extend with 3rd stylist', cost: '£160', icon: '⬆️' },
+  { day: 'Monday', current: 2, recommended: 1, reason: 'Overstaffed - only 33% booked', saving: '£120', icon: '⬇️' },
+  { day: 'Thursday', current: 2, recommended: 3, reason: '92% booked - need overflow capacity', cost: '£140', icon: '⬆️' },
+  { day: 'Saturday', current: 2, recommended: 3, reason: 'Full + waitlist - extend with 3rd stylist', cost: '£160', icon: '⬆️' },
 ];
 
 const seasonalTrends = [
@@ -304,7 +304,7 @@ export default function DemandForecast() {
       {tab === 1 && (
         <div>
           <div style={{ ...ds.card, marginBottom: 16, overflowX: 'auto' }}>
-            <div style={{ ...type.heading, marginBottom: 12 }}>Booking Density — Hourly Heatmap</div>
+            <div style={{ ...type.heading, marginBottom: 12 }}>Booking Density - Hourly Heatmap</div>
             {/* Header row */}
             <div style={{ display: 'flex', gap: 3, marginBottom: 4 }}>
               <div style={{ width: 40, flexShrink: 0 }} />
@@ -343,7 +343,7 @@ export default function DemandForecast() {
           <div style={ds.insightCard}>
             <span style={{ fontSize: 20 }}>🕐</span>
             <div style={{ ...type.bodySmall, lineHeight: 1.5 }}>
-              Your dead zone is Monday afternoons (1–3pm). Consider running a "Lunchtime Express" promo — 30-min treatments at 15% off to fill that gap.
+              Your dead zone is Monday afternoons (1–3pm). Consider running a "Lunchtime Express" promo - 30-min treatments at 15% off to fill that gap.
             </div>
           </div>
         </div>
@@ -445,7 +445,7 @@ export default function DemandForecast() {
           <div style={{ ...ds.insightCard, marginTop: 16 }}>
             <span style={{ fontSize: 20 }}>📅</span>
             <div style={{ ...type.bodySmall, lineHeight: 1.5 }}>
-              You're entering spring refresh season — demand climbs through May. Start promoting wedding/event packages now to lock in peak-season bookings before competitors fill up.
+              You're entering spring refresh season - demand climbs through May. Start promoting wedding/event packages now to lock in peak-season bookings before competitors fill up.
             </div>
           </div>
         </div>

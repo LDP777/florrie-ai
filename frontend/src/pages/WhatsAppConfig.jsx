@@ -84,7 +84,7 @@ function UsageBar({ usage }) {
       </div>
       {isOver && (
         <div style={{ fontSize: 11, color: '#E85D75', marginTop: 4 }}>
-          Over limit, extra messages billed at 5p each
+          Over limit, extra messages billed at 5p (WhatsApp) or 6p (SMS) each
         </div>
       )}
       {!isOver && isNearLimit && (

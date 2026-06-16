@@ -77,7 +77,7 @@ export default function Team() {
   }
 
   const activeCount = members.filter(m => m.is_active).length;
-  const monthlyCost = activeCount * 25; // £25 per seat
+  const monthlyCost = activeCount * 15; // £15 per seat
 
   if (loading) {
     return <PageLoader />;
@@ -102,7 +102,7 @@ export default function Team() {
         <div style={styles.pricingCard}>
           <div style={styles.pricingRow}>
             <span style={styles.pricingLabel}>Your plan</span>
-            <span style={styles.pricingValue}>£50/mo</span>
+            <span style={styles.pricingValue}>£29/mo</span>
           </div>
           <div style={styles.pricingRow}>
             <span style={styles.pricingLabel}>{activeCount} team seat{activeCount !== 1 ? 's' : ''}</span>
@@ -111,7 +111,7 @@ export default function Team() {
           <div style={{ ...styles.pricingRow, borderBottom: 'none', paddingTop: 10 }}>
             <span style={{ ...styles.pricingLabel, fontWeight: 700, color: 'var(--text-primary, #2D2A26)' }}>Total</span>
             <span style={{ ...styles.pricingValue, fontWeight: 700, color: 'var(--accent, #C76B8A)', fontSize: 18 }}>
-              £{50 + monthlyCost}/mo
+              £{29 + monthlyCost}/mo
             </span>
           </div>
         </div>
@@ -123,7 +123,7 @@ export default function Team() {
           <div style={styles.emptyIcon}>👥</div>
           <p style={styles.emptyTitle}>No team members yet</p>
           <p style={styles.emptyDesc}>
-            Add stylists or assistants who work with you. They get their own calendar, client list, and bookings.{!isIOSNative() && ' Each seat is £25/mo.'}
+            Add stylists or assistants who work with you. They get their own calendar, client list, and bookings.{!isIOSNative() && ' Each seat is £15/mo.'}
           </p>
           <button onClick={() => setShowAdd(true)} style={styles.emptyBtn}>Add your first team member</button>
         </div>
@@ -233,7 +233,7 @@ export default function Team() {
             </div>
 
             <p style={styles.pricingNote}>
-              {!isIOSNative() && 'Each team seat adds £25/mo to your plan. '}They get their own calendar and client list.
+              {!isIOSNative() && 'Each team seat adds £15/mo to your plan. '}They get their own calendar and client list.
             </p>
 
             <button
@@ -244,7 +244,7 @@ export default function Team() {
                 opacity: form.first_name.trim() ? 1 : 0.5
               }}
             >
-              Add to team{!isIOSNative() ? ' — £25/mo' : ''}
+              Add to team{!isIOSNative() ? ' - £15/mo' : ''}
             </button>
           </div>
         </div>

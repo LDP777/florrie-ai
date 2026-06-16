@@ -1,5 +1,5 @@
 /**
- * WaitlistPro — Advanced waitlist with priority tiers, deposit holds & auto-notify.
+ * WaitlistPro - Advanced waitlist with priority tiers, deposit holds & auto-notify.
  *
  * The basic waitlist tracks who wants what. This upgraded version adds:
  *   - Priority tiers (VIP, Regular, Flexible)
@@ -18,7 +18,7 @@ const DEV_WAITLIST = [
     id: 'wl1', client: 'Holly B', treatment: 'Ombre Brows (Semi-Permanent)', priority: 'vip',
     addedDate: '2026-03-10', preferredDays: ['tue', 'thu'], preferredTime: 'morning',
     depositHeld: true, depositAmount: 5000, status: 'waiting',
-    notes: 'Referred by Shauna — keen to get in ASAP', notifyCount: 0,
+    notes: 'Referred by Shauna - keen to get in ASAP', notifyCount: 0,
     flexible: false, maxWait: 14,
   },
   {
@@ -32,7 +32,7 @@ const DEV_WAITLIST = [
     id: 'wl3', client: 'Kate M', treatment: 'Lamination & Hybrid Dye', priority: 'regular',
     addedDate: '2026-03-15', preferredDays: ['mon', 'tue', 'wed', 'thu', 'fri'], preferredTime: 'any',
     depositHeld: false, depositAmount: 0, status: 'waiting',
-    notes: 'Flexible on dates — just wants the next available', notifyCount: 0,
+    notes: 'Flexible on dates - just wants the next available', notifyCount: 0,
     flexible: true, maxWait: 7,
   },
   {
@@ -46,7 +46,7 @@ const DEV_WAITLIST = [
     id: 'wl5', client: 'Megan S', treatment: 'HD Brows', priority: 'vip',
     addedDate: '2026-03-05', preferredDays: ['tue', 'thu'], preferredTime: 'afternoon',
     depositHeld: true, depositAmount: 2500, status: 'offered',
-    notes: 'Regular client — always books Tuesdays', notifyCount: 1,
+    notes: 'Regular client - always books Tuesdays', notifyCount: 1,
     offeredSlot: { date: '2026-03-29', time: '14:00' }, offerExpires: '2026-03-26T18:00',
     flexible: false, maxWait: 14,
   },
@@ -54,7 +54,7 @@ const DEV_WAITLIST = [
     id: 'wl6', client: 'Natalie W', treatment: 'Colour Boost 3-6 Months', priority: 'regular',
     addedDate: '2026-02-28', preferredDays: ['wed'], preferredTime: 'morning',
     depositHeld: false, depositAmount: 0, status: 'expired',
-    notes: 'Waited too long — rebooked elsewhere', notifyCount: 3,
+    notes: 'Waited too long - rebooked elsewhere', notifyCount: 3,
     flexible: false, maxWait: 21,
   },
 ];
@@ -258,7 +258,7 @@ export default function WaitlistPro() {
       {/* Active */}
       {tab === 'active' && (
         <div style={S.list}>
-          {activeList.length === 0 && <p style={S.empty}>Waitlist is empty — great problem to have!</p>}
+          {activeList.length === 0 && <p style={S.empty}>Waitlist is empty - great problem to have!</p>}
           {activeList.sort((a, b) => {
             const pOrder = { vip: 0, regular: 1, flexible: 2 };
             return (pOrder[a.priority] || 1) - (pOrder[b.priority] || 1);

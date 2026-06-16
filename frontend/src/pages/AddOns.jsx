@@ -1,7 +1,7 @@
 /**
- * Add-ons & Upsells — Bolt-on extras to boost average order value.
+ * Add-ons & Upsells - Bolt-on extras to boost average order value.
  *
- * Lip wax, brow jelly mask, aftercare kit — small items the beautician can
+ * Lip wax, brow jelly mask, aftercare kit - small items the beautician can
  * suggest at booking or during the appointment. This page manages
  * the add-on menu and tracks upsell performance.
  */

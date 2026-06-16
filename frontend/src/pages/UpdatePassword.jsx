@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 /**
- * UpdatePassword — handles the Supabase password reset callback.
+ * UpdatePassword - handles the Supabase password reset callback.
  *
  * User lands here after clicking the reset link in their email.
  * Supabase sets a recovery session via the URL hash fragment automatically.
@@ -24,7 +24,7 @@ export default function UpdatePassword({ supabase }) {
   const [sessionReady, setSessionReady] = useState(false);
   const navigate = useNavigate();
 
-  // Listen for the PASSWORD_RECOVERY event — Supabase fires this when the
+  // Listen for the PASSWORD_RECOVERY event - Supabase fires this when the
   // recovery token in the URL hash is consumed and a temporary session is set.
   useEffect(() => {
     if (!supabase) return;

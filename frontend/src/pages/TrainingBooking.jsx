@@ -1,5 +1,5 @@
 /**
- * TrainingBooking — Public course enrollment page.
+ * TrainingBooking - Public course enrollment page.
  * URL: /training/:slug/:courseId
  *
  * Loads course details from the API, shows course info, and lets students
@@ -144,10 +144,10 @@ export default function TrainingBooking() {
           </h2>
           <p style={styles.successText}>
             {success.type === 'paid'
-              ? `Thanks ${success.name} — your deposit is paid and your spot is secured.`
+              ? `Thanks ${success.name} - your deposit is paid and your spot is secured.`
               : success.type === 'pending'
                 ? success.note || `We've reserved your spot. Your trainer will be in touch to arrange payment.`
-                : `Thanks ${success.name} — you're all signed up. See you there!`}
+                : `Thanks ${success.name} - you're all signed up. See you there!`}
           </p>
           {course && (
             <div style={styles.successMeta}>
@@ -318,7 +318,7 @@ export default function TrainingBooking() {
               {submitting
                 ? 'Enrolling...'
                 : Number(course.deposit) > 0
-                  ? `Enroll — pay £${Number(course.deposit).toFixed(0)} deposit`
+                  ? `Enroll - pay £${Number(course.deposit).toFixed(0)} deposit`
                   : 'Enroll now'}
             </button>
 

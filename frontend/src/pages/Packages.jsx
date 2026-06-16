@@ -1,5 +1,5 @@
 /**
- * Courses — Sell training courses & masterclasses.
+ * Courses - Sell training courses & masterclasses.
  *
  * Features:
  *   - Build training courses with name, description, date, location, price, deposit
@@ -9,7 +9,7 @@
  *   - Revenue stats across all courses
  *
  * DB: requires `courses` table and `course_enrollments` table (see migration 036_courses.sql)
- * Public page: /training/:slug/:courseId — TrainingBooking.jsx (to be built)
+ * Public page: /training/:slug/:courseId - TrainingBooking.jsx (to be built)
  */
 import { useState, useEffect, useCallback } from 'react';
 import { useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
@@ -498,7 +498,7 @@ export default function Courses() {
                 <div style={s.enrollList}>
                   {courseEnrollments(course.id).length === 0 ? (
                     <p style={{ fontSize: 13, color: 'var(--text-muted, #B5AFA8)', textAlign: 'center', padding: '12px 0' }}>
-                      No enrollments yet — share the link to get sign-ups.
+                      No enrollments yet - share the link to get sign-ups.
                     </p>
                   ) : courseEnrollments(course.id).map(e => (
                     <div key={e.id} style={s.enrollRow}>

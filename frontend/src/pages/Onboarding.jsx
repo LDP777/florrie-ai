@@ -13,7 +13,7 @@ async function getAuthToken() {
   try { const p = JSON.parse(raw); return p?.access_token || p?.session?.access_token || raw; }
   catch { return raw; }
 }
-// Phone-sender detection — matches SMSConfig. Numbers with + or 7-15 digits = 2-way.
+// Phone-sender detection - matches SMSConfig. Numbers with + or 7-15 digits = 2-way.
 function isPhoneSender(value) {
   if (!value) return false;
   const trimmed = value.toString().trim();
@@ -21,7 +21,7 @@ function isPhoneSender(value) {
   return /^[0-9]{7,15}$/.test(trimmed);
 }
 /**
- * Onboarding — first-run wizard after signup.
+ * Onboarding - first-run wizard after signup.
  *
  * Steps:
  * 1. Welcome + business name
@@ -192,7 +192,7 @@ export default function Onboarding({ onComplete }) {
         setSaving(false);
         return;
       }
-      // Simple CSV parsing — expects header row with first_name, last_name, email, phone
+      // Simple CSV parsing - expects header row with first_name, last_name, email, phone
       const headerRow = lines[0].toLowerCase();
       const headers = headerRow.split(',').map(h => h.trim());
       const firstIdx = headers.findIndex(h => h.includes('first'));
@@ -574,7 +574,7 @@ export default function Onboarding({ onComplete }) {
               <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>⚠ {error}</span>
             </div>
           )}
-          {/* Import from Timely — branded */}
+          {/* Import from Timely - branded */}
           <div style={styles.importGuide}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
               <span style={{ fontSize: 20 }}>⏱️</span>
@@ -1302,7 +1302,7 @@ const styles = {
     cursor: 'pointer',
     fontFamily: 'inherit',
   },
-  // SMS fork (step 6) — collapsed pill
+  // SMS fork (step 6) - collapsed pill
   smsForkToggle: {
     display: 'flex',
     alignItems: 'center',
@@ -1346,7 +1346,7 @@ const styles = {
     color: 'var(--text-muted)',
     flexShrink: 0,
   },
-  // SMS fork (step 6) — expanded panel
+  // SMS fork (step 6) - expanded panel
   smsForkPanel: {
     background: 'var(--bg-card, #fff)',
     border: '1px solid var(--border)',

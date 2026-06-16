@@ -1,5 +1,5 @@
 /**
- * PlanGate — wraps a page component and blocks access if the user's plan
+ * PlanGate - wraps a page component and blocks access if the user's plan
  * doesn't include the required feature. Shows an upgrade prompt instead.
  *
  * Usage:
@@ -28,7 +28,7 @@ export default function PlanGate({ feature, children }) {
   }
 
   const requiredPlan = getRequiredPlan(feature);
-  // Only team features are gated now — everything else is available to all
+  // Only team features are gated now - everything else is available to all
   const isTeamFeature = requiredPlan === 'florrie_team';
   const planName = isTeamFeature ? TEAM_ADDON.name : PLAN.name;
   const planPrice = isTeamFeature ? TEAM_ADDON.seatMonthlyLabel : PLAN.monthlyLabel;

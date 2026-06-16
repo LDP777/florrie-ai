@@ -7,7 +7,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
- * Reviews & Reputation — track, respond to, and request client reviews.
+ * Reviews & Reputation - track, respond to, and request client reviews.
  *
  * Features:
  *   - Google review aggregation with average rating
@@ -53,7 +53,7 @@ export default function Reviews() {
     const drafts = {
       5: `Thank you so much ${review.author.split(' ')[0]}! So glad you love them 💕 Can't wait to see you again xx`,
       4: `Thanks lovely! Really appreciate you taking the time to leave a review 💕 See you next time xx`,
-      3: `Thanks for your feedback ${review.author.split(' ')[0]}. I'd love to chat about how I can make your next visit even better — drop me a message xx`,
+      3: `Thanks for your feedback ${review.author.split(' ')[0]}. I'd love to chat about how I can make your next visit even better - drop me a message xx`,
       2: `I'm sorry to hear that ${review.author.split(' ')[0]}. I really value your feedback and I'd love the chance to make it right. Please message me directly xx`,
       1: `I'm really sorry about your experience ${review.author.split(' ')[0]}. This isn't the standard I set for myself. Please reach out so I can put this right xx`,
     };
@@ -230,71 +230,40 @@ export default function Reviews() {
         <div style={styles.body}>
           <div style={styles.requestCard}>
             <span style={{ fontSize: 28, display: 'block', marginBottom: 8 }}>📱</span>
-            <h3 style={styles.requestTitle}>Request a review</h3>
+            <h3 style={styles.requestTitle}>Review requests are automatic</h3>
             <p style={styles.requestDesc}>
-              Send a friendly review request to a client after their appointment. florrie.ai writes the message in your voice.
+              florrie.ai sends a friendly review request 2 hours after each completed appointment, written in your voice. You don't need to do a thing.
             </p>
 
             <div style={styles.requestPreview}>
-              <span style={styles.requestPreviewLabel}>Preview message</span>
+              <span style={styles.requestPreviewLabel}>Example message</span>
               <p style={styles.requestPreviewText}>
-                "Hey lovely, thanks so much for coming in today! If you've got a sec, I'd really appreciate a quick Google review — it helps more than you'd think 💕 [link] xx"
+                "Hey lovely, thanks so much for coming in today! If you've got a sec, I'd really appreciate a quick Google review - it helps more than you'd think 💕 [link] xx"
               </p>
             </div>
-
-            <button style={styles.requestSendBtn}>
-              Pick a client to send to
-            </button>
-          </div>
-
-          {/* Recent requests */}
-          <div style={styles.requestHistoryCard}>
-            <h4 style={styles.sectionLabel}>Recent requests</h4>
-            {[].map(req => (
-              <div key={req.id} style={styles.requestRow}>
-                <div style={styles.requestAvatar}>{req.name[0]}</div>
-                <div style={{ flex: 1 }}>
-                  <span style={styles.requestName}>{req.name}</span>
-                  <span style={styles.requestMeta}>{req.status}</span>
-                </div>
-                <span style={{
-                  ...styles.requestStatusDot,
-                  background: req.status === 'Left review' ? 'var(--success, #5BA97B)' : req.status === 'Opened link' ? 'var(--warning, #D4943A)' : 'var(--text-muted, #B5AFA8)',
-                }} />
-              </div>
-            ))}
           </div>
         </div>
       )}
 
-      {/* Auto-ask settings */}
+      {/* Auto-ask: how florrie.ai handles review requests. Read-only -
+          these rules run on the backend and aren't editable yet, so they
+          are shown as status, not as toggles that imply saved state. */}
       {tab === 'settings' && (
         <div style={styles.body}>
           <div style={styles.settingsCard}>
+            <h4 style={styles.sectionLabel}>How florrie.ai asks for reviews</h4>
             <div style={styles.settingRow}>
               <div style={{ flex: 1 }}>
                 <span style={styles.settingLabel}>Auto-ask after appointments</span>
-                <span style={styles.settingHint}>florrie.ai sends a review request 2 hours after each completed appointment</span>
+                <span style={styles.settingHint}>A review request goes out 2 hours after each completed appointment</span>
               </div>
-              <div style={{ ...styles.toggle, background: '#C76B8A' }}>
-                <div style={{ ...styles.toggleDot, transform: 'translateX(16px)' }} />
-              </div>
-            </div>
-
-            <div style={styles.settingRow}>
-              <div style={{ flex: 1 }}>
-                <span style={styles.settingLabel}>Only ask happy clients</span>
-                <span style={styles.settingHint}>Skip review requests for clients who seemed unhappy or had issues</span>
-              </div>
-              <div style={{ ...styles.toggle, background: '#C76B8A' }}>
-                <div style={{ ...styles.toggleDot, transform: 'translateX(16px)' }} />
-              </div>
+              <span style={styles.settingValue}>On</span>
             </div>
 
             <div style={styles.settingRow}>
               <div style={{ flex: 1 }}>
                 <span style={styles.settingLabel}>Max requests per client</span>
-                <span style={styles.settingHint}>Don't ask the same client more than once every 3 months</span>
+                <span style={styles.settingHint}>The same client is not asked more than once every 3 months</span>
               </div>
               <span style={styles.settingValue}>1 per 90 days</span>
             </div>
@@ -302,7 +271,7 @@ export default function Reviews() {
             <div style={styles.settingRow}>
               <div style={{ flex: 1 }}>
                 <span style={styles.settingLabel}>Review platform</span>
-                <span style={styles.settingHint}>Where to send clients to leave a review</span>
+                <span style={styles.settingHint}>Where clients are sent to leave a review</span>
               </div>
               <span style={styles.settingValue}>Google</span>
             </div>
@@ -310,19 +279,7 @@ export default function Reviews() {
 
           <div style={styles.settingsCard}>
             <h4 style={styles.sectionLabel}>Connect review platforms</h4>
-            {[
-              { name: 'Google Business', icon: '🔍', connected: false },
-              { name: 'Facebook Page', icon: '📘', connected: false },
-              { name: 'Treatwell', icon: '💆', connected: false },
-            ].map(platform => (
-              <div key={platform.name} style={styles.platformRow}>
-                <span style={{ fontSize: 18 }}>{platform.icon}</span>
-                <span style={styles.platformName}>{platform.name}</span>
-                <button style={styles.platformBtn}>
-                  {platform.connected ? 'Connected' : 'Connect'}
-                </button>
-              </div>
-            ))}
+            <p style={styles.settingHint}>Pulling reviews in from Google, Facebook and Treatwell is coming soon. For now, requests link clients to your Google review page.</p>
           </div>
         </div>
       )}

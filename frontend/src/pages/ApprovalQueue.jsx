@@ -4,15 +4,15 @@ import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 
 /**
- * Approval Queue — actions Florrie queued because confidence was below threshold.
+ * Approval Queue - actions Florrie queued because confidence was below threshold.
  *
  * Reads from `ai_actions` where status = 'pending_approval'.
  * Each card shows what Florrie wants to do + why, with Approve / Edit / Dismiss.
  *
  * Action types:
- *   rebook_nudge — SMS nudge to an overdue client
- *   gap_post     — social media availability post
- *   auto_reply   — message Florrie drafted but wasn't confident enough to send
+ *   rebook_nudge - SMS nudge to an overdue client
+ *   gap_post     - social media availability post
+ *   auto_reply   - message Florrie drafted but wasn't confident enough to send
  */
 
 const ACTION_META = {
@@ -56,30 +56,33 @@ export default function ApprovalQueue() {
   async function handleAction(actionId, decision) {
     setProcessing(actionId);
     try {
-      const newStatus = decision === 'approve' ? 'executed'
-        : decision === 'dismiss' ? 'dismissed'
-        : 'executed';
-
-      await updateRow('ai_actions', actionId, {
-        status: newStatus,
-        resolved_at: new Date().toISOString(),
-      });
-
-      // If approved, trigger the actual action via API
       if (decision === 'approve') {
-        try {
-          await fetch(`${API_BASE}/api/ai-actions/` + actionId + '/execute', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-          });
-        } catch (err) {
-          logger.warn('Execute API call failed (action still marked executed):', err);
+        // Execute FIRST. Only mark the action as executed once the API confirms
+        // the work actually happened - otherwise a failed execute would leave the
+        // queue claiming "done" when nothing ran. On failure, leave it pending.
+        const resp = await fetch(`${API_BASE}/api/ai-actions/` + actionId + '/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (!resp.ok) {
+          throw new Error(`Execute failed (${resp.status})`);
         }
+
+        await updateRow('ai_actions', actionId, {
+          status: 'executed',
+          resolved_at: new Date().toISOString(),
+        });
+      } else {
+        await updateRow('ai_actions', actionId, {
+          status: 'dismissed',
+          resolved_at: new Date().toISOString(),
+        });
       }
 
       setActions(prev => prev.filter(a => a.id !== actionId));
     } catch (err) {
       logger.error('Failed to process action:', err);
+      alert('Could not complete that action. It has been left pending so you can try again.');
     } finally {
       setProcessing(null);
     }

@@ -1,5 +1,5 @@
 /**
- * Daily Checklist — Stitch M3, fully customisable.
+ * Daily Checklist - Stitch M3, fully customisable.
  *
  * Beauticians can:
  *   - Add / delete / reorder items on ANY tab (opening, closing, tasks)
@@ -110,7 +110,7 @@ export default function DailyChecklist() {
         });
         setChecklists(byType);
       } else {
-        // First visit today — load from saved template or factory defaults
+        // First visit today - load from saved template or factory defaults
         await seedTodayFromTemplate(td);
       }
       // Appointments
@@ -151,7 +151,7 @@ export default function DailyChecklist() {
           if (savedClosing.length > 0) closingTemplate = savedClosing;
         }
       } catch (err) {
-        // Table might not exist yet — fall through to factory defaults
+        // Table might not exist yet - fall through to factory defaults
         logger.error('Load templates (non-critical):', err);
       }
     }
@@ -373,11 +373,11 @@ export default function DailyChecklist() {
           .insert(rows);
         if (insertErr) throw insertErr;
       }
-      setTemplateToast('Template saved — tomorrow will use this list');
+      setTemplateToast('Template saved - tomorrow will use this list');
       setTimeout(() => setTemplateToast(''), 3000);
     } catch (err) {
       logger.error('Save template error:', err);
-      setTemplateToast('Failed to save — try again');
+      setTemplateToast('Failed to save - try again');
       setTimeout(() => setTemplateToast(''), 3000);
     } finally {
       setTemplateSaving(false);
@@ -513,7 +513,7 @@ export default function DailyChecklist() {
             </div>
             {todayInsights.nextAppt && (
               <p style={S.overviewSub}>
-                Next: {todayInsights.nextAppt.client_name} at {todayInsights.nextTime} — {todayInsights.nextAppt.treatment_name}
+                Next: {todayInsights.nextAppt.client_name} at {todayInsights.nextTime} - {todayInsights.nextAppt.treatment_name}
               </p>
             )}
           </div>
@@ -613,7 +613,7 @@ export default function DailyChecklist() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
         {currentList.length === 0 && (
           <EmptyState
-            message={editing ? 'No items yet — tap the button below to add one' : 'No checklist items'}
+            message={editing ? 'No items yet - tap the button below to add one' : 'No checklist items'}
             icon="📋"
           />
         )}
@@ -690,7 +690,7 @@ export default function DailyChecklist() {
         <section style={S.celebrationCard}>
           <MIcon name="celebration" fill size={24} style={{ color: '#5ba97b' }} />
           <span style={S.celebrationText}>
-            {tab === 'opening' ? 'Ready for the day!' : tab === 'closing' ? 'All wrapped up — see you tomorrow!' : 'All tasks done!'}
+            {tab === 'opening' ? 'Ready for the day!' : tab === 'closing' ? 'All wrapped up - see you tomorrow!' : 'All tasks done!'}
           </span>
         </section>
       )}
@@ -731,7 +731,7 @@ export default function DailyChecklist() {
       {editing && (tab === 'opening' || tab === 'closing') && (
         <section style={S.templateActions}>
           <p style={{ fontSize: 11, color: '#867277', margin: '0 0 10px', lineHeight: 1.4 }}>
-            Save your current {tab} list as a template — it'll auto-load every day instead of the defaults.
+            Save your current {tab} list as a template - it'll auto-load every day instead of the defaults.
           </p>
           <div style={{ display: 'flex', gap: 8 }}>
             <button
@@ -760,10 +760,10 @@ export default function DailyChecklist() {
               <h4 style={S.insightsTitle}>Daily Insight</h4>
               <p style={S.insightsText}>
                 {todayInsights.apptCount === 0
-                  ? 'No appointments today — great time to restock supplies, update your portfolio, or prep marketing content.'
+                  ? 'No appointments today - great time to restock supplies, update your portfolio, or prep marketing content.'
                   : todayInsights.apptCount >= 4
                     ? `Busy day ahead with ${todayInsights.apptCount} clients and £${(todayInsights.expectedRevenue / 100).toFixed(0)} on the books. Make sure supplies are prepped before your first at ${todayInsights.nextTime || 'soon'}.`
-                    : `${todayInsights.apptCount} appointment${todayInsights.apptCount > 1 ? 's' : ''} today — you have time between clients to handle your tasks list.`
+                    : `${todayInsights.apptCount} appointment${todayInsights.apptCount > 1 ? 's' : ''} today - you have time between clients to handle your tasks list.`
                 }
               </p>
             </div>

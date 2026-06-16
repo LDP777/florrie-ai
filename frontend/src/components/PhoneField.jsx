@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 /**
- * PhoneField — captures a phone number WITH its country code so it stores as
+ * PhoneField - captures a phone number WITH its country code so it stores as
  * clean E.164 (+447418313493), which is what WhatsApp/SMS need. A client can
  * type "07418 313493" the normal British way and it still lands correctly.
  *

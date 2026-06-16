@@ -841,17 +841,32 @@ router.post('/webhook', async (req, res) => {
 
       case 'payment_intent.payment_failed': {
         const pi = event.data.object;
-        if (pi.metadata?.type === 'no_show_fee') {
-          // Update transaction status
+        const feeType = pi.metadata?.type;
+        // Reconcile both policy-fee kinds. The policy-fees service marks the
+        // appointment as charged (no_show_fee_charged / late_cancel_charged) and
+        // writes a transaction before Stripe confirms — so a later payment_failed
+        // must roll those flags back, otherwise the fee shows as collected when it
+        // was not.
+        if (feeType === 'no_show_fee' || feeType === 'late_cancel_fee') {
+          // Mark the money-feed row as failed.
           await supabase.from('transactions')
             .update({ status: 'failed' })
             .eq('stripe_payment_intent_id', pi.id);
 
-          await supabase.from('appointments')
-            .update({ no_show_fee_charged: false })
-            .eq('id', pi.metadata.appointment_id);
+          const apptUpdate = feeType === 'no_show_fee'
+            ? { no_show_fee_charged: false }
+            : { late_cancel_charged: false };
 
-          logger.warn({ appointment_id: pi.metadata.appointment_id }, 'No-show fee charge failed');
+          if (pi.metadata.appointment_id) {
+            await supabase.from('appointments')
+              .update(apptUpdate)
+              .eq('id', pi.metadata.appointment_id);
+          }
+
+          logger.warn(
+            { appointment_id: pi.metadata.appointment_id, feeType },
+            'Policy fee charge failed',
+          );
         }
         break;
       }

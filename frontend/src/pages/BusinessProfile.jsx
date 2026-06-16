@@ -1,12 +1,12 @@
 /**
 import { bookingUrl as publicBookingUrl } from '../lib/booking.js';
- * BusinessProfile — Business info, branding, social links.
+ * BusinessProfile - Business info, branding, social links.
  *
  * Sections:
- *   Info       — business name, tagline, phone, email, address
- *   Branding   — brand colour, booking page accent, logo upload placeholder
- *   Social     — Instagram, TikTok, Facebook, website links
- *   Booking    — booking page URL preview, share button
+ *   Info       - business name, tagline, phone, email, address
+ *   Branding   - brand colour, booking page accent, logo upload placeholder
+ *   Social     - Instagram, TikTok, Facebook, website links
+ *   Booking    - booking page URL preview, share button
  *
  * Beautician profile data from Supabase.
  */
@@ -36,7 +36,7 @@ export default function BusinessProfile() {
   const { beautician, loading: bLoading, refresh } = useBeautician();
   const [tab, setTab] = useState('info');
 
-  // Info fields — initialised from beautician profile
+  // Info fields - initialised from beautician profile
   const [businessName, setBusinessName] = useState('');
   const [tagline, setTagline] = useState('');
   const [phone, setPhone] = useState('');
@@ -80,6 +80,24 @@ export default function BusinessProfile() {
     navigator.clipboard?.writeText(bookingUrl);
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);
+  }
+
+  const shareMessage = `Book in with ${businessName || 'me'} here: ${bookingUrl}`;
+
+  function shareWhatsApp() {
+    window.open(`https://wa.me/?text=${encodeURIComponent(shareMessage)}`, '_blank', 'noopener');
+  }
+
+  function shareFacebook() {
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(bookingUrl)}`, '_blank', 'noopener');
+  }
+
+  function shareInstagram() {
+    // Instagram has no web share intent, so copy the link for pasting into bio or DMs
+    navigator.clipboard?.writeText(bookingUrl);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+    alert('Link copied. Paste it into your Instagram bio, story link, or a DM.');
   }
 
   async function handleLogoUpload(e) {
@@ -324,10 +342,10 @@ export default function BusinessProfile() {
           <div style={s.card}>
             <span style={s.cardLabel}>Share your booking page</span>
             <div style={s.shareGrid}>
-              <button style={s.shareBtn}>📱 WhatsApp</button>
-              <button style={s.shareBtn}>📷 Instagram</button>
-              <button style={s.shareBtn}>📘 Facebook</button>
-              <button style={s.shareBtn}>🔗 Copy link</button>
+              <button style={s.shareBtn} onClick={shareWhatsApp}>📱 WhatsApp</button>
+              <button style={s.shareBtn} onClick={shareInstagram}>📷 Instagram</button>
+              <button style={s.shareBtn} onClick={shareFacebook}>📘 Facebook</button>
+              <button style={s.shareBtn} onClick={handleCopy}>{linkCopied ? '✓ Copied' : '🔗 Copy link'}</button>
             </div>
           </div>
 

@@ -1,5 +1,5 @@
 /**
- * Product Inventory — Track stock, reorder points & supplier info.
+ * Product Inventory - Track stock, reorder points & supplier info.
  *
  * Beauticians bleed money on last-minute supply runs and expired stock.
  * This page makes product management dead simple: quantities, alerts,
@@ -33,6 +33,7 @@ export default function ProductInventory() {
   const [catFilter, setCatFilter] = useState('all');
   const [expanded, setExpanded] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [sortBy, setSortBy] = useState('status'); // status | name | qty
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -68,9 +69,20 @@ export default function ProductInventory() {
       .finally(() => setLoading(false));
   }, [beautician, bLoading]);
 
+  function decorate(row) {
+    return {
+      ...row,
+      status: row.qty <= 0 ? 'out' : row.qty <= (row.reorder_at || 0) ? 'low' : 'ok',
+      reorderAt: row.reorder_at,
+      costPer: row.cost_per_unit_cents,
+      usesPerUnit: row.uses_per_unit,
+      lastOrdered: row.last_ordered,
+      retailPrice: row.retail_price_cents,
+    };
+  }
+
   async function handleAddProduct() {
-    const product = {
-      beautician_id: beautician.id,
+    const fields = {
       name: newProduct.name,
       category: newProduct.category,
       qty: Number(newProduct.qty) || 0,
@@ -81,20 +93,63 @@ export default function ProductInventory() {
       supplier: newProduct.supplier,
     };
     try {
-      const created = await insertRow('product_inventory', product);
-      const withStatus = {
-        ...created,
-        status: created.qty <= 0 ? 'out' : created.qty <= (created.reorder_at || 0) ? 'low' : 'ok',
-        reorderAt: created.reorder_at,
-        costPer: created.cost_per_unit_cents,
-        usesPerUnit: created.uses_per_unit,
-        lastOrdered: created.last_ordered,
-      };
-      setProducts(prev => [...prev, withStatus]);
+      if (editingId) {
+        const updated = await updateRow('product_inventory', editingId, fields);
+        const decorated = decorate(updated);
+        setProducts(prev => prev.map(p => (p.id === editingId ? decorated : p)));
+      } else {
+        const created = await insertRow('product_inventory', { beautician_id: beautician.id, ...fields });
+        setProducts(prev => [...prev, decorate(created)]);
+      }
       setShowAdd(false);
+      setEditingId(null);
       setNewProduct({ name: '', category: 'tint', qty: 0, unit: '', reorderAt: 5, costPer: 0, usesPerUnit: 1, supplier: '' });
     } catch (err) {
-      logger.error({ err }, 'Failed to add product');
+      logger.error({ err }, 'Failed to save product');
+    }
+  }
+
+  function openEdit(prod) {
+    setNewProduct({
+      name: prod.name || '',
+      category: prod.category || 'tint',
+      qty: prod.qty ?? 0,
+      unit: prod.unit || '',
+      reorderAt: prod.reorderAt ?? 5,
+      costPer: prod.costPer ? (prod.costPer / 100) : 0,
+      usesPerUnit: prod.usesPerUnit ?? 1,
+      supplier: prod.supplier || '',
+    });
+    setEditingId(prod.id);
+    setShowAdd(true);
+  }
+
+  async function handleRestock(prod) {
+    const input = prompt(`How many ${prod.unit || 'units'} are you adding to stock?`, String(prod.reorderAt || 5));
+    if (input === null) return;
+    const add = Number(input);
+    if (!Number.isFinite(add) || add <= 0) return;
+    try {
+      const updated = await updateRow('product_inventory', prod.id, {
+        qty: (Number(prod.qty) || 0) + add,
+        last_ordered: new Date().toISOString().slice(0, 10),
+      });
+      setProducts(prev => prev.map(p => (p.id === prod.id ? decorate(updated) : p)));
+    } catch (err) {
+      logger.error({ err }, 'Failed to restock');
+    }
+  }
+
+  async function handleAdjustQty(prod) {
+    const input = prompt(`Set current quantity (${prod.unit || 'units'})`, String(prod.qty ?? 0));
+    if (input === null) return;
+    const next = Number(input);
+    if (!Number.isFinite(next) || next < 0) return;
+    try {
+      const updated = await updateRow('product_inventory', prod.id, { qty: next });
+      setProducts(prev => prev.map(p => (p.id === prod.id ? decorate(updated) : p)));
+    } catch (err) {
+      logger.error({ err }, 'Failed to adjust quantity');
     }
   }
 
@@ -277,9 +332,9 @@ export default function ProductInventory() {
                   </div>
 
                   <div style={S.actionRow}>
-                    <button style={{ ...S.actionBtn, background: 'var(--accent, #C76B8A)', color: '#fff' }}>Restock</button>
-                    <button style={S.actionBtn}>Adjust Qty</button>
-                    <button style={S.actionBtn}>Edit</button>
+                    <button style={{ ...S.actionBtn, background: 'var(--accent, #C76B8A)', color: '#fff' }} onClick={(e) => { e.stopPropagation(); handleRestock(prod); }}>Restock</button>
+                    <button style={S.actionBtn} onClick={(e) => { e.stopPropagation(); handleAdjustQty(prod); }}>Adjust Qty</button>
+                    <button style={S.actionBtn} onClick={(e) => { e.stopPropagation(); openEdit(prod); }}>Edit</button>
                   </div>
                 </div>
               )}
@@ -289,15 +344,15 @@ export default function ProductInventory() {
       </div>
 
       {/* FAB */}
-      {!showAdd && <button style={S.fab} onClick={() => setShowAdd(true)}>+</button>}
+      {!showAdd && <button style={S.fab} onClick={() => { setEditingId(null); setNewProduct({ name: '', category: 'tint', qty: 0, unit: '', reorderAt: 5, costPer: 0, usesPerUnit: 1, supplier: '' }); setShowAdd(true); }}>+</button>}
 
-      {/* Add modal */}
+      {/* Add / edit modal */}
       {showAdd && (
-        <div style={S.overlay} onClick={() => setShowAdd(false)}>
+        <div style={S.overlay} onClick={() => { setShowAdd(false); setEditingId(null); }}>
           <div style={S.modal} onClick={e => e.stopPropagation()}>
             <div style={S.modalHeader}>
-              <h2 style={S.modalTitle}>Add Product</h2>
-              <button style={S.closeBtn} onClick={() => setShowAdd(false)}>✕</button>
+              <h2 style={S.modalTitle}>{editingId ? 'Edit Product' : 'Add Product'}</h2>
+              <button style={S.closeBtn} onClick={() => { setShowAdd(false); setEditingId(null); }}>✕</button>
             </div>
             <div style={S.formBody}>
               <label style={S.fLabel}>Product Name</label>
@@ -321,7 +376,7 @@ export default function ProductInventory() {
               <label style={S.fLabel}>Supplier</label>
               <input style={S.input} placeholder="e.g. HD Brows Direct" value={newProduct.supplier} onChange={e => setNewProduct(p => ({ ...p, supplier: e.target.value }))} />
             </div>
-            <button style={S.saveBtn} onClick={handleAddProduct} disabled={!newProduct.name}>Add Product</button>
+            <button style={S.saveBtn} onClick={handleAddProduct} disabled={!newProduct.name}>{editingId ? 'Save Changes' : 'Add Product'}</button>
           </div>
         </div>
       )}
@@ -330,9 +385,9 @@ export default function ProductInventory() {
 }
 
 function formatDate(d) {
-  if (!d) return '—';
+  if (!d) return '-';
   const parsed = new Date(d + 'T00:00:00');
-  if (isNaN(parsed)) return '—';
+  if (isNaN(parsed)) return '-';
   return parsed.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 

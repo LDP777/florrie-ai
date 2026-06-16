@@ -1,5 +1,5 @@
 /**
- * MessagePreview — shows an outgoing message exactly as the client receives it,
+ * MessagePreview - shows an outgoing message exactly as the client receives it,
  * as a true-to-life phone chat bubble. Used wherever the beautician previews a
  * message (templates, drafts) so "send" feels real and trustworthy.
  */

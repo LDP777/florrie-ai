@@ -1,5 +1,5 @@
 /**
- * Client Tags & Segments — Group, filter & target clients.
+ * Client Tags & Segments - Group, filter & target clients.
  *
  * Every beautician mentally labels clients ("VIP", "patch-test needed",
  * "always late"). This page makes it explicit so florrie.ai can use the

@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
 
 /**
- * ConsultationFormPublic — the client-facing form page.
+ * ConsultationFormPublic - the client-facing form page.
  * Accessed via: /form/:token (no auth required)
  * Mobile-first, branded to the beautician's colours.
  *

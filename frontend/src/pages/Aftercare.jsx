@@ -6,17 +6,21 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
- * Aftercare — Post-treatment care cards.
+ * Aftercare - Post-treatment care cards.
  *
  * Each treatment can have an aftercare card that florrie.ai
  * automatically sends to clients after their appointment.
  * Beauticians can customise the content, toggle auto-send,
  * and preview exactly what clients receive.
  *
- * Three views:
- *   Cards    — all aftercare templates, grouped by treatment
- *   Preview  — phone-style preview of the client message
- *   Settings — auto-send timing, channel, follow-up nudge
+ * Two views:
+ *   Cards    - all aftercare templates, grouped by treatment
+ *   Preview  - phone-style preview of the client message
+ *
+ * Per-card auto-send is persisted to aftercare_cards. Page-level
+ * defaults (channel, timing, extras) live in DEFAULT_SETTINGS and
+ * are read-only for now - there is no backing store to save them,
+ * so no Settings tab is shown until one exists.
  */
 
 const DEFAULT_SETTINGS = {
@@ -38,7 +42,9 @@ export default function Aftercare() {
   const [selectedCard, setSelectedCard] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
   const [editingCard, setEditingCard] = useState(null);
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  // Read-only display defaults. No backing store to persist these yet,
+  // so they are not editable (no Settings tab) to avoid implying saved state.
+  const settings = DEFAULT_SETTINGS;
   const [showCreateForm, setShowCreateForm] = useState(false);
 
   // New card form state
@@ -158,22 +164,6 @@ export default function Aftercare() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={styles.tabs}>
-        {['cards', 'settings'].map(t => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            style={{
-              ...styles.tab,
-              borderBottomColor: tab === t ? '#C76B8A' : 'transparent',
-              color: tab === t ? '#C76B8A' : '#AAA5A0',
-            }}
-          >
-            {t === 'cards' ? 'Care Cards' : 'Settings'}
-          </button>
-        ))}
-      </div>
 
       {/* === CARDS TAB === */}
       {tab === 'cards' && (
@@ -182,7 +172,7 @@ export default function Aftercare() {
           <div style={styles.statusBar}>
             <div style={{ ...styles.statusDot, background: settings.auto_send_enabled ? '#4CAF50' : '#C4BDB6' }} />
             <span style={styles.statusText}>
-              Auto-send {settings.auto_send_enabled ? 'on' : 'off'} — via {settings.channel}
+              Auto-send {settings.auto_send_enabled ? 'on' : 'off'} - via {settings.channel}
             </span>
             <span style={styles.statusCount}>{cards.filter(c => c.auto_send).length} active</span>
           </div>
@@ -378,144 +368,6 @@ export default function Aftercare() {
         </div>
       )}
 
-      {/* === SETTINGS TAB === */}
-      {tab === 'settings' && (
-        <div>
-          <div style={styles.settingsCard}>
-            <h3 style={styles.settingsSectionTitle}>Auto-send</h3>
-            <div style={styles.settingsRow}>
-              <div>
-                <span style={styles.settingsLabel}>Auto-send aftercare messages</span>
-                <span style={styles.settingsHint}>florrie.ai sends the card after each appointment</span>
-              </div>
-              <button
-                onClick={() => setSettings(p => ({ ...p, auto_send_enabled: !p.auto_send_enabled }))}
-                style={{
-                  ...styles.toggle,
-                  background: settings.auto_send_enabled ? '#C76B8A' : '#E8E4E0',
-                }}
-              >
-                <div style={{
-                  ...styles.toggleDot,
-                  transform: settings.auto_send_enabled ? 'translateX(18px)' : 'translateX(2px)',
-                }} />
-              </button>
-            </div>
-
-            <div style={styles.settingsRow}>
-              <div>
-                <span style={styles.settingsLabel}>Default send timing</span>
-                <span style={styles.settingsHint}>How long after the appointment to send</span>
-              </div>
-              <select
-                value={settings.default_send_after_hours}
-                onChange={e => setSettings(p => ({ ...p, default_send_after_hours: parseInt(e.target.value) }))}
-                style={styles.settingsSelect}
-              >
-                <option value={1}>1 hour</option>
-                <option value={2}>2 hours</option>
-                <option value={4}>4 hours</option>
-                <option value={24}>Next day</option>
-              </select>
-            </div>
-          </div>
-
-          <div style={styles.settingsCard}>
-            <h3 style={styles.settingsSectionTitle}>Delivery</h3>
-            <div style={styles.settingsRow}>
-              <div>
-                <span style={styles.settingsLabel}>Primary channel</span>
-                <span style={styles.settingsHint}>How aftercare cards are delivered</span>
-              </div>
-              <select
-                value={settings.channel}
-                onChange={e => setSettings(p => ({ ...p, channel: e.target.value }))}
-                style={styles.settingsSelect}
-              >
-                <option value="whatsapp">WhatsApp</option>
-                <option value="sms">SMS</option>
-                <option value="email">Email</option>
-              </select>
-            </div>
-
-            <div style={styles.settingsRow}>
-              <div>
-                <span style={styles.settingsLabel}>Fallback channel</span>
-                <span style={styles.settingsHint}>If primary fails</span>
-              </div>
-              <select
-                value={settings.fallback_channel}
-                onChange={e => setSettings(p => ({ ...p, fallback_channel: e.target.value }))}
-                style={styles.settingsSelect}
-              >
-                <option value="sms">SMS</option>
-                <option value="email">Email</option>
-              </select>
-            </div>
-          </div>
-
-          <div style={styles.settingsCard}>
-            <h3 style={styles.settingsSectionTitle}>Extras</h3>
-            <div style={styles.settingsRow}>
-              <div>
-                <span style={styles.settingsLabel}>Include rebook link</span>
-                <span style={styles.settingsHint}>Add a booking link at the end of the card</span>
-              </div>
-              <button
-                onClick={() => setSettings(p => ({ ...p, include_rebook_link: !p.include_rebook_link }))}
-                style={{
-                  ...styles.toggle,
-                  background: settings.include_rebook_link ? '#C76B8A' : '#E8E4E0',
-                }}
-              >
-                <div style={{
-                  ...styles.toggleDot,
-                  transform: settings.include_rebook_link ? 'translateX(18px)' : 'translateX(2px)',
-                }} />
-              </button>
-            </div>
-
-            <div style={styles.settingsRow}>
-              <div>
-                <span style={styles.settingsLabel}>Include product recommendations</span>
-                <span style={styles.settingsHint}>Show recommended products on the card</span>
-              </div>
-              <button
-                onClick={() => setSettings(p => ({ ...p, include_products: !p.include_products }))}
-                style={{
-                  ...styles.toggle,
-                  background: settings.include_products ? '#C76B8A' : '#E8E4E0',
-                }}
-              >
-                <div style={{
-                  ...styles.toggleDot,
-                  transform: settings.include_products ? 'translateX(18px)' : 'translateX(2px)',
-                }} />
-              </button>
-            </div>
-
-            <div style={styles.settingsRow}>
-              <div>
-                <span style={styles.settingsLabel}>Follow-up check-in</span>
-                <span style={styles.settingsHint}>florrie.ai asks how they're getting on after {settings.follow_up_days} days</span>
-              </div>
-              <button
-                onClick={() => setSettings(p => ({ ...p, follow_up_check_in: !p.follow_up_check_in }))}
-                style={{
-                  ...styles.toggle,
-                  background: settings.follow_up_check_in ? '#C76B8A' : '#E8E4E0',
-                }}
-              >
-                <div style={{
-                  ...styles.toggleDot,
-                  transform: settings.follow_up_check_in ? 'translateX(18px)' : 'translateX(2px)',
-                }} />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* === PREVIEW MODAL === */}
       {showPreview && selectedCard && (
         <div style={styles.previewOverlay} onClick={() => setShowPreview(false)}>
@@ -542,7 +394,7 @@ export default function Aftercare() {
 
                   <div style={styles.phoneCard}>
                     <div style={styles.phoneCardTitle}>
-                      {selectedCard.icon} {selectedCard.treatment_name} — Aftercare
+                      {selectedCard.icon} {selectedCard.treatment_name} - Aftercare
                     </div>
                     {selectedCard.instructions.map((inst, i) => (
                       <div key={i} style={styles.phoneStep}>

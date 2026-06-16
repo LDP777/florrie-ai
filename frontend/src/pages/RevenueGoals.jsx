@@ -1,5 +1,5 @@
 /**
- * Revenue Goals — Monthly targets with visual progress tracking.
+ * Revenue Goals - Monthly targets with visual progress tracking.
  *
  * Solo beauticians rarely track against a number. This page gives
  * them a clear target, shows daily/weekly pace, and projects whether
@@ -138,7 +138,7 @@ export default function RevenueGoals() {
             {onTrack ? 'On track!' : 'Behind pace'}
           </span>
           <span style={S.projDetail}>
-            Projected: {fmt(projected)} ({projectedPercent}%). {daysLeft} working day{daysLeft !== 1 ? 's' : ''} left — need {fmt(dailyNeeded)}/day.
+            Projected: {fmt(projected)} ({projectedPercent}%). {daysLeft} working day{daysLeft !== 1 ? 's' : ''} left - need {fmt(dailyNeeded)}/day.
           </span>
         </div>
       </div>
@@ -152,7 +152,7 @@ export default function RevenueGoals() {
         ))}
       </div>
 
-      {/* Progress tab — weekly pace */}
+      {/* Progress tab - weekly pace */}
       {tab === 'progress' && (
         <div style={S.section}>
           <h3 style={S.sectionTitle}>Weekly Pace</h3>
@@ -237,7 +237,7 @@ export default function RevenueGoals() {
               <input style={S.input} type="number" placeholder="4500" defaultValue="4500" />
               <div style={S.suggestionCard}>
                 <span style={S.suggestionIcon}>💡</span>
-                <span style={S.suggestionText}>Based on your 3-month average ({fmt(Math.round((425000 + 378000 + 410000) / 3))}), try £4,500 — a 10% stretch.</span>
+                <span style={S.suggestionText}>Based on your 3-month average ({fmt(Math.round((425000 + 378000 + 410000) / 3))}), try £4,500 - a 10% stretch.</span>
               </div>
               <label style={S.fLabel}>Breakdown (optional)</label>
               {['Brow treatments', 'Lash treatments', 'Semi-permanent', 'Retail & add-ons'].map(c => (

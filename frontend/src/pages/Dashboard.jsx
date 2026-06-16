@@ -13,7 +13,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
- * Dashboard — Stitch "Design System" reference rebuild.
+ * Dashboard - Stitch "Design System" reference rebuild.
  *
  * Matches the Stitch Home screen:
  *   - Greeting + date
@@ -45,14 +45,14 @@ const DEV_TODAY = [
 const DEV_AGENT_SUMMARY = {
   front_desk: { today: 3, latest: 'Confirmed Marcus\'s 11:30 booking' },
   calendar: { today: 1, latest: 'Filled a gap at 2pm with Lena' },
-  comeback: { today: 2, latest: 'Nudged Daisy S — 12 days overdue' },
+  comeback: { today: 2, latest: 'Nudged Daisy S - 12 days overdue' },
   content: { today: 1, latest: 'Drafted "Tuesday transformation"' },
   money: { today: 1, latest: '£85 payment logged from Sarah' },
   scout: { today: 0, latest: 'Balayage trending +18% this month' },
 };
 
 const DEV_INSIGHTS = [
-  { id: 'i1', icon: 'trending_up', text: "You're on track for £385 this week — 12% up on last week.", type: 'positive' },
+  { id: 'i1', icon: 'trending_up', text: "You're on track for £385 this week - 12% up on last week.", type: 'positive' },
   { id: 'i2', icon: 'history', text: 'Daisy S is 12 days overdue for her usual rebook. Send a nudge?', type: 'action', actionLabel: 'Send nudge', actionPath: '/clients' },
   { id: 'i3', icon: 'star', text: 'Jasmin left a 5★ review yesterday. florrie.ai drafted a reply.', type: 'action', actionLabel: 'View reply', actionPath: '/reviews' },
 ];
@@ -65,12 +65,12 @@ const DEV_ACTIVITY = [
 
 const DEV_SHIFT_REPORT = [
   { id: 'sr1', category: 'message', agent: 'front_desk', summary: 'Confirmed Marcus\'s 11:30 booking via WhatsApp', value_cents: 0, created_at: new Date(Date.now() - 45 * 60000).toISOString() },
-  { id: 'sr2', category: 'message', agent: 'front_desk', summary: 'Replied to Instagram DM from new enquiry — booked Friday 10am', value_cents: 4500, created_at: new Date(Date.now() - 90 * 60000).toISOString() },
+  { id: 'sr2', category: 'message', agent: 'front_desk', summary: 'Replied to Instagram DM from new enquiry - booked Friday 10am', value_cents: 4500, created_at: new Date(Date.now() - 90 * 60000).toISOString() },
   { id: 'sr3', category: 'message', agent: 'front_desk', summary: 'Sent aftercare tips to Sarah after her appointment', value_cents: 0, created_at: new Date(Date.now() - 120 * 60000).toISOString() },
-  { id: 'sr4', category: 'booking', agent: 'calendar', summary: 'Filled Wednesday 2pm gap — Jasmin confirmed', value_cents: 2500, created_at: new Date(Date.now() - 150 * 60000).toISOString() },
-  { id: 'sr5', category: 'retention', agent: 'comeback', summary: 'Nudged Daisy S — 12 days overdue for rebook', value_cents: 0, created_at: new Date(Date.now() - 180 * 60000).toISOString() },
+  { id: 'sr4', category: 'booking', agent: 'calendar', summary: 'Filled Wednesday 2pm gap - Jasmin confirmed', value_cents: 2500, created_at: new Date(Date.now() - 150 * 60000).toISOString() },
+  { id: 'sr5', category: 'retention', agent: 'comeback', summary: 'Nudged Daisy S - 12 days overdue for rebook', value_cents: 0, created_at: new Date(Date.now() - 180 * 60000).toISOString() },
   { id: 'sr6', category: 'retention', agent: 'comeback', summary: 'Sent rebook reminder to Chloe B (6 weeks since last visit)', value_cents: 0, created_at: new Date(Date.now() - 200 * 60000).toISOString() },
-  { id: 'sr7', category: 'payment', agent: 'money', summary: 'Chased £45 deposit from Lena — paid', value_cents: 4500, created_at: new Date(Date.now() - 240 * 60000).toISOString() },
+  { id: 'sr7', category: 'payment', agent: 'money', summary: 'Chased £45 deposit from Lena - paid', value_cents: 4500, created_at: new Date(Date.now() - 240 * 60000).toISOString() },
   { id: 'sr8', category: 'payment', agent: 'money', summary: 'Logged £85 payment from Sarah\'s appointment', value_cents: 8500, created_at: new Date(Date.now() - 300 * 60000).toISOString() },
 ];
 
@@ -340,7 +340,7 @@ export default function Dashboard() {
             {getGreeting()}, {beautician?.first_name || 'there'}
           </h1>
         </div>
-        {/* Notification bell — taps to notifications (not inbox — floating bubble handles that) */}
+        {/* Notification bell - taps to notifications (not inbox - floating bubble handles that) */}
         <button
           onClick={() => navigate('/notifications')}
           style={{
@@ -373,7 +373,7 @@ export default function Dashboard() {
         </button>
       </section>
 
-      {/* ─── Your booking link — prominent card ─── */}
+      {/* ─── Your booking link - prominent card ─── */}
       {beautician?.booking_slug && (() => {
         const bookingUrl = publicBookingUrl(beautician.booking_slug);
         return (
@@ -437,10 +437,10 @@ export default function Dashboard() {
       {/* ─── Setup Checklist (shown until fully onboarded) ─── */}
       <SetupChecklist />
 
-      {/* ─── AI Agent Avatars — live team status ─── */}
+      {/* ─── AI Agent Avatars - live team status ─── */}
       <AgentAvatars />
 
-      {/* ─── AI Shift Report — first thing after greeting so Florrie's work is front and centre ─── */}
+      {/* ─── AI Shift Report - first thing after greeting so Florrie's work is front and centre ─── */}
       {shiftStats && shiftStats.totalActions > 0 && (
         <section style={S.shiftReport}>
           <div onClick={() => setShiftExpanded(e => !e)} style={S.shiftHeader}>
@@ -574,7 +574,7 @@ export default function Dashboard() {
         </section>
       )}
 
-      {/* ─── Today's Schedule — rows tap through to calendar ─── */}
+      {/* ─── Today's Schedule - rows tap through to calendar ─── */}
       <section style={S.scheduleSection}>
         <div style={S.scheduleHeader}>
           <h3 style={S.sectionHeading}>Today's Schedule</h3>

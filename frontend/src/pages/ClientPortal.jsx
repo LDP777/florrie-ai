@@ -5,10 +5,10 @@ import PageLoader from '../components/PageLoader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
- * ClientPortal — Booking page settings + share tools.
+ * ClientPortal - Booking page settings + share tools.
  *
  * Tabs: Overview (real stats), Branding (saves to booking_policy.portal), Features (saves too)
- * URL is florrie.ai/book/{slug} — the actual public booking page.
+ * URL is florrie.ai/book/{slug} - the actual public booking page.
  * Config is persisted in beautician.booking_policy.portal JSONB key.
  */
 
@@ -187,11 +187,11 @@ export default function ClientPortal() {
         <div>
           <div style={s.statsGrid}>
             <div style={s.statCard}>
-              <div style={s.statValue}>{clientCount ?? '—'}</div>
+              <div style={s.statValue}>{clientCount ?? '-'}</div>
               <div style={s.statLabel}>Total clients</div>
             </div>
             <div style={s.statCard}>
-              <div style={s.statValue}>{apptCount ?? '—'}</div>
+              <div style={s.statValue}>{apptCount ?? '-'}</div>
               <div style={s.statLabel}>Appointments</div>
             </div>
           </div>

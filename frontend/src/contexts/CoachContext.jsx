@@ -1,5 +1,5 @@
 /**
- * CoachContext — Global Biz Coach nudge system.
+ * CoachContext - Global Biz Coach nudge system.
  *
  * Provides useCoach() hook that any page can call to trigger a contextual
  * insight. Shows one nudge at a time, never repeats the same trigger type

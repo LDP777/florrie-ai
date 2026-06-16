@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 /**
- * InstallPrompt — shows a native-feeling "Add to Home Screen" banner.
+ * InstallPrompt - shows a native-feeling "Add to Home Screen" banner.
  *
  * Captures the `beforeinstallprompt` event and displays a branded banner
  * when the user has used the app at least 3 times (stored in a simple counter).
@@ -17,7 +17,7 @@ export default function InstallPrompt() {
     if (window.matchMedia('(display-mode: standalone)').matches) return;
     if (sessionStorage.getItem('florrie-install-dismissed')) return;
 
-    // Track visit count — show after 3rd visit
+    // Track visit count - show after 3rd visit
     const visits = parseInt(localStorage.getItem('florrie-visit-count') || '0', 10) + 1;
     localStorage.setItem('florrie-visit-count', String(visits));
 

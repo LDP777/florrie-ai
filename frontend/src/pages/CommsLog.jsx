@@ -9,18 +9,18 @@ const CHANNEL_ICONS = { whatsapp: '💬', sms: '📱', email: '📧', in_app: '�
 const CHANNEL_COLORS = { whatsapp: '#25D366', sms: '#2196F3', email: '#E8A838', in_app: 'var(--accent, #C76B8A)' };
 
 const DEV_MESSAGES = [
-  { id: 1, client: 'Jessica R.', channel: 'whatsapp', direction: 'outbound', type: 'reminder', subject: 'Appointment reminder — Brow Lamination tomorrow at 10:30am', time: '2026-03-26 09:00', status: 'delivered', read: true },
+  { id: 1, client: 'Jessica R.', channel: 'whatsapp', direction: 'outbound', type: 'reminder', subject: 'Appointment reminder - Brow Lamination tomorrow at 10:30am', time: '2026-03-26 09:00', status: 'delivered', read: true },
   { id: 2, client: 'Jessica R.', channel: 'whatsapp', direction: 'inbound', type: 'reply', subject: 'Thanks! See you then 💕', time: '2026-03-26 09:12', status: 'received', read: true },
-  { id: 3, client: 'Amy K.', channel: 'sms', direction: 'outbound', type: 'reminder', subject: 'Hi Amy, quick reminder — your brow tint is booked for Thursday 2pm', time: '2026-03-25 18:00', status: 'delivered', read: false },
+  { id: 3, client: 'Amy K.', channel: 'sms', direction: 'outbound', type: 'reminder', subject: 'Hi Amy, quick reminder - your brow tint is booked for Thursday 2pm', time: '2026-03-25 18:00', status: 'delivered', read: false },
   { id: 4, client: 'Charlotte B.', channel: 'email', direction: 'outbound', type: 'aftercare', subject: 'Your Lash Lift Aftercare Guide', time: '2026-03-25 15:30', status: 'opened', read: true },
-  { id: 5, client: 'Emma L.', channel: 'whatsapp', direction: 'outbound', type: 'campaign', subject: '🌸 Spring Special — 20% off brow packages this week only!', time: '2026-03-25 10:00', status: 'delivered', read: true },
+  { id: 5, client: 'Emma L.', channel: 'whatsapp', direction: 'outbound', type: 'campaign', subject: '🌸 Spring Special - 20% off brow packages this week only!', time: '2026-03-25 10:00', status: 'delivered', read: true },
   { id: 6, client: 'Emma L.', channel: 'whatsapp', direction: 'inbound', type: 'reply', subject: 'Ooh yes please! Can I book for Saturday?', time: '2026-03-25 10:45', status: 'received', read: true },
   { id: 7, client: 'Sophie T.', channel: 'email', direction: 'outbound', type: 'rebook', subject: 'We miss you! Time for a brow refresh?', time: '2026-03-24 12:00', status: 'opened', read: true },
   { id: 8, client: 'Megan W.', channel: 'sms', direction: 'outbound', type: 'reminder', subject: 'Megan, your VIP treatment is confirmed for Friday at 11am. See you soon!', time: '2026-03-24 09:00', status: 'delivered', read: false },
   { id: 9, client: 'Hannah D.', channel: 'in_app', direction: 'outbound', type: 'notification', subject: 'Your membership has been paused. Resume anytime from the app.', time: '2026-03-23 14:00', status: 'sent', read: false },
   { id: 10, client: 'Charlotte B.', channel: 'whatsapp', direction: 'outbound', type: 'review_request', subject: 'Hi Charlotte! Loved doing your lashes today. Would you mind leaving a quick review? 🙏', time: '2026-03-23 16:30', status: 'delivered', read: true },
   { id: 11, client: 'Charlotte B.', channel: 'whatsapp', direction: 'inbound', type: 'reply', subject: 'Of course! Just left you 5 stars ⭐', time: '2026-03-23 17:15', status: 'received', read: true },
-  { id: 12, client: 'Amy K.', channel: 'email', direction: 'outbound', type: 'campaign', subject: 'New Season, New Brows — Spring Collection Preview', time: '2026-03-22 10:00', status: 'bounced', read: false },
+  { id: 12, client: 'Amy K.', channel: 'email', direction: 'outbound', type: 'campaign', subject: 'New Season, New Brows - Spring Collection Preview', time: '2026-03-22 10:00', status: 'bounced', read: false },
 ];
 
 const STATUS_STYLES = {

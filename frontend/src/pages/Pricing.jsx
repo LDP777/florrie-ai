@@ -1,5 +1,5 @@
 /**
- * Pricing — Plans & Billing page.
+ * Pricing - Plans & Billing page.
  *
  * Single plan (Florrie £29/mo), with team add-on option.
  * Monthly/annual toggle. Stripe Checkout for upgrades, portal for management.
@@ -131,7 +131,7 @@ export default function Pricing() {
             <div style={S.bannerTrial}>
               {daysLeft > 0
                 ? `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left on trial`
-                : 'Trial expired — subscribe to keep your data'}
+                : 'Trial expired - subscribe to keep your data'}
             </div>
           )}
           {isActive && (
@@ -224,7 +224,7 @@ export default function Pricing() {
       {/* Trial urgency nudge */}
       {currentPlan === 'trial' && daysLeft > 0 && daysLeft <= 3 && (
         <div style={S.urgency}>
-          Your trial ends in {daysLeft} day{daysLeft !== 1 ? 's' : ''}. Subscribe to keep everything — your data, clients, and settings stay exactly as they are.
+          Your trial ends in {daysLeft} day{daysLeft !== 1 ? 's' : ''}. Subscribe to keep everything - your data, clients, and settings stay exactly as they are.
         </div>
       )}
 
@@ -243,11 +243,11 @@ export default function Pricing() {
       <div style={S.faq}>
         <div style={S.faqItem}>
           <div style={S.faqQ}>What happens when my trial ends?</div>
-          <div style={S.faqA}>Your account goes read-only. All your data is safe — subscribe any time to pick up where you left off.</div>
+          <div style={S.faqA}>Your account goes read-only. All your data is safe - subscribe any time to pick up where you left off.</div>
         </div>
         <div style={S.faqItem}>
           <div style={S.faqQ}>What about messages over 120/month?</div>
-          <div style={S.faqA}>Any messages over 120/month are 7p each, whether SMS or WhatsApp. Most solo beauticians stay well within the limit.</div>
+          <div style={S.faqA}>Any messages over 120/month are billed at 6p (SMS) or 5p (WhatsApp) each. Most solo beauticians stay well within the limit.</div>
         </div>
         <div style={S.faqItem}>
           <div style={S.faqQ}>Can I cancel any time?</div>

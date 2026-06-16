@@ -6,7 +6,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 
 /**
- * AIInsights — Stitch "florrie.ai Assistant" reference rebuild.
+ * AIInsights - Stitch "florrie.ai Assistant" reference rebuild.
  *
  * Matches the Stitch screen:
  *   - Pulse snapshot card (gradient, "Your day is X% optimized")

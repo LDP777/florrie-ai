@@ -1,7 +1,7 @@
 /**
- * Promo Codes — Create & track discount codes for marketing.
+ * Promo Codes - Create & track discount codes for marketing.
  *
- * Flash sales, referral rewards, birthday treats, influencer collabs —
+ * Flash sales, referral rewards, birthday treats, influencer collabs -
  * every code is tracked here with usage stats and revenue impact.
  */
 import { useState, useEffect } from 'react';
@@ -13,9 +13,9 @@ const fmt = (cents) => `£${(Math.abs(cents) / 100).toFixed(2)}`;
 const DEV_CODES = [
   { id: 'p1', code: 'WELCOME20', type: 'percent', value: 20, minSpend: 0, maxUses: 50, used: 12, revenue: 288000, status: 'active', treatments: [], expiresAt: '2026-06-01', createdAt: '2026-03-01', description: 'New client welcome offer' },
   { id: 'p2', code: 'BROWS10', type: 'fixed', value: 1000, minSpend: 5000, maxUses: 30, used: 8, revenue: 96000, status: 'active', treatments: ['Ombre Brows (Semi-Permanent)', 'Combination Brows'], expiresAt: '2026-04-30', createdAt: '2026-03-10', description: '£10 off any brow treatment over £50' },
-  { id: 'p3', code: 'BDAY2026', type: 'percent', value: 15, minSpend: 0, maxUses: null, used: 3, revenue: 22500, status: 'active', treatments: [], expiresAt: null, createdAt: '2026-01-01', description: 'Birthday month treat — auto-sent via sequences' },
+  { id: 'p3', code: 'BDAY2026', type: 'percent', value: 15, minSpend: 0, maxUses: null, used: 3, revenue: 22500, status: 'active', treatments: [], expiresAt: null, createdAt: '2026-01-01', description: 'Birthday month treat - auto-sent via sequences' },
   { id: 'p4', code: 'REFER25', type: 'fixed', value: 2500, minSpend: 4000, maxUses: null, used: 5, revenue: 62500, status: 'active', treatments: [], expiresAt: null, createdAt: '2026-02-01', description: 'Referral reward code' },
-  { id: 'p5', code: 'FLASH50', type: 'percent', value: 50, minSpend: 0, maxUses: 10, used: 10, revenue: 75000, status: 'expired', treatments: ['Lash Lift & Tint'], expiresAt: '2026-03-15', createdAt: '2026-03-14', description: '24hr flash sale — fully redeemed' },
+  { id: 'p5', code: 'FLASH50', type: 'percent', value: 50, minSpend: 0, maxUses: 10, used: 10, revenue: 75000, status: 'expired', treatments: ['Lash Lift & Tint'], expiresAt: '2026-03-15', createdAt: '2026-03-14', description: '24hr flash sale - fully redeemed' },
   { id: 'p6', code: 'INFLUENCER', type: 'percent', value: 100, minSpend: 0, maxUses: 1, used: 1, revenue: 0, status: 'expired', treatments: ['Ombre Brows (Semi-Permanent)'], expiresAt: '2026-03-20', createdAt: '2026-03-18', description: 'Free treatment for @browqueen collab' },
 ];
 

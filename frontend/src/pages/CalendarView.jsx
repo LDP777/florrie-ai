@@ -523,7 +523,7 @@ export default function CalendarView({ initialView } = {}) {
           </div>
         </div>
       )}
-      {/* Week View — agenda by day. Each day shows its shape at a glance:
+      {/* Week View - agenda by day. Each day shows its shape at a glance:
           how many bookings, money on the books, hours worked, then the
           appointments themselves as readable rows. Far easier to actually
           work from on a phone than seven thin columns of tiny chips. */}
@@ -1156,7 +1156,7 @@ const styles = {
   // Open Slot Cards
   openSlotCard: { position: 'absolute', left: 4, right: 4, borderRadius: 16, border: `2px dashed ${COLORS.outlineVariant}80`, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 'calc(100% - 8px)' },
   openSlotText: { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.stone400 },
-  // Week View — agenda by day
+  // Week View - agenda by day
   weekAgenda: { display: 'flex', flexDirection: 'column', gap: 12 },
   weekDaySection: { background: '#fff', borderRadius: 16, boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)', overflow: 'hidden' },
   weekDaySectionToday: { boxShadow: `0 0 0 1.5px ${COLORS.primary}, 0 10px 30px rgba(146, 64, 94, 0.10)` },

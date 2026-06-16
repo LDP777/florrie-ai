@@ -6,12 +6,12 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
- * Analytics — unified historical analytics hub.
+ * Analytics - unified historical analytics hub.
  *
  * Tabs:
- *   Overview     — revenue, top clients, booking patterns, AI insights
- *   Treatments   — per-treatment performance ranking
- *   Export       — CSV downloads for Revenue, Clients, Appointments
+ *   Overview     - revenue, top clients, booking patterns, AI insights
+ *   Treatments   - per-treatment performance ranking
+ *   Export       - CSV downloads for Revenue, Clients, Appointments
  */
 
 const PERIOD_OPTIONS = [
@@ -305,7 +305,7 @@ export default function Analytics() {
         ))}
       </div>
 
-      {/* Period picker — shown on Overview and Export tabs */}
+      {/* Period picker - shown on Overview and Export tabs */}
       {(tab === 'overview') && (
         <div style={styles.periodNav}>
           {PERIOD_OPTIONS.map(p => (
@@ -360,7 +360,7 @@ export default function Analytics() {
               <StatCard label="No-show rate" value={`${stats.noShowRate}%`} sub={`${stats.noShowCount} no-shows`} color={stats.noShowRate > 10 ? 'var(--danger, #E57373)' : 'var(--success, #5BA97B)'} />
               <StatCard label="New clients" value={stats.newClients} sub={`of ${stats.totalClients} total`} color="var(--accent, #C76B8A)" />
               {stats.utilizationRate === null ? (
-                <StatCard label="Utilisation" value="—" sub="set your hours to see this" color="var(--text-secondary, #6B6560)" />
+                <StatCard label="Utilisation" value="-" sub="set your hours to see this" color="var(--text-secondary, #6B6560)" />
               ) : (
                 <StatCard label="Utilisation" value={`${stats.utilizationRate}%`} sub="of available hours" color={stats.utilizationRate > 70 ? 'var(--success, #5BA97B)' : 'var(--warning, #F57C00)'} />
               )}
@@ -514,21 +514,21 @@ export default function Analytics() {
           <ExportCard
             icon="📅"
             title="Appointments"
-            desc={`${allAppointments.length} records — date, client, treatment, status, revenue`}
+            desc={`${allAppointments.length} records - date, client, treatment, status, revenue`}
             onExport={exportAppointments}
             loading={exportLoading}
           />
           <ExportCard
             icon="👥"
             title="Clients"
-            desc={`${allClients.length} clients — name, email, phone, joined date`}
+            desc={`${allClients.length} clients - name, email, phone, joined date`}
             onExport={exportClients}
             loading={exportLoading}
           />
           <ExportCard
             icon="💅"
             title="Treatments"
-            desc={`${treatmentStats.length} treatments — bookings, revenue, duration (last 90 days)`}
+            desc={`${treatmentStats.length} treatments - bookings, revenue, duration (last 90 days)`}
             onExport={exportTreatments}
             loading={exportLoading || treatmentLoading}
           />

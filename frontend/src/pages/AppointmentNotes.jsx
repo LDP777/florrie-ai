@@ -1,5 +1,5 @@
 /**
- * Appointment Notes — Per-visit treatment notes, photos & flags.
+ * Appointment Notes - Per-visit treatment notes, photos & flags.
  *
  * After every appointment Ellie jots down what she used, how it went,
  * anything the client mentioned (pregnancy, allergies, preferences).

@@ -4,7 +4,7 @@ import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import { deDash } from '../lib/text.js';
 /**
- * Voice Commander — Talk to florrie.ai.
+ * Voice Commander - Talk to florrie.ai.
  *
  * Real Web Speech API for voice transcription in-browser.
  * Text or transcript is sent to POST /api/voice/command which uses
@@ -130,7 +130,7 @@ function buildLiveSuggestions({ todayAppts, upcomingAppts, recentClients, dorman
     pool.push(`Message everyone booked for ${tomorrowName}`);
   }
 
-  // Client-name suggestions — use real recent clients
+  // Client-name suggestions - use real recent clients
   if (recentClients.length > 0) {
     const pick = recentClients[Math.floor(Math.random() * recentClients.length)];
     pool.push(`When is ${pick} next booked in?`);
@@ -150,7 +150,7 @@ function buildLiveSuggestions({ todayAppts, upcomingAppts, recentClients, dorman
     pool.push(`Send ${pick} a rebook nudge`);
   }
 
-  // Revenue — always relevant
+  // Revenue - always relevant
   pool.push(`What did I earn this week?`);
   pool.push(`How's this month compared to last?`);
 
@@ -283,7 +283,7 @@ export default function VoiceCommander() {
         timestamp: new Date().toISOString(),
       };
       // Open clean: just the greeting. Florrie's activity log lives on the Hub
-      // ("What Florrie did") — replaying it here as chat history cluttered the
+      // ("What Florrie did") - replaying it here as chat history cluttered the
       // page and hid the "Try saying" prompts. The voice screen is for asking,
       // not for re-reading what she already did.
       setMessages([greeting]);
@@ -395,7 +395,7 @@ export default function VoiceCommander() {
     try {
       const token = (await supabase?.auth.getSession())?.data?.session?.access_token;
       if (!token) {
-        // Dev mode fallback — local keyword matching
+        // Dev mode fallback - local keyword matching
         await new Promise(r => setTimeout(r, 800));
         const response = generateDevResponse(text.trim());
         setMessages(prev => [...prev, response]);
@@ -420,7 +420,7 @@ export default function VoiceCommander() {
       const toolsUsed = (data.actions || []).map(a => a.tool);
       const primaryTool = toolsUsed[0];
       const agent = TOOL_TO_AGENT[primaryTool] || 'general';
-      // Quick-action button — use first tool that has one
+      // Quick-action button - use first tool that has one
       const action = toolsUsed.reduce((found, t) => found || TOOL_TO_ACTION[t] || null, null);
       // Show tool count badge for multi-step commands
       const multiStep = toolsUsed.length > 1;
@@ -437,7 +437,7 @@ export default function VoiceCommander() {
       setMessages(prev => [...prev, aiMsg]);
     } catch (err) {
       logger.error('Voice command failed:', err);
-      // Never show raw error details to users — use the backend's friendly message if available
+      // Never show raw error details to users - use the backend's friendly message if available
       const friendly = typeof err.message === 'string' && !err.message.includes('{') && err.message.length < 120
         ? err.message
         : "Something went wrong. Try again in a moment.";

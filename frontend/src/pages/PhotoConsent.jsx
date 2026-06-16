@@ -1,5 +1,5 @@
 /**
- * Photo Consent — GDPR-compliant photo permission management.
+ * Photo Consent - GDPR-compliant photo permission management.
  *
  * Before sharing any before/after pics on Instagram or the booking
  * page, Ellie needs written consent. This page tracks who's given
@@ -24,7 +24,7 @@ const DEV_CONSENTS = [
     status: 'granted', grantedDate: '2026-01-20',
     scope: ['portfolio', 'booking-page'],
     expiresAt: '2027-01-20',
-    method: 'digital', notes: 'No social media — portfolio and booking page only',
+    method: 'digital', notes: 'No social media - portfolio and booking page only',
   },
   {
     id: 'pc3', client: 'Jasmin', clientId: 'dev-c3',
@@ -45,7 +45,7 @@ const DEV_CONSENTS = [
     status: 'granted', grantedDate: '2025-03-10',
     scope: ['portfolio', 'instagram', 'booking-page', 'tiktok'],
     expiresAt: '2026-03-10',
-    method: 'paper', notes: 'EXPIRED — needs renewal',
+    method: 'paper', notes: 'EXPIRED - needs renewal',
   },
 ];
 
@@ -79,7 +79,7 @@ export default function PhotoConsent() {
     defaultScope: ['portfolio', 'booking-page'],
     consentDuration: 12,
     reminderBeforeExpiry: 30,
-    consentMessage: "Hey {name}! I'd love to feature your results in my portfolio — would you be happy for me to share your before/after photos? You can choose exactly where they appear and withdraw consent any time xx",
+    consentMessage: "Hey {name}! I'd love to feature your results in my portfolio - would you be happy for me to share your before/after photos? You can choose exactly where they appear and withdraw consent any time xx",
   });
 
   // Fetch consents and clients
@@ -197,6 +197,42 @@ export default function PhotoConsent() {
     }
   };
 
+  const handleRevoke = async (consent) => {
+    if (!confirm(`Revoke photo consent for ${consent.client}?`)) return;
+    try {
+      const session = await supabase.auth.getSession();
+      if (!session.data.session) return;
+
+      const res = await fetch(`${API_BASE}/api/photo-consent/${consent.id}/revoke`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${session.data.session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ notes: 'Consent withdrawn by client' })
+      });
+
+      if (!res.ok) throw new Error('Failed to revoke');
+
+      setConsents(consents.map(c =>
+        c.id === consent.id ? { ...c, status: 'declined', scope: [] } : c
+      ));
+    } catch (err) {
+      alert('Failed to revoke consent');
+    }
+  };
+
+  const handleRequestRenewal = (consent) => {
+    // Reuse the existing request flow, pre-filled for this client
+    setRequestForm({
+      client: consent.client,
+      scope: consent.scope.length ? consent.scope : ['portfolio', 'booking-page'],
+      method: 'digital',
+      message: '',
+    });
+    setShowRequest(true);
+  };
+
   if (loading) {
     return <PageLoader />;
   }
@@ -277,12 +313,21 @@ export default function PhotoConsent() {
                     </div>
                   )}
 
-                  <div style={S.actionRow}>
-                    {c.status === 'granted' && <button style={S.actionBtn}>Revoke</button>}
-                    {c.status === 'expired' && <button style={{ ...S.actionBtn, background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)' }}>Request Renewal</button>}
-                    {c.status === 'pending' && <button style={S.actionBtn}>Send Reminder</button>}
-                    {c.status === 'granted' && <button style={S.actionBtn}>Update Scope</button>}
-                  </div>
+                  {(c.status === 'granted' || c.status === 'expired') && (
+                    <div style={S.actionRow}>
+                      {c.status === 'granted' && (
+                        <button style={S.actionBtn} onClick={(e) => { e.stopPropagation(); handleRevoke(c); }}>Revoke</button>
+                      )}
+                      {c.status === 'expired' && (
+                        <button
+                          style={{ ...S.actionBtn, background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)' }}
+                          onClick={(e) => { e.stopPropagation(); handleRequestRenewal(c); }}
+                        >
+                          Request Renewal
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -294,7 +339,7 @@ export default function PhotoConsent() {
       <div style={S.gdprCard}>
         <span style={S.gdprTitle}>📋 GDPR Compliance</span>
         <p style={S.gdprText}>
-          Photo consent is stored securely and clients can withdraw at any time. Consent is specific to the uses listed — using photos beyond the agreed scope requires additional consent.
+          Photo consent is stored securely and clients can withdraw at any time. Consent is specific to the uses listed - using photos beyond the agreed scope requires additional consent.
         </p>
       </div>
 

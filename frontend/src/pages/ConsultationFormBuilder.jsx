@@ -8,14 +8,14 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
- * ConsultationFormBuilder — create and edit consultation/consent forms.
+ * ConsultationFormBuilder - create and edit consultation/consent forms.
  * Beautician can add fields: text, yes_no, multi_select, single_select, checkbox, text_block, signature.
  * Drag-to-reorder via sort_order. Matches Timely's form builder quality.
  *
  * Routes:
- *   /consultation-forms         — list all forms
- *   /consultation-forms/new     — create new form
- *   /consultation-forms/:id     — edit existing form
+ *   /consultation-forms         - list all forms
+ *   /consultation-forms/new     - create new form
+ *   /consultation-forms/:id     - edit existing form
  */
 
 const FIELD_TYPES = [
@@ -251,7 +251,7 @@ function FormEditor() {
           style={styles.checkbox}
         />
         <span style={styles.toggleLabel}>
-          Default form — auto-sent to all new clients
+          Default form - auto-sent to all new clients
         </span>
       </label>
 
@@ -261,7 +261,7 @@ function FormEditor() {
 
         {fields.length === 0 && (
           <div style={styles.noFields}>
-            No fields yet — tap "Add element" below to start building your form.
+            No fields yet - tap "Add element" below to start building your form.
           </div>
         )}
 

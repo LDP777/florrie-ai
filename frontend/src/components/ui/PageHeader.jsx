@@ -1,5 +1,5 @@
 /**
- * PageHeader — the one consistent page header across Florrie.
+ * PageHeader - the one consistent page header across Florrie.
  *
  * Title uses the canonical Noto Serif italic (matches the /today Hub
  * greeting) so every page feels like the same app. Optional subtitle and

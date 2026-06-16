@@ -1,9 +1,9 @@
 /**
- * Compliance — landing page for Guardian agent.
+ * Compliance - landing page for Guardian agent.
  *
  * Covers the two pillars of compliance for UK beauty professionals:
- *   1. Patch tests  — legally required 48h before chemical treatments
- *   2. Consultation forms — informed consent for all treatments
+ *   1. Patch tests  - legally required 48h before chemical treatments
+ *   2. Consultation forms - informed consent for all treatments
  *
  * Relevant for all treatment types: brows, lashes, nails, waxing, facials, etc.
  * Shows live stats + links to full management pages for each pillar.
@@ -118,7 +118,7 @@ export default function Compliance() {
       <div style={S.explainerCard}>
         <MIcon name="info" size={16} color="#C9A96E" />
         <p style={S.explainerText}>
-          Required for <strong>all beauty professionals</strong> — whether you do brows, lashes, nails, waxing, facials or anything else. UK law requires patch tests 48h before chemical treatments. Consultation forms protect you legally for every client.
+          Required for <strong>all beauty professionals</strong> - whether you do brows, lashes, nails, waxing, facials or anything else. UK law requires patch tests 48h before chemical treatments. Consultation forms protect you legally for every client.
         </p>
       </div>
 
@@ -141,19 +141,19 @@ export default function Compliance() {
           <div style={S.statsRow}>
             <div style={S.statItem}>
               <span style={{ ...S.statNum, color: patchStats?.pending > 0 ? '#E85D75' : '#5BA97B' }}>
-                {patchStats?.pending ?? '—'}
+                {patchStats?.pending ?? '-'}
               </span>
               <span style={S.statLabel}>Pending</span>
             </div>
             <div style={S.statDivider} />
             <div style={S.statItem}>
-              <span style={S.statNum}>{patchStats?.done_this_month ?? '—'}</span>
+              <span style={S.statNum}>{patchStats?.done_this_month ?? '-'}</span>
               <span style={S.statLabel}>Done this month</span>
             </div>
             <div style={S.statDivider} />
             <div style={S.statItem}>
               <span style={{ ...S.statNum, color: patchStats?.expired > 0 ? '#F59E0B' : '#5BA97B' }}>
-                {patchStats?.expired ?? '—'}
+                {patchStats?.expired ?? '-'}
               </span>
               <span style={S.statLabel}>Expired</span>
             </div>
@@ -186,19 +186,19 @@ export default function Compliance() {
         ) : (
           <div style={S.statsRow}>
             <div style={S.statItem}>
-              <span style={S.statNum}>{formStats?.total_forms ?? '—'}</span>
+              <span style={S.statNum}>{formStats?.total_forms ?? '-'}</span>
               <span style={S.statLabel}>Forms created</span>
             </div>
             <div style={S.statDivider} />
             <div style={S.statItem}>
               <span style={{ ...S.statNum, color: (formStats?.pending_signatures || 0) > 0 ? '#F59E0B' : '#5BA97B' }}>
-                {formStats?.pending_signatures ?? '—'}
+                {formStats?.pending_signatures ?? '-'}
               </span>
               <span style={S.statLabel}>Awaiting signature</span>
             </div>
             <div style={S.statDivider} />
             <div style={S.statItem}>
-              <span style={S.statNum}>{formStats?.completed_this_month ?? '—'}</span>
+              <span style={S.statNum}>{formStats?.completed_this_month ?? '-'}</span>
               <span style={S.statLabel}>Done this month</span>
             </div>
           </div>
@@ -209,7 +209,7 @@ export default function Compliance() {
       <div style={S.tipCard}>
         <MIcon name="lightbulb" size={16} color="#C9A96E" />
         <p style={S.tipText}>
-          <strong>Tip:</strong> Build a consultation form for each treatment category — one for chemical treatments, one for facials, one for nails. Clients complete it once and it's saved to their profile.
+          <strong>Tip:</strong> Build a consultation form for each treatment category - one for chemical treatments, one for facials, one for nails. Clients complete it once and it's saved to their profile.
         </p>
       </div>
     </div>

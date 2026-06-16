@@ -6,12 +6,12 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
- * Gift Vouchers — Create, send & redeem digital gift vouchers.
+ * Gift Vouchers - Create, send & redeem digital gift vouchers.
  *
  * Tabs:
- *   Active   — vouchers in circulation (not yet redeemed/expired)
- *   Create   — make a new voucher (amount or treatment-specific)
- *   History  — redeemed + expired vouchers
+ *   Active   - vouchers in circulation (not yet redeemed/expired)
+ *   Create   - make a new voucher (amount or treatment-specific)
+ *   History  - redeemed + expired vouchers
  */
 
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
@@ -269,7 +269,7 @@ export default function GiftVouchers() {
               >
                 <option value="">Choose a treatment...</option>
                 {treatments.map(t => (
-                  <option key={t.id} value={t.id}>{t.name} — {fmt(t.price_cents)}</option>
+                  <option key={t.id} value={t.id}>{t.name} - {fmt(t.price_cents)}</option>
                 ))}
               </select>
             </div>

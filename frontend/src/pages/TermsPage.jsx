@@ -41,7 +41,7 @@ export default function TermsPage() {
 
           <section>
             <h2 className="text-xl font-semibold text-gray-900 mb-3">7. Fair use</h2>
-            <p>Your plan includes 120 AI messages per month. Additional messages are charged at 10p each. We reserve the right to suspend accounts that misuse the service or use Florrie in ways that harm other users or third parties.</p>
+            <p>Your plan includes 120 AI messages per month. Additional messages are charged at 6p (SMS) or 5p (WhatsApp) each. We reserve the right to suspend accounts that misuse the service or use Florrie in ways that harm other users or third parties.</p>
           </section>
 
           <section>

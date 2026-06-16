@@ -1,5 +1,5 @@
 /**
- * APISettings — Developer Tools
+ * APISettings - Developer Tools
  *
  * Shows:
  *   - Real beautician ID and API base URL for third-party integrations
@@ -7,7 +7,7 @@
  *   - Webhook config saved to DB (coming soon)
  *
  * Previously had hardcoded fake API keys, fake usage stats, and fake webhooks.
- * All removed — this page now shows only real data.
+ * All removed - this page now shows only real data.
  */
 import { useState } from 'react';
 import { useBeautician } from '../lib/supabase.js';
@@ -140,14 +140,14 @@ export default function APISettings() {
           <div style={{ ...ds.sectionTitle, marginBottom: 10 }}>ACCOUNT IDENTIFIERS</div>
 
           {[
-            { label: 'Beautician ID', value: beautician?.id || '—', key: 'id', description: 'Your unique account ID — use this when making direct Supabase queries' },
+            { label: 'Beautician ID', value: beautician?.id || '-', key: 'id', description: 'Your unique account ID - use this when making direct Supabase queries' },
             { label: 'API Base URL', value: apiBase, key: 'base', description: 'Prefix all API calls with this base URL' },
-            { label: 'Booking Slug', value: beautician?.booking_slug ? `${apiBase}/book/${beautician.booking_slug}` : '—', key: 'slug', description: 'Your public booking page URL' },
+            { label: 'Booking Slug', value: beautician?.booking_slug ? `${apiBase}/book/${beautician.booking_slug}` : '-', key: 'slug', description: 'Your public booking page URL' },
           ].map(item => (
             <div key={item.key} style={{ ...ds.card, marginBottom: 10 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
                 <span style={type.heading}>{item.label}</span>
-                {item.value !== '—' && (
+                {item.value !== '-' && (
                   <button
                     onClick={() => copyToClipboard(item.value, item.key)}
                     style={{ ...ds.btnGhost, fontSize: 11, padding: '4px 10px' }}
@@ -190,7 +190,7 @@ export default function APISettings() {
             <div style={{ fontSize: 36, marginBottom: 12 }}>🪝</div>
             <div style={{ ...type.heading, marginBottom: 6, fontSize: 16 }}>Webhooks coming soon</div>
             <div style={{ ...type.bodySmall, fontSize: 13, lineHeight: 1.6 }}>
-              Configure outbound webhooks to receive real-time events — booking created, appointment completed, new client, and more. We'll send a POST request to your URL when these events fire.
+              Configure outbound webhooks to receive real-time events - booking created, appointment completed, new client, and more. We'll send a POST request to your URL when these events fire.
             </div>
           </div>
 

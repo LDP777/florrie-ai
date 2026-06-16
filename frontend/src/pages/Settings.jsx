@@ -916,7 +916,7 @@ export default function Settings({ onLogout }) {
             <h3 style={styles.cardTitle}>Client reminders</h3>
             <p style={styles.cardDesc}>What your clients receive automatically.</p>
 
-            {/* Master pause — one switch to stop everything going out on her behalf. */}
+            {/* Master pause - one switch to stop everything going out on her behalf. */}
             {(() => {
               const paused = beautician.client_reminder_prefs?.paused === true;
               return (

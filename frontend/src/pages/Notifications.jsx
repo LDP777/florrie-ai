@@ -4,17 +4,17 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 
 /**
- * Notifications Centre — Real-time feed of everything happening.
+ * Notifications Centre - Real-time feed of everything happening.
  *
  * Categories:
- *   Bookings  — confirmed, cancelled, rescheduled, no-shows
- *   Payments  — received, refunds, deposits
- *   AI        — florrie.ai escalations, auto-reply confirmations
- *   Clients   — new sign-ups, review left, rebook due
- *   System    — updates, reminders, subscription alerts
+ *   Bookings  - confirmed, cancelled, rescheduled, no-shows
+ *   Payments  - received, refunds, deposits
+ *   AI        - florrie.ai escalations, auto-reply confirmations
+ *   Clients   - new sign-ups, review left, rebook due
+ *   System    - updates, reminders, subscription alerts
  *
  * Two views:
- *   All  — full feed, newest first
+ *   All  - full feed, newest first
  *   Filter by category
  */
 

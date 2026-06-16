@@ -1,7 +1,7 @@
 /**
- * Staff Rota — Weekly availability & shift management.
+ * Staff Rota - Weekly availability & shift management.
  *
- * For when Ellie expands — tracks who's working when,
+ * For when Ellie expands - tracks who's working when,
  * manages chair rentals, and prevents double-bookings.
  * Works for solo too: shows her own availability at a glance.
  */
@@ -76,7 +76,7 @@ export default function StaffRota() {
   };
 
   const weekDates = getWeekDates();
-  const weekLabel = `${weekDates[0].toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} — ${weekDates[5].toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+  const weekLabel = `${weekDates[0].toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} - ${weekDates[5].toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 
   // Total hours per staff this week
   const calcHours = (s) => {

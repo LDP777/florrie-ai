@@ -1,5 +1,5 @@
 /**
- * Referrals — Refer-a-friend programme.
+ * Referrals - Refer-a-friend programme.
  *
  * Features:
  *   - Referral code generation per client
@@ -7,7 +7,12 @@
  *   - Tracking: referrals made, converted, rewards issued
  *   - Shareable referral link/message
  *   - Leaderboard of top referrers
- *   - Settings: reward amounts, expiry, auto-reward
+ *   - Settings: reward type and amount (the only fields the backend persists)
+ *
+ * Note: the backend referral config stores referral_enabled,
+ * referral_reward_type and referral_reward_value_cents only. Friend
+ * reward, expiry and auto-reward have no backing column, so those
+ * controls were removed rather than implying they save.
  */
 import { useState, useEffect } from 'react';
 import { useBeautician, supabase, fetchRows, updateRow } from '../lib/supabase.js';
@@ -45,10 +50,7 @@ export default function Referrals() {
   const [referralLink, setReferralLink] = useState('florrie.ai/ref/...');
   const [programEnabled, setProgramEnabled] = useState(true);
   const [referrerReward, setReferrerReward] = useState(10);
-  const [friendReward, setFriendReward] = useState(10);
   const [rewardType, setRewardType] = useState('discount');
-  const [expiryDays, setExpiryDays] = useState(30);
-  const [autoReward, setAutoReward] = useState(true);
   const [linkCopied, setLinkCopied] = useState(false);
   const [msgCopied, setMsgCopied] = useState(false);
 
@@ -74,7 +76,6 @@ export default function Referrals() {
       if (cfg.referral_reward_value_cents) {
         const pounds = Math.round(cfg.referral_reward_value_cents / 100);
         setReferrerReward(pounds);
-        setFriendReward(pounds);
       }
     } catch (err) {
       logger.warn('Load referral config failed:', err);
@@ -143,7 +144,7 @@ export default function Referrals() {
   }
 
   const fullLink = `https://${referralLink}`;
-  const shareMessage = `Hey! I wanted to share my beautician with you — she's brilliant. Use this link for £${friendReward} off your first appointment: ${fullLink}`;
+  const shareMessage = `Hey! I wanted to share my beautician with you - she's brilliant. Use this link for £${referrerReward} off your first appointment: ${fullLink}`;
 
   function handleCopyLink() {
     navigator.clipboard?.writeText(fullLink);
@@ -194,7 +195,7 @@ export default function Referrals() {
       <div style={s.enableRow}>
         <div>
           <span style={s.enableLabel}>Referral programme</span>
-          <span style={s.enableDesc}>{programEnabled ? 'Active — clients can share and earn' : 'Paused — link won\'t work'}</span>
+          <span style={s.enableDesc}>{programEnabled ? 'Active - clients can share and earn' : 'Paused - link won\'t work'}</span>
         </div>
         <button
           onClick={() => setProgramEnabled(v => !v)}
@@ -240,7 +241,7 @@ export default function Referrals() {
         ))}
       </div>
 
-      {/* Overview — leaderboard + reward summary */}
+      {/* Overview - leaderboard + reward summary */}
       {tab === 'overview' && (
         <div style={s.section}>
           <div style={s.rewardSummary}>
@@ -253,7 +254,7 @@ export default function Referrals() {
             <div style={s.rewardBox}>
               <span style={s.rewardIcon}>🌟</span>
               <span style={s.rewardLabel}>Friend gets</span>
-              <span style={s.rewardValue}>£{friendReward} off</span>
+              <span style={s.rewardValue}>£{referrerReward} off</span>
             </div>
           </div>
 
@@ -286,7 +287,7 @@ export default function Referrals() {
 
           <div style={s.tipCard}>
             <span style={s.tipIcon}>💡</span>
-            <span style={s.tipText}>Clients who come through referrals have 37% higher lifetime value. Encourage your regulars to share their code!</span>
+            <span style={s.tipText}>Word-of-mouth clients tend to stick around and trust you faster. Encourage your regulars to share their code!</span>
           </div>
         </div>
       )}
@@ -296,7 +297,7 @@ export default function Referrals() {
         <div style={s.section}>
           {referrals.length === 0 && (
             <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted, #B5AFA8)', fontSize: 13 }}>
-              No referrals yet — share your link to get started.
+              No referrals yet - share your link to get started.
             </div>
           )}
           {referrals.map(r => {
@@ -315,7 +316,7 @@ export default function Referrals() {
                   <span style={{ ...s.statusBadge, background: st.bg, color: st.color }}>{st.label}</span>
                 </div>
                 <div style={s.refBottom}>
-                  <span style={s.refCode}>{r.referral_code || r.code || '—'}</span>
+                  <span style={s.refCode}>{r.referral_code || r.code || '-'}</span>
                   <span style={s.refDate}>{new Date(r.created_at || r.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
                 </div>
               </div>
@@ -369,59 +370,6 @@ export default function Referrals() {
                 </button>
               ))}
             </div>
-          </div>
-
-          <div style={s.settingCard}>
-            <span style={s.settingLabel}>Friend reward</span>
-            <div style={s.chipRow}>
-              {[5, 10, 15, 20].map(v => (
-                <button
-                  key={v}
-                  onClick={() => setFriendReward(v)}
-                  style={{
-                    ...s.chip,
-                    background: friendReward === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                    color: friendReward === v ? '#fff' : 'var(--text, #2D2A26)',
-                    border: friendReward === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, #EDE9E4)',
-                  }}
-                >
-                  £{v}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={s.settingCard}>
-            <span style={s.settingLabel}>Reward expires after</span>
-            <div style={s.chipRow}>
-              {[14, 30, 60, 90].map(v => (
-                <button
-                  key={v}
-                  onClick={() => setExpiryDays(v)}
-                  style={{
-                    ...s.chip,
-                    background: expiryDays === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                    color: expiryDays === v ? '#fff' : 'var(--text, #2D2A26)',
-                    border: expiryDays === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, #EDE9E4)',
-                  }}
-                >
-                  {v} days
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={s.toggleSettingRow}>
-            <div>
-              <span style={s.settingLabel}>Auto-apply rewards</span>
-              <span style={s.settingDesc}>Automatically apply discount when referral converts</span>
-            </div>
-            <button
-              onClick={() => setAutoReward(!autoReward)}
-              style={{ ...s.toggle, background: autoReward ? 'var(--accent, #C76B8A)' : 'var(--border, #EDE9E4)' }}
-            >
-              <div style={{ ...s.toggleThumb, transform: autoReward ? 'translateX(18px)' : 'translateX(2px)' }} />
-            </button>
           </div>
 
           <button onClick={saveConfig} disabled={saving} style={s.saveBtn}>

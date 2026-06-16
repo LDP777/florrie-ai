@@ -1,6 +1,6 @@
 /**
 import { bookingUrl as publicBookingUrl } from '../lib/booking.js';
- * Price List Generator — Create & share a client-facing treatment menu.
+ * Price List Generator - Create & share a client-facing treatment menu.
  *
  * Pulls real treatments from Supabase, lets the beautician customise
  * the look (theme, descriptions, visibility), and generates share options.
@@ -93,7 +93,7 @@ export default function PriceList() {
       }));
       setItems(mapped);
 
-      // Coach nudge: fire for the cheapest active treatment — most likely to be underpriced
+      // Coach nudge: fire for the cheapest active treatment - most likely to be underpriced
       const cheapest = mapped
         .filter(t => t.price_cents > 0)
         .sort((a, b) => a.price_cents - b.price_cents)[0];
@@ -143,7 +143,7 @@ export default function PriceList() {
     navigator.clipboard.writeText(shareUrl).then(() => {
       showToast('Link copied to clipboard');
     }).catch(() => {
-      showToast('Could not copy — try again');
+      showToast('Could not copy - try again');
     });
   }
 
@@ -158,7 +158,7 @@ export default function PriceList() {
     navigator.clipboard.writeText(code).then(() => {
       showToast('Embed code copied');
     }).catch(() => {
-      showToast('Could not copy — try again');
+      showToast('Could not copy - try again');
     });
   }
 

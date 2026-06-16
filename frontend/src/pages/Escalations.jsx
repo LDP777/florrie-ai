@@ -7,15 +7,15 @@ import EmptyState from '../components/EmptyState.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 
 /**
- * Escalations — the "needs your attention" inbox.
+ * Escalations - the "needs your attention" inbox.
  *
  * When the AI Front Desk isn't confident enough (below threshold),
  * it drafts a suggested response and puts it here.
  *
  * Actions:
- *   Send as-is   — AI nailed it, one tap
- *   Edit & send  — correct tone/content (feeds into tone model)
- *   Dismiss      — ignore the message
+ *   Send as-is   - AI nailed it, one tap
+ *   Edit & send  - correct tone/content (feeds into tone model)
+ *   Dismiss      - ignore the message
  *
  * Reads from `messages` table where escalated=true, resolved=false.
  * Resolving updates the message row directly via Supabase.
@@ -226,10 +226,10 @@ const DEV_ESCALATIONS = [
   {
     id: 'dev-esc-1',
     content: "Hiya, do you do semi permanent brows? And how much roughly? Xx",
-    ai_response: "Hey lovely! Yes I do ombre brows and combination brows — ombre is £250 and combo is £300, both include a 6-week top up. Want me to get you booked in? xx",
+    ai_response: "Hey lovely! Yes I do ombre brows and combination brows - ombre is £250 and combo is £300, both include a 6-week top up. Want me to get you booked in? xx",
     ai_confidence: 0.72,
     escalated: true,
-    escalated_reason: 'Low confidence — multi-question message',
+    escalated_reason: 'Low confidence - multi-question message',
     resolved: false,
     channel: 'instagram',
     direction: 'inbound',
@@ -242,7 +242,7 @@ const DEV_ESCALATIONS = [
     ai_response: null,
     ai_confidence: 0.45,
     escalated: true,
-    escalated_reason: 'Cancellation — needs human review',
+    escalated_reason: 'Cancellation - needs human review',
     resolved: false,
     channel: 'whatsapp',
     direction: 'inbound',

@@ -15,7 +15,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import logger from '../lib/logger.js';
 
-// Static integration catalog — connection status is computed dynamically from real data
+// Static integration catalog - connection status is computed dynamically from real data
 const CATALOG = [
   {
     id: 'stripe',
@@ -281,7 +281,7 @@ export default function Integrations() {
           ))}
           {connectedCount === 0 && (
             <div style={{ fontSize: 12, opacity: 0.75, marginTop: 4 }}>
-              No integrations connected yet — tap one below to get started
+              No integrations connected yet - tap one below to get started
             </div>
           )}
         </div>
@@ -361,7 +361,7 @@ export default function Integrations() {
 
                   {integ.status === 'coming_soon' && (
                     <div style={{ ...type.bodySmall, fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: '8px 0' }}>
-                      Coming soon — we'll notify you when this is ready
+                      Coming soon - we'll notify you when this is ready
                     </div>
                   )}
                 </div>

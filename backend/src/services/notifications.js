@@ -1027,27 +1027,27 @@ export async function notifyReminder24h(appointmentId) {
   if (prefs.paused) return;
 
   // Idempotency: one reminder per appointment, ever. The reminder job runs hourly
-  // AND on every startup, with a 1-hour window and no guard — so each deploy re-ran
-  // it and the same client got the reminder several times. Claim the appointment
-  // with an ai_actions marker before sending; overlapping/duplicate runs then skip.
-  const { count: alreadyReminded } = await supabase
-    .from('ai_actions')
-    .select('id', { count: 'exact', head: true })
-    .eq('appointment_id', appointmentId)
-    .eq('action_type', 'appointment_reminder');
-  if (alreadyReminded && alreadyReminded > 0) return;
-  try {
-    await supabase.from('ai_actions').insert({
-      beautician_id: appt.beautician_id,
-      action_type: 'appointment_reminder',
-      digital_employee: 'calendar',
-      outcome: 'success',
-      summary: `Sent ${appt.clients?.first_name || 'the client'}'s 24-hour reminder`,
-      client_id: appt.client_id,
-      appointment_id: appointmentId,
-    });
-  } catch (err) {
-    logger.warn({ err, appointmentId }, 'Could not record reminder marker (continuing)');
+  // AND on every startup, with a 1-hour window — so each deploy re-ran it and the
+  // same client got the reminder several times. Claim the appointment by INSERTING
+  // the ai_actions marker FIRST. A partial UNIQUE index (migration 065) is the real
+  // guard: a concurrent/duplicate run hits a unique violation (23505), which we treat
+  // as "already reminded" and bail out before sending. Insert-first beats the old
+  // check-then-insert race where two overlapping runs could both pass the count check.
+  const { error: markerError } = await supabase.from('ai_actions').insert({
+    beautician_id: appt.beautician_id,
+    action_type: 'appointment_reminder',
+    digital_employee: 'calendar',
+    outcome: 'success',
+    summary: `Sent ${appt.clients?.first_name || 'the client'}'s 24-hour reminder`,
+    client_id: appt.client_id,
+    appointment_id: appointmentId,
+  });
+  if (markerError) {
+    // 23505 = unique violation → another run already claimed this reminder. Skip silently.
+    if (markerError.code === '23505') return;
+    // Any other insert failure: log and bail rather than risk an unguarded duplicate send.
+    logger.warn({ err: markerError, appointmentId }, 'Could not record reminder marker (skipping send)');
+    return;
   }
 
   const bizName = biz?.business_name || biz?.first_name;
@@ -1120,7 +1120,10 @@ export async function processReminders() {
   const { data: appointments } = await supabase
     .from('appointments')
     .select('id, status')
-    .in('status', ['confirmed', 'pending'])
+    // Only confirmed bookings get a 24h reminder. A 'pending' unpaid-deposit
+    // booking can still be auto-cancelled by the 15-minute cleanup, so reminding
+    // about it is wrong.
+    .eq('status', 'confirmed')
     .gte('starts_at', windowStart.toISOString())
     .lte('starts_at', windowEnd.toISOString());
 

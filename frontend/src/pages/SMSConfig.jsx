@@ -415,11 +415,11 @@ export default function SMSConfig() {
             <div style={{ ...type.bodySmall, fontSize: 12, lineHeight: 1.5 }}>
               {twoWay ? (
                 <>
-                  <strong>2-way SMS is live.</strong> Clients see your number as the sender and can reply, Florrie's AI picks up the thread the same way it does on WhatsApp. Messages cost ~0.5p each via Bird. First 30/week are included in your Florrie plan.
+                  <strong>2-way SMS is live.</strong> Clients see your number as the sender and can reply, Florrie's AI picks up the thread the same way it does on WhatsApp. Messages cost ~0.5p each via Bird. Your plan includes 120 messages a month across SMS and WhatsApp combined.
                 </>
               ) : (
                 <>
-                  <strong>One-way sender.</strong> Alphanumeric names like "Ellindigo" can't receive replies, use a phone number above to switch on 2-way. Outbound messages cost ~0.5p each via Bird. First 30/week are included in your Florrie plan.
+                  <strong>One-way sender.</strong> Alphanumeric names like "Ellindigo" can't receive replies, use a phone number above to switch on 2-way. Outbound messages cost ~0.5p each via Bird. Your plan includes 120 messages a month across SMS and WhatsApp combined.
                 </>
               )}
             </div>

@@ -122,15 +122,15 @@ export default function EndOfDay() {
     const cancelled = appointments.filter(a => a.status === 'cancelled');
 
     noShows.forEach(a => {
-      notes.push(`${a.client_name || 'Client'} — no-show for ${a.treatment_name || 'appointment'}`);
+      notes.push(`${a.client_name || 'Client'} - no-show for ${a.treatment_name || 'appointment'}`);
     });
     cancelled.forEach(a => {
-      notes.push(`${a.client_name || 'Client'} — cancelled ${a.treatment_name || 'appointment'}`);
+      notes.push(`${a.client_name || 'Client'} - cancelled ${a.treatment_name || 'appointment'}`);
     });
     if (stats.newClients > 0) {
       notes.push(`${stats.newClients} new client${stats.newClients > 1 ? 's' : ''} today`);
     }
-    if (notes.length === 0) notes.push('Clean day — no issues to flag');
+    if (notes.length === 0) notes.push('Clean day - no issues to flag');
     return notes;
   }, [appointments, stats.newClients]);
 
@@ -328,7 +328,7 @@ export default function EndOfDay() {
               <div style={styles.optionalBanner}>
                 <span style={{ fontSize: 14 }}>{'\uD83D\uDCA1'}</span>
                 <span style={{ fontSize: 12, color: '#6B6560', lineHeight: 1.4 }}>
-                  This is optional. Card payments and bookings are tracked automatically —
+                  This is optional. Card payments and bookings are tracked automatically -
                   use this only if you want to reconcile cash at the end of the day.
                 </span>
               </div>
@@ -426,7 +426,7 @@ export default function EndOfDay() {
             {'\uD83D\uDD12'} Close Day
           </button>
           {!isReconciled && (
-            <div style={styles.closeDayHint}>Cash up is optional — close whenever you're ready</div>
+            <div style={styles.closeDayHint}>Cash up is optional - close whenever you're ready</div>
           )}
         </div>
       )}

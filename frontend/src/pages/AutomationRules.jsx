@@ -348,7 +348,7 @@ export default function AutomationRules() {
           ))}
         </div>
       )}
-      {/* Follow-up sequences — merged from FollowUpSequences.jsx */}
+      {/* Follow-up sequences - merged from FollowUpSequences.jsx */}
       {activeTab === 'sequences' && <SequencesPanel beautician={beautician} />}
       {/* Activity log */}
       {activeTab === 'log' && <ActivityPanel beautician={beautician} />}

@@ -108,7 +108,7 @@ export default function StaffPerformance() {
         ))}
       </div>
 
-      {/* Overview tab — staff cards */}
+      {/* Overview tab - staff cards */}
       {tab === 'overview' && !detail && (
         <div style={s.staffList}>
           {staff.map(m => (

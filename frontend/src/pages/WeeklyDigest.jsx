@@ -6,7 +6,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
- * Weekly Digest — an email-style summary of the week's activity.
+ * Weekly Digest - an email-style summary of the week's activity.
  * Shows what the AI team did, revenue snapshot, client highlights,
  * and what to focus on next week.
  *
@@ -116,7 +116,7 @@ export default function WeeklyDigest() {
               </p>
               <p style={styles.greetingText}>
                 {digest.completed} appointment{digest.completed !== 1 ? 's' : ''} completed, £{(digest.revenue / 100).toFixed(0)} earned.
-                {digest.noShows > 0 ? ` ${digest.noShows} no-show${digest.noShows > 1 ? 's' : ''}.` : ' No no-shows — nice.'}
+                {digest.noShows > 0 ? ` ${digest.noShows} no-show${digest.noShows > 1 ? 's' : ''}.` : ' No no-shows - nice.'}
               </p>
             </div>
           </div>
@@ -171,7 +171,7 @@ export default function WeeklyDigest() {
               <span style={styles.nextWeekTitle}>Next week</span>
               <span style={styles.nextWeekText}>
                 {digest.nextWeekBookings} appointment{digest.nextWeekBookings !== 1 ? 's' : ''} booked.
-                {digest.nextWeekBookings < 5 ? ' Looks light — consider running a last-minute availability post.' : ' Looking solid.'}
+                {digest.nextWeekBookings < 5 ? ' Looks light - consider running a last-minute availability post.' : ' Looking solid.'}
               </span>
             </div>
           </div>
@@ -204,7 +204,7 @@ function buildHighlights(completed, noShows, cancelled, revenue, newClients, nex
   const highlights = [];
 
   if (completed.length >= 8) {
-    highlights.push({ icon: '🔥', text: `Busy week — ${completed.length} appointments completed. Keep the momentum going.` });
+    highlights.push({ icon: '🔥', text: `Busy week - ${completed.length} appointments completed. Keep the momentum going.` });
   } else if (completed.length >= 4) {
     highlights.push({ icon: '👍', text: `Solid week with ${completed.length} appointments completed.` });
   } else if (completed.length > 0) {
@@ -222,7 +222,7 @@ function buildHighlights(completed, noShows, cancelled, revenue, newClients, nex
   }
 
   if (revenue > 30000) {
-    highlights.push({ icon: '💰', text: `Great revenue week — £${(revenue / 100).toFixed(0)}. You're on track.` });
+    highlights.push({ icon: '💰', text: `Great revenue week - £${(revenue / 100).toFixed(0)}. You're on track.` });
   }
 
   if (nextWeek.length < 3) {
@@ -230,7 +230,7 @@ function buildHighlights(completed, noShows, cancelled, revenue, newClients, nex
   }
 
   if (highlights.length === 0) {
-    highlights.push({ icon: '📈', text: 'Keep booking appointments — more data means better insights.' });
+    highlights.push({ icon: '📈', text: 'Keep booking appointments - more data means better insights.' });
   }
 
   return highlights;
@@ -252,7 +252,7 @@ function getDevDigest() {
       { icon: '👍', text: 'Solid week with 10 appointments completed.' },
       { icon: '⚠️', text: '1 no-show this week. Consider adding deposits to high-value treatments.' },
       { icon: '✨', text: '2 new clients this week. Follow up with a welcome message.' },
-      { icon: '💰', text: 'Great revenue week — £385. You\'re on track.' },
+      { icon: '💰', text: 'Great revenue week - £385. You\'re on track.' },
     ],
   };
 }

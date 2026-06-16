@@ -111,7 +111,7 @@ const statusColors = {
 const tabs = ['At Risk', 'Campaigns', 'Triggers', 'Recovery'];
 
 const DEV_CAMPAIGNS = [
-  { name: 'We miss you — 20% off', sent: 23, opened: 18, rebooked: 7, revenue: '£840', status: 'active' },
+  { name: 'We miss you - 20% off', sent: 23, opened: 18, rebooked: 7, revenue: '£840', status: 'active' },
   { name: 'VIP comeback package', sent: 8, opened: 6, rebooked: 4, revenue: '£1,200', status: 'active' },
   { name: 'Personal text from stylist', sent: 12, opened: 12, rebooked: 5, revenue: '£620', status: 'paused' },
   { name: 'Birthday month return', sent: 5, opened: 4, rebooked: 2, revenue: '£280', status: 'scheduled' },
@@ -320,7 +320,7 @@ export default function ChurnPrevention() {
           <div style={ds.insightCard}>
             <span style={{ fontSize: 20 }}>💡</span>
             <div style={{ ...type.bodySmall, lineHeight: 1.5 }}>
-              "Missed rebook window" is your #1 churn trigger — 14 clients right now. Auto-rebook reminders at day 21 would catch most of these before they drift.
+              "Missed rebook window" is your #1 churn trigger - 14 clients right now. Auto-rebook reminders at day 21 would catch most of these before they drift.
             </div>
           </div>
         </div>
@@ -330,7 +330,7 @@ export default function ChurnPrevention() {
       {tab === 3 && (
         <div>
           <div style={{ ...ds.card, marginBottom: 16 }}>
-            <div style={{ ...type.heading, marginBottom: 12 }}>Recovery Scorecard — Last 90 Days</div>
+            <div style={{ ...type.heading, marginBottom: 12 }}>Recovery Scorecard - Last 90 Days</div>
             <div style={ds.statsGrid}>
               {[
                 { label: 'Total at risk', val: '42', icon: '⚠️' },
@@ -375,7 +375,7 @@ export default function ChurnPrevention() {
           <div style={ds.insightCard}>
             <span style={{ fontSize: 20 }}>🏆</span>
             <div style={{ ...type.bodySmall, lineHeight: 1.5 }}>
-              Personal texts from the stylist who last treated the client have the highest win rate (42%) — nearly double automated emails. Worth the extra 2 minutes.
+              Personal texts from the stylist who last treated the client have the highest win rate (42%) - nearly double automated emails. Worth the extra 2 minutes.
             </div>
           </div>
         </div>

@@ -1,13 +1,16 @@
 /**
- * RebookReminders — Automated rebook nudges & dormant client rescue.
+ * RebookReminders - Automated rebook nudges & dormant client rescue.
  *
  * Tabs:
- *   Due Soon    — clients approaching rebook window
- *   Overdue     — clients past their usual interval
- *   Dormant     — haven't been in 60+ days
- *   Settings    — rebook intervals, message templates, auto-send
+ *   Due Soon    - clients approaching rebook window
+ *   Overdue     - clients past their usual interval
+ *   Dormant     - haven't been in 60+ days
  *
- * Uses synthetic appointment data to load real rebook clients.
+ * Sends go out manually from the lists. The send channel sits inline
+ * with the message picker so it takes effect on the next send. There
+ * is no separate Settings tab: the auto-send / interval / lead-time
+ * preferences had no backing store, so they were removed rather than
+ * implying they persist.
  */
 import { useState, useMemo, useEffect } from 'react';
 import { useBeautician, supabase, fetchRows } from '../lib/supabase.js';
@@ -25,12 +28,12 @@ const MESSAGE_TEMPLATES = [
   {
     id: 'gentle',
     name: 'Gentle nudge',
-    body: "Hey {name}, hope you're well! It's been a little while since your last {treatment} — fancy getting booked in? I've got some lovely slots this week xx",
+    body: "Hey {name}, hope you're well! It's been a little while since your last {treatment} - fancy getting booked in? I've got some lovely slots this week xx",
   },
   {
     id: 'comeback',
     name: 'Comeback offer',
-    body: "Hey {name}! I've missed you 🥺 I've got 10% off your next {treatment} if you book this week — just my way of saying I'd love to see you again xx",
+    body: "Hey {name}! I've missed you 🥺 I've got 10% off your next {treatment} if you book this week - just my way of saying I'd love to see you again xx",
   },
   {
     id: 'direct',
@@ -128,11 +131,8 @@ export default function RebookReminders() {
   }
   const [previewClient, setPreviewClient] = useState(null);
 
-  // Settings state
-  const [autoSend, setAutoSend] = useState(false);
-  const [defaultInterval, setDefaultInterval] = useState(28);
+  // Send channel - takes effect immediately on the next manual send.
   const [sendChannel, setSendChannel] = useState('whatsapp');
-  const [remindDaysBefore, setRemindDaysBefore] = useState(3);
 
   const due = clients.filter(c => c.status === 'due');
   const overdue = clients.filter(c => c.status === 'overdue');
@@ -187,7 +187,6 @@ export default function RebookReminders() {
     { key: 'due', label: 'Due Soon', count: due.length },
     { key: 'overdue', label: 'Overdue', count: overdue.length },
     { key: 'dormant', label: 'Dormant', count: dormant.length },
-    { key: 'settings', label: 'Settings', count: null },
   ];
 
   return (
@@ -248,6 +247,31 @@ export default function RebookReminders() {
                   }}
                 >
                   {t.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Send channel - applies to the next send */}
+          <div style={s.templateRow}>
+            <span style={s.templateLabel}>Send via:</span>
+            <div style={s.templateChips}>
+              {[
+                { key: 'whatsapp', label: 'WhatsApp' },
+                { key: 'sms', label: 'SMS' },
+                { key: 'email', label: 'Email' },
+              ].map(ch => (
+                <button
+                  key={ch.key}
+                  onClick={() => setSendChannel(ch.key)}
+                  style={{
+                    ...s.templateChip,
+                    background: sendChannel === ch.key ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
+                    color: sendChannel === ch.key ? 'var(--bg-card, #fff)' : 'var(--text, #2D2A26)',
+                    border: sendChannel === ch.key ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, #E8E4E0)',
+                  }}
+                >
+                  {ch.label}
                 </button>
               ))}
             </div>
@@ -331,98 +355,6 @@ export default function RebookReminders() {
         </>
       )}
 
-      {/* Settings tab */}
-      {tab === 'settings' && (
-        <div style={s.settingsSection}>
-          <div style={s.toggleRow}>
-            <div>
-              <span style={s.toggleLabel}>Auto-send reminders</span>
-              <span style={s.toggleDesc}>florrie.ai sends rebook nudges automatically</span>
-            </div>
-            <button
-              onClick={() => setAutoSend(!autoSend)}
-              style={{ ...s.toggle, background: autoSend ? 'var(--accent, #C76B8A)' : 'var(--border, #E8E4E0)' }}
-            >
-              <div style={{ ...s.toggleThumb, transform: autoSend ? 'translateX(18px)' : 'translateX(2px)' }} />
-            </button>
-          </div>
-
-          <div style={s.settingCard}>
-            <span style={s.settingLabel}>Default rebook interval</span>
-            <div style={s.chipRow}>
-              {[14, 21, 28, 42, 56].map(v => (
-                <button
-                  key={v}
-                  onClick={() => setDefaultInterval(v)}
-                  style={{
-                    ...s.intervalChip,
-                    background: defaultInterval === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                    color: defaultInterval === v ? 'var(--bg-card, #fff)' : 'var(--text, #2D2A26)',
-                    border: defaultInterval === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, #E8E4E0)',
-                  }}
-                >
-                  {v} days
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={s.settingCard}>
-            <span style={s.settingLabel}>Remind X days before due</span>
-            <div style={s.chipRow}>
-              {[1, 3, 5, 7].map(v => (
-                <button
-                  key={v}
-                  onClick={() => setRemindDaysBefore(v)}
-                  style={{
-                    ...s.intervalChip,
-                    background: remindDaysBefore === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                    color: remindDaysBefore === v ? 'var(--bg-card, #fff)' : 'var(--text, #2D2A26)',
-                    border: remindDaysBefore === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, #E8E4E0)',
-                  }}
-                >
-                  {v} day{v !== 1 ? 's' : ''}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={s.settingCard}>
-            <span style={s.settingLabel}>Send via</span>
-            <div style={s.chipRow}>
-              {[
-                { key: 'whatsapp', label: 'WhatsApp' },
-                { key: 'sms', label: 'SMS' },
-                { key: 'email', label: 'Email' },
-              ].map(ch => (
-                <button
-                  key={ch.key}
-                  onClick={() => setSendChannel(ch.key)}
-                  style={{
-                    ...s.intervalChip,
-                    background: sendChannel === ch.key ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                    color: sendChannel === ch.key ? 'var(--bg-card, #fff)' : 'var(--text, #2D2A26)',
-                    border: sendChannel === ch.key ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, #E8E4E0)',
-                  }}
-                >
-                  {ch.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div style={s.settingCard}>
-            <span style={s.settingLabel}>Message templates</span>
-            <span style={s.settingDesc}>Customise the messages florrie.ai sends on your behalf</span>
-            {MESSAGE_TEMPLATES.map(t => (
-              <div key={t.id} style={s.templatePreview}>
-                <span style={s.templatePreviewName}>{t.name}</span>
-                <p style={s.templatePreviewBody}>{t.body}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

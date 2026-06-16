@@ -1,5 +1,5 @@
 /**
- * CheckoutModal — Stripe Payment Element embedded in a modal.
+ * CheckoutModal - Stripe Payment Element embedded in a modal.
  *
  * Uses the Payment Element (not Checkout Sessions) for a fully native,
  * Florrie-styled card form. No iframes from Stripe's hosted UI, no
@@ -14,11 +14,11 @@
  *   6. Webhook updates beautician's plan in DB
  *
  * Props:
- *   plan        — 'florrie' | 'florrie_team'
- *   interval    — 'monthly' | 'annual'
- *   authToken   — JWT from Supabase session
- *   onClose     — called when modal dismissed
- *   onSuccess   — called after successful payment
+ *   plan        - 'florrie' | 'florrie_team'
+ *   interval    - 'monthly' | 'annual'
+ *   authToken   - JWT from Supabase session
+ *   onClose     - called when modal dismissed
+ *   onSuccess   - called after successful payment
  */
 import { useState, useEffect, useRef } from 'react';
 
@@ -220,7 +220,7 @@ export default function CheckoutModal({ plan, interval, authToken, onClose, onSu
       confirmParams: {
         return_url: `${APP_URL}/pricing?success=1`,
       },
-      // Don't redirect for card payments — handle inline
+      // Don't redirect for card payments - handle inline
       redirect: 'if_required',
     });
 
@@ -233,7 +233,7 @@ export default function CheckoutModal({ plan, interval, authToken, onClose, onSu
       );
       setStage('ready');
     } else {
-      // Payment confirmed — subscription is now active
+      // Payment confirmed - subscription is now active
       setStage('success');
       setTimeout(() => onSuccess?.(), 1200);
     }
@@ -288,7 +288,7 @@ export default function CheckoutModal({ plan, interval, authToken, onClose, onSu
           </div>
         )}
 
-        {/* Payment form — always rendered so Stripe can mount, hidden when not needed */}
+        {/* Payment form - always rendered so Stripe can mount, hidden when not needed */}
         <form
           onSubmit={handleSubmit}
           style={{ display: stage === 'loading' || stage === 'error' || stage === 'success' ? 'none' : 'block', padding: '0 20px 20px' }}

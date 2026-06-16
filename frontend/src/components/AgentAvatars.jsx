@@ -1,5 +1,5 @@
 /**
- * AgentAvatars — live status widget showing Florrie's 6 AI agents.
+ * AgentAvatars - live status widget showing Florrie's 6 AI agents.
  *
  * Each agent is a small avatar circle with a pulsing ring when active.
  * Tapping an avatar shows its latest action in a popover.
@@ -11,7 +11,7 @@ import { useState, useEffect, useRef } from 'react';
 import { API_BASE } from '../lib/config.js';
 
 function getToken() {
-  // Supabase stores session under sb-<project-ref>-auth-token — find it by pattern
+  // Supabase stores session under sb-<project-ref>-auth-token - find it by pattern
   const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
   if (!key) return null;
   const raw = localStorage.getItem(key);
@@ -62,7 +62,7 @@ export default function AgentAvatars() {
     }
   }
 
-  if (error || !agents) return null; // silent fail — widget is supplementary
+  if (error || !agents) return null; // silent fail - widget is supplementary
 
   return (
     <div style={styles.wrapper}>
@@ -82,7 +82,7 @@ export default function AgentAvatars() {
             key={agent.id}
             style={styles.agentButton}
             onClick={() => setSelected(selected === i ? null : i)}
-            aria-label={`${agent.name} — ${agent.statusLine}`}
+            aria-label={`${agent.name} - ${agent.statusLine}`}
           >
             {/* Pulse ring for active agents */}
             {agent.isActive && <span style={{ ...styles.pulse, borderColor: agent.colour }} />}

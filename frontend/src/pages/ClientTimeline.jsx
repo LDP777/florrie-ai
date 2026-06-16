@@ -1,8 +1,8 @@
 /**
- * Client Timeline — Full chronological history per client.
+ * Client Timeline - Full chronological history per client.
  *
  * Everything that's happened with a client in one scroll:
- * appointments, messages, notes, payments, feedback, consent —
+ * appointments, messages, notes, payments, feedback, consent -
  * so Ellie never walks into an appointment blind.
  */
 import { useState, useEffect } from 'react';
@@ -19,7 +19,7 @@ const DEV_CLIENTS_FULL = [
 const DEV_EVENTS = {
   c1: [
     { id: 'e1', type: 'appointment', date: '2026-03-18T14:00', title: 'Lamination & Hybrid Dye', detail: 'Medium brown hybrid dye. 8 min processing.', amount: 4500, status: 'completed' },
-    { id: 'e2', type: 'note', date: '2026-03-18T14:50', title: 'Appointment Note', detail: 'Client using castor oil at home — brows in great condition. Shorter processing time worked well.' },
+    { id: 'e2', type: 'note', date: '2026-03-18T14:50', title: 'Appointment Note', detail: 'Client using castor oil at home - brows in great condition. Shorter processing time worked well.' },
     { id: 'e3', type: 'feedback', date: '2026-03-18T18:00', title: 'Feedback: 5★', detail: 'Absolutely love my brows! Ellie always gets them perfect.' },
     { id: 'e4', type: 'payment', date: '2026-03-18T14:55', title: 'Payment Received', detail: 'Card payment', amount: 4500 },
     { id: 'e5', type: 'message', date: '2026-03-18T16:00', title: 'Aftercare Sent', detail: 'Automated aftercare message via WhatsApp', channel: 'whatsapp' },
@@ -33,15 +33,15 @@ const DEV_EVENTS = {
   ],
   c2: [
     { id: 'e20', type: 'appointment', date: '2026-03-12T11:00', title: 'Ombre Brows (Semi-Permanent)', detail: 'Session 1 of 2. Soft brown pigment. Top-up booked 6 weeks.', amount: 25000, status: 'completed' },
-    { id: 'e21', type: 'note', date: '2026-03-12T14:00', title: 'Appointment Note', detail: 'Mapped shape together — wanted slightly thicker tails. Healing instructions given.' },
+    { id: 'e21', type: 'note', date: '2026-03-12T14:00', title: 'Appointment Note', detail: 'Mapped shape together - wanted slightly thicker tails. Healing instructions given.' },
     { id: 'e22', type: 'payment', date: '2026-03-12T14:10', title: 'Deposit Taken', detail: '50% deposit for semi-permanent', amount: 12500 },
     { id: 'e23', type: 'appointment', date: '2026-02-20T11:00', title: 'Combination Brows', detail: 'Session 1 of 2. Hair strokes at front, shading body and tail.', amount: 30000, status: 'completed' },
-    { id: 'e24', type: 'note', date: '2026-02-20T14:00', title: 'Flag: Blood Thinners', detail: 'Client on Warfarin — used extra care, minimal bleeding. Note for all future sessions.' },
+    { id: 'e24', type: 'note', date: '2026-02-20T14:00', title: 'Flag: Blood Thinners', detail: 'Client on Warfarin - used extra care, minimal bleeding. Note for all future sessions.' },
     { id: 'e25', type: 'consent', date: '2026-01-20T10:00', title: 'Photo Consent Granted', detail: 'Portfolio + Booking page only. No social media.' },
   ],
   c3: [
     { id: 'e30', type: 'appointment', date: '2026-03-08T10:00', title: 'Lash Lift & Tint', detail: 'Medium shields. Blue-black tint.', amount: 4000, status: 'completed' },
-    { id: 'e31', type: 'note', date: '2026-03-08T11:00', title: 'Appointment Note', detail: 'Naturally long lashes — reduced setting time. Wants brown-black tint next time.' },
+    { id: 'e31', type: 'note', date: '2026-03-08T11:00', title: 'Appointment Note', detail: 'Naturally long lashes - reduced setting time. Wants brown-black tint next time.' },
     { id: 'e32', type: 'feedback', date: '2026-03-08T15:00', title: 'Feedback: 4★', detail: 'Great result, lasted really well this time.' },
     { id: 'e33', type: 'appointment', date: '2026-02-14T10:00', title: 'Lamination Maintenance / Tint', detail: 'Quick session. Previous lamination held well.', amount: 2500, status: 'completed' },
   ],

@@ -131,7 +131,7 @@ function groupByCategory(results) {
 }
 
 /**
- * SpotlightSearch — inline search bar for the Dashboard.
+ * SpotlightSearch - inline search bar for the Dashboard.
  *
  * Renders a tappable search bar. When focused, expands into
  * a full-screen overlay with live results. Tap a result to navigate.
@@ -218,7 +218,7 @@ export default function SpotlightSearch() {
           {!query.trim() && (
             <div style={S.hint}>
               <span style={S.hintIcon}>✨</span>
-              <span style={S.hintText}>Type to find any feature — calendar, expenses, rebook, anything.</span>
+              <span style={S.hintText}>Type to find any feature - calendar, expenses, rebook, anything.</span>
             </div>
           )}
 
@@ -226,7 +226,7 @@ export default function SpotlightSearch() {
             <div style={S.empty}>
               <span style={{ fontSize: 28, display: 'block', marginBottom: 8 }}>🔍</span>
               <span style={S.emptyText}>Nothing matches "{query}"</span>
-              <span style={S.emptyHint}>Try a different word — e.g. "clients", "money", "reviews"</span>
+              <span style={S.emptyHint}>Try a different word - e.g. "clients", "money", "reviews"</span>
             </div>
           )}
 

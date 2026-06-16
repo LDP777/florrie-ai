@@ -1,9 +1,9 @@
 /**
- * Cancellation Log — Track every cancellation, no-show & late change.
+ * Cancellation Log - Track every cancellation, no-show & late change.
  *
  * Patterns matter. If Fridays always get cancelled, Ellie can stop
  * offering them. If one client has 3 no-shows, the system flags it.
- * Revenue lost, reasons, and trends — all in one place.
+ * Revenue lost, reasons, and trends - all in one place.
  */
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, updateRow } from '../lib/supabase.js';

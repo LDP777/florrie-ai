@@ -11,7 +11,7 @@ import { hapticTap, hapticSuccess } from '../lib/native.js';
 import { useCountUp } from '../lib/useCountUp.js';
 
 /**
- * Money & Revenue — Stitch reference rebuild.
+ * Money & Revenue - Stitch reference rebuild.
  *
  * Matches the Stitch screen:
  *   - Period selector pills (Today / This Week / This Month)
@@ -300,7 +300,7 @@ export default function MoneyTracker() {
       taxBreakdown = [
         { label: 'Corporation Tax', hint: `${profitPounds <= 50_000 ? '19%' : 'marginal rate'} on company profit`, value: Math.round(corpTax * 100) },
         { label: 'Dividend Tax', hint: '8.75% basic rate (over £500 allowance)', value: Math.round(dividendTax * 100) },
-        { label: 'Director salary', hint: '£9,100 — within personal allowance, no tax', value: 0 },
+        { label: 'Director salary', hint: '£9,100 - within personal allowance, no tax', value: 0 },
       ];
     }
 
@@ -309,7 +309,7 @@ export default function MoneyTracker() {
       : corpTax + dividendTax;
     const quarterlySetAside = totalTaxLiability / 4;
 
-    // VAT threshold tracking — rolling 12 months of gross income
+    // VAT threshold tracking - rolling 12 months of gross income
     const twelveMonthsAgo = new Date();
     twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
     const rolling12Revenue = transactions
@@ -397,7 +397,7 @@ export default function MoneyTracker() {
           logger.warn('Receipt OCR request failed:', ocrErr);
         }
 
-        // 3. Populate expense form — use OCR data if available, fallback to manual
+        // 3. Populate expense form - use OCR data if available, fallback to manual
         if (extracted) {
           const amountPounds = extracted.total_amount
             ? (extracted.total_amount / 100).toFixed(2)
@@ -416,7 +416,7 @@ export default function MoneyTracker() {
             ocr_confidence: confidence,
           });
         } else {
-          // OCR failed — still open the form with the receipt attached
+          // OCR failed - still open the form with the receipt attached
           setNewExpense(prev => ({
             ...prev,
             description: `Receipt: ${file.name}`,
@@ -1011,7 +1011,7 @@ export default function MoneyTracker() {
                   <span>{newExpense.ocr_confidence >= 0.8 ? '✓' : '⚠'}</span>
                   <span>
                     Auto-filled from receipt ({Math.round(newExpense.ocr_confidence * 100)}% confident)
-                    {newExpense.ocr_confidence < 0.8 ? ' — double-check the details' : ''}
+                    {newExpense.ocr_confidence < 0.8 ? ' - double-check the details' : ''}
                   </span>
                 </div>
               )}
@@ -1086,7 +1086,7 @@ export default function MoneyTracker() {
                 }}>{initial}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontSize: 14, fontWeight: 600, color: '#1d1b19', margin: 0 }}>
-                    {name}{treatment ? ` — ${treatment}` : ''}
+                    {name}{treatment ? ` - ${treatment}` : ''}
                   </p>
                   <p style={{ fontSize: 11, color: '#867277', margin: 0 }}>
                     {new Date(tx.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
@@ -1133,7 +1133,7 @@ export default function MoneyTracker() {
                   <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>
                     {t.businessType === 'limited_co'
                       ? 'Corp tax due 9 months after year end'
-                      : `${t.nextDeadline.label} — ${t.nextDeadline.daysLeft} days away`
+                      : `${t.nextDeadline.label} - ${t.nextDeadline.daysLeft} days away`
                     }
                   </span>
                 </div>
@@ -1156,7 +1156,7 @@ export default function MoneyTracker() {
                   </div>
                 </div>
 
-                {/* VAT section — registered users get full quarterly view, unregistered get threshold tracker */}
+                {/* VAT section - registered users get full quarterly view, unregistered get threshold tracker */}
                 {t.vat.registered ? (() => {
                   // VAT-registered: standard rate 20% on taxable supplies
                   // Beauty treatments are generally standard-rated (cosmetic) unless medical
@@ -1195,7 +1195,7 @@ export default function MoneyTracker() {
                       <div style={S.breakdownRow}>
                         <div>
                           <span style={{ fontSize: 13, color: '#534247' }}>Input tax (VAT on expenses)</span>
-                          <span style={{ fontSize: 11, color: '#867277', display: 'block' }}>Estimated — confirm with receipts</span>
+                          <span style={{ fontSize: 11, color: '#867277', display: 'block' }}>Estimated - confirm with receipts</span>
                         </div>
                         <span style={{ fontSize: 13, fontWeight: 600, color: '#534247' }}>−{fmt(vatOnExpenses)}</span>
                       </div>
@@ -1269,7 +1269,7 @@ export default function MoneyTracker() {
                         <span style={{ fontSize: 11, color: '#867277', display: 'block' }}>{row.hint}</span>
                       </div>
                       <span style={{ fontSize: 13, fontWeight: 600, color: row.value === 0 ? '#867277' : '#1d1b19' }}>
-                        {row.value === 0 ? '—' : fmt(row.value)}
+                        {row.value === 0 ? '-' : fmt(row.value)}
                       </span>
                     </div>
                   ))}
@@ -1369,7 +1369,7 @@ const S = {
     color: '#92405e', margin: '0 0 16px',
   },
 
-  // Tab bar — pill style
+  // Tab bar - pill style
   tabBar: {
     display: 'flex', gap: 4,
     background: '#f3ede9', borderRadius: 14, padding: 4,

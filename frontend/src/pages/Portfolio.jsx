@@ -1,5 +1,5 @@
 /**
- * Portfolio — Photo Gallery & Before/After showcase.
+ * Portfolio - Photo Gallery & Before/After showcase.
  *
  * Solo beauticians live and die by their portfolio. This page lets Ellie
  * upload treatment photos, tag them, and create before/after pairs that

@@ -10,7 +10,7 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-xl font-semibold text-gray-900 mb-3">1. Who we are</h2>
-            <p>Florrie Ltd operates florrie.ai. This policy explains what personal data we collect, how we use it, and your rights under UK GDPR. If you have questions, contact us at <a href="mailto:hello@florrie.ai" className="text-pink-600 underline">hello@florrie.ai</a>.</p>
+            <p>FLORRIE.AI LTD operates florrie.ai. This policy explains what personal data we collect, how we use it, and your rights under UK GDPR. If you have questions, contact us at <a href="mailto:hello@florrie.ai" className="text-pink-600 underline">hello@florrie.ai</a>.</p>
           </section>
 
           <section>

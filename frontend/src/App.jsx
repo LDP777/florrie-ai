@@ -204,7 +204,7 @@ export default function App() {
     };
   }, [session]);
 
-  // Reset scroll to the top on every route change — otherwise the document keeps
+  // Reset scroll to the top on every route change - otherwise the document keeps
   // the previous page's scroll position, so pages like Inbox/Money open part-way down.
   useEffect(() => {
     window.scrollTo(0, 0);

@@ -18,6 +18,18 @@ function recordWebhookHit(entry) {
   if (webhookHits.length > 20) webhookHits.length = 20;
 }
 
+// Constant-time token comparison. Avoids leaking length/match position via timing.
+// Length-mismatched inputs are hashed to equal-length buffers so timingSafeEqual
+// never throws on differing lengths.
+function safeTokenEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length === 0 || b.length === 0) {
+    return false;
+  }
+  const ha = crypto.createHash('sha256').update(a).digest();
+  const hb = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(ha, hb);
+}
+
 router.get('/whatsapp/_debug-hits', requireAuth, (req, res) => {
   // Behind beautician JWT so any logged-in beautician can debug their own
   // webhook delivery. Cheap to expose — no sensitive payload in the buffer.
@@ -509,13 +521,23 @@ router.get('/bird-sms', (req, res) => {
 router.post('/bird-sms', async (req, res) => {
   const expectedToken = process.env.BIRD_WEBHOOK_TOKEN;
   if (expectedToken) {
-    const receivedToken = req.query.token || req.headers['x-bird-token'];
-    if (!receivedToken || receivedToken !== expectedToken) {
+    // Prefer the header (not logged, not in URLs/access logs); fall back to the
+    // query param for backward-compat with the dashboard-configured webhook URL.
+    const receivedToken = req.headers['x-webhook-token']
+      || req.headers['x-bird-token']
+      || req.query.token
+      || '';
+    if (!safeTokenEqual(receivedToken, expectedToken)) {
       logger.warn('Bird SMS webhook: invalid or missing token');
       return res.status(403).json({ error: 'Forbidden' });
     }
+  } else if (process.env.NODE_ENV === 'production') {
+    // Fail closed: an unauthenticated inbound endpoint in prod would let anyone
+    // inject fake client SMS. Refuse to serve until the token is configured.
+    logger.error('Bird SMS webhook: BIRD_WEBHOOK_TOKEN not set in production, refusing request');
+    return res.status(503).json({ error: 'Webhook auth not configured' });
   } else {
-    logger.debug('BIRD_WEBHOOK_TOKEN not set, skipping auth check');
+    logger.debug('BIRD_WEBHOOK_TOKEN not set, skipping auth check (non-production)');
   }
 
   // ACK early — Bird retries on non-2xx

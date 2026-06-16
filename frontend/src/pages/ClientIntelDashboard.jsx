@@ -1,15 +1,15 @@
 /**
- * Client Intel Dashboard — Everything Florrie knows about your clients.
+ * Client Intel Dashboard - Everything Florrie knows about your clients.
  *
  * Landing page for the Client Intel agent. Surfaces key insights from
  * all 7 sub-pages so a beautician can glance and act:
  *
- *   1. Health pulse — total clients, active %, retention rate
- *   2. Churn alerts — at-risk clients needing attention NOW
- *   3. Segment breakdown — how clients split across value tiers
- *   4. Recent activity — timeline of latest client events
- *   5. Tags spotlight — auto-generated smart tags
- *   6. Quick actions — jump to any sub-page
+ *   1. Health pulse - total clients, active %, retention rate
+ *   2. Churn alerts - at-risk clients needing attention NOW
+ *   3. Segment breakdown - how clients split across value tiers
+ *   4. Recent activity - timeline of latest client events
+ *   5. Tags spotlight - auto-generated smart tags
+ *   6. Quick actions - jump to any sub-page
  *
  * All data is real (Supabase), with dev mode fallback.
  */
@@ -189,7 +189,7 @@ export default function ClientIntelDashboard() {
           <span className="material-symbols-outlined" style={{ fontSize: 22, color: '#7B6BA8', flexShrink: 0 }}>info</span>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>Intelligence builds as you work</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>Add clients and take bookings — Florrie will surface churn risk, segments, and spending patterns automatically.</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>Add clients and take bookings - Florrie will surface churn risk, segments, and spending patterns automatically.</div>
           </div>
         </div>
       )}
