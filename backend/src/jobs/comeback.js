@@ -10,6 +10,7 @@ import dotenv from 'dotenv';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname, join } from 'path';
 import { sendSMS } from '../services/notifications.js';
+import { guardedSend } from '../lib/outbound-guard.js';
 import logger from '../lib/logger.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -83,31 +84,34 @@ export async function runComeback() {
 
       const message = `Hi ${firstName}! It's been a while since we've seen you at ${businessName}. We'd love to have you back, book your next appointment at florrie.ai 💫`;
 
-      // Send SMS via Bird API (same pattern as notifications.js)
+      // Everything proactive goes through the one gate: consent (fail closed),
+      // cross-engine frequency + monthly caps, allowance reserve, and the trust
+      // dial. The gate only returns 'send' when it is genuinely safe; otherwise
+      // it queues the nudge for the daily approval review or blocks it.
       try {
-        const result = await sendSMS({
-          to: client.phone,
+        const verdict = await guardedSend({
+          beauticianId: beautician.id,
+          clientId: client.id,
+          messageType: 'comeback',
+          channel: 'sms',
           body: message,
-          beauticianId: beautician.id
+          send: () => sendSMS({ to: client.phone, body: message, beauticianId: beautician.id }),
         });
 
-        // Record nudge only if sent successfully
-        if (result) {
+        if (verdict.delivered) {
           await supabase.from('client_nudges').insert({
             beautician_id: beautician.id,
             client_phone: client.phone,
             nudge_type: 'comeback',
           });
-
           totalNudged++;
         } else {
-          totalFailed++;
-          logger.warn({ client: client.id, beautician: beautician.id }, 'SMS send returned falsy result');
+          // approved-and-waiting, or blocked by consent/cap/allowance/hours.
+          totalSkipped++;
         }
       } catch (err) {
         totalFailed++;
-        logger.error({ err, client: client.id, phone: client.phone }, 'Error nudging client');
-        logger.error(`✗ Error nudging ${client.phone}:`, err.message);
+        logger.error({ err, client: client.id }, 'Error nudging client');
       }
     }
   }
