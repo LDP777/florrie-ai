@@ -556,7 +556,7 @@ export default function Clients() {
           title={search ? 'No matches' : 'No clients yet'}
           subtitle={search ? 'Try a different search.' : 'Add clients manually or import from your old scheduler.'}
           actionLabel={search ? null : 'Import clients'}
-          onAction={search ? null : () => navigate('/clients/import')}
+          onAction={search ? null : () => navigate('/import')}
         />
       ) : filtered.length === 0 ? (
         <EmptyState
@@ -788,7 +788,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate }) {
 
         {/* Quick actions */}
         <div style={styles.quickActions}>
-          <button style={styles.quickActionBtn}>
+          <button style={styles.quickActionBtn} onClick={() => setDetailTab('messages')}>
             <span style={{ fontSize: 16 }}>💬</span>
             <span>Message</span>
           </button>
@@ -796,7 +796,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate }) {
             <span style={{ fontSize: 16 }}>📅</span>
             <span>Rebook</span>
           </button>
-          <button style={styles.quickActionBtn}>
+          <button style={styles.quickActionBtn} onClick={() => { onClose(); onNavigate && onNavigate('/promos'); }}>
             <span style={{ fontSize: 16 }}>🎁</span>
             <span>Send Offer</span>
           </button>

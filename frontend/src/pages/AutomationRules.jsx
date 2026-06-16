@@ -40,43 +40,16 @@ const conditionOptions = [
   { id: 'client_tag', label: 'Client has tag', options: ['includes', 'does not include'] },
   { id: 'loyalty_tier', label: 'Loyalty tier', options: ['is', 'is above', 'is below'] },
 ];
-const mockRules = [
-  {
-    id: 1, name: 'Welcome new clients', enabled: true,
-    trigger: 'new_client', actions: ['send_whatsapp', 'add_tag'],
-    conditions: [{ type: 'visit_count', op: 'equals', value: '1' }],
-    runs: 47, lastRun: '2 hours ago',
-    description: 'Send welcome message + tag as "New" when first appointment completes'
-  },
-  {
-    id: 2, name: 'No-show strike system', enabled: true,
-    trigger: 'no_show', actions: ['add_tag', 'send_whatsapp'],
-    conditions: [],
-    runs: 8, lastRun: 'Yesterday',
-    description: 'Tag client as "No-show warning", send policy reminder via WhatsApp'
-  },
-  {
-    id: 3, name: 'Win-back dormant clients', enabled: true,
-    trigger: 'dormant_client', actions: ['send_whatsapp', 'apply_discount'],
-    conditions: [{ type: 'last_visit', op: 'is more than', value: '42' }],
-    runs: 23, lastRun: '3 days ago',
-    description: 'After 6 weeks inactive, send 10% off code via WhatsApp'
-  },
-  {
-    id: 4, name: 'Birthday treat', enabled: false,
-    trigger: 'birthday', actions: ['send_whatsapp', 'apply_discount'],
-    conditions: [],
-    runs: 0, lastRun: 'Never',
-    description: 'Send birthday message with free brow wax voucher'
-  },
-  {
-    id: 5, name: 'VIP loyalty upgrade', enabled: true,
-    trigger: 'loyalty_milestone', actions: ['send_whatsapp', 'add_tag', 'notify_staff'],
-    conditions: [{ type: 'loyalty_tier', op: 'is', value: 'VIP' }],
-    runs: 5, lastRun: '1 week ago',
-    description: 'Welcome to VIP — personal message, tag update, notify Ellie'
-  },
-];
+// Normalise a DB row to the shape this page renders.
+// Real columns: enabled, runs, last_run (or is_active, trigger_count, last_triggered_at).
+function normaliseRule(r) {
+  return {
+    ...r,
+    enabled: r.enabled ?? r.is_active ?? false,
+    actions: Array.isArray(r.actions) ? r.actions : [],
+    runs: r.runs ?? r.trigger_count ?? 0,
+  };
+}
 const templateRules = [
   { name: 'Post-appointment thank you', trigger: 'appointment_completed', actions: ['send_whatsapp'], description: 'Send thank you + aftercare link after each visit' },
   { name: 'Review request (5-star clients)', trigger: 'appointment_completed', actions: ['send_whatsapp'], description: 'Ask happy clients to leave a Google review' },
@@ -90,13 +63,14 @@ export default function AutomationRules() {
   const [newRule, setNewRule] = useState({ name: '', trigger: null, actions: [], conditions: [], delay: '0' });
   const [expandedRule, setExpandedRule] = useState(null);
   const { beautician, loading: bLoading } = useBeautician();
+  const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     if (bLoading) return;
-    if (!beautician) { setRules(mockRules); return; }
+    if (!beautician) { setRules([]); setLoaded(true); return; }
     fetchRows('automation_rules', beautician.id, { order: 'created_at', ascending: false })
-      .then(rows => setRules(rows.length ? rows : mockRules));
+      .then(rows => { setRules(rows.map(normaliseRule)); setLoaded(true); });
   }, [beautician, bLoading]);
-  if (bLoading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted, var(--text-muted, #7a7470))' }}>Loading...</div>;
+  if (bLoading || !loaded) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted, var(--text-muted, #7a7470))' }}>Loading...</div>;
   const toggleRule = async (id) => {
     const rule = rules.find(r => r.id === id);
     if (!rule) return;
@@ -106,8 +80,59 @@ export default function AutomationRules() {
       try { await updateRow('automation_rules', id, { enabled: newEnabled }); } catch (e) { logger.error(e); }
     }
   };
+  const deleteRule = async (id) => {
+    setRules(rules.filter(r => r.id !== id));
+    setExpandedRule(null);
+    if (beautician) {
+      try { await deleteRow('automation_rules', id); } catch (e) { logger.error(e); }
+    }
+  };
+  const duplicateRule = async (rule) => {
+    const copy = {
+      beautician_id: beautician?.id,
+      name: `${rule.name} (copy)`,
+      trigger: rule.trigger,
+      actions: rule.actions || [],
+      conditions: rule.conditions || [],
+      delay_minutes: rule.delay_minutes || 0,
+      enabled: false,
+      runs: 0,
+      last_run: null,
+    };
+    if (beautician) {
+      try {
+        const saved = await insertRow('automation_rules', copy);
+        setRules([normaliseRule(saved), ...rules]);
+      } catch (e) { logger.error('Duplicate rule failed:', e); }
+    } else {
+      setRules([{ ...copy, id: 'new-' + Date.now() }, ...rules]);
+    }
+  };
+  const useTemplate = async (tmpl) => {
+    const rule = {
+      beautician_id: beautician?.id,
+      name: tmpl.name,
+      trigger: tmpl.trigger,
+      actions: tmpl.actions || [],
+      conditions: [],
+      delay_minutes: 0,
+      enabled: false,
+      runs: 0,
+      last_run: null,
+    };
+    if (beautician) {
+      try {
+        const saved = await insertRow('automation_rules', rule);
+        setRules([normaliseRule(saved), ...rules]);
+        setActiveTab('rules');
+      } catch (e) { logger.error('Use template failed:', e); }
+    } else {
+      setRules([{ ...rule, id: 'new-' + Date.now() }, ...rules]);
+      setActiveTab('rules');
+    }
+  };
   const activeCount = rules.filter(r => r.enabled).length;
-  const totalRuns = rules.reduce((sum, r) => sum + r.runs, 0);
+  const totalRuns = rules.reduce((sum, r) => sum + (r.runs || 0), 0);
   const tabs = [
     { id: 'rules', label: `Rules (${rules.length})` },
     { id: 'sequences', label: 'Sequences' },
@@ -219,7 +244,7 @@ export default function AutomationRules() {
               };
               try {
                 const saved = await insertRow('automation_rules', rule);
-                setRules([{ ...saved, lastRun: 'Never' }, ...rules]);
+                setRules([normaliseRule(saved), ...rules]);
                 setNewRule({ name: '', trigger: null, actions: [], conditions: [], delay: '0' });
                 setCreating(false);
               } catch (e) { logger.error('Save rule failed:', e); }
@@ -247,7 +272,16 @@ export default function AutomationRules() {
         ))}
       </div>
       {/* Rules list */}
-      {activeTab === 'rules' && (
+      {activeTab === 'rules' && rules.length === 0 && !creating && (
+        <EmptyState
+          icon="⚡"
+          title="No automations yet"
+          subtitle="Create a rule to handle the busywork automatically, or start from a template."
+          actionLabel="+ New rule"
+          onAction={() => setCreating(true)}
+        />
+      )}
+      {activeTab === 'rules' && rules.length > 0 && (
         <div>
           {rules.map(rule => (
             <div key={rule.id} style={styles.ruleCard}>
@@ -258,7 +292,7 @@ export default function AutomationRules() {
                   <div style={styles.ruleMeta}>
                     <span>{triggerOptions.find(t => t.id === rule.trigger)?.icon} {triggerOptions.find(t => t.id === rule.trigger)?.label}</span>
                     <span style={{ color: 'var(--border, var(--border, var(--border, #EDE9E4)))' }}>→</span>
-                    <span>{rule.actions.map(a => actionOptions.find(o => o.id === a)?.icon).join(' ')}</span>
+                    <span>{(rule.actions || []).map(a => actionOptions.find(o => o.id === a)?.icon).join(' ')}</span>
                   </div>
                 </div>
                 <button
@@ -278,18 +312,17 @@ export default function AutomationRules() {
                 <div style={styles.ruleExpanded}>
                   <div style={styles.ruleStatRow}>
                     <div style={styles.ruleStatItem}>
-                      <div style={{ fontSize: 18, fontWeight: 700 }}>{rule.runs}</div>
+                      <div style={{ fontSize: 18, fontWeight: 700 }}>{rule.runs || 0}</div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted, var(--text-muted, #7a7470))' }}>Total runs</div>
                     </div>
                     <div style={styles.ruleStatItem}>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{rule.lastRun}</div>
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>{rule.lastRun || (rule.last_run ? new Date(rule.last_run).toLocaleDateString() : 'Never')}</div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted, var(--text-muted, #7a7470))' }}>Last fired</div>
                     </div>
                   </div>
                   <div style={styles.ruleActions}>
-                    <button style={styles.ruleActionBtn}>✏️ Edit</button>
-                    <button style={styles.ruleActionBtn}>📋 Duplicate</button>
-                    <button style={{ ...styles.ruleActionBtn, color: '#E85D75' }}>🗑️ Delete</button>
+                    <button onClick={() => duplicateRule(rule)} style={styles.ruleActionBtn}>📋 Duplicate</button>
+                    <button onClick={() => deleteRule(rule.id)} style={{ ...styles.ruleActionBtn, color: '#E85D75' }}>🗑️ Delete</button>
                   </div>
                 </div>
               )}
@@ -300,7 +333,7 @@ export default function AutomationRules() {
       {/* Templates */}
       {activeTab === 'templates' && (
         <div>
-          <div style={styles.templatesHint}>Pre-built automations — tap to add and customise</div>
+          <div style={styles.templatesHint}>Pre-built automations - tap to add and customise</div>
           {templateRules.map((tmpl, i) => (
             <div key={i} style={styles.templateCard}>
               <div style={{ flex: 1 }}>
@@ -310,7 +343,7 @@ export default function AutomationRules() {
                   <span>{triggerOptions.find(t => t.id === tmpl.trigger)?.icon} {triggerOptions.find(t => t.id === tmpl.trigger)?.label}</span>
                 </div>
               </div>
-              <button style={styles.useTemplateBtn}>+ Use</button>
+              <button onClick={() => useTemplate(tmpl)} style={styles.useTemplateBtn}>+ Use</button>
             </div>
           ))}
         </div>
@@ -318,31 +351,7 @@ export default function AutomationRules() {
       {/* Follow-up sequences — merged from FollowUpSequences.jsx */}
       {activeTab === 'sequences' && <SequencesPanel beautician={beautician} />}
       {/* Activity log */}
-      {activeTab === 'log' && (
-        <div>
-          {[
-            { time: '14:32', rule: 'Welcome new clients', client: 'Sophie D.', action: 'WhatsApp sent', status: 'success' },
-            { time: '14:32', rule: 'Welcome new clients', client: 'Sophie D.', action: 'Tag "New" added', status: 'success' },
-            { time: '12:15', rule: 'No-show strike system', client: 'Danielle W.', action: 'Tag "No-show warning" added', status: 'success' },
-            { time: '12:15', rule: 'No-show strike system', client: 'Danielle W.', action: 'WhatsApp policy reminder sent', status: 'success' },
-            { time: '09:50', rule: 'Win-back dormant clients', client: 'Hannah J.', action: 'WhatsApp sent with 10% code', status: 'success' },
-            { time: 'Yesterday', rule: 'VIP loyalty upgrade', client: 'Katie L.', action: 'WhatsApp VIP welcome sent', status: 'success' },
-            { time: 'Yesterday', rule: 'Win-back dormant clients', client: 'Olivia S.', action: 'WhatsApp delivery failed', status: 'failed' },
-          ].map((log, i) => (
-            <div key={i} style={styles.logRow}>
-              <div style={{
-                ...styles.logDot,
-                background: log.status === 'success' ? 'var(--success, #5BA97B)' : '#E85D75'
-              }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary, #2D2A26)' }}>{log.action}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted, var(--text-muted, #7a7470))' }}>{log.rule} · {log.client}</div>
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted, var(--text-muted, #7a7470))' }}>{log.time}</div>
-            </div>
-          ))}
-        </div>
-      )}
+      {activeTab === 'log' && <ActivityPanel beautician={beautician} />}
     </div>
   );
 }
@@ -397,25 +406,6 @@ const SEQ_TRIGGERS = [
 const SEQ_DELAYS  = ['0h','1h','2h','4h','12h','24h','2d','3d','5d','7d','14d','21d','30d','35d'];
 const SEQ_CHANNELS = ['whatsapp', 'sms', 'email'];
 const SEQ_VARS = ['{name}','{treatment}','{date}','{time}','{booking_link}','{aftercare_link}'];
-const DEV_SEQUENCES = [
-  { id:'seq1', name:'Post Semi-Permanent Care', trigger:'after-appointment', treatments:['Ombre Brows (Semi-Permanent)'], active:true,
-    steps:[
-      { delay:'0h',  channel:'whatsapp', message:"Hey {name}! Your new brows are looking gorgeous 😍 Here's your aftercare guide: {aftercare_link} xx" },
-      { delay:'24h', channel:'whatsapp', message:"Hey {name}, how are your brows feeling today? Remember — no water for 24 hours xx" },
-      { delay:'7d',  channel:'whatsapp', message:"One week in! They should be starting to peel now — don't pick! xx" },
-      { delay:'35d', channel:'whatsapp', message:"Hey {name}! Your top-up is coming up — shall I get you booked in? xx" },
-    ], stats:{ sent:45, opened:42, replied:18 } },
-  { id:'seq2', name:'Post Lamination Care', trigger:'after-appointment', treatments:['Lamination & Tint'], active:true,
-    steps:[
-      { delay:'0h',  channel:'whatsapp', message:"Hey {name}! Brows are looking fab 💕 Keep them dry for 24 hours xx" },
-      { delay:'24h', channel:'whatsapp', message:"Morning! You can get them wet now — how are they looking? xx" },
-      { delay:'21d', channel:'whatsapp', message:"Hey {name}, fancy getting booked in again before they start dropping? xx" },
-    ], stats:{ sent:72, opened:68, replied:31 } },
-  { id:'seq3', name:'Birthday Flow', trigger:'on-birthday', treatments:[], active:true,
-    steps:[
-      { delay:'0h', channel:'whatsapp', message:"Happy birthday {name}!! 🎂 Here's 15% off your next appointment — just mention this when you book xx" },
-    ], stats:{ sent:8, opened:8, replied:5 } },
-];
 function formatSeqDelay(d) {
   if (!d) return 'Immediately';
   if (d === '0h') return 'Immediately';
@@ -433,11 +423,12 @@ function SequencesPanel({ beautician }) {
   const [createForm, setCreateForm] = useState({
     name: '', trigger: 'after-appointment', steps: [{ delay: '0h', channel: 'whatsapp', message: '' }],
   });
+  const [seqLoaded, setSeqLoaded] = useState(false);
   useEffect(() => {
-    if (!beautician) return;
+    if (!beautician) { setSequences([]); setSeqLoaded(true); return; }
     fetchRows('follow_up_sequences', beautician.id, { order: 'created_at' })
-      .then(rows => setSequences(rows?.length ? rows : DEV_SEQUENCES))
-      .catch(() => setState([]));
+      .then(rows => { setSequences(rows || []); setSeqLoaded(true); })
+      .catch(() => { setSequences([]); setSeqLoaded(true); });
   }, [beautician]);
   async function handleToggle(seq) {
     const next = !seq.active;
@@ -498,6 +489,15 @@ function SequencesPanel({ beautician }) {
         >+ New</button>
       </div>
       {/* Sequence cards */}
+      {seqLoaded && sequences.length === 0 && !showCreate && (
+        <EmptyState
+          icon="📨"
+          title="No sequences yet"
+          subtitle="Build a follow-up flow to keep clients warm after their appointment."
+          actionLabel="+ New sequence"
+          onAction={() => setShowCreate(true)}
+        />
+      )}
       {sequences.map(seq => {
         const trigger  = SEQ_TRIGGERS.find(t => t.value === seq.trigger);
         const isOpen   = expanded === seq.id;
@@ -603,6 +603,51 @@ function SequencesPanel({ beautician }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Activity feed - real automation/AI actions from the ai_actions table.
+function ActivityPanel({ beautician }) {
+  const [actions, setActions] = useState([]);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    if (!beautician) { setActions([]); setLoaded(true); return; }
+    fetchRows('ai_actions', beautician.id, { order: 'created_at', ascending: false, limit: 50 })
+      .then(rows => { setActions(rows || []); setLoaded(true); })
+      .catch(() => { setActions([]); setLoaded(true); });
+  }, [beautician]);
+  if (!loaded) return <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted, #7a7470)' }}>Loading...</div>;
+  if (actions.length === 0) {
+    return (
+      <EmptyState
+        icon="📜"
+        title="No automation activity yet"
+        subtitle="Once your automations start firing, what they do will show up here."
+      />
+    );
+  }
+  const fmtTime = (ts) => {
+    if (!ts) return '';
+    const d = new Date(ts);
+    const today = new Date();
+    if (d.toDateString() === today.toDateString()) {
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    return d.toLocaleDateString([], { day: 'numeric', month: 'short' });
+  };
+  return (
+    <div>
+      {actions.map(a => (
+        <div key={a.id} style={styles.logRow}>
+          <div style={{ ...styles.logDot, background: 'var(--success, #5BA97B)' }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary, #2D2A26)' }}>{a.summary}</div>
+            {a.digital_employee && <div style={{ fontSize: 12, color: 'var(--text-muted, #7a7470)' }}>{a.digital_employee.replace(/_/g, ' ')}</div>}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted, #7a7470)' }}>{fmtTime(a.created_at)}</div>
+        </div>
+      ))}
     </div>
   );
 }

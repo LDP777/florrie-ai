@@ -4,14 +4,20 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
-const DEV_STAFF = [
-  { id: 1, name: 'Ellie', role: 'Owner / Lead Stylist', avatar: '👩‍🎨', revenue: 4820, bookings: 62, avgRating: 4.9, utilisation: 87, retention: 94, clients: 38, noShows: 1, rebookRate: 78 },
-  { id: 2, name: 'Sophie', role: 'Brow Specialist', avatar: '💁‍♀️', revenue: 3640, bookings: 48, avgRating: 4.7, utilisation: 74, retention: 88, clients: 29, noShows: 3, rebookRate: 71 },
-  { id: 3, name: 'Jade', role: 'Lash Technician', avatar: '✨', revenue: 2980, bookings: 41, avgRating: 4.8, utilisation: 69, retention: 91, clients: 24, noShows: 0, rebookRate: 82 },
-  { id: 4, name: 'Mia', role: 'Junior Stylist', avatar: '🌸', revenue: 1560, bookings: 28, avgRating: 4.5, utilisation: 52, retention: 79, clients: 18, noShows: 2, rebookRate: 64 },
-];
-
 const PERIODS = ['This Week', 'This Month', 'Last 30 Days', 'This Quarter'];
+
+// team_members rows carry profile fields only (name, role, avatar_url).
+// Performance KPIs are not tracked per member yet, so they render as "-".
+const DASH = '-';
+
+function memberName(m) {
+  const full = [m.first_name, m.last_name].filter(Boolean).join(' ').trim();
+  return full || m.name || 'Team member';
+}
+
+function memberRole(m) {
+  return m.role ? m.role.charAt(0).toUpperCase() + m.role.slice(1) : 'Stylist';
+}
 
 function Bar({ value, max, color = '#C76B8A' }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0;
@@ -38,24 +44,36 @@ export default function StaffPerformance() {
   const [tab, setTab] = useState('overview');
   const { beautician, loading: bLoading } = useBeautician();
   const [staff, setStaff] = useState([]);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (bLoading) return;
-    if (!beautician) { setStaff(DEV_STAFF); return; }
-    fetchRows('team_members', beautician.id, { order: 'name', ascending: true })
-      .then(rows => setStaff(rows.length ? rows : DEV_STAFF));
+    if (!beautician) { setStaff([]); setLoaded(true); return; }
+    fetchRows('team_members', beautician.id, { order: 'first_name', ascending: true })
+      .then(rows => { setStaff(rows); setLoaded(true); });
   }, [beautician, bLoading]);
 
-  if (bLoading) return <PageLoader />;
+  if (bLoading || !loaded) return <PageLoader />;
 
-  const teamTotals = {
-    revenue: staff.reduce((s, m) => s + m.revenue, 0),
-    bookings: staff.reduce((s, m) => s + m.bookings, 0),
-    avgRating: (staff.reduce((s, m) => s + m.avgRating, 0) / staff.length).toFixed(1),
-    avgUtil: Math.round(staff.reduce((s, m) => s + m.utilisation, 0) / staff.length),
-  };
+  // No team members: honest empty state. Performance is a team feature.
+  if (staff.length === 0) {
+    return (
+      <div style={s.page}>
+        <div style={s.header}>
+          <h1 style={s.title}>Staff Performance</h1>
+          <p style={s.subtitle}>Track individual KPIs and team output</p>
+        </div>
+        <EmptyState
+          icon="👥"
+          title="No team members yet"
+          subtitle="Add your team in Team settings to track their performance here."
+          actionLabel="Go to Team"
+          onAction={() => { window.location.href = '/team'; }}
+        />
+      </div>
+    );
+  }
 
-  const maxRevenue = Math.max(...staff.map(m => m.revenue));
   const detail = selectedStaff ? staff.find(m => m.id === selectedStaff) : null;
 
   return (
@@ -74,11 +92,12 @@ export default function StaffPerformance() {
 
       {/* Team summary */}
       <div style={s.summaryGrid}>
-        <StatCard label="Team Revenue" value={`£${teamTotals.revenue.toLocaleString()}`} sub={period} color="var(--accent, #C76B8A)" />
-        <StatCard label="Bookings" value={teamTotals.bookings} sub="completed" />
-        <StatCard label="Avg Rating" value={teamTotals.avgRating} suffix="/5" color="var(--warning, #D4943A)" />
-        <StatCard label="Utilisation" value={`${teamTotals.avgUtil}%`} sub="avg across team" />
+        <StatCard label="Team Revenue" value={DASH} sub={period} color="var(--accent, #C76B8A)" />
+        <StatCard label="Bookings" value={DASH} sub="completed" />
+        <StatCard label="Avg Rating" value={DASH} color="var(--warning, #D4943A)" />
+        <StatCard label="Utilisation" value={DASH} sub="avg across team" />
       </div>
+      <p style={s.kpiNote}>Per-member performance metrics are not tracked yet.</p>
 
       {/* Tab toggle */}
       <div style={s.tabRow}>
@@ -95,26 +114,16 @@ export default function StaffPerformance() {
           {staff.map(m => (
             <button key={m.id} onClick={() => setSelectedStaff(m.id)} style={s.staffCard}>
               <div style={s.staffTop}>
-                <span style={{ fontSize: 28 }}>{m.avatar}</span>
+                {m.avatar_url
+                  ? <img src={m.avatar_url} alt="" style={{ width: 32, height: 32, borderRadius: 16, objectFit: 'cover' }} />
+                  : <span style={{ fontSize: 28 }}>👤</span>}
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--text, #2D2A26)' }}>{m.name}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)' }}>{m.role}</div>
+                  <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--text, #2D2A26)' }}>{memberName(m)}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)' }}>{memberRole(m)}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontWeight: 700, fontSize: 17, color: 'var(--accent, #C76B8A)' }}>£{m.revenue.toLocaleString()}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted, #AAA5A0)' }}>{m.bookings} bookings</div>
-                </div>
-              </div>
-              <div style={s.staffMetrics}>
-                <div style={s.metricRow}>
-                  <span style={s.metricLabel}>Utilisation</span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: m.utilisation >= 75 ? 'var(--success, #5BA97B)' : m.utilisation >= 50 ? 'var(--warning, #D4943A)' : 'var(--danger, #D4605C)' }}>{m.utilisation}%</span>
-                </div>
-                <Bar value={m.utilisation} max={100} color={m.utilisation >= 75 ? 'var(--success, #5BA97B)' : m.utilisation >= 50 ? 'var(--warning, #D4943A)' : 'var(--danger, #D4605C)'} />
-                <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
-                  <span style={s.miniStat}>⭐ {m.avgRating}</span>
-                  <span style={s.miniStat}>🔄 {m.rebookRate}% rebook</span>
-                  <span style={s.miniStat}>👥 {m.clients} clients</span>
+                  <div style={{ fontWeight: 700, fontSize: 17, color: 'var(--accent, #C76B8A)' }}>{DASH}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted, #AAA5A0)' }}>no bookings tracked</div>
                 </div>
               </div>
             </button>
@@ -127,67 +136,57 @@ export default function StaffPerformance() {
         <div style={s.detailPanel}>
           <button onClick={() => setSelectedStaff(null)} style={s.backBtn}>← Back to team</button>
           <div style={s.detailHeader}>
-            <span style={{ fontSize: 40 }}>{detail.avatar}</span>
+            {detail.avatar_url
+              ? <img src={detail.avatar_url} alt="" style={{ width: 44, height: 44, borderRadius: 22, objectFit: 'cover' }} />
+              : <span style={{ fontSize: 40 }}>👤</span>}
             <div>
-              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text, #2D2A26)' }}>{detail.name}</h2>
-              <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted, #AAA5A0)' }}>{detail.role}</p>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text, #2D2A26)' }}>{memberName(detail)}</h2>
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted, #AAA5A0)' }}>{memberRole(detail)}</p>
             </div>
           </div>
           <div style={s.summaryGrid}>
-            <StatCard label="Revenue" value={`£${detail.revenue.toLocaleString()}`} color="var(--accent, #C76B8A)" />
-            <StatCard label="Bookings" value={detail.bookings} />
-            <StatCard label="Rating" value={detail.avgRating} suffix="/5" color="var(--warning, #D4943A)" />
-            <StatCard label="Utilisation" value={`${detail.utilisation}%`} />
+            <StatCard label="Revenue" value={DASH} color="var(--accent, #C76B8A)" />
+            <StatCard label="Bookings" value={DASH} />
+            <StatCard label="Rating" value={DASH} color="var(--warning, #D4943A)" />
+            <StatCard label="Utilisation" value={DASH} />
           </div>
           <div style={s.summaryGrid}>
-            <StatCard label="Client Retention" value={`${detail.retention}%`} color="var(--success, #5BA97B)" />
-            <StatCard label="Rebook Rate" value={`${detail.rebookRate}%`} />
-            <StatCard label="Active Clients" value={detail.clients} />
-            <StatCard label="No-shows" value={detail.noShows} color={detail.noShows > 2 ? 'var(--danger, #D4605C)' : 'var(--success, #5BA97B)'} />
+            <StatCard label="Client Retention" value={DASH} color="var(--success, #5BA97B)" />
+            <StatCard label="Rebook Rate" value={DASH} />
+            <StatCard label="Active Clients" value={DASH} />
+            <StatCard label="No-shows" value={DASH} />
           </div>
+          <p style={s.kpiNote}>Per-member performance metrics are not tracked yet.</p>
 
-          {/* AI insight */}
-          <div style={s.aiCard}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent, #C76B8A)', marginBottom: 6 }}>🤖 florrie.ai's Take</div>
-            <p style={{ margin: 0, fontSize: 13, color: 'var(--text, #2D2A26)', lineHeight: 1.5 }}>
-              {detail.utilisation >= 80
-                ? `${detail.name} is running near capacity — consider adding buffer time between appointments or adjusting pricing upward for peak slots.`
-                : detail.utilisation >= 60
-                ? `${detail.name} has room to grow. Suggest targeting ${detail.name}'s existing clients with a rebook campaign or filling gaps with waitlist offers.`
-                : `${detail.name}'s utilisation is low. Review their treatment menu and pricing, or pair them with a mentor for the next 4 weeks.`}
-            </p>
-          </div>
+          {/* Contact details (real fields) */}
+          {(detail.email || detail.phone) && (
+            <div style={s.aiCard}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent, #C76B8A)', marginBottom: 6 }}>Contact</div>
+              {detail.email && <p style={{ margin: '0 0 4px', fontSize: 13, color: 'var(--text, #2D2A26)' }}>{detail.email}</p>}
+              {detail.phone && <p style={{ margin: 0, fontSize: 13, color: 'var(--text, #2D2A26)' }}>{detail.phone}</p>}
+            </div>
+          )}
         </div>
       )}
 
       {/* Leaderboard tab */}
       {tab === 'leaderboard' && (
         <div style={s.leaderboard}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)', marginBottom: 12 }}>Revenue Ranking — {period}</div>
-          {[...staff].sort((a, b) => b.revenue - a.revenue).map((m, i) => (
+          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)', marginBottom: 12 }}>Team - {period}</div>
+          {staff.map((m, i) => (
             <div key={m.id} style={s.leaderRow}>
-              <span style={{ ...s.rank, background: i === 0 ? 'var(--accent, #C76B8A)' : i === 1 ? 'var(--warning, #D4943A)' : i === 2 ? 'var(--text-muted, #B5AFA8)' : 'var(--card-border, #F0ECE8)', color: i < 3 ? '#fff' : 'var(--text, #2D2A26)' }}>{i + 1}</span>
-              <span style={{ fontSize: 22 }}>{m.avatar}</span>
+              <span style={{ ...s.rank, background: 'var(--card-border, #F0ECE8)', color: 'var(--text, #2D2A26)' }}>{i + 1}</span>
+              {m.avatar_url
+                ? <img src={m.avatar_url} alt="" style={{ width: 24, height: 24, borderRadius: 12, objectFit: 'cover' }} />
+                : <span style={{ fontSize: 22 }}>👤</span>}
               <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>{m.name}</div>
-                <Bar value={m.revenue} max={maxRevenue} />
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{memberName(m)}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted, #AAA5A0)' }}>{memberRole(m)}</div>
               </div>
-              <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--accent, #C76B8A)' }}>£{m.revenue.toLocaleString()}</span>
+              <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-muted, #AAA5A0)' }}>{DASH}</span>
             </div>
           ))}
-
-          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)', marginTop: 20, marginBottom: 12 }}>Rebook Rate Ranking</div>
-          {[...staff].sort((a, b) => b.rebookRate - a.rebookRate).map((m, i) => (
-            <div key={m.id} style={s.leaderRow}>
-              <span style={{ ...s.rank, background: i === 0 ? 'var(--success, #5BA97B)' : 'var(--card-border, #F0ECE8)', color: i === 0 ? '#fff' : 'var(--text, #2D2A26)' }}>{i + 1}</span>
-              <span style={{ fontSize: 22 }}>{m.avatar}</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>{m.name}</div>
-                <Bar value={m.rebookRate} max={100} color="var(--success, #5BA97B)" />
-              </div>
-              <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--success, #5BA97B)' }}>{m.rebookRate}%</span>
-            </div>
-          ))}
+          <p style={s.kpiNote}>Revenue ranking will appear once per-member performance is tracked.</p>
         </div>
       )}
 
@@ -198,33 +197,22 @@ export default function StaffPerformance() {
             <div style={{ width: 100 }} />
             {staff.map(m => (
               <div key={m.id} style={{ flex: 1, textAlign: 'center' }}>
-                <span style={{ fontSize: 24 }}>{m.avatar}</span>
-                <div style={{ fontSize: 12, fontWeight: 600, marginTop: 4 }}>{m.name}</div>
+                {m.avatar_url
+                  ? <img src={m.avatar_url} alt="" style={{ width: 24, height: 24, borderRadius: 12, objectFit: 'cover' }} />
+                  : <span style={{ fontSize: 24 }}>👤</span>}
+                <div style={{ fontSize: 12, fontWeight: 600, marginTop: 4 }}>{memberName(m)}</div>
               </div>
             ))}
           </div>
-          {[
-            { label: 'Revenue', key: 'revenue', fmt: v => `£${v.toLocaleString()}` },
-            { label: 'Bookings', key: 'bookings', fmt: v => v },
-            { label: 'Rating', key: 'avgRating', fmt: v => `${v}/5` },
-            { label: 'Utilisation', key: 'utilisation', fmt: v => `${v}%` },
-            { label: 'Retention', key: 'retention', fmt: v => `${v}%` },
-            { label: 'Rebook', key: 'rebookRate', fmt: v => `${v}%` },
-            { label: 'No-shows', key: 'noShows', fmt: v => v },
-          ].map(metric => {
-            const vals = staff.map(m => m[metric.key]);
-            const best = metric.key === 'noShows' ? Math.min(...vals) : Math.max(...vals);
-            return (
-              <div key={metric.key} style={s.compareRow}>
-                <div style={{ width: 100, fontSize: 12, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)' }}>{metric.label}</div>
-                {staff.map(m => (
-                  <div key={m.id} style={{ flex: 1, textAlign: 'center', fontSize: 14, fontWeight: m[metric.key] === best ? 700 : 400, color: m[metric.key] === best ? 'var(--accent, #C76B8A)' : 'var(--text, #2D2A26)' }}>
-                    {metric.fmt(m[metric.key])}
-                  </div>
-                ))}
-              </div>
-            );
-          })}
+          {['Revenue', 'Bookings', 'Rating', 'Utilisation', 'Retention', 'Rebook', 'No-shows'].map(label => (
+            <div key={label} style={s.compareRow}>
+              <div style={{ width: 100, fontSize: 12, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)' }}>{label}</div>
+              {staff.map(m => (
+                <div key={m.id} style={{ flex: 1, textAlign: 'center', fontSize: 14, color: 'var(--text-muted, #AAA5A0)' }}>{DASH}</div>
+              ))}
+            </div>
+          ))}
+          <p style={s.kpiNote}>Per-member performance metrics are not tracked yet.</p>
         </div>
       )}
     </div>
@@ -236,6 +224,7 @@ const s = {
   header: { marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, margin: 0, color: 'var(--text, #2D2A26)' },
   subtitle: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', margin: '4px 0 0' },
+  kpiNote: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)', margin: '8px 0 16px', fontStyle: 'italic' },
   periodRow: { display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto' },
   periodChip: { padding: '6px 14px', borderRadius: 20, border: '1px solid var(--card-border, #F0ECE8)', background: 'none', fontSize: 12, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', color: 'var(--text, #2D2A26)', fontFamily: 'inherit' },
   periodActive: { background: 'var(--accent, #C76B8A)', color: '#fff', borderColor: 'var(--accent, #C76B8A)' },
@@ -246,11 +235,7 @@ const s = {
   tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
   staffList: { display: 'flex', flexDirection: 'column', gap: 12 },
   staffCard: { padding: 16, borderRadius: 14, background: 'var(--card-bg, #fff)', border: '1px solid var(--card-border, #F0ECE8)', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' },
-  staffTop: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 },
-  staffMetrics: { borderTop: '1px solid var(--card-border, #F0ECE8)', paddingTop: 10 },
-  metricRow: { display: 'flex', justifyContent: 'space-between', marginBottom: 4 },
-  metricLabel: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)' },
-  miniStat: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
+  staffTop: { display: 'flex', alignItems: 'center', gap: 12 },
   detailPanel: { animation: 'fadeIn 0.2s ease' },
   backBtn: { background: 'none', border: 'none', color: 'var(--accent, #C76B8A)', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '4px 0', marginBottom: 12, fontFamily: 'inherit' },
   detailHeader: { display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 },

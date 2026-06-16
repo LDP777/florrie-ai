@@ -105,7 +105,7 @@ export default function WaitlistPro() {
     ]).then(([wl, tx]) => {
       setWaitlist(wl || []);
       setTreatments(tx || []);
-    }).catch(err => { logger.error('Load waitlist error:', err); setState([]); });
+    }).catch(err => { logger.error('Load waitlist error:', err); setWaitlist([]); });
   }, [beautician, bLoading]);
   const activeTreatments = treatments;
   async function handleAddToWaitlist() {

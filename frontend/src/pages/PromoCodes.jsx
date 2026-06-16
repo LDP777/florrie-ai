@@ -62,7 +62,6 @@ export default function PromoCodes() {
           value: code.discount_value,
           maxUses: code.max_uses,
           used: code.current_uses || 0,
-          revenue: 0,
           status: code.is_active ? 'active' : 'expired',
           treatments: [],
           expiresAt: code.valid_until,
@@ -82,7 +81,6 @@ export default function PromoCodes() {
   const active = codes.filter(c => c.status === 'active');
   const inactive = codes.filter(c => c.status !== 'active');
 
-  const totalRevenue = codes.reduce((s, c) => s + c.revenue, 0);
   const totalRedemptions = codes.reduce((s, c) => s + c.used, 0);
   const avgDiscount = codes.length > 0
     ? Math.round(codes.reduce((s, c) => s + c.value, 0) / codes.length)
@@ -136,7 +134,6 @@ export default function PromoCodes() {
         value: newCode.discount_value,
         maxUses: newCode.max_uses,
         used: 0,
-        revenue: 0,
         status: newCode.is_active ? 'active' : 'expired',
         treatments: [],
         expiresAt: newCode.valid_until,
@@ -198,8 +195,8 @@ export default function PromoCodes() {
           <span style={S.summaryLabel}>Redeemed</span>
         </div>
         <div style={S.summaryCard}>
-          <span style={S.summaryNum}>{fmt(totalRevenue)}</span>
-          <span style={S.summaryLabel}>Revenue</span>
+          <span style={S.summaryNum}>{codes.length}</span>
+          <span style={S.summaryLabel}>Total codes</span>
         </div>
       </div>
 
@@ -244,10 +241,6 @@ export default function PromoCodes() {
                     <div style={S.detailItem}>
                       <span style={S.detailLabel}>Type</span>
                       <span style={S.detailValue}>{code.type === 'percent' ? 'Percentage' : 'Fixed amount'}</span>
-                    </div>
-                    <div style={S.detailItem}>
-                      <span style={S.detailLabel}>Revenue</span>
-                      <span style={S.detailValue}>{fmt(code.revenue)}</span>
                     </div>
                     {code.minSpend > 0 && (
                       <div style={S.detailItem}>

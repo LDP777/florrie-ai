@@ -69,6 +69,7 @@ const MESSAGE_TEMPLATES = {
 export default function Campaigns() {
   const { beautician, loading: bLoading } = useBeautician();
   const [campaigns, setCampaigns] = useState([]);
+  const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('active'); // active | history | create
   const [creating, setCreating] = useState(false);
@@ -82,12 +83,32 @@ export default function Campaigns() {
   async function loadCampaigns() {
     setLoading(true);
     try {
-      const data = await fetchRows('campaigns', beautician.id, { order: 'created_at', ascending: false });
-      setCampaigns(data);
+      const [campaignData, clientData] = await Promise.all([
+        fetchRows('campaigns', beautician.id, { order: 'created_at', ascending: false }),
+        fetchRows('clients', beautician.id),
+      ]);
+      setCampaigns(campaignData);
+      setClients(clientData || []);
     } catch (err) {
       logger.error('Load campaigns:', err);
     }
     setLoading(false);
+  }
+
+  // Real audience size for a campaign type, derived from loaded clients.
+  function audienceForType(type) {
+    if (type === 'reactivation') {
+      const cutoff = Date.now() - 30 * 86400000;
+      return clients.filter(c =>
+        c.status === 'dormant' || c.status === 'lost' ||
+        (c.last_visit_at && new Date(c.last_visit_at).getTime() < cutoff)
+      ).length;
+    }
+    // Rescue targets a single client who just cancelled — the recipient is chosen
+    // at send time, so we don't claim a count up front.
+    if (type === 'rescue') return null;
+    // Broadcast types reach the active client base.
+    return clients.filter(c => c.status !== 'lost').length;
   }
 
   function startCreate(type) {
@@ -95,11 +116,8 @@ export default function Campaigns() {
     const template = templates[Math.floor(Math.random() * templates.length)];
     const cfg = TYPE_CONFIG[type];
 
-    // Estimate target count based on type
-    let targetCount = 0;
-    if (type === 'reactivation') targetCount = 3;
-    else if (type === 'rescue') targetCount = 1;
-    else targetCount = 5;
+    // Real audience size from loaded clients (null = chosen at send time).
+    const targetCount = audienceForType(type);
 
     setForm({
       name: `${cfg.label}, ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`,
@@ -245,12 +263,14 @@ export default function Campaigns() {
             <span style={styles.targetIcon}>👥</span>
             <div>
               <span style={styles.targetLabel}>
-                {form.targetCount} client{form.targetCount !== 1 ? 's' : ''} will receive this
+                {form.targetCount == null
+                  ? 'Recipient chosen when you send'
+                  : `${form.targetCount} client${form.targetCount !== 1 ? 's' : ''} will receive this`}
               </span>
               <span style={styles.targetHint}>
                 {selectedType === 'reactivation' ? 'Clients inactive 30+ days' :
-                 selectedType === 'rescue' ? 'Client who just cancelled' :
-                 'Matched by AI based on campaign type'}
+                 selectedType === 'rescue' ? 'Pick the client who just cancelled' :
+                 'Your active clients'}
               </span>
             </div>
           </div>

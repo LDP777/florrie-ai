@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useBeautician } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
+import { useCountUp } from '../lib/useCountUp.js';
 import ActivityFeed from '../components/ActivityFeed.jsx';
 import SuggestionCards from '../components/SuggestionCards.jsx';
 import MorningCatchup from '../components/MorningCatchup.jsx';
@@ -166,6 +167,8 @@ function SubPaneLoader() {
 function TodaySummary({ beautician, onNav }) {
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
+  // Roll today's takings up on open (the Monzo app-load feel).
+  const animatedRevenue = useCountUp(data?.revenuePence || 0);
 
   useEffect(() => {
     if (!beautician) return;
@@ -255,7 +258,7 @@ function TodaySummary({ beautician, onNav }) {
     );
   }
 
-  const revenue = formatGbp(data.revenuePence);
+  const revenue = formatGbp(Math.round(animatedRevenue));
   const nextLabel = data.next
     ? `${formatTime(data.next.starts_at)} · ${nextClientName(data.next)}`
     : 'No clients booked';

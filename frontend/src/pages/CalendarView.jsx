@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useBeautician, supabase, updateRow, insertRow } from '../lib/supabase.js'
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
+import { hapticTap, hapticSuccess } from '../lib/native.js';
 /**
  * CalendarView - Day and Week view of appointments.
  * Wired to Supabase with client/treatment joins.
@@ -226,6 +227,20 @@ export default function CalendarView({ initialView } = {}) {
   function getAppointmentsForDate(date) {
     const dateStr = formatDate(date);
     return appointments.filter(a => a.starts_at?.startsWith(dateStr));
+  }
+  // After a one-tap complete, jump straight to the next client still needing
+  // action that day (earliest first), so Ellie never scrolls back up the list.
+  // If nothing's left, close the panel.
+  function advanceToNextAppointment(completed) {
+    const COMPLETABLE = ['confirmed', 'pending', 'in_progress'];
+    const day = getAppointmentsForDate(currentDate)
+      .slice()
+      .sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
+    const idx = day.findIndex(a => a.id === completed.id);
+    const next = (idx >= 0 ? day.slice(idx + 1) : day)
+      .find(a => a.id !== completed.id && COMPLETABLE.includes(a.status));
+    loadAppointments();
+    setSelectedAppointment(next || null);
   }
   function getStatusColor(status) {
     const colors = { confirmed: '#5BA67F', pending: '#D4A843', in_progress: '#4A90D9', completed: '#8A8580', cancelled_by_client: '#DC2626', cancelled_by_beautician: '#DC2626', no_show: '#EF4444', rescheduled: '#7C6EAF' };
@@ -607,10 +622,12 @@ export default function CalendarView({ initialView } = {}) {
       {selectedAppointment && (
         <div ref={detailRef}>
           <AppointmentDetail
+            key={selectedAppointment.id}
             appointment={selectedAppointment}
             beautician={beautician}
             onClose={() => setSelectedAppointment(null)}
             onUpdate={() => { loadAppointments(); setSelectedAppointment(null); }}
+            onCompleted={(completed) => advanceToNextAppointment(completed)}
             getStatusColor={getStatusColor}
             onViewClient={(clientId) => navigate('/clients', { state: { clientId } })}
           />
@@ -620,6 +637,7 @@ export default function CalendarView({ initialView } = {}) {
       {showNewAppt && (
         <NewAppointmentModal
           defaultDate={formatDate(currentDate)}
+          existingAppointments={appointments}
           onClose={() => setShowNewAppt(false)}
           onSaved={() => { setShowNewAppt(false); loadAppointments(); }}
         />
@@ -648,7 +666,7 @@ export default function CalendarView({ initialView } = {}) {
  * AppointmentDetail - detail panel with completion flow.
  * Mark done → log payment → add notes → rebook prompt → before/after photo.
  */
-function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStatusColor, onViewClient }) {
+function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onCompleted, getStatusColor, onViewClient }) {
   const [mode, setMode] = useState('detail'); // detail | completing | done
   const [notes, setNotes] = useState(appointment.beautician_notes || '');
   const [paymentMethod, setPaymentMethod] = useState('card');
@@ -660,6 +678,8 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
   const [paymentLinkUrl, setPaymentLinkUrl] = useState(null);
   const [linkLoading, setLinkLoading] = useState(false);
   const [noteSaved, setNoteSaved] = useState(false);
+  const [rebookSaving, setRebookSaving] = useState(false);
+  const [rebookSent, setRebookSent] = useState(false);
   // Inline price set for bookings imported with no price (£0).
   const [priceEditing, setPriceEditing] = useState(false);
   const [priceInput, setPriceInput] = useState('');
@@ -757,27 +777,56 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
       setLinkLoading(false);
     }
   }
+  // Shared write: mark completed + log the takings. `method` defaults to the
+  // last one Ellie used (remembered silently) so she never has to type it.
+  async function writeCompletion(method) {
+    await updateRow('appointments', appointment.id, {
+      status: 'completed',
+      completed_at: new Date().toISOString(),
+      beautician_notes: notes || null,
+      payment_method: method,
+    });
+    await insertRow('transactions', {
+      beautician_id: beautician.id,
+      appointment_id: appointment.id,
+      client_id: appointment.client_id,
+      treatment_id: appointment.treatment_id,
+      amount_cents: appointment.price_cents,
+      type: 'service',
+      payment_method: method,
+      description: `${appointment.treatments?.name} - ${appointment.clients?.first_name}`,
+    });
+  }
+  // One-tap complete: the default action. Logs takings and jumps to the next
+  // client in the day, no payment screen. Payment type isn't the point here,
+  // completed-vs-no-show is, so we keep it to a single tap.
+  async function handleQuickComplete() {
+    if (saving) return;
+    hapticTap();
+    setSaving(true);
+    const method = (() => {
+      try { return localStorage.getItem('florrie_last_payment_method') || 'card'; }
+      catch { return 'card'; }
+    })();
+    try {
+      await writeCompletion(method);
+      hapticSuccess();
+      if (onCompleted) onCompleted(appointment);
+      else onUpdate();
+    } catch (err) {
+      logger.error('Quick complete error:', err);
+      alert('Could not mark complete. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+  // Detailed path (kept for when she wants to log payment method + photo).
   async function handleComplete() {
     setSaving(true);
     try {
-      // Update appointment
-      await updateRow('appointments', appointment.id, {
-        status: 'completed',
-        completed_at: new Date().toISOString(),
-        beautician_notes: notes || null,
-        payment_method: paymentMethod
-      });
-      // Log income transaction
-      await insertRow('transactions', {
-        beautician_id: beautician.id,
-        appointment_id: appointment.id,
-        client_id: appointment.client_id,
-        treatment_id: appointment.treatment_id,
-        amount_cents: appointment.price_cents,
-        type: 'service',
-        payment_method: paymentMethod,
-        description: `${appointment.treatments?.name} - ${appointment.clients?.first_name}`
-      });
+      try { localStorage.setItem('florrie_last_payment_method', paymentMethod); } catch {}
+      await writeCompletion(paymentMethod);
+      hapticSuccess();
       setMode('done');
     } catch (err) {
       logger.error('Complete error:', err);
@@ -806,6 +855,37 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
   }
   function handleDone() {
     onUpdate();
+  }
+  // Schedule a real rebook reminder N weeks out via the rebook_reminders table.
+  async function handleSendRebook() {
+    if (rebookSaving || rebookSent) return;
+    if (!appointment.client_id) { alert('This booking has no linked client to remind.'); return; }
+    hapticTap();
+    setRebookSaving(true);
+    try {
+      const d = new Date();
+      d.setDate(d.getDate() + rebookWeeks * 7);
+      const reminderDate = d.toISOString().slice(0, 10);
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/features/rebook-reminders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          client_id: appointment.client_id,
+          appointment_id: appointment.id,
+          reminder_date: reminderDate,
+          message: `Time to rebook ${appointment.clients?.first_name || 'your client'} for ${appointment.treatments?.name || 'their treatment'}.`,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.error || 'Failed');
+      hapticSuccess();
+      setRebookSent(true);
+    } catch (err) {
+      logger.error('Rebook reminder error:', err);
+      alert('Could not schedule the rebook reminder. Please try again.');
+    } finally {
+      setRebookSaving(false);
+    }
   }
   const isCompleted = appointment.status === 'completed';
   const canComplete = ['confirmed', 'pending', 'in_progress'].includes(appointment.status);
@@ -892,19 +972,23 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
           </div>
           {canComplete && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-              <button onClick={() => setMode('completing')} style={styles.completeBtn}>
-                Mark as complete
+              <button onClick={handleQuickComplete} disabled={saving} style={{ ...styles.completeBtn, opacity: saving ? 0.7 : 1 }}>
+                {saving ? 'Saving…' : 'Mark as complete'}
               </button>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={handleMarkNoShow} disabled={saving}
+                <button onClick={() => { hapticTap(); handleMarkNoShow(); }} disabled={saving}
                   style={{ ...styles.completeBtn, flex: 1, background: '#EF4444', fontSize: 12, padding: '8px 0' }}>
                   No-show
                 </button>
-                <button onClick={handleSendPaymentLink} disabled={linkLoading}
+                <button onClick={() => { hapticTap(); handleSendPaymentLink(); }} disabled={linkLoading}
                   style={{ ...styles.completeBtn, flex: 1, background: 'var(--accent)', fontSize: 12, padding: '8px 0' }}>
                   {linkLoading ? 'Creating...' : 'Send payment link'}
                 </button>
               </div>
+              <button onClick={() => setMode('completing')}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted, #9E9790)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '2px 0' }}>
+                Add payment method or photo
+              </button>
             </div>
           )}
           {/* No-show fee charge prompt */}
@@ -928,7 +1012,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
             <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: '#F0FFF4', border: '1px solid #C6F6D5' }}>
               <p style={{ fontSize: 13, color: '#276749', margin: '0 0 8px', fontWeight: 600 }}>Payment link ready</p>
               <input readOnly value={paymentLinkUrl} style={{ width: '100%', padding: '8px', borderRadius: 6, border: '1px solid #C6F6D5', fontSize: 12, boxSizing: 'border-box' }}
-                onClick={e => { e.target.select(); navigator.clipboard?.copyText(paymentLinkUrl); }} />
+                onClick={e => { e.target.select(); navigator.clipboard?.writeText?.(paymentLinkUrl); }} />
               <p style={{ fontSize: 11, color: '#276749', margin: '6px 0 0' }}>Tap to copy. Send to client via WhatsApp or SMS.</p>
             </div>
           )}
@@ -1010,8 +1094,11 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, getStat
                 </button>
               ))}
             </div>
-            <button style={styles.rebookSendBtn}>
-              Send rebook reminder in {rebookWeeks} weeks
+            <button
+              style={{ ...styles.rebookSendBtn, opacity: rebookSaving || rebookSent ? 0.7 : 1 }}
+              disabled={rebookSaving || rebookSent}
+              onClick={handleSendRebook}>
+              {rebookSent ? '✓ Reminder scheduled' : rebookSaving ? 'Scheduling…' : `Send rebook reminder in ${rebookWeeks} weeks`}
             </button>
           </div>
           <button onClick={handleDone} style={styles.doneCloseBtn}>Close</button>
@@ -1364,7 +1451,7 @@ const TIME_OPTIONS = (() => {
   }
   return opts;
 })();
-function NewAppointmentModal({ defaultDate, onClose, onSaved }) {
+function NewAppointmentModal({ defaultDate, existingAppointments = [], onClose, onSaved }) {
   const [treatments, setTreatments] = useState([]);
   const [treatmentId, setTreatmentId] = useState('');
   const [price, setPrice] = useState('');
@@ -1464,6 +1551,23 @@ function NewAppointmentModal({ defaultDate, onClose, onSaved }) {
       setSaving(false);
     }
   }
+  // Does the chosen slot overlap an appointment already in the book? Warn,
+  // don't block, so Ellie can still double-book on purpose if she means to.
+  const clash = (() => {
+    const durNum = parseInt(duration, 10);
+    if (!date || !time || isNaN(durNum)) return null;
+    const [hh, mm] = time.split(':').map(Number);
+    if (isNaN(hh) || isNaN(mm)) return null;
+    const newStart = hh * 60 + mm;
+    const newEnd = newStart + durNum;
+    return existingAppointments.find(a => {
+      if (!a.starts_at?.startsWith(date)) return false;
+      if (DEAD_STATUSES.includes(a.status)) return false;
+      const aStart = wallMinutes(a.starts_at);
+      const aEnd = a.ends_at ? wallMinutes(a.ends_at) : aStart + 60;
+      return newStart < aEnd && aStart < newEnd;
+    }) || null;
+  })();
   const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 900, display: 'flex', alignItems: 'flex-end' };
   const sheet = { background: '#fff', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif', maxHeight: '90vh', overflowY: 'auto' };
   const labelStyle = { fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' };
@@ -1615,15 +1719,24 @@ function NewAppointmentModal({ defaultDate, onClose, onSaved }) {
         <p style={{ fontSize: 11, color: COLORS.stone400, margin: '0 0 18px' }}>
           Leave off when copying over bookings from your old system, so clients don't get a duplicate message.
         </p>
+        {clash && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 10, background: '#FFF7ED', border: '1px solid #FED7AA', margin: '0 0 12px' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#C2410C', flexShrink: 0 }}>warning</span>
+            <span style={{ fontSize: 12.5, color: '#9A3412', lineHeight: 1.45 }}>
+              This overlaps {clash.clients?.first_name || 'another booking'} at {formatWallTime(clash.starts_at)}
+              {clash.treatments?.name ? ` (${clash.treatments.name})` : ''}. You can still add it if you mean to double-book.
+            </span>
+          </div>
+        )}
         {error && (
           <p style={{ fontSize: 13, color: '#B91C1C', margin: '0 0 12px', fontWeight: 600 }}>{error}</p>
         )}
         <button
-          onClick={handleSave}
+          onClick={() => { hapticTap(); handleSave(); }}
           disabled={saving}
           style={{ width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: saving ? COLORS.stone400 : COLORS.primary, color: '#fff', fontSize: 15, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
         >
-          {saving ? 'Saving...' : 'Add appointment'}
+          {saving ? 'Saving...' : (clash ? 'Add anyway' : 'Add appointment')}
         </button>
       </div>
     </div>

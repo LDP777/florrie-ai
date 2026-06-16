@@ -523,11 +523,14 @@ export default function BookingPage() {
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
-  // Generate next 14 days for date picker
+  // Generate the date picker out to however far the diary is open. The
+  // beautician sets this in Settings (booking_policy.max_advance_days); when
+  // unset we keep the original 14-day horizon.
   function getDateOptions() {
     const dates = [];
     const today = new Date();
-    for (let i = 1; i <= 14; i++) {
+    const horizon = beautician?.booking_policy?.max_advance_days || 14;
+    for (let i = 1; i <= horizon; i++) {
       const d = new Date(today);
       d.setDate(d.getDate() + i);
       // Skip days the beautician doesn't work

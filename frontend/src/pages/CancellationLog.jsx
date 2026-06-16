@@ -49,7 +49,7 @@ export default function CancellationLog() {
           reason: a.cancellation_reason || '',
           revenue_lost: a.price_cents || 0,
           deposit: a.deposit_cents || 0,
-          notice: '0h',
+          notice: computeNotice(a.cancelled_at, a.starts_at),
           rebooked: a.rebooked_at ? true : false,
         })));
         setLoading(false);
@@ -102,6 +102,11 @@ export default function CancellationLog() {
     if (c.type === 'no-show') clientCounts[c.client].noShows++;
   });
   const repeatOffenders = Object.entries(clientCounts).filter(([, d]) => d.total >= 2).sort(([, a], [, b]) => b.total - a.total);
+
+  // Real insight: the client with the most no-shows (if any).
+  const topNoShow = Object.entries(clientCounts)
+    .filter(([, d]) => d.noShows >= 1)
+    .sort(([, a], [, b]) => b.noShows - a.noShows)[0];
 
   // Day of week pattern
   const dayPattern = {};
@@ -184,7 +189,7 @@ export default function CancellationLog() {
                     {c.reason && <span style={S.reasonTag}>"{c.reason}"</span>}
                     {c.revenue_lost > 0 && <span style={S.lostTag}>-{fmt(c.revenue_lost)}</span>}
                     {c.deposit > 0 && <span style={S.depositTag}>Deposit kept: {fmt(c.deposit)}</span>}
-                    {c.notice !== '0h' && <span style={S.noticeTag}>{c.notice} notice</span>}
+                    {c.notice && <span style={S.noticeTag}>{c.notice} notice</span>}
                     {c.rebooked ? (
                       <span style={S.rebookedTag}>✓ Rebooked</span>
                     ) : (
@@ -268,10 +273,14 @@ export default function CancellationLog() {
             </div>
           </div>
 
-          <div style={S.tipCard}>
-            <span style={S.tipTitle}>💡 Insight</span>
-            <p style={S.tipText}>Lucy P has 3 no-shows. Consider requiring a deposit for her future bookings, or enabling the auto-block policy after 3 strikes.</p>
-          </div>
+          {topNoShow && (
+            <div style={S.tipCard}>
+              <span style={S.tipTitle}>💡 Insight</span>
+              <p style={S.tipText}>
+                {topNoShow[0]} has {topNoShow[1].noShows} no-show{topNoShow[1].noShows !== 1 ? 's' : ''}. Consider requiring a deposit for future bookings, or enabling the auto-block policy after repeat strikes.
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -280,6 +289,18 @@ export default function CancellationLog() {
 
 function formatDate(dateStr) {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+// Notice given = hours between the cancellation and the appointment start.
+// Returns null when we can't tell (e.g. no-shows have no cancelled_at).
+function computeNotice(cancelledAt, startsAt) {
+  if (!cancelledAt || !startsAt) return null;
+  const diffMs = new Date(startsAt) - new Date(cancelledAt);
+  if (!Number.isFinite(diffMs) || diffMs <= 0) return null;
+  const hours = diffMs / 3600000;
+  if (hours < 1) return `${Math.max(1, Math.round(hours * 60))}m`;
+  if (hours < 48) return `${Math.round(hours)}h`;
+  return `${Math.round(hours / 24)}d`;
 }
 
 const S = {

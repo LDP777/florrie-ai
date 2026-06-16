@@ -478,6 +478,37 @@ export default function Settings({ onLogout }) {
               </div>
             </div>
 
+            {/* How far ahead the diary is open */}
+            <div style={styles.card}>
+              <div style={styles.cardTitle}>How far ahead clients can book</div>
+              <p style={styles.cardDesc}>Keep your diary from filling up too far in advance. Clients booking online can only choose dates inside this window.</p>
+              <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                {[
+                  { label: 'No limit', days: 0 },
+                  { label: '1 month', days: 30 },
+                  { label: '2 months', days: 60 },
+                  { label: '3 months', days: 90 },
+                ].map(opt => {
+                  const active = (policy.max_advance_days ?? 0) === opt.days;
+                  return (
+                    <button
+                      key={opt.days}
+                      onClick={() => savePolicy({ max_advance_days: opt.days })}
+                      style={{
+                        flex: 1, padding: '9px 4px', borderRadius: 10, fontSize: 12.5, fontWeight: 600,
+                        cursor: 'pointer', fontFamily: 'inherit',
+                        border: active ? '1.5px solid var(--accent)' : '1.5px solid var(--border)',
+                        background: active ? 'var(--accent)' : 'var(--bg-card)',
+                        color: active ? '#fff' : 'var(--text-secondary)',
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Payment buffer */}
             <div style={styles.card}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

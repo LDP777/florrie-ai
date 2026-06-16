@@ -5,6 +5,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
 import { cleanupStripeEvents } from '../services/stripe-cleanup.js';
 import { calculatePlatformFee, getFeeDescription } from '../lib/platform-fees.js';
+import { chargePolicyFee } from '../services/policy-fees.js';
 import logger from '../lib/logger.js';
 
 const router = Router();
@@ -343,7 +344,7 @@ router.get('/fees', requireAuth, (req, res) => {
  * The client must have a saved stripe_customer_id with a payment method on file.
  */
 router.post('/charge-no-show', requireAuth, requireStripe, async (req, res) => {
-  const { appointment_id, amount_cents } = req.body;
+  const { appointment_id } = req.body;
 
   if (!appointment_id) {
     return res.status(400).json({ error: 'appointment_id is required' });
@@ -355,10 +356,13 @@ router.post('/charge-no-show', requireAuth, requireStripe, async (req, res) => {
   }
 
   try {
-    // Get appointment with client details
+    // Ownership + state check. The actual charge goes through chargePolicyFee,
+    // which is the single idempotent path (guards on policy_fee_charged_at and
+    // carries a Stripe idempotency key), so the manual button can never
+    // double-charge a card that the automatic no-show flow already charged.
     const { data: appointment, error: fetchError } = await supabase
       .from('appointments')
-      .select('*, clients(id, first_name, last_name, stripe_customer_id, phone)')
+      .select('id, status, price_cents, policy_fee_charged_at')
       .eq('id', appointment_id)
       .eq('beautician_id', req.beautician.id)
       .single();
@@ -366,104 +370,55 @@ router.post('/charge-no-show', requireAuth, requireStripe, async (req, res) => {
     if (fetchError || !appointment) {
       return res.status(404).json({ error: 'Appointment not found' });
     }
-
     if (appointment.status !== 'no_show') {
       return res.status(400).json({ error: 'Appointment must be marked as no-show first' });
     }
-
-    // Validate amount doesn't exceed a reasonable cap
-    const feeCents = amount_cents || appointment.deposit_cents || appointment.price_cents;
-    const maxChargeable = (appointment.price_cents || 0) * 2;
-    if (feeCents > maxChargeable) {
-      return res.status(400).json({ error: `Amount exceeds reasonable limit (${maxChargeable} cents)` });
+    if (appointment.policy_fee_charged_at) {
+      return res.status(409).json({ error: 'This no-show fee has already been charged.' });
     }
 
-    const client = appointment.clients;
-    if (!client?.stripe_customer_id) {
-      return res.status(400).json({
-        error: 'Client has no saved payment method. No-show fee cannot be charged automatically.',
-        suggest: 'Send a payment link instead.',
+    const result = await chargePolicyFee(appointment_id, 'no_show');
+
+    if (result.charged) {
+      return res.json({
+        success: true,
+        amount_cents: result.feeCents,
+        payment_intent_id: result.paymentIntentId,
+        status: 'succeeded',
       });
     }
-    if (!feeCents || feeCents <= 0) {
-      return res.status(400).json({ error: 'No valid amount to charge' });
+
+    // Map the (never-throwing) reason to a helpful response.
+    const reason = result.reason;
+    if (reason === 'already_charged') {
+      return res.status(409).json({ error: 'This no-show fee has already been charged.' });
     }
-
-    const platformFee = calculatePlatformFee(feeCents);
-
-    // Get saved payment methods for the customer
-    const paymentMethods = await stripe.paymentMethods.list({
-      customer: client.stripe_customer_id,
-      type: 'card',
-    });
-
-    if (!paymentMethods.data.length) {
+    if (reason === 'no_fee_configured') {
+      return res.status(400).json({
+        error: 'No no-show fee is set in your booking policy. Set one in Settings, or send a payment link instead.',
+        code: 'no_fee_configured',
+      });
+    }
+    if (reason === 'no_card_on_file') {
       return res.status(400).json({
         error: 'Client has no saved card on file. Send a payment link instead.',
+        code: 'no_card_on_file',
       });
     }
-
-    // Charge the most recent card
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: feeCents,
-      currency: 'gbp',
-      customer: client.stripe_customer_id,
-      payment_method: paymentMethods.data[0].id,
-      confirm: true,
-      off_session: true,
-      application_fee_amount: platformFee,
-      transfer_data: {
-        destination: req.beautician.stripe_account_id,
-      },
-      description: `No-show fee — ${client.first_name} ${client.last_name || ''}`.trim(),
-      metadata: {
-        appointment_id,
-        beautician_id: req.beautician.id,
-        client_id: client.id,
-        type: 'no_show_fee',
-        platform_fee_cents: platformFee,
-      },
-    });
-
-    // Record the transaction
-    await supabase.from('transactions').insert({
-      beautician_id: req.beautician.id,
-      appointment_id,
-      client_id: client.id,
-      amount_cents: feeCents,
-      type: 'no_show_fee',
-      status: paymentIntent.status === 'succeeded' ? 'completed' : 'pending',
-      stripe_payment_intent_id: paymentIntent.id,
-      payment_method: 'card',
-    });
-
-    // Update appointment with no-show fee info
-    await supabase.from('appointments').update({
-      no_show_fee_cents: feeCents,
-      no_show_fee_charged: paymentIntent.status === 'succeeded',
-      no_show_fee_payment_intent: paymentIntent.id,
-    }).eq('id', appointment_id);
-
-    res.json({
-      success: paymentIntent.status === 'succeeded',
-      payment_intent_id: paymentIntent.id,
-      amount_cents: feeCents,
-      status: paymentIntent.status,
-    });
-  } catch (err) {
-    // Handle card declined or authentication required
-    if (err.code === 'authentication_required') {
+    if (reason === 'stripe_not_onboarded' || reason === 'stripe_not_configured') {
+      return res.status(400).json({ error: 'Complete Stripe setup before charging no-show fees.' });
+    }
+    if (reason === 'authentication_required') {
       return res.status(402).json({
         error: 'Client card requires authentication. Send a payment link instead.',
         code: 'authentication_required',
       });
     }
-    if (err.type === 'StripeCardError') {
-      return res.status(402).json({
-        error: 'Card declined. Please try another payment method.',
-        code: err.code,
-      });
+    if (reason === 'card_declined' || (typeof reason === 'string' && reason.startsWith('card_'))) {
+      return res.status(402).json({ error: 'Card declined. Send a payment link instead.', code: reason });
     }
+    return res.status(502).json({ error: 'Could not charge the no-show fee. Send a payment link instead.', code: reason || 'unknown' });
+  } catch (err) {
     logger.error({ err }, 'No-show charge error');
     res.status(500).json({ error: 'Failed to charge no-show fee' });
   }

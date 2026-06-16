@@ -22,6 +22,7 @@ const CATEGORIES = [
     matIcon: 'wb_sunny',
     items: [
       { path: '/inbox',          label: 'Front Desk',       matIcon: 'forum',                  desc: 'Handles every message'        },
+      { path: '/approval-queue', label: 'Approvals',        matIcon: 'fact_check',             desc: 'Review what Florrie suggests' },
       { path: '/clients',        label: 'Directory',        matIcon: 'people',                 desc: 'All client profiles'          },
       { path: '/money',          label: 'Money Tracker',    matIcon: 'account_balance_wallet', desc: 'Revenue dashboard'            },
       { path: '/calendar/week',  label: 'Week view',        matIcon: 'calendar_view_week',     desc: 'Whole week at a glance'       },

@@ -11,9 +11,9 @@ import CoachNudge from './components/CoachNudge.jsx';
 import FloatingMic from './components/FloatingMic.jsx';
 import { CoachProvider } from './contexts/CoachContext.jsx';
 import { isIOSNative } from './lib/platform.js';
+import { hapticTap } from './lib/native.js';
 
 // Lazy-loaded pages (code splitting , each becomes its own chunk)
-const Dashboard = lazy(() => import('./pages/Dashboard.jsx'));
 const CalendarView = lazy(() => import('./pages/CalendarView.jsx'));
 const Escalations = lazy(() => import('./pages/Escalations.jsx'));
 const ApprovalQueue = lazy(() => import('./pages/ApprovalQueue.jsx'));
@@ -55,7 +55,6 @@ const MessageTemplates = lazy(() => import('./pages/MessageTemplates.jsx'));
 const Referrals = lazy(() => import('./pages/Referrals.jsx'));
 const Portfolio = lazy(() => import('./pages/Portfolio.jsx'));
 const AppointmentNotes = lazy(() => import('./pages/AppointmentNotes.jsx'));
-const Feedback = lazy(() => import('./pages/Feedback.jsx'));
 const ExpensesPage = lazy(() => import('./pages/Expenses.jsx'));
 const PhotoConsent = lazy(() => import('./pages/PhotoConsent.jsx'));
 const WaitlistPro = lazy(() => import('./pages/WaitlistPro.jsx'));
@@ -68,7 +67,6 @@ const ClientTags = lazy(() => import('./pages/ClientTags.jsx'));
 const PromoCodes = lazy(() => import('./pages/PromoCodes.jsx'));
 const DailyChecklist = lazy(() => import('./pages/DailyChecklist.jsx'));
 const ProductInventory = lazy(() => import('./pages/ProductInventory.jsx'));
-const RevenueGoals = lazy(() => import('./pages/RevenueGoals.jsx'));
 const PriceList = lazy(() => import('./pages/PriceList.jsx'));
 // TreatmentStats removed , merged into Analytics (/analytics → Treatments tab)
 const StaffPerformance = lazy(() => import('./pages/StaffPerformance.jsx'));
@@ -80,11 +78,6 @@ const AutomationRules = lazy(() => import('./pages/AutomationRules.jsx'));
 const WhatsAppConfig = lazy(() => import('./pages/WhatsAppConfig.jsx'));
 const WhatsAppTemplates = lazy(() => import('./pages/WhatsAppTemplates.jsx'));
 const ClientPortal = lazy(() => import('./pages/ClientPortal.jsx'));
-const AIInsights = lazy(() => import('./pages/AIInsights.jsx'));
-const ClientSegments = lazy(() => import('./pages/ClientSegments.jsx'));
-const ChurnPrevention = lazy(() => import('./pages/ChurnPrevention.jsx'));
-const ClientIntelDashboard = lazy(() => import('./pages/ClientIntelDashboard.jsx'));
-const DemandForecast = lazy(() => import('./pages/DemandForecast.jsx'));
 const Compliance = lazy(() => import('./pages/Compliance.jsx'));
 const MultiLocation = lazy(() => import('./pages/MultiLocation.jsx'));
 const Integrations = lazy(() => import('./pages/Integrations.jsx'));
@@ -154,6 +147,15 @@ export default function App() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Monzo-style launch feel: a single gentle haptic the moment the app
+  // finishes loading and the home is about to show (native only; no-ops on web).
+  const launchBuzzed = useRef(false);
+  useEffect(() => {
+    if (loading || launchBuzzed.current) return;
+    launchBuzzed.current = true;
+    hapticTap();
+  }, [loading]);
 
   // Check onboarding status when session is established and beautician data is available
   useEffect(() => {
@@ -344,7 +346,6 @@ export default function App() {
           <Suspense fallback={<PageLoader />}>
             <Routes>
             <Route path="/" element={<Hub />} />
-            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/calendar" element={<Hub />} />
             <Route path="/calendar/week" element={<Hub />} />
             <Route path="/today" element={<Hub />} />
@@ -383,7 +384,6 @@ export default function App() {
             <Route path="/referrals" element={<Referrals />} />
             <Route path="/portfolio" element={<Portfolio />} />
             <Route path="/notes" element={<AppointmentNotes />} />
-            <Route path="/feedback" element={<Feedback />} />
             <Route path="/expenses" element={<ExpensesPage />} />
             <Route path="/consultation-forms" element={<ConsultationFormBuilder />} />
             <Route path="/consultation-forms/:id" element={<ConsultationFormBuilder />} />
@@ -399,7 +399,6 @@ export default function App() {
             <Route path="/promos" element={<PromoCodes />} />
             <Route path="/checklist" element={<DailyChecklist />} />
             <Route path="/inventory" element={<ProductInventory />} />
-            <Route path="/goals" element={<RevenueGoals />} />
             <Route path="/price-list" element={<PriceList />} />
             <Route path="/treatment-stats" element={<Navigate to="/analytics" replace />} />
             <Route path="/staff-performance" element={<PlanGate feature="staff_performance"><StaffPerformance /></PlanGate>} />
@@ -411,14 +410,12 @@ export default function App() {
             <Route path="/whatsapp" element={<PlanGate feature="whatsapp"><WhatsAppConfig /></PlanGate>} />
             <Route path="/whatsapp/templates" element={<PlanGate feature="whatsapp"><WhatsAppTemplates /></PlanGate>} />
             <Route path="/portal" element={<ClientPortal />} />
-            <Route path="/ai-insights" element={<PlanGate feature="ai_insights"><AIInsights /></PlanGate>} />
-            <Route path="/client-intel" element={<ClientIntelDashboard />} />
-            <Route path="/segments" element={<PlanGate feature="client_segments"><ClientSegments /></PlanGate>} />
-            <Route path="/churn" element={<PlanGate feature="churn_prevention"><ChurnPrevention /></PlanGate>} />
-            <Route path="/demand" element={<PlanGate feature="demand_forecast"><DemandForecast /></PlanGate>} />
+            {/* Client-intelligence stack (ai-insights, client-intel, segments, churn, demand)
+                hidden 2026-06-16: orphaned + mock-heavy. Files kept, restore routes to revive. */}
             <Route path="/locations" element={<PlanGate feature="multi_location"><MultiLocation /></PlanGate>} />
             <Route path="/integrations" element={<Integrations />} />
             <Route path="/sms" element={<PlanGate feature="sms"><SMSConfig /></PlanGate>} />
+            {/* /messaging kept: it is the target of Clients "Message all" + Integrations, not a true orphan */}
             <Route path="/messaging" element={<Messaging />} />
             <Route path="/api-settings" element={<APISettings />} />
             <Route path="/pricing" element={<Pricing />} />
@@ -439,6 +436,7 @@ export default function App() {
       </div>
 
       {showNav && <BottomNav current={location.pathname} session={session} />}
+      {showNav && <FloatingBack current={location.pathname} />}
       {showNav && <FloatingMore current={location.pathname} />}
       {showNav && <FloatingMic />}
       <CoachNudge />
@@ -560,6 +558,54 @@ function NavTab({ tab, onNav }) {
         {tab.label}
       </span>
       {tab.active && <div style={styles.navDot} />}
+    </button>
+  );
+}
+
+/**
+ * FloatingBack , a consistent back affordance for every secondary page.
+ *
+ * Mirrors FloatingMore but sits top-left. Hidden on the primary tab/home
+ * destinations (which are roots, nothing to go back to) and on /more. One
+ * component covers every pushed page without touching 80 files.
+ */
+const ROOT_PATHS = new Set([
+  '/', '/hub', '/today', '/calendar', '/calendar/week', '/smart-schedule',
+  '/inbox', '/money', '/content', '/voice', '/more',
+]);
+function FloatingBack({ current }) {
+  const navigate = useNavigate();
+  if (ROOT_PATHS.has(current)) return null;
+
+  return (
+    <button
+      onClick={() => {
+        // Go back if there's history, otherwise fall back to the home tab.
+        if (window.history.length > 1) navigate(-1);
+        else navigate('/');
+      }}
+      aria-label="Back"
+      style={{
+        position: 'fixed',
+        top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
+        left: 14,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        height: 34,
+        padding: '0 12px 0 8px',
+        borderRadius: 999,
+        background: 'rgba(255,255,255,0.98)',
+        border: '1px solid rgba(146,64,94,0.12)',
+        boxShadow: '0 2px 8px rgba(146,64,94,0.1)',
+        cursor: 'pointer',
+        zIndex: 900,
+        fontFamily: 'inherit',
+        WebkitTapHighlightColor: 'transparent',
+      }}
+    >
+      <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#92405e' }}>arrow_back_ios_new</span>
+      <span style={{ fontSize: 12, fontWeight: 600, color: '#92405e', letterSpacing: '0.01em' }}>Back</span>
     </button>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, supabase, fetchRows } from '../lib/supabase.js';
+import { useBeautician, supabase, fetchRows, updateRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
@@ -31,9 +31,15 @@ export default function Reviews() {
   async function loadReviews() {
     setLoading(true);
     try {
-        // Fetch reviews from DB
+        // Fetch reviews from DB. The table stores `comment` + `response`; the UI
+        // reads `text`/`reply`/`author`, so normalise here.
         const data = await fetchRows('reviews', beautician.id, { order: 'created_at', ascending: false });
-        setReviews(data || []);
+        setReviews((data || []).map(r => ({
+          ...r,
+          author: r.author || r.client_name || 'Client',
+          text: r.text || r.comment || '',
+          reply: r.reply || r.response || '',
+        })));
     } catch (err) {
       logger.error('Load reviews error:', err);
       setReviews([]);
@@ -183,11 +189,21 @@ export default function Reviews() {
                     />
                     <div style={styles.replyActions}>
                       <button
-                        onClick={() => {
-                          setReviews(prev => prev.map(r =>
-                            r.id === review.id ? { ...r, reply: replyText } : r
-                          ));
-                          setReplyingTo(null);
+                        onClick={async () => {
+                          const text = replyText;
+                          try {
+                            await updateRow('reviews', review.id, {
+                              response: text,
+                              responded_at: new Date().toISOString(),
+                            });
+                            setReviews(prev => prev.map(r =>
+                              r.id === review.id ? { ...r, reply: text, response: text } : r
+                            ));
+                            setReplyingTo(null);
+                          } catch (err) {
+                            logger.error('Post reply error:', err);
+                            alert('Could not save your reply. Please try again.');
+                          }
                         }}
                         style={styles.replySubmitBtn}
                       >

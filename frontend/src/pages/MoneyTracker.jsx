@@ -7,6 +7,8 @@ import PageLoader from '../components/PageLoader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import { hapticTap, hapticSuccess } from '../lib/native.js';
+import { useCountUp } from '../lib/useCountUp.js';
 
 /**
  * Money & Revenue — Stitch reference rebuild.
@@ -474,6 +476,7 @@ export default function MoneyTracker() {
       // Ensure created_at exists for breakdown computation (dev mode doesn't set it)
       const enriched = { ...row, created_at: row.created_at || new Date().toISOString() };
       setTransactions(prev => [enriched, ...prev]);
+      hapticSuccess();
       setTipAmount('');
       setShowLogTip(false);
     } catch (err) {
@@ -494,6 +497,7 @@ export default function MoneyTracker() {
       const row = await insertRow('transactions', payload);
       const enriched = { ...row, created_at: row.created_at || new Date().toISOString() };
       setTransactions(prev => [enriched, ...prev]);
+      hapticSuccess();
       setSaleAmount('');
       setSaleDesc('');
       setShowLogSale(false);
@@ -536,6 +540,18 @@ export default function MoneyTracker() {
 
   const recentTx = useMemo(() => transactions.slice(0, 5), [transactions]);
 
+  // Today's takings, surfaced at the very top so the number Ellie wants is the
+  // first thing on the Money page (was buried inside the Pulse tab).
+  const todayRevenue = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    return transactions
+      .filter(t => t.created_at?.slice(0, 10) === todayStr)
+      .reduce((sum, t) => sum + (t.amount_cents || 0), 0);
+  }, [transactions]);
+
+  // Roll today's takings up when the Money page opens (Monzo-style).
+  const animatedToday = useCountUp(todayRevenue);
+
   if (bLoading || loading) return <PageLoader />;
   if (error) return <ErrorCard message={error} onDismiss={() => setError(null)} />;
 
@@ -546,6 +562,25 @@ export default function MoneyTracker() {
     <div style={S.page}>
       {/* ─── Page Title ─── */}
       <PageHeader title="Money & Revenue" />
+
+      {/* Today's takings, always visible at the top of the page */}
+      <div style={{
+        background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)',
+        borderRadius: 18, padding: '16px 18px', color: '#fff',
+        boxShadow: '0 6px 20px rgba(146,64,94,0.22)', marginBottom: 14,
+        display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12,
+      }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.85 }}>Revenue today</div>
+          <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1, marginTop: 2 }}>{fmt(Math.round(animatedToday))}</div>
+        </div>
+        {pulse && (
+          <div style={{ textAlign: 'right', opacity: 0.92 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.85 }}>This week</div>
+            <div style={{ fontSize: 17, fontWeight: 700 }}>{fmt(pulse.thisWeek.income)}</div>
+          </div>
+        )}
+      </div>
 
       {/* ─── Tab Bar (pill style) ─── */}
       <div style={S.tabBar}>

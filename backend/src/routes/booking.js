@@ -557,6 +557,18 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
       });
     }
 
+    // Max advance window check for the new time (0/unset = no limit).
+    const maxAdvanceDays = policy.max_advance_days || 0;
+    if (maxAdvanceDays > 0) {
+      const horizon = new Date();
+      horizon.setDate(horizon.getDate() + maxAdvanceDays);
+      if (newStart > horizon) {
+        return res.status(400).json({
+          error: `Online bookings are only open up to ${maxAdvanceDays} days ahead. Please choose an earlier date.`,
+        });
+      }
+    }
+
     // Conflict check for new slot
     const totalMinutes = (appt.duration_minutes || 60) + (appt.buffer_minutes || 0) + (appt.extra_padding_minutes || 0);
     const newEnd = new Date(newStart.getTime() + totalMinutes * 60 * 1000);
@@ -1545,6 +1557,18 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     if (hoursUntil < minHours) {
       return res.status(400).json({
         error: `Bookings must be made at least ${minHours} hour${minHours !== 1 ? 's' : ''} in advance. Please choose a later time.`
+      });
+    }
+  }
+
+  // Enforce how far ahead the diary is open (0/unset = no limit).
+  const maxAdvanceDays = bookingPolicy.max_advance_days || 0;
+  if (maxAdvanceDays > 0) {
+    const horizon = new Date();
+    horizon.setDate(horizon.getDate() + maxAdvanceDays);
+    if (startsAtCheck > horizon) {
+      return res.status(400).json({
+        error: `Online bookings are only open up to ${maxAdvanceDays} days ahead. Please choose an earlier date.`
       });
     }
   }

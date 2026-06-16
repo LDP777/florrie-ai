@@ -112,6 +112,11 @@ export default function Analytics() {
       });
       const busiestDay = Object.entries(dayCount).sort((a, b) => b[1] - a[1])[0];
 
+      // Real utilisation: booked minutes vs available working minutes across the period.
+      // Available minutes come from the beautician's working_hours; booked minutes come
+      // from completed appointments. Returns null when working_hours is missing.
+      const utilizationRate = computeUtilisation(beautician?.working_hours, completed, startDate, now);
+
       setStats({
         totalAppointments: inRange.length,
         completedCount: completed.length,
@@ -125,7 +130,7 @@ export default function Analytics() {
         busiestDay: busiestDay ? { day: busiestDay[0], count: busiestDay[1] } : null,
         newClients: clients.filter(c => new Date(c.created_at) >= startDate).length,
         totalClients: clients.length,
-        utilizationRate: 78,
+        utilizationRate,
         dayBreakdown: dayCount,
       });
     } catch (err) {
@@ -166,7 +171,7 @@ export default function Analytics() {
           bookings: 0,
           revenue: 0,
           clientsSeen: new Set(),
-          returnClients: new Set(),
+          clientVisitCounts: {},
         };
       });
 
@@ -175,7 +180,10 @@ export default function Analytics() {
         if (!t) return;
         t.bookings++;
         t.revenue += a.price_cents || 0;
-        if (a.client_id) t.clientsSeen.add(a.client_id);
+        if (a.client_id) {
+          t.clientsSeen.add(a.client_id);
+          t.clientVisitCounts[a.client_id] = (t.clientVisitCounts[a.client_id] || 0) + 1;
+        }
       });
 
       const stats = Object.values(tMap)
@@ -189,7 +197,9 @@ export default function Analytics() {
           revenue: t.revenue,
           avgDuration: t.duration,
           hourlyRate: t.duration > 0 ? Math.round((t.price / (t.duration / 60))) : 0,
-          returnRate: t.clientsSeen.size > 0 ? Math.round((t.returnClients.size / t.clientsSeen.size) * 100) : 0,
+          returnRate: t.clientsSeen.size > 0
+            ? Math.round((Object.values(t.clientVisitCounts).filter(n => n >= 2).length / t.clientsSeen.size) * 100)
+            : 0,
           trend: t.bookings > 5 ? 'up' : t.bookings > 2 ? 'stable' : 'down',
           rating: null,
         }));
@@ -349,7 +359,11 @@ export default function Analytics() {
             <div style={styles.statsGrid}>
               <StatCard label="No-show rate" value={`${stats.noShowRate}%`} sub={`${stats.noShowCount} no-shows`} color={stats.noShowRate > 10 ? 'var(--danger, #E57373)' : 'var(--success, #5BA97B)'} />
               <StatCard label="New clients" value={stats.newClients} sub={`of ${stats.totalClients} total`} color="var(--accent, #C76B8A)" />
-              <StatCard label="Utilisation" value={`${stats.utilizationRate}%`} sub="of available hours" color={stats.utilizationRate > 70 ? 'var(--success, #5BA97B)' : 'var(--warning, #F57C00)'} />
+              {stats.utilizationRate === null ? (
+                <StatCard label="Utilisation" value="—" sub="set your hours to see this" color="var(--text-secondary, #6B6560)" />
+              ) : (
+                <StatCard label="Utilisation" value={`${stats.utilizationRate}%`} sub="of available hours" color={stats.utilizationRate > 70 ? 'var(--success, #5BA97B)' : 'var(--warning, #F57C00)'} />
+              )}
               <StatCard label="Expenses" value={`£${(stats.totalExpenses / 100).toFixed(0)}`} sub="total spend" color="var(--text-secondary, #6B6560)" />
             </div>
 
@@ -383,7 +397,7 @@ export default function Analytics() {
 
             <div style={styles.card}>
               <h3 style={styles.cardTitle}>Bookings by day</h3>
-              <DayBarChart data={stats.dayBreakdown || getDevDayBreakdown()} />
+              <DayBarChart data={stats.dayBreakdown || {}} />
             </div>
 
             <div style={styles.card}>
@@ -598,6 +612,48 @@ function ExportCard({ icon, title, desc, onExport, loading }) {
   );
 }
 
+// Utilisation: booked minutes / available working minutes across [start, end].
+// working_hours is the beautician JSONB: { mon: {start, end}, ..., sat: null }.
+// Returns an integer percent, or null when hours aren't set up.
+function computeUtilisation(workingHours, completed, start, end) {
+  if (!workingHours || typeof workingHours !== 'object') return null;
+
+  const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+  // Minutes worked per weekday from working_hours.
+  const minutesByDay = {};
+  let anyOpen = false;
+  for (const key of dayKeys) {
+    const h = workingHours[key];
+    if (h && h.start && h.end) {
+      const [sh, sm] = h.start.split(':').map(Number);
+      const [eh, em] = h.end.split(':').map(Number);
+      const mins = (eh * 60 + em) - (sh * 60 + sm);
+      minutesByDay[key] = mins > 0 ? mins : 0;
+      if (mins > 0) anyOpen = true;
+    } else {
+      minutesByDay[key] = 0;
+    }
+  }
+  if (!anyOpen) return null;
+
+  // Sum available minutes across each calendar day in the period.
+  let availableMinutes = 0;
+  const cursor = new Date(start);
+  cursor.setHours(0, 0, 0, 0);
+  const stop = new Date(end);
+  while (cursor <= stop) {
+    availableMinutes += minutesByDay[dayKeys[cursor.getDay()]] || 0;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  if (availableMinutes <= 0) return null;
+
+  // Booked minutes from completed appointments in range.
+  const bookedMinutes = completed.reduce((s, a) => s + (a.duration_minutes || 0), 0);
+
+  return Math.min(100, Math.round((bookedMinutes / availableMinutes) * 100));
+}
+
 // Insights logic
 function getInsights(stats) {
   const insights = [];
@@ -609,53 +665,6 @@ function getInsights(stats) {
   if (stats.topClients.length > 0 && stats.topClients[0].visits >= 3) insights.push({ icon: '💎', text: `${stats.topClients[0].name} is your top client with ${stats.topClients[0].visits} visits. A loyalty perk could lock them in.` });
   if (insights.length === 0) insights.push({ icon: '📈', text: 'Keep booking and trends will surface here automatically.' });
   return insights;
-}
-
-// Dev mode mock data
-function getDevStats(period) {
-  const base = period === 'week' ? 1 : period === 'month' ? 4 : 12;
-  return {
-    totalAppointments: 8 * base, completedCount: 7 * base, noShowCount: Math.round(0.5 * base),
-    noShowRate: 6, totalRevenue: 28000 * base, totalExpenses: 4200 * base, profit: 23800 * base,
-    avgPerAppointment: 4000,
-    topClients: [
-      { id: 'dev-c2', name: 'Daisy S', spend: 9000 * base, visits: 3 * base },
-      { id: 'dev-c1', name: 'Shauna', spend: 7200 * base, visits: 2 * base },
-      { id: 'dev-c3', name: 'Jasmin', spend: 4500 * base, visits: base },
-      { id: 'dev-c4', name: 'Megan R', spend: 4000 * base, visits: base },
-      { id: 'dev-c5', name: 'Beth W', spend: 3300 * base, visits: base },
-    ],
-    busiestDay: { day: 'thu', count: 3 * base },
-    newClients: Math.round(1.5 * base), totalClients: 24, utilizationRate: 78,
-    dayBreakdown: getDevDayBreakdown(),
-  };
-}
-
-function getDevDayBreakdown() {
-  return { mon: 4, tue: 6, wed: 5, thu: 8, fri: 7, sat: 2, sun: 0 };
-}
-
-function getDevTreatmentStats() {
-  return [
-    { id: 'ts1', name: 'Brow Lamination', category: 'brows', bookings: 42, revenue: 147000, avgDuration: 43, price: 3500, returnRate: 78, hourlyRate: 4884, trend: 'up' },
-    { id: 'ts2', name: 'HD Brows', category: 'brows', bookings: 38, revenue: 114000, avgDuration: 38, price: 3000, returnRate: 82, hourlyRate: 4737, trend: 'up' },
-    { id: 'ts3', name: 'Lash Lift & Tint', category: 'lashes', bookings: 35, revenue: 140000, avgDuration: 58, price: 4000, returnRate: 71, hourlyRate: 4138, trend: 'stable' },
-    { id: 'ts4', name: 'Brow Shape & Tidy', category: 'brows', bookings: 55, revenue: 82500, avgDuration: 14, price: 1500, returnRate: 85, hourlyRate: 6429, trend: 'stable' },
-    { id: 'ts5', name: 'Ombre Brows', category: 'semi', bookings: 8, revenue: 200000, avgDuration: 148, price: 25000, returnRate: 100, hourlyRate: 10135, trend: 'up' },
-    { id: 'ts6', name: 'Brow Tint Only', category: 'brows', bookings: 28, revenue: 28000, avgDuration: 9, price: 1000, returnRate: 60, hourlyRate: 6667, trend: 'down' },
-    { id: 'ts7', name: 'Lip Wax', category: 'waxing', bookings: 32, revenue: 25600, avgDuration: 8, price: 800, returnRate: 72, hourlyRate: 6000, trend: 'stable' },
-  ];
-}
-
-function getDevAppointments() {
-  return Array.from({ length: 24 }, (_, i) => ({
-    id: `dev-apt-${i}`,
-    starts_at: new Date(Date.now() - i * 3 * 24 * 60 * 60 * 1000).toISOString(),
-    client_name: ['Shauna', 'Daisy S', 'Jasmin', 'Sophie', 'Grace'][i % 5],
-    treatment_name: ['Brow Lamination', 'HD Brows', 'Lash Lift', 'Brow Shape'][i % 4],
-    status: i % 8 === 0 ? 'cancelled' : 'completed',
-    price_cents: [3500, 3000, 4000, 1500][i % 4],
-  }));
 }
 
 // Styles

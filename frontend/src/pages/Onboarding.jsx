@@ -60,6 +60,7 @@ export default function Onboarding({ onComplete }) {
   const [hours, setHours] = useState(DEFAULT_HOURS);
   // Step 4: Booking slug
   const [slug, setSlug] = useState('');
+  const [linkCopied, setLinkCopied] = useState(false);
   // Step 5: Client import
   const [importFile, setImportFile] = useState(null);
   const [importStatus, setImportStatus] = useState(null);
@@ -637,7 +638,35 @@ export default function Onboarding({ onComplete }) {
         <div style={styles.stepContent}>
           <h1 style={styles.stepTitle}>You're all set</h1>
           <p style={styles.stepDesc}>
-            Your 14-day free trial is active. Full access to everything. No card needed.
+            Your booking page is live. Share this link and clients can book you in seconds.
+          </p>
+          {(() => {
+            const bookingSlug = (slug || '').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+            const bookingUrl = `https://florrie.ai/book/${bookingSlug}`;
+            const copy = async () => {
+              try { await navigator.clipboard?.writeText?.(bookingUrl); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 1800); } catch {}
+            };
+            const share = async () => {
+              if (navigator.share) { try { await navigator.share({ title: 'Book with me', url: bookingUrl }); return; } catch {} }
+              copy();
+            };
+            return (
+              <div style={{ background: 'linear-gradient(135deg, #c76b8a 0%, #92405e 100%)', borderRadius: 18, padding: 18, color: '#fff', marginBottom: 16, boxShadow: '0 6px 20px rgba(146,64,94,0.22)' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', opacity: 0.85, marginBottom: 6 }}>Your booking link is live</div>
+                <div style={{ fontSize: 15, fontWeight: 700, wordBreak: 'break-all', marginBottom: 12 }}>florrie.ai/book/{bookingSlug}</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={copy} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {linkCopied ? '✓ Copied' : 'Copy link'}
+                  </button>
+                  <button onClick={share} style={{ flex: 1, padding: '11px 0', borderRadius: 12, border: 'none', background: '#fff', color: '#92405e', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    Share
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+          <p style={styles.trialNote}>
+            Your 14-day free trial is active. Full access to everything, no card needed.
           </p>
           <div style={{
             ...styles.planCard,
@@ -819,10 +848,10 @@ export default function Onboarding({ onComplete }) {
             )}
           </div>
           <button
-            onClick={finishOnboarding}
+            onClick={() => finishOnboarding('/')}
             style={styles.primaryBtn}
           >
-            Go to Dashboard
+            Go to my dashboard
           </button>
           {!pushGranted && (
             <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>
