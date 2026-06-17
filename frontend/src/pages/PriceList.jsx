@@ -1,5 +1,4 @@
 /**
-import { bookingUrl as publicBookingUrl } from '../lib/booking.js';
  * Price List Generator - Create & share a client-facing treatment menu.
  *
  * Pulls real treatments from Supabase, lets the beautician customise
@@ -10,6 +9,7 @@ import { useBeautician, supabase } from '../lib/supabase.js';
 import { useCoach } from '../contexts/CoachContext.jsx';
 import PageLoader from '../components/PageLoader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import { bookingUrl as publicBookingUrl } from '../lib/booking.js';
 
 const fmt = (cents) => `£${(cents / 100).toFixed(0)}`;
 

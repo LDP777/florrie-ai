@@ -1,5 +1,4 @@
 /**
-import { bookingUrl as publicBookingUrl } from '../lib/booking.js';
  * BusinessProfile - Business info, branding, social links.
  *
  * Sections:
@@ -17,6 +16,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import { bookingUrl as publicBookingUrl } from '../lib/booking.js';
 
 const BRAND_COLOURS = [
   'var(--accent, #C76B8A)', '#E8A0BF', '#C4A882', '#8B7355',

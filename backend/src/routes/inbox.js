@@ -146,6 +146,18 @@ router.get('/thread/:client_id', requireAuth, async (req, res) => {
       return res.status(500).json({ error: 'Failed to load thread' });
     }
 
+    // Opening the thread = reading it. Clear the unread flag on this client's
+    // inbound messages so the inbox badge / notification drops. Fire-and-forget
+    // so it never delays or fails the read.
+    supabase
+      .from('messages')
+      .update({ read_at: new Date().toISOString() })
+      .eq('beautician_id', req.beautician.id)
+      .eq('client_id', clientId)
+      .eq('direction', 'inbound')
+      .is('read_at', null)
+      .then(() => {}, (err) => logger.warn({ err }, 'inbox.thread mark-read failed'));
+
     // Re-sort ascending (we queried desc + limit to get the most recent N,
     // then flip for display).
     const messages = (data || [])

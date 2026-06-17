@@ -118,7 +118,9 @@ export default function Hub() {
           <ValueReceipt />
 
           {/* Florrie suggestions , Day 4 wow moment */}
-          <SuggestionCards />
+          <div id="florrie-suggestions">
+            <SuggestionCards />
+          </div>
 
           {/* Activity feed , the proof of work */}
           <ActivityFeed limit={50} />

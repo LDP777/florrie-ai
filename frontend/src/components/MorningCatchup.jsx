@@ -73,6 +73,16 @@ export default function MorningCatchup({ beautician }) {
     setOpen(false);
   }
 
+  // Tap the heads-up row: close the sheet and slide down to the suggestion
+  // cards (the "5 things") that live on the Hub just below.
+  function goToSuggestions() {
+    dismiss();
+    setTimeout(() => {
+      const el = document.getElementById('florrie-suggestions');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 320);
+  }
+
   if (!open) return null;
 
   const firstName = beautician?.first_name?.trim() || 'there';
@@ -100,6 +110,7 @@ export default function MorningCatchup({ beautician }) {
             icon="👀"
             label="Heads-up"
             line={headsUpLine(data)}
+            onClick={data?.suggestionCount > 0 ? goToSuggestions : null}
           />
         </div>
 
@@ -109,14 +120,23 @@ export default function MorningCatchup({ beautician }) {
   );
 }
 
-function Row({ icon, label, line }) {
+function Row({ icon, label, line, onClick }) {
+  const clickable = typeof onClick === 'function';
   return (
-    <div style={MC.row}>
+    <div
+      style={{ ...MC.row, ...(clickable ? MC.rowClickable : {}) }}
+      onClick={clickable ? onClick : undefined}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+    >
       <span style={MC.rowIcon} aria-hidden>{icon}</span>
       <div style={MC.rowText}>
         <div style={MC.rowLabel}>{label}</div>
         <div style={MC.rowLine}>{line}</div>
       </div>
+      {clickable && (
+        <span className="material-symbols-outlined" style={MC.rowChevron} aria-hidden>chevron_right</span>
+      )}
     </div>
   );
 }
@@ -297,6 +317,17 @@ const MC = {
     border: '1px solid rgba(146,64,94,0.08)',
     borderRadius: 14,
     padding: '12px 14px',
+  },
+  rowClickable: {
+    cursor: 'pointer',
+    border: '1px solid rgba(146,64,94,0.18)',
+    WebkitTapHighlightColor: 'transparent',
+  },
+  rowChevron: {
+    fontSize: 20,
+    color: '#92405e',
+    alignSelf: 'center',
+    flexShrink: 0,
   },
   rowIcon: {
     fontSize: 20,
