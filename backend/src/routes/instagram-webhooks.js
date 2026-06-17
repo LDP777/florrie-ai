@@ -7,9 +7,13 @@
  * so AI logic, tone matching, and escalation all work unchanged.
  *
  * Required env vars:
- *   INSTAGRAM_VERIFY_TOKEN - webhook verification token
+ *   INSTAGRAM_VERIFY_TOKEN - webhook verification token (set in Railway + Meta dashboard)
  *   INSTAGRAM_APP_SECRET   - for HMAC-SHA256 signature verification
- *   INSTAGRAM_PAGE_TOKEN   - page access token for sending replies
+ *                            (falls back to META_APP_SECRET if unset)
+ *
+ * Reply/profile tokens are read per-beautician from beauticians.instagram_page_token
+ * (the long-lived Instagram user token saved at connect time), NOT from a global
+ * env var, so this works multi-tenant.
  */
 import { Router } from 'express';
 import crypto from 'crypto';
@@ -174,25 +178,29 @@ function buildRedirectMessage(beautician) {
 }
 
 /**
- * Send a reply to an Instagram DM via the Instagram Messaging API.
+ * Send a reply to an Instagram DM via the Instagram Messaging API
+ * (Instagram Login flow — graph.instagram.com with the beautician's own
+ * long-lived Instagram user token).
  */
-async function sendInstagramReply(recipientId, text) {
-  const token = process.env.INSTAGRAM_PAGE_TOKEN;
-  if (!token) {
-    logger.warn('INSTAGRAM_PAGE_TOKEN not set — cannot send Instagram reply');
+async function sendInstagramReply(recipientId, text, token) {
+  const igToken = token || process.env.INSTAGRAM_PAGE_TOKEN;
+  if (!igToken) {
+    logger.warn('No Instagram token available — cannot send Instagram reply');
     return false;
   }
 
   try {
     const res = await fetch(
-      `https://graph.facebook.com/v21.0/me/messages?access_token=${token}`,
+      `https://graph.instagram.com/v21.0/me/messages`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Authorization': `Bearer ${igToken}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           recipient: { id: recipientId },
           message: { text },
-          messaging_type: 'RESPONSE',
         }),
       }
     );
@@ -226,7 +234,7 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
 
   if (!client) {
     // Try to get profile info from Instagram
-    const name = await fetchInstagramProfile(senderId);
+    const name = await fetchInstagramProfile(senderId, beautician.instagram_page_token);
 
     // Create new client
     const { data: newClient } = await supabase
@@ -277,7 +285,7 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
 
     if (!alreadySent) {
       const redirectMsg = buildRedirectMessage(beautician);
-      const sent = await sendInstagramReply(senderId, redirectMsg);
+      const sent = await sendInstagramReply(senderId, redirectMsg, beautician.instagram_page_token);
 
       if (sent) {
         // Record redirect sent time on client
@@ -334,19 +342,23 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
 }
 
 /**
- * Fetch Instagram user profile name.
- * Uses the Instagram Graph API.
+ * Fetch an Instagram sender's profile name via the Instagram Graph API,
+ * using the beautician's own long-lived Instagram token.
  */
-async function fetchInstagramProfile(userId) {
-  const token = process.env.INSTAGRAM_PAGE_TOKEN;
-  if (!token) return null;
+async function fetchInstagramProfile(userId, token) {
+  const igToken = token || process.env.INSTAGRAM_PAGE_TOKEN;
+  if (!igToken) return null;
 
-  const res = await fetch(
-    `https://graph.instagram.com/v21.0/${userId}?fields=name,username&access_token=${token}`
-  );
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.name || data.username || null;
+  try {
+    const res = await fetch(
+      `https://graph.instagram.com/v21.0/${userId}?fields=name,username&access_token=${encodeURIComponent(igToken)}`
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.name || data.username || null;
+  } catch {
+    return null;
+  }
 }
 
 export default router;

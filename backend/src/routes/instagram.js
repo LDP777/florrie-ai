@@ -1,27 +1,41 @@
 /**
- * Instagram OAuth — Connect an Instagram Business account for direct posting.
+ * Instagram OAuth — Connect an Instagram professional account so Florrie can
+ * read and reply to the beautician's DMs.
+ *
+ * Uses the **Instagram Business Login** flow (a.k.a. "Instagram Login"), NOT the
+ * older Facebook Login flow. The beautician does NOT need a Facebook Page — they
+ * log in with the Instagram account directly. This matches how the Meta app's
+ * Instagram product is configured (Instagram app id + Instagram app secret,
+ * graph.instagram.com, instagram_business_* scopes).
  *
  * Flow:
- *   1. GET /api/instagram/connect  → redirects user to Meta Facebook Login
- *   2. GET /api/instagram/callback → exchanges code, finds IG business account, stores tokens
+ *   1. GET /api/instagram/connect  → returns the instagram.com OAuth URL
+ *   2. GET /api/instagram/callback → exchanges code → long-lived token, stores it
  *   3. GET /api/instagram/status   → returns connection status
  *   4. POST /api/instagram/disconnect → clears stored credentials
  *
  * Required env vars:
- *   META_APP_ID           — Facebook App ID
- *   META_APP_SECRET       — Facebook App Secret
- *   INSTAGRAM_REDIRECT_URI — e.g. https://api.florrie.ai/api/instagram/callback
- *   FRONTEND_URL          — e.g. https://florrie.ai (for redirect after auth)
+ *   INSTAGRAM_APP_ID       — the Instagram app's client id (e.g. 1427547881961219)
+ *   INSTAGRAM_APP_SECRET   — the Instagram app's client secret
+ *   INSTAGRAM_REDIRECT_URI — must EXACTLY match a redirect URI registered under the
+ *                            app's "Instagram > API setup with Instagram login >
+ *                            Business login settings" (e.g.
+ *                            https://api.florrie.ai/api/instagram/callback)
+ *   FRONTEND_URL           — e.g. https://florrie.ai (for redirect after auth)
  *
- * Scopes requested:
- *   instagram_basic             — view profile + media
- *   instagram_content_publish   — create + publish posts
- *   pages_read_engagement       — read page engagement data
- *   pages_show_list             — list pages so we can find the right one
+ * (Falls back to META_APP_ID / META_APP_SECRET only if the INSTAGRAM_* vars are
+ * unset, so an old single-app setup still half-works, but the Instagram Login
+ * flow really wants the Instagram-scoped credentials.)
  *
- * After OAuth, we store on the beautician row:
- *   instagram_page_id    — the Instagram Business Account ID (used by content-autopilot.js)
- *   instagram_page_token — a long-lived Page access token (60-day, auto-refreshed)
+ * Scopes requested (Instagram Login scope names):
+ *   instagram_business_basic            — read profile + media
+ *   instagram_business_manage_messages  — read + reply to DMs
+ *
+ * After OAuth we store on the beautician row (column names kept stable so the
+ * rest of the code — ai-front-desk send path, webhook lookup — works unchanged):
+ *   instagram_page_id    — the Instagram account id (matches webhook entry.id)
+ *   instagram_page_token — a long-lived Instagram user access token (60 days)
+ *   instagram_page_name  — the @username
  */
 
 import { Router } from 'express';
@@ -31,132 +45,120 @@ import logger from '../lib/logger.js';
 
 const router = Router();
 
-const META_APP_ID       = process.env.META_APP_ID;
-const META_APP_SECRET   = process.env.META_APP_SECRET;
-const REDIRECT_URI      = process.env.INSTAGRAM_REDIRECT_URI || 'http://localhost:3001/api/instagram/callback';
-const FRONTEND_URL      = process.env.FRONTEND_URL;
+const IG_APP_ID     = process.env.INSTAGRAM_APP_ID || process.env.META_APP_ID;
+const IG_APP_SECRET = process.env.INSTAGRAM_APP_SECRET || process.env.META_APP_SECRET;
+const REDIRECT_URI  = process.env.INSTAGRAM_REDIRECT_URI || 'http://localhost:3001/api/instagram/callback';
+const FRONTEND_URL  = process.env.FRONTEND_URL;
 
+// Instagram Login scopes. Comma-separated per Meta's docs.
 const SCOPES = [
-  'instagram_basic',
-  'instagram_content_publish',
-  'instagram_manage_messages', // read + reply to DMs (the "Manage messaging" IG use case)
-  'pages_read_engagement',
-  'pages_show_list',
-  'pages_manage_metadata',      // needed to subscribe the page to message webhooks
+  'instagram_business_basic',
+  'instagram_business_manage_messages',
 ].join(',');
 
-function metaConfigured() {
-  return !!(META_APP_ID && META_APP_SECRET);
+function igConfigured() {
+  return !!(IG_APP_ID && IG_APP_SECRET);
 }
 
 // GET /api/instagram/connect
-// Returns the Facebook OAuth URL the frontend should open.
+// Returns the Instagram OAuth URL the frontend should open.
 router.get('/connect', requireAuth, (req, res) => {
-  if (!metaConfigured()) {
+  if (!igConfigured()) {
     return res.status(503).json({ error: 'Instagram integration not configured — contact support' });
   }
 
   const url =
-    `https://www.facebook.com/v21.0/dialog/oauth` +
-    `?client_id=${META_APP_ID}` +
+    `https://www.instagram.com/oauth/authorize` +
+    `?client_id=${encodeURIComponent(IG_APP_ID)}` +
     `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
-    `&scope=${encodeURIComponent(SCOPES)}` +
     `&response_type=code` +
-    `&state=${req.beautician.id}`;
+    `&scope=${encodeURIComponent(SCOPES)}` +
+    `&state=${encodeURIComponent(req.beautician.id)}`;
 
   res.json({ url });
 });
 
 // GET /api/instagram/callback
-// Meta redirects here after the user approves.
+// Instagram redirects here after the user approves.
 router.get('/callback', async (req, res) => {
-  const { code, state: beauticianId, error: oauthError } = req.query;
+  const { code: rawCode, state: beauticianId, error: oauthError, error_description } = req.query;
 
   const redirectBase = `${FRONTEND_URL}/settings?section=ai`;
 
-  if (oauthError || !code || !beauticianId) {
-    logger.warn({ oauthError, hasCode: !!code }, 'Instagram OAuth callback rejected');
+  if (oauthError || !rawCode || !beauticianId) {
+    logger.warn({ oauthError, error_description, hasCode: !!rawCode }, 'Instagram OAuth callback rejected');
     return res.redirect(`${redirectBase}&ig=error`);
   }
 
+  // Instagram appends a trailing "#_" fragment to the code on web redirects; the
+  // query parser usually drops it, but strip defensively.
+  const code = String(rawCode).replace(/#_$/, '');
+
   try {
-    // Step 1 — exchange code for short-lived user access token
-    const tokenRes = await fetch('https://graph.facebook.com/v21.0/oauth/access_token', {
+    // Step 1 — exchange the code for a short-lived (1h) Instagram user token.
+    const tokenRes = await fetch('https://api.instagram.com/oauth/access_token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        client_id:     META_APP_ID,
-        client_secret: META_APP_SECRET,
+        client_id:     IG_APP_ID,
+        client_secret: IG_APP_SECRET,
+        grant_type:    'authorization_code',
         redirect_uri:  REDIRECT_URI,
         code,
       }),
     });
     const tokenData = await tokenRes.json();
 
-    if (!tokenData.access_token) {
+    // Response shape is either { access_token, user_id, permissions } or, on some
+    // versions, { data: [{ access_token, user_id, permissions }] }.
+    const shortToken = tokenData.access_token || tokenData?.data?.[0]?.access_token;
+    const shortUserId = tokenData.user_id || tokenData?.data?.[0]?.user_id;
+
+    if (!shortToken) {
       logger.error({ tokenData }, 'Instagram: code exchange failed');
       return res.redirect(`${redirectBase}&ig=error`);
     }
 
-    const shortLivedToken = tokenData.access_token;
-
-    // Step 2 — exchange for long-lived user access token (60 days)
-    const longLivedRes = await fetch(
-      `https://graph.facebook.com/v21.0/oauth/access_token` +
-      `?grant_type=fb_exchange_token` +
-      `&client_id=${META_APP_ID}` +
-      `&client_secret=${META_APP_SECRET}` +
-      `&fb_exchange_token=${shortLivedToken}`
+    // Step 2 — exchange for a long-lived (60-day) Instagram user token.
+    const longRes = await fetch(
+      `https://graph.instagram.com/access_token` +
+      `?grant_type=ig_exchange_token` +
+      `&client_secret=${encodeURIComponent(IG_APP_SECRET)}` +
+      `&access_token=${encodeURIComponent(shortToken)}`
     );
-    const longLivedData = await longLivedRes.json();
-    const userToken = longLivedData.access_token || shortLivedToken;
+    const longData = await longRes.json();
+    const userToken = longData.access_token || shortToken;
 
-    // Step 3 — get pages the user manages (need a page to publish from)
-    const pagesRes = await fetch(
-      `https://graph.facebook.com/v21.0/me/accounts?access_token=${userToken}`
-    );
-    const pagesData = await pagesRes.json();
-
-    if (!pagesData.data?.length) {
-      logger.warn({ beauticianId }, 'Instagram OAuth: user has no Facebook Pages');
-      return res.redirect(`${redirectBase}&ig=no_page`);
-    }
-
-    // Step 4 — find a page with an Instagram Business Account connected
-    let instagramAccountId = null;
-    let pageAccessToken    = null;
-    let pageName           = null;
-    let fbPageId           = null; // the Facebook Page id (for webhook subscription)
-
-    for (const page of pagesData.data) {
-      const igCheckRes = await fetch(
-        `https://graph.facebook.com/v21.0/${page.id}` +
-        `?fields=instagram_business_account,name` +
-        `&access_token=${page.access_token}`
+    // Step 3 — read the account id + username. In the Instagram Login flow the
+    // /me "user_id" is the same id Meta sends as webhook entry.id, so we store it
+    // for inbound DM routing.
+    let accountId = shortUserId || null;
+    let username  = null;
+    try {
+      const meRes = await fetch(
+        `https://graph.instagram.com/v21.0/me` +
+        `?fields=user_id,username,name` +
+        `&access_token=${encodeURIComponent(userToken)}`
       );
-      const igCheckData = await igCheckRes.json();
-
-      if (igCheckData.instagram_business_account?.id) {
-        instagramAccountId = igCheckData.instagram_business_account.id;
-        pageAccessToken    = page.access_token;
-        pageName           = igCheckData.name || page.name;
-        fbPageId           = page.id;
-        break;
-      }
+      const meData = await meRes.json();
+      accountId = meData.user_id || meData.id || accountId;
+      username  = meData.username || meData.name || null;
+    } catch (err) {
+      logger.warn({ err }, 'Instagram: /me lookup failed, using token user_id');
     }
 
-    if (!instagramAccountId) {
-      logger.warn({ beauticianId }, 'Instagram OAuth: no Instagram Business Account found on any page');
-      return res.redirect(`${redirectBase}&ig=no_ig_account`);
+    if (!accountId) {
+      logger.error({ beauticianId }, 'Instagram: could not determine account id');
+      return res.redirect(`${redirectBase}&ig=error`);
     }
 
-    // Step 5 — store on beautician row
+    // Step 4 — store on the beautician row.
     const { error: updateErr } = await supabase
       .from('beauticians')
       .update({
-        instagram_page_id:    instagramAccountId,
-        instagram_page_token: pageAccessToken,
-        instagram_page_name:  pageName,
+        instagram_page_id:    String(accountId),
+        instagram_page_token: userToken,
+        instagram_page_name:  username || 'Instagram',
         instagram_dm_mode:    'ai', // connecting = Florrie answers DMs (changeable later)
       })
       .eq('id', beauticianId);
@@ -166,28 +168,27 @@ router.get('/callback', async (req, res) => {
       return res.redirect(`${redirectBase}&ig=error`);
     }
 
-    // Subscribe this Page to the app's webhooks so inbound Instagram DMs reach
-    // POST /api/webhooks/instagram. Non-fatal: the connection still counts as
-    // successful even if the subscribe call fails (it can be retried).
-    if (fbPageId && pageAccessToken) {
-      try {
-        const subRes = await fetch(
-          `https://graph.facebook.com/v21.0/${fbPageId}/subscribed_apps`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ subscribed_fields: 'messages', access_token: pageAccessToken }),
-          }
-        );
-        const subData = await subRes.json().catch(() => ({}));
-        if (!subRes.ok) logger.warn({ beauticianId, subData }, 'Instagram: page webhook subscribe returned an error');
-        else logger.info({ beauticianId, fbPageId }, 'Instagram: page subscribed to message webhooks');
-      } catch (err) {
-        logger.warn({ err, beauticianId }, 'Instagram: page webhook subscribe failed (non-fatal)');
+    // Step 5 — subscribe this account to the app's message webhooks so inbound
+    // DMs reach POST /api/webhooks/instagram. Non-fatal: connection still counts
+    // as successful if this fails (it can be retried).
+    try {
+      const subRes = await fetch(
+        `https://graph.instagram.com/v21.0/me/subscribed_apps` +
+        `?subscribed_fields=messages` +
+        `&access_token=${encodeURIComponent(userToken)}`,
+        { method: 'POST' }
+      );
+      const subData = await subRes.json().catch(() => ({}));
+      if (!subRes.ok || subData.success === false) {
+        logger.warn({ beauticianId, subData }, 'Instagram: webhook subscribe returned an error');
+      } else {
+        logger.info({ beauticianId, accountId }, 'Instagram: account subscribed to message webhooks');
       }
+    } catch (err) {
+      logger.warn({ err, beauticianId }, 'Instagram: webhook subscribe failed (non-fatal)');
     }
 
-    logger.info({ beauticianId, instagramAccountId, pageName }, 'Instagram Business Account connected');
+    logger.info({ beauticianId, accountId, username }, 'Instagram account connected (Instagram Login flow)');
     res.redirect(`${redirectBase}&ig=success`);
 
   } catch (err) {
