@@ -56,8 +56,10 @@ router.get('/', (req, res) => {
  * }
  */
 router.post('/', async (req, res) => {
-  // Verify HMAC-SHA256 signature
-  const secret = process.env.INSTAGRAM_APP_SECRET;
+  // Verify HMAC-SHA256 signature. A Meta app shares one app secret across its
+  // products, so fall back to META_APP_SECRET (which is what is configured) when
+  // a dedicated INSTAGRAM_APP_SECRET isn't set.
+  const secret = process.env.INSTAGRAM_APP_SECRET || process.env.META_APP_SECRET;
   if (secret) {
     const signature = req.headers['x-hub-signature-256'];
     if (!signature) {
