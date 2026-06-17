@@ -305,16 +305,26 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
     return;
   }
 
-  if (beautician.auto_reply_enabled && messageText) {
+  // dmMode 'ai' (or 'reply'): Florrie answers the DM herself through the same
+  // AI front desk pipeline as WhatsApp, replying on Instagram. Note: Instagram
+  // only allows replies within 24h of the client's message and does NOT permit
+  // messaging someone who hasn't messaged first, so this is reactive only.
+  // Requires the instagram_manage_messages permission to be live on the app.
+  if ((dmMode === 'ai' || dmMode === 'reply') && storedMessage?.id) {
     try {
-      const result = await processInboundMessage(
-        storedMessage.id, beautician, client, messageText
-      );
-      logger.info({
-        handled: result.handled,
-        intent: result.intent,
-        client: client?.first_name || senderId,
-      }, 'Front Desk processed Instagram DM');
+      const result = await processInboundMessage(storedMessage.id, beautician, client, messageText);
+      logger.info({ handled: result?.handled, intent: result?.intent, client: client?.first_name || senderId }, 'Front Desk answered Instagram DM');
+    } catch (err) {
+      logger.error({ err, messageId }, 'AI Front Desk failed on Instagram DM');
+    }
+    return;
+  }
+
+  // Legacy: honour the older auto_reply_enabled flag for any other mode.
+  if (beautician.auto_reply_enabled && messageText && storedMessage?.id) {
+    try {
+      const result = await processInboundMessage(storedMessage.id, beautician, client, messageText);
+      logger.info({ handled: result?.handled, intent: result?.intent, client: client?.first_name || senderId }, 'Front Desk processed Instagram DM');
     } catch (err) {
       logger.error({ err, messageId }, 'AI Front Desk failed on Instagram DM');
     }

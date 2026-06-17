@@ -193,7 +193,7 @@ router.post('/manual', requireAuth, validate(manualAppointmentSchema), async (re
   const beauticianId = req.beautician.id;
   const {
     client_id, client_name, client_phone,
-    treatment_id, date, time, duration_minutes, price_cents, send_confirmation
+    treatment_id, date, time, duration_minutes, price_cents, send_confirmation, notes
   } = req.body;
 
   // Treatment must belong to this beautician (inactive/imported ones are fine)
@@ -307,6 +307,7 @@ router.post('/manual', requireAuth, validate(manualAppointmentSchema), async (re
       deposit_cents: 0,
       status: 'confirmed',
       booked_via: 'manual',
+      beautician_notes: notes || null,
     })
     .select('*, clients(first_name, last_name, phone), treatments(name)')
     .single();

@@ -1453,7 +1453,7 @@ const TIME_OPTIONS = (() => {
 })();
 function NewAppointmentModal({ defaultDate, existingAppointments = [], onClose, onSaved }) {
   const [treatments, setTreatments] = useState([]);
-  const [treatmentId, setTreatmentId] = useState('');
+  const [selectedIds, setSelectedIds] = useState([]); // one or more treatments
   const [price, setPrice] = useState('');
   const [duration, setDuration] = useState(60);
   const [date, setDate] = useState(defaultDate);
@@ -1508,32 +1508,41 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], onClose, 
     }, 250);
     return () => clearTimeout(t);
   }, [query, clientMode, selectedClient]); // eslint-disable-line react-hooks/exhaustive-deps
-  function pickTreatment(id) {
-    setTreatmentId(id);
-    const t = treatments.find(x => x.id === id);
-    if (t) {
-      setPrice(((t.price_cents || 0) / 100).toFixed(2));
-      setDuration(t.duration_minutes || 60);
-    }
+  // Tap to add/remove a treatment. Price + duration auto-sum across all chosen,
+  // and stay editable below so she can tweak the total.
+  function toggleTreatment(id) {
+    setSelectedIds(prev => {
+      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+      const chosen = treatments.filter(t => next.includes(t.id));
+      const sumPence = chosen.reduce((s, t) => s + (t.price_cents || 0), 0);
+      const sumDur = chosen.reduce((s, t) => s + (t.duration_minutes || 0), 0);
+      setPrice((sumPence / 100).toFixed(2));
+      setDuration(sumDur || 60);
+      return next;
+    });
   }
   async function handleSave() {
     setError(null);
     if (!selectedClient && !newName.trim()) { setError('Pick a client or enter a name'); return; }
-    if (!treatmentId) { setError('Pick a treatment'); return; }
+    if (!selectedIds.length) { setError('Pick at least one treatment'); return; }
     const priceNum = parseFloat(price);
     if (isNaN(priceNum) || priceNum < 0) { setError('Enter a valid price'); return; }
     const durNum = parseInt(duration, 10);
     if (isNaN(durNum) || durNum < 5) { setError('Enter a valid duration'); return; }
     setSaving(true);
     try {
+      const chosen = treatments.filter(t => selectedIds.includes(t.id));
       const payload = {
-        treatment_id: treatmentId,
+        treatment_id: selectedIds[0], // primary; combined time + price below
         date,
         time,
         duration_minutes: durNum,
         price_cents: Math.round(priceNum * 100),
         send_confirmation: sendConfirmation,
       };
+      if (chosen.length > 1) {
+        payload.notes = 'Includes: ' + chosen.map(t => t.name).join(' + ');
+      }
       if (selectedClient) {
         payload.client_id = selectedClient.id;
       } else {
@@ -1655,16 +1664,32 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], onClose, 
             )}
           </>
         )}
-        {/* Treatment */}
-        <span style={labelStyle}>Treatment</span>
-        <select value={treatmentId} onChange={e => pickTreatment(e.target.value)} style={{ ...inputStyle, marginBottom: 14 }}>
-          <option value="">Pick a treatment...</option>
-          {treatments.map(t => (
-            <option key={t.id} value={t.id}>
-              {t.name} (£{((t.price_cents || 0) / 100).toFixed(0)})
-            </option>
-          ))}
-        </select>
+        {/* Treatments , tap to add one or more. Time and price sum below. */}
+        <span style={labelStyle}>Treatments{selectedIds.length > 1 ? ` (${selectedIds.length})` : ''}</span>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '6px 0 14px' }}>
+          {treatments.map(t => {
+            const on = selectedIds.includes(t.id);
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => toggleTreatment(t.id)}
+                style={{
+                  padding: '8px 12px', borderRadius: 999, fontSize: 13, fontWeight: 600,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  border: `1.5px solid ${on ? COLORS.primary : COLORS.outlineVariant}`,
+                  background: on ? COLORS.primary : 'var(--bg-card, #fff)',
+                  color: on ? '#fff' : COLORS.onSurface,
+                }}
+              >
+                {on ? '✓ ' : ''}{t.name} £{((t.price_cents || 0) / 100).toFixed(0)}
+              </button>
+            );
+          })}
+          {treatments.length === 0 && (
+            <span style={{ fontSize: 13, color: COLORS.stone400 }}>No treatments yet. Add them in Treatments.</span>
+          )}
+        </div>
         {/* Date + time */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
           <div style={{ flex: 1 }}>

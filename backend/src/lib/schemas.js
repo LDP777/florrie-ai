@@ -175,6 +175,12 @@ export const manualAppointmentSchema = z.object({
   duration_minutes: z.number().int().min(5).max(720),
   price_cents: z.number().int().min(0).max(1000000),
   send_confirmation: z.boolean().optional().default(false),
+  // Optional note. Used to record the full treatment list when more than one
+  // treatment is booked into a single manual appointment.
+  notes: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() === '' ? null : v),
+    z.string().max(2000).trim().nullable().optional().default(null)
+  ),
 }).refine(
   (d) => d.client_id || d.client_name,
   { message: 'Pick a client or give a name for a new one' }
