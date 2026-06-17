@@ -39,8 +39,10 @@ const FRONTEND_URL      = process.env.FRONTEND_URL;
 const SCOPES = [
   'instagram_basic',
   'instagram_content_publish',
+  'instagram_manage_messages', // read + reply to DMs (the "Manage messaging" IG use case)
   'pages_read_engagement',
   'pages_show_list',
+  'pages_manage_metadata',      // needed to subscribe the page to message webhooks
 ].join(',');
 
 function metaConfigured() {
@@ -124,6 +126,7 @@ router.get('/callback', async (req, res) => {
     let instagramAccountId = null;
     let pageAccessToken    = null;
     let pageName           = null;
+    let fbPageId           = null; // the Facebook Page id (for webhook subscription)
 
     for (const page of pagesData.data) {
       const igCheckRes = await fetch(
@@ -137,6 +140,7 @@ router.get('/callback', async (req, res) => {
         instagramAccountId = igCheckData.instagram_business_account.id;
         pageAccessToken    = page.access_token;
         pageName           = igCheckData.name || page.name;
+        fbPageId           = page.id;
         break;
       }
     }
@@ -153,12 +157,34 @@ router.get('/callback', async (req, res) => {
         instagram_page_id:    instagramAccountId,
         instagram_page_token: pageAccessToken,
         instagram_page_name:  pageName,
+        instagram_dm_mode:    'ai', // connecting = Florrie answers DMs (changeable later)
       })
       .eq('id', beauticianId);
 
     if (updateErr) {
       logger.error({ err: updateErr }, 'Instagram: failed to save credentials');
       return res.redirect(`${redirectBase}&ig=error`);
+    }
+
+    // Subscribe this Page to the app's webhooks so inbound Instagram DMs reach
+    // POST /api/webhooks/instagram. Non-fatal: the connection still counts as
+    // successful even if the subscribe call fails (it can be retried).
+    if (fbPageId && pageAccessToken) {
+      try {
+        const subRes = await fetch(
+          `https://graph.facebook.com/v21.0/${fbPageId}/subscribed_apps`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subscribed_fields: 'messages', access_token: pageAccessToken }),
+          }
+        );
+        const subData = await subRes.json().catch(() => ({}));
+        if (!subRes.ok) logger.warn({ beauticianId, subData }, 'Instagram: page webhook subscribe returned an error');
+        else logger.info({ beauticianId, fbPageId }, 'Instagram: page subscribed to message webhooks');
+      } catch (err) {
+        logger.warn({ err, beauticianId }, 'Instagram: page webhook subscribe failed (non-fatal)');
+      }
     }
 
     logger.info({ beauticianId, instagramAccountId, pageName }, 'Instagram Business Account connected');
