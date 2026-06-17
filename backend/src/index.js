@@ -79,6 +79,7 @@ import whatsappConfigRoutes from './routes/whatsapp-config.js';
 import coachRoutes from './routes/coach.js';
 import courseRoutes from './routes/courses.js';
 import suggestionsRoutes from './routes/suggestions.js';
+import outboundRoutes from './routes/outbound.js';
 
 dotenv.config();
 
@@ -269,6 +270,7 @@ app.use('/api/coach', apiLimiter, coachRoutes);
 app.use('/api/instagram', apiLimiter, instagramRoutes);
 app.use('/api/courses', bookingLimiter, courseRoutes); // public course enrollment API
 app.use('/api/suggestions', apiLimiter, suggestionsRoutes);
+app.use('/api/outbound', apiLimiter, outboundRoutes); // Florrie's outbox: review/approve proactive sends
 
 // Sentry error handler , must come after all routes, before the generic handler
 if (process.env.SENTRY_DSN) {

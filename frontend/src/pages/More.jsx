@@ -22,6 +22,7 @@ const CATEGORIES = [
     matIcon: 'wb_sunny',
     items: [
       { path: '/inbox',          label: 'Front Desk',       matIcon: 'forum',                  desc: 'Handles every message'        },
+      { path: '/outbox',         label: "Florrie's Outbox", matIcon: 'outbox',                 desc: 'Approve what Florrie sends'   },
       { path: '/approval-queue', label: 'Approvals',        matIcon: 'fact_check',             desc: 'Review what Florrie suggests' },
       { path: '/clients',        label: 'Directory',        matIcon: 'people',                 desc: 'All client profiles'          },
       { path: '/money',          label: 'Money Tracker',    matIcon: 'account_balance_wallet', desc: 'Revenue dashboard'            },

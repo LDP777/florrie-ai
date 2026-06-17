@@ -1,6 +1,7 @@
 import { supabase } from '../config.js';
 import { sendMessage } from './notifications.js';
 import { sendEmail } from './notifications.js';
+import { guardedSend } from '../lib/outbound-guard.js';
 import logger from '../lib/logger.js';
 
 /**
@@ -101,14 +102,38 @@ export async function processReviewRequests() {
         ? `Hey ${client.first_name}! Hope you're loving your ${treatmentName}. If you've got a sec, a quick Google review would mean everything to me: ${googleUrl} xx`
         : `Hey ${client.first_name}! Hope you're loving your ${treatmentName}. If you had a great experience, it'd mean the world if you could leave a review. Thank you lovely xx`;
 
-      // Send via best channel
-      const result = await sendMessage({
+      // Send via best channel — gated so review requests can't bypass
+      // consent / frequency caps / allowance.
+      let result = null;
+      const guard = await guardedSend({
+        beauticianId: action.beautician_id,
+        clientId: client.id,
+        messageType: 'review_request',
+        channel: client.preferred_channel || (client.whatsapp_id ? 'whatsapp' : 'sms'),
         client,
         body: smsBody,
-        beauticianId: action.beautician_id,
+        send: async () => {
+          result = await sendMessage({
+            client,
+            body: smsBody,
+            beauticianId: action.beautician_id,
+          });
+          return result;
+        },
       });
 
-      // Also send email if client has one
+      // If the gate didn't clear (queued for approval or blocked), don't
+      // also send the email — that would bypass the same gate. Mark and skip.
+      if (!guard.delivered) {
+        await supabase.from('ai_actions').update({
+          status: 'executed',
+          outcome: guard.decision === 'approve' ? 'pending' : 'skipped',
+          summary: `Review request ${guard.decision === 'approve' ? 'queued for approval' : 'held'} for ${client.first_name} (${guard.reason})`,
+        }).eq('id', action.id);
+        continue;
+      }
+
+      // Also send email if client has one (gate already cleared above)
       if (client.email) {
         const color = biz?.brand_color || '#92405E';
         await sendEmail({

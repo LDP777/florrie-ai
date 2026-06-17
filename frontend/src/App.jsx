@@ -87,6 +87,7 @@ const APISettings = lazy(() => import('./pages/APISettings.jsx'));
 const Pricing = lazy(() => import('./pages/Pricing.jsx'));
 const Hub = lazy(() => import('./pages/Hub.jsx'));
 const More = lazy(() => import('./pages/More.jsx'));
+const Outbox = lazy(() => import('./pages/Outbox.jsx'));
 const ClientManagePage = lazy(() => import('./pages/ClientManagePage.jsx'));
 // LandingPage.jsx removed , landing.html (in public/) is the single source of truth.
 // All unauthenticated visitors are redirected to /landing.html below.
@@ -421,6 +422,7 @@ export default function App() {
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/hub" element={<Hub />} />
             <Route path="/more" element={<More />} />
+            <Route path="/outbox" element={<Outbox />} />
             <Route path="/onboarding" element={
               <Onboarding onComplete={(destination) => navigate(destination || '/')} />
             } />

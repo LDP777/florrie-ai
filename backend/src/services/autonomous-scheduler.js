@@ -21,6 +21,7 @@ import { runValueCoaching } from './value-coaching.js';
 import { processReviewRequests } from './review-requests.js';
 import { pushTeamUpdate } from './push-notifications.js';
 import { checkGapFillOpportunities } from './gap-fill-engine.js';
+import { guardedSend } from '../lib/outbound-guard.js';
 import logger from '../lib/logger.js';
 
 const DEFAULT_CONFIDENCE = 0.90;
@@ -173,16 +174,30 @@ async function checkRebookDueClients(beauticianId, threshold) {
 
       const nudgeBody = `Hey ${client.first_name}! It's been a while since your last visit. We'd love to see you again — fancy booking in? 💕`;
       try {
-        const sent = await sendNudge({
+        let sent = null;
+        const guard = await guardedSend({
+          beauticianId,
+          clientId: client.id,
+          messageType: 'rebook_nudge',
+          channel: beauticianPrefs.whatsapp_connected ? 'whatsapp' : 'sms',
           client,
           body: nudgeBody,
-          templateName: 'rebook_nudge_v2',
-          templateParams: [client.first_name],
-          beauticianId,
-          beauticianPrefs,
+          send: async () => {
+            sent = await sendNudge({
+              client,
+              body: nudgeBody,
+              templateName: 'rebook_nudge_v2',
+              templateParams: [client.first_name],
+              beauticianId,
+              beauticianPrefs,
+            });
+            return sent;
+          },
         });
-        if (sent) {
+        if (guard.delivered && sent) {
           await logAction(beauticianId, 'rebook_nudge', 'executed', `${summary} (via ${sent.channel})`, confidence, client.id);
+        } else if (guard.decision === 'approve') {
+          await logAction(beauticianId, 'rebook_nudge', 'pending_approval', summary, confidence, client.id);
         } else {
           await logAction(beauticianId, 'rebook_nudge', 'failed', summary, confidence, client.id);
         }

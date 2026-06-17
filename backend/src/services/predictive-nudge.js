@@ -14,6 +14,7 @@ import { supabase } from '../config.js';
 import { normaliseOutcome } from '../lib/ai-actions.js';
 import { sendNudge } from './notifications.js';
 import { shouldAutoSend } from './sms-metering.js';
+import { guardedSend } from '../lib/outbound-guard.js';
 import logger from '../lib/logger.js';
 
 /**
@@ -132,20 +133,35 @@ async function nudgeForBeautician(beautician) {
       };
 
       try {
-        const sent = await sendNudge({
+        let sent = null;
+        const guard = await guardedSend({
+          beauticianId: bid,
+          clientId: ci.client_id,
+          messageType: 'predictive_nudge',
+          channel: beauticianPrefs.whatsapp_connected ? 'whatsapp' : 'sms',
           client,
           body: message,
-          templateName: 'rebook_nudge_v2',           // pre-approved WhatsApp template
-          templateParams: [client.first_name, slotLabel || 'soon'],
-          beauticianId: bid,
-          beauticianPrefs,
+          send: async () => {
+            sent = await sendNudge({
+              client,
+              body: message,
+              templateName: 'rebook_nudge_v2',           // pre-approved WhatsApp template
+              templateParams: [client.first_name, slotLabel || 'soon'],
+              beauticianId: bid,
+              beauticianPrefs,
+            });
+            return sent;
+          },
         });
-        if (sent) {
+        if (guard.delivered && sent) {
           logger.info({ clientId: ci.client_id, channel: sent.channel }, 'Predictive nudge sent');
           await logNudge(bid, 'executed', `${summary} (via ${sent.channel})`, confidence, ci.client_id);
           count++;
+        } else if (guard.decision === 'approve') {
+          await logNudge(bid, 'pending_approval', summary, confidence, ci.client_id);
+          count++;
         } else {
-          logger.warn({ clientId: ci.client_id }, 'Predictive nudge: no channel available');
+          logger.warn({ clientId: ci.client_id, reason: guard.reason }, 'Predictive nudge: not sent');
           await logNudge(bid, 'failed', summary, confidence, ci.client_id);
         }
       } catch (err) {

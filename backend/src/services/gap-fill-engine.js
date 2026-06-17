@@ -17,6 +17,7 @@ import { supabase } from '../config.js';
 import { normaliseOutcome } from '../lib/ai-actions.js';
 import { sendNudge } from './notifications.js';
 import { shouldAutoSend } from './sms-metering.js';
+import { guardedSend } from '../lib/outbound-guard.js';
 import logger from '../lib/logger.js';
 
 const MAX_OFFERS_PER_CYCLE = 5;    // Don't spam — cap per beautician per run
@@ -522,16 +523,28 @@ async function processMatch({ beauticianId, client, treatment, gap, matchType, c
     }
 
     try {
-      const sent = await sendNudge({
+      let sent = null;
+      const guard = await guardedSend({
+        beauticianId,
+        clientId: client.id,
+        messageType: 'gap_fill',
+        channel: beauticianPrefs.whatsapp_connected ? 'whatsapp' : 'sms',
         client,
         body: message,
-        templateName: 'gap_fill_offer_v2',
-        templateParams: [client.first_name, dayLabel, timeLabel],
-        beauticianId,
-        beauticianPrefs,
+        send: async () => {
+          sent = await sendNudge({
+            client,
+            body: message,
+            templateName: 'gap_fill_offer_v2',
+            templateParams: [client.first_name, dayLabel, timeLabel],
+            beauticianId,
+            beauticianPrefs,
+          });
+          return sent;
+        },
       });
 
-      if (sent) {
+      if (guard.delivered && sent) {
         await logGapFillAction(beauticianId, actionType, 'executed', `${summary} (via ${sent.channel})`, confidence, client.id);
 
         // Mark waitlist entry as notified
@@ -540,6 +553,11 @@ async function processMatch({ beauticianId, client, treatment, gap, matchType, c
         }
 
         return 'executed';
+      }
+
+      if (guard.decision === 'approve') {
+        await logGapFillAction(beauticianId, actionType, 'pending_approval', summary, confidence, client.id);
+        return 'queued';
       }
     } catch (err) {
       logger.warn({ err, clientId: client.id }, 'Gap-fill send failed');
