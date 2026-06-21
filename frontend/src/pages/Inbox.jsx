@@ -98,6 +98,7 @@ export default function Inbox() {
   const [threads, setThreads] = useState(null);
   const [threadsError, setThreadsError] = useState(null);
   const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('needs'); // 'needs' | 'all'
   const [activeClientId, setActiveClientId] = useState(readClientFromUrl());
   const [isWide, setIsWide] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : false);
 
@@ -127,12 +128,22 @@ export default function Inbox() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // "Needs you" = the client had the last word (awaiting a reply) or there are
+  // unread messages. This is what separates real conversations from the threads
+  // that are just where Florrie sent automated reminders.
+  const needsYou = (t) => t.unread_count > 0 || t.last_message_direction === 'inbound';
+  const needsCount = useMemo(
+    () => (threads || []).filter(needsYou).length,
+    [threads]
+  );
+
   const filtered = useMemo(() => {
     if (!threads) return null;
+    let list = filter === 'needs' ? threads.filter(needsYou) : threads;
     const q = search.trim().toLowerCase();
-    if (!q) return threads;
-    return threads.filter(t => clientFullName(t).toLowerCase().includes(q));
-  }, [threads, search]);
+    if (q) list = list.filter(t => clientFullName(t).toLowerCase().includes(q));
+    return list;
+  }, [threads, search, filter]);
 
   function openThread(clientId) {
     setActiveClientId(clientId);
@@ -179,6 +190,10 @@ export default function Inbox() {
             onOpen={openThread}
             onDelete={deleteThread}
             activeId={activeClientId}
+            filter={filter}
+            onFilter={setFilter}
+            needsCount={needsCount}
+            totalCount={threads?.length || 0}
           />
         </aside>
         <section style={S.paneConvo}>
@@ -201,12 +216,24 @@ export default function Inbox() {
         onSearch={setSearch}
         onOpen={openThread}
         onDelete={deleteThread}
+        filter={filter}
+        onFilter={setFilter}
+        needsCount={needsCount}
+        totalCount={threads?.length || 0}
       />
     </div>
   );
 }
 
-function ThreadList({ threads, error, search, onSearch, onOpen, onDelete, activeId }) {
+function FilterChip({ active, onClick, label, count }) {
+  return (
+    <button type="button" onClick={onClick} style={{ ...S.filterChip, ...(active ? S.filterChipActive : {}) }}>
+      {label}{count > 0 ? <span style={{ ...S.filterChipCount, ...(active ? S.filterChipCountActive : {}) }}>{count}</span> : null}
+    </button>
+  );
+}
+
+function ThreadList({ threads, error, search, onSearch, onOpen, onDelete, activeId, filter, onFilter, needsCount, totalCount }) {
   return (
     <>
       <header style={S.header}>
@@ -224,13 +251,22 @@ function ThreadList({ threads, error, search, onSearch, onOpen, onDelete, active
         />
       </div>
 
+      <div style={S.filterRow}>
+        <FilterChip active={filter === 'needs'} onClick={() => onFilter('needs')} label="Needs you" count={needsCount} />
+        <FilterChip active={filter === 'all'} onClick={() => onFilter('all')} label="All" count={totalCount} />
+      </div>
+
       {threads === null && <ThreadSkeleton />}
       {threads !== null && error && (
         <div style={S.errorCard}>
           Couldn't load conversations. Pull down to refresh, or check back in a bit.
         </div>
       )}
-      {threads !== null && !error && threads.length === 0 && <EmptyInbox />}
+      {threads !== null && !error && threads.length === 0 && (
+        filter === 'needs' && totalCount > 0
+          ? <CaughtUp onShowAll={() => onFilter('all')} />
+          : <EmptyInbox />
+      )}
 
       {threads !== null && threads.length > 0 && (
         <ul style={S.list}>
@@ -377,6 +413,16 @@ function EmptyInbox() {
       <p style={S.emptyHint}>
         A friendly hello is all it takes to get the conversation started.
       </p>
+    </div>
+  );
+}
+
+function CaughtUp({ onShowAll }) {
+  return (
+    <div style={S.empty}>
+      <div style={S.emptyIcon}>✨</div>
+      <p style={S.emptyText}>You're all caught up. Nothing is waiting on a reply.</p>
+      <button type="button" onClick={onShowAll} style={S.caughtUpBtn}>See all conversations</button>
     </div>
   );
 }
@@ -783,6 +829,55 @@ const S = {
     outline: 'none',
   },
 
+  filterRow: {
+    display: 'flex',
+    gap: 8,
+    padding: '0 4px',
+    marginBottom: 10,
+  },
+  filterChip: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '7px 14px',
+    borderRadius: 999,
+    border: '1px solid rgba(146,64,94,0.14)',
+    background: 'var(--bg-card, #fff)',
+    color: 'var(--text-secondary)',
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  },
+  filterChipActive: {
+    background: 'var(--accent)',
+    borderColor: 'var(--accent)',
+    color: '#fff',
+  },
+  filterChipCount: {
+    fontSize: 11,
+    fontWeight: 700,
+    padding: '1px 7px',
+    borderRadius: 999,
+    background: 'rgba(146,64,94,0.10)',
+    color: 'var(--accent)',
+  },
+  filterChipCountActive: {
+    background: 'rgba(255,255,255,0.22)',
+    color: '#fff',
+  },
+  caughtUpBtn: {
+    marginTop: 4,
+    padding: '9px 18px',
+    background: 'var(--bg-card, #fff)',
+    color: 'var(--accent)',
+    border: '1px solid rgba(146,64,94,0.18)',
+    borderRadius: 999,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  },
   list: {
     listStyle: 'none',
     margin: 0,
