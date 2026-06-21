@@ -448,7 +448,7 @@ async function checkPreAppointmentRequirements(beauticianId) {
 
   const { data: appts } = await supabase
     .from('appointments')
-    .select('id, starts_at, client_id, management_token, treatments(name, requires_patch_test, requires_consultation), clients(id, first_name, last_name, phone, whatsapp_id, email, last_whatsapp_inbound_at)')
+    .select('id, starts_at, client_id, management_token, treatments(name, requires_patch_test, requires_consultation), clients(id, first_name, last_name, phone, whatsapp_id, email, last_whatsapp_inbound_at, imported_from)')
     .eq('beautician_id', beauticianId)
     .in('status', ['confirmed', 'pending'])
     .gte('starts_at', windowStart.toISOString())
@@ -465,6 +465,9 @@ async function checkPreAppointmentRequirements(beauticianId) {
     const client = appt.clients;
     const t = appt.treatments;
     if (!client || !t) continue;
+    // Never remind imported clients (Timely/Fresha/CSV): they're established
+    // clients from the old system, already past patch tests / forms.
+    if (client.imported_from) continue;
     if (!t.requires_patch_test && !t.requires_consultation) continue;
 
     // ONLY new clients (this is their first appointment). Returning clients have
