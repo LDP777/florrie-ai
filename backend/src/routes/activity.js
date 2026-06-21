@@ -32,7 +32,8 @@ router.get('/feed', requireAuth, async (req, res) => {
       message_id,
       outcome,
       created_at,
-      clients ( first_name, last_name )
+      clients ( first_name, last_name ),
+      appointments ( starts_at )
     `)
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false })
@@ -119,7 +120,10 @@ function clientName(row) {
 
 function resolveLink(row) {
   const cid = row.client_id;
-  const day = (row.created_at || '').slice(0, 10);
+  // Prefer the appointment's actual day so a booking row opens the calendar on
+  // the day of the appointment, not the day Florrie happened to log the action.
+  const apptDay = row.appointments?.starts_at ? String(row.appointments.starts_at).slice(0, 10) : null;
+  const day = apptDay || (row.created_at || '').slice(0, 10);
   const calendarDay = day ? `/calendar?date=${day}` : '/calendar';
   // Florrie is conversation-first: one thread per client, so the client's thread
   // is the right landing for anything message/relationship related. There is no
