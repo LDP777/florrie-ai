@@ -257,19 +257,26 @@ async function fromValueCoaching(beauticianId) {
     .eq('beautician_id', beauticianId)
     .eq('action_type', 'value_coaching')
     .order('created_at', { ascending: false })
-    .limit(2);
+    .limit(6);
 
   if (error || !data) return [];
 
-  return data.map(row => ({
-    id: `coaching-${row.id}`,
-    type: 'value_coaching',
-    icon: '💡',
-    summary: row.summary,
-    action_label: 'See',
-    payload: { ai_action_id: row.id },
-    link_to: '/money',
-  }));
+  return data
+    // Never surface a "£0" insight (e.g. "increase X by £0" / "spend £0 more").
+    // value-coaching.js no longer generates these, but legacy rows created from
+    // imported £0 treatments can still be stored - drop them at display time too.
+    // Matches £0 only when it's a standalone zero amount, not £0.50 / £05.
+    .filter(row => row.summary && !/£0(?![.\d])/.test(row.summary))
+    .slice(0, 2)
+    .map(row => ({
+      id: `coaching-${row.id}`,
+      type: 'value_coaching',
+      icon: '💡',
+      summary: row.summary,
+      action_label: 'See',
+      payload: { ai_action_id: row.id },
+      link_to: '/money',
+    }));
 }
 
 async function fromEmptyTomorrow(beauticianId) {
