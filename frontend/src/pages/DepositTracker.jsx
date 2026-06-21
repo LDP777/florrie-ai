@@ -6,6 +6,7 @@
  * when it was taken, and what happened to it.
  */
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useBeautician, fetchRows, supabase, updateRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -22,6 +23,7 @@ const STATUS_CONFIG = {
 };
 
 export default function DepositTracker() {
+  const navigate = useNavigate();
   const { beautician, loading: bLoading } = useBeautician();
   const [tab, setTab] = useState('held');
   const [expanded, setExpanded] = useState(null);
@@ -258,7 +260,7 @@ export default function DepositTracker() {
         <p style={S.policyText}>
           Deposits are non-refundable within 24 hours of the appointment. Cancellations outside this window receive a full refund. No-shows forfeit their deposit.
         </p>
-        <button style={S.policyLink}>Edit in Policies →</button>
+        <button style={S.policyLink} onClick={() => navigate('/settings?section=policy')}>Edit in Settings →</button>
       </div>
     </div>
   );

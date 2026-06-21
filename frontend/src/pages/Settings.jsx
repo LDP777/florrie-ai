@@ -51,8 +51,11 @@ export default function Settings({ onLogout }) {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const igStatus = params.get('ig');
+    // Honour ?section=<tab> so links (and the retired /policies redirect) open
+    // the right tab, not just 'ai'.
     const sectionParam = params.get('section');
-    if (sectionParam === 'ai') setSection('ai');
+    const validSections = ['profile', 'hours', 'policy', 'payments', 'calendar', 'notifications', 'ai', 'account'];
+    if (sectionParam && validSections.includes(sectionParam)) setSection(sectionParam);
     if (igStatus) {
       setIgBanner(igStatus);
       setSection('ai');

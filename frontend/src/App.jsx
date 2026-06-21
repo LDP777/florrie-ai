@@ -46,7 +46,7 @@ const HoursExceptions = lazy(() => import('./pages/HoursExceptions.jsx'));
 const PatchTests = lazy(() => import('./pages/PatchTests.jsx'));
 // IntakeForms removed , duplicate of ConsultationFormBuilder (/consultation-forms)
 // Reports removed , merged into Analytics (/analytics → Export tab)
-const Policies = lazy(() => import('./pages/Policies.jsx'));
+// Policies page retired (redirects to Settings > Policy). Import removed.
 const BusinessProfile = lazy(() => import('./pages/BusinessProfile.jsx'));
 const RebookReminders = lazy(() => import('./pages/RebookReminders.jsx'));
 const Inbox = lazy(() => import('./pages/Inbox.jsx'));
@@ -376,7 +376,9 @@ export default function App() {
             <Route path="/patch-tests" element={<PatchTests />} />
             {/* /forms removed , use /consultation-forms instead */}
             <Route path="/reports" element={<Navigate to="/analytics" replace />} />
-            <Route path="/policies" element={<Policies />} />
+            {/* Policies page retired: it wrote to a `policies` table the booking
+                engine never read. Booking rules live in Settings (booking_policy). */}
+            <Route path="/policies" element={<Navigate to="/settings?section=policy" replace />} />
             <Route path="/business" element={<BusinessProfile />} />
             <Route path="/rebook" element={<RebookReminders />} />
             <Route path="/inbox" element={<Inbox />} />

@@ -44,7 +44,6 @@ const CATEGORIES = [
       { path: '/sms',                label: 'SMS',               matIcon: 'sms',             desc: 'Text reminders and replies'     },
       { path: '/whatsapp/templates', label: 'Message templates', matIcon: 'description',     desc: 'What Florrie sends, signed as you' },
       { path: '/portal',             label: 'Booking Page',      matIcon: 'open_in_browser', desc: 'Your public booking link'       },
-      { path: '/policies',           label: 'Policies',          matIcon: 'policy',          desc: 'Cancellation and terms'         },
       { path: '/automations',        label: 'Automations',       matIcon: 'bolt',            desc: 'If-this-then-that rules'        },
       { path: '/pricing',            label: 'Plans',             matIcon: 'workspace_premium', desc: 'Subscription and billing'     },
     ],
