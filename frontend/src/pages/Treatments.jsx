@@ -394,12 +394,17 @@ export default function Treatments() {
                       {t.duration_minutes} min · {formatCurrency(t.price_cents)}
                     </span>
                   </div>
-                  <button
-                    onClick={() => handleToggleActive(t.id, false)}
-                    style={styles.reactivateBtn}
-                  >
-                    Restore
-                  </button>
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    {/* Imported treatments land here at £0. Let Ellie fix the price
+                        (and duration) without restoring; editing keeps it hidden. */}
+                    <button onClick={() => startEdit(t)} style={styles.editBtn}>Edit</button>
+                    <button
+                      onClick={() => handleToggleActive(t.id, false)}
+                      style={styles.reactivateBtn}
+                    >
+                      Restore
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
