@@ -319,6 +319,11 @@ export default function ClientManagePage() {
                 ? `Your appointment is in ${policy.hoursUntil} hour${policy.hoursUntil !== 1 ? 's' : ''}.`
                 : 'Your appointment is very soon.'}
             </p>
+            {policy.cancellation_message && (
+              <p style={{ ...S.policyText, fontStyle: 'italic', marginTop: 8 }}>
+                {policy.cancellation_message}
+              </p>
+            )}
           </div>
         )}
 

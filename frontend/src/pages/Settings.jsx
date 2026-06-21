@@ -601,6 +601,20 @@ export default function Settings({ onLogout }) {
               )}
             </div>
 
+            {/* Custom client-facing cancellation note (migrated from the retired
+                Policies page; saved to booking_policy so it's the real source). */}
+            <div style={styles.card}>
+              <div style={styles.cardTitle}>Cancellation note (optional)</div>
+              <p style={styles.cardDesc}>A note in your own words, shown to clients on your booking page and their manage-booking link, under the cancellation policy.</p>
+              <textarea
+                defaultValue={policy.cancellation_message || ''}
+                onBlur={e => savePolicy({ cancellation_message: e.target.value.trim() })}
+                placeholder="e.g. Please give as much notice as you can if you need to rearrange, my slots book up fast 🌸"
+                rows={3}
+                style={{ width: '100%', marginTop: 8, padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: 14, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
+              />
+            </div>
+
             {/* Policy preview */}
             {(minHours > 0 || cancelHours > 0) && (
               <div style={{ ...styles.card, background: 'var(--accent-light)', border: '1.5px solid rgba(199, 107, 138, 0.2)' }}>
@@ -615,6 +629,11 @@ export default function Settings({ onLogout }) {
                   {cancelHours > 0 && chargePercent === 0 && `No charge applies for late cancellations.`}
                   {cancelHours > 0 && requireReschedDeposit && ` Rescheduling inside this window is charged for the original appointment, and the new appointment requires a fresh deposit.`}
                 </p>
+                {policy.cancellation_message && (
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55, margin: '8px 0 0', fontStyle: 'italic' }}>
+                    "{policy.cancellation_message}"
+                  </p>
+                )}
               </div>
             )}
           </div>

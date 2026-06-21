@@ -1635,6 +1635,15 @@ export default function BookingPage() {
                 the treatment price charged to your card. By booking you agree to this.
               </p>
             )}
+            {beautician?.booking_policy?.cancellation_message && (
+              <p style={{
+                fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55, fontStyle: 'italic',
+                margin: '0 0 16px', padding: '10px 14px', borderRadius: 10,
+                background: 'var(--bg-subtle, #FDFCFB)', border: '1px solid var(--border-light)',
+              }}>
+                {beautician.booking_policy.cancellation_message}
+              </p>
+            )}
             {TURNSTILE_SITE_KEY ? <TurnstileWidget onToken={setTurnstileToken} /> : null}
             <div style={styles.buttonRow}>
               <button onClick={() => setStep(2)} style={styles.backBtn}>← Back</button>
