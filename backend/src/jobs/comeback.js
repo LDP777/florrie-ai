@@ -11,6 +11,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import { dirname, join } from 'path';
 import { sendSMS } from '../services/notifications.js';
 import { guardedSend } from '../lib/outbound-guard.js';
+import { getFutureBookedClientIds } from '../lib/future-bookings.js';
 import logger from '../lib/logger.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -24,14 +25,17 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-const DEFAULT_REBOOKING_DAYS = 42;
+// Win-back targets clients we genuinely have not seen in a while. 3 months,
+// not 6 weeks, so we never nudge someone who is simply between regular visits.
+const DORMANT_DAYS = 90;
+const RENUDGE_COOLDOWN_DAYS = 90; // never re-send a win-back within 3 months
 
 export async function runComeback() {
 
   // Get all beauticians
   const { data: beauticians, error: bErr } = await supabase
     .from('beauticians')
-    .select('id, business_name, tone_model');
+    .select('id, business_name, tone_model, booking_slug');
 
   if (bErr) {
     logger.error({ err: bErr }, 'Failed to fetch beauticians');
@@ -45,9 +49,9 @@ export async function runComeback() {
 
   for (const beautician of beauticians) {
     const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - DEFAULT_REBOOKING_DAYS);
+    cutoffDate.setDate(cutoffDate.getDate() - DORMANT_DAYS);
 
-    // Find clients who haven't visited since cutoff
+    // Genuinely lapsed: a real recorded last visit, and not within ~3 months.
     const { data: lapsedClients, error: cErr } = await supabase
       .from('clients')
       .select('id, first_name, last_name, phone, last_visit_at')
@@ -58,10 +62,15 @@ export async function runComeback() {
 
     if (cErr || !lapsedClients?.length) continue;
 
-    for (const client of lapsedClients) {
-      // Check if already nudged in the last 42 days (idempotency)
+    // Don't win-back anyone who already has a future booking, they're coming back.
+    const futureBooked = await getFutureBookedClientIds(beautician.id);
+    const candidates = lapsedClients.filter(c => !futureBooked.has(c.id));
+    if (!candidates.length) continue;
+
+    for (const client of candidates) {
+      // Never re-send a win-back within 3 months (idempotency).
       const nudgeCutoff = new Date();
-      nudgeCutoff.setDate(nudgeCutoff.getDate() - DEFAULT_REBOOKING_DAYS);
+      nudgeCutoff.setDate(nudgeCutoff.getDate() - RENUDGE_COOLDOWN_DAYS);
 
       const { data: existing } = await supabase
         .from('client_nudges')
@@ -82,7 +91,13 @@ export async function runComeback() {
       const firstName = client.first_name || 'there';
       const businessName = beautician.business_name || 'the salon';
 
-      const message = `Hi ${firstName}! It's been a while since we've seen you at ${businessName}. We'd love to have you back, book your next appointment at florrie.ai 💫`;
+      // Use Ellie's own branded booking link, not a bare florrie.ai (which goes
+      // nowhere bookable). Fall back to a reply CTA if she has no slug yet.
+      const bookingUrl = beautician.booking_slug ? `florrie.ai/book/${beautician.booking_slug}` : null;
+      const cta = bookingUrl
+        ? `book your next appointment here: ${bookingUrl}`
+        : `just reply to this message and I'll get you booked in`;
+      const message = `Hi ${firstName}! It's been a while since we've seen you at ${businessName}. We'd love to have you back, ${cta} 💫`;
 
       // Everything proactive goes through the one gate: consent (fail closed),
       // cross-engine frequency + monthly caps, allowance reserve, and the trust
