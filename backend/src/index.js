@@ -29,6 +29,7 @@ import { locationScope } from './middleware/location.js';
 import { processReminders } from './services/notifications.js';
 import { cleanupStaleBookings } from './services/cleanup.js';
 import { runAutonomousCycle } from './services/autonomous-scheduler.js';
+import { autoCompletePastAppointments } from './services/auto-complete.js';
 import { runPredictiveNudges } from './services/predictive-nudge.js';
 import { runDailyHeartbeats } from './services/florrie-heartbeat.js';
 import { processEmailQueue, checkTrialExpiry } from './services/email-sequences.js';
@@ -357,6 +358,26 @@ app.listen(PORT, () => {
       logger.error({ err }, 'Startup: predictive nudge scan failed');
     });
   }, 60_000);
+
+  // Auto-complete past appointments: assume each one happened (mark completed +
+  // log takings) unless the beautician flags a no-show. Frequent so it feels
+  // instant; the sweep itself only touches appointments that ended in the last
+  // 48h and is idempotent. See services/auto-complete.js.
+  const AUTO_COMPLETE_INTERVAL = 10 * 60 * 1000; // every 10 minutes
+  setInterval(async () => {
+    try {
+      await autoCompletePastAppointments();
+    } catch (err) {
+      logger.error({ err }, 'Auto-complete cron: failed');
+    }
+  }, AUTO_COMPLETE_INTERVAL);
+
+  // Run first sweep 45s after startup
+  setTimeout(() => {
+    autoCompletePastAppointments().catch(err => {
+      logger.error({ err }, 'Startup: auto-complete sweep failed');
+    });
+  }, 45_000);
 
   // Florrie heartbeat: once-daily passive checks that log real numbers to
   // ai_actions so the Hub "What Florrie did" feed stays populated with truthful

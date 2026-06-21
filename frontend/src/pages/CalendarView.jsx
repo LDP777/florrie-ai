@@ -1250,6 +1250,20 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               )}
             </div>
           )}
+          {/* Completed (incl. auto-completed/assumed). Ellie can still flag a
+              no-show at the end of the day - the backend reverses the takings
+              and charges the policy fee, so the Money tab updates. */}
+          {isCompleted && (
+            <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: 'var(--success-bg, #F0FBF4)', textAlign: 'center' }}>
+              <span style={{ fontSize: 13, color: 'var(--success-text, #2F7A4F)', fontWeight: 600 }}>
+                {appointment.payment_method ? 'Completed' : 'Done (assumed)'}
+              </span>
+              <button onClick={() => { hapticTap(); handleMarkNoShow(); }} disabled={saving}
+                style={{ ...styles.completeBtn, marginTop: 8, background: 'var(--bg-input, #FAFAFA)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 12, padding: '8px 0' }}>
+                Actually a no-show
+              </button>
+            </div>
+          )}
         </>
       )}
       {mode === 'completing' && (

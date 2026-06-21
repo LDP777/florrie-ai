@@ -415,9 +415,23 @@ router.patch('/:id', requireAuth, async (req, res) => {
     awardLoyaltyPoints(req.beautician.id, data).catch(() => {});
   }
 
-  // Fire-and-forget: auto-charge the no-show fee to the saved card when the
-  // beautician's policy has one configured (idempotent, no-op otherwise).
   if (req.body.status === 'no_show') {
+    // Reverse any assumed/auto takings for this appointment so the Money tab
+    // drops the income - the appointment didn't happen. Assumed takings (from
+    // auto-complete or the "All done" batch) are type 'payment' with a null
+    // method; real card charges (deposits, balance) keep a method and are left
+    // alone. This is what makes "mark a no-show at the end of the day" update
+    // everything, even for appointments that already auto-completed.
+    const { error: revErr } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('appointment_id', req.params.id)
+      .eq('type', 'payment')
+      .is('payment_method', null);
+    if (revErr) logger.error({ err: revErr, appointmentId: req.params.id }, 'no_show takings reversal failed');
+
+    // Fire-and-forget: auto-charge the no-show fee to the saved card when the
+    // beautician's policy has one configured (idempotent, no-op otherwise).
     chargePolicyFee(req.params.id, 'no_show').catch(err =>
       logger.error({ err, appointmentId: req.params.id }, 'no_show policy fee charge failed (non-fatal)')
     );

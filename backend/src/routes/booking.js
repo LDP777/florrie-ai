@@ -1240,9 +1240,13 @@ const statusTransitionSchema = z.object({
 const VALID_TRANSITIONS = {
   'pending': ['confirmed', 'cancelled'],
   'confirmed': ['completed', 'cancelled', 'no_show'],
-  'completed': [],
+  // Appointments auto-complete once their time passes (assumed done). Ellie can
+  // still flag one a no-show at the end of the day - that reverses the takings
+  // and charges the fee - so completed -> no_show must be allowed. completed ->
+  // confirmed lets her undo an auto-complete if she wants to re-open it.
+  'completed': ['no_show', 'confirmed'],
   'cancelled': [],
-  'no_show': []
+  'no_show': ['confirmed']
 };
 
 router.patch('/appointments/:id/status', requireAuth, validate(statusTransitionSchema), async (req, res) => {
@@ -1309,9 +1313,21 @@ router.patch('/appointments/:id/status', requireAuth, validate(statusTransitionS
       return res.status(500).json({ error: 'Failed to update appointment status' });
     }
 
-    // Auto-charge the no-show fee to the saved card when the policy has one
-    // configured (fire-and-forget; idempotent, no-op without a fee or card).
     if (newStatus === 'no_show') {
+      // Reverse assumed/auto takings (type 'payment' with a null method) so the
+      // Money tab drops the income for an appointment that auto-completed but was
+      // actually a no-show. Real card charges (deposits, balance) keep a method
+      // and are left alone. This is what makes a late no-show update everything.
+      const { error: revErr } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('appointment_id', id)
+        .eq('type', 'payment')
+        .is('payment_method', null);
+      if (revErr) logger.error({ err: revErr, appointmentId: id }, 'no_show takings reversal failed');
+
+      // Auto-charge the no-show fee to the saved card when the policy has one
+      // configured (fire-and-forget; idempotent, no-op without a fee or card).
       chargePolicyFee(id, 'no_show').catch(err =>
         logger.error({ err, appointmentId: id }, 'no_show policy fee charge failed (non-fatal)')
       );
