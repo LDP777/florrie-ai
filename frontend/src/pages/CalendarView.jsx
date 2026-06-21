@@ -1649,6 +1649,19 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], onClose, 
   const [newPhone, setNewPhone] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  // Keep the bottom sheet above the on-screen keyboard (and its accessory bar)
+  // by sizing the overlay to the visual viewport, so the fields and the Add
+  // button never end up hidden or overlapped when the number pad opens.
+  const [vp, setVp] = useState(null);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => setVp({ height: vv.height, top: vv.offsetTop });
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => { vv.removeEventListener('resize', update); vv.removeEventListener('scroll', update); };
+  }, []);
   async function authedFetch(path, opts = {}) {
     const token = (await supabase.auth.getSession()).data.session?.access_token;
     return fetch(`${API_BASE}${path}`, {
@@ -1757,8 +1770,8 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], onClose, 
       return newStart < aEnd && aStart < newEnd;
     }) || null;
   })();
-  const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 900, display: 'flex', alignItems: 'flex-end' };
-  const sheet = { background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif', maxHeight: '90vh', overflowY: 'auto' };
+  const overlay = { position: 'fixed', left: 0, right: 0, top: vp ? vp.top : 0, height: vp ? vp.height : '100%', background: 'rgba(0,0,0,0.4)', zIndex: 900, display: 'flex', alignItems: 'flex-end' };
+  const sheet = { background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', padding: '20px 20px calc(28px + env(safe-area-inset-bottom))', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif', maxHeight: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch' };
   const labelStyle = { fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' };
   const inputStyle = { display: 'block', width: '100%', marginTop: 4, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: 'var(--bg-card)', color: COLORS.onSurface };
   return (
