@@ -438,7 +438,11 @@ export default function BookingPage() {
   function sameMonth(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth(); }
   const todayMid = new Date(); todayMid.setHours(0, 0, 0, 0);
   const earliestBookable = new Date(todayMid); earliestBookable.setDate(earliestBookable.getDate() + 1); // tomorrow
-  const horizonDays = beautician?.booking_policy?.max_advance_days || 14;
+  // max_advance_days: a positive value (30/60/90) caps the window; 0 or unset
+  // means "No limit" (the Settings default), so open a generous year-long window
+  // rather than the old 14-day cap that made "No limit" wrongly stop in 2 weeks.
+  const maxAdvance = beautician?.booking_policy?.max_advance_days;
+  const horizonDays = maxAdvance && maxAdvance > 0 ? maxAdvance : 365;
   const horizonDate = new Date(todayMid); horizonDate.setDate(horizonDate.getDate() + horizonDays);
   // Default the visible month to the month containing the earliest bookable day.
   useEffect(() => {
