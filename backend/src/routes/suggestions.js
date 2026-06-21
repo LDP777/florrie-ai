@@ -193,6 +193,9 @@ async function fromBookingSuggestions(beauticianId) {
     const first = row.clients?.first_name?.trim() || 'a client';
     const date = formatShortDate(row.suggested_date);
     const time = row.suggested_time ? ` at ${row.suggested_time.slice(0, 5)}` : '';
+    // Land Ellie on the day she needs to book, so the calendar opens right where
+    // the slot goes. Fall back to today if the suggestion has no date.
+    const calendarDate = isoDateOnly(row.suggested_date);
     return {
       id: `booking-${row.id}`,
       type: 'booking_suggestion',
@@ -200,7 +203,7 @@ async function fromBookingSuggestions(beauticianId) {
       summary: `${first} wants ${row.treatment_name || 'a treatment'}${date ? ` on ${date}` : ''}${time}. Book it in?`,
       action_label: 'Book it',
       payload: { booking_suggestion_id: row.id },
-      link_to: '/today',
+      link_to: calendarDate ? `/calendar?date=${calendarDate}` : '/today',
     };
   });
 }
@@ -275,7 +278,9 @@ async function fromValueCoaching(beauticianId) {
       summary: row.summary,
       action_label: 'See',
       payload: { ai_action_id: row.id },
-      link_to: '/money',
+      // Pricing / upsell insights are acted on where Ellie edits prices and
+      // treatments, not on the generic money dashboard.
+      link_to: '/treatments',
     }));
 }
 
@@ -459,6 +464,16 @@ function formatShortDate(iso) {
   try {
     const d = new Date(iso);
     return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  } catch { return ''; }
+}
+
+// Normalise a date or timestamp to a YYYY-MM-DD string for /calendar?date=.
+function isoDateOnly(value) {
+  if (!value) return '';
+  try {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toISOString().slice(0, 10);
   } catch { return ''; }
 }
 

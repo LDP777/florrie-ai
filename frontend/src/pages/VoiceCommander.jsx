@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useBeautician, supabase, fetchRows } from '../lib/supabase.js'
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
@@ -178,6 +178,8 @@ const MIC_DENIED_MSG = IS_NATIVE_APP
 export default function VoiceCommander() {
   const { beautician, loading: bLoading } = useBeautician();
   const navigate = useNavigate();
+  const location = useLocation();
+  const autoListenedRef = useRef(false);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
@@ -320,6 +322,15 @@ export default function VoiceCommander() {
     if (!messages.length) return;
     try { localStorage.setItem('florrie_voice_chat', JSON.stringify(messages.slice(-40))); } catch {}
   }, [messages]);
+  // Auto-start listening when arrived via a hold gesture on the nav petal.
+  // Fires once, and only if speech is supported.
+  useEffect(() => {
+    if (autoListenedRef.current) return;
+    if (location.state?.autoListen === true && speechSupported && !isRecording && !isProcessing) {
+      autoListenedRef.current = true;
+      startRecording();
+    }
+  }, [location.state, speechSupported]);
   function startRecording() {
     if (!SpeechRecognition) {
       inputRef.current?.focus();
@@ -644,32 +655,25 @@ export default function VoiceCommander() {
             </button>
           )}
         </form>
-        {/* Central Florrie petal button */}
-        {speechSupported && (
-          <div style={styles.petalWrap}>
-            {isRecording && (
-              <div style={styles.recordingRipple} />
-            )}
-            <button
-              type="button"
-              onClick={handleRecord}
-              disabled={isProcessing}
-              aria-label={isRecording ? 'Stop recording' : 'Start voice command'}
-              style={{
-                ...styles.petalBtn,
-                background: isRecording
-                  ? 'linear-gradient(135deg, #D4605C 0%, #c0392b 100%)'
-                  : 'linear-gradient(135deg, #C76B8A 0%, #a85070 100%)',
-                boxShadow: isRecording
-                  ? '0 0 0 8px rgba(212,96,92,0.15), 0 4px 20px rgba(212,96,92,0.4)'
-                  : '0 4px 20px rgba(199,107,138,0.35)',
-              }}
-            >
-              <FloriePetal size={38} spinning={isRecording} white />
-            </button>
-            <span style={styles.petalLabel}>
-              {isProcessing ? 'Thinking…' : isRecording ? 'Tap to stop' : 'Tap to speak'}
+        {/* Hold-to-talk hint. The mic now lives on the centre nav petal:
+            press and hold it to talk. This line teaches the gesture and
+            points down toward the nav. */}
+        {speechSupported && !isRecording && (
+          <div style={styles.holdHint}>
+            <span style={styles.holdHintText}>
+              {isProcessing ? 'Thinking…' : 'Hold the petal below to talk to me'}
             </span>
+            {!isProcessing && (
+              <span className="material-symbols-outlined" style={styles.holdHintChevron}>
+                keyboard_arrow_down
+              </span>
+            )}
+          </div>
+        )}
+        {/* Live listening indicator while recording */}
+        {isRecording && (
+          <div style={styles.holdHint}>
+            <span style={styles.holdHintText}>Listening, I'm all ears…</span>
           </div>
         )}
       </div>
@@ -743,7 +747,7 @@ const styles = {
     color: 'var(--text-secondary)', fontSize: 12, lineHeight: 1.3,
     cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
   },
-  inputArea: { flexShrink: 0, padding: '8px 16px 24px', background: 'var(--bg)' },
+  inputArea: { flexShrink: 0, padding: '8px 16px 16px', background: 'var(--bg)' },
   inputForm: { display: 'flex', gap: 8, alignItems: 'center' },
   textInput: {
     flex: 1, padding: '12px 16px', borderRadius: 24,
@@ -755,6 +759,19 @@ const styles = {
     background: 'var(--accent)', color: 'var(--bg-card, #fff)', fontSize: 18, fontWeight: 700,
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
     flexShrink: 0,
+  },
+  // Hold-to-talk hint (sits above the nav, fills the gap left by the old petal button)
+  holdHint: {
+    display: 'flex', flexDirection: 'column', alignItems: 'center',
+    gap: 2, paddingTop: 12, paddingBottom: 2,
+  },
+  holdHintText: {
+    fontSize: 12.5, fontWeight: 600, color: 'var(--accent)',
+    letterSpacing: '0.01em', textAlign: 'center', opacity: 0.85,
+  },
+  holdHintChevron: {
+    fontSize: 20, color: 'var(--accent)', opacity: 0.6,
+    fontVariationSettings: "'FILL' 0, 'wght' 400",
   },
   // Petal button
   petalWrap: {

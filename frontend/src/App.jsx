@@ -466,6 +466,32 @@ function BottomNav({ current, session }) {
   const navigate = useNavigate();
   const [inboxCount, setInboxCount] = useState(0);
   const intervalRef = useRef(null);
+  // Hold-to-speak on the centre petal. A long press (~450ms) opens Florrie
+  // already listening; a plain tap opens her quietly. The didHold ref stops
+  // the click that fires after a long press from double-navigating.
+  const holdTimerRef = useRef(null);
+  const didHoldRef = useRef(false);
+
+  function startHold() {
+    didHoldRef.current = false;
+    clearTimeout(holdTimerRef.current);
+    holdTimerRef.current = setTimeout(() => {
+      didHoldRef.current = true;
+      try { hapticTap(); } catch {}
+      navigate('/voice', { state: { autoListen: true } });
+    }, 450);
+  }
+  function cancelHold() {
+    clearTimeout(holdTimerRef.current);
+  }
+  function handlePetalClick() {
+    if (didHoldRef.current) {
+      // The long press already navigated. Swallow this click and reset.
+      didHoldRef.current = false;
+      return;
+    }
+    navigate('/voice');
+  }
 
   useEffect(() => {
     if (!session) return;
@@ -511,12 +537,18 @@ function BottomNav({ current, session }) {
         <NavTab key={tab.path} tab={tab} onNav={() => navigate(tab.path)} />
       ))}
 
-      {/* Centre petal: tap = talk to Florrie (the voice/command page). The brand
-          mark itself is the way to reach Florrie; Today is still the left tab. */}
+      {/* Centre petal: tap = open Florrie, hold = open her already listening.
+          The brand mark itself is the way to reach Florrie; Today is the left tab. */}
       <button
         type="button"
-        aria-label="Talk to Florrie"
-        onClick={() => navigate('/voice')}
+        aria-label="Talk to Florrie, hold to speak"
+        onClick={handlePetalClick}
+        onTouchStart={startHold}
+        onTouchEnd={cancelHold}
+        onTouchMove={cancelHold}
+        onMouseDown={startHold}
+        onMouseUp={cancelHold}
+        onMouseLeave={cancelHold}
         style={styles.navPetalWrap}
       >
         <div style={styles.navPetal}>
