@@ -60,6 +60,9 @@ router.get('/', (req, res) => {
  * }
  */
 router.post('/', async (req, res) => {
+  // Visible-in-Railway receipt log: confirms Meta is actually delivering DMs.
+  logger.info({ object: req.body?.object, entries: req.body?.entry?.length || 0, hasSig: !!req.headers['x-hub-signature-256'] }, 'Instagram webhook received');
+
   // Verify HMAC-SHA256 signature. A Meta app shares one app secret across its
   // products, so fall back to META_APP_SECRET (which is what is configured) when
   // a dedicated INSTAGRAM_APP_SECRET isn't set.
@@ -72,8 +75,13 @@ router.post('/', async (req, res) => {
     }
 
     try {
+      // Meta signs the RAW request bytes, not a re-serialised JSON object.
+      // express.json() stashes the original buffer on req.rawBody (see index.js).
+      // Using JSON.stringify(req.body) here would re-encode emoji/unicode and
+      // spacing differently, so the HMAC would never match and every DM 403'd.
+      const payload = req.rawBody || Buffer.from(JSON.stringify(req.body));
       const expected = crypto.createHmac('sha256', secret)
-        .update(JSON.stringify(req.body))
+        .update(payload)
         .digest('hex');
 
       const parts = signature.split('=');
