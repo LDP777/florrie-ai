@@ -24,9 +24,24 @@ export async function runValueCoaching() {
 
     if (!beauticians?.length) return;
 
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     let totalInsights = 0;
     for (const b of beauticians) {
       try {
+        // Weekly cadence, PER beautician (the old check was global - one
+        // beautician's recent insight blocked everyone). Ignore £0 rows so the
+        // old garbage insights don't count as "already coached this week" and
+        // block a fresh, correct one.
+        const { data: recent } = await supabase
+          .from('ai_actions')
+          .select('summary')
+          .eq('beautician_id', b.id)
+          .eq('action_type', 'value_coaching')
+          .gte('created_at', sevenDaysAgo)
+          .limit(10);
+        const hasRealRecent = (recent || []).some(r => r.summary && !/£0(?![.\d])/.test(r.summary));
+        if (hasRealRecent) continue;
+
         totalInsights += await analyseBeautician(b);
       } catch (err) {
         logger.error({ err, beauticianId: b.id }, 'Value coaching failed for beautician');

@@ -55,24 +55,11 @@ export async function runAutonomousCycle() {
 
     logger.info(`Autonomous scheduler: cycle complete for ${beauticians.length} beauticians`);
 
-    // Value coaching runs weekly — check if it's been 7+ days
+    // Value coaching self-gates per beautician (weekly cadence lives inside
+    // runValueCoaching now), so just run it each cycle - it skips anyone already
+    // coached this week and only does real work for those due.
     try {
-      const { data: lastCoaching } = await supabase
-        .from('ai_actions')
-        .select('created_at')
-        .eq('action_type', 'value_coaching')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      const daysSinceLast = lastCoaching
-        ? (Date.now() - new Date(lastCoaching.created_at).getTime()) / (24 * 60 * 60 * 1000)
-        : 999;
-
-      if (daysSinceLast >= 7) {
-        logger.info('Autonomous scheduler: running weekly value coaching');
-        await runValueCoaching();
-      }
+      await runValueCoaching();
     } catch (err) {
       logger.error({ err }, 'Value coaching trigger failed');
     }
