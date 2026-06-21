@@ -1245,8 +1245,8 @@ export default function Settings({ onLogout }) {
             </div>
             <p style={{ ...styles.cardHint, marginTop: 8, marginBottom: 0 }}>
               {beautician.instagram_page_id
-                ? 'Content Studio can post directly to your Instagram. Requires an Instagram Business account linked to a Facebook Page.'
-                : 'Connect your Instagram Business account so Content Studio can publish posts without you copying and pasting.'}
+                ? 'Florrie reads and replies to your Instagram DMs in your voice, and Content Studio can post to your account.'
+                : 'Connect your Instagram so Florrie can read and reply to your DMs (and post for you). You just need a professional Instagram account, no Facebook Page required.'}
             </p>
             {igBanner === 'success' && (
               <p style={{ fontSize: 12, color: 'var(--success)', marginTop: 8, marginBottom: 0 }}>✓ Instagram connected, Content Studio can now post directly</p>
