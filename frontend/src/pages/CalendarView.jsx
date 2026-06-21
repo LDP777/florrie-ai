@@ -777,8 +777,10 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
       hapticSuccess();
       setTimeEditing(false);
       // ends_at comes back recalculated; fold both into the open panel.
-      const patch = { starts_at: data.starts_at || startsAt };
-      if (data.ends_at) patch.ends_at = data.ends_at;
+      // PATCH responds { appointment: {...} }, so read from there (fall back flat).
+      const updated = data.appointment || data;
+      const patch = { starts_at: updated.starts_at || startsAt };
+      if (updated.ends_at) patch.ends_at = updated.ends_at;
       if (onRefresh) onRefresh(patch);
       else onUpdate();
     } catch (err) {
