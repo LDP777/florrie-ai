@@ -124,6 +124,7 @@ export async function evaluateOutbound({ beauticianId, clientId, messageType, ch
       .eq('id', beauticianId)
       .maybeSingle();
     const mode = b?.autonomy?.[messageType] || b?.autonomy?.proactive || 'ask';
+    if (mode === 'off') return decision('block', tier, 'autonomy_off'); // Ellie turned this type off
     if (mode === 'auto') return decision('send', tier, 'trusted_auto');
     return decision('approve', tier, 'awaiting_approval');
   } catch (err) {
