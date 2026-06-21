@@ -449,6 +449,7 @@ export default function Settings({ onLogout }) {
         const bufferMinutes = policy.payment_buffer_minutes ?? 10;
         const cancelHours = policy.cancellation_notice_hours ?? 48;
         const chargePercent = policy.late_cancel_charge_percent ?? 100;
+        const requireReschedDeposit = policy.require_deposit_on_late_reschedule ?? false;
 
         function savePolicy(updates) {
           saveProfile({ booking_policy: { ...policy, ...updates } });
@@ -579,6 +580,20 @@ export default function Settings({ onLogout }) {
                       {chargePercent === 0 ? 'No charge' : `${chargePercent}%`}
                     </span>
                   </div>
+
+                  <div style={{ height: 1, background: 'var(--border-light)', margin: '14px 0' }} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={styles.cardTitle}>New deposit on late reschedule</div>
+                    <button
+                      onClick={() => savePolicy({ require_deposit_on_late_reschedule: !requireReschedDeposit })}
+                      style={{ ...styles.toggle, background: requireReschedDeposit ? 'var(--accent)' : 'var(--border)' }}
+                    >
+                      <div style={{ ...styles.toggleDot, transform: requireReschedDeposit ? 'translateX(20px)' : 'translateX(2px)' }} />
+                    </button>
+                  </div>
+                  <p style={styles.cardDesc}>
+                    If a client moves their appointment inside the notice window, charge the late-cancel fee for the original and take a fresh deposit for the new slot from their saved card. If there's no usable card, the move is blocked.
+                  </p>
                 </>
               )}
             </div>
@@ -595,6 +610,7 @@ export default function Settings({ onLogout }) {
                   {cancelHours > 0 && `We require ${cancelHours < 24 ? `${cancelHours} hours` : `${cancelHours / 24} day${cancelHours / 24 !== 1 ? 's' : ''}`} notice to cancel or reschedule. `}
                   {cancelHours > 0 && chargePercent > 0 && `Late cancellations within this window may be charged ${chargePercent}% of the appointment value.`}
                   {cancelHours > 0 && chargePercent === 0 && `No charge applies for late cancellations.`}
+                  {cancelHours > 0 && requireReschedDeposit && ` Rescheduling inside this window is charged for the original appointment, and the new appointment requires a fresh deposit.`}
                 </p>
               </div>
             )}

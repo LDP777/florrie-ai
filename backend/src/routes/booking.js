@@ -8,7 +8,7 @@ import { sendConsultationFormSMS } from './consultation-forms.js';
 import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
 import { calculatePlatformFee } from '../lib/platform-fees.js';
-import { chargePolicyFee, computePolicyFee } from '../services/policy-fees.js';
+import { chargePolicyFee, computePolicyFee, chargeRescheduleDeposit } from '../services/policy-fees.js';
 import { verifyTurnstile } from '../middleware/turnstile.js';
 import logger from '../lib/logger.js';
 import { bookingSchema } from '../lib/schemas.js';
@@ -586,6 +586,24 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
       return res.status(409).json({ error: 'That time slot is not available. Please choose another time.' });
     }
 
+    // Late reschedule + the beautician requires a fresh deposit for the new slot
+    // (booking_policy.require_deposit_on_late_reschedule, off by default): take it
+    // off the saved card NOW, and BLOCK the move if we can't (no card / declined).
+    // This runs before the move so a failed deposit never leaves the slot shifted.
+    let newDepositCollected = false;
+    if (isLateReschedule && policy.require_deposit_on_late_reschedule === true) {
+      const dep = await chargeRescheduleDeposit(appt.id, newStart.toISOString());
+      if (dep.charged) {
+        newDepositCollected = true;
+      } else if (dep.reason !== 'no_deposit') {
+        const who = appt.beauticians?.business_name || appt.beauticians?.first_name || 'your beautician';
+        const msg = dep.reason === 'no_card_on_file'
+          ? `We couldn't take the new deposit because there's no saved card on file, so your appointment has not been moved. Please contact ${who} to rearrange.`
+          : `We couldn't take the new deposit for the rescheduled time, so your appointment has not been moved. Please try again, or contact ${who}.`;
+        return res.status(402).json({ error: msg, code: 'reschedule_deposit_required' });
+      }
+    }
+
     // Save old slot info for gap-filling
     const oldStartsAt = appt.starts_at;
     const oldEndsAt = appt.ends_at;
@@ -619,15 +637,17 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
       chargePolicyFee(appt.id, 'late_cancel').catch(err =>
         logger.error({ err, appointmentId: appt.id }, 'late_reschedule policy fee charge failed (non-fatal)')
       );
-      // The new booking needs a fresh deposit (the original deposit is counted
-      // towards the late fee above). Mark it pending so the slot shows as
-      // awaiting a deposit; deposit_paid is left intact so the fee calc still
+      // If we did NOT auto-collect a fresh deposit above (toggle off, or this
+      // booking has no deposit), mark the new slot deposit pending so it shows
+      // as awaiting one. deposit_paid is left intact so the late-fee calc still
       // credits the original deposit.
-      await supabase
-        .from('appointments')
-        .update({ deposit_status: 'pending' })
-        .eq('id', appt.id)
-        .catch(() => {});
+      if (!newDepositCollected) {
+        await supabase
+          .from('appointments')
+          .update({ deposit_status: 'pending' })
+          .eq('id', appt.id)
+          .catch(() => {});
+      }
     }
 
     // Log AI action
@@ -667,8 +687,9 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
       newEndsAt: newEnd.toISOString(),
       isLateReschedule,
       chargePercent,
+      newDepositCollected,
       message: isLateReschedule && chargePercent > 0
-        ? `Rescheduled to ${newStart.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at ${newStart.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}. As this is within the ${noticeHours}-hour notice period, a ${chargePercent}% fee for the original appointment will be charged to the card on file, and your new appointment will need a fresh deposit.`
+        ? `Rescheduled to ${newStart.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at ${newStart.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}. As this is within the ${noticeHours}-hour notice period, a ${chargePercent}% fee for the original appointment will be charged to the card on file${newDepositCollected ? ', and a fresh deposit has been taken for your new appointment' : ', and your new appointment will need a fresh deposit'}.`
         : `Rescheduled to ${newStart.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at ${newStart.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}.`,
     });
   } catch (err) {

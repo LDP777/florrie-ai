@@ -256,3 +256,112 @@ export async function chargePolicyFee(appointmentId, kind) {
     return { charged: false, reason: 'error' };
   }
 }
+
+/**
+ * Charge a fresh deposit to the saved card when a client reschedules inside the
+ * notice window and the beautician's policy requires a new deposit for the new
+ * slot (booking_policy.require_deposit_on_late_reschedule). Off-session, mirrors
+ * the policy-fee money flow exactly (platform PaymentIntent with transfer_data +
+ * application_fee).
+ *
+ * Returns:
+ *   { charged:true, depositCents }                 - taken
+ *   { charged:false, reason:'no_deposit' }         - this booking has no deposit, nothing to take (caller proceeds)
+ *   { charged:false, reason:<other> }              - could NOT take it; caller should BLOCK the reschedule
+ *
+ * Never throws.
+ */
+export async function chargeRescheduleDeposit(appointmentId, newStartIso) {
+  try {
+    const { data: appt } = await supabase
+      .from('appointments')
+      .select(`
+        id, beautician_id, client_id, price_cents, deposit_cents,
+        stripe_payment_method_id,
+        clients(id, first_name, last_name, stripe_customer_id),
+        beauticians(id, business_name, first_name, stripe_account_id, stripe_onboarding_complete)
+      `)
+      .eq('id', appointmentId)
+      .maybeSingle();
+
+    if (!appt) return { charged: false, reason: 'not_found' };
+
+    const depositCents = appt.deposit_cents || 0;
+    // Stripe's GBP minimum is 30p; nothing meaningful to take below that.
+    if (depositCents < 30) return { charged: false, reason: 'no_deposit' };
+
+    if (!stripe) return { charged: false, reason: 'stripe_not_configured' };
+
+    const b = appt.beauticians;
+    if (!b?.stripe_account_id || !b?.stripe_onboarding_complete) {
+      return { charged: false, reason: 'stripe_not_onboarded' };
+    }
+
+    const clientName = `${appt.clients?.first_name || 'the client'} ${appt.clients?.last_name || ''}`.trim();
+    const customerId = appt.clients?.stripe_customer_id;
+    let paymentMethodId = appt.stripe_payment_method_id || null;
+    if (customerId && !paymentMethodId) {
+      const methods = await stripe.paymentMethods.list({ customer: customerId, type: 'card' });
+      paymentMethodId = methods.data?.[0]?.id || null;
+    }
+    if (!customerId || !paymentMethodId) {
+      return { charged: false, reason: 'no_card_on_file' };
+    }
+
+    const platformFee = calculatePlatformFee(depositCents);
+    let paymentIntent;
+    try {
+      paymentIntent = await stripe.paymentIntents.create({
+        amount: depositCents,
+        currency: 'gbp',
+        customer: customerId,
+        payment_method: paymentMethodId,
+        confirm: true,
+        off_session: true,
+        application_fee_amount: platformFee,
+        transfer_data: { destination: b.stripe_account_id },
+        description: `Reschedule deposit, ${clientName}`,
+        metadata: {
+          appointment_id: appt.id,
+          beautician_id: appt.beautician_id,
+          client_id: appt.client_id || '',
+          type: 'reschedule_deposit',
+          platform_fee_cents: platformFee,
+        },
+      }, {
+        idempotencyKey: `resched_deposit_${appointmentId}_${String(newStartIso).slice(0, 16)}`,
+      });
+    } catch (err) {
+      const declined = err?.code === 'authentication_required' || err?.type === 'StripeCardError';
+      if (!declined) logger.error({ err, appointmentId }, 'reschedule deposit charge failed');
+      return { charged: false, reason: declined ? (err.code || 'card_declined') : 'stripe_error' };
+    }
+
+    const ok = paymentIntent.status === 'succeeded' || paymentIntent.status === 'processing';
+    if (!ok) return { charged: false, reason: paymentIntent.status };
+
+    // Record the new deposit + mark the new slot's deposit paid.
+    await supabase.from('appointments').update({
+      deposit_paid: true,
+      deposit_status: 'paid',
+      stripe_payment_method_id: paymentMethodId,
+    }).eq('id', appointmentId);
+
+    await supabase.from('transactions').insert({
+      beautician_id: appt.beautician_id,
+      appointment_id: appt.id,
+      client_id: appt.client_id || null,
+      amount_cents: depositCents,
+      type: 'deposit',
+      status: 'completed',
+      stripe_payment_intent_id: paymentIntent.id,
+      payment_method: 'card',
+    });
+
+    logger.info({ appointmentId, depositCents, paymentIntentId: paymentIntent.id }, 'Reschedule deposit charged');
+    return { charged: true, depositCents, paymentIntentId: paymentIntent.id };
+  } catch (err) {
+    logger.error({ err, appointmentId }, 'chargeRescheduleDeposit unexpected failure');
+    return { charged: false, reason: 'error' };
+  }
+}
