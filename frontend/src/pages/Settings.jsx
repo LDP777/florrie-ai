@@ -317,6 +317,20 @@ export default function Settings({ onLogout }) {
             value={beautician.booking_slug || ''}
             onSave={v => saveProfile({ booking_slug: v.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
           />
+
+          {/* Branding lives on the Business Profile page - link, don't duplicate */}
+          <button
+            type="button"
+            onClick={() => navigate('/business')}
+            style={styles.brandingLinkBtn}
+          >
+            <span style={styles.brandingLinkIcon}>🎨</span>
+            <div style={{ flex: 1 }}>
+              <span style={styles.brandingLinkTitle}>Branding &amp; business profile</span>
+              <span style={styles.brandingLinkDesc}>Logo, brand colour, tagline, social links and email sign-off</span>
+            </div>
+            <span style={{ color: 'var(--text-muted)', fontSize: 18 }}>›</span>
+          </button>
         </div>
       )}
 
@@ -1818,6 +1832,16 @@ const styles = {
   blockLinkIcon: { fontSize: 22, flexShrink: 0 },
   blockLinkTitle: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 },
   blockLinkDesc: { display: 'block', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4 },
+
+  brandingLinkBtn: {
+    display: 'flex', alignItems: 'center', gap: 12,
+    padding: '12px 14px', marginTop: 12, borderRadius: 12, border: '1px solid var(--border)',
+    background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', cursor: 'pointer',
+    fontFamily: 'inherit', textAlign: 'left', width: '100%',
+  },
+  brandingLinkIcon: { fontSize: 22, flexShrink: 0 },
+  brandingLinkTitle: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 },
+  brandingLinkDesc: { display: 'block', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4 },
 
   // Payments
   connectionStatus: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },
