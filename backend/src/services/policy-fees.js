@@ -365,3 +365,110 @@ export async function chargeRescheduleDeposit(appointmentId, newStartIso) {
     return { charged: false, reason: 'error' };
   }
 }
+
+/**
+ * Charge a client's REMAINING balance (treatment price minus the deposit they
+ * already paid) to their saved card. The fallback for when a client doesn't pay
+ * the balance by bank transfer. Off-session, same money flow as deposit/fees.
+ *
+ * Persistent double-charge guard: a deposit booking only has a 'deposit'
+ * transaction until the balance is taken; once we charge the balance we record a
+ * 'payment' transaction, so the presence of a 'payment' row = already charged.
+ *
+ * Returns { charged:true, amountCents } or { charged:false, reason }. Never throws.
+ */
+export async function chargeRemainingBalance(appointmentId) {
+  try {
+    const { data: appt } = await supabase
+      .from('appointments')
+      .select(`
+        id, beautician_id, client_id, price_cents, deposit_cents, deposit_paid,
+        stripe_payment_method_id,
+        clients(id, first_name, last_name, stripe_customer_id),
+        beauticians(id, business_name, first_name, stripe_account_id, stripe_onboarding_complete)
+      `)
+      .eq('id', appointmentId)
+      .maybeSingle();
+
+    if (!appt) return { charged: false, reason: 'not_found' };
+
+    const priceCents = appt.price_cents || 0;
+    const depositPaidCents = appt.deposit_paid ? (appt.deposit_cents || 0) : 0;
+    const amountCents = Math.max(0, priceCents - depositPaidCents);
+    if (amountCents < 30) return { charged: false, reason: 'nothing_due' };
+
+    // Already charged a balance/payment for this appointment? (guard)
+    const { data: prior } = await supabase
+      .from('transactions')
+      .select('id')
+      .eq('appointment_id', appt.id)
+      .eq('type', 'payment')
+      .limit(1);
+    if (prior && prior.length) return { charged: false, reason: 'already_charged' };
+
+    if (!stripe) return { charged: false, reason: 'stripe_not_configured' };
+
+    const b = appt.beauticians;
+    if (!b?.stripe_account_id || !b?.stripe_onboarding_complete) {
+      return { charged: false, reason: 'stripe_not_onboarded' };
+    }
+
+    const clientName = `${appt.clients?.first_name || 'the client'} ${appt.clients?.last_name || ''}`.trim();
+    const customerId = appt.clients?.stripe_customer_id;
+    let paymentMethodId = appt.stripe_payment_method_id || null;
+    if (customerId && !paymentMethodId) {
+      const methods = await stripe.paymentMethods.list({ customer: customerId, type: 'card' });
+      paymentMethodId = methods.data?.[0]?.id || null;
+    }
+    if (!customerId || !paymentMethodId) return { charged: false, reason: 'no_card_on_file' };
+
+    const platformFee = calculatePlatformFee(amountCents);
+    let paymentIntent;
+    try {
+      paymentIntent = await stripe.paymentIntents.create({
+        amount: amountCents,
+        currency: 'gbp',
+        customer: customerId,
+        payment_method: paymentMethodId,
+        confirm: true,
+        off_session: true,
+        application_fee_amount: platformFee,
+        transfer_data: { destination: b.stripe_account_id },
+        description: `Remaining balance, ${clientName}`,
+        metadata: {
+          appointment_id: appt.id,
+          beautician_id: appt.beautician_id,
+          client_id: appt.client_id || '',
+          type: 'remaining_balance',
+          platform_fee_cents: platformFee,
+        },
+      }, {
+        idempotencyKey: `balance_${appointmentId}`,
+      });
+    } catch (err) {
+      const declined = err?.code === 'authentication_required' || err?.type === 'StripeCardError';
+      if (!declined) logger.error({ err, appointmentId }, 'remaining balance charge failed');
+      return { charged: false, reason: declined ? (err.code || 'card_declined') : 'stripe_error' };
+    }
+
+    const ok = paymentIntent.status === 'succeeded' || paymentIntent.status === 'processing';
+    if (!ok) return { charged: false, reason: paymentIntent.status };
+
+    await supabase.from('transactions').insert({
+      beautician_id: appt.beautician_id,
+      appointment_id: appt.id,
+      client_id: appt.client_id || null,
+      amount_cents: amountCents,
+      type: 'payment',
+      status: 'completed',
+      stripe_payment_intent_id: paymentIntent.id,
+      payment_method: 'card',
+    });
+
+    logger.info({ appointmentId, amountCents, paymentIntentId: paymentIntent.id }, 'Remaining balance charged');
+    return { charged: true, amountCents, paymentIntentId: paymentIntent.id };
+  } catch (err) {
+    logger.error({ err, appointmentId }, 'chargeRemainingBalance unexpected failure');
+    return { charged: false, reason: 'error' };
+  }
+}

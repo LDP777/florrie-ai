@@ -6,7 +6,7 @@ import { updateClientIntelligence } from '../services/client-intelligence.js';
 import { triggerSequence } from '../services/email-sequences.js';
 import { scheduleReviewRequest } from '../services/review-requests.js';
 import { awardLoyaltyPoints } from '../services/loyalty.js';
-import { chargePolicyFee } from '../services/policy-fees.js';
+import { chargePolicyFee, chargeRemainingBalance } from '../services/policy-fees.js';
 import logger from '../lib/logger.js';
 import { parsePagination, buildPaginationMeta, handleQueryError } from '../lib/queries.js';
 import { completeDaySchema, manualAppointmentSchema } from '../lib/schemas.js';
@@ -466,6 +466,36 @@ router.delete('/:id', requireAuth, async (req, res) => {
   }
 
   res.json({ success: true });
+});
+
+/**
+ * POST /api/appointments/:id/charge-balance
+ * Charge the client's remaining balance (price minus deposit paid) to their
+ * saved card. The fallback for when they don't pay the rest by bank transfer.
+ */
+router.post('/:id/charge-balance', requireAuth, async (req, res) => {
+  const { data: appt } = await supabase
+    .from('appointments')
+    .select('id')
+    .eq('id', req.params.id)
+    .eq('beautician_id', req.beautician.id)
+    .maybeSingle();
+  if (!appt) return res.status(404).json({ error: 'Appointment not found' });
+
+  const result = await chargeRemainingBalance(req.params.id);
+  if (result.charged) {
+    return res.json({ success: true, amountCents: result.amountCents });
+  }
+  const messages = {
+    nothing_due: 'There is no balance left to charge.',
+    already_charged: 'The balance has already been charged.',
+    no_card_on_file: 'No saved card on file for this client.',
+    stripe_not_onboarded: 'Connect your Stripe payouts first to charge cards.',
+    stripe_not_configured: 'Card payments are not set up.',
+    card_declined: "The client's card was declined.",
+    authentication_required: "The client's card needs extra authentication, send them a payment link instead.",
+  };
+  return res.status(400).json({ error: messages[result.reason] || 'Could not charge the balance', reason: result.reason });
 });
 
 /**

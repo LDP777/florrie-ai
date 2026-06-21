@@ -739,6 +739,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
   const [noShowCharging, setNoShowCharging] = useState(false);
   const [paymentLinkUrl, setPaymentLinkUrl] = useState(null);
   const [linkLoading, setLinkLoading] = useState(false);
+  const [chargingBalance, setChargingBalance] = useState(false);
   const [noteSaved, setNoteSaved] = useState(false);
   const [rebookSaving, setRebookSaving] = useState(false);
   const [rebookSent, setRebookSent] = useState(false);
@@ -911,6 +912,31 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
       alert(err.message || 'Failed to create payment link');
     } finally {
       setLinkLoading(false);
+    }
+  }
+  // Card fallback: take the remaining balance off the client's saved card when
+  // they haven't paid the rest by bank transfer. Off-session, confirmed first.
+  async function handleChargeBalance() {
+    const remaining = (appointment.price_cents || 0) - (appointment.deposit_paid ? (appointment.deposit_cents || 0) : 0);
+    if (remaining < 30) { alert('There is no balance left to charge.'); return; }
+    if (!confirm(`Charge the remaining £${(remaining / 100).toFixed(2)} to ${appointment.clients?.first_name || 'this client'}'s saved card?`)) return;
+    setChargingBalance(true);
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}/charge-balance`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not charge the balance');
+      hapticSuccess();
+      alert(`Charged £${((data.amountCents || 0) / 100).toFixed(2)} to the saved card.`);
+      onUpdate && onUpdate();
+    } catch (err) {
+      logger.error('Charge balance error:', err);
+      alert(err.message || 'Could not charge the balance');
+    } finally {
+      setChargingBalance(false);
     }
   }
   // Shared write: mark completed + log the takings. `method` defaults to the
@@ -1156,6 +1182,15 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 <span className="material-symbols-outlined" style={{ fontSize: 16 }}>event_repeat</span>
                 Reschedule
               </button>
+              {/* Card fallback: only shows when there's an unpaid balance (price
+                  minus the deposit they paid). For when they didn't bank-transfer. */}
+              {(((appointment.price_cents || 0) - (appointment.deposit_paid ? (appointment.deposit_cents || 0) : 0)) >= 30) && (
+                <button onClick={() => { hapticTap(); handleChargeBalance(); }} disabled={chargingBalance}
+                  style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--bg-input, #FAFAFA)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>credit_card</span>
+                  {chargingBalance ? 'Charging...' : `Charge £${(((appointment.price_cents || 0) - (appointment.deposit_paid ? (appointment.deposit_cents || 0) : 0)) / 100).toFixed(2)} balance to card`}
+                </button>
+              )}
               <button onClick={() => setMode('completing')}
                 style={{ background: 'none', border: 'none', color: 'var(--text-muted, #9E9790)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '2px 0' }}>
                 Add payment method or photo
