@@ -99,12 +99,13 @@ async function runForBeautician(beautician) {
   const threshold = beautician.confidence_threshold || DEFAULT_CONFIDENCE;
 
   // Run all checks in parallel
-  const [rebookResults, gapResults, messageResults, gapFillResults, patchTestResults] = await Promise.allSettled([
+  const [rebookResults, gapResults, messageResults, gapFillResults, patchTestResults, prearrivalResults] = await Promise.allSettled([
     checkRebookDueClients(bid, threshold),
     checkCalendarGaps(bid, threshold),
     checkUnansweredMessages(bid, beautician, threshold),
     checkGapFillOpportunities(bid, threshold),
     checkPatchTestsExpiring(bid, beautician),
+    checkPreAppointmentRequirements(bid),
   ]);
 
   // Log summary
@@ -113,9 +114,10 @@ async function runForBeautician(beautician) {
   const msgs = messageResults.status === 'fulfilled' ? messageResults.value : 0;
   const gapFill = gapFillResults.status === 'fulfilled' ? gapFillResults.value : { matched: 0 };
   const patchTests = patchTestResults.status === 'fulfilled' ? patchTestResults.value : 0;
+  const prearrival = prearrivalResults.status === 'fulfilled' ? prearrivalResults.value : 0;
 
-  if (rebook + gaps + msgs + (gapFill.matched || 0) + patchTests > 0) {
-    logger.info({ bid, rebook, gaps, msgs, gapFill: gapFill.matched || 0, patchTests }, 'Autonomous actions taken');
+  if (rebook + gaps + msgs + (gapFill.matched || 0) + patchTests + prearrival > 0) {
+    logger.info({ bid, rebook, gaps, msgs, gapFill: gapFill.matched || 0, patchTests, prearrival }, 'Autonomous actions taken');
   }
 }
 
@@ -422,6 +424,129 @@ async function checkPatchTestsExpiring(beauticianId, beautician) {
     }
   }
 
+  return sent;
+}
+
+/**
+ * 6. Pre-appointment requirements reminder. For NEW clients only (first visit,
+ *    no prior completed appointment), for appointments 24-72h away, nudge them if
+ *    their treatment needs a patch test they haven't got/booked, or if they have
+ *    an outstanding consultation form. Reminds, never blocks. One per appointment.
+ */
+async function checkPreAppointmentRequirements(beauticianId) {
+  const { data: b } = await supabase
+    .from('beauticians')
+    .select('booking_slug, patch_test_auto_remind, patch_test_expiry_months, whatsapp_phone_id, client_reminder_prefs')
+    .eq('id', beauticianId)
+    .maybeSingle();
+  if (!b) return 0;
+
+  const now = new Date();
+  // 24-72h out: enough lead time to act (a patch test must be booked >=24h before).
+  const windowStart = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const windowEnd = new Date(now.getTime() + 72 * 60 * 60 * 1000);
+
+  const { data: appts } = await supabase
+    .from('appointments')
+    .select('id, starts_at, client_id, management_token, treatments(name, requires_patch_test, requires_consultation), clients(id, first_name, last_name, phone, whatsapp_id, email, last_whatsapp_inbound_at)')
+    .eq('beautician_id', beauticianId)
+    .in('status', ['confirmed', 'pending'])
+    .gte('starts_at', windowStart.toISOString())
+    .lte('starts_at', windowEnd.toISOString());
+  if (!appts?.length) return 0;
+
+  const expiryMonths = b.patch_test_expiry_months || 6;
+  const sixMonthsAgo = new Date(); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - expiryMonths);
+  const beauticianPrefs = { whatsapp_connected: !!b.whatsapp_phone_id, ...(b.client_reminder_prefs || {}) };
+  const FRONTEND = process.env.FRONTEND_URL || 'https://florrie.ai';
+  let sent = 0;
+
+  for (const appt of appts) {
+    const client = appt.clients;
+    const t = appt.treatments;
+    if (!client || !t) continue;
+    if (!t.requires_patch_test && !t.requires_consultation) continue;
+
+    // ONLY new clients (this is their first appointment). Returning clients have
+    // already done their patch test / forms, so skip anyone with a prior visit.
+    const { count: priorVisits } = await supabase
+      .from('appointments')
+      .select('id', { count: 'exact', head: true })
+      .eq('beautician_id', beauticianId)
+      .eq('client_id', client.id)
+      .eq('status', 'completed');
+    if ((priorVisits || 0) > 0) continue;
+
+    // Dedup: one pre-appointment reminder per appointment.
+    const { count } = await supabase
+      .from('ai_actions')
+      .select('id', { count: 'exact', head: true })
+      .eq('beautician_id', beauticianId)
+      .eq('action_type', 'prearrival_reminder')
+      .eq('appointment_id', appt.id);
+    if ((count || 0) > 0) continue;
+
+    const parts = [];
+
+    // Patch test gap (gated on the same toggle as expiry reminders).
+    if (t.requires_patch_test && b.patch_test_auto_remind) {
+      const { data: pts } = await supabase
+        .from('patch_tests')
+        .select('status, result, test_date, confirmed_at')
+        .eq('client_id', client.id)
+        .eq('beautician_id', beauticianId);
+      // Cover both schemas in use: status 'passed' (manage page) and result 'pass'
+      // (expiry reminder), so a client with a valid test is never wrongly nudged.
+      const hasValid = (pts || []).some(p =>
+        (p.status === 'passed' || p.result === 'pass') && p.test_date && new Date(p.test_date) > sixMonthsAgo);
+      const hasPending = (pts || []).some(p => p.status === 'pending' || p.confirmed_at);
+      if (!hasValid && !hasPending) {
+        const link = appt.management_token ? `${FRONTEND}/book/${b.booking_slug}/manage/${appt.management_token}` : null;
+        parts.push(`you'll need a quick patch test beforehand${link ? `, you can book one here: ${link}` : ''}`);
+      }
+    }
+
+    // Outstanding consultation form (a pending response for this client).
+    if (t.requires_consultation) {
+      const { data: forms } = await supabase
+        .from('consultation_responses')
+        .select('token, form_url')
+        .eq('client_id', client.id)
+        .eq('beautician_id', beauticianId)
+        .eq('status', 'pending')
+        .limit(1);
+      const form = (forms || [])[0];
+      if (form) {
+        const formLink = form.form_url || (form.token ? `${FRONTEND}/form/${form.token}` : null);
+        parts.push(`please fill in your consultation form${formLink ? `: ${formLink}` : ''}`);
+      }
+    }
+
+    if (!parts.length) continue;
+
+    const apptDay = new Date(appt.starts_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+    const body = `Hi ${client.first_name}! Looking forward to your ${t.name} on ${apptDay}. Just so you're all set, ${parts.join(', and ')}. Any questions, message me 💕`;
+
+    try {
+      const result = await sendNudge({ client, body, beauticianId, beauticianPrefs });
+      if (result) {
+        await supabase.from('ai_actions').insert({
+          beautician_id: beauticianId,
+          action_type: 'prearrival_reminder',
+          outcome: normaliseOutcome('executed'),
+          summary: `Pre-appointment reminder sent to ${client.first_name} (${parts.length} thing${parts.length > 1 ? 's' : ''} to do before ${t.name})`,
+          confidence: 0.95,
+          client_id: client.id,
+          appointment_id: appt.id,
+          digital_employee: 'front_desk',
+          created_at: new Date().toISOString(),
+        });
+        sent++;
+      }
+    } catch (err) {
+      logger.warn({ err, apptId: appt.id }, 'Failed to send pre-appointment reminder');
+    }
+  }
   return sent;
 }
 
