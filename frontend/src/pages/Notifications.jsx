@@ -156,7 +156,7 @@ export default function Notifications() {
             <div key={label}>
               <div style={styles.dateLabel}>{label}</div>
               {items.map(n => {
-                const cat = CATEGORIES[n.category];
+                const cat = CATEGORIES[n.category] || CATEGORIES.system;
                 return (
                   <div
                     key={n.id}

@@ -21,20 +21,6 @@ const CATEGORIES = [
   { key: 'other', label: 'Other', icon: '💆' },
 ];
 
-const DEV_PRICE_LIST = [
-  { id: 'pl1', name: 'Brow Shape & Tidy', category: 'brows', price_cents: 1500, duration_minutes: 15, description: 'Wax, tweeze & trim to your natural arch', popular: false },
-  { id: 'pl2', name: 'Brow Lamination', category: 'brows', price_cents: 3500, duration_minutes: 45, description: 'Fluffy, brushed-up brows that last 6 weeks', popular: true },
-  { id: 'pl3', name: 'HD Brows', category: 'brows', price_cents: 3000, duration_minutes: 40, description: 'Custom colour, shape & design', popular: true },
-  { id: 'pl4', name: 'Brow Tint Only', category: 'brows', price_cents: 1000, duration_minutes: 10, description: 'Colour refresh between shaping appointments', popular: false },
-  { id: 'pl5', name: 'Lash Lift & Tint', category: 'lashes', price_cents: 4000, duration_minutes: 60, description: 'Natural lash lift with a semi-permanent tint', popular: true },
-  { id: 'pl6', name: 'Lash Tint Only', category: 'lashes', price_cents: 1200, duration_minutes: 15, description: 'Quick colour boost for natural lashes', popular: false },
-  { id: 'pl7', name: 'Ombre Brows (Semi-Permanent)', category: 'semi', price_cents: 25000, duration_minutes: 150, description: 'Soft powder-fill effect lasting 1-3 years', popular: true },
-  { id: 'pl8', name: 'Combination Brows', category: 'semi', price_cents: 28000, duration_minutes: 180, description: 'Hair strokes + powder fill for a natural look', popular: false },
-  { id: 'pl9', name: 'Lip Wax', category: 'waxing', price_cents: 800, duration_minutes: 10, description: 'Quick upper lip tidy', popular: false },
-  { id: 'pl10', name: 'Chin Wax', category: 'waxing', price_cents: 800, duration_minutes: 10, description: null, popular: false },
-  { id: 'pl11', name: 'Full Face Wax', category: 'waxing', price_cents: 2000, duration_minutes: 25, description: 'Lip, chin, sides & brow area', popular: false },
-];
-
 const THEMES = [
   { key: 'rose', label: 'Rose', accent: '#C76B8A', bg: '#FAF8F5', text: '#2D2A26', muted: '#AAA5A0', border: '#F0ECE8' },
   { key: 'dark', label: 'Midnight', accent: '#D4A574', bg: '#1A1A2E', text: '#EEEEEE', muted: '#888888', border: '#333333' },

@@ -39,6 +39,8 @@ export default function Reviews() {
           author: r.author || r.client_name || 'Client',
           text: r.text || r.comment || '',
           reply: r.reply || r.response || '',
+          // Clamp rating to 1 to 5 so star maths and reduce() never go NaN on a bad row.
+          rating: Math.min(5, Math.max(1, Math.round(Number(r.rating) || 5))),
         })));
     } catch (err) {
       logger.error('Load reviews error:', err);
@@ -150,7 +152,7 @@ export default function Reviews() {
                 <div style={styles.reviewHeader}>
                   <div style={styles.reviewAuthorRow}>
                     <div style={styles.reviewAvatar}>
-                      {review.author[0].toUpperCase()}
+                      {(review.author?.[0] || '?').toUpperCase()}
                     </div>
                     <div>
                       <span style={styles.reviewAuthor}>{review.author}</span>

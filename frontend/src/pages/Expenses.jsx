@@ -134,7 +134,7 @@ export default function Expenses() {
   }, [beautician, bLoading]);
 
   // Filter by month
-  const monthExpenses = expenses.filter(e => e.date.startsWith(month));
+  const monthExpenses = expenses.filter(e => e.date && e.date.startsWith(month));
   const totalMonth = monthExpenses.reduce((s, e) => s + e.amount_cents, 0);
   const recurringTotal = monthExpenses.filter(e => e.recurring).reduce((s, e) => s + e.amount_cents, 0);
   const oneOffTotal = totalMonth - recurringTotal;
@@ -151,7 +151,7 @@ export default function Expenses() {
   // Budget tracking
   const budgetStatus = budgets.map(b => {
     const spent = catBreakdown[b.category] || 0;
-    const pct = Math.min(Math.round((spent / b.monthly_limit_cents) * 100), 100);
+    const pct = b.monthly_limit_cents > 0 ? Math.min(Math.round((spent / b.monthly_limit_cents) * 100), 100) : 0;
     return { ...b, spent, pct };
   });
 

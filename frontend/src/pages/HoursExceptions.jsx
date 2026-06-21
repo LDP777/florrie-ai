@@ -245,8 +245,10 @@ export default function HoursExceptions() {
 
   async function handleDelete(id) {
     setExceptions(prev => prev.filter(e => e.id !== id));
-    if (true) {
-      try { await deleteRow('hours_exceptions', id); } catch {}
+    try {
+      await deleteRow('hours_exceptions', id);
+    } catch (err) {
+      logger.error('Delete exception error:', err);
     }
   }
 

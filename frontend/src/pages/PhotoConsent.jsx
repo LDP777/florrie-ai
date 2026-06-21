@@ -11,44 +11,6 @@ import { API_BASE } from '../lib/config.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 
-const DEV_CONSENTS = [
-  {
-    id: 'pc1', client: 'Shauna', clientId: 'dev-c1',
-    status: 'granted', grantedDate: '2026-02-15',
-    scope: ['portfolio', 'instagram', 'booking-page'],
-    expiresAt: '2027-02-15',
-    method: 'digital', notes: 'Happy to be featured anywhere',
-  },
-  {
-    id: 'pc2', client: 'Daisy S', clientId: 'dev-c2',
-    status: 'granted', grantedDate: '2026-01-20',
-    scope: ['portfolio', 'booking-page'],
-    expiresAt: '2027-01-20',
-    method: 'digital', notes: 'No social media - portfolio and booking page only',
-  },
-  {
-    id: 'pc3', client: 'Jasmin', clientId: 'dev-c3',
-    status: 'pending', grantedDate: null,
-    scope: [],
-    expiresAt: null,
-    method: null, notes: 'Request sent 2026-03-20',
-  },
-  {
-    id: 'pc4', client: 'Amy R', clientId: 'dev-c4',
-    status: 'declined', grantedDate: null,
-    scope: [],
-    expiresAt: null,
-    method: null, notes: 'Prefers not to have photos shared',
-  },
-  {
-    id: 'pc5', client: 'Beth K', clientId: 'dev-c5',
-    status: 'granted', grantedDate: '2025-03-10',
-    scope: ['portfolio', 'instagram', 'booking-page', 'tiktok'],
-    expiresAt: '2026-03-10',
-    method: 'paper', notes: 'EXPIRED - needs renewal',
-  },
-];
-
 const SCOPE_OPTIONS = [
   { value: 'portfolio', label: 'Portfolio', desc: 'Visible in your florrie.ai portfolio' },
   { value: 'booking-page', label: 'Booking Page', desc: 'Shown on your public booking page' },
@@ -270,7 +232,7 @@ export default function PhotoConsent() {
 
       {/* Consent list */}
       <div style={S.list}>
-        {filtered.length === 0 && <EmptyState title="No consents found" description="No consents in this category." />}
+        {filtered.length === 0 && <EmptyState icon="📸" title="No photo consents yet" subtitle={tab === 'all' ? 'Tap + Request to ask a client for permission to share their photos.' : 'No consents in this category.'} />}
         {filtered.map(c => {
           const st = STATUS_CONFIG[c.status];
           const isExpanded = expanded === c.id;
@@ -397,7 +359,14 @@ export default function PhotoConsent() {
 }
 
 function formatDate(dateStr) {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  if (!dateStr) return '';
+  // Accept both plain dates (YYYY-MM-DD) and full ISO timestamps. Only the
+  // bare date form needs a time appended to avoid a UTC-midnight shift.
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
+    ? new Date(dateStr + 'T00:00:00')
+    : new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 const S = {

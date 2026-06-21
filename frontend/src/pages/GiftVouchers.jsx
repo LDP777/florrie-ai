@@ -127,9 +127,10 @@ export default function GiftVouchers() {
     setShowRedeem(null);
   }
 
-  const active = vouchers.filter(v => v.status === 'active');
-  const history = vouchers.filter(v => v.status !== 'active');
-  const totalActive = active.reduce((sum, v) => sum + v.amount_cents, 0);
+  const isExpired = (v) => v.expires_at && new Date(v.expires_at) < new Date();
+  const active = vouchers.filter(v => v.status === 'active' && !isExpired(v));
+  const history = vouchers.filter(v => v.status !== 'active' || isExpired(v));
+  const totalActive = active.reduce((sum, v) => sum + (v.amount_cents || 0), 0);
 
   return (
     <div style={styles.page}>
@@ -348,7 +349,7 @@ export default function GiftVouchers() {
             </div>
             <div style={styles.previewFor}>For: {form.recipient_name || '...'}</div>
             {form.message && <div style={styles.previewMsg}>"{form.message}"</div>}
-            <div style={styles.previewCode}>{generateCode()}</div>
+            <div style={styles.previewCode}>GIFT-XXXXX</div>
           </div>
 
           <button onClick={handleCreate} style={styles.createVoucherBtn}>
@@ -426,7 +427,8 @@ export default function GiftVouchers() {
 }
 
 function VoucherCard({ voucher, onRedeem }) {
-  const isActive = voucher.status === 'active';
+  const expiredByDate = voucher.expires_at && new Date(voucher.expires_at) < new Date();
+  const isActive = voucher.status === 'active' && !expiredByDate;
   const daysLeft = isActive
     ? Math.max(0, Math.round((new Date(voucher.expires_at) - new Date()) / 86400000))
     : 0;

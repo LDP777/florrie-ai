@@ -10,15 +10,6 @@ import { API_BASE } from '../lib/config.js';
 
 const fmt = (cents) => `£${(Math.abs(cents) / 100).toFixed(2)}`;
 
-const DEV_CODES = [
-  { id: 'p1', code: 'WELCOME20', type: 'percent', value: 20, minSpend: 0, maxUses: 50, used: 12, revenue: 288000, status: 'active', treatments: [], expiresAt: '2026-06-01', createdAt: '2026-03-01', description: 'New client welcome offer' },
-  { id: 'p2', code: 'BROWS10', type: 'fixed', value: 1000, minSpend: 5000, maxUses: 30, used: 8, revenue: 96000, status: 'active', treatments: ['Ombre Brows (Semi-Permanent)', 'Combination Brows'], expiresAt: '2026-04-30', createdAt: '2026-03-10', description: '£10 off any brow treatment over £50' },
-  { id: 'p3', code: 'BDAY2026', type: 'percent', value: 15, minSpend: 0, maxUses: null, used: 3, revenue: 22500, status: 'active', treatments: [], expiresAt: null, createdAt: '2026-01-01', description: 'Birthday month treat - auto-sent via sequences' },
-  { id: 'p4', code: 'REFER25', type: 'fixed', value: 2500, minSpend: 4000, maxUses: null, used: 5, revenue: 62500, status: 'active', treatments: [], expiresAt: null, createdAt: '2026-02-01', description: 'Referral reward code' },
-  { id: 'p5', code: 'FLASH50', type: 'percent', value: 50, minSpend: 0, maxUses: 10, used: 10, revenue: 75000, status: 'expired', treatments: ['Lash Lift & Tint'], expiresAt: '2026-03-15', createdAt: '2026-03-14', description: '24hr flash sale - fully redeemed' },
-  { id: 'p6', code: 'INFLUENCER', type: 'percent', value: 100, minSpend: 0, maxUses: 1, used: 1, revenue: 0, status: 'expired', treatments: ['Ombre Brows (Semi-Permanent)'], expiresAt: '2026-03-20', createdAt: '2026-03-18', description: 'Free treatment for @browqueen collab' },
-];
-
 const STATUS_CONFIG = {
   active: { label: 'Active', bg: 'var(--success-bg, #EDF7F0)', color: 'var(--success, #5BA97B)' },
   expired: { label: 'Expired', bg: 'var(--danger-bg, #FDF0EF)', color: 'var(--danger, #D4605C)' },
@@ -211,8 +202,9 @@ export default function PromoCodes() {
 
       {/* Code list */}
       <div style={S.list}>
-        {filtered.length === 0 && <p style={S.empty}>No codes here yet.</p>}
-        {filtered.map(code => {
+        {loading && <p style={S.empty}>Loading codes...</p>}
+        {!loading && filtered.length === 0 && <p style={S.empty}>No codes here yet. Tap + to create your first one.</p>}
+        {!loading && filtered.map(code => {
           const isExp = expanded === code.id;
           const st = STATUS_CONFIG[code.status];
           const usagePercent = code.maxUses ? Math.round((code.used / code.maxUses) * 100) : null;
@@ -284,7 +276,7 @@ export default function PromoCodes() {
                     <div style={S.actionRow}>
                       <button style={S.actionBtn} onClick={() => navigator.clipboard.writeText(code.code)}>Copy Code</button>
                       <button style={S.actionBtn} onClick={async () => {
-                        const shareText = `Use code ${code.code} to get ${code.discount_type === 'percent' ? `${code.discount_value}% off` : `£${code.discount_value} off`}! Book now.`;
+                        const shareText = `Use code ${code.code} to get ${code.type === 'percent' ? `${code.value}% off` : `${fmt(code.value)} off`}! Book now.`;
                         if (navigator.share) {
                           try { await navigator.share({ title: 'Promo Code', text: shareText }); } catch {}
                         } else {

@@ -659,8 +659,8 @@ function getInsights(stats) {
   const insights = [];
   if (stats.noShowRate > 10) insights.push({ icon: '⚠️', text: `No-show rate is ${stats.noShowRate}%. Deposits reduce this significantly.` });
   if (stats.noShowRate <= 5) insights.push({ icon: '🎉', text: 'Your no-show rate is excellent. Your clients are reliable.' });
-  if (stats.utilizationRate < 60) insights.push({ icon: '💡', text: 'You have room to fill. A last-minute deals campaign could help.' });
-  if (stats.utilizationRate > 85) insights.push({ icon: '🔥', text: "You're nearly fully booked. Consider raising prices or opening a waitlist." });
+  if (stats.utilizationRate !== null && stats.utilizationRate < 60) insights.push({ icon: '💡', text: 'You have room to fill. A last-minute deals campaign could help.' });
+  if (stats.utilizationRate !== null && stats.utilizationRate > 85) insights.push({ icon: '🔥', text: "You're nearly fully booked. Consider raising prices or opening a waitlist." });
   if (stats.newClients > 0) insights.push({ icon: '👋', text: `${stats.newClients} new client${stats.newClients > 1 ? 's' : ''} this period. Keep your booking link visible.` });
   if (stats.topClients.length > 0 && stats.topClients[0].visits >= 3) insights.push({ icon: '💎', text: `${stats.topClients[0].name} is your top client with ${stats.topClients[0].visits} visits. A loyalty perk could lock them in.` });
   if (insights.length === 0) insights.push({ icon: '📈', text: 'Keep booking and trends will surface here automatically.' });

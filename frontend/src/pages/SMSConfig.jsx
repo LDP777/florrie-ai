@@ -164,7 +164,6 @@ export default function SMSConfig() {
   );
 
   const birdConfigured = config?.bird_configured;
-  const deliveryRate = usage ? ((usage.messagesSent > 0 ? 97.3 : 0)).toFixed(1) : '-';
   const senderValue = config?.sms_originator || originatorInput || 'Florrie';
   const twoWay = isPhoneSender(senderValue);
 
