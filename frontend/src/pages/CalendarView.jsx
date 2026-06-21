@@ -164,12 +164,17 @@ export default function CalendarView({ initialView } = {}) {
     if (loading || preserveScrollRef.current == null) return;
     const y = preserveScrollRef.current;
     preserveScrollRef.current = null;
-    requestAnimationFrame(() => window.scrollTo(0, y));
+    // The page scrolls inside #app-scroll now, not the body - restore there.
+    requestAnimationFrame(() => {
+      const sc = document.getElementById('app-scroll');
+      if (sc) sc.scrollTop = y;
+      else window.scrollTo(0, y);
+    });
   }, [loading, appointments]);
   async function loadAppointments({ keepScroll = false } = {}) {
     // For in-place edits (price/time set) hold the current scroll position so
     // the reload doesn't bounce the page to the bottom.
-    if (keepScroll) preserveScrollRef.current = window.scrollY;
+    if (keepScroll) preserveScrollRef.current = document.getElementById('app-scroll')?.scrollTop ?? window.scrollY;
     setLoading(true);
     const from = view === 'day' ? formatDate(currentDate) : formatDate(getWeekStart(currentDate));
     const to = view === 'day' ? formatDate(currentDate) : formatDate(getWeekEnd(currentDate));

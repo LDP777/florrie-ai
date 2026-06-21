@@ -210,6 +210,9 @@ export default function App() {
   useEffect(() => {
     window.scrollTo(0, 0);
     if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+    // The page now scrolls inside #app-scroll (not the body), so reset that too.
+    const sc = document.getElementById('app-scroll');
+    if (sc) sc.scrollTop = 0;
   }, [location.pathname]);
 
   const isPublicRoute = location.pathname.startsWith('/book/') || location.pathname.startsWith('/form/') || location.pathname.includes('/manage/') || location.pathname === '/privacy' || location.pathname === '/support';
@@ -333,7 +336,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <CoachProvider>
-      <div style={styles.appShell}>
+      <div style={styles.appShell} className="app-shell">
         {showTrialWarning && !isIOSNative() && (
           <div style={{ background: 'var(--gold, #C9A96E)', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 13, fontWeight: 500 }}>
             ⏳ Your free trial ends in {daysLeft} day{daysLeft === 1 ? '' : 's'}.{' '}
@@ -343,7 +346,7 @@ export default function App() {
           </div>
         )}
         <InstallPrompt />
-        <div style={styles.pageContainer}>
+        <div style={styles.pageContainer} id="app-scroll">
           <Suspense fallback={<PageLoader />}>
             <Routes>
             <Route path="/" element={<Hub />} />
@@ -672,13 +675,22 @@ const styles = {
     letterSpacing: '-0.03em',
   },
   appShell: {
+    // Height lives in the .app-shell CSS class (100vh with a 100dvh override) so
+    // the fallback cascade works - an inline height would block the dvh override.
+    // overflow:hidden makes the SHELL the fixed frame and the page scroll inside
+    // it, so the body itself never scrolls. That stops the fixed bottom nav and
+    // mic drifting up the page on iOS (a body-scroll repaint bug in WKWebView).
     display: 'flex',
     flexDirection: 'column',
-    minHeight: '100vh',
+    overflow: 'hidden',
     background: 'var(--bg, #fef8f4)',
   },
   pageContainer: {
     flex: 1,
+    minHeight: 0, // let the flex child shrink so it scrolls instead of growing
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    WebkitOverflowScrolling: 'touch',
     paddingBottom: 'calc(env(safe-area-inset-bottom, 8px) + 80px)',
   },
 
