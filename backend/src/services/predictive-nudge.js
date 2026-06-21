@@ -15,6 +15,7 @@ import { normaliseOutcome } from '../lib/ai-actions.js';
 import { sendNudge } from './notifications.js';
 import { shouldAutoSend } from './sms-metering.js';
 import { guardedSend } from '../lib/outbound-guard.js';
+import { getFutureBookedClientIds } from '../lib/future-bookings.js';
 import logger from '../lib/logger.js';
 
 /**
@@ -89,11 +90,15 @@ async function nudgeForBeautician(beautician) {
 
   const recentlyNudged = new Set((recentNudges || []).map(n => n.client_id));
 
+  // Never nudge a client who's already booked in for a future appointment.
+  const booked = await getFutureBookedClientIds(bid);
+
   // Get available slots for the window
   const slots = await findAvailableSlots(bid, beautician.working_hours, windowStart, windowEnd);
 
   for (const ci of eligible.slice(0, 8)) { // Max 8 per day
     if (recentlyNudged.has(ci.client_id)) continue;
+    if (booked.has(ci.client_id)) continue;
 
     const client = ci.clients;
     const predictedDate = new Date(ci.next_predicted_visit);

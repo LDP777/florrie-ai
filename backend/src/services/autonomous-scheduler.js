@@ -22,6 +22,7 @@ import { processReviewRequests } from './review-requests.js';
 import { pushTeamUpdate } from './push-notifications.js';
 import { checkGapFillOpportunities } from './gap-fill-engine.js';
 import { guardedSend } from '../lib/outbound-guard.js';
+import { getFutureBookedClientIds } from '../lib/future-bookings.js';
 import logger from '../lib/logger.js';
 
 const DEFAULT_CONFIDENCE = 0.90;
@@ -135,9 +136,11 @@ async function checkRebookDueClients(beauticianId, threshold) {
 
   if (!clients?.length) return 0;
 
-  // Only process clients overdue by 3+ days (avoid nagging)
+  // Only process clients overdue by 3+ days (avoid nagging), and never nudge a
+  // client who's already booked in for a future appointment.
   const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
-  const overdue = clients.filter(c => c.next_predicted_visit < threeDaysAgo);
+  const booked = await getFutureBookedClientIds(beauticianId);
+  const overdue = clients.filter(c => c.next_predicted_visit < threeDaysAgo && !booked.has(c.id));
 
   for (const client of overdue.slice(0, 5)) { // Max 5 per cycle
     // Check if we already nudged recently

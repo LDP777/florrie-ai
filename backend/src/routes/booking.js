@@ -607,6 +607,29 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
       return res.status(500).json({ error: 'Something went wrong' });
     }
 
+    // Policy enforcement: a reschedule inside the notice window is treated like a
+    // late cancellation of the original slot. Charge the original appointment's
+    // late fee to the saved card (chargePolicyFee self-guards: it only charges
+    // when the beautician's policy has a fee, a card is on file, and never twice).
+    // Previously this only set a flag and nothing was ever charged, which is the
+    // gap Ellie hit (a client moved inside the window and was not charged).
+    let lateFeeCharged = false;
+    if (isLateReschedule && (policy.late_cancel_charge_percent || 0) > 0) {
+      lateFeeCharged = true;
+      chargePolicyFee(appt.id, 'late_cancel').catch(err =>
+        logger.error({ err, appointmentId: appt.id }, 'late_reschedule policy fee charge failed (non-fatal)')
+      );
+      // The new booking needs a fresh deposit (the original deposit is counted
+      // towards the late fee above). Mark it pending so the slot shows as
+      // awaiting a deposit; deposit_paid is left intact so the fee calc still
+      // credits the original deposit.
+      await supabase
+        .from('appointments')
+        .update({ deposit_status: 'pending' })
+        .eq('id', appt.id)
+        .catch(() => {});
+    }
+
     // Log AI action
     await supabase.from('ai_actions').insert({
       beautician_id: appt.beautician_id,
@@ -645,7 +668,7 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
       isLateReschedule,
       chargePercent,
       message: isLateReschedule && chargePercent > 0
-        ? `Rescheduled to ${newStart.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at ${newStart.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}. As this is within the ${noticeHours}-hour window, ${beauticianName} may charge ${chargePercent}% for the original appointment.`
+        ? `Rescheduled to ${newStart.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at ${newStart.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}. As this is within the ${noticeHours}-hour notice period, a ${chargePercent}% fee for the original appointment will be charged to the card on file, and your new appointment will need a fresh deposit.`
         : `Rescheduled to ${newStart.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at ${newStart.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}.`,
     });
   } catch (err) {

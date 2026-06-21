@@ -427,6 +427,48 @@ router.patch('/:id', requireAuth, async (req, res) => {
 });
 
 /**
+ * DELETE /api/appointments/:id
+ * Remove an appointment that was added by mistake (e.g. wrong time).
+ * Guarded: if money is attached (a deposit was paid or a policy fee charged) we
+ * do NOT hard-delete, because that would orphan the payment record. In that case
+ * the beautician should cancel (and refund if needed) instead. Mis-entries, which
+ * is what this is for, have no payment and are hard-removed.
+ */
+router.delete('/:id', requireAuth, async (req, res) => {
+  const { data: appt, error: fetchErr } = await supabase
+    .from('appointments')
+    .select('id, deposit_paid, policy_fee_charged_at, status')
+    .eq('id', req.params.id)
+    .eq('beautician_id', req.beautician.id)
+    .single();
+
+  if (fetchErr || !appt) {
+    return res.status(404).json({ error: 'Appointment not found' });
+  }
+
+  const hasMoney = appt.deposit_paid === true || !!appt.policy_fee_charged_at;
+  if (hasMoney) {
+    return res.status(409).json({
+      error: 'This booking has a payment attached. Cancel it instead so the payment is handled correctly.',
+      code: 'has_payment',
+    });
+  }
+
+  const { error } = await supabase
+    .from('appointments')
+    .delete()
+    .eq('id', req.params.id)
+    .eq('beautician_id', req.beautician.id);
+
+  if (error) {
+    logger.error({ err: error }, 'Failed to delete appointment');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+
+  res.json({ success: true });
+});
+
+/**
  * POST /api/appointments/:id/complete
  * Mark appointment as completed + auto-log income transaction.
  */

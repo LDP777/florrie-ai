@@ -3,6 +3,7 @@ import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
 import { nextBankHoliday, postcodeToDivision } from '../lib/bank-holidays.js';
+import { getFutureBookedClientIds } from '../lib/future-bookings.js';
 
 const router = Router();
 
@@ -223,7 +224,10 @@ async function fromRebookReminders(beauticianId) {
 
   if (error || !data) return [];
 
-  return data.map(client => {
+  // Don't suggest rebooking someone who's already in the diary.
+  const booked = await getFutureBookedClientIds(beauticianId);
+
+  return data.filter(client => !booked.has(client.id)).map(client => {
     const weeks = Math.floor(
       (Date.now() - new Date(client.last_visit_at).getTime()) / (7 * 24 * 60 * 60 * 1000)
     );
