@@ -700,6 +700,18 @@ export default function BookingPage() {
               ? "Your slot is held, we'll confirm once the deposit is received."
               : "You'll receive a confirmation message shortly."}
           </p>
+          {/* Patch test prompt, the moment they book a treatment that needs one */}
+          {needsPatchTest && success.manageUrl && (
+            <div style={{ marginTop: 16, padding: '14px 16px', borderRadius: 12, background: brandLight, border: `1.5px solid ${brandMedium}`, textAlign: 'left' }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: brand, margin: '0 0 4px' }}>One more step: your patch test 🩹</p>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
+                If you've not had a patch test with {bizName} in the last 6 months, you'll need a quick one at least 24 hours before your appointment. It only takes a few minutes.
+              </p>
+              <a href={success.manageUrl} style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: '12px 0', borderRadius: 10, textAlign: 'center', background: brand, color: '#fff', fontWeight: 600, fontSize: 14, textDecoration: 'none' }}>
+                Book my patch test →
+              </a>
+            </div>
+          )}
           {/* Loyalty mention, only when the salon runs a programme */}
           {beautician?.loyalty_enabled && (
             <p style={{ fontSize: 13, color: brand, fontWeight: 600, textAlign: 'center', marginTop: 4 }}>
