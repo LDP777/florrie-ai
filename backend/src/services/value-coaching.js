@@ -56,7 +56,11 @@ async function analyseBeautician(beautician) {
     supabase
       .from('treatments')
       .select('id, name, price_cents, updated_at')
-      .eq('beautician_id', bid),
+      .eq('beautician_id', bid)
+      // Only real, set-up services. Imported placeholders (inactive, GBP0) would
+      // otherwise drive nonsense like "increase X by GBP0" / "spend GBP0 more".
+      .eq('is_active', true)
+      .gt('price_cents', 0),
     supabase
       .from('transactions')
       .select('amount_cents, created_at, appointment_id')
@@ -73,14 +77,17 @@ async function analyseBeautician(beautician) {
   if (hotSlots.length) {
     const top = hotSlots[0];
     const topTreatment = findMostPopularTreatment(appointments, treatments, top.dayOfWeek, top.hourBlock);
-    if (topTreatment) {
+    if (topTreatment && topTreatment.price_cents > 0) {
       const suggestedIncrease = Math.ceil(topTreatment.price_cents * 0.05 / 100) * 100; // Round to nearest £1
       const increasePounds = suggestedIncrease / 100;
-      insights.push({
-        type: 'high_demand',
-        summary: `Your ${top.label} fills ${Math.round(top.fillRate * 100)}% of the time. You could increase ${topTreatment.name} by £${increasePounds}, demand supports it.`,
-        confidence: 0.88,
-      });
+      // Only suggest if there's a real, non-zero increase to make.
+      if (increasePounds > 0) {
+        insights.push({
+          type: 'high_demand',
+          summary: `Your ${top.label} fills ${Math.round(top.fillRate * 100)}% of the time. You could increase ${topTreatment.name} by £${increasePounds}, demand supports it.`,
+          confidence: 0.88,
+        });
+      }
     }
   }
 
@@ -97,22 +104,28 @@ async function analyseBeautician(beautician) {
     const avgIncrease = 300; // £3 average increase
     const monthlyGain = Math.round(monthlyBookings * avgIncrease / 100);
 
-    insights.push({
-      type: 'price_stale',
-      summary: `You haven't updated prices on ${staletreatments.length} treatments in 6+ months. A £3 increase across these adds roughly £${monthlyGain}/month based on your current bookings.`,
-      confidence: 0.85,
-    });
+    // Only worth surfacing if it translates to a real monthly gain.
+    if (monthlyGain > 0) {
+      insights.push({
+        type: 'price_stale',
+        summary: `You haven't updated prices on ${staletreatments.length} treatments in 6+ months. A £3 increase across these adds roughly £${monthlyGain}/month based on your current bookings.`,
+        confidence: 0.85,
+      });
+    }
   }
 
   // 3. Upsell / add-on opportunities
   const treatmentCombos = findCommonCombinations(appointments, treatments);
   if (treatmentCombos.length) {
     const best = treatmentCombos[0];
-    insights.push({
-      type: 'upsell',
-      summary: `Clients who add ${best.addon} spend £${best.extraPounds} more per visit. Mention it when rebooking ${best.base} clients, it could mean £${best.monthlyGainPounds}/month extra.`,
-      confidence: 0.82,
-    });
+    // Only suggest an upsell that actually adds money.
+    if (best.extraPounds > 0 && best.monthlyGainPounds > 0) {
+      insights.push({
+        type: 'upsell',
+        summary: `Clients who add ${best.addon} spend £${best.extraPounds} more per visit. Mention it when rebooking ${best.base} clients, it could mean £${best.monthlyGainPounds}/month extra.`,
+        confidence: 0.82,
+      });
+    }
   }
 
   // Store insights as ai_actions

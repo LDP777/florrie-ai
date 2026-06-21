@@ -116,6 +116,49 @@ export default function CalendarView({ initialView } = {}) {
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [loading, setLoading] = useState(true);
   const detailRef = useRef(null);
+  // Press-and-hold a row in the agenda to delete it (iOS style). The backend
+  // blocks deletion when money is attached (409) and steers Ellie to cancel.
+  const longPressTimer = useRef(null);
+  const longPressFired = useRef(false);
+  async function deleteAppointmentFromAgenda(appt) {
+    const who = appt.clients?.first_name
+      ? `${appt.clients.first_name}'s ${appt.treatments?.name || 'appointment'}`
+      : 'this appointment';
+    if (!confirm(`Delete ${who}? This can't be undone.`)) return;
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/appointments/${appt.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 409) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "This booking has a payment attached, so it can't be deleted. Cancel it instead.");
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Could not delete the appointment');
+      }
+      hapticSuccess();
+      loadAppointments();
+    } catch (err) {
+      logger.error('Agenda delete error:', err);
+      alert(err.message || 'Could not delete the appointment. Please try again.');
+    }
+  }
+  function startLongPress(appt) {
+    longPressFired.current = false;
+    clearTimeout(longPressTimer.current);
+    longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true;
+      hapticTap(); // tactile cue the hold registered
+      deleteAppointmentFromAgenda(appt);
+    }, 500);
+  }
+  function cancelLongPress() {
+    clearTimeout(longPressTimer.current);
+  }
   // When an in-place edit (price set, time change) reloads the list we want
   // the page to stay exactly where Ellie was, not jump to the bottom. We stash
   // the scrollY here and restore it once the reload's render has settled.
@@ -636,7 +679,18 @@ export default function CalendarView({ initialView } = {}) {
                       return (
                         <button
                           key={appt.id}
-                          onClick={() => setSelectedAppointment(selectedAppointment?.id === appt.id ? null : appt)}
+                          onClick={() => {
+                            // Swallow the click that follows a long-press delete.
+                            if (longPressFired.current) { longPressFired.current = false; return; }
+                            setSelectedAppointment(selectedAppointment?.id === appt.id ? null : appt);
+                          }}
+                          onTouchStart={() => startLongPress(appt)}
+                          onTouchEnd={cancelLongPress}
+                          onTouchMove={cancelLongPress}
+                          onMouseDown={() => startLongPress(appt)}
+                          onMouseUp={cancelLongPress}
+                          onMouseLeave={cancelLongPress}
+                          onContextMenu={(e) => { e.preventDefault(); cancelLongPress(); deleteAppointmentFromAgenda(appt); }}
                           style={{ ...styles.weekRow, opacity: dead ? 0.5 : 1 }}
                         >
                           <span style={styles.weekRowTime}>{formatWallTime(appt.starts_at)}</span>
