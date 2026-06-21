@@ -1173,9 +1173,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
             </div>
             <div style={styles.detailRow}>
               <span style={styles.detailLabel}>Price</span>
-              {appointment.price_cents > 0 ? (
-                <span style={styles.detailValue}>£{(appointment.price_cents / 100).toFixed(2)}</span>
-              ) : priceEditing ? (
+              {priceEditing ? (
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 13, color: COLORS.stone400 }}>£</span>
                   <input
@@ -1192,10 +1190,17 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                   </button>
                 </span>
               ) : (
-                <button onClick={() => { setPriceInput(''); setPriceEditing(true); }}
-                  style={{ background: 'none', border: `1.5px dashed ${COLORS.outlineVariant}`, borderRadius: 8, padding: '4px 10px', fontSize: 12, fontWeight: 600, color: COLORS.primary, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  Set price
-                </button>
+                // Price is always editable (tap to change), not just when it's £0.
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {appointment.price_cents > 0 && (
+                    <span style={styles.detailValue}>£{(appointment.price_cents / 100).toFixed(2)}</span>
+                  )}
+                  <button
+                    onClick={() => { setPriceInput(appointment.price_cents > 0 ? (appointment.price_cents / 100).toFixed(2) : ''); setPriceEditing(true); }}
+                    style={{ background: 'none', border: `1.5px dashed ${COLORS.outlineVariant}`, borderRadius: 8, padding: '4px 10px', fontSize: 12, fontWeight: 600, color: COLORS.primary, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {appointment.price_cents > 0 ? 'Edit' : 'Set price'}
+                  </button>
+                </span>
               )}
             </div>
             <div style={styles.detailRow}>
