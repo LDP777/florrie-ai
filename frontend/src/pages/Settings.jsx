@@ -755,6 +755,32 @@ export default function Settings({ onLogout }) {
             })}
           </div>
 
+          {/* Bank transfer details, shown to clients so they can pay the balance */}
+          <div style={styles.card}>
+            <div style={styles.cardTitle}>Bank transfer details</div>
+            <p style={styles.cardDesc}>Shown to clients so they can transfer the balance after their deposit.</p>
+            <FieldEditor
+              label="Account name"
+              value={beautician.payment_settings?.bank_details?.account_name || ''}
+              onSave={v => saveProfile({ payment_settings: { ...(beautician.payment_settings || {}), bank_details: { ...(beautician.payment_settings?.bank_details || {}), account_name: v } } })}
+            />
+            <FieldEditor
+              label="Sort code"
+              value={beautician.payment_settings?.bank_details?.sort_code || ''}
+              onSave={v => saveProfile({ payment_settings: { ...(beautician.payment_settings || {}), bank_details: { ...(beautician.payment_settings?.bank_details || {}), sort_code: v } } })}
+            />
+            <FieldEditor
+              label="Account number"
+              value={beautician.payment_settings?.bank_details?.account_number || ''}
+              onSave={v => saveProfile({ payment_settings: { ...(beautician.payment_settings || {}), bank_details: { ...(beautician.payment_settings?.bank_details || {}), account_number: v } } })}
+            />
+            <FieldEditor
+              label="Payment reference note (optional)"
+              value={beautician.payment_settings?.bank_details?.reference_note || ''}
+              onSave={v => saveProfile({ payment_settings: { ...(beautician.payment_settings || {}), bank_details: { ...(beautician.payment_settings?.bank_details || {}), reference_note: v } } })}
+            />
+          </div>
+
           {/* Payout info */}
           <div style={styles.card}>
             <div style={styles.cardTitle}>Payouts</div>

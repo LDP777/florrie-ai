@@ -187,7 +187,7 @@ export default function ClientManagePage() {
     </div>
   );
 
-  const { appointment, policy, patchTests, needsPatchTest, pendingForms } = data;
+  const { appointment, policy, patchTests, needsPatchTest, pendingForms, payment } = data;
   const apptDate = new Date(appointment.startsAt);
   const isCancelled = appointment.status === 'cancelled';
   const isCompleted = appointment.status === 'completed';
@@ -288,6 +288,48 @@ export default function ClientManagePage() {
             {appointment.client.phone && <p style={S.clientMeta}>{appointment.client.phone}</p>}
           </div>
         </div>
+
+        {/* Balance to pay, after the deposit. Shown when there's a remaining
+            amount and the booking is still live. */}
+        {!isCancelled && !isCompleted && payment?.remainingCents > 0 && (
+          <div style={{ ...S.policyCard, borderLeft: `3px solid ${brand}` }}>
+            <p style={S.sectionLabel}>Balance to pay</p>
+            <p style={S.policyText}>
+              <strong style={{ fontSize: 16, color: '#2D1B1B' }}>£{(payment.remainingCents / 100).toFixed(2)}</strong> remaining after your deposit.
+            </p>
+            {payment.bankDetails?.account_number ? (
+              <div style={{ marginTop: 12, padding: '14px', borderRadius: 12, background: brandLight, border: `1px solid ${brand}22` }}>
+                <p style={{ ...S.policyText, fontWeight: 600, color: '#2D1B1B', margin: '0 0 8px' }}>Pay by bank transfer:</p>
+                {payment.bankDetails.account_name && (
+                  <div style={S.bankRow}>
+                    <span style={S.bankLabel}>Account name</span>
+                    <span style={S.bankValue}>{payment.bankDetails.account_name}</span>
+                  </div>
+                )}
+                {payment.bankDetails.sort_code && (
+                  <div style={S.bankRow}>
+                    <span style={S.bankLabel}>Sort code</span>
+                    <span style={S.bankValueMono}>{payment.bankDetails.sort_code}</span>
+                  </div>
+                )}
+                <div style={S.bankRow}>
+                  <span style={S.bankLabel}>Account number</span>
+                  <span style={S.bankValueMono}>{payment.bankDetails.account_number}</span>
+                </div>
+                <div style={S.bankRow}>
+                  <span style={S.bankLabel}>Reference</span>
+                  <span style={S.bankValue}>
+                    {payment.bankDetails.reference_note || (appointment.client.name || '').split(' ')[0]}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p style={{ ...S.policyText, color: 'var(--text-muted)', marginTop: 8 }}>
+                Your beautician will share payment details.
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Cancellation policy info */}
         {!isCancelled && !isCompleted && (
@@ -726,6 +768,16 @@ const S = {
     padding: '16px 18px', boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
   },
   policyText: { margin: '0 0 4px', fontSize: 13, color: '#555', lineHeight: 1.5 },
+  bankRow: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+    padding: '6px 0', borderBottom: '1px solid rgba(0,0,0,0.05)',
+  },
+  bankLabel: { fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 },
+  bankValue: { fontSize: 14, fontWeight: 600, color: '#2D1B1B', textAlign: 'right' },
+  bankValueMono: {
+    fontSize: 15, fontWeight: 700, color: '#2D1B1B', textAlign: 'right',
+    fontFamily: "'SF Mono', 'Roboto Mono', Menlo, monospace", letterSpacing: '0.04em',
+  },
   warningBanner: {
     marginTop: 10, padding: '10px 12px', borderRadius: 10,
     background: '#FFFBEB', border: '1px solid #F59E0B',

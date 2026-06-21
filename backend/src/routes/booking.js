@@ -377,7 +377,7 @@ router.get('/:slug/manage/:token', async (req, res) => {
         price_cents, deposit_cents, deposit_paid, stripe_payment_method_id,
         treatments(id, name, duration_minutes, price_cents, category, requires_patch_test),
         clients(id, first_name, last_name, email, phone, stripe_customer_id),
-        beauticians(id, first_name, business_name, booking_policy, booking_slug, brand_color, patch_test_expiry_months, patch_test_block_booking)
+        beauticians(id, first_name, business_name, booking_policy, booking_slug, brand_color, patch_test_expiry_months, patch_test_block_booking, payment_settings)
       `)
       .eq('management_token', req.params.token)
       .single();
@@ -455,6 +455,18 @@ router.get('/:slug/manage/:token', async (req, res) => {
           brandColor: appt.beauticians?.brand_color,
         },
       },
+      // Remaining balance after the deposit, plus the beautician's bank details
+      // so the client can pay the rest by transfer.
+      payment: (() => {
+        const priceCents = appt.price_cents || appt.treatments?.price_cents || 0;
+        const depositPaidCents = appt.deposit_paid ? (appt.deposit_cents || 0) : 0;
+        return {
+          priceCents,
+          depositPaidCents,
+          remainingCents: Math.max(0, priceCents - depositPaidCents),
+          bankDetails: appt.beauticians?.payment_settings?.bank_details || null,
+        };
+      })(),
       policy: {
         ...policy,
         withinCancellationWindow,

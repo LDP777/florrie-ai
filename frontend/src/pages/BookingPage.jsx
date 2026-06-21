@@ -712,6 +712,49 @@ export default function BookingPage() {
               </a>
             </div>
           )}
+          {/* Pay the remaining balance by bank transfer, when there's a balance
+              left after the deposit and the beautician has shared bank details. */}
+          {(() => {
+            const bankDetails = beautician?.payment_settings?.bank_details;
+            if (!bankDetails?.account_number) return null;
+            const priceVal = parseFloat((success.price || '£0').replace(/[£,]/g, ''));
+            const depositVal = parseFloat((success.deposit || '£0').replace(/[£,]/g, ''));
+            const remaining = priceVal - depositVal;
+            if (!(remaining > 0)) return null;
+            const firstName = (clientDetails.name || '').trim().split(' ')[0];
+            return (
+              <div style={{ marginTop: 16, padding: '14px 16px', borderRadius: 12, background: brandLight, border: `1.5px solid ${brandMedium}`, textAlign: 'left' }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: brand, margin: '0 0 4px' }}>Pay the rest by bank transfer 🏦</p>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
+                  <strong style={{ color: brand }}>£{remaining.toFixed(2)}</strong> remaining after your deposit. Transfer it to:
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {bankDetails.account_name && (
+                    <div style={styles.bankRow}>
+                      <span style={styles.bankLabel}>Account name</span>
+                      <span style={styles.bankValue}>{bankDetails.account_name}</span>
+                    </div>
+                  )}
+                  {bankDetails.sort_code && (
+                    <div style={styles.bankRow}>
+                      <span style={styles.bankLabel}>Sort code</span>
+                      <span style={styles.bankValueMono}>{bankDetails.sort_code}</span>
+                    </div>
+                  )}
+                  <div style={styles.bankRow}>
+                    <span style={styles.bankLabel}>Account number</span>
+                    <span style={styles.bankValueMono}>{bankDetails.account_number}</span>
+                  </div>
+                  <div style={styles.bankRow}>
+                    <span style={styles.bankLabel}>Reference</span>
+                    <span style={styles.bankValue}>
+                      {bankDetails.reference_note || firstName || 'use your name as the reference'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
           {/* Loyalty mention, only when the salon runs a programme */}
           {beautician?.loyalty_enabled && (
             <p style={{ fontSize: 13, color: brand, fontWeight: 600, textAlign: 'center', marginTop: 4 }}>
@@ -1845,6 +1888,16 @@ const styles = {
   successDetails: { textAlign: 'center', fontSize: 15, lineHeight: 1.6, marginBottom: 16 },
   confirmText: { textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' },
   depositNote: { fontSize: 13, color: 'var(--text-secondary)', marginTop: 8 },
+  bankRow: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+    padding: '5px 0', borderBottom: '1px solid rgba(0,0,0,0.05)',
+  },
+  bankLabel: { fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 },
+  bankValue: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', textAlign: 'right' },
+  bankValueMono: {
+    fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', textAlign: 'right',
+    fontFamily: "'SF Mono', 'Roboto Mono', Menlo, monospace", letterSpacing: '0.04em',
+  },
   errorBanner: {
     background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 10,
     padding: '12px 16px', marginBottom: 16, fontSize: 14, color: 'var(--danger)',
