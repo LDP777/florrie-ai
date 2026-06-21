@@ -1863,6 +1863,10 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
       }
     }
 
+    // Safety: a deposit can never exceed the total price (guards against a
+    // misconfigured fixed deposit or percent that's larger than the treatment).
+    if (combinedPriceCents > 0) depositCents = Math.min(depositCents, combinedPriceCents);
+
     // If client chose to pay full amount, charge treatment price + add-ons minus discount
     isFullPayment = payment_type === 'full' && combinedPriceCents > 0;
 
