@@ -222,6 +222,49 @@ router.get('/:slug/availability', async (req, res) => {
 });
 
 /**
+ * GET /api/booking/:slug/availability-range?from=YYYY-MM-DD&to=YYYY-MM-DD
+ * Public — one call returns a whole month's booked blocks + fully-closed days,
+ * so the booking calendar can mark which days actually have space without a
+ * request per day. Returns only timing (no client info). Service role.
+ */
+router.get('/:slug/availability-range', async (req, res) => {
+  const { from, to } = req.query;
+  const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+  if (!from || !to || !dateRe.test(from) || !dateRe.test(to)) {
+    return res.status(400).json({ error: 'from and to (YYYY-MM-DD) are required' });
+  }
+
+  const { data: salon } = await supabase
+    .from('beauticians')
+    .select('id')
+    .eq('booking_slug', req.params.slug)
+    .maybeSingle();
+  if (!salon) return res.status(404).json({ error: 'not_found' });
+
+  const { data: appts } = await supabase
+    .from('appointments')
+    .select('starts_at, duration_minutes, buffer_minutes')
+    .eq('beautician_id', salon.id)
+    .gte('starts_at', `${from}T00:00:00`)
+    .lte('starts_at', `${to}T23:59:59`)
+    .not('status', 'in', '(cancelled,cancelled_by_client,cancelled_by_beautician,rescheduled)');
+
+  // Days the beautician has fully blocked off (holiday/sick/etc).
+  const { data: closuresRows } = await supabase
+    .from('hours_exceptions')
+    .select('date')
+    .eq('beautician_id', salon.id)
+    .eq('type', 'closed')
+    .gte('date', from)
+    .lte('date', to);
+
+  res.json({
+    appointments: appts || [],
+    closures: (closuresRows || []).map(r => r.date),
+  });
+});
+
+/**
  * GET /api/booking/:slug/policy
  * Public — returns the beautician's booking policy for display on the booking page.
  * Includes: cancellation terms, min booking window, deposit rules.
