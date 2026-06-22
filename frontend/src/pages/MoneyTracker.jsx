@@ -9,6 +9,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import { hapticTap, hapticSuccess } from '../lib/native.js';
 import { useCountUp } from '../lib/useCountUp.js';
+import { todayLocal, localDateStr } from '../lib/dates.js';
 
 /**
  * Money & Revenue - Stitch reference rebuild.
@@ -106,7 +107,7 @@ export default function MoneyTracker() {
 
   const [newExpense, setNewExpense] = useState({
     amount: '', vendor: '', description: '',
-    category: 'products', date: new Date().toISOString().split('T')[0],
+    category: 'products', date: todayLocal(),
     tax_deductible: true
   });
 
@@ -408,7 +409,7 @@ export default function MoneyTracker() {
             vendor: extracted.vendor || '',
             description: extracted.description || '',
             category: extracted.category || 'other',
-            date: extracted.date || new Date().toISOString().split('T')[0],
+            date: extracted.date || todayLocal(),
             tax_deductible: true,
             receipt_url: receiptUrl,
             hmrc_category: extracted.hmrc_category || '',
@@ -421,7 +422,7 @@ export default function MoneyTracker() {
             ...prev,
             description: `Receipt: ${file.name}`,
             receipt_url: receiptUrl,
-            date: new Date().toISOString().split('T')[0],
+            date: todayLocal(),
           }));
         }
 
@@ -452,7 +453,7 @@ export default function MoneyTracker() {
       setExpenses(prev => [row, ...prev]);
       setNewExpense({
         amount: '', vendor: '', description: '',
-        category: 'products', date: new Date().toISOString().split('T')[0],
+        category: 'products', date: todayLocal(),
         tax_deductible: true
       });
       setReceiptPreview(null);
@@ -514,7 +515,7 @@ export default function MoneyTracker() {
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(d.getDate() - i);
-      const dayStr = d.toISOString().slice(0, 10);
+      const dayStr = localDateStr(d);
       const label = d.toLocaleDateString('en-GB', { weekday: 'short' }).charAt(0);
       const total = transactions
         .filter(t => t.created_at?.slice(0, 10) === dayStr)
@@ -543,7 +544,7 @@ export default function MoneyTracker() {
   // Today's takings, surfaced at the very top so the number Ellie wants is the
   // first thing on the Money page (was buried inside the Pulse tab).
   const todayRevenue = useMemo(() => {
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = todayLocal();
     return transactions
       .filter(t => t.created_at?.slice(0, 10) === todayStr)
       .reduce((sum, t) => sum + (t.amount_cents || 0), 0);

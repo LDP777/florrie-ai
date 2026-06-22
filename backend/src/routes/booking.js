@@ -110,13 +110,14 @@ router.get('/:slug', async (req, res) => {
     return res.status(404).json({ error: 'Booking page not found' });
   }
 
-  // Get active, bookable treatments
+  // Get active, bookable treatments (never show £0 placeholders to clients).
   const { data: treatments } = await supabase
     .from('treatments')
     .select('id, name, description, duration_minutes, price_cents, deposit_cents, category')
     .eq('beautician_id', beautician.id)
     .eq('is_active', true)
     .eq('booking_enabled', true)
+    .gt('price_cents', 0)
     .order('sort_order', { ascending: true });
 
   // Build accepted payment methods — always include card if Stripe connected
@@ -169,9 +170,14 @@ router.get('/:slug/page', async (req, res) => {
 
   const { data: treatments } = await supabase
     .from('treatments')
-    .select('id, name, description, duration_minutes, price_cents, deposit_cents, deposit_percent, category, requires_consultation, consultation_form_id')
+    .select('id, name, description, duration_minutes, price_cents, deposit_cents, deposit_percent, category, requires_consultation, requires_patch_test, consultation_form_id')
     .eq('beautician_id', salon.id)
     .eq('is_active', true)
+    // Must be bookable and have a real price. Imported placeholders are inactive
+    // and £0, but a restored-not-yet-priced one could leak onto a client's page,
+    // so guard on both here (never show 'Imported'/£0 services to clients).
+    .eq('booking_enabled', true)
+    .gt('price_cents', 0)
     .order('sort_order', { ascending: true });
 
   const { data: addOns } = await supabase

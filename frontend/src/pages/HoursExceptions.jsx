@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useBeautician, supabase, insertRow, deleteRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import { todayLocal } from '../lib/dates.js';
 
 /**
  * Availability Planner â forward-looking calendar for blocking days / changing hours.
@@ -250,7 +251,7 @@ export default function HoursExceptions() {
     }
   }
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayLocal();
   const upcoming = exceptions.filter(e => e.date >= today).sort((a, b) => a.date.localeCompare(b.date));
   const past     = exceptions.filter(e => e.date < today).sort((a, b) => b.date.localeCompare(a.date));
 

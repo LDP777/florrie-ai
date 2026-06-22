@@ -6,6 +6,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import { todayLocal } from '../lib/dates.js';
 
 function getToken() {
   const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
@@ -359,7 +360,7 @@ export default function Clients() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `clients-${new Date().toISOString().split('T')[0]}.csv`;
+      a.download = `clients-${todayLocal()}.csv`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);

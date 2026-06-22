@@ -435,7 +435,9 @@ export default function BookingPage() {
           client_email: clientDetails.email || null,
           client_phone: clientDetails.phone,
           notes: clientDetails.notes || null,
-          consultation: needsConsultation ? consultationAnswers : null,
+          // Only new clients submit consultation/patch-test answers; returning
+          // clients skip the form entirely so we never send (or require) it.
+          consultation: (needsConsultation && !recognisedClient?.found) ? consultationAnswers : null,
           add_ons: selectedAddOns.map(ao => ({ id: ao.id, price_cents: ao.price_cents })),
           products: cartItems.map(item => ({ id: item.id, quantity: item.qty, price_cents: item.price_cents })),
           payment_type: paymentType,
@@ -1011,7 +1013,11 @@ export default function BookingPage() {
               <button
                 onClick={() => {
                   if (validateStep(2)) {
-                    setStep(needsConsultation && !recognisedClient?.found ? 2.5 : 3);
+                    // Consultation form + patch test are ONLY for new clients.
+                    // A recognised (returning) client always skips straight to review,
+                    // never re-asked for a form or patch test they've already done.
+                    const askForms = (needsConsultation || needsPatchTest) && !recognisedClient?.found;
+                    setStep(askForms ? 2.5 : 3);
                   }
                 }}
                 disabled={!clientDetails.name || !clientDetails.phone}
@@ -1021,7 +1027,7 @@ export default function BookingPage() {
                   cursor: (!clientDetails.name || !clientDetails.phone) ? 'not-allowed' : 'pointer'
                 }}
               >
-                {needsConsultation && !recognisedClient?.found ? 'Next: Consultation form' : 'Review booking'}
+                {(needsConsultation || needsPatchTest) && !recognisedClient?.found ? 'Next: Consultation form' : 'Review booking'}
               </button>
             </div>
           </div>

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useBeautician, fetchRows, updateRow, insertRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import { todayLocal } from '../lib/dates.js';
 
 export default function EndOfDay() {
   const { beautician, loading: bLoading } = useBeautician();
@@ -14,7 +15,7 @@ export default function EndOfDay() {
   const [dayClosed, setDayClosed] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocal();
   const todayDisplay = new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 
   useEffect(() => {

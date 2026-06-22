@@ -107,15 +107,73 @@ export default function CalendarView({ initialView } = {}) {
   const location = useLocation();
   const { beautician, loading: bLoading } = useBeautician();
   const [view, setView] = useState(initialView === 'week' ? 'week' : 'day');
-  // Accept a date from location.state so other pages can deep-link to a specific day
+  // Deep-link to a specific day from either navigation state (in-app pushes) or a
+  // ?date=YYYY-MM-DD query param (the activity feed / "What Florrie did" links).
   const [currentDate, setCurrentDate] = useState(() => {
-    const d = location.state?.date;
-    return d ? new Date(d) : new Date();
+    if (location.state?.date) return new Date(location.state.date);
+    const q = new URLSearchParams(location.search).get('date');
+    if (q && /^\d{4}-\d{2}-\d{2}/.test(q)) return new Date(`${q.slice(0, 10)}T12:00:00`);
+    return new Date();
   });
+  // Navigating from the Hub to /calendar reuses this component instance (both
+  // routes render Hub), so the initializer above won't re-run. Sync the day when
+  // the ?date= param changes so "What Florrie did" links land on the right day.
+  useEffect(() => {
+    const q = new URLSearchParams(location.search).get('date');
+    if (q && /^\d{4}-\d{2}-\d{2}/.test(q)) setCurrentDate(new Date(`${q.slice(0, 10)}T12:00:00`));
+  }, [location.search]);
   const [appointments, setAppointments] = useState([]);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [loading, setLoading] = useState(true);
   const detailRef = useRef(null);
+  // Press-and-hold a row in the agenda to delete it (iOS style). The backend
+  // blocks deletion when money is attached (409) and steers Ellie to cancel.
+  const longPressTimer = useRef(null);
+  const longPressFired = useRef(false);
+  async function deleteAppointmentFromAgenda(appt) {
+    const who = appt.clients?.first_name
+      ? `${appt.clients.first_name}'s ${appt.treatments?.name || 'appointment'}`
+      : 'this appointment';
+    if (!confirm(`Delete ${who}? This can't be undone.`)) return;
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/appointments/${appt.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 409) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || "This booking has a payment attached, so it can't be deleted. Cancel it instead.");
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Could not delete the appointment');
+      }
+      hapticSuccess();
+      loadAppointments();
+    } catch (err) {
+      logger.error('Agenda delete error:', err);
+      alert(err.message || 'Could not delete the appointment. Please try again.');
+    }
+  }
+  function startLongPress(appt) {
+    longPressFired.current = false;
+    clearTimeout(longPressTimer.current);
+    longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true;
+      hapticTap(); // tactile cue the hold registered
+      deleteAppointmentFromAgenda(appt);
+    }, 500);
+  }
+  function cancelLongPress() {
+    clearTimeout(longPressTimer.current);
+  }
+  // When an in-place edit (price set, time change) reloads the list we want
+  // the page to stay exactly where Ellie was, not jump to the bottom. We stash
+  // the scrollY here and restore it once the reload's render has settled.
+  const preserveScrollRef = useRef(null);
+  const [markingAllDone, setMarkingAllDone] = useState(false);
   // Time blocking state
   const [timeBlocks, setTimeBlocks] = useState([]);
   const [showBlockModal, setShowBlockModal] = useState(false);
@@ -153,7 +211,23 @@ export default function CalendarView({ initialView } = {}) {
       : 8 * 60;
     gridScrollRef.current.scrollTop = Math.max(0, ((targetMin - START_HOUR * 60) / 60) * HOUR_HEIGHT - 24);
   }, [loading, currentDate, view, appointments]); // eslint-disable-line react-hooks/exhaustive-deps
-  async function loadAppointments() {
+  // Restore the stashed page scroll after an in-place edit reload settles, so
+  // setting a price / editing a time never throws Ellie to the bottom.
+  useEffect(() => {
+    if (loading || preserveScrollRef.current == null) return;
+    const y = preserveScrollRef.current;
+    preserveScrollRef.current = null;
+    // The page scrolls inside #app-scroll now, not the body - restore there.
+    requestAnimationFrame(() => {
+      const sc = document.getElementById('app-scroll');
+      if (sc) sc.scrollTop = y;
+      else window.scrollTo(0, y);
+    });
+  }, [loading, appointments]);
+  async function loadAppointments({ keepScroll = false } = {}) {
+    // For in-place edits (price/time set) hold the current scroll position so
+    // the reload doesn't bounce the page to the bottom.
+    if (keepScroll) preserveScrollRef.current = document.getElementById('app-scroll')?.scrollTop ?? window.scrollY;
     setLoading(true);
     const from = view === 'day' ? formatDate(currentDate) : formatDate(getWeekStart(currentDate));
     const to = view === 'day' ? formatDate(currentDate) : formatDate(getWeekEnd(currentDate));
@@ -171,6 +245,34 @@ export default function CalendarView({ initialView } = {}) {
       logger.error('Calendar load error:', err);
     } finally {
       setLoading(false);
+    }
+  }
+  // Batch-complete every still-open booking on the viewed day. One tap at the
+  // end of a busy day instead of opening each client in turn.
+  async function handleMarkAllDone() {
+    const dayLabel = currentDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+    if (!confirm(`Mark all remaining appointments on ${dayLabel} as complete?`)) return;
+    hapticTap();
+    setMarkingAllDone(true);
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/appointments/complete-day`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ date: formatDate(currentDate) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not mark the day complete');
+      hapticSuccess();
+      const count = data.count ?? data.completed ?? 0;
+      alert(count > 0 ? `Marked ${count} appointment${count === 1 ? '' : 's'} as complete.` : 'Nothing left to complete today.');
+      setSelectedAppointment(null);
+      loadAppointments();
+    } catch (err) {
+      logger.error('Mark all done error:', err);
+      alert(err.message || 'Could not mark the day complete');
+    } finally {
+      setMarkingAllDone(false);
     }
   }
   // Time block functions
@@ -307,6 +409,17 @@ export default function CalendarView({ initialView } = {}) {
             <span className="material-symbols-outlined" style={{ fontSize: 15, fontVariationSettings: "'FILL' 0, 'wght' 300" }}>event_busy</span>
             Block
           </button>
+          {view === 'day' && (
+            <button
+              onClick={handleMarkAllDone}
+              disabled={markingAllDone}
+              title="Mark all done"
+              style={{ height: 36, padding: '0 12px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #fff)', color: '#5BA67F', cursor: markingAllDone ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', opacity: markingAllDone ? 0.6 : 1 }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 15, fontVariationSettings: "'FILL' 0, 'wght' 300" }}>done_all</span>
+              {markingAllDone ? '…' : 'All done'}
+            </button>
+          )}
         </div>
       </div>
       {/* Weekly Date Strip (shared for both views) */}
@@ -576,7 +689,18 @@ export default function CalendarView({ initialView } = {}) {
                       return (
                         <button
                           key={appt.id}
-                          onClick={() => setSelectedAppointment(selectedAppointment?.id === appt.id ? null : appt)}
+                          onClick={() => {
+                            // Swallow the click that follows a long-press delete.
+                            if (longPressFired.current) { longPressFired.current = false; return; }
+                            setSelectedAppointment(selectedAppointment?.id === appt.id ? null : appt);
+                          }}
+                          onTouchStart={() => startLongPress(appt)}
+                          onTouchEnd={cancelLongPress}
+                          onTouchMove={cancelLongPress}
+                          onMouseDown={() => startLongPress(appt)}
+                          onMouseUp={cancelLongPress}
+                          onMouseLeave={cancelLongPress}
+                          onContextMenu={(e) => { e.preventDefault(); cancelLongPress(); deleteAppointmentFromAgenda(appt); }}
                           style={{ ...styles.weekRow, opacity: dead ? 0.5 : 1 }}
                         >
                           <span style={styles.weekRowTime}>{formatWallTime(appt.starts_at)}</span>
@@ -627,6 +751,13 @@ export default function CalendarView({ initialView } = {}) {
             beautician={beautician}
             onClose={() => setSelectedAppointment(null)}
             onUpdate={() => { loadAppointments(); setSelectedAppointment(null); }}
+            onRefresh={(patched) => {
+              // In-place refresh: keep the panel open, hold scroll position, and
+              // swap the freshly-edited row into the open detail so the panel
+              // shows the new time/price immediately.
+              if (patched) setSelectedAppointment(prev => (prev ? { ...prev, ...patched } : prev));
+              loadAppointments({ keepScroll: true });
+            }}
             onCompleted={(completed) => advanceToNextAppointment(completed)}
             getStatusColor={getStatusColor}
             onViewClient={(clientId) => navigate('/clients', { state: { clientId } })}
@@ -666,7 +797,7 @@ export default function CalendarView({ initialView } = {}) {
  * AppointmentDetail - detail panel with completion flow.
  * Mark done → log payment → add notes → rebook prompt → before/after photo.
  */
-function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onCompleted, getStatusColor, onViewClient }) {
+function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefresh, onCompleted, getStatusColor, onViewClient }) {
   const [mode, setMode] = useState('detail'); // detail | completing | done
   const [notes, setNotes] = useState(appointment.beautician_notes || '');
   const [paymentMethod, setPaymentMethod] = useState('card');
@@ -677,6 +808,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onCompl
   const [noShowCharging, setNoShowCharging] = useState(false);
   const [paymentLinkUrl, setPaymentLinkUrl] = useState(null);
   const [linkLoading, setLinkLoading] = useState(false);
+  const [chargingBalance, setChargingBalance] = useState(false);
   const [noteSaved, setNoteSaved] = useState(false);
   const [rebookSaving, setRebookSaving] = useState(false);
   const [rebookSent, setRebookSent] = useState(false);
@@ -684,14 +816,90 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onCompl
   const [priceEditing, setPriceEditing] = useState(false);
   const [priceInput, setPriceInput] = useState('');
   const [priceSaving, setPriceSaving] = useState(false);
+  // Editing / rescheduling the appointment time. The datetime-local value is
+  // the stored wall-clock (no timezone shift), so what she sees is what saves.
+  const [timeEditing, setTimeEditing] = useState(false);
+  const [timeInput, setTimeInput] = useState('');
+  const [timeSaving, setTimeSaving] = useState(false);
+  function openTimeEdit() {
+    // "2026-06-21T14:00:00..." -> "2026-06-21T14:00" for the input.
+    const s = String(appointment.starts_at || '');
+    setTimeInput(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s) ? s.slice(0, 16) : '');
+    setTimeEditing(true);
+    hapticTap();
+  }
+  // PATCH the new start. Backend recomputes ends_at from the treatment length.
+  async function handleSaveTime() {
+    if (!timeInput || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(timeInput)) return;
+    // Send the wall-clock as a stable ISO string (treat as UTC so no shift).
+    const startsAt = `${timeInput.slice(0, 16)}:00.000Z`;
+    setTimeSaving(true);
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ starts_at: startsAt }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not update the time');
+      hapticSuccess();
+      setTimeEditing(false);
+      // ends_at comes back recalculated; fold both into the open panel.
+      // PATCH responds { appointment: {...} }, so read from there (fall back flat).
+      const updated = data.appointment || data;
+      const patch = { starts_at: updated.starts_at || startsAt };
+      if (updated.ends_at) patch.ends_at = updated.ends_at;
+      if (onRefresh) onRefresh(patch);
+      else onUpdate();
+    } catch (err) {
+      logger.error('Save time error:', err);
+      alert(err.message || 'Could not update the time. Please try again.');
+    } finally {
+      setTimeSaving(false);
+    }
+  }
+  // Permanently remove a mistaken booking. Backend blocks (409) when money is
+  // attached, so we surface that and steer her to cancel instead.
+  const [deleting, setDeleting] = useState(false);
+  async function handleDeleteAppointment() {
+    if (!confirm('Delete this appointment? This cannot be undone.')) return;
+    setDeleting(true);
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.status === 409) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'This booking has a deposit or fee attached, so it can\'t be deleted. Cancel it instead.');
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Could not delete the appointment');
+      }
+      hapticSuccess();
+      onUpdate(); // closes the panel + refreshes the calendar
+    } catch (err) {
+      logger.error('Delete appointment error:', err);
+      alert(err.message || 'Could not delete the appointment. Please try again.');
+    } finally {
+      setDeleting(false);
+    }
+  }
   async function handleSavePrice() {
     const pounds = parseFloat(String(priceInput).replace(/[£,\s]/g, ''));
     if (isNaN(pounds) || pounds < 0) return;
     setPriceSaving(true);
     try {
-      await updateRow('appointments', appointment.id, { price_cents: Math.round(pounds * 100) });
+      const cents = Math.round(pounds * 100);
+      await updateRow('appointments', appointment.id, { price_cents: cents });
       setPriceEditing(false);
-      onUpdate();
+      // Refresh in place (panel stays open, scroll held) rather than jumping.
+      if (onRefresh) onRefresh({ price_cents: cents });
+      else onUpdate();
     } catch (err) {
       logger.error('Save price error:', err);
     } finally {
@@ -775,6 +983,31 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onCompl
       alert(err.message || 'Failed to create payment link');
     } finally {
       setLinkLoading(false);
+    }
+  }
+  // Card fallback: take the remaining balance off the client's saved card when
+  // they haven't paid the rest by bank transfer. Off-session, confirmed first.
+  async function handleChargeBalance() {
+    const remaining = (appointment.price_cents || 0) - (appointment.deposit_paid ? (appointment.deposit_cents || 0) : 0);
+    if (remaining < 30) { alert('There is no balance left to charge.'); return; }
+    if (!confirm(`Charge the remaining £${(remaining / 100).toFixed(2)} to ${appointment.clients?.first_name || 'this client'}'s saved card?`)) return;
+    setChargingBalance(true);
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}/charge-balance`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not charge the balance');
+      hapticSuccess();
+      alert(`Charged £${((data.amountCents || 0) / 100).toFixed(2)} to the saved card.`);
+      onUpdate && onUpdate();
+    } catch (err) {
+      logger.error('Charge balance error:', err);
+      alert(err.message || 'Could not charge the balance');
+    } finally {
+      setChargingBalance(false);
     }
   }
   // Shared write: mark completed + log the takings. `method` defaults to the
@@ -865,7 +1098,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onCompl
     try {
       const d = new Date();
       d.setDate(d.getDate() + rebookWeeks * 7);
-      const reminderDate = d.toISOString().slice(0, 10);
+      const reminderDate = formatDate(d); // local date — avoids the BST day-shift
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
       const res = await fetch(`${API_BASE}/api/features/rebook-reminders`, {
         method: 'POST',
@@ -909,12 +1142,38 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onCompl
         <>
           <div style={styles.detailGrid}>
             <div style={styles.detailRow}><span style={styles.detailLabel}>Treatment</span><span style={styles.detailValue}>{appointment.treatments?.name}</span></div>
-            <div style={styles.detailRow}><span style={styles.detailLabel}>Time</span><span style={styles.detailValue}>{new Date(appointment.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} - {appointment.ends_at ? new Date(appointment.ends_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''}</span></div>
+            <div style={styles.detailRow}>
+              <span style={styles.detailLabel}>Time</span>
+              {timeEditing ? (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  <input
+                    type="datetime-local" autoFocus
+                    value={timeInput}
+                    onChange={e => setTimeInput(e.target.value)}
+                    style={{ padding: '5px 8px', borderRadius: 8, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 12.5, fontFamily: 'inherit', outline: 'none' }}
+                  />
+                  <button onClick={handleSaveTime} disabled={timeSaving}
+                    style={{ padding: '5px 10px', borderRadius: 8, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {timeSaving ? '…' : 'Save'}
+                  </button>
+                  <button onClick={() => setTimeEditing(false)} disabled={timeSaving}
+                    style={{ background: 'none', border: 'none', fontSize: 12, fontWeight: 600, color: COLORS.stone400, cursor: 'pointer', fontFamily: 'inherit', padding: '5px 4px' }}>
+                    Cancel
+                  </button>
+                </span>
+              ) : (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={styles.detailValue}>{formatWallTime(appointment.starts_at)}{appointment.ends_at ? ` - ${formatWallTime(appointment.ends_at)}` : ''}</span>
+                  <button onClick={openTimeEdit}
+                    style={{ background: 'none', border: `1.5px dashed ${COLORS.outlineVariant}`, borderRadius: 8, padding: '3px 9px', fontSize: 11, fontWeight: 600, color: COLORS.primary, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    Edit time
+                  </button>
+                </span>
+              )}
+            </div>
             <div style={styles.detailRow}>
               <span style={styles.detailLabel}>Price</span>
-              {appointment.price_cents > 0 ? (
-                <span style={styles.detailValue}>£{(appointment.price_cents / 100).toFixed(2)}</span>
-              ) : priceEditing ? (
+              {priceEditing ? (
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 13, color: COLORS.stone400 }}>£</span>
                   <input
@@ -931,10 +1190,17 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onCompl
                   </button>
                 </span>
               ) : (
-                <button onClick={() => { setPriceInput(''); setPriceEditing(true); }}
-                  style={{ background: 'none', border: `1.5px dashed ${COLORS.outlineVariant}`, borderRadius: 8, padding: '4px 10px', fontSize: 12, fontWeight: 600, color: COLORS.primary, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  Set price
-                </button>
+                // Price is always editable (tap to change), not just when it's £0.
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {appointment.price_cents > 0 && (
+                    <span style={styles.detailValue}>£{(appointment.price_cents / 100).toFixed(2)}</span>
+                  )}
+                  <button
+                    onClick={() => { setPriceInput(appointment.price_cents > 0 ? (appointment.price_cents / 100).toFixed(2) : ''); setPriceEditing(true); }}
+                    style={{ background: 'none', border: `1.5px dashed ${COLORS.outlineVariant}`, borderRadius: 8, padding: '4px 10px', fontSize: 12, fontWeight: 600, color: COLORS.primary, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {appointment.price_cents > 0 ? 'Edit' : 'Set price'}
+                  </button>
+                </span>
               )}
             </div>
             <div style={styles.detailRow}>
@@ -985,12 +1251,37 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onCompl
                   {linkLoading ? 'Creating...' : 'Send payment link'}
                 </button>
               </div>
+              {/* Reschedule: move the client to another day/time instead of
+                  marking them a no-show (traffic, swapped to Friday, etc.). */}
+              <button onClick={openTimeEdit} disabled={saving}
+                style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--bg-input, #FAFAFA)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>event_repeat</span>
+                Reschedule
+              </button>
+              {/* Card fallback: only shows when there's an unpaid balance (price
+                  minus the deposit they paid). For when they didn't bank-transfer. */}
+              {(((appointment.price_cents || 0) - (appointment.deposit_paid ? (appointment.deposit_cents || 0) : 0)) >= 30) && (
+                <button onClick={() => { hapticTap(); handleChargeBalance(); }} disabled={chargingBalance}
+                  style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--bg-input, #FAFAFA)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>credit_card</span>
+                  {chargingBalance ? 'Charging...' : `Charge £${(((appointment.price_cents || 0) - (appointment.deposit_paid ? (appointment.deposit_cents || 0) : 0)) / 100).toFixed(2)} balance to card`}
+                </button>
+              )}
               <button onClick={() => setMode('completing')}
                 style={{ background: 'none', border: 'none', color: 'var(--text-muted, #9E9790)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '2px 0' }}>
                 Add payment method or photo
               </button>
             </div>
           )}
+          {/* Delete a mistaken booking. Destructive, confirmed, and the backend
+              refuses (409) if a deposit/fee is attached. */}
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${COLORS.outlineVariant}33` }}>
+            <button onClick={() => { hapticTap(); handleDeleteAppointment(); }} disabled={deleting}
+              style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1px solid #FECACA', background: '#FEF2F2', color: '#B91C1C', fontSize: 13, fontWeight: 600, cursor: deleting ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: deleting ? 0.6 : 1 }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
+              {deleting ? 'Deleting…' : 'Delete appointment'}
+            </button>
+          </div>
           {/* No-show fee charge prompt */}
           {noShowCharging && (
             <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: 'var(--danger-bg)', border: '1px solid var(--danger-bg)' }}>
@@ -1026,6 +1317,20 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onCompl
                   {linkLoading ? 'Creating...' : 'Send no-show fee link'}
                 </button>
               )}
+            </div>
+          )}
+          {/* Completed (incl. auto-completed/assumed). Ellie can still flag a
+              no-show at the end of the day - the backend reverses the takings
+              and charges the policy fee, so the Money tab updates. */}
+          {isCompleted && (
+            <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: 'var(--success-bg, #F0FBF4)', textAlign: 'center' }}>
+              <span style={{ fontSize: 13, color: 'var(--success-text, #2F7A4F)', fontWeight: 600 }}>
+                {appointment.payment_method ? 'Completed' : 'Done (assumed)'}
+              </span>
+              <button onClick={() => { hapticTap(); handleMarkNoShow(); }} disabled={saving}
+                style={{ ...styles.completeBtn, marginTop: 8, background: 'var(--bg-input, #FAFAFA)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 12, padding: '8px 0' }}>
+                Actually a no-show
+              </button>
             </div>
           )}
         </>
@@ -1107,7 +1412,16 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onCompl
     </div>
   );
 }
-function formatDate(d) { return d.toISOString().split('T')[0]; }
+// LOCAL calendar date as YYYY-MM-DD — never toISOString(), which converts to UTC
+// and, under British Summer Time (UTC+1), rolls every date back to the previous
+// day. That's the bug that "shifted the whole calendar": blocking a day or
+// grouping appointments by formatDate() landed everything on the day before.
+// The rest of the diary reads stored times as wall-clock (see wallMinutes), and
+// BookingPage/HoursExceptions already build their date keys from local parts —
+// this keeps day-grouping consistent with both.
+function formatDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 function isToday(d) { return d.toDateString() === new Date().toDateString(); }
 function isSameDay(a, b) { return a.toDateString() === b.toDateString(); }
 function getWeekStart(d) { const s = new Date(d); const day = s.getDay(); s.setDate(s.getDate() + (day === 0 ? -6 : 1 - day)); return s; }
@@ -1469,6 +1783,19 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], onClose, 
   const [newPhone, setNewPhone] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  // Keep the bottom sheet above the on-screen keyboard (and its accessory bar)
+  // by sizing the overlay to the visual viewport, so the fields and the Add
+  // button never end up hidden or overlapped when the number pad opens.
+  const [vp, setVp] = useState(null);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const update = () => setVp({ height: vv.height, top: vv.offsetTop });
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => { vv.removeEventListener('resize', update); vv.removeEventListener('scroll', update); };
+  }, []);
   async function authedFetch(path, opts = {}) {
     const token = (await supabase.auth.getSession()).data.session?.access_token;
     return fetch(`${API_BASE}${path}`, {
@@ -1577,8 +1904,8 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], onClose, 
       return newStart < aEnd && aStart < newEnd;
     }) || null;
   })();
-  const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 900, display: 'flex', alignItems: 'flex-end' };
-  const sheet = { background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif', maxHeight: '90vh', overflowY: 'auto' };
+  const overlay = { position: 'fixed', left: 0, right: 0, top: vp ? vp.top : 0, height: vp ? vp.height : '100%', background: 'rgba(0,0,0,0.4)', zIndex: 900, display: 'flex', alignItems: 'flex-end' };
+  const sheet = { background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', padding: '20px 20px calc(28px + env(safe-area-inset-bottom))', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif', maxHeight: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch' };
   const labelStyle = { fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' };
   const inputStyle = { display: 'block', width: '100%', marginTop: 4, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: 'var(--bg-card)', color: COLORS.onSurface };
   return (

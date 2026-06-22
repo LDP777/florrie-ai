@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useBeautician, supabase, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js'
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
+import { localDateStr } from '../lib/dates.js';
 function getToken() {
   // Supabase stores session under sb-<project-ref>-auth-token, find it by pattern
   const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
@@ -349,7 +350,7 @@ export default function ContentAutopilot() {
     return daysArray;
   }
   function getPostsForDate(date) {
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = localDateStr(date);
     return (selectedStreamId ? drafts.concat(posted) : drafts.concat(posted)).filter(post => {
       const postDate = (post.scheduled_for || post.posted_at || post.created_at).split('T')[0];
       return postDate === dateStr;

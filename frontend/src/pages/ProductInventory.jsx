@@ -10,6 +10,7 @@ import { useBeautician, fetchRows, insertRow, updateRow } from '../lib/supabase.
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
+import { todayLocal } from '../lib/dates.js';
 
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 
@@ -132,7 +133,7 @@ export default function ProductInventory() {
     try {
       const updated = await updateRow('product_inventory', prod.id, {
         qty: (Number(prod.qty) || 0) + add,
-        last_ordered: new Date().toISOString().slice(0, 10),
+        last_ordered: todayLocal(),
       });
       setProducts(prev => prev.map(p => (p.id === prod.id ? decorate(updated) : p)));
     } catch (err) {

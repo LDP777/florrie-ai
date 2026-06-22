@@ -8,6 +8,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import { todayLocal } from '../lib/dates.js';
 
 const DEV_PHOTOS = [
   { id: 'p1', url: null, treatment: 'Lamination & Hybrid Dye', client: 'Shauna', date: '2026-03-18', type: 'after', tags: ['brows', 'lamination'], pair_id: 'pair1' },
@@ -293,7 +294,7 @@ export default function Portfolio() {
                     client: uploadForm.client || null,
                     type: uploadForm.type,
                     tags: uploadForm.tags,
-                    date: new Date().toISOString().split('T')[0],
+                    date: todayLocal(),
                   });
                   setPhotos(prev => [created, ...prev]);
                 }

@@ -4,6 +4,7 @@ import { useBeautician, fetchRows } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
+import { todayLocal } from '../lib/dates.js';
 
 /**
  * AIInsights - Stitch "florrie.ai Assistant" reference rebuild.
@@ -42,7 +43,7 @@ export default function AIInsights() {
   async function loadData() {
     setLoading(true);
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = todayLocal();
       const rows = await fetchRows('appointments', beautician.id, {
         order: 'starts_at', ascending: true,
         filters: { starts_at: `gte.${today}T00:00:00`, 'starts_at.lt': `${today}T23:59:59` },

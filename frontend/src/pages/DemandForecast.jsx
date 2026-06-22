@@ -4,6 +4,7 @@ import { ds, type } from '../lib/designSystem.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
+import { localDateStr } from '../lib/dates.js';
 
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -32,7 +33,7 @@ function computeForecast(appointments, workingHours) {
     const totalMinutes = (eh * 60 + em) - (sh * 60 + sm);
     const capacity = Math.floor(totalMinutes / 45); // ~45 min avg appointment
 
-    const dateStr = date.toISOString().slice(0, 10);
+    const dateStr = localDateStr(date);
     const dayAppts = appointments.filter(a => {
       const aDate = (a.starts_at || a.start_time || '').slice(0, 10);
       return aDate === dateStr && a.status !== 'cancelled';
