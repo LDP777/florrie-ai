@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { useBeautician } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import { localDateStr } from '../lib/dates.js';
 
 const MONTHLY_LIMIT = 120;
 const SURPLUS_RATE_PENCE = 7;
@@ -10,8 +11,8 @@ function getMonthBounds() {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
-  const start = new Date(year, month, 1).toISOString().slice(0, 10);
-  const end = new Date(year, month + 1, 0).toISOString().slice(0, 10);
+  const start = localDateStr(new Date(year, month, 1));
+  const end = localDateStr(new Date(year, month + 1, 0));
   const name = now.toLocaleString('en-GB', { month: 'long' });
   return { start, end, name };
 }

@@ -10,6 +10,7 @@ import { useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../li
 import { useCoach } from '../contexts/CoachContext.jsx';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
+import { todayLocal } from '../lib/dates.js';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
@@ -41,7 +42,7 @@ export default function Expenses() {
   const [editBudget, setEditBudget] = useState(null);
   const [editingExpense, setEditingExpense] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ vendor: '', description: '', amount: '', category: 'products', date: new Date().toISOString().split('T')[0], tax_deductible: true, recurring: false, recurring_interval: 'monthly' });
+  const [form, setForm] = useState({ vendor: '', description: '', amount: '', category: 'products', date: todayLocal(), tax_deductible: true, recurring: false, recurring_interval: 'monthly' });
 
   async function handleDeleteExpense(id) {
     if (!confirm('Delete this expense?')) return;
@@ -85,7 +86,7 @@ export default function Expenses() {
       await updateRow('expenses', editingExpense.id, updates);
       setExpenses(prev => prev.map(e => e.id === editingExpense.id ? { ...e, ...updates } : e));
       setEditingExpense(null);
-      setForm({ vendor: '', description: '', amount: '', category: 'products', date: new Date().toISOString().split('T')[0], tax_deductible: true, recurring: false, recurring_interval: 'monthly' });
+      setForm({ vendor: '', description: '', amount: '', category: 'products', date: todayLocal(), tax_deductible: true, recurring: false, recurring_interval: 'monthly' });
     } catch (err) {
       logger.error({ err }, 'Failed to save expense');
       alert('Failed to save expense');
@@ -134,7 +135,7 @@ export default function Expenses() {
   }, [beautician, bLoading]);
 
   // Filter by month
-  const monthExpenses = expenses.filter(e => e.date && e.date.startsWith(month));
+  const monthExpenses = expenses.filter(e => e.date.startsWith(month));
   const totalMonth = monthExpenses.reduce((s, e) => s + e.amount_cents, 0);
   const recurringTotal = monthExpenses.filter(e => e.recurring).reduce((s, e) => s + e.amount_cents, 0);
   const oneOffTotal = totalMonth - recurringTotal;
@@ -151,7 +152,7 @@ export default function Expenses() {
   // Budget tracking
   const budgetStatus = budgets.map(b => {
     const spent = catBreakdown[b.category] || 0;
-    const pct = b.monthly_limit_cents > 0 ? Math.min(Math.round((spent / b.monthly_limit_cents) * 100), 100) : 0;
+    const pct = Math.min(Math.round((spent / b.monthly_limit_cents) * 100), 100);
     return { ...b, spent, pct };
   });
 
@@ -431,7 +432,7 @@ export default function Expenses() {
                       amount_pence: Math.round(parseFloat(form.amount) * 100),
                       vendor: form.vendor.trim(),
                     });
-                    setForm({ vendor: '', description: '', amount: '', category: 'products', date: new Date().toISOString().split('T')[0], tax_deductible: true, recurring: false, recurring_interval: 'monthly' });
+                    setForm({ vendor: '', description: '', amount: '', category: 'products', date: todayLocal(), tax_deductible: true, recurring: false, recurring_interval: 'monthly' });
                   } catch (err) {
                     logger.error({ err }, 'Failed to save expense');
                     alert('Failed to save expense');

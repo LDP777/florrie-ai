@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useBeautician, supabase, insertRow, deleteRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import { todayLocal } from '../lib/dates.js';
 
 /**
- * Availability Planner - forward-looking calendar for blocking days / changing hours.
+ * Availability Planner â forward-looking calendar for blocking days / changing hours.
  *
  * Layout:
- *   1. 3-month scrollable calendar grid - tap any future day to act on it
- *   2. Inline quick-block panel - appears below tapped date
+ *   1. 3-month scrollable calendar grid â tap any future day to act on it
+ *   2. Inline quick-block panel â appears below tapped date
  *   3. Upcoming exceptions list
  *
  * Backend: POST/DELETE /api/hours-exceptions (hours-exceptions.js route)
@@ -16,13 +17,13 @@ import logger from '../lib/logger.js';
  */
 
 const QUICK_REASONS = [
-  { value: 'holiday',      label: 'Holiday',   emoji: '🏖️' },
-  { value: 'personal',     label: 'Personal',  emoji: '🏠' },
-  { value: 'sick',         label: 'Sick day',  emoji: '🤒' },
-  { value: 'training',     label: 'Training',  emoji: '📚' },
-  { value: 'bank_holiday', label: 'Bank hol',  emoji: '🎉' },
-  { value: 'event',        label: 'Event',     emoji: '✨' },
-  { value: 'other',        label: 'Other',     emoji: '📋' },
+  { value: 'holiday',      label: 'Holiday',   emoji: 'ðï¸' },
+  { value: 'personal',     label: 'Personal',  emoji: 'ð ' },
+  { value: 'sick',         label: 'Sick day',  emoji: 'ð¤' },
+  { value: 'training',     label: 'Training',  emoji: 'ð' },
+  { value: 'bank_holiday', label: 'Bank hol',  emoji: 'ð' },
+  { value: 'event',        label: 'Event',     emoji: 'â¨' },
+  { value: 'other',        label: 'Other',     emoji: 'ð' },
 ];
 
 const TYPE_CFG = {
@@ -31,7 +32,7 @@ const TYPE_CFG = {
   extended: { label: 'Extra hours',    color: '#5BA97B', bg: '#E8F5E9', dot: '#5BA97B' },
 };
 
-// ── date helpers ────────────────────────────────────────────────────────────
+// ââ date helpers ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 function toYMD(d) {
   // LOCAL date, never toISOString(): in British Summer Time UTC is an hour
@@ -55,9 +56,9 @@ function formatRange(start, end) {
   const s = new Date(start + 'T12:00:00');
   const e = new Date(end + 'T12:00:00');
   if (s.getMonth() === e.getMonth()) {
-    return `${s.getDate()} - ${e.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
+    return `${s.getDate()} â ${e.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
   }
-  return `${formatShort(start)} - ${formatShort(end)}`;
+  return `${formatShort(start)} â ${formatShort(end)}`;
 }
 
 function daysAway(dateStr) {
@@ -79,7 +80,7 @@ function expandException(exc) {
   return dates;
 }
 
-// Build a map: dateStr → exception (for quick lookup)
+// Build a map: dateStr â exception (for quick lookup)
 function buildDateMap(exceptions) {
   const map = {};
   exceptions.forEach(exc => {
@@ -90,7 +91,7 @@ function buildDateMap(exceptions) {
   return map;
 }
 
-// ── calendar grid builder ────────────────────────────────────────────────────
+// ââ calendar grid builder ââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 function buildMonth(year, month) {
   // month is 0-indexed
@@ -117,7 +118,7 @@ function getMonthLabel(year, month) {
   return new Date(year, month, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
 }
 
-// ── main component ────────────────────────────────────────────────────────────
+// ââ main component ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 export default function HoursExceptions() {
   const { beautician } = useBeautician();
@@ -174,7 +175,7 @@ export default function HoursExceptions() {
   });
 
   function handleDayTap(dateStr) {
-    if (!dateStr || dateStr < todayDate) return; // past - no-op
+    if (!dateStr || dateStr < todayDate) return; // past â no-op
 
     if (rangeMode) {
       if (!rangeStart || (rangeStart && rangeEnd)) {
@@ -245,14 +246,12 @@ export default function HoursExceptions() {
 
   async function handleDelete(id) {
     setExceptions(prev => prev.filter(e => e.id !== id));
-    try {
-      await deleteRow('hours_exceptions', id);
-    } catch (err) {
-      logger.error('Delete exception error:', err);
+    if (true) {
+      try { await deleteRow('hours_exceptions', id); } catch {}
     }
   }
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayLocal();
   const upcoming = exceptions.filter(e => e.date >= today).sort((a, b) => a.date.localeCompare(b.date));
   const past     = exceptions.filter(e => e.date < today).sort((a, b) => b.date.localeCompare(a.date));
 
@@ -267,7 +266,7 @@ export default function HoursExceptions() {
 
   return (
     <div style={S.page}>
-      {/* ── Header ── */}
+      {/* ââ Header ââ */}
       <div style={S.header}>
         <div>
           <h1 style={S.title}>Availability</h1>
@@ -281,7 +280,7 @@ export default function HoursExceptions() {
         )}
       </div>
 
-      {/* ── Next off card ── */}
+      {/* ââ Next off card ââ */}
       {upcoming.find(e => e.type === 'closed') && (() => {
         const next = upcoming.find(e => e.type === 'closed');
         return (
@@ -294,7 +293,7 @@ export default function HoursExceptions() {
         );
       })()}
 
-      {/* ── Range mode toggle ── */}
+      {/* ââ Range mode toggle ââ */}
       <div style={S.rangeModeRow}>
         <span style={S.rangeModeLabel}>Holiday / multi-day block</span>
         <button
@@ -308,14 +307,14 @@ export default function HoursExceptions() {
       {rangeMode && (
         <div style={S.rangeHint}>
           {!rangeStart
-            ? '👆 Tap your first day off'
+            ? 'ð Tap your first day off'
             : !rangeEnd
-            ? `📅 From ${formatShort(rangeStart)} - now tap the last day`
-            : `✅ ${formatShort(rangeStart)} → ${formatShort(rangeEnd)}`}
+            ? `ð From ${formatShort(rangeStart)} â now tap the last day`
+            : `â ${formatShort(rangeStart)} â ${formatShort(rangeEnd)}`}
         </div>
       )}
 
-      {/* ── Calendar grid (3 months) ── */}
+      {/* ââ Calendar grid (3 months) ââ */}
       {months.map(({ year, month, days }) => (
         <div key={`${year}-${month}`} style={S.monthBlock}>
           <div style={S.monthHeader}>{getMonthLabel(year, month)}</div>
@@ -369,7 +368,7 @@ export default function HoursExceptions() {
         </div>
       ))}
 
-      {/* ── Legend ── */}
+      {/* ââ Legend ââ */}
       <div style={S.legend}>
         {Object.entries(TYPE_CFG).map(([k, v]) => (
           <div key={k} style={S.legendItem}>
@@ -379,16 +378,16 @@ export default function HoursExceptions() {
         ))}
       </div>
 
-      {/* ── Quick-block panel ── */}
+      {/* ââ Quick-block panel ââ */}
       {(activeDate || (rangeMode && rangeStart && rangeEnd)) && (
         <div style={S.quickPanel}>
           <div style={S.quickPanelHeader}>
             <span style={S.quickPanelDate}>
               {rangeMode && rangeEnd
-                ? `${formatShort(rangeStart)} → ${formatShort(rangeEnd)}`
+                ? `${formatShort(rangeStart)} â ${formatShort(rangeEnd)}`
                 : formatShort(activeDate)}
             </span>
-            <button onClick={resetForm} style={S.closeBtn}>✕</button>
+            <button onClick={resetForm} style={S.closeBtn}>â</button>
           </div>
 
           {/* Type picker */}
@@ -443,7 +442,7 @@ export default function HoursExceptions() {
           {/* Note */}
           <input
             type="text"
-            placeholder="Note (optional - e.g. Tenerife ☀️)"
+            placeholder="Note (optional â e.g. Tenerife âï¸)"
             value={blockNote}
             onChange={e => setBlockNote(e.target.value)}
             style={S.noteInput}
@@ -465,19 +464,19 @@ export default function HoursExceptions() {
 
           {/* Save */}
           <button onClick={handleSave} disabled={saving} style={S.saveBtn}>
-            {saving ? 'Saving…' : `Block ${rangeMode && rangeEnd ? 'these days' : 'this day'}`}
+            {saving ? 'Savingâ¦' : `Block ${rangeMode && rangeEnd ? 'these days' : 'this day'}`}
           </button>
         </div>
       )}
 
-      {/* ── Upcoming exceptions ── */}
+      {/* ââ Upcoming exceptions ââ */}
       <h3 style={S.sectionTitle}>Coming up ({upcoming.length})</h3>
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted, #B5AFA8)', fontSize: 13 }}>Loading…</div>
+        <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted, #B5AFA8)', fontSize: 13 }}>Loadingâ¦</div>
       ) : upcoming.length === 0 ? (
         <div style={S.emptyCard}>
           <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted, #B5AFA8)' }}>
-            No upcoming blocks - your regular hours are live.
+            No upcoming blocks â your regular hours are live.
           </p>
         </div>
       ) : (
@@ -493,24 +492,24 @@ export default function HoursExceptions() {
                     <span style={{ ...S.excBadge, background: cfg.bg, color: cfg.color }}>{cfg.label}</span>
                   </div>
                   {exc.type !== 'closed' && exc.start_time && (
-                    <span style={S.excTimes}>{exc.start_time} - {exc.end_time}</span>
+                    <span style={S.excTimes}>{exc.start_time} â {exc.end_time}</span>
                   )}
                   <div style={S.excMeta}>
                     <span style={S.excAway}>{daysAway(exc.date)}</span>
                     {exc.note && <span style={S.excNote}>{exc.note}</span>}
                   </div>
                   {exc.notify_clients && (
-                    <span style={S.notifyTag}>Clients notified ✓</span>
+                    <span style={S.notifyTag}>Clients notified â</span>
                   )}
                 </div>
-                <button onClick={() => handleDelete(exc.id)} style={S.deleteBtn}>✕</button>
+                <button onClick={() => handleDelete(exc.id)} style={S.deleteBtn}>â</button>
               </div>
             );
           })}
         </div>
       )}
 
-      {/* ── Past (collapsed) ── */}
+      {/* ââ Past (collapsed) ââ */}
       {past.length > 0 && (
         <>
           <h3 style={{ ...S.sectionTitle, color: 'var(--text-muted, #B5AFA8)', marginTop: 24 }}>Past ({past.length})</h3>
@@ -531,7 +530,7 @@ export default function HoursExceptions() {
   );
 }
 
-// ── styles ────────────────────────────────────────────────────────────────────
+// ââ styles ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 const S = {
   page: {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useBeautician, fetchRows, updateRow, insertRow } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
+import { todayLocal } from '../lib/dates.js';
 
 export default function EndOfDay() {
   const { beautician, loading: bLoading } = useBeautician();
@@ -14,7 +15,7 @@ export default function EndOfDay() {
   const [dayClosed, setDayClosed] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocal();
   const todayDisplay = new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
 
   useEffect(() => {
@@ -202,9 +203,9 @@ export default function EndOfDay() {
           {d.totalRevenue > 0 ? `\u00A3${d.totalRevenue.toFixed(2)}` : '\u00A30.00'}
         </div>
         <div style={styles.heroBreakdown}>
-          <span>{'\uD83D\uDCB3'} £{d.cardTaken.toFixed(2)}</span>
-          <span>{'\uD83D\uDCB5'} £{d.cashTaken.toFixed(2)}</span>
-          {d.voucherRedeemed > 0 && <span>{'\uD83C\uDF81'} £{d.voucherRedeemed.toFixed(2)}</span>}
+          <span>{'\uD83D\uDCB3'} \u00A3{d.cardTaken.toFixed(2)}</span>
+          <span>{'\uD83D\uDCB5'} \u00A3{d.cashTaken.toFixed(2)}</span>
+          {d.voucherRedeemed > 0 && <span>{'\uD83C\uDF81'} \u00A3{d.voucherRedeemed.toFixed(2)}</span>}
         </div>
         {!d.useTransactions && d.totalRevenue > 0 && (
           <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>
@@ -286,7 +287,7 @@ export default function EndOfDay() {
                 {d.totalRevenue > 0 && (
                   <div style={{ ...styles.statCard, gridColumn: '1 / -1' }}>
                     <div style={styles.statIcon}>{'\uD83D\uDCB0'}</div>
-                    <div style={styles.statValue}>£{(d.totalRevenue - d.expenses + d.tipsReceived).toFixed(2)}</div>
+                    <div style={styles.statValue}>\u00A3{(d.totalRevenue - d.expenses + d.tipsReceived).toFixed(2)}</div>
                     <div style={styles.statLabel}>Net take-home</div>
                   </div>
                 )}
@@ -308,7 +309,7 @@ export default function EndOfDay() {
                   <div style={{ textAlign: 'right' }}>
                     {appt.status === 'completed' && (
                       <>
-                        <div style={styles.timelineAmount}>£{appt.amount.toFixed(2)}</div>
+                        <div style={styles.timelineAmount}>\u00A3{appt.amount}</div>
                         <div style={styles.timelineMethod}>{appt.method === 'cash' ? '\uD83D\uDCB5' : '\uD83D\uDCB3'} {appt.method}</div>
                       </>
                     )}
@@ -336,13 +337,13 @@ export default function EndOfDay() {
               <div style={styles.cashupCard}>
                 <div style={styles.cashupRow}>
                   <span style={{ fontSize: 14, color: 'var(--text-secondary, #6B6560)' }}>Expected cash (from bookings)</span>
-                  <span style={{ fontSize: 16, fontWeight: 600 }}>£{d.cashTaken.toFixed(2)}</span>
+                  <span style={{ fontSize: 16, fontWeight: 600 }}>\u00A3{d.cashTaken.toFixed(2)}</span>
                 </div>
                 <div style={styles.cashupDivider} />
                 <div style={{ marginBottom: 16 }}>
                   <label style={styles.inputLabel}>Cash counted (optional)</label>
                   <div style={styles.cashInput}>
-                    <span style={{ color: 'var(--text-muted, #AAA5A0)', fontSize: 18 }}>£</span>
+                    <span style={{ color: 'var(--text-muted, #AAA5A0)', fontSize: 18 }}>\u00A3</span>
                     <input
                       type="number"
                       value={cashCounted}
@@ -368,11 +369,11 @@ export default function EndOfDay() {
                 <div style={styles.cashupDivider} />
                 <div style={styles.cashupRow}>
                   <span style={{ fontSize: 14, color: 'var(--text-secondary, #6B6560)' }}>Card payments (auto)</span>
-                  <span style={{ fontSize: 14, fontWeight: 500 }}>£{d.cardTaken.toFixed(2)}</span>
+                  <span style={{ fontSize: 14, fontWeight: 500 }}>\u00A3{d.cardTaken.toFixed(2)}</span>
                 </div>
                 <div style={styles.cashupRow}>
                   <span style={{ fontSize: 14, color: 'var(--text-secondary, #6B6560)' }}>Tips collected</span>
-                  <span style={{ fontSize: 14, fontWeight: 500 }}>£{d.tipsReceived.toFixed(2)}</span>
+                  <span style={{ fontSize: 14, fontWeight: 500 }}>\u00A3{d.tipsReceived.toFixed(2)}</span>
                 </div>
               </div>
 

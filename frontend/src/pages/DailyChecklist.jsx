@@ -18,7 +18,8 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
-const todayStr = () => new Date().toISOString().slice(0, 10);
+import { todayLocal } from '../lib/dates.js';
+const todayStr = () => todayLocal();
 function MIcon({ name, fill, size, style }) {
   return (
     <span className="material-symbols-outlined" style={{

@@ -10,6 +10,7 @@ import { useState, useEffect } from 'react';
 import { fetchRows, insertRow, updateRow, deleteRow, useBeautician } from '../lib/supabase.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
+import { todayLocal } from '../lib/dates.js';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
@@ -71,7 +72,7 @@ export default function AppointmentNotes() {
         } : n));
       } else {
         // Insert new
-        const today = new Date().toISOString().split('T')[0];
+        const today = todayLocal();
         const now = new Date().toTimeString().slice(0, 5);
         const created = await insertRow('appointment_notes', {
           beautician_id: beautician.id,

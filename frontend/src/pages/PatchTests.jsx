@@ -5,6 +5,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import { todayLocal } from '../lib/dates.js';
 
 /**
  * Patch Test Tracker - Regulatory compliance for brow & lash treatments.
@@ -71,7 +72,7 @@ export default function PatchTests() {
   const [expiryMonths, setExpiryMonths] = useState(6);
 
   const [form, setForm] = useState({
-    client_name: '', test_date: new Date().toISOString().split('T')[0],
+    client_name: '', test_date: todayLocal(),
     result: 'pass', notes: '', treatment_id: '',
   });
 
@@ -203,7 +204,7 @@ export default function PatchTests() {
     }
 
     setTests(prev => [test, ...prev]);
-    setForm({ client_name: '', test_date: new Date().toISOString().split('T')[0], result: 'pass', notes: '', treatment_id: '' });
+    setForm({ client_name: '', test_date: todayLocal(), result: 'pass', notes: '', treatment_id: '' });
     setShowAdd(false);
   }
 
@@ -442,7 +443,7 @@ export default function PatchTests() {
       {tab === 'all' && (
         <div>
           {testsWithStatus.length === 0 ? (
-            <EmptyState title="No patch tests logged" subtitle='Tap "+ Log Patch Test" to start tracking.' />
+            <EmptyState title="No patch tests logged" description='Tap "+ Log Patch Test" to start tracking.' />
           ) : (
             <div style={styles.testList}>
               {testsWithStatus.map(t => {
