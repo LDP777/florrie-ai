@@ -8,7 +8,7 @@ import { sendConsultationFormSMS } from './consultation-forms.js';
 import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
 import { calculatePlatformFee } from '../lib/platform-fees.js';
-import { chargePolicyFee, computePolicyFee } from '../services/policy-fees.js';
+import { chargePolicyFee, computePolicyFee, chargeRescheduleDeposit } from '../services/policy-fees.js';
 import { verifyTurnstile } from '../middleware/turnstile.js';
 import logger from '../lib/logger.js';
 import { bookingSchema } from '../lib/schemas.js';
@@ -228,6 +228,49 @@ router.get('/:slug/availability', async (req, res) => {
 });
 
 /**
+ * GET /api/booking/:slug/availability-range?from=YYYY-MM-DD&to=YYYY-MM-DD
+ * Public — one call returns a whole month's booked blocks + fully-closed days,
+ * so the booking calendar can mark which days actually have space without a
+ * request per day. Returns only timing (no client info). Service role.
+ */
+router.get('/:slug/availability-range', async (req, res) => {
+  const { from, to } = req.query;
+  const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+  if (!from || !to || !dateRe.test(from) || !dateRe.test(to)) {
+    return res.status(400).json({ error: 'from and to (YYYY-MM-DD) are required' });
+  }
+
+  const { data: salon } = await supabase
+    .from('beauticians')
+    .select('id')
+    .eq('booking_slug', req.params.slug)
+    .maybeSingle();
+  if (!salon) return res.status(404).json({ error: 'not_found' });
+
+  const { data: appts } = await supabase
+    .from('appointments')
+    .select('starts_at, duration_minutes, buffer_minutes')
+    .eq('beautician_id', salon.id)
+    .gte('starts_at', `${from}T00:00:00`)
+    .lte('starts_at', `${to}T23:59:59`)
+    .not('status', 'in', '(cancelled,cancelled_by_client,cancelled_by_beautician,rescheduled)');
+
+  // Days the beautician has fully blocked off (holiday/sick/etc).
+  const { data: closuresRows } = await supabase
+    .from('hours_exceptions')
+    .select('date')
+    .eq('beautician_id', salon.id)
+    .eq('type', 'closed')
+    .gte('date', from)
+    .lte('date', to);
+
+  res.json({
+    appointments: appts || [],
+    closures: (closuresRows || []).map(r => r.date),
+  });
+});
+
+/**
  * GET /api/booking/:slug/policy
  * Public — returns the beautician's booking policy for display on the booking page.
  * Includes: cancellation terms, min booking window, deposit rules.
@@ -340,7 +383,7 @@ router.get('/:slug/manage/:token', async (req, res) => {
         price_cents, deposit_cents, deposit_paid, stripe_payment_method_id,
         treatments(id, name, duration_minutes, price_cents, category, requires_patch_test),
         clients(id, first_name, last_name, email, phone, stripe_customer_id),
-        beauticians(id, first_name, business_name, booking_policy, booking_slug, brand_color, patch_test_expiry_months, patch_test_block_booking)
+        beauticians(id, first_name, business_name, booking_policy, booking_slug, brand_color, patch_test_expiry_months, patch_test_block_booking, payment_settings)
       `)
       .eq('management_token', req.params.token)
       .single();
@@ -418,6 +461,18 @@ router.get('/:slug/manage/:token', async (req, res) => {
           brandColor: appt.beauticians?.brand_color,
         },
       },
+      // Remaining balance after the deposit, plus the beautician's bank details
+      // so the client can pay the rest by transfer.
+      payment: (() => {
+        const priceCents = appt.price_cents || appt.treatments?.price_cents || 0;
+        const depositPaidCents = appt.deposit_paid ? (appt.deposit_cents || 0) : 0;
+        return {
+          priceCents,
+          depositPaidCents,
+          remainingCents: Math.max(0, priceCents - depositPaidCents),
+          bankDetails: appt.beauticians?.payment_settings?.bank_details || null,
+        };
+      })(),
       policy: {
         ...policy,
         withinCancellationWindow,
@@ -592,6 +647,24 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
       return res.status(409).json({ error: 'That time slot is not available. Please choose another time.' });
     }
 
+    // Late reschedule + the beautician requires a fresh deposit for the new slot
+    // (booking_policy.require_deposit_on_late_reschedule, off by default): take it
+    // off the saved card NOW, and BLOCK the move if we can't (no card / declined).
+    // This runs before the move so a failed deposit never leaves the slot shifted.
+    let newDepositCollected = false;
+    if (isLateReschedule && policy.require_deposit_on_late_reschedule === true) {
+      const dep = await chargeRescheduleDeposit(appt.id, newStart.toISOString());
+      if (dep.charged) {
+        newDepositCollected = true;
+      } else if (dep.reason !== 'no_deposit') {
+        const who = appt.beauticians?.business_name || appt.beauticians?.first_name || 'your beautician';
+        const msg = dep.reason === 'no_card_on_file'
+          ? `We couldn't take the new deposit because there's no saved card on file, so your appointment has not been moved. Please contact ${who} to rearrange.`
+          : `We couldn't take the new deposit for the rescheduled time, so your appointment has not been moved. Please try again, or contact ${who}.`;
+        return res.status(402).json({ error: msg, code: 'reschedule_deposit_required' });
+      }
+    }
+
     // Save old slot info for gap-filling
     const oldStartsAt = appt.starts_at;
     const oldEndsAt = appt.ends_at;
@@ -611,6 +684,31 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
     if (updateErr) {
       logger.error({ err: updateErr }, 'Reschedule update failed');
       return res.status(500).json({ error: 'Something went wrong' });
+    }
+
+    // Policy enforcement: a reschedule inside the notice window is treated like a
+    // late cancellation of the original slot. Charge the original appointment's
+    // late fee to the saved card (chargePolicyFee self-guards: it only charges
+    // when the beautician's policy has a fee, a card is on file, and never twice).
+    // Previously this only set a flag and nothing was ever charged, which is the
+    // gap Ellie hit (a client moved inside the window and was not charged).
+    let lateFeeCharged = false;
+    if (isLateReschedule && (policy.late_cancel_charge_percent || 0) > 0) {
+      lateFeeCharged = true;
+      chargePolicyFee(appt.id, 'late_cancel').catch(err =>
+        logger.error({ err, appointmentId: appt.id }, 'late_reschedule policy fee charge failed (non-fatal)')
+      );
+      // If we did NOT auto-collect a fresh deposit above (toggle off, or this
+      // booking has no deposit), mark the new slot deposit pending so it shows
+      // as awaiting one. deposit_paid is left intact so the late-fee calc still
+      // credits the original deposit.
+      if (!newDepositCollected) {
+        await supabase
+          .from('appointments')
+          .update({ deposit_status: 'pending' })
+          .eq('id', appt.id)
+          .catch(() => {});
+      }
     }
 
     // Log AI action
@@ -650,8 +748,9 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
       newEndsAt: newEnd.toISOString(),
       isLateReschedule,
       chargePercent,
+      newDepositCollected,
       message: isLateReschedule && chargePercent > 0
-        ? `Rescheduled to ${newStart.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at ${newStart.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}. As this is within the ${noticeHours}-hour window, ${beauticianName} may charge ${chargePercent}% for the original appointment.`
+        ? `Rescheduled to ${newStart.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at ${newStart.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}. As this is within the ${noticeHours}-hour notice period, a ${chargePercent}% fee for the original appointment will be charged to the card on file${newDepositCollected ? ', and a fresh deposit has been taken for your new appointment' : ', and your new appointment will need a fresh deposit'}.`
         : `Rescheduled to ${newStart.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at ${newStart.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}.`,
     });
   } catch (err) {
@@ -1147,9 +1246,13 @@ const statusTransitionSchema = z.object({
 const VALID_TRANSITIONS = {
   'pending': ['confirmed', 'cancelled'],
   'confirmed': ['completed', 'cancelled', 'no_show'],
-  'completed': [],
+  // Appointments auto-complete once their time passes (assumed done). Ellie can
+  // still flag one a no-show at the end of the day - that reverses the takings
+  // and charges the fee - so completed -> no_show must be allowed. completed ->
+  // confirmed lets her undo an auto-complete if she wants to re-open it.
+  'completed': ['no_show', 'confirmed'],
   'cancelled': [],
-  'no_show': []
+  'no_show': ['confirmed']
 };
 
 router.patch('/appointments/:id/status', requireAuth, validate(statusTransitionSchema), async (req, res) => {
@@ -1216,9 +1319,21 @@ router.patch('/appointments/:id/status', requireAuth, validate(statusTransitionS
       return res.status(500).json({ error: 'Failed to update appointment status' });
     }
 
-    // Auto-charge the no-show fee to the saved card when the policy has one
-    // configured (fire-and-forget; idempotent, no-op without a fee or card).
     if (newStatus === 'no_show') {
+      // Reverse assumed/auto takings (type 'payment' with a null method) so the
+      // Money tab drops the income for an appointment that auto-completed but was
+      // actually a no-show. Real card charges (deposits, balance) keep a method
+      // and are left alone. This is what makes a late no-show update everything.
+      const { error: revErr } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('appointment_id', id)
+        .eq('type', 'payment')
+        .is('payment_method', null);
+      if (revErr) logger.error({ err: revErr, appointmentId: id }, 'no_show takings reversal failed');
+
+      // Auto-charge the no-show fee to the saved card when the policy has one
+      // configured (fire-and-forget; idempotent, no-op without a fee or card).
       chargePolicyFee(id, 'no_show').catch(err =>
         logger.error({ err, appointmentId: id }, 'no_show policy fee charge failed (non-fatal)')
       );
@@ -1781,6 +1896,10 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
         depositCents = Math.round(parseFloat(dAmt.replace('£', '')) * 100);
       }
     }
+
+    // Safety: a deposit can never exceed the total price (guards against a
+    // misconfigured fixed deposit or percent that's larger than the treatment).
+    if (combinedPriceCents > 0) depositCents = Math.min(depositCents, combinedPriceCents);
 
     // If client chose to pay full amount, charge treatment price + add-ons minus discount
     isFullPayment = payment_type === 'full' && combinedPriceCents > 0;

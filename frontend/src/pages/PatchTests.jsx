@@ -443,7 +443,7 @@ export default function PatchTests() {
       {tab === 'all' && (
         <div>
           {testsWithStatus.length === 0 ? (
-            <EmptyState title="No patch tests logged" description='Tap "+ Log Patch Test" to start tracking.' />
+            <EmptyState title="No patch tests logged" subtitle='Tap "+ Log Patch Test" to start tracking.' />
           ) : (
             <div style={styles.testList}>
               {testsWithStatus.map(t => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, Fragment } from 'react';
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { supabase } from '../lib/supabase.js'
 import { useParams, useLocation } from 'react-router-dom';
 import PhoneField from '../components/PhoneField.jsx';
@@ -110,6 +110,12 @@ export default function BookingPage() {
   const [beautician, setBeautician] = useState(null);
   const [treatments, setTreatments] = useState([]);
   const [slots, setSlots] = useState([]);
+  // Calendar (Step 1) state. calMonth = first-of-month Date for the visible month.
+  // monthAppointments/monthClosures hold the availability-range payload for that month.
+  const [calMonth, setCalMonth] = useState(null);
+  const [monthAppointments, setMonthAppointments] = useState([]);
+  const [monthClosures, setMonthClosures] = useState([]);
+  const [calLoading, setCalLoading] = useState(false);
   // User selections, multi-treatment support
   const [selectedTreatments, setSelectedTreatments] = useState([]);
   const selectedTreatment = selectedTreatments[0] || null; // primary treatment for backwards compat
@@ -418,6 +424,114 @@ export default function BookingPage() {
     }
     loadSlots();
   }, [selectedDate, selectedTreatments, beautician, combinedDuration]);
+  // --- Calendar helpers (Step 1 month grid) ---------------------------------
+  // Build a YYYY-MM-DD from LOCAL date parts (never toISOString, which can shift
+  // the day under BST).
+  function isoLocal(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+  function endOfMonth(d) { return new Date(d.getFullYear(), d.getMonth() + 1, 0); }
+  function sameMonth(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth(); }
+  const todayMid = new Date(); todayMid.setHours(0, 0, 0, 0);
+  const earliestBookable = new Date(todayMid); earliestBookable.setDate(earliestBookable.getDate() + 1); // tomorrow
+  // max_advance_days: a positive value (30/60/90) caps the window; 0 or unset
+  // means "No limit" (the Settings default), so open a generous year-long window
+  // rather than the old 14-day cap that made "No limit" wrongly stop in 2 weeks.
+  const maxAdvance = beautician?.booking_policy?.max_advance_days;
+  const horizonDays = maxAdvance && maxAdvance > 0 ? maxAdvance : 365;
+  const horizonDate = new Date(todayMid); horizonDate.setDate(horizonDate.getDate() + horizonDays);
+  // Default the visible month to the month containing the earliest bookable day.
+  useEffect(() => {
+    if (!beautician || calMonth) return;
+    setCalMonth(startOfMonth(earliestBookable));
+  }, [beautician]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Fetch the month's booked blocks + closures in ONE request whenever the
+  // visible month or chosen treatments change (only while on Step 1).
+  useEffect(() => {
+    if (step !== 1 || !calMonth || !beautician) return;
+    const monthStart = startOfMonth(calMonth);
+    const monthEnd = endOfMonth(calMonth);
+    // from = max(tomorrow, month start); to = month end
+    const from = isoLocal(earliestBookable > monthStart ? earliestBookable : monthStart);
+    const to = isoLocal(monthEnd);
+    let cancelled = false;
+    setCalLoading(true);
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/booking/${slug}/availability-range?from=${from}&to=${to}`);
+        if (!res.ok) { if (!cancelled) { setMonthAppointments([]); setMonthClosures([]); } return; }
+        const data = await res.json();
+        if (cancelled) return;
+        setMonthAppointments(data.appointments || []);
+        setMonthClosures(data.closures || []);
+      } catch {
+        if (!cancelled) { setMonthAppointments([]); setMonthClosures([]); }
+      } finally {
+        if (!cancelled) setCalLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [step, calMonth, selectedTreatments, beautician, slug]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Group the month's booked blocks by their LOCAL date so per-day status is cheap.
+  const apptsByDay = useMemo(() => {
+    const map = {};
+    for (const a of monthAppointments) {
+      const start = new Date(a.starts_at);
+      const key = isoLocal(start);
+      const startMin = start.getHours() * 60 + start.getMinutes();
+      const endMin = startMin + (a.duration_minutes || 60) + (a.buffer_minutes || 0);
+      (map[key] = map[key] || []).push({ start: startMin, end: endMin });
+    }
+    return map;
+  }, [monthAppointments]);
+  const closureSet = useMemo(() => new Set(monthClosures || []), [monthClosures]);
+  // Compute a status for a given Date cell: 'past' | 'beyond' | 'off' | 'closed'
+  // | 'open' (has space) | 'full' (working but no fitting slot).
+  function dayStatus(d) {
+    const day = new Date(d); day.setHours(0, 0, 0, 0);
+    if (day < earliestBookable) return 'past';
+    if (day > horizonDate) return 'beyond';
+    const dayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][day.getDay()];
+    const hours = beautician?.working_hours?.[dayKey];
+    if (!hours || !hours.start || !hours.end) return 'off';
+    const iso = isoLocal(day);
+    if (closureSet.has(iso)) return 'closed';
+    // Replicate the slot math: a free slot must fit combinedDuration + max buffer.
+    const duration = combinedDuration || 60;
+    const buffer = Math.max(...selectedTreatments.map(t => t.buffer_minutes || 0), 0);
+    const totalBlock = duration + buffer;
+    const [startH, startM] = hours.start.split(':').map(Number);
+    const [endH, endM] = hours.end.split(':').map(Number);
+    const startMin = startH * 60 + startM;
+    const endMin = endH * 60 + endM;
+    const booked = apptsByDay[iso] || [];
+    for (let m = startMin; m + totalBlock <= endMin; m += 30) {
+      const clashes = booked.some(b => m < b.end && m + totalBlock > b.start);
+      if (!clashes) return 'open';
+    }
+    return 'full';
+  }
+  // Build the visible month grid: leading blanks so the 1st lands on the right
+  // weekday (Mon-first), then every day of the month.
+  const monthCells = useMemo(() => {
+    if (!calMonth) return [];
+    const first = startOfMonth(calMonth);
+    const last = endOfMonth(calMonth);
+    // JS getDay(): 0=Sun..6=Sat. We want Mon-first, so blanks = (getDay()+6)%7.
+    const lead = (first.getDay() + 6) % 7;
+    const cells = [];
+    for (let i = 0; i < lead; i++) cells.push(null);
+    for (let d = 1; d <= last.getDate(); d++) {
+      cells.push(new Date(calMonth.getFullYear(), calMonth.getMonth(), d));
+    }
+    return cells;
+  }, [calMonth]);
+  const canGoPrev = calMonth ? !sameMonth(calMonth, todayMid) : false;
+  const canGoNext = calMonth ? !sameMonth(calMonth, horizonDate) && calMonth < startOfMonth(horizonDate) : false;
   // Submit booking via backend API (handles client creation, conflict checks, deposits)
   async function handleBook() {
     setSubmitting(true);
@@ -525,28 +639,6 @@ export default function BookingPage() {
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
-  // Generate the date picker out to however far the diary is open. The
-  // beautician sets this in Settings (booking_policy.max_advance_days); when
-  // unset we keep the original 14-day horizon.
-  function getDateOptions() {
-    const dates = [];
-    const today = new Date();
-    const horizon = beautician?.booking_policy?.max_advance_days || 14;
-    for (let i = 1; i <= horizon; i++) {
-      const d = new Date(today);
-      d.setDate(d.getDate() + i);
-      // Skip days the beautician doesn't work
-      if (beautician?.working_hours) {
-        const dayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][d.getDay()];
-        const hours = beautician.working_hours[dayKey];
-        if (!hours || !hours.start) continue;
-      }
-      const iso = d.toISOString().split('T')[0];
-      const label = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-      dates.push({ value: iso, label });
-    }
-    return dates;
-  }
   const brand = beautician?.brand_color || '#C76B8A';
   const brandLight = brand + '18';
   const brandMedium = brand + '40';
@@ -610,6 +702,61 @@ export default function BookingPage() {
               ? "Your slot is held, we'll confirm once the deposit is received."
               : "You'll receive a confirmation message shortly."}
           </p>
+          {/* Patch test prompt, the moment they book a treatment that needs one */}
+          {needsPatchTest && success.manageUrl && (
+            <div style={{ marginTop: 16, padding: '14px 16px', borderRadius: 12, background: brandLight, border: `1.5px solid ${brandMedium}`, textAlign: 'left' }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: brand, margin: '0 0 4px' }}>One more step: your patch test 🩹</p>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
+                If you've not had a patch test with {bizName} in the last 6 months, you'll need a quick one at least 24 hours before your appointment. It only takes a few minutes.
+              </p>
+              <a href={success.manageUrl} style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: '12px 0', borderRadius: 10, textAlign: 'center', background: brand, color: '#fff', fontWeight: 600, fontSize: 14, textDecoration: 'none' }}>
+                Book my patch test →
+              </a>
+            </div>
+          )}
+          {/* Pay the remaining balance by bank transfer, when there's a balance
+              left after the deposit and the beautician has shared bank details. */}
+          {(() => {
+            const bankDetails = beautician?.payment_settings?.bank_details;
+            if (!bankDetails?.account_number) return null;
+            const priceVal = parseFloat((success.price || '£0').replace(/[£,]/g, ''));
+            const depositVal = parseFloat((success.deposit || '£0').replace(/[£,]/g, ''));
+            const remaining = priceVal - depositVal;
+            if (!(remaining > 0)) return null;
+            const firstName = (clientDetails.name || '').trim().split(' ')[0];
+            return (
+              <div style={{ marginTop: 16, padding: '14px 16px', borderRadius: 12, background: brandLight, border: `1.5px solid ${brandMedium}`, textAlign: 'left' }}>
+                <p style={{ fontSize: 14, fontWeight: 700, color: brand, margin: '0 0 4px' }}>Pay the rest by bank transfer 🏦</p>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
+                  <strong style={{ color: brand }}>£{remaining.toFixed(2)}</strong> remaining after your deposit. Transfer it to:
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {bankDetails.account_name && (
+                    <div style={styles.bankRow}>
+                      <span style={styles.bankLabel}>Account name</span>
+                      <span style={styles.bankValue}>{bankDetails.account_name}</span>
+                    </div>
+                  )}
+                  {bankDetails.sort_code && (
+                    <div style={styles.bankRow}>
+                      <span style={styles.bankLabel}>Sort code</span>
+                      <span style={styles.bankValueMono}>{bankDetails.sort_code}</span>
+                    </div>
+                  )}
+                  <div style={styles.bankRow}>
+                    <span style={styles.bankLabel}>Account number</span>
+                    <span style={styles.bankValueMono}>{bankDetails.account_number}</span>
+                  </div>
+                  <div style={styles.bankRow}>
+                    <span style={styles.bankLabel}>Reference</span>
+                    <span style={styles.bankValue}>
+                      {bankDetails.reference_note || firstName || 'use your name as the reference'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
           {/* Loyalty mention, only when the salon runs a programme */}
           {beautician?.loyalty_enabled && (
             <p style={{ fontSize: 13, color: brand, fontWeight: 600, textAlign: 'center', marginTop: 4 }}>
@@ -878,21 +1025,92 @@ export default function BookingPage() {
             {fieldErrors.date && (
               <div style={styles.inlineError}>{fieldErrors.date}</div>
             )}
-            <div style={styles.dateScroller}>
-              {getDateOptions().map(d => (
+            {/* Month calendar, makes free days unmistakable */}
+            <div style={styles.calWrap}>
+              <div style={styles.calHeader}>
                 <button
-                  key={d.value}
-                  onClick={() => { setSelectedDate(d.value); setFieldErrors({}); }}
-                  style={{
-                    ...styles.dateChip,
-                    borderColor: selectedDate === d.value ? brand : '#E8E4DF',
-                    background: selectedDate === d.value ? brand : 'var(--bg-card)',
-                    color: selectedDate === d.value ? '#fff' : 'var(--text-primary)'
-                  }}
-                >
-                  {d.label}
-                </button>
-              ))}
+                  type="button"
+                  onClick={() => canGoPrev && setCalMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
+                  disabled={!canGoPrev}
+                  aria-label="Previous month"
+                  style={{ ...styles.calNav, color: canGoPrev ? brand : '#D8D2CC', cursor: canGoPrev ? 'pointer' : 'default' }}
+                >‹</button>
+                <span style={styles.calMonthLabel}>
+                  {calMonth ? calMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : ''}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => canGoNext && setCalMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
+                  disabled={!canGoNext}
+                  aria-label="Next month"
+                  style={{ ...styles.calNav, color: canGoNext ? brand : '#D8D2CC', cursor: canGoNext ? 'pointer' : 'default' }}
+                >›</button>
+              </div>
+              <div style={styles.calWeekRow}>
+                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(w => (
+                  <span key={w} style={styles.calWeekday}>{w}</span>
+                ))}
+              </div>
+              <div style={styles.calGrid}>
+                {monthCells.map((d, i) => {
+                  if (!d) return <span key={`b${i}`} />;
+                  const iso = isoLocal(d);
+                  const status = dayStatus(d);
+                  const isSelected = selectedDate === iso;
+                  const tappable = status === 'open';
+                  let bg = 'var(--bg-card)';
+                  let color = 'var(--text-primary)';
+                  let border = '1px solid transparent';
+                  if (isSelected) {
+                    bg = brand; color = '#fff'; border = `1px solid ${brand}`;
+                  } else if (status === 'open') {
+                    border = `1px solid ${brand}33`;
+                  } else if (status === 'full') {
+                    color = '#BAB4AE'; bg = 'transparent';
+                  } else {
+                    // past / beyond / off / closed
+                    color = '#D2CCC6'; bg = 'transparent';
+                  }
+                  return (
+                    <button
+                      key={iso}
+                      type="button"
+                      disabled={!tappable}
+                      onClick={() => { if (tappable) { setSelectedDate(iso); setFieldErrors({}); } }}
+                      title={status === 'closed' ? 'Closed' : status === 'full' ? 'Fully booked' : undefined}
+                      style={{
+                        ...styles.calCell,
+                        background: bg,
+                        color,
+                        border,
+                        cursor: tappable ? 'pointer' : 'default',
+                        fontWeight: isSelected ? 700 : status === 'open' ? 600 : 400,
+                      }}
+                    >
+                      <span style={{ lineHeight: 1 }}>{d.getDate()}</span>
+                      {/* "has space" dot */}
+                      <span style={{
+                        ...styles.calDot,
+                        background: status === 'open' && !isSelected ? brand : 'transparent',
+                      }} />
+                    </button>
+                  );
+                })}
+              </div>
+              {calLoading && (
+                <div style={styles.calLoadingRow}>
+                  <span style={{ ...styles.calSpinner, borderTopColor: brand }} />
+                </div>
+              )}
+              {/* Legend */}
+              <div style={styles.calLegend}>
+                <span style={styles.calLegendItem}>
+                  <span style={{ ...styles.calLegendDot, background: brand }} /> has space
+                </span>
+                <span style={styles.calLegendItem}>
+                  <span style={{ ...styles.calLegendDot, background: '#D2CCC6' }} /> unavailable
+                </span>
+              </div>
             </div>
             {selectedDate && (
               <div style={styles.slotGrid}>
@@ -1478,6 +1696,15 @@ export default function BookingPage() {
                 the treatment price charged to your card. By booking you agree to this.
               </p>
             )}
+            {beautician?.booking_policy?.cancellation_message && (
+              <p style={{
+                fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55, fontStyle: 'italic',
+                margin: '0 0 16px', padding: '10px 14px', borderRadius: 10,
+                background: 'var(--bg-subtle, #FDFCFB)', border: '1px solid var(--border-light)',
+              }}>
+                {beautician.booking_policy.cancellation_message}
+              </p>
+            )}
             {TURNSTILE_SITE_KEY ? <TurnstileWidget onToken={setTurnstileToken} /> : null}
             <div style={styles.buttonRow}>
               <button onClick={() => setStep(2)} style={styles.backBtn}>← Back</button>
@@ -1583,11 +1810,46 @@ const styles = {
   treatmentDesc: { fontSize: 13, color: 'var(--text-secondary)' },
   treatmentDuration: { fontSize: 12, color: 'var(--text-muted)' },
   treatmentPrice: { fontSize: 16, fontWeight: 700 },
-  dateScroller: { display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
-  dateChip: {
-    padding: '10px 14px', borderRadius: 10, border: '1.5px solid var(--border)',
-    fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap'
+  calWrap: { marginBottom: 22 },
+  calHeader: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 14, padding: '0 2px',
   },
+  calNav: {
+    width: 38, height: 38, borderRadius: '50%', border: 'none',
+    background: 'transparent', fontSize: 26, lineHeight: 1, fontFamily: 'inherit',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+  },
+  calMonthLabel: {
+    fontSize: 17, fontWeight: 600, color: 'var(--text-primary)',
+    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
+  },
+  calWeekRow: {
+    display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 6,
+  },
+  calWeekday: {
+    textAlign: 'center', fontSize: 11, fontWeight: 600, letterSpacing: '0.03em',
+    color: 'var(--text-muted)', textTransform: 'uppercase',
+  },
+  calGrid: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 },
+  calCell: {
+    aspectRatio: '1 / 1', borderRadius: 12, fontFamily: 'inherit', fontSize: 15,
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    gap: 3, padding: 0, transition: 'background 0.15s, color 0.15s',
+  },
+  calDot: { width: 5, height: 5, borderRadius: '50%', display: 'block' },
+  calLoadingRow: { display: 'flex', justifyContent: 'center', padding: '10px 0 2px' },
+  calSpinner: {
+    width: 18, height: 18, borderRadius: '50%',
+    border: '2px solid var(--border-light)', borderTopColor: 'currentColor',
+    animation: 'spin 0.8s linear infinite',
+  },
+  calLegend: {
+    display: 'flex', gap: 18, justifyContent: 'center', alignItems: 'center',
+    marginTop: 14, fontSize: 12, color: 'var(--text-secondary)',
+  },
+  calLegendItem: { display: 'flex', alignItems: 'center', gap: 6 },
+  calLegendDot: { width: 7, height: 7, borderRadius: '50%', display: 'block' },
   slotGrid: { display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
   slotChip: {
     padding: '10px 16px', borderRadius: 10, border: '1.5px solid var(--border)',
@@ -1632,6 +1894,16 @@ const styles = {
   successDetails: { textAlign: 'center', fontSize: 15, lineHeight: 1.6, marginBottom: 16 },
   confirmText: { textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' },
   depositNote: { fontSize: 13, color: 'var(--text-secondary)', marginTop: 8 },
+  bankRow: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+    padding: '5px 0', borderBottom: '1px solid rgba(0,0,0,0.05)',
+  },
+  bankLabel: { fontSize: 12, color: 'var(--text-muted)', flexShrink: 0 },
+  bankValue: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', textAlign: 'right' },
+  bankValueMono: {
+    fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', textAlign: 'right',
+    fontFamily: "'SF Mono', 'Roboto Mono', Menlo, monospace", letterSpacing: '0.04em',
+  },
   errorBanner: {
     background: 'var(--danger-bg)', border: '1px solid var(--danger)', borderRadius: 10,
     padding: '12px 16px', marginBottom: 16, fontSize: 14, color: 'var(--danger)',

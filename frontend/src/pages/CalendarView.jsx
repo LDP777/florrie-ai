@@ -1098,7 +1098,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     try {
       const d = new Date();
       d.setDate(d.getDate() + rebookWeeks * 7);
-      const reminderDate = d.toISOString().slice(0, 10);
+      const reminderDate = formatDate(d); // local date — avoids the BST day-shift
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
       const res = await fetch(`${API_BASE}/api/features/rebook-reminders`, {
         method: 'POST',
@@ -1412,7 +1412,16 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     </div>
   );
 }
-function formatDate(d) { return d.toISOString().split('T')[0]; }
+// LOCAL calendar date as YYYY-MM-DD — never toISOString(), which converts to UTC
+// and, under British Summer Time (UTC+1), rolls every date back to the previous
+// day. That's the bug that "shifted the whole calendar": blocking a day or
+// grouping appointments by formatDate() landed everything on the day before.
+// The rest of the diary reads stored times as wall-clock (see wallMinutes), and
+// BookingPage/HoursExceptions already build their date keys from local parts —
+// this keeps day-grouping consistent with both.
+function formatDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 function isToday(d) { return d.toDateString() === new Date().toDateString(); }
 function isSameDay(a, b) { return a.toDateString() === b.toDateString(); }
 function getWeekStart(d) { const s = new Date(d); const day = s.getDay(); s.setDate(s.getDate() + (day === 0 ? -6 : 1 - day)); return s; }
