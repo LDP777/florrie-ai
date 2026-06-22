@@ -64,11 +64,11 @@ export default function ClientPortal() {
   async function loadStats() {
     setLoading(true);
     try {
-      const { data: clients } = await supabase
+      const { count: clientsCount } = await supabase
         .from('clients')
         .select('id', { count: 'exact', head: true })
         .eq('beautician_id', beautician.id);
-      setClientCount(clients ?? 0);
+      setClientCount(clientsCount ?? 0);
 
       const { data: appts, count } = await supabase
         .from('appointments')

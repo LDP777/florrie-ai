@@ -60,9 +60,16 @@ export default function ApprovalQueue() {
         // Execute FIRST. Only mark the action as executed once the API confirms
         // the work actually happened - otherwise a failed execute would leave the
         // queue claiming "done" when nothing ran. On failure, leave it pending.
+        // The execute route is auth-gated, so the Supabase session token must ride
+        // along or the request comes back 401 and the button silently does nothing.
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData?.session?.access_token;
         const resp = await fetch(`${API_BASE}/api/ai-actions/` + actionId + '/execute', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
         });
         if (!resp.ok) {
           throw new Error(`Execute failed (${resp.status})`);

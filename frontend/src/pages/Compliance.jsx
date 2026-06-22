@@ -11,7 +11,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBeautician, fetchRows } from '../lib/supabase.js';
-import { API_BASE } from '../lib/config.js';
 
 // Guardian avatar (inline, no external deps)
 function GuardianAvatar({ size = 52 }) {
@@ -39,16 +38,6 @@ function MIcon({ name, size = 20, color, style: s }) {
       {name}
     </span>
   );
-}
-
-function getToken() {
-  const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
-  if (!key) return null;
-  try {
-    const raw = localStorage.getItem(key);
-    const p   = JSON.parse(raw);
-    return p?.access_token || p?.session?.access_token || raw;
-  } catch { return null; }
 }
 
 export default function Compliance() {
@@ -85,10 +74,10 @@ export default function Compliance() {
       }
       if (!cf) {
         const rows = await fetchRows('consultation_forms', beautician.id, {}).catch(() => []);
+        // Only the form count is reliably derivable here. Signature/response
+        // tracking lives elsewhere, so don't fabricate those figures.
         setFormStats({
-          total_forms:          rows.length,
-          pending_signatures:   0,
-          completed_this_month: 0,
+          total_forms: rows.length,
         });
       } else {
         setFormStats(cf);
@@ -187,19 +176,9 @@ export default function Compliance() {
           <div style={S.statsRow}>
             <div style={S.statItem}>
               <span style={S.statNum}>{formStats?.total_forms ?? '-'}</span>
-              <span style={S.statLabel}>Forms created</span>
-            </div>
-            <div style={S.statDivider} />
-            <div style={S.statItem}>
-              <span style={{ ...S.statNum, color: (formStats?.pending_signatures || 0) > 0 ? '#F59E0B' : 'var(--success, #5BA97B)' }}>
-                {formStats?.pending_signatures ?? '-'}
+              <span style={S.statLabel}>
+                {(formStats?.total_forms || 0) === 1 ? 'Form created' : 'Forms created'}
               </span>
-              <span style={S.statLabel}>Awaiting signature</span>
-            </div>
-            <div style={S.statDivider} />
-            <div style={S.statItem}>
-              <span style={S.statNum}>{formStats?.completed_this_month ?? '-'}</span>
-              <span style={S.statLabel}>Done this month</span>
             </div>
           </div>
         )}

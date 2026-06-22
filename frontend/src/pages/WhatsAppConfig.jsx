@@ -7,32 +7,6 @@ import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 
-const MOCK_CONNECTED = {
-  connected: true,
-  phone: '+44 7700 900123',
-  business_name: "Ellie's Brows",
-  usage: { sms_sent: 34, whatsapp_sent: 53, total_sent: 87, free_limit: 120, remaining: 33, overage_total_pence: 0 },
-};
-
-const mockTemplates = [
-  { id: 1, name: 'Booking confirmation', category: 'utility', status: 'approved', lastUsed: 'Today', uses: 156, preview: "Hey {name}! Your {treatment} is booked for {date} at {time}. See you soon! 💕 - Ellie" },
-  { id: 2, name: 'Appointment reminder (24h)', category: 'utility', status: 'approved', lastUsed: 'Today', uses: 289, preview: "Hi {name}, just a reminder about your {treatment} tomorrow at {time}. Reply YES to confirm or call to reschedule. See you soon! ✨" },
-  { id: 3, name: 'No-show follow-up', category: 'utility', status: 'approved', lastUsed: 'Yesterday', uses: 12, preview: "Hey {name}, we missed you today! No worries at all, life happens. Want me to rebook you? Just reply with a day that works 💛" },
-  { id: 4, name: 'Aftercare instructions', category: 'utility', status: 'approved', lastUsed: '2 days ago', uses: 98, preview: "Hey {name}! Here are your aftercare tips for your {treatment}: {aftercare_link}. Any questions at all, just message me! 💆‍♀️" },
-  { id: 5, name: 'Review request', category: 'marketing', status: 'approved', lastUsed: '3 days ago', uses: 45, preview: "Hi {name}! So glad you loved your {treatment} 🥰 If you have a sec, a Google review would mean the world: {review_link}" },
-  { id: 6, name: 'Win-back offer', category: 'marketing', status: 'approved', lastUsed: '1 week ago', uses: 23, preview: "Hey {name}, it's been a while! I've got 10% off your next visit if you fancy coming back 💕 Book here: {booking_link}" },
-  { id: 7, name: 'Rebook reminder', category: 'utility', status: 'approved', lastUsed: 'Today', uses: 67, preview: "Hi {name}! Your {treatment} is due for a top-up 💅 Shall I book you in? Reply with a day that works and I'll sort it!" },
-  { id: 8, name: 'Birthday message', category: 'marketing', status: 'approved', lastUsed: '5 days ago', uses: 8, preview: "Happy birthday {name}! 🎂🎉 As a treat from me, here's a free brow wax on your next visit: {voucher_code}. Have the best day! 💕" },
-  { id: 9, name: 'Waitlist slot offer', category: 'utility', status: 'pending', lastUsed: 'Never', uses: 0, preview: "Great news {name}! A {treatment} slot just opened up on {date} at {time}. Want it? Reply YES to grab it before it goes! ⚡" },
-];
-
-const autoReplyDefaults = [
-  { id: 1, trigger: 'Outside business hours', response: "Hey! I'm not at the salon right now but I'll get back to you first thing tomorrow morning 💕 - Ellie", enabled: true },
-  { id: 2, trigger: 'Pricing enquiry detected', response: "Thanks for asking! You can see all my prices and book directly here: {booking_link} 💅", enabled: true },
-  { id: 3, trigger: 'Availability enquiry detected', response: "Let me check what I've got! My next available slots are: {next_slots}. Want me to book one? 🗓️", enabled: true },
-  { id: 4, trigger: 'New message (no match)', response: null, enabled: false },
-];
-
 /**
  * apiFetch attaches the full response body to thrown errors so callers can
  * read structured diagnostic fields (diagnostic.code, meta_code, fbtrace_id…)
@@ -1100,9 +1074,6 @@ export default function WhatsAppConfig() {
   const { beautician, loading: bLoading } = useBeautician();
   const [status, setStatus] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
-  const [expandedTemplate, setExpandedTemplate] = useState(null);
-  const [autoReplies, setAutoReplies] = useState(autoReplyDefaults);
-  const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState(false);
   const [pendingPhone, setPendingPhone] = useState(null);
@@ -1367,109 +1338,47 @@ export default function WhatsAppConfig() {
               </Link>
               <div style={styles.manageTemplatesHint}>
                 Create, review, and remove the message templates Meta uses
-                outside the 24-hour conversation window.
+                outside the 24-hour conversation window. Your live templates,
+                their approval status and the starter pack all live there.
               </div>
-              <button style={styles.newTemplateBtn}>+ Create Template</button>
-              {templates.map(tmpl => (
-                <div key={tmpl.id} style={styles.templateCard}>
-                  <div
-                    style={styles.templateHeader}
-                    onClick={() => setExpandedTemplate(expandedTemplate === tmpl.id ? null : tmpl.id)}
-                  >
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                        <span style={styles.templateName}>{tmpl.name}</span>
-                        <span style={{
-                          ...styles.tmplStatus,
-                          background: tmpl.status === 'approved' ? '#E8F5E9' : '#FFF8E1',
-                          color: tmpl.status === 'approved' ? '#2E7D32' : '#F57F17',
-                        }}>{tmpl.status}</span>
-                        <span style={styles.tmplCategory}>{tmpl.category}</span>
-                      </div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)' }}>
-                        Used {tmpl.uses} times · Last: {tmpl.lastUsed}
-                      </div>
-                    </div>
-                    <span style={{ fontSize: 18, color: 'var(--text-muted, #AAA5A0)' }}>
-                      {expandedTemplate === tmpl.id ? '▾' : '▸'}
-                    </span>
-                  </div>
-                  {expandedTemplate === tmpl.id && (
-                    <div style={styles.templatePreview}>
-                      <div style={styles.previewBubble}>{tmpl.preview}</div>
-                      <div style={styles.previewActions}>
-                        <button style={styles.previewBtn}>✏️ Edit</button>
-                        <button style={styles.previewBtn}>📋 Duplicate</button>
-                        <button style={styles.previewBtn}>🧪 Test Send</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
             </div>
           )}
 
           {activeTab === 'autoreplies' && (
             <div>
               <div style={styles.autoReplyHint}>
-                Florrie reads incoming messages and auto-responds when it's confident about the intent.
-                Customise these or let Florrie draft replies in your tone.
+                Florrie reads every incoming message and replies in your tone when it's
+                confident about what the client wants. The rest she drafts for you, ready
+                to approve.
               </div>
-              {autoReplies.map(rule => (
-                <div key={rule.id} style={styles.autoReplyCard}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' }}>{rule.trigger}</div>
-                    <button
-                      onClick={() => setAutoReplies(autoReplies.map(r => r.id === rule.id ? { ...r, enabled: !r.enabled } : r))}
-                      style={{ ...styles.toggle, background: rule.enabled ? 'var(--accent, #C76B8A)' : 'var(--border, #E8E4E0)' }}
-                    >
-                      <div style={{ ...styles.toggleDot, transform: rule.enabled ? 'translateX(18px)' : 'translateX(0)' }} />
-                    </button>
-                  </div>
-                  {rule.response ? (
-                    <div style={styles.autoReplyPreview}>{rule.response}</div>
-                  ) : (
-                    <div style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)', fontStyle: 'italic' }}>
-                      No auto-reply, messages go to Inbox for manual response
-                    </div>
-                  )}
-                </div>
-              ))}
 
-              <div style={styles.aiToggleCard}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)', marginBottom: 4 }}>🧠 Florrie AI Drafting</div>
-                  <div style={{ fontSize: 12, color: '#6B6560', lineHeight: 1.4 }}>
-                    Let Florrie draft replies to unmatched messages in your tone. Drafts appear in Inbox for approval before sending.
-                  </div>
-                </div>
-                <button style={{ ...styles.toggle, background: 'var(--accent, #C76B8A)' }}>
-                  <div style={{ ...styles.toggleDot, transform: 'translateX(18px)' }} />
-                </button>
+              <Link to="/settings?section=ai" style={styles.manageTemplatesLink}>
+                Auto-reply settings &rarr;
+              </Link>
+              <div style={styles.manageTemplatesHint}>
+                Turn auto-reply on or off, and set what happens outside your hours,
+                over in Settings.
+              </div>
+
+              <Link to="/inbox" style={{ ...styles.manageTemplatesLink, background: 'var(--bg-card, #fff)', color: 'var(--accent, #92405e)', border: '1px solid var(--border, #F0ECE8)' }}>
+                Review drafts in Inbox &rarr;
+              </Link>
+              <div style={styles.manageTemplatesHint}>
+                When Florrie isn't sure, she leaves a draft reply in your Inbox so you can
+                send it with one tap.
               </div>
             </div>
           )}
 
           {activeTab === 'settings' && (
             <div>
-              {[
-                { label: 'Business hours messaging', desc: 'Only send automated messages during your set business hours', enabled: true },
-                { label: 'Read receipts', desc: 'Track when clients read your messages', enabled: true },
-                { label: 'Typing indicator', desc: 'Show typing indicator before auto-replies', enabled: false },
-                { label: 'Message rate limiting', desc: 'Max 3 automated messages per client per day', enabled: true },
-                { label: 'Opt-out handling', desc: 'Auto-detect STOP/unsubscribe and disable messaging', enabled: true },
-                { label: 'Conversation backup', desc: 'Save all conversations to client timeline', enabled: true },
-              ].map((setting, i) => (
-                <div key={i} style={styles.settingRow}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary, #2D2A26)' }}>{setting.label}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)', marginTop: 2 }}>{setting.desc}</div>
-                  </div>
-                  <button style={{ ...styles.toggle, background: setting.enabled ? 'var(--accent, #C76B8A)' : 'var(--border, #E8E4E0)' }}>
-                    <div style={{ ...styles.toggleDot, transform: setting.enabled ? 'translateX(18px)' : 'translateX(0)' }} />
-                  </button>
-                </div>
-              ))}
+              <Link to="/settings?section=notifications" style={styles.manageTemplatesLink}>
+                Messaging preferences &rarr;
+              </Link>
+              <div style={styles.manageTemplatesHint}>
+                Business-hours sending, reminder timings and which messages go out are all
+                set in Settings, so they stay the same across WhatsApp and SMS.
+              </div>
 
               <div style={styles.dangerZone}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: '#E85D75', marginBottom: 8 }}>Danger zone</div>

@@ -46,7 +46,7 @@ const HoursExceptions = lazy(() => import('./pages/HoursExceptions.jsx'));
 const PatchTests = lazy(() => import('./pages/PatchTests.jsx'));
 // IntakeForms removed , duplicate of ConsultationFormBuilder (/consultation-forms)
 // Reports removed , merged into Analytics (/analytics → Export tab)
-const Policies = lazy(() => import('./pages/Policies.jsx'));
+// Policies page retired (redirects to Settings > Policy). Import removed.
 const BusinessProfile = lazy(() => import('./pages/BusinessProfile.jsx'));
 const RebookReminders = lazy(() => import('./pages/RebookReminders.jsx'));
 const Inbox = lazy(() => import('./pages/Inbox.jsx'));
@@ -210,6 +210,9 @@ export default function App() {
   useEffect(() => {
     window.scrollTo(0, 0);
     if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+    // The page now scrolls inside #app-scroll (not the body), so reset that too.
+    const sc = document.getElementById('app-scroll');
+    if (sc) sc.scrollTop = 0;
   }, [location.pathname]);
 
   const isPublicRoute = location.pathname.startsWith('/book/') || location.pathname.startsWith('/form/') || location.pathname.includes('/manage/') || location.pathname === '/privacy' || location.pathname === '/support';
@@ -333,7 +336,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <CoachProvider>
-      <div style={styles.appShell}>
+      <div style={styles.appShell} className="app-shell">
         {showTrialWarning && !isIOSNative() && (
           <div style={{ background: 'var(--gold, #C9A96E)', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 13, fontWeight: 500 }}>
             ⏳ Your free trial ends in {daysLeft} day{daysLeft === 1 ? '' : 's'}.{' '}
@@ -343,7 +346,7 @@ export default function App() {
           </div>
         )}
         <InstallPrompt />
-        <div style={styles.pageContainer}>
+        <div style={styles.pageContainer} id="app-scroll">
           <Suspense fallback={<PageLoader />}>
             <Routes>
             <Route path="/" element={<Hub />} />
@@ -376,7 +379,9 @@ export default function App() {
             <Route path="/patch-tests" element={<PatchTests />} />
             {/* /forms removed , use /consultation-forms instead */}
             <Route path="/reports" element={<Navigate to="/analytics" replace />} />
-            <Route path="/policies" element={<Policies />} />
+            {/* Policies page retired: it wrote to a `policies` table the booking
+                engine never read. Booking rules live in Settings (booking_policy). */}
+            <Route path="/policies" element={<Navigate to="/settings?section=policy" replace />} />
             <Route path="/business" element={<BusinessProfile />} />
             <Route path="/rebook" element={<RebookReminders />} />
             <Route path="/inbox" element={<Inbox />} />
@@ -461,6 +466,32 @@ function BottomNav({ current, session }) {
   const navigate = useNavigate();
   const [inboxCount, setInboxCount] = useState(0);
   const intervalRef = useRef(null);
+  // Hold-to-speak on the centre petal. A long press (~450ms) opens Florrie
+  // already listening; a plain tap opens her quietly. The didHold ref stops
+  // the click that fires after a long press from double-navigating.
+  const holdTimerRef = useRef(null);
+  const didHoldRef = useRef(false);
+
+  function startHold() {
+    didHoldRef.current = false;
+    clearTimeout(holdTimerRef.current);
+    holdTimerRef.current = setTimeout(() => {
+      didHoldRef.current = true;
+      try { hapticTap(); } catch {}
+      navigate('/voice', { state: { autoListen: true } });
+    }, 450);
+  }
+  function cancelHold() {
+    clearTimeout(holdTimerRef.current);
+  }
+  function handlePetalClick() {
+    if (didHoldRef.current) {
+      // The long press already navigated. Swallow this click and reset.
+      didHoldRef.current = false;
+      return;
+    }
+    navigate('/voice');
+  }
 
   useEffect(() => {
     if (!session) return;
@@ -506,12 +537,18 @@ function BottomNav({ current, session }) {
         <NavTab key={tab.path} tab={tab} onNav={() => navigate(tab.path)} />
       ))}
 
-      {/* Centre petal: tap = talk to Florrie (the voice/command page). The brand
-          mark itself is the way to reach Florrie; Today is still the left tab. */}
+      {/* Centre petal: tap = open Florrie, hold = open her already listening.
+          The brand mark itself is the way to reach Florrie; Today is the left tab. */}
       <button
         type="button"
-        aria-label="Talk to Florrie"
-        onClick={() => navigate('/voice')}
+        aria-label="Talk to Florrie, hold to speak"
+        onClick={handlePetalClick}
+        onTouchStart={startHold}
+        onTouchEnd={cancelHold}
+        onTouchMove={cancelHold}
+        onMouseDown={startHold}
+        onMouseUp={cancelHold}
+        onMouseLeave={cancelHold}
         style={styles.navPetalWrap}
       >
         <div style={styles.navPetal}>
@@ -670,13 +707,22 @@ const styles = {
     letterSpacing: '-0.03em',
   },
   appShell: {
+    // Height lives in the .app-shell CSS class (100vh with a 100dvh override) so
+    // the fallback cascade works - an inline height would block the dvh override.
+    // overflow:hidden makes the SHELL the fixed frame and the page scroll inside
+    // it, so the body itself never scrolls. That stops the fixed bottom nav and
+    // mic drifting up the page on iOS (a body-scroll repaint bug in WKWebView).
     display: 'flex',
     flexDirection: 'column',
-    minHeight: '100vh',
+    overflow: 'hidden',
     background: 'var(--bg, #fef8f4)',
   },
   pageContainer: {
     flex: 1,
+    minHeight: 0, // let the flex child shrink so it scrolls instead of growing
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    WebkitOverflowScrolling: 'touch',
     paddingBottom: 'calc(env(safe-area-inset-bottom, 8px) + 80px)',
   },
 

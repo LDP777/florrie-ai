@@ -18,6 +18,7 @@ import { normaliseOutcome } from '../lib/ai-actions.js';
 import { sendNudge } from './notifications.js';
 import { shouldAutoSend } from './sms-metering.js';
 import { guardedSend } from '../lib/outbound-guard.js';
+import { getFutureBookedClientIds } from '../lib/future-bookings.js';
 import logger from '../lib/logger.js';
 
 const MAX_OFFERS_PER_CYCLE = 5;    // Don't spam — cap per beautician per run
@@ -406,7 +407,10 @@ async function fetchRebookPool(beauticianId) {
     .order('next_predicted_visit', { ascending: true })
     .limit(20);
 
-  return (data || []).map(c => {
+  // Skip anyone already booked in for a future appointment.
+  const booked = await getFutureBookedClientIds(beauticianId);
+
+  return (data || []).filter(c => !booked.has(c.id)).map(c => {
     const daysOverdue = Math.floor((Date.now() - new Date(c.next_predicted_visit).getTime()) / (24 * 60 * 60 * 1000));
     return {
       ...c,

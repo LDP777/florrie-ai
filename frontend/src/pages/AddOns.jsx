@@ -14,15 +14,6 @@ import ErrorCard from '../components/ErrorCard.jsx';
 
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 
-const DEV_ADDONS = [
-  { id: 'a1', name: 'Lip Wax', price_cents: 600, duration_minutes: 10, category: 'waxing', is_active: true, suggest_with: ['Lamination & Hybrid Dye', 'HD Brows', 'Lamination & Tint'], auto_suggest: true },
-  { id: 'a2', name: 'Brow Jelly Mask', price_cents: 700, duration_minutes: 15, category: 'treatment', is_active: true, suggest_with: ['Lamination & Hybrid Dye', 'HD Brows', 'Lamination & Tint', 'Lamination Maintenance / Tint'], auto_suggest: true },
-  { id: 'a3', name: 'Aftercare Kit', price_cents: 1500, duration_minutes: 0, category: 'retail', is_active: true, suggest_with: ['Ombre Brows (Semi-Permanent)', 'Combination Brows (Semi-Permanent)'], auto_suggest: true },
-  { id: 'a4', name: 'Brow Lamination Booster Oil', price_cents: 1200, duration_minutes: 0, category: 'retail', is_active: true, suggest_with: ['Lamination & Hybrid Dye', 'Lamination & Tint'], auto_suggest: false },
-  { id: 'a5', name: 'Extra Numbing (Semi-Perm)', price_cents: 500, duration_minutes: 10, category: 'treatment', is_active: true, suggest_with: ['Ombre Brows (Semi-Permanent)', 'Combination Brows (Semi-Permanent)'], auto_suggest: true },
-  { id: 'a6', name: 'Lash Serum Sample', price_cents: 800, duration_minutes: 0, category: 'retail', is_active: false, suggest_with: ['Lash Lift & Tint'], auto_suggest: false },
-];
-
 const CATEGORIES = [
   { value: 'treatment', label: 'Treatment', colour: 'var(--accent, #C76B8A)' },
   { value: 'waxing', label: 'Waxing', colour: 'var(--text-secondary, #8B6F5E)' },
@@ -42,16 +33,21 @@ export default function AddOns() {
   const [treatments, setTreatments] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   // Fetch add-ons + treatments on mount
   useEffect(() => {
-    if (bLoading || !beautician) return;
-    fetchRows('add_ons', beautician.id, { order: 'created_at', ascending: false })
-      .then(rows => setAddons(rows))
-      .catch(err => logger.error('Failed to load add-ons:', err));
-    fetchRows('treatments', beautician.id, { eq: { is_active: true } })
-      .then(rows => setTreatments(rows))
-      .catch(err => logger.error('Failed to load treatments:', err));
+    if (bLoading) return;
+    if (!beautician) { setLoading(false); return; }
+    setLoading(true);
+    Promise.all([
+      fetchRows('add_ons', beautician.id, { order: 'created_at', ascending: false })
+        .then(rows => setAddons(rows))
+        .catch(err => logger.error('Failed to load add-ons:', err)),
+      fetchRows('treatments', beautician.id, { eq: { is_active: true } })
+        .then(rows => setTreatments(rows))
+        .catch(err => logger.error('Failed to load treatments:', err)),
+    ]).finally(() => setLoading(false));
   }, [beautician, bLoading]);
 
   const active = addons.filter(a => a.is_active);
@@ -151,6 +147,8 @@ export default function AddOns() {
       logger.error('Failed to delete add-on:', err);
     }
   };
+
+  if (bLoading || loading) return <PageLoader />;
 
   return (
     <div style={S.page}>

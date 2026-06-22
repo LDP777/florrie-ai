@@ -2,7 +2,7 @@
  * BusinessProfile - Business info, branding, social links.
  *
  * Sections:
- *   Info       - business name, tagline, phone, email, address
+ *   Info       - tagline (identity: name & contact edited in Settings)
  *   Branding   - brand colour, booking page accent, logo upload placeholder
  *   Social     - Instagram, TikTok, Facebook, website links
  *   Booking    - booking page URL preview, share button
@@ -10,6 +10,7 @@
  * Beautician profile data from Supabase.
  */
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useBeautician, updateRow, supabase } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
 import logger from '../lib/logger.js';
@@ -33,15 +34,13 @@ const SOCIAL_PLATFORMS = [
 
 export default function BusinessProfile() {
   const { dark } = useTheme();
+  const navigate = useNavigate();
   const { beautician, loading: bLoading, refresh } = useBeautician();
   const [tab, setTab] = useState('info');
 
-  // Info fields - initialised from beautician profile
+  // Business name is read-only context here (identity is edited in Settings).
   const [businessName, setBusinessName] = useState('');
   const [tagline, setTagline] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [address, setAddress] = useState('');
 
   // Branding
   const [brandColor, setBrandColor] = useState('#C4A882');
@@ -64,9 +63,6 @@ export default function BusinessProfile() {
     if (!beautician) return;
     setBusinessName(beautician.business_name || '');
     setTagline(beautician.tagline || '');
-    setPhone(beautician.phone || '');
-    setEmail(beautician.email || '');
-    setAddress(beautician.address || '');
     setBrandColor(beautician.brand_color || '#C4A882');
     setLogoPreview(beautician.logo_url || null);
     setEmailSignOff(beautician.client_reminder_prefs?.email_sign_off || '');
@@ -130,10 +126,7 @@ export default function BusinessProfile() {
     setSaving(true);
     try {
       await updateRow('beauticians', beautician.id, {
-        business_name: businessName,
         tagline,
-        phone,
-        address,
         brand_color: brandColor,
         logo_url: logoPreview,
         social_links: socials,
@@ -199,11 +192,17 @@ export default function BusinessProfile() {
       {/* Info tab */}
       {tab === 'info' && (
         <div style={s.section}>
-          <Field label="Business name" value={businessName} onChange={setBusinessName} />
+          {/* Business name & contact live in Settings - shown here read-only for context */}
+          <div style={s.fieldGroup}>
+            <span style={s.fieldLabel}>Business name</span>
+            <div style={s.readOnlyRow}>
+              <span style={s.readOnlyValue}>{businessName || 'Not set yet'}</span>
+              <button type="button" onClick={() => navigate('/settings?section=profile')} style={s.editLink}>
+                Edit name &amp; contact in Settings ›
+              </button>
+            </div>
+          </div>
           <Field label="Tagline" value={tagline} onChange={setTagline} placeholder="A short description clients see" />
-          <Field label="Phone" value={phone} onChange={setPhone} type="tel" />
-          <Field label="Email" value={email} onChange={setEmail} type="email" />
-          <Field label="Address" value={address} onChange={setAddress} placeholder="Shown on your booking page" />
         </div>
       )}
 
@@ -509,6 +508,28 @@ const s = {
     background: 'transparent',
     color: 'var(--text, #2D2A26)',
     boxSizing: 'border-box',
+  },
+  readOnlyRow: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    paddingTop: 4,
+  },
+  readOnlyValue: {
+    fontSize: 15,
+    fontWeight: 500,
+    color: 'var(--text, #2D2A26)',
+  },
+  editLink: {
+    alignSelf: 'flex-start',
+    padding: 0,
+    border: 'none',
+    background: 'none',
+    color: 'var(--accent, #C76B8A)',
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
   },
   colourGrid: {
     display: 'grid',

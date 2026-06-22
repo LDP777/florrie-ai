@@ -10,54 +10,6 @@
 import { useState, useEffect } from 'react';
 import { useBeautician, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js'
 import logger from '../lib/logger.js';
-import PageLoader from '../components/PageLoader.jsx';
-import EmptyState from '../components/EmptyState.jsx';
-import ErrorCard from '../components/ErrorCard.jsx';
-const DEV_WAITLIST = [
-  {
-    id: 'wl1', client: 'Holly B', treatment: 'Ombre Brows (Semi-Permanent)', priority: 'vip',
-    addedDate: '2026-03-10', preferredDays: ['tue', 'thu'], preferredTime: 'morning',
-    depositHeld: true, depositAmount: 5000, status: 'waiting',
-    notes: 'Referred by Shauna - keen to get in ASAP', notifyCount: 0,
-    flexible: false, maxWait: 14,
-  },
-  {
-    id: 'wl2', client: 'Isabelle T', treatment: 'Combination Brows (Semi-Permanent)', priority: 'regular',
-    addedDate: '2026-03-12', preferredDays: ['wed', 'fri'], preferredTime: 'afternoon',
-    depositHeld: false, depositAmount: 0, status: 'waiting',
-    notes: '', notifyCount: 1,
-    flexible: true, maxWait: 30,
-  },
-  {
-    id: 'wl3', client: 'Kate M', treatment: 'Lamination & Hybrid Dye', priority: 'regular',
-    addedDate: '2026-03-15', preferredDays: ['mon', 'tue', 'wed', 'thu', 'fri'], preferredTime: 'any',
-    depositHeld: false, depositAmount: 0, status: 'waiting',
-    notes: 'Flexible on dates - just wants the next available', notifyCount: 0,
-    flexible: true, maxWait: 7,
-  },
-  {
-    id: 'wl4', client: 'Lucy P', treatment: 'Lash Lift & Tint', priority: 'flexible',
-    addedDate: '2026-03-08', preferredDays: ['fri'], preferredTime: 'morning',
-    depositHeld: false, depositAmount: 0, status: 'notified',
-    notes: 'Fridays only', notifyCount: 2, lastNotified: '2026-03-22',
-    flexible: false, maxWait: 21,
-  },
-  {
-    id: 'wl5', client: 'Megan S', treatment: 'HD Brows', priority: 'vip',
-    addedDate: '2026-03-05', preferredDays: ['tue', 'thu'], preferredTime: 'afternoon',
-    depositHeld: true, depositAmount: 2500, status: 'offered',
-    notes: 'Regular client - always books Tuesdays', notifyCount: 1,
-    offeredSlot: { date: '2026-03-29', time: '14:00' }, offerExpires: '2026-03-26T18:00',
-    flexible: false, maxWait: 14,
-  },
-  {
-    id: 'wl6', client: 'Natalie W', treatment: 'Colour Boost 3-6 Months', priority: 'regular',
-    addedDate: '2026-02-28', preferredDays: ['wed'], preferredTime: 'morning',
-    depositHeld: false, depositAmount: 0, status: 'expired',
-    notes: 'Waited too long - rebooked elsewhere', notifyCount: 3,
-    flexible: false, maxWait: 21,
-  },
-];
 const PRIORITY_CONFIG = {
   vip: { label: 'VIP', bg: '#F0E6ED', color: 'var(--accent, #C76B8A)', icon: '⭐' },
   regular: { label: 'Regular', bg: '#F0ECE8', color: '#8B6F5E', icon: '👤' },
@@ -263,18 +215,18 @@ export default function WaitlistPro() {
             const pOrder = { vip: 0, regular: 1, flexible: 2 };
             return (pOrder[a.priority] || 1) - (pOrder[b.priority] || 1);
           }).map(w => {
-            const pri = PRIORITY_CONFIG[w.priority];
-            const st = STATUS_CONFIG[w.status];
+            const pri = PRIORITY_CONFIG[w.priority] || PRIORITY_CONFIG.regular;
+            const st = STATUS_CONFIG[w.status] || STATUS_CONFIG.waiting;
             const isExpanded = expanded === w.id;
-            const daysWaiting = Math.ceil((new Date() - new Date(w.addedDate)) / 86400000);
+            const daysWaiting = w.addedDate ? Math.max(0, Math.ceil((new Date() - new Date(w.addedDate)) / 86400000)) : 0;
             return (
               <div key={w.id} style={{ ...S.wlCard, borderLeft: `3px solid ${pri.color}` }} onClick={() => setExpanded(isExpanded ? null : w.id)}>
                 <div style={S.wlHeader}>
                   <div style={S.wlLeft}>
-                    <div style={S.avatar}>{w.client[0]}</div>
+                    <div style={S.avatar}>{(w.client || '?').charAt(0)}</div>
                     <div style={S.wlInfo}>
                       <div style={S.wlNameRow}>
-                        <span style={S.wlClient}>{w.client}</span>
+                        <span style={S.wlClient}>{w.client || 'Client'}</span>
                         <span style={{ ...S.priBadge, background: pri.bg, color: pri.color }}>{pri.icon} {pri.label}</span>
                       </div>
                       <span style={S.wlTreatment}>{w.treatment}</span>
@@ -298,14 +250,14 @@ export default function WaitlistPro() {
                       <div style={S.detailItem}>
                         <span style={S.detailLabel}>Preferred Days</span>
                         <div style={S.dayTags}>
-                          {w.preferredDays.map(d => (
+                          {(w.preferredDays || []).map(d => (
                             <span key={d} style={S.dayTag}>{d.charAt(0).toUpperCase() + d.slice(1)}</span>
                           ))}
                         </div>
                       </div>
                       <div style={S.detailItem}>
                         <span style={S.detailLabel}>Time</span>
-                        <span style={S.detailValue}>{w.preferredTime === 'any' ? 'Any time' : w.preferredTime.charAt(0).toUpperCase() + w.preferredTime.slice(1)}</span>
+                        <span style={S.detailValue}>{!w.preferredTime || w.preferredTime === 'any' ? 'Any time' : w.preferredTime.charAt(0).toUpperCase() + w.preferredTime.slice(1)}</span>
                       </div>
                       <div style={S.detailItem}>
                         <span style={S.detailLabel}>Max Wait</span>
@@ -336,14 +288,14 @@ export default function WaitlistPro() {
         <div style={S.list}>
           {archivedList.length === 0 && <p style={S.empty}>No archived entries.</p>}
           {archivedList.map(w => {
-            const st = STATUS_CONFIG[w.status];
+            const st = STATUS_CONFIG[w.status] || STATUS_CONFIG.expired;
             return (
               <div key={w.id} style={S.wlCard}>
                 <div style={S.wlHeader}>
                   <div style={S.wlLeft}>
-                    <div style={{ ...S.avatar, opacity: 0.6 }}>{w.client[0]}</div>
+                    <div style={{ ...S.avatar, opacity: 0.6 }}>{(w.client || '?').charAt(0)}</div>
                     <div style={S.wlInfo}>
-                      <span style={S.wlClient}>{w.client}</span>
+                      <span style={S.wlClient}>{w.client || 'Client'}</span>
                       <span style={S.wlTreatment}>{w.treatment}</span>
                     </div>
                   </div>

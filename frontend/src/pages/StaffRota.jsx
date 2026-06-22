@@ -33,12 +33,26 @@ export default function StaffRota() {
     if (beautician && !bLoading) loadRota();
   }, [beautician, bLoading]);
 
+  // team_members rows store first_name/last_name/working_hours; this page
+  // renders name/hours/colour. Normalise so real rows display correctly
+  // instead of showing blank names and "Off" for every day.
+  const PALETTE = ['#C76B8A', '#6B8F7B', '#8B6F5E', '#7B85C7', '#C7A86B'];
+  function normaliseStaff(rows) {
+    return (rows || []).map((r, i) => ({
+      ...r,
+      name: [r.first_name, r.last_name].filter(Boolean).join(' ').trim() || r.name || 'Team member',
+      role: r.role ? r.role.charAt(0).toUpperCase() + r.role.slice(1) : 'Stylist',
+      colour: r.colour || PALETTE[i % PALETTE.length],
+      hours: r.hours || r.working_hours || { mon: null, tue: null, wed: null, thu: null, fri: null, sat: null },
+    }));
+  }
+
   async function loadRota() {
     setLoading(true);
     setError(null);
     try {
         const teamData = await fetchRows('team_members', beautician.id, { order: 'created_at' });
-        setStaff(teamData || []);
+        setStaff(normaliseStaff(teamData));
 
         const { data: excepData, error: excepErr } = await supabase
           .from('hours_exceptions')
@@ -94,14 +108,15 @@ export default function StaffRota() {
   const totalWeekHours = staff.reduce((s, p) => s + calcHours(p), 0);
 
   const handleSaveTimeOff = async () => {
-    if (!timeOffForm.date || !timeOffForm.staffId) {
-      setError('Please fill in all required fields');
+    if (!timeOffForm.date) {
+      setError('Please choose a date');
       return;
     }
     try {
+      // hours_exceptions is salon-wide (no staff_id column), so time off
+      // applies to the whole diary. We don't send staff_id (it would error).
       const row = {
         beautician_id: beautician?.id,
-        staff_id: timeOffForm.staffId,
         date: timeOffForm.date,
         reason: timeOffForm.reason,
         type: 'time-off',
@@ -152,16 +167,26 @@ export default function StaffRota() {
       return;
     }
     try {
-      const updates = {
+      // Map back to real team_members columns (first_name/last_name/role/
+      // working_hours). colour is a display-only field with no DB column,
+      // so it's kept in local state but not persisted.
+      const [firstName, ...rest] = shiftForm.name.trim().split(' ');
+      const dbUpdates = {
+        first_name: firstName || shiftForm.name.trim(),
+        last_name: rest.join(' ') || null,
+        role: (shiftForm.role || 'stylist').toLowerCase(),
+        working_hours: shiftForm.hours,
+      };
+      if (beautician) {
+        await updateRow('team_members', editingShift, dbUpdates);
+      }
+      const localUpdates = {
         name: shiftForm.name,
         role: shiftForm.role,
         colour: shiftForm.colour,
         hours: shiftForm.hours,
       };
-      if (beautician) {
-        await updateRow('team_members', editingShift, updates);
-      }
-      setStaff(prev => prev.map(s => s.id === editingShift ? { ...s, ...updates } : s));
+      setStaff(prev => prev.map(s => s.id === editingShift ? { ...s, ...localUpdates } : s));
       setEditingShift(null);
       setError(null);
     } catch (err) {
@@ -219,8 +244,17 @@ export default function StaffRota() {
         ))}
       </div>
 
+      {/* No team yet: rota is a team feature */}
+      {staff.length === 0 && tab !== 'exceptions' && (
+        <EmptyState
+          icon="🗓️"
+          title="No team to schedule yet"
+          subtitle="Add stylists or assistants in Team, and their shifts will show up here. You can still add salon time off using the button above."
+        />
+      )}
+
       {/* Week view */}
-      {tab === 'week' && (
+      {tab === 'week' && staff.length > 0 && (
         <>
           <div style={S.weekNav}>
             <button style={S.weekArrow} onClick={() => setWeekOffset(o => o - 1)}>‹</button>
@@ -277,7 +311,7 @@ export default function StaffRota() {
       )}
 
       {/* Staff tab */}
-      {tab === 'staff' && (
+      {tab === 'staff' && staff.length > 0 && (
         <div style={S.staffList}>
           {staff.map(s => {
             const hrs = calcHours(s);
@@ -331,13 +365,12 @@ export default function StaffRota() {
         <div style={S.exceptionList}>
           {exceptions.length === 0 && <p style={S.empty}>No exceptions this period.</p>}
           {exceptions.map(ex => {
-            const s = staff.find(st => st.id === ex.staffId || st.id === ex.staff_id);
             return (
               <div key={ex.id} style={S.exCard}>
                 <div style={S.exHeader}>
                   <div style={S.exLeft}>
-                    <div style={{ ...S.staffDot, background: s?.colour || '#AAA5A0' }} />
-                    <span style={S.exName}>{s?.name || 'Unknown'}</span>
+                    <div style={{ ...S.staffDot, background: 'var(--accent, #C76B8A)' }} />
+                    <span style={S.exName}>Salon closed</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ ...S.exTypeBadge, background: ex.type === 'time-off' ? '#FFF5E6' : '#E3F2FD', color: ex.type === 'time-off' ? '#B8860B' : '#2196F3' }}>
@@ -362,12 +395,7 @@ export default function StaffRota() {
         <div style={S.overlay} onClick={() => setShowAddTimeOff(false)}>
           <div style={S.modal} onClick={e => e.stopPropagation()}>
             <h2 style={S.modalTitle}>Add Time Off</h2>
-
-            <div style={S.fieldLabel}>Staff Member</div>
-            <select style={S.select} value={timeOffForm.staffId} onChange={e => setTimeOffForm(f => ({ ...f, staffId: e.target.value }))}>
-              <option value="">Select staff member</option>
-              {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+            <p style={{ ...S.fieldLabel, marginTop: 0, fontWeight: 500 }}>This closes your diary for the day so no new bookings come in.</p>
 
             <div style={S.fieldLabel}>Date</div>
             <input style={S.input} type="date" value={timeOffForm.date} onChange={e => setTimeOffForm(f => ({ ...f, date: e.target.value }))} />

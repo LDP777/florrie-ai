@@ -437,7 +437,13 @@ router.post('/appointments', requireAuth, async (req, res) => {
             .insert({
               beautician_id: beauticianId,
               name: placeholderName.substring(0, 200),
-              duration_minutes: rowDuration || 60,
+              // Don't invent a duration/price. These are inactive placeholders that
+              // only exist so historical appointments have a name to reference. A
+              // blanket 60-min/GBP0 default made them look like real, set-up
+              // services (and silently sized future bookings at an hour). Leave them
+              // at 0 so the treatment list clearly flags them as "needs setup" and
+              // the beautician sets the real values before booking from them.
+              duration_minutes: rowDuration || 0,
               price_cents: rowPriceCents || 0,
               category: 'Imported',
               is_active: false,

@@ -925,7 +925,7 @@ export default function Policies() {
       {showPreview && (
         <div style={s.previewCard}>
           <div style={s.previewHeader}>
-            <span style={s.previewBrand}>Ellindigo Brows & Beauty</span>
+            <span style={s.previewBrand}>{beautician?.business_name || 'Your salon'}</span>
             <span style={s.previewTitle}>Booking Policy</span>
           </div>
           <div style={s.previewBody}>

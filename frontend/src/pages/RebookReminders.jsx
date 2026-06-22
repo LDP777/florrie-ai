@@ -113,7 +113,7 @@ export default function RebookReminders() {
 
         return {
           id: c.id,
-          name: `${c.first_name || ''} ${c.last_name || ''}`.trim(),
+          name: `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Client',
           lastVisit: lastVisit.toISOString().slice(0, 10),
           treatment: c.appointments?.[0]?.treatment_name || 'Treatment',
           avgInterval,
@@ -292,7 +292,7 @@ export default function RebookReminders() {
                   <div key={c.id} style={s.clientCard}>
                     <div style={s.clientTop}>
                       <div style={s.clientLeft}>
-                        <div style={s.avatar}>{c.name[0]}</div>
+                        <div style={s.avatar}>{(c.name || '?').charAt(0).toUpperCase()}</div>
                         <div>
                           <span style={s.clientName}>{c.name}</span>
                           <span style={s.clientMeta}>{c.treatment}</span>

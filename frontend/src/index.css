@@ -14,6 +14,15 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* App shell is a fixed-height frame; the page scrolls inside #app-scroll, not
+   the body. This keeps the fixed bottom nav + mic pinned (they drift up the
+   page on iOS when the body is the scroller). 100dvh tracks the iOS toolbar;
+   the 100vh line above it is the fallback for browsers without dvh support. */
+.app-shell {
+  height: 100vh;
+  height: 100dvh;
+}
+
 /* Smooth page transitions */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }

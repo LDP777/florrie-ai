@@ -14,18 +14,8 @@ const ROLES = [
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
-const DEV_TEAM = [
-  {
-    id: 'dev-tm1', first_name: 'Sophie', last_name: 'K', role: 'stylist',
-    email: 'sophie@demo.com', phone: '07700100200', is_active: true,
-    can_manage_bookings: true, can_view_clients: true, can_manage_treatments: false, can_view_money: false,
-    working_hours: { mon: { start: '10:00', end: '16:00' }, tue: { start: '10:00', end: '18:00' }, wed: null, thu: { start: '10:00', end: '18:00' }, fri: { start: '10:00', end: '16:00' }, sat: null, sun: null },
-    price_per_month_cents: 2500, accepted_at: '2026-03-01T09:00:00Z'
-  },
-];
-
 export default function Team() {
-  const { beautician } = useBeautician();
+  const { beautician, loading: bLoading } = useBeautician();
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -37,11 +27,12 @@ export default function Team() {
   }
 
   useEffect(() => {
+    if (bLoading) return;
     loadTeam();
-  }, [beautician]);
+  }, [beautician, bLoading]);
 
   async function loadTeam() {
-    if (!beautician) return;
+    if (!beautician) { setLoading(false); return; }
     const rows = await fetchRows('team_members', beautician.id, { order: 'created_at' });
     setMembers(rows);
     setLoading(false);

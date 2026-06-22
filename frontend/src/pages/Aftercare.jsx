@@ -143,8 +143,10 @@ export default function Aftercare() {
   async function handleToggleAutoSend(card) {
     const updated = { ...card, auto_send: !card.auto_send };
     setCards(prev => prev.map(c => c.id === card.id ? updated : c));
-    if (true) {
-      try { await updateRow('aftercare_cards', card.id, { auto_send: updated.auto_send }); } catch {}
+    try {
+      await updateRow('aftercare_cards', card.id, { auto_send: updated.auto_send });
+    } catch (err) {
+      logger.error('Toggle aftercare auto-send error:', err);
     }
   }
 
@@ -419,7 +421,7 @@ export default function Aftercare() {
 
                   {settings.include_rebook_link && (
                     <div style={styles.phoneRebook}>
-                      📅 Ready to rebook? → florrie.ai/book/ellindigo
+                      📅 Ready to rebook? → florrie.ai/book/{beautician?.booking_slug || 'your-link'}
                     </div>
                   )}
                 </div>

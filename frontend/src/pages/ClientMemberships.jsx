@@ -59,8 +59,13 @@ export default function ClientMemberships() {
       fetchRows('client_memberships', beautician.id, { order: 'price_cents', ascending: true }),
       fetchRows('membership_subscriptions', beautician.id, { order: 'created_at', ascending: false }),
     ]).then(([p, m]) => {
-      setPlans(p.map(normalisePlan));
-      setMembers(m.map(normaliseMember));
+      setPlans((p || []).map(normalisePlan));
+      setMembers((m || []).map(normaliseMember));
+      setLoaded(true);
+    }).catch(() => {
+      // Never leave the page stuck on the loader if a fetch fails.
+      setPlans([]);
+      setMembers([]);
       setLoaded(true);
     });
   }, [beautician, bLoading]);

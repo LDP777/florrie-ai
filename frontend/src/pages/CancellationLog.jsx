@@ -73,7 +73,7 @@ export default function CancellationLog() {
           c.id === appointmentId ? { ...c, rebooked: true } : c
         )
       );
-      logger.log(`Rebooked appointment for ${clientName}`);
+      logger.info(`Rebooked appointment for ${clientName}`);
     } catch (err) {
       logger.error('Failed to mark as rebooked:', err);
       setError('Failed to mark as rebooked');

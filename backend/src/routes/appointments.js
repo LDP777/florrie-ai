@@ -6,7 +6,7 @@ import { updateClientIntelligence } from '../services/client-intelligence.js';
 import { triggerSequence } from '../services/email-sequences.js';
 import { scheduleReviewRequest } from '../services/review-requests.js';
 import { awardLoyaltyPoints } from '../services/loyalty.js';
-import { chargePolicyFee } from '../services/policy-fees.js';
+import { chargePolicyFee, chargeRemainingBalance } from '../services/policy-fees.js';
 import logger from '../lib/logger.js';
 import { parsePagination, buildPaginationMeta, handleQueryError } from '../lib/queries.js';
 import { completeDaySchema, manualAppointmentSchema } from '../lib/schemas.js';
@@ -415,15 +415,101 @@ router.patch('/:id', requireAuth, async (req, res) => {
     awardLoyaltyPoints(req.beautician.id, data).catch(() => {});
   }
 
-  // Fire-and-forget: auto-charge the no-show fee to the saved card when the
-  // beautician's policy has one configured (idempotent, no-op otherwise).
   if (req.body.status === 'no_show') {
+    // Reverse any assumed/auto takings for this appointment so the Money tab
+    // drops the income - the appointment didn't happen. Assumed takings (from
+    // auto-complete or the "All done" batch) are type 'payment' with a null
+    // method; real card charges (deposits, balance) keep a method and are left
+    // alone. This is what makes "mark a no-show at the end of the day" update
+    // everything, even for appointments that already auto-completed.
+    const { error: revErr } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('appointment_id', req.params.id)
+      .eq('type', 'payment')
+      .is('payment_method', null);
+    if (revErr) logger.error({ err: revErr, appointmentId: req.params.id }, 'no_show takings reversal failed');
+
+    // Fire-and-forget: auto-charge the no-show fee to the saved card when the
+    // beautician's policy has one configured (idempotent, no-op otherwise).
     chargePolicyFee(req.params.id, 'no_show').catch(err =>
       logger.error({ err, appointmentId: req.params.id }, 'no_show policy fee charge failed (non-fatal)')
     );
   }
 
   res.json({ appointment: data });
+});
+
+/**
+ * DELETE /api/appointments/:id
+ * Remove an appointment that was added by mistake (e.g. wrong time).
+ * Guarded: if money is attached (a deposit was paid or a policy fee charged) we
+ * do NOT hard-delete, because that would orphan the payment record. In that case
+ * the beautician should cancel (and refund if needed) instead. Mis-entries, which
+ * is what this is for, have no payment and are hard-removed.
+ */
+router.delete('/:id', requireAuth, async (req, res) => {
+  const { data: appt, error: fetchErr } = await supabase
+    .from('appointments')
+    .select('id, deposit_paid, policy_fee_charged_at, status')
+    .eq('id', req.params.id)
+    .eq('beautician_id', req.beautician.id)
+    .single();
+
+  if (fetchErr || !appt) {
+    return res.status(404).json({ error: 'Appointment not found' });
+  }
+
+  const hasMoney = appt.deposit_paid === true || !!appt.policy_fee_charged_at;
+  if (hasMoney) {
+    return res.status(409).json({
+      error: 'This booking has a payment attached. Cancel it instead so the payment is handled correctly.',
+      code: 'has_payment',
+    });
+  }
+
+  const { error } = await supabase
+    .from('appointments')
+    .delete()
+    .eq('id', req.params.id)
+    .eq('beautician_id', req.beautician.id);
+
+  if (error) {
+    logger.error({ err: error }, 'Failed to delete appointment');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+
+  res.json({ success: true });
+});
+
+/**
+ * POST /api/appointments/:id/charge-balance
+ * Charge the client's remaining balance (price minus deposit paid) to their
+ * saved card. The fallback for when they don't pay the rest by bank transfer.
+ */
+router.post('/:id/charge-balance', requireAuth, async (req, res) => {
+  const { data: appt } = await supabase
+    .from('appointments')
+    .select('id')
+    .eq('id', req.params.id)
+    .eq('beautician_id', req.beautician.id)
+    .maybeSingle();
+  if (!appt) return res.status(404).json({ error: 'Appointment not found' });
+
+  const result = await chargeRemainingBalance(req.params.id);
+  if (result.charged) {
+    return res.json({ success: true, amountCents: result.amountCents });
+  }
+  const messages = {
+    nothing_due: 'There is no balance left to charge.',
+    already_charged: 'The balance has already been charged.',
+    no_card_on_file: 'No saved card on file for this client.',
+    stripe_not_onboarded: 'Connect your Stripe payouts first to charge cards.',
+    stripe_not_configured: 'Card payments are not set up.',
+    card_declined: "The client's card was declined.",
+    authentication_required: "The client's card needs extra authentication, send them a payment link instead.",
+  };
+  return res.status(400).json({ error: messages[result.reason] || 'Could not charge the balance', reason: result.reason });
 });
 
 /**

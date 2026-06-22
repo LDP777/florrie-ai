@@ -27,6 +27,7 @@ export default function Settings({ onLogout }) {
   const [saveError, setSaveError] = useState(null);
   const [section, setSection] = useState('profile');
   const [pendingCreditRules, setPendingCreditRules] = useState(null);
+  const [pendingAutonomy, setPendingAutonomy] = useState(null);
   const [connectingStripe, setConnectingStripe] = useState(false);
   const [stripeError, setStripeError] = useState(null);
   const [gcalConnecting, setGcalConnecting] = useState(false);
@@ -51,8 +52,11 @@ export default function Settings({ onLogout }) {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const igStatus = params.get('ig');
+    // Honour ?section=<tab> so links (and the retired /policies redirect) open
+    // the right tab, not just 'ai'.
     const sectionParam = params.get('section');
-    if (sectionParam === 'ai') setSection('ai');
+    const validSections = ['profile', 'hours', 'policy', 'payments', 'calendar', 'notifications', 'ai', 'account'];
+    if (sectionParam && validSections.includes(sectionParam)) setSection(sectionParam);
     if (igStatus) {
       setIgBanner(igStatus);
       setSection('ai');
@@ -314,6 +318,20 @@ export default function Settings({ onLogout }) {
             value={beautician.booking_slug || ''}
             onSave={v => saveProfile({ booking_slug: v.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
           />
+
+          {/* Branding lives on the Business Profile page - link, don't duplicate */}
+          <button
+            type="button"
+            onClick={() => navigate('/business')}
+            style={styles.brandingLinkBtn}
+          >
+            <span style={styles.brandingLinkIcon}>🎨</span>
+            <div style={{ flex: 1 }}>
+              <span style={styles.brandingLinkTitle}>Branding &amp; business profile</span>
+              <span style={styles.brandingLinkDesc}>Logo, brand colour, tagline, social links and email sign-off</span>
+            </div>
+            <span style={{ color: 'var(--text-muted)', fontSize: 18 }}>›</span>
+          </button>
         </div>
       )}
 
@@ -449,6 +467,7 @@ export default function Settings({ onLogout }) {
         const bufferMinutes = policy.payment_buffer_minutes ?? 10;
         const cancelHours = policy.cancellation_notice_hours ?? 48;
         const chargePercent = policy.late_cancel_charge_percent ?? 100;
+        const requireReschedDeposit = policy.require_deposit_on_late_reschedule ?? false;
 
         function savePolicy(updates) {
           saveProfile({ booking_policy: { ...policy, ...updates } });
@@ -579,8 +598,36 @@ export default function Settings({ onLogout }) {
                       {chargePercent === 0 ? 'No charge' : `${chargePercent}%`}
                     </span>
                   </div>
+
+                  <div style={{ height: 1, background: 'var(--border-light)', margin: '14px 0' }} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={styles.cardTitle}>New deposit on late reschedule</div>
+                    <button
+                      onClick={() => savePolicy({ require_deposit_on_late_reschedule: !requireReschedDeposit })}
+                      style={{ ...styles.toggle, background: requireReschedDeposit ? 'var(--accent)' : 'var(--border)' }}
+                    >
+                      <div style={{ ...styles.toggleDot, transform: requireReschedDeposit ? 'translateX(20px)' : 'translateX(2px)' }} />
+                    </button>
+                  </div>
+                  <p style={styles.cardDesc}>
+                    If a client moves their appointment inside the notice window, charge the late-cancel fee for the original and take a fresh deposit for the new slot from their saved card. If there's no usable card, the move is blocked.
+                  </p>
                 </>
               )}
+            </div>
+
+            {/* Custom client-facing cancellation note (migrated from the retired
+                Policies page; saved to booking_policy so it's the real source). */}
+            <div style={styles.card}>
+              <div style={styles.cardTitle}>Cancellation note (optional)</div>
+              <p style={styles.cardDesc}>A note in your own words, shown to clients on your booking page and their manage-booking link, under the cancellation policy.</p>
+              <textarea
+                defaultValue={policy.cancellation_message || ''}
+                onBlur={e => savePolicy({ cancellation_message: e.target.value.trim() })}
+                placeholder="e.g. Please give as much notice as you can if you need to rearrange, my slots book up fast 🌸"
+                rows={3}
+                style={{ width: '100%', marginTop: 8, padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: 14, fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box', background: 'var(--bg-card)', color: 'var(--text-primary)' }}
+              />
             </div>
 
             {/* Policy preview */}
@@ -595,7 +642,13 @@ export default function Settings({ onLogout }) {
                   {cancelHours > 0 && `We require ${cancelHours < 24 ? `${cancelHours} hours` : `${cancelHours / 24} day${cancelHours / 24 !== 1 ? 's' : ''}`} notice to cancel or reschedule. `}
                   {cancelHours > 0 && chargePercent > 0 && `Late cancellations within this window may be charged ${chargePercent}% of the appointment value.`}
                   {cancelHours > 0 && chargePercent === 0 && `No charge applies for late cancellations.`}
+                  {cancelHours > 0 && requireReschedDeposit && ` Rescheduling inside this window is charged for the original appointment, and the new appointment requires a fresh deposit.`}
                 </p>
+                {policy.cancellation_message && (
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55, margin: '8px 0 0', fontStyle: 'italic' }}>
+                    "{policy.cancellation_message}"
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -701,6 +754,32 @@ export default function Settings({ onLogout }) {
                 </div>
               );
             })}
+          </div>
+
+          {/* Bank transfer details, shown to clients so they can pay the balance */}
+          <div style={styles.card}>
+            <div style={styles.cardTitle}>Bank transfer details</div>
+            <p style={styles.cardDesc}>Shown to clients so they can transfer the balance after their deposit.</p>
+            <FieldEditor
+              label="Account name"
+              value={beautician.payment_settings?.bank_details?.account_name || ''}
+              onSave={v => saveProfile({ payment_settings: { ...(beautician.payment_settings || {}), bank_details: { ...(beautician.payment_settings?.bank_details || {}), account_name: v } } })}
+            />
+            <FieldEditor
+              label="Sort code"
+              value={beautician.payment_settings?.bank_details?.sort_code || ''}
+              onSave={v => saveProfile({ payment_settings: { ...(beautician.payment_settings || {}), bank_details: { ...(beautician.payment_settings?.bank_details || {}), sort_code: v } } })}
+            />
+            <FieldEditor
+              label="Account number"
+              value={beautician.payment_settings?.bank_details?.account_number || ''}
+              onSave={v => saveProfile({ payment_settings: { ...(beautician.payment_settings || {}), bank_details: { ...(beautician.payment_settings?.bank_details || {}), account_number: v } } })}
+            />
+            <FieldEditor
+              label="Payment reference note (optional)"
+              value={beautician.payment_settings?.bank_details?.reference_note || ''}
+              onSave={v => saveProfile({ payment_settings: { ...(beautician.payment_settings || {}), bank_details: { ...(beautician.payment_settings?.bank_details || {}), reference_note: v } } })}
+            />
           </div>
 
           {/* Payout info */}
@@ -1077,67 +1156,48 @@ export default function Settings({ onLogout }) {
           {/* SMS Usage */}
           <SMSUsageWidget />
 
-          {/* Credit priority rules */}
+          {/* Florrie's autopilot: one control for what proactive messages Florrie
+              sends and how. Each is Auto (sends for you), Ask first (waits in the
+              outbox to approve), or Off (never). Transactional messages always go
+              and are shown read-only. Writes beautician.autonomy. */}
           {(() => {
-            // pendingCreditRules gives instant visual feedback; resets to beautician data after refresh
-            const rules = pendingCreditRules ?? beautician.credit_priority_rules ?? {};
-            const CATEGORIES = [
-              {
-                group: 'Always',
-                hint: 'Florrie always sends these on your behalf. They\'re time-sensitive or directly tied to a booking.',
-                color: 'var(--success)',
-                items: [
-                  { key: 'booking_confirmation', label: 'Booking confirmations' },
-                  { key: 'appointment_reminder', label: 'Appointment reminders' },
-                  { key: 'payment_request', label: 'Payment requests & deposit reminders' },
-                  { key: 'cancellation', label: 'Cancellation notifications' },
-                  { key: 'patch_test', label: 'Patch test reminders' },
-                  { key: 'consultation_form', label: 'Consultation form requests' },
-                ],
-              },
-              {
-                group: 'When there\'s room',
-                hint: 'Florrie sends these proactively when she has capacity. She\'ll hold off if the week is getting busy.',
-                color: '#f59e0b',
-                items: [
-                  { key: 'ai_reply', label: 'AI chat replies' },
-                  { key: 'aftercare_followup', label: 'Aftercare follow-ups' },
-                  { key: 'rebook_nudge', label: 'Smart rebook nudges' },
-                  { key: 'ai_checkin', label: 'AI proactive check-ins' },
-                  { key: 'review_request', label: 'Review requests' },
-                ],
-              },
-              {
-                group: 'Low priority',
-                hint: 'Florrie queues these until she\'s confident there\'s room. Never affects replies, confirmations, or reminders.',
-                color: 'var(--danger)',
-                items: [
-                  { key: 'marketing', label: 'Marketing & promos' },
-                  { key: 'referral', label: 'Referral messages' },
-                ],
-              },
+            const auto = pendingAutonomy ?? beautician.autonomy ?? {};
+
+            // Always sent, never gated (see TRANSACTIONAL in outbound-guard.js).
+            const ALWAYS = [
+              'Booking confirmations',
+              'Appointment reminders',
+              'Payment & deposit requests',
+              'Patch test & form requests',
+              'Replies to clients who message you',
             ];
 
-            const TIER_OPTIONS = [
-              { value: 'always', label: 'Always', color: 'var(--success)' },
-              { value: 'if_available', label: 'If available', color: '#f59e0b' },
-              { value: 'pause_first', label: 'Pause first', color: 'var(--danger)' },
+            // Proactive types Ellie controls. Keys match the message types the
+            // engines pass to the outbound guard.
+            const PROACTIVE = [
+              { key: 'rebook_nudge',       label: 'Rebook nudges',          hint: 'Reminds clients to book their next appointment.' },
+              { key: 'predictive_nudge',   label: 'Smart rebook reminders', hint: 'Nudges based on a client\'s usual rebooking pattern.' },
+              { key: 'comeback',           label: 'Win-back messages',      hint: 'Reaches out to clients who have gone quiet.' },
+              { key: 'review_request',     label: 'Review requests',        hint: 'Asks happy clients to leave a review.' },
+              { key: 'aftercare_followup', label: 'Aftercare follow-ups',   hint: 'Checks in after a treatment with aftercare tips.' },
+              { key: 'ai_checkin',         label: 'Proactive check-ins',    hint: 'Friendly check-ins Florrie thinks are worth sending.' },
+              { key: 'gap_fill',           label: 'Gap-fill offers',        hint: 'Offers a freed-up slot to fill a last-minute gap.' },
+              { key: 'waitlist_alert',     label: 'Waitlist alerts',        hint: 'Tells waitlisted clients when a slot opens.' },
+              { key: 'marketing',          label: 'Marketing & promos',     hint: 'Offers and promotions, only to clients who opted in.' },
             ];
 
-            function getEffectivePriority(key) {
-              return rules[key] ?? (
-                ['booking_confirmation','appointment_reminder','payment_request','cancellation','patch_test','consultation_form'].includes(key)
-                  ? 'always'
-                  : ['marketing','referral'].includes(key)
-                    ? 'pause_first'
-                    : 'if_available'
-              );
-            }
+            const MODES = [
+              { value: 'auto', label: 'Auto',      color: 'var(--success)' },
+              { value: 'ask',  label: 'Ask first', color: '#f59e0b' },
+              { value: 'off',  label: 'Off',       color: 'var(--danger)' },
+            ];
 
-            function setRulePriority(key, value) {
-              const next = { ...rules, [key]: value };
-              setPendingCreditRules(next);   // optimistic, instant visual response
-              saveProfile({ credit_priority_rules: next }).finally(() => setPendingCreditRules(null));
+            const modeOf = (key) => auto[key] || auto.proactive || 'ask';
+
+            function setMode(key, value) {
+              const next = { ...auto, [key]: value };
+              setPendingAutonomy(next);   // optimistic, instant visual response
+              saveProfile({ autonomy: next }).finally(() => setPendingAutonomy(null));
             }
 
             return (
@@ -1147,44 +1207,65 @@ export default function Settings({ onLogout }) {
                   <h3 style={{ ...styles.cardTitle, margin: 0 }}>Florrie's autopilot</h3>
                 </div>
                 <p style={styles.cardDesc}>
-                  Control what Florrie decides to send on her own: rebook nudges, check-ins, marketing. Booking confirmations and reminders always go out regardless. Anything you send manually is never affected.
+                  Choose what Florrie sends on her own. Set each to Auto, Ask first (it waits in your outbox to approve), or Off. Anything you send by hand is never affected.
                 </p>
 
-                {CATEGORIES.map(group => (
-                  <div key={group.group} style={{ marginBottom: 18 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: 4, background: group.color, flexShrink: 0 }} />
-                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        {group.group}
-                      </span>
-                    </div>
-                    <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 8px 14px', lineHeight: 1.4 }}>{group.hint}</p>
-                    {group.items.map(item => {
-                      const current = getEffectivePriority(item.key);
-                      return (
-                        <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-light)' }}>
-                          <span style={{ fontSize: 13, color: 'var(--text-primary)', flex: 1 }}>{item.label}</span>
-                          <div style={{ display: 'flex', gap: 4 }}>
-                            {TIER_OPTIONS.map(opt => (
-                              <button
-                                key={opt.value}
-                                onClick={() => setRulePriority(item.key, opt.value)}
-                                style={{
-                                  padding: '3px 8px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600,
-                                  cursor: 'pointer', fontFamily: 'inherit',
-                                  background: current === opt.value ? opt.color : 'var(--border-light)',
-                                  color: current === opt.value ? '#fff' : 'var(--text-muted)',
-                                }}
-                              >
-                                {opt.label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
+                {/* Always sent (read-only) */}
+                <div style={{ marginBottom: 18 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: 4, background: 'var(--success)', flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Always sent</span>
                   </div>
-                ))}
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 8px 14px', lineHeight: 1.4 }}>
+                    Time-sensitive or tied to a booking, so these always go.
+                  </p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingLeft: 14 }}>
+                    {ALWAYS.map(l => (
+                      <span key={l} style={{ fontSize: 11.5, color: 'var(--text-secondary)', background: 'var(--bg-hover)', borderRadius: 999, padding: '4px 10px' }}>{l}</span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* You choose */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: 4, background: 'var(--accent)', flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>You choose</span>
+                </div>
+                {PROACTIVE.map(item => {
+                  const current = modeOf(item.key);
+                  return (
+                    <div key={item.key} style={{ padding: '10px 0', borderBottom: '1px solid var(--border-light)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{item.label}</span>
+                        <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                          {MODES.map(opt => (
+                            <button
+                              key={opt.value}
+                              onClick={() => setMode(item.key, opt.value)}
+                              style={{
+                                padding: '4px 9px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600,
+                                cursor: 'pointer', fontFamily: 'inherit',
+                                background: current === opt.value ? opt.color : 'var(--border-light)',
+                                color: current === opt.value ? '#fff' : 'var(--text-muted)',
+                              }}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0', lineHeight: 1.4 }}>{item.hint}</p>
+                    </div>
+                  );
+                })}
+
+                <button
+                  onClick={() => navigate('/outbox')}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 14, background: 'none', border: 'none', padding: 0, fontSize: 13, fontWeight: 600, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>outbox</span>
+                  Review messages waiting to send
+                </button>
               </div>
             );
           })()}
@@ -1229,8 +1310,8 @@ export default function Settings({ onLogout }) {
             </div>
             <p style={{ ...styles.cardHint, marginTop: 8, marginBottom: 0 }}>
               {beautician.instagram_page_id
-                ? 'Content Studio can post directly to your Instagram. Requires an Instagram Business account linked to a Facebook Page.'
-                : 'Connect your Instagram Business account so Content Studio can publish posts without you copying and pasting.'}
+                ? 'Florrie reads and replies to your Instagram DMs in your voice, and Content Studio can post to your account.'
+                : 'Connect your Instagram so Florrie can read and reply to your DMs (and post for you). You just need a professional Instagram account, no Facebook Page required.'}
             </p>
             {igBanner === 'success' && (
               <p style={{ fontSize: 12, color: 'var(--success)', marginTop: 8, marginBottom: 0 }}>✓ Instagram connected, Content Studio can now post directly</p>
@@ -1780,6 +1861,16 @@ const styles = {
   blockLinkIcon: { fontSize: 22, flexShrink: 0 },
   blockLinkTitle: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 },
   blockLinkDesc: { display: 'block', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4 },
+
+  brandingLinkBtn: {
+    display: 'flex', alignItems: 'center', gap: 12,
+    padding: '12px 14px', marginTop: 12, borderRadius: 12, border: '1px solid var(--border)',
+    background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', cursor: 'pointer',
+    fontFamily: 'inherit', textAlign: 'left', width: '100%',
+  },
+  brandingLinkIcon: { fontSize: 22, flexShrink: 0 },
+  brandingLinkTitle: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 },
+  brandingLinkDesc: { display: 'block', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4 },
 
   // Payments
   connectionStatus: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },

@@ -449,7 +449,7 @@ function CampaignCard({ campaign, onApprove, onCancel, onView }) {
       {(campaign.status === 'draft' || campaign.status === 'approved') && (
         <div style={styles.cardActions} onClick={e => e.stopPropagation()}>
           {campaign.status === 'draft' && onApprove && (
-            <button onClick={onApprove} style={styles.approveBtn}>Approve & Send</button>
+            <button onClick={onApprove} style={styles.approveBtn}>Approve</button>
           )}
           {onCancel && (
             <button onClick={onCancel} style={styles.cancelCardBtn}>Cancel</button>

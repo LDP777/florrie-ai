@@ -77,7 +77,7 @@ const FEATURES = [
   { path: '/business', name: 'Business Profile', desc: 'Name, logo, details', icon: '🏪', cat: 'Settings' },
   { path: '/integrations', name: 'Integrations', desc: 'Connected apps', icon: '🔌', cat: 'Settings' },
   { path: '/api-settings', name: 'API & Webhooks', desc: 'Developer tools', icon: '⚡', cat: 'Settings' },
-  { path: '/policies', name: 'Policies', desc: 'Cancellation and terms', icon: '📜', cat: 'Settings' },
+  { path: '/settings?section=policy', name: 'Policies', desc: 'Cancellation and booking rules', icon: '📜', cat: 'Settings' },
   { path: '/portal', name: 'Client Portal', desc: 'Self-service settings', icon: '🌐', cat: 'Settings' },
   { path: '/locations', name: 'Multi-Location', desc: 'Branch management', icon: '🏢', cat: 'Settings' },
   { path: '/sms', name: 'SMS Config', desc: 'SMS settings', icon: '📲', cat: 'Settings' },

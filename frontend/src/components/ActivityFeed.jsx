@@ -95,6 +95,9 @@ function relativeTime(when, now = new Date()) {
 
 export default function ActivityFeed({ limit = 50 }) {
   const [state, setState] = useState({ status: 'loading', rows: [] });
+  // Keep the feed glanceable: show Today + Yesterday, tuck the long tail of
+  // history behind a "Show earlier" toggle instead of one endless list.
+  const [showEarlier, setShowEarlier] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -176,7 +179,16 @@ export default function ActivityFeed({ limit = 50 }) {
 
       {renderGroup('Today',     groups.today,     navigate, now)}
       {renderGroup('Yesterday', groups.yesterday, navigate, now)}
-      {renderGroup('Earlier',   groups.earlier,   navigate, now)}
+      {showEarlier
+        ? renderGroup('Earlier', groups.earlier, navigate, now)
+        : groups.earlier.length > 0 && (
+            <button
+              onClick={() => setShowEarlier(true)}
+              style={{ width: '100%', padding: '11px 0', marginTop: 4, background: 'none', border: 'none', borderTop: '1px solid var(--border-light, #F0E8EC)', color: 'var(--accent, #92405e)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              Show {groups.earlier.length} earlier
+            </button>
+          )}
     </section>
   );
 }

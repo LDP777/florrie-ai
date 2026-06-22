@@ -3,6 +3,7 @@ import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
 import { nextBankHoliday, postcodeToDivision } from '../lib/bank-holidays.js';
+import { getFutureBookedClientIds } from '../lib/future-bookings.js';
 
 const router = Router();
 
@@ -192,6 +193,9 @@ async function fromBookingSuggestions(beauticianId) {
     const first = row.clients?.first_name?.trim() || 'a client';
     const date = formatShortDate(row.suggested_date);
     const time = row.suggested_time ? ` at ${row.suggested_time.slice(0, 5)}` : '';
+    // Land Ellie on the day she needs to book, so the calendar opens right where
+    // the slot goes. Fall back to today if the suggestion has no date.
+    const calendarDate = isoDateOnly(row.suggested_date);
     return {
       id: `booking-${row.id}`,
       type: 'booking_suggestion',
@@ -199,7 +203,7 @@ async function fromBookingSuggestions(beauticianId) {
       summary: `${first} wants ${row.treatment_name || 'a treatment'}${date ? ` on ${date}` : ''}${time}. Book it in?`,
       action_label: 'Book it',
       payload: { booking_suggestion_id: row.id },
-      link_to: '/today',
+      link_to: calendarDate ? `/calendar?date=${calendarDate}` : '/today',
     };
   });
 }
@@ -223,7 +227,10 @@ async function fromRebookReminders(beauticianId) {
 
   if (error || !data) return [];
 
-  return data.map(client => {
+  // Don't suggest rebooking someone who's already in the diary.
+  const booked = await getFutureBookedClientIds(beauticianId);
+
+  return data.filter(client => !booked.has(client.id)).map(client => {
     const weeks = Math.floor(
       (Date.now() - new Date(client.last_visit_at).getTime()) / (7 * 24 * 60 * 60 * 1000)
     );
@@ -253,19 +260,28 @@ async function fromValueCoaching(beauticianId) {
     .eq('beautician_id', beauticianId)
     .eq('action_type', 'value_coaching')
     .order('created_at', { ascending: false })
-    .limit(2);
+    .limit(6);
 
   if (error || !data) return [];
 
-  return data.map(row => ({
-    id: `coaching-${row.id}`,
-    type: 'value_coaching',
-    icon: '💡',
-    summary: row.summary,
-    action_label: 'See',
-    payload: { ai_action_id: row.id },
-    link_to: '/money',
-  }));
+  return data
+    // Never surface a "£0" insight (e.g. "increase X by £0" / "spend £0 more").
+    // value-coaching.js no longer generates these, but legacy rows created from
+    // imported £0 treatments can still be stored - drop them at display time too.
+    // Matches £0 only when it's a standalone zero amount, not £0.50 / £05.
+    .filter(row => row.summary && !/£0(?![.\d])/.test(row.summary))
+    .slice(0, 2)
+    .map(row => ({
+      id: `coaching-${row.id}`,
+      type: 'value_coaching',
+      icon: '💡',
+      summary: row.summary,
+      action_label: 'See',
+      payload: { ai_action_id: row.id },
+      // Pricing / upsell insights are acted on where Ellie edits prices and
+      // treatments, not on the generic money dashboard.
+      link_to: '/treatments',
+    }));
 }
 
 async function fromEmptyTomorrow(beauticianId) {
@@ -448,6 +464,16 @@ function formatShortDate(iso) {
   try {
     const d = new Date(iso);
     return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  } catch { return ''; }
+}
+
+// Normalise a date or timestamp to a YYYY-MM-DD string for /calendar?date=.
+function isoDateOnly(value) {
+  if (!value) return '';
+  try {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toISOString().slice(0, 10);
   } catch { return ''; }
 }
 
