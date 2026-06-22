@@ -282,15 +282,18 @@ export default function BookingPage() {
     }, 600);
     return () => clearTimeout(timer);
   }, [clientDetails.phone, slug, selectedTreatment?.id]);
-  // Client recognition, trigger when email field loses focus
-  async function handleEmailBlur() {
+  // Client recognition, trigger when the email OR phone field loses focus.
+  // A match on EITHER field means a returning client — skips consultation/patch test.
+  async function lookupClient() {
     const email = clientDetails.email?.trim();
+    const phone = clientDetails.phone?.trim();
+    if (!email && !phone) return;
     setLookingUpClient(true);
     try {
       const res = await fetch(`${API_BASE}/api/booking/${slug}/lookup-client`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, phone }),
       });
       if (!res.ok) return;
       const data = await res.json();
@@ -1160,7 +1163,8 @@ export default function BookingPage() {
               <div>
                 <PhoneField
                   value={clientDetails.phone}
-                  onChange={phone => setClientDetails({ ...clientDetails, phone })}
+                  onChange={phone => { setClientDetails({ ...clientDetails, phone }); setRecognisedClient(null); }}
+                  onBlur={lookupClient}
                   style={styles.input}
                   error={!!fieldErrors.phone}
                 />
@@ -1186,7 +1190,7 @@ export default function BookingPage() {
                   type="email" placeholder="Email (optional)"
                   value={clientDetails.email}
                   onChange={e => { setClientDetails({ ...clientDetails, email: e.target.value }); setRecognisedClient(null); }}
-                  onBlur={handleEmailBlur}
+                  onBlur={lookupClient}
                   style={{
                     ...styles.input,
                     borderColor: fieldErrors.email ? 'var(--danger)' : '#E8E4DF'

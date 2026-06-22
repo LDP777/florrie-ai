@@ -309,16 +309,30 @@ router.post('/:slug/lookup-client', async (req, res) => {
       .single();
     if (!b) return res.status(404).json({ error: 'Not found' });
 
-    // Look up client by email or phone
-    let query = supabase
-      .from('clients')
-      .select('id, first_name, last_name, email, phone')
-      .eq('beautician_id', b.id);
+    // Look up client by email OR phone — a match on EITHER field means a
+    // returning client. Try email first (most reliable), fall back to phone.
+    const selectCols = 'id, first_name, last_name, email, phone';
+    let client = null;
 
-    if (email) query = query.ilike('email', email.trim());
-    else query = query.eq('phone', phone.trim());
+    if (email) {
+      const { data } = await supabase
+        .from('clients')
+        .select(selectCols)
+        .eq('beautician_id', b.id)
+        .ilike('email', email.trim())
+        .maybeSingle();
+      client = data;
+    }
 
-    const { data: client } = await query.maybeSingle();
+    if (!client && phone) {
+      const { data } = await supabase
+        .from('clients')
+        .select(selectCols)
+        .eq('beautician_id', b.id)
+        .eq('phone', phone.trim())
+        .maybeSingle();
+      client = data;
+    }
 
     if (!client) return res.json({ found: false });
 
@@ -1730,13 +1744,30 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   let client;
   let isNewClient = false;
 
-  // Try to find existing client by phone
-  const { data: existingClient } = await supabase
-    .from('clients')
-    .select('id, stripe_customer_id')
-    .eq('beautician_id', beautician.id)
-    .eq('phone', client_phone)
-    .maybeSingle();
+  // Find an existing client by email OR phone — a match on EITHER field means a
+  // returning client, so we reuse their record (no duplicate) and skip the
+  // consultation form / patch test. Try email first, fall back to phone.
+  let existingClient = null;
+
+  if (client_email) {
+    const { data } = await supabase
+      .from('clients')
+      .select('id, stripe_customer_id')
+      .eq('beautician_id', beautician.id)
+      .ilike('email', client_email.trim())
+      .maybeSingle();
+    existingClient = data;
+  }
+
+  if (!existingClient && client_phone) {
+    const { data } = await supabase
+      .from('clients')
+      .select('id, stripe_customer_id')
+      .eq('beautician_id', beautician.id)
+      .eq('phone', client_phone)
+      .maybeSingle();
+    existingClient = data;
+  }
 
   if (existingClient) {
     client = existingClient;

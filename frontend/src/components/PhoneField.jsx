@@ -36,7 +36,7 @@ function splitE164(value) {
   return { dial: '+44', national: v.replace(/[^\d]/g, '') };
 }
 
-export default function PhoneField({ value, onChange, style, error }) {
+export default function PhoneField({ value, onChange, style, error, onBlur }) {
   const init = splitE164(value);
   const [dial, setDial] = useState(init.dial);
   const [national, setNational] = useState(init.national);
@@ -76,6 +76,7 @@ export default function PhoneField({ value, onChange, style, error }) {
         placeholder="Phone number *"
         value={national}
         onChange={e => { setNational(e.target.value); emit(dial, e.target.value); }}
+        onBlur={onBlur}
         style={{ ...style, flex: 1, borderColor: border }}
         required
       />
