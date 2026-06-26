@@ -35,11 +35,13 @@ export default function Treatments() {
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const [forms, setForms] = useState([]); // Ellie's built consultation forms
 
   const blank = {
     name: '', duration_minutes: 60, price_cents: '', deposit_cents: '', deposit_percent: '',
     category: 'brows', description: '', buffer_minutes: 0,
-    requires_consultation: false, requires_patch_test: false, no_show_fee: '', booking_enabled: true
+    requires_consultation: false, requires_patch_test: false, no_show_fee: '', booking_enabled: true,
+    consultation_form_id: '',
   };
   const [form, setForm] = useState(blank);
 
@@ -51,6 +53,10 @@ export default function Treatments() {
     try {
       const data = await fetchRows('treatments', beautician.id, { order: 'sort_order' });
       setTreatments(data);
+      // Ellie's consultation forms, so a treatment can be linked to the form she
+      // built (otherwise the booking page falls back to generic questions).
+      try { setForms((await fetchRows('consultation_forms', beautician.id)) || []); }
+      catch { setForms([]); }
     } catch (err) {
       logger.error('Load treatments error:', err);
       setTreatments([]);
@@ -75,6 +81,9 @@ export default function Treatments() {
       requires_consultation: form.requires_consultation || false,
       requires_patch_test: form.requires_patch_test || false,
       booking_enabled: form.booking_enabled !== false,
+      // Link the chosen form so the booking page shows Ellie's own questions.
+      // Cleared when consultation isn't required.
+      consultation_form_id: form.requires_consultation ? (form.consultation_form_id || null) : null,
     };
 
     try {
@@ -118,7 +127,8 @@ export default function Treatments() {
       requires_consultation: t.requires_consultation || false,
       requires_patch_test: t.requires_patch_test || false,
       no_show_fee: t.no_show_fee_cents ? (t.no_show_fee_cents / 100).toFixed(2) : '',
-      booking_enabled: t.booking_enabled !== false
+      booking_enabled: t.booking_enabled !== false,
+      consultation_form_id: t.consultation_form_id || '',
     });
     setEditing(t.id);
     setShowAdd(true);
@@ -261,6 +271,22 @@ export default function Treatments() {
                 {form.requires_consultation ? 'Required' : 'Not needed'}
               </button>
               <span style={styles.formHint}>Send questions before appointment</span>
+              {form.requires_consultation && (
+                forms.length > 0 ? (
+                  <select
+                    value={form.consultation_form_id || ''}
+                    onChange={e => setForm(p => ({ ...p, consultation_form_id: e.target.value }))}
+                    style={{ ...styles.formInput, marginTop: 6 }}
+                  >
+                    <option value="">Default questions</option>
+                    {forms.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                  </select>
+                ) : (
+                  <span style={{ ...styles.formHint, marginTop: 6, display: 'block' }}>
+                    Build a form in Form Builder to use your own questions.
+                  </span>
+                )
+              )}
             </div>
             <div style={styles.formGroup}>
               <label style={styles.formLabel}>Patch test</label>
