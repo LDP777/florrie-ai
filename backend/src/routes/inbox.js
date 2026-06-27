@@ -35,6 +35,25 @@ function previewOf(content) {
  * keep latency sane on big tenants), then collapses them into one entry
  * per client. last_message_at drives the sort.
  */
+/**
+ * Classify a message row into a coarse type the inbox UI can label and
+ * filter on. Read-only derivation, no gating logic. Order matters: a
+ * client message is always "inbound"; an outbound message is then split
+ * by how it was produced (escalated > proactive engine > auto-reply > you).
+ */
+function messageType(row) {
+  if (row.direction === 'inbound') return 'inbound';
+  if (row.escalated && !row.resolved) return 'escalated';
+  const engine = row.digital_employee;
+  // front_desk replies are answers to a client message (auto-reply).
+  if (row.ai_handled && engine === 'front_desk') return 'auto_reply';
+  // Any other engine (comeback, calendar, content, money, scout) is a
+  // proactive nudge Florrie initiated, not a reply.
+  if (engine && engine !== 'front_desk') return 'proactive';
+  if (row.ai_handled) return 'auto_reply';
+  return 'you';
+}
+
 router.get('/threads', requireAuth, async (req, res) => {
   const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
 
@@ -50,6 +69,10 @@ router.get('/threads', requireAuth, async (req, res) => {
         created_at,
         resolved,
         read_at,
+        ai_handled,
+        escalated,
+        digital_employee,
+        ai_intent,
         clients ( id, first_name, last_name )
       `)
       .eq('beautician_id', req.beautician.id)
@@ -80,7 +103,13 @@ router.get('/threads', requireAuth, async (req, res) => {
           last_message_at: row.created_at,
           last_message_direction: row.direction,
           last_channel: row.channel,
+          // Type of the most recent message, so the list can label the row.
+          last_message_type: messageType(row),
           unread_count: 0,
+          // True if any message in this thread was escalated and not yet
+          // resolved. This is the strongest "needs you" signal: Florrie
+          // deliberately handed it back for a human reply.
+          needs_attention: false,
         };
         buckets.set(row.client_id, bucket);
       }
@@ -88,6 +117,9 @@ router.get('/threads', requireAuth, async (req, res) => {
       // the latest. Subsequent rows only contribute to unread_count.
       if (row.direction === 'inbound' && !row.read_at && !row.resolved) {
         bucket.unread_count += 1;
+      }
+      if (row.escalated && !row.resolved) {
+        bucket.needs_attention = true;
       }
     }
 
@@ -134,6 +166,7 @@ router.get('/thread/:client_id', requireAuth, async (req, res) => {
         id, client_id, channel, direction, content, created_at,
         ai_handled, media_url, media_type,
         external_message_id, whatsapp_message_id,
+        escalated, escalated_reason, resolved, digital_employee, ai_intent,
         delivered_at, read_at
       `)
       .eq('beautician_id', req.beautician.id)
@@ -163,7 +196,12 @@ router.get('/thread/:client_id', requireAuth, async (req, res) => {
     const messages = (data || [])
       .slice()
       .reverse()
-      .map(shapeMessage);
+      .map((row) => ({
+        ...shapeMessage(row),
+        message_type: messageType(row),
+        digital_employee: row.digital_employee || null,
+        escalated_reason: row.escalated && !row.resolved ? (row.escalated_reason || null) : null,
+      }));
 
     // Compute the default channel the UI should preselect: the channel of
     // the most recent inbound message, falling back to the client's

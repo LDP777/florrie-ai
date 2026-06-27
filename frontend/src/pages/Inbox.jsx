@@ -1,26 +1,49 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
+import PageHeader from '../components/ui/PageHeader.jsx';
 
 /**
- * Inbox , Day 2 of the 2026-05-28 refactor sprint.
+ * Inbox , one calm thread per client.
  *
- * One thread per client, channels are metadata. Salon owners think
- * "Sarah", not "Sarah on WhatsApp". The composer defaults to the
- * channel of the most recent inbound message and lets you switch with
- * one tap.
+ * Salon owners think "Sarah", not "Sarah on WhatsApp", so each client is a
+ * single thread and the channel rides along as metadata. This refresh adds:
  *
- * Two views:
- *   - Thread list      (default)
- *   - Conversation     (when ?client=<uuid> is set)
+ *   - Material channel marks (WhatsApp, Instagram, SMS, email) instead of
+ *     emoji, so it reads as part of the app, not a chat clone.
+ *   - Message TYPE awareness: a client message, a reply Florrie sent, a
+ *     proactive nudge she lined up, or something she handed back to you.
+ *   - A "Needs you" view that floats real, waiting conversations to the top
+ *     and keeps Florrie's automated housekeeping from drowning them out.
  *
- * Mobile-first single column; ≥768px the two panes sit side by side.
+ * Two views: the thread list, and a conversation (when a client is open).
+ * Mobile-first single column; from 768px the two panes sit side by side.
  */
 
-const CHANNEL_ICON = { whatsapp: '💬', sms: '📱', email: '✉️' };
-const CHANNEL_LABEL = { whatsapp: 'WhatsApp', sms: 'SMS', email: 'Email' };
+// Channel marks. Material Symbols so they sit with the rest of the app.
+const CHANNEL = {
+  whatsapp:  { icon: 'chat',           label: 'WhatsApp',  tint: '#1f9d55' },
+  instagram: { icon: 'photo_camera',   label: 'Instagram', tint: '#c13584' },
+  sms:       { icon: 'sms',            label: 'SMS',       tint: '#3a6ea5' },
+  email:     { icon: 'mail',           label: 'Email',     tint: '#92405e' },
+};
+function channelOf(key) {
+  return CHANNEL[key] || CHANNEL.whatsapp;
+}
+
+// Message types. Derived on the backend; labelled and tinted here.
+const TYPE = {
+  inbound:    { label: 'Client message', dot: '#c0607f' },
+  escalated:  { label: 'Needs you',      dot: '#c2410c' },
+  auto_reply: { label: 'Florrie replied', dot: '#9a8f93' },
+  proactive:  { label: 'Florrie reached out', dot: '#9a8f93' },
+  you:        { label: 'You', dot: '#9a8f93' },
+};
+function typeMeta(key) {
+  return TYPE[key] || TYPE.you;
+}
 
 function getToken() {
   const key = Object.keys(localStorage).find(k => /^sb-.+-auth-token$/.test(k));
@@ -93,8 +116,28 @@ function setClientInUrl(clientId) {
   window.history.replaceState({}, '', u.toString());
 }
 
+function ChannelMark({ channel, size = 16 }) {
+  const c = channelOf(channel);
+  return (
+    <span
+      className="material-symbols-outlined"
+      aria-label={c.label}
+      title={c.label}
+      style={{ fontSize: size, color: c.tint, lineHeight: 1, flexShrink: 0 }}
+    >
+      {c.icon}
+    </span>
+  );
+}
+
+// "Needs you" = the client had the last word, there are unread messages, or
+// Florrie escalated something. These are the threads genuinely waiting on a
+// human. Everything else is Florrie's own housekeeping.
+function needsYou(t) {
+  return t.needs_attention || t.unread_count > 0 || t.last_message_direction === 'inbound';
+}
+
 export default function Inbox() {
-  const navigate = useNavigate();
   const [threads, setThreads] = useState(null);
   const [threadsError, setThreadsError] = useState(null);
   const [search, setSearch] = useState('');
@@ -128,20 +171,29 @@ export default function Inbox() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // "Needs you" = the client had the last word (awaiting a reply) or there are
-  // unread messages. This is what separates real conversations from the threads
-  // that are just where Florrie sent automated reminders.
-  const needsYou = (t) => t.unread_count > 0 || t.last_message_direction === 'inbound';
   const needsCount = useMemo(
     () => (threads || []).filter(needsYou).length,
     [threads]
   );
 
+  // Sort: escalated first, then unread, then by recency. So whatever is
+  // actually waiting on the owner sits at the top, automated noise below.
+  function rank(t) {
+    if (t.needs_attention) return 0;
+    if (t.unread_count > 0 || t.last_message_direction === 'inbound') return 1;
+    return 2;
+  }
+
   const filtered = useMemo(() => {
     if (!threads) return null;
-    let list = filter === 'needs' ? threads.filter(needsYou) : threads;
+    let list = filter === 'needs' ? threads.filter(needsYou) : threads.slice();
     const q = search.trim().toLowerCase();
     if (q) list = list.filter(t => clientFullName(t).toLowerCase().includes(q));
+    list.sort((a, b) => {
+      const r = rank(a) - rank(b);
+      if (r !== 0) return r;
+      return new Date(b.last_message_at) - new Date(a.last_message_at);
+    });
     return list;
   }, [threads, search, filter]);
 
@@ -152,8 +204,7 @@ export default function Inbox() {
   function closeThread() {
     setActiveClientId(null);
     setClientInUrl(null);
-    // Reload thread list so unread counts refresh after reading.
-    loadThreads();
+    loadThreads(); // refresh unread counts after reading
   }
 
   async function deleteThread(clientId) {
@@ -167,15 +218,9 @@ export default function Inbox() {
     }
   }
 
-  // Mobile: show conversation full-screen when active; thread list when not.
+  // Mobile: conversation takes the whole screen when one is open.
   if (!isWide && activeClientId) {
-    return (
-      <Conversation
-        clientId={activeClientId}
-        onBack={closeThread}
-        onSent={loadThreads}
-      />
-    );
+    return <Conversation clientId={activeClientId} onBack={closeThread} onSent={loadThreads} />;
   }
 
   if (isWide) {
@@ -228,7 +273,10 @@ export default function Inbox() {
 function FilterChip({ active, onClick, label, count }) {
   return (
     <button type="button" onClick={onClick} style={{ ...S.filterChip, ...(active ? S.filterChipActive : {}) }}>
-      {label}{count > 0 ? <span style={{ ...S.filterChipCount, ...(active ? S.filterChipCountActive : {}) }}>{count}</span> : null}
+      {label}
+      {count > 0 && (
+        <span style={{ ...S.filterChipCount, ...(active ? S.filterChipCountActive : {}) }}>{count}</span>
+      )}
     </button>
   );
 }
@@ -236,9 +284,7 @@ function FilterChip({ active, onClick, label, count }) {
 function ThreadList({ threads, error, search, onSearch, onOpen, onDelete, activeId, filter, onFilter, needsCount, totalCount }) {
   return (
     <>
-      <header style={S.header}>
-        <h1 style={S.title}>Inbox</h1>
-      </header>
+      <PageHeader title="Inbox" subtitle="One thread per client. Florrie keeps the quiet ones tidy." />
 
       <div style={S.searchWrap}>
         <span className="material-symbols-outlined" style={S.searchIcon} aria-hidden>search</span>
@@ -288,7 +334,8 @@ function ThreadList({ threads, error, search, onSearch, onOpen, onDelete, active
 function ThreadRow({ thread, active, onOpen, onDelete }) {
   const name = clientFullName(thread);
   const isUnread = thread.unread_count > 0;
-  const channelIcon = CHANNEL_ICON[thread.last_channel] || '💬';
+  const flagged = !!thread.needs_attention;
+  const type = typeMeta(thread.last_message_type);
   const directionPrefix = thread.last_message_direction === 'outbound' ? 'You: ' : '';
 
   const REVEAL = 84;
@@ -327,17 +374,12 @@ function ThreadRow({ thread, active, onOpen, onDelete }) {
   }
 
   return (
-    <li style={{ position: 'relative', overflow: 'hidden' }}>
+    <li style={{ position: 'relative', overflow: 'hidden', borderRadius: 16 }}>
       <button
         type="button"
         aria-label={`Delete conversation with ${name}`}
         onClick={() => { setDx(0); onDelete && onDelete(thread.client_id); }}
-        style={{
-          position: 'absolute', top: 0, right: 0, bottom: 0, width: REVEAL,
-          background: 'var(--danger)', color: '#fff', border: 'none', cursor: 'pointer',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
-          fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
-        }}
+        style={S.deleteReveal}
       >
         <span className="material-symbols-outlined" style={{ fontSize: 20 }}>delete</span>
         Delete
@@ -349,32 +391,41 @@ function ThreadRow({ thread, active, onOpen, onDelete }) {
         onTouchEnd={onTouchEnd}
         style={{
           ...S.row,
-          position: 'relative',
-          background: active ? '#ffe5ec' : isUnread ? 'var(--bg-card)' : 'var(--bg, #fef8f4)',
-          borderColor: active ? '#ffd1de' : 'transparent',
+          background: active ? 'var(--accent-light, #ffe5ec)' : 'var(--bg-card, #fff)',
+          borderColor: active ? 'var(--accent, #92405e)' : 'var(--border-light, #F0ECE8)',
           transform: `translateX(${dx}px)`,
           transition: start.current ? 'none' : 'transform 0.2s ease',
           touchAction: 'pan-y',
         }}
       >
-        <span style={S.avatar} aria-hidden>{initialOf(name)}</span>
+        <span style={S.avatarWrap}>
+          <span style={S.avatar} aria-hidden>{initialOf(name)}</span>
+          {flagged && <span style={S.flagDot} aria-hidden />}
+        </span>
+
         <span style={S.rowBody}>
           <span style={S.rowTop}>
-            <span style={{ ...S.rowName, fontWeight: isUnread ? 700 : 600 }}>{name}</span>
+            <span style={{ ...S.rowName, fontWeight: isUnread || flagged ? 700 : 600 }}>{name}</span>
             <span style={S.rowTime}>{formatTimeShort(thread.last_message_at)}</span>
           </span>
+
           <span style={S.rowBottom}>
-            <span style={S.rowChannel} aria-label={CHANNEL_LABEL[thread.last_channel] || 'WhatsApp'}>
-              {channelIcon}
-            </span>
+            <ChannelMark channel={thread.last_channel} size={15} />
             <span style={{
               ...S.rowPreview,
-              color: isUnread ? 'var(--text-primary)' : 'var(--text-muted)',
+              color: isUnread ? 'var(--text-primary, #1d1b19)' : 'var(--text-muted, #9B8A8E)',
               fontWeight: isUnread ? 600 : 400,
             }}>
               {directionPrefix}{thread.last_message_preview || ''}
             </span>
             {isUnread && <span style={S.rowBadge}>{thread.unread_count}</span>}
+          </span>
+
+          <span style={S.rowMetaRow}>
+            <span style={{ ...S.typeChip, ...(flagged ? S.typeChipFlagged : {}) }}>
+              <span style={{ ...S.typeDot, background: type.dot }} aria-hidden />
+              {flagged ? 'Needs you' : type.label}
+            </span>
           </span>
         </span>
       </button>
@@ -388,7 +439,7 @@ function ThreadSkeleton() {
       {[0, 1, 2, 3].map(i => (
         <li key={i}>
           <div style={{ ...S.row, cursor: 'default' }}>
-            <span style={{ ...S.avatar, background: 'var(--bg-hover)', color: 'transparent' }}>·</span>
+            <span style={{ ...S.avatar, background: 'var(--border-light, #F0ECE8)', color: 'transparent' }}>·</span>
             <span style={S.rowBody}>
               <span style={S.skelLine} />
               <span style={S.skelLineShort} />
@@ -403,16 +454,10 @@ function ThreadSkeleton() {
 function EmptyInbox() {
   return (
     <div style={S.empty}>
-      <div style={S.emptyIcon}>🌷</div>
-      <p style={S.emptyText}>
-        Once a client messages you, they'll appear here.
-      </p>
-      <Link to="/whatsapp" style={S.emptyCta}>
-        Send a template
-      </Link>
-      <p style={S.emptyHint}>
-        A friendly hello is all it takes to get the conversation started.
-      </p>
+      <span className="material-symbols-outlined" style={S.emptyIcon}>forum</span>
+      <p style={S.emptyText}>Once a client messages you, they'll appear here.</p>
+      <Link to="/whatsapp" style={S.emptyCta}>Send a template</Link>
+      <p style={S.emptyHint}>A friendly hello is all it takes to get the conversation started.</p>
     </div>
   );
 }
@@ -420,7 +465,7 @@ function EmptyInbox() {
 function CaughtUp({ onShowAll }) {
   return (
     <div style={S.empty}>
-      <div style={S.emptyIcon}>✨</div>
+      <span className="material-symbols-outlined" style={S.emptyIcon}>task_alt</span>
       <p style={S.emptyText}>You're all caught up. Nothing is waiting on a reply.</p>
       <button type="button" onClick={onShowAll} style={S.caughtUpBtn}>See all conversations</button>
     </div>
@@ -430,8 +475,10 @@ function CaughtUp({ onShowAll }) {
 function EmptyConvoPlaceholder() {
   return (
     <div style={S.placeholder}>
-      <div style={{ fontSize: 28, marginBottom: 8 }}>💌</div>
-      <div style={{ fontSize: 14, color: 'var(--text-muted)', fontFamily: "'Noto Serif', Georgia, serif", fontStyle: 'italic' }}>
+      <span className="material-symbols-outlined" style={{ fontSize: 30, color: 'var(--text-muted, #B5AFA8)', marginBottom: 8 }}>
+        forum
+      </span>
+      <div style={{ fontSize: 14, color: 'var(--text-muted, #9B8A8E)', fontFamily: "'Noto Serif', Georgia, serif", fontStyle: 'italic' }}>
         Pick a conversation
       </div>
     </div>
@@ -446,7 +493,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState(null);
   const [suggestions, setSuggestions] = useState([]);
-  const [draftOrigin, setDraftOrigin] = useState(null); // the Florrie draft this reply started from, for the voice metric
+  const [draftOrigin, setDraftOrigin] = useState(null);
   const scrollerRef = useRef(null);
   const composerRef = useRef(null);
 
@@ -454,8 +501,6 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
     try {
       const json = await authFetch(`/api/inbox/thread/${encodeURIComponent(clientId)}`);
       setState({ status: 'ready', ...json });
-      // Only auto-pick the default channel on first load (or when the
-      // available channels for the conversation actually change).
       setChannel(prev => prev || json.default_channel);
     } catch (err) {
       logger.error({ err }, 'inbox.thread load failed');
@@ -469,14 +514,11 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
   }, [clientId]);
 
   useEffect(() => {
-    // Scroll to bottom when messages change.
     const el = scrollerRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
   }, [state?.messages?.length]);
 
-  // Pre-draft 3 candidate replies when the client has the last word, so the
-  // owner never starts from a blank box. Tapping a chip loads it to send or edit.
   useEffect(() => {
     if (state.status !== 'ready') { setSuggestions([]); return; }
     const msgs = state.messages || [];
@@ -498,7 +540,6 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
     setSending(true);
     setSendError(null);
 
-    // Optimistic message.
     const tempId = `tmp-${Date.now()}`;
     const optimistic = {
       id: tempId,
@@ -509,6 +550,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
       created_at: new Date().toISOString(),
       status: 'sending',
       ai_generated: false,
+      message_type: 'you',
       image_url: null,
     };
     setState(prev => ({ ...prev, messages: [...(prev.messages || []), optimistic] }));
@@ -520,20 +562,18 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
         body: JSON.stringify({ client_id: clientId, channel, body, draft_text: draftOrigin || undefined }),
       });
       setDraftOrigin(null);
-      // Swap the optimistic row for the real one.
       setState(prev => ({
         ...prev,
-        messages: (prev.messages || []).map(m => m.id === tempId ? res.message : m),
+        messages: (prev.messages || []).map(m => m.id === tempId ? { ...res.message, message_type: 'you' } : m),
       }));
       onSent?.();
     } catch (err) {
       logger.error({ err }, 'inbox.send failed');
-      // Remove the optimistic row and surface a clear error.
       setState(prev => ({
         ...prev,
         messages: (prev.messages || []).filter(m => m.id !== tempId),
       }));
-      setComposer(body); // give the user their text back
+      setComposer(body);
       setSendError(err.message || 'Send failed');
     } finally {
       setSending(false);
@@ -568,13 +608,10 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
   const { client, messages = [] } = state;
   const fullName = [client?.first_name, client?.last_name].filter(Boolean).join(' ') || 'Client';
 
-  // Detect "outside 24h window" hint: latest inbound is older than 24h and
-  // the picked channel is whatsapp.
   const lastInbound = [...messages].reverse().find(m => m.direction === 'inbound');
   const lastInboundAge = lastInbound ? Date.now() - new Date(lastInbound.created_at).getTime() : Infinity;
   const showWaWindowHint = channel === 'whatsapp' && lastInboundAge > 24 * 60 * 60 * 1000;
 
-  // Which channels are actually available?
   const channels = ['whatsapp', 'sms', 'email'].filter(c => {
     if (c === 'whatsapp') return !!client?.has_whatsapp;
     if (c === 'sms') return !!client?.has_phone;
@@ -598,9 +635,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
             No messages yet. Type below to start the conversation.
           </div>
         )}
-        {messages.map(m => (
-          <Bubble key={m.id} msg={m} />
-        ))}
+        {messages.map(m => <Bubble key={m.id} msg={m} />)}
       </div>
 
       {showWaWindowHint && (
@@ -618,23 +653,30 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
       ) : (
         <div style={S.composerBar}>
           <div style={S.channelToggle} role="tablist" aria-label="Choose channel">
-            {channels.map(c => (
-              <button
-                key={c}
-                type="button"
-                role="tab"
-                aria-selected={channel === c}
-                onClick={() => setChannel(c)}
-                style={{
-                  ...S.channelPill,
-                  background: channel === c ? 'var(--accent)' : 'var(--bg-card)',
-                  color: channel === c ? '#fff' : 'var(--accent)',
-                  borderColor: channel === c ? 'var(--accent)' : '#f0d2dd',
-                }}
-              >
-                <span aria-hidden>{CHANNEL_ICON[c]}</span> {CHANNEL_LABEL[c]}
-              </button>
-            ))}
+            {channels.map(c => {
+              const meta = channelOf(c);
+              const on = channel === c;
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  role="tab"
+                  aria-selected={on}
+                  onClick={() => setChannel(c)}
+                  style={{
+                    ...S.channelPill,
+                    background: on ? 'var(--accent, #92405e)' : 'var(--bg-card, #fff)',
+                    color: on ? '#fff' : 'var(--accent, #92405e)',
+                    borderColor: on ? 'var(--accent, #92405e)' : 'var(--border-light, #f0d2dd)',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 15, color: on ? '#fff' : meta.tint }} aria-hidden>
+                    {meta.icon}
+                  </span>
+                  {meta.label}
+                </button>
+              );
+            })}
           </div>
 
           {sendError && <div style={S.sendError}>{sendError}</div>}
@@ -661,7 +703,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
               value={composer}
               onChange={e => setComposer(e.target.value)}
               onKeyDown={handleKey}
-              placeholder={`Reply via ${CHANNEL_LABEL[channel] || 'WhatsApp'}…`}
+              placeholder={`Reply via ${channelOf(channel).label}…`}
               rows={1}
               style={S.composerInput}
             />
@@ -669,10 +711,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
               type="button"
               onClick={handleSend}
               disabled={!composer.trim() || sending}
-              style={{
-                ...S.sendBtn,
-                opacity: composer.trim() && !sending ? 1 : 0.45,
-              }}
+              style={{ ...S.sendBtn, opacity: composer.trim() && !sending ? 1 : 0.45 }}
               aria-label="Send"
             >
               {sending ? '…' : (
@@ -698,10 +737,7 @@ function ConvoHeader({ onBack, embedded, clientName, navigate, clientId }) {
       <div style={S.convoNameWrap}>
         <span style={S.convoName}>{clientName}</span>
         {clientId && (
-          <button
-            onClick={() => navigate('/clients', { state: { clientId } })}
-            style={S.viewProfileBtn}
-          >
+          <button onClick={() => navigate('/clients', { state: { clientId } })} style={S.viewProfileBtn}>
             View profile
           </button>
         )}
@@ -712,32 +748,39 @@ function ConvoHeader({ onBack, embedded, clientName, navigate, clientId }) {
 
 function Bubble({ msg }) {
   const out = msg.direction === 'outbound';
-  const icon = CHANNEL_ICON[msg.channel] || '💬';
+  const meta = channelOf(msg.channel);
+  // Label outbound bubbles so the owner can tell what Florrie sent and why.
+  const type = msg.message_type;
+  let tag = null;
+  if (out && type === 'auto_reply') tag = 'Florrie replied';
+  else if (out && type === 'proactive') tag = 'Florrie reached out';
+  else if (out && msg.ai_generated) tag = 'Florrie';
+
   return (
     <div style={{ ...S.bubbleRow, justifyContent: out ? 'flex-end' : 'flex-start' }}>
-      <div
-        style={{
-          ...S.bubble,
-          background: out ? 'var(--accent)' : 'var(--bg-card)',
-          color: out ? '#fff' : 'var(--text-primary)',
-          borderColor: out ? 'var(--accent)' : '#f0d2dd',
-          borderBottomLeftRadius: out ? 16 : 4,
-          borderBottomRightRadius: out ? 4 : 16,
-        }}
-      >
-        {msg.image_url && (
-          <img
-            src={msg.image_url}
-            alt=""
-            style={{ maxWidth: '100%', borderRadius: 10, marginBottom: msg.body ? 6 : 0 }}
-          />
-        )}
-        {msg.body && <div style={S.bubbleText}>{msg.body}</div>}
-        <div style={{ ...S.bubbleMeta, color: out ? 'rgba(255,255,255,0.75)' : '#9B8A8E' }}>
-          <span aria-hidden>{icon}</span>
-          <span>{formatBubbleTime(msg.created_at)}</span>
-          {msg.status === 'sending' && <span>· sending</span>}
-          {msg.ai_generated && <span>· Florrie</span>}
+      <div style={{ ...S.bubbleStack, alignItems: out ? 'flex-end' : 'flex-start' }}>
+        {tag && <span style={S.bubbleTag}>{tag}</span>}
+        <div
+          style={{
+            ...S.bubble,
+            background: out ? 'var(--accent, #92405e)' : 'var(--bg-card, #fff)',
+            color: out ? '#fff' : 'var(--text-primary, #1d1b19)',
+            borderColor: out ? 'var(--accent, #92405e)' : 'var(--border-light, #f0d2dd)',
+            borderBottomLeftRadius: out ? 16 : 4,
+            borderBottomRightRadius: out ? 4 : 16,
+          }}
+        >
+          {msg.image_url && (
+            <img src={msg.image_url} alt="" style={{ maxWidth: '100%', borderRadius: 10, marginBottom: msg.body ? 6 : 0 }} />
+          )}
+          {msg.body && <div style={S.bubbleText}>{msg.body}</div>}
+          <div style={{ ...S.bubbleMeta, color: out ? 'rgba(255,255,255,0.78)' : '#9B8A8E' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 12, color: out ? 'rgba(255,255,255,0.78)' : meta.tint }} aria-hidden>
+              {meta.icon}
+            </span>
+            <span>{formatBubbleTime(msg.created_at)}</span>
+            {msg.status === 'sending' && <span>· sending</span>}
+          </div>
         </div>
       </div>
     </div>
@@ -747,508 +790,230 @@ function Bubble({ msg }) {
 const S = {
   page: {
     minHeight: '100vh',
-    background: 'var(--bg)',
+    background: 'var(--bg, #fef8f4)',
     fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
-    padding: '16px 16px 24px',
+    padding: '0 16px 24px',
     maxWidth: 480,
     margin: '0 auto',
-    color: 'var(--text-primary)',
+    color: 'var(--text-primary, #1d1b19)',
   },
   pageWide: {
     minHeight: '100vh',
-    background: 'var(--bg)',
+    background: 'var(--bg, #fef8f4)',
     fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
     display: 'grid',
-    gridTemplateColumns: 'minmax(320px, 380px) 1fr',
+    gridTemplateColumns: 'minmax(320px, 392px) 1fr',
     gap: 16,
-    padding: '16px 16px 24px',
-    maxWidth: 1100,
+    padding: '0 16px 24px',
+    maxWidth: 1120,
     margin: '0 auto',
-    color: 'var(--text-primary)',
+    color: 'var(--text-primary, #1d1b19)',
   },
   paneList: {
-    background: 'var(--bg-card)',
-    border: '1px solid rgba(146,64,94,0.07)',
+    background: 'var(--bg-card, #fff)',
+    border: '1px solid var(--border-light, #F0ECE8)',
     borderRadius: 20,
-    padding: '14px 12px',
-    boxShadow: '0 1px 4px rgba(146,64,94,0.05)',
+    padding: '4px 12px 14px',
+    boxShadow: 'var(--shadow-sm, 0 1px 4px rgba(146,64,94,0.05))',
     maxHeight: 'calc(100vh - 32px)',
     overflowY: 'auto',
+    marginTop: 16,
   },
   paneConvo: {
-    background: 'var(--bg-card)',
-    border: '1px solid rgba(146,64,94,0.07)',
+    background: 'var(--bg-card, #fff)',
+    border: '1px solid var(--border-light, #F0ECE8)',
     borderRadius: 20,
-    boxShadow: '0 1px 4px rgba(146,64,94,0.05)',
+    boxShadow: 'var(--shadow-sm, 0 1px 4px rgba(146,64,94,0.05))',
     display: 'flex',
     flexDirection: 'column',
     minHeight: 'calc(100vh - 32px)',
     overflow: 'hidden',
+    marginTop: 16,
   },
 
-  header: {
-    display: 'flex',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-    padding: '0 4px',
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: 700,
-    color: 'var(--text-primary)',
-    fontFamily: "'Noto Serif', Georgia, serif",
-    fontStyle: 'italic',
-    margin: 0,
-    lineHeight: 1.2,
-  },
-
-  searchWrap: {
-    position: 'relative',
-    marginBottom: 10,
-    padding: '0 4px',
-  },
+  searchWrap: { position: 'relative', marginBottom: 10 },
   searchIcon: {
-    position: 'absolute',
-    left: 14,
-    top: '50%',
-    transform: 'translateY(-50%)',
-    fontSize: 18,
-    color: 'var(--text-muted)',
+    position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
+    fontSize: 18, color: 'var(--text-muted, #B5AFA8)',
   },
   searchInput: {
-    width: '100%',
-    boxSizing: 'border-box',
-    padding: '10px 12px 10px 38px',
-    border: '1px solid rgba(146,64,94,0.12)',
-    borderRadius: 14,
-    background: 'var(--bg-card)',
-    fontSize: 14,
-    fontFamily: 'inherit',
-    color: 'var(--text-primary)',
-    outline: 'none',
+    width: '100%', boxSizing: 'border-box',
+    padding: '11px 12px 11px 40px',
+    border: '1px solid var(--border, #E8E4E0)',
+    borderRadius: 14, background: 'var(--bg-card, #fff)',
+    fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #1d1b19)', outline: 'none',
   },
 
-  filterRow: {
-    display: 'flex',
-    gap: 8,
-    padding: '0 4px',
-    marginBottom: 10,
-  },
+  filterRow: { display: 'flex', gap: 8, marginBottom: 12 },
   filterChip: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    padding: '7px 14px',
-    borderRadius: 999,
-    border: '1px solid rgba(146,64,94,0.14)',
-    background: 'var(--bg-card, #fff)',
-    color: 'var(--text-secondary)',
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    padding: '8px 15px', borderRadius: 999,
+    border: '1px solid var(--border, #E8E4E0)',
+    background: 'var(--bg-card, #fff)', color: 'var(--text-secondary, #867277)',
+    fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
   },
-  filterChipActive: {
-    background: 'var(--accent)',
-    borderColor: 'var(--accent)',
-    color: '#fff',
-  },
+  filterChipActive: { background: 'var(--accent, #92405e)', borderColor: 'var(--accent, #92405e)', color: '#fff' },
   filterChipCount: {
-    fontSize: 11,
-    fontWeight: 700,
-    padding: '1px 7px',
-    borderRadius: 999,
-    background: 'rgba(146,64,94,0.10)',
-    color: 'var(--accent)',
+    fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 999,
+    background: 'var(--accent-light, rgba(146,64,94,0.10))', color: 'var(--accent, #92405e)',
   },
-  filterChipCountActive: {
-    background: 'rgba(255,255,255,0.22)',
-    color: '#fff',
-  },
+  filterChipCountActive: { background: 'rgba(255,255,255,0.24)', color: '#fff' },
+
   caughtUpBtn: {
-    marginTop: 4,
-    padding: '9px 18px',
-    background: 'var(--bg-card, #fff)',
-    color: 'var(--accent)',
-    border: '1px solid rgba(146,64,94,0.18)',
-    borderRadius: 999,
-    fontSize: 13,
-    fontWeight: 600,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
+    marginTop: 4, padding: '10px 18px',
+    background: 'var(--bg-card, #fff)', color: 'var(--accent, #92405e)',
+    border: '1px solid var(--border, #E8E4E0)', borderRadius: 999,
+    fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
   },
-  list: {
-    listStyle: 'none',
-    margin: 0,
-    padding: 0,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 4,
-  },
+
+  list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 },
   row: {
-    width: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-    padding: '10px 10px',
-    background: 'transparent',
-    border: '1px solid transparent',
-    borderRadius: 14,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    textAlign: 'left',
+    width: '100%', display: 'flex', alignItems: 'flex-start', gap: 12,
+    padding: '12px 13px',
+    border: '1px solid var(--border-light, #F0ECE8)',
+    borderRadius: 16, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+    boxShadow: 'var(--shadow-sm, 0 1px 3px rgba(146,64,94,0.04))',
     WebkitTapHighlightColor: 'transparent',
   },
+  deleteReveal: {
+    position: 'absolute', top: 0, right: 0, bottom: 0, width: 84,
+    background: 'var(--danger, #c2410c)', color: '#fff', border: 'none', cursor: 'pointer',
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+    fontSize: 11, fontWeight: 700, fontFamily: 'inherit', borderRadius: 16,
+  },
+  avatarWrap: { position: 'relative', flexShrink: 0 },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42, height: 42, borderRadius: 21,
     background: 'linear-gradient(135deg, #ffd9e2 0%, #ffb8c8 100%)',
-    color: '#92405e',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: 16,
-    fontWeight: 700,
-    flexShrink: 0,
-    fontFamily: "'Noto Serif', Georgia, serif",
+    color: '#92405e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 16, fontWeight: 700, fontFamily: "'Noto Serif', Georgia, serif",
   },
-  rowBody: {
-    flex: 1,
-    minWidth: 0,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 2,
+  flagDot: {
+    position: 'absolute', top: -1, right: -1, width: 12, height: 12,
+    borderRadius: 6, background: '#c2410c', border: '2px solid var(--bg-card, #fff)',
   },
-  rowTop: {
-    display: 'flex',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  rowName: { fontSize: 14, color: 'var(--text-primary)' },
-  rowTime: { fontSize: 11, color: '#9B8A8E', flexShrink: 0 },
-  rowBottom: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    minWidth: 0,
-  },
-  rowChannel: { fontSize: 13, flexShrink: 0 },
+  rowBody: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 },
+  rowTop: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
+  rowName: { fontSize: 14.5, color: 'var(--text-primary, #1d1b19)' },
+  rowTime: { fontSize: 11, color: 'var(--text-muted, #9B8A8E)', flexShrink: 0, fontWeight: 500 },
+  rowBottom: { display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 },
   rowPreview: {
-    fontSize: 13,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
-    flex: 1,
-    minWidth: 0,
+    fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0,
   },
   rowBadge: {
-    fontSize: 11,
-    fontWeight: 700,
-    color: '#fff',
-    background: 'var(--accent)',
-    padding: '2px 8px',
-    borderRadius: 20,
-    minWidth: 18,
-    textAlign: 'center',
-    flexShrink: 0,
+    fontSize: 11, fontWeight: 700, color: '#fff', background: 'var(--accent, #92405e)',
+    padding: '1px 8px', borderRadius: 20, minWidth: 18, textAlign: 'center', flexShrink: 0,
   },
+  rowMetaRow: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 1 },
+  typeChip: {
+    display: 'inline-flex', alignItems: 'center', gap: 5,
+    fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #9a8f93)',
+    letterSpacing: '0.01em',
+  },
+  typeChipFlagged: { color: '#c2410c', fontWeight: 700 },
+  typeDot: { width: 6, height: 6, borderRadius: 3, flexShrink: 0 },
 
   empty: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    padding: '40px 14px',
-    textAlign: 'center',
-    gap: 10,
+    display: 'flex', flexDirection: 'column', alignItems: 'center',
+    padding: '52px 14px', textAlign: 'center', gap: 10,
   },
-  emptyIcon: { fontSize: 36, lineHeight: 1 },
-  emptyText: {
-    fontSize: 14,
-    color: 'var(--text-secondary)',
-    lineHeight: 1.5,
-    margin: 0,
-    maxWidth: 280,
-  },
+  emptyIcon: { fontSize: 42, color: 'var(--text-muted, #B5AFA8)', lineHeight: 1 },
+  emptyText: { fontSize: 14, color: 'var(--text-secondary, #867277)', lineHeight: 1.5, margin: 0, maxWidth: 280 },
   emptyCta: {
-    marginTop: 6,
-    padding: '10px 18px',
-    background: 'var(--accent)',
-    color: '#fff',
-    borderRadius: 999,
-    fontSize: 13,
-    fontWeight: 600,
-    textDecoration: 'none',
-    fontFamily: 'inherit',
+    marginTop: 6, padding: '10px 18px', background: 'var(--accent, #92405e)', color: '#fff',
+    borderRadius: 999, fontSize: 13, fontWeight: 600, textDecoration: 'none', fontFamily: 'inherit',
   },
-  emptyHint: {
-    fontSize: 12,
-    color: 'var(--text-muted)',
-    margin: 0,
-    maxWidth: 260,
-  },
+  emptyHint: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)', margin: 0, maxWidth: 260 },
   errorCard: {
-    margin: '12px 4px',
-    padding: 14,
-    background: '#FFF8F0',
-    border: '1px solid #FFE8CC',
-    borderRadius: 12,
-    fontSize: 13,
-    color: '#7B5E00',
-    lineHeight: 1.5,
+    margin: '12px 0', padding: 14, background: '#FFF8F0', border: '1px solid #FFE8CC',
+    borderRadius: 12, fontSize: 13, color: '#7B5E00', lineHeight: 1.5,
   },
 
-  placeholder: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
+  placeholder: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 },
 
-  // Conversation
   convoFull: {
-    minHeight: '100vh',
-    background: 'var(--bg)',
+    minHeight: '100vh', background: 'var(--bg, #fef8f4)',
     fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
-    display: 'flex',
-    flexDirection: 'column',
-    color: 'var(--text-primary)',
-    paddingBottom: 120,
+    display: 'flex', flexDirection: 'column', color: 'var(--text-primary, #1d1b19)', paddingBottom: 120,
   },
-  convoEmbedded: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
-    minHeight: 0,
-  },
+  convoEmbedded: { flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 },
   convoHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-    padding: '12px 14px',
-    background: 'var(--bg-card)',
-    borderBottom: '1px solid rgba(146,64,94,0.07)',
-    position: 'sticky',
-    top: 0,
-    zIndex: 2,
+    display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px',
+    background: 'var(--bg-card, #fff)', borderBottom: '1px solid var(--border-light, #F0ECE8)',
+    position: 'sticky', top: 0, zIndex: 2,
   },
   backBtn: {
-    background: 'none',
-    border: 'none',
-    color: 'var(--accent)',
-    padding: 4,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    display: 'flex',
-    alignItems: 'center',
+    background: 'none', border: 'none', color: 'var(--accent, #92405e)', padding: 4, cursor: 'pointer',
+    fontFamily: 'inherit', display: 'flex', alignItems: 'center',
   },
   convoAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    background: 'linear-gradient(135deg, #ffd9e2 0%, #ffb8c8 100%)',
-    color: '#92405e',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: 14,
-    fontWeight: 700,
-    fontFamily: "'Noto Serif', Georgia, serif",
+    width: 36, height: 36, borderRadius: 18,
+    background: 'linear-gradient(135deg, #ffd9e2 0%, #ffb8c8 100%)', color: '#92405e',
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: 14, fontWeight: 700, fontFamily: "'Noto Serif', Georgia, serif",
   },
-  convoNameWrap: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 1,
-    flex: 1,
-    minWidth: 0,
-  },
+  convoNameWrap: { display: 'flex', flexDirection: 'column', gap: 1, flex: 1, minWidth: 0 },
   convoName: {
-    fontSize: 15,
-    fontWeight: 700,
-    color: 'var(--text-primary)',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
+    fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #1d1b19)',
+    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   },
   viewProfileBtn: {
-    background: 'none',
-    border: 'none',
-    color: 'var(--accent)',
-    fontSize: 11,
-    fontWeight: 600,
-    padding: 0,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    alignSelf: 'flex-start',
-    textDecoration: 'underline',
+    background: 'none', border: 'none', color: 'var(--accent, #92405e)', fontSize: 11, fontWeight: 600,
+    padding: 0, cursor: 'pointer', fontFamily: 'inherit', alignSelf: 'flex-start', textDecoration: 'underline',
   },
 
-  scroller: {
-    flex: 1,
-    overflowY: 'auto',
-    padding: '12px 14px 8px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
-  },
-  bubbleRow: {
-    display: 'flex',
-    width: '100%',
-  },
+  scroller: { flex: 1, overflowY: 'auto', padding: '12px 14px 8px', display: 'flex', flexDirection: 'column', gap: 10 },
+  bubbleRow: { display: 'flex', width: '100%' },
+  bubbleStack: { display: 'flex', flexDirection: 'column', gap: 3, maxWidth: '82%' },
+  bubbleTag: { fontSize: 10, fontWeight: 700, color: 'var(--accent, #92405e)', letterSpacing: '0.03em', paddingLeft: 2 },
   bubble: {
-    maxWidth: '80%',
-    padding: '9px 12px',
-    border: '1px solid',
-    borderRadius: 16,
-    boxShadow: '0 1px 2px rgba(146,64,94,0.05)',
+    padding: '9px 12px', border: '1px solid', borderRadius: 16,
+    boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(146,64,94,0.05))',
   },
-  bubbleText: {
-    fontSize: 14,
-    lineHeight: 1.45,
-    whiteSpace: 'pre-wrap',
-    wordBreak: 'break-word',
-  },
-  bubbleMeta: {
-    fontSize: 10,
-    marginTop: 4,
-    display: 'flex',
-    alignItems: 'center',
-    gap: 5,
-    justifyContent: 'flex-end',
-  },
+  bubbleText: { fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
+  bubbleMeta: { fontSize: 10, marginTop: 4, display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' },
 
   waHint: {
-    margin: '0 14px 8px',
-    padding: '10px 12px',
-    background: '#FFF8E1',
-    border: '1px solid #FFE082',
-    borderRadius: 12,
-    fontSize: 12,
-    color: '#7B5E00',
-    lineHeight: 1.5,
+    margin: '0 14px 8px', padding: '10px 12px', background: '#FFF8E1', border: '1px solid #FFE082',
+    borderRadius: 12, fontSize: 12, color: '#7B5E00', lineHeight: 1.5,
   },
-  waHintLink: {
-    color: '#7B5E00',
-    fontWeight: 700,
-    marginLeft: 6,
-    textDecoration: 'underline',
-  },
+  waHintLink: { color: '#7B5E00', fontWeight: 700, marginLeft: 6, textDecoration: 'underline' },
   noContact: {
-    margin: '0 14px 14px',
-    padding: 12,
-    background: '#FDECEA',
-    border: '1px solid #F5C6C0',
-    borderRadius: 12,
-    fontSize: 12,
-    color: '#8A2A1C',
-    lineHeight: 1.5,
+    margin: '0 14px 14px', padding: 12, background: '#FDECEA', border: '1px solid #F5C6C0',
+    borderRadius: 12, fontSize: 12, color: '#8A2A1C', lineHeight: 1.5,
   },
 
   composerBar: {
-    padding: '8px 12px 16px',
-    background: 'var(--bg-card)',
-    borderTop: '1px solid rgba(146,64,94,0.07)',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
-    position: 'sticky',
-    bottom: 0,
+    padding: '8px 12px 16px', background: 'var(--bg-card, #fff)',
+    borderTop: '1px solid var(--border-light, #F0ECE8)',
+    display: 'flex', flexDirection: 'column', gap: 8, position: 'sticky', bottom: 0,
   },
-  channelToggle: {
-    display: 'flex',
-    gap: 6,
-    overflowX: 'auto',
-  },
+  channelToggle: { display: 'flex', gap: 6, overflowX: 'auto' },
   channelPill: {
-    padding: '6px 12px',
-    borderRadius: 999,
-    border: '1px solid',
-    fontSize: 12,
-    fontWeight: 600,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 5,
-    whiteSpace: 'nowrap',
-    flexShrink: 0,
+    padding: '6px 12px', borderRadius: 999, border: '1px solid', fontSize: 12, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 5,
+    whiteSpace: 'nowrap', flexShrink: 0,
   },
   suggestionRow: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 },
   suggestionChip: {
-    background: 'var(--bg-card)', border: '1.5px solid #f0d2dd', color: 'var(--accent)',
-    borderRadius: 999, padding: '7px 14px', fontSize: 13, fontWeight: 600,
-    cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1.2, maxWidth: '100%',
-    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+    background: 'var(--bg-card, #fff)', border: '1.5px solid var(--border, #f0d2dd)', color: 'var(--accent, #92405e)',
+    borderRadius: 999, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+    lineHeight: 1.2, maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
   },
-  composerRow: {
-    display: 'flex',
-    alignItems: 'flex-end',
-    gap: 8,
-  },
+  composerRow: { display: 'flex', alignItems: 'flex-end', gap: 8 },
   composerInput: {
-    flex: 1,
-    padding: '10px 14px',
-    border: '1px solid rgba(146,64,94,0.18)',
-    borderRadius: 18,
-    background: 'var(--bg)',
-    fontSize: 14,
-    fontFamily: 'inherit',
-    resize: 'none',
-    maxHeight: 140,
-    color: 'var(--text-primary)',
-    outline: 'none',
-    lineHeight: 1.4,
+    flex: 1, padding: '10px 14px', border: '1px solid var(--border, #E8E4E0)', borderRadius: 18,
+    background: 'var(--bg, #fef8f4)', fontSize: 14, fontFamily: 'inherit', resize: 'none', maxHeight: 140,
+    color: 'var(--text-primary, #1d1b19)', outline: 'none', lineHeight: 1.4,
   },
   sendBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    border: 'none',
-    background: 'var(--accent)',
-    color: '#fff',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
+    width: 38, height: 38, borderRadius: 19, border: 'none', background: 'var(--accent, #92405e)', color: '#fff',
+    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   sendError: {
-    fontSize: 12,
-    color: '#8A2A1C',
-    background: '#FDECEA',
-    border: '1px solid #F5C6C0',
-    borderRadius: 10,
-    padding: '6px 10px',
+    fontSize: 12, color: '#8A2A1C', background: '#FDECEA', border: '1px solid #F5C6C0', borderRadius: 10, padding: '6px 10px',
   },
 
-  skelLine: {
-    height: 12,
-    width: '60%',
-    borderRadius: 6,
-    background: 'var(--bg-hover)',
-    display: 'block',
-  },
-  skelLineShort: {
-    height: 10,
-    width: '40%',
-    borderRadius: 5,
-    background: 'var(--bg-hover)',
-    display: 'block',
-    marginTop: 4,
-  },
+  skelLine: { height: 12, width: '60%', borderRadius: 6, background: 'var(--border-light, #F0ECE8)', display: 'block' },
+  skelLineShort: { height: 10, width: '40%', borderRadius: 5, background: 'var(--border-light, #F0ECE8)', display: 'block', marginTop: 4 },
 };
-
-if (typeof document !== 'undefined' && !document.getElementById('inbox-keyframes')) {
-  const s = document.createElement('style');
-  s.id = 'inbox-keyframes';
-  s.textContent = `
-    @media (max-width: 767px) {
-      .inbox-wide-only { display: none; }
-    }
-  `;
-  document.head.appendChild(s);
-}
