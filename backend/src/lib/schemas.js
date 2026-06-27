@@ -418,19 +418,23 @@ export const submitConsultationFormSchema = z.object({
 /**
  * @typedef {Object} PhotoConsentInput
  * @property {string} client_id - Client UUID (required)
- * @property {string} appointment_id - Appointment UUID (required)
+ * @property {string[]} permitted_uses - Where the photos may be used (required, at least one)
+ * @property {string} [method] - How consent was requested: 'digital' or 'paper'
+ * @property {string} [notes] - Free-text note / message to the client
  */
 export const createPhotoConsentSchema = z.object({
   client_id: z.string().uuid(),
-  appointment_id: z.string().uuid(),
+  permitted_uses: z.array(z.string().min(1)).min(1),
+  method: z.enum(['digital', 'paper']).optional(),
+  notes: z.string().max(2000).optional(),
 });
 
 /**
  * @typedef {Object} RevokePhotoConsentInput
- * @property {string} client_id - Client UUID (required)
+ * @property {string} [notes] - Reason the consent was withdrawn (optional)
  */
 export const revokePhotoConsentSchema = z.object({
-  client_id: z.string().uuid(),
+  notes: z.string().max(2000).optional(),
 });
 
 
