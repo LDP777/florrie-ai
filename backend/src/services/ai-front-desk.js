@@ -104,7 +104,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
     // auto-reply to them: draft the response and escalate so she gives the yes/no.
     // This is the main guard against a regular getting an out of context message,
     // which is most likely on Instagram where we may be missing the earlier chat.
-    if (shouldAct && await isKnownClient(beautician.id, client?.id, client)) {
+    if (shouldAct && await isKnownClient(beautician.id, client?.id, client, beautician.autonomy?.known_client_min_visits)) {
       shouldAct = false;
     }
 
@@ -204,7 +204,7 @@ async function gatherContext(beautician, client) {
   const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   // Parallel fetches for speed
-  const [treatments, upcomingAppointments, clientHistory, clientIntelligence] = await Promise.all([
+  const [treatments, upcomingAppointments, clientHistory, clientIntelligence, conversation] = await Promise.all([
     // Treatment menu
     supabase
       .from('treatments')
@@ -236,14 +236,28 @@ async function gatherContext(beautician, client) {
       .from('client_intelligence')
       .select('*')
       .eq('client_id', client.id)
-      .single() : { data: null }
+      .single() : { data: null },
+
+    // Recent conversation thread with this client, so replies continue the chat
+    // with context instead of answering the latest line in isolation. This is the
+    // main fix for out of context Instagram replies where we only saw one DM.
+    client?.id ? supabase
+      .from('messages')
+      .select('direction, content, channel, created_at')
+      .eq('client_id', client.id)
+      .order('created_at', { ascending: false })
+      .limit(12) : { data: [] }
   ]);
+
+  // Oldest to newest, ready to render as a transcript.
+  const conversationThread = (conversation.data || []).slice().reverse();
 
   return {
     treatments: treatments.data || [],
     upcomingAppointments: upcomingAppointments.data || [],
     clientHistory: clientHistory.data || [],
     clientIntelligence: clientIntelligence.data,
+    conversation: conversationThread,
     beautician: {
       name: beautician.business_name || beautician.first_name,
       workingHours: beautician.working_hours,
@@ -259,10 +273,27 @@ async function gatherContext(beautician, client) {
   };
 }
 
+// Render the recent message thread as a short transcript so the AI classifies and
+// replies in context, not to the latest line in isolation. Skips the current
+// inbound message (shown to the model separately) and caps at the last 10 turns.
+function buildTranscript(context, currentMessage) {
+  const rows = (context?.conversation || []).filter(m => m && m.content);
+  if (!rows.length) return '';
+  const youName = context?.beautician?.name || 'You';
+  const cur = String(currentMessage || '').trim();
+  const lines = [];
+  for (const m of rows) {
+    if (m.direction === 'inbound' && String(m.content).trim() === cur) continue;
+    lines.push(`${m.direction === 'inbound' ? 'Client' : youName}: ${m.content}`);
+  }
+  return lines.slice(-10).join('\n');
+}
+
 // STEP 2: CLASSIFY INTENT
 
 async function classifyIntent(message, context) {
   const treatmentNames = context.treatments.map(t => t.name).join(', ');
+  const transcript = buildTranscript(context, message);
 
   const response = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
@@ -270,7 +301,7 @@ async function classifyIntent(message, context) {
     system: `You are an intent classifier for a beauty salon. Classify the customer's message into exactly one intent. Respond with JSON only.
 
 Available treatments: ${treatmentNames}
-
+${transcript ? `\nConversation so far (oldest first):\n${transcript}\n\nUse this thread for context. A short message like "yes please" or "Tuesday works" follows on from the chat above. Classify the customer's LATEST message (below), reading it as part of this conversation.\n` : ''}
 Intents:
 - booking_request: wants to book an appointment
 - price_enquiry: asking about prices or costs
@@ -405,6 +436,7 @@ CONTEXT:
 Treatments: ${context.treatments.map(t => `${t.name} (${t.duration_minutes}min, £${(t.price_cents/100).toFixed(2)})`).join(', ')}
 ${context.client ? `Client: ${context.client.name}, ${context.client.totalVisits || 0} previous visits` : 'New client'}
 ${context.clientIntelligence?.favourite_treatments?.length ? `Favourite treatments: ${context.clientIntelligence.favourite_treatments.join(', ')}` : ''}
+${buildTranscript(context, message) ? `\nConversation so far (oldest first). Continue it naturally, do not repeat yourself or reintroduce yourself:\n${buildTranscript(context, message)}` : ''}
 
 Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`,
     messages: [{ role: 'user', content: message }]
@@ -515,6 +547,7 @@ Keep it short (WhatsApp style, 1-3 sentences). Be helpful but flag anything you'
 Never use em dashes (—) or en dashes (–). Use commas, full stops, colons or line breaks instead.
 
 Treatments: ${context.treatments.map(t => `${t.name} (£${(t.price_cents/100).toFixed(2)})`).join(', ')}
+${buildTranscript(context, message) ? `\nConversation so far (oldest first), so your draft fits the thread:\n${buildTranscript(context, message)}` : ''}
 
 Respond with the suggested message only.`,
     messages: [{ role: 'user', content: message }]

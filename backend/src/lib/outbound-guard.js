@@ -51,8 +51,9 @@ function decision(d, tier, reason) {
 // lands out of context with an established relationship. The signal is simple and
 // robust: two or more completed appointments (or an explicit regular/VIP flag).
 export const KNOWN_CLIENT_MIN_VISITS = 2;
-export async function isKnownClient(beauticianId, clientId, client = null) {
+export async function isKnownClient(beauticianId, clientId, client = null, minVisits = KNOWN_CLIENT_MIN_VISITS) {
   if (!clientId) return false;
+  const threshold = Number.isFinite(minVisits) && minVisits > 0 ? minVisits : KNOWN_CLIENT_MIN_VISITS;
   try {
     if (client && (client.is_regular === true || client.vip === true)) return true;
     const { count } = await supabase
@@ -61,7 +62,7 @@ export async function isKnownClient(beauticianId, clientId, client = null) {
       .eq('beautician_id', beauticianId)
       .eq('client_id', clientId)
       .eq('status', 'completed');
-    return (count || 0) >= KNOWN_CLIENT_MIN_VISITS;
+    return (count || 0) >= threshold;
   } catch {
     // If we cannot tell, err towards asking rather than auto-sending.
     return true;
@@ -157,7 +158,7 @@ export async function evaluateOutbound({ beauticianId, clientId, messageType, ch
     // A client Ellie knows is a relationship she manages personally. Never auto-send
     // to them, even on 'auto': hold for her explicit yes/no so a proactive message
     // never lands out of context with someone she has a rapport with.
-    if (mode === 'auto' && await isKnownClient(beauticianId, clientId, c)) {
+    if (mode === 'auto' && await isKnownClient(beauticianId, clientId, c, b?.autonomy?.known_client_min_visits)) {
       return decision('approve', tier, 'known_client_review');
     }
     if (mode === 'auto') return decision('send', tier, 'trusted_auto');
