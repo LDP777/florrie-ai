@@ -1,17 +1,26 @@
 /**
- * Outbox - "Florrie's Outbox".
+ * Florrie's Outbox , the one calm place to give your yes or no.
  *
- * The calm review screen for proactive messages Florrie wants to send.
- * Nothing here goes out without the beautician's OK. Each draft can be
- * approved (sends now), edited, or skipped. There is also an "Approve all"
- * shortcut for clearing the whole queue in one tap.
+ * Florrie never messages a client you know without checking first. Anything
+ * waiting on you lands here, in two kinds:
  *
- * API (all need the Supabase bearer token):
+ *   1. Holds      , proactive messages Florrie lined up (rebook nudges,
+ *                   check-ins, win-backs). Rows in outbound_sends with
+ *                   status 'pending_approval'.
+ *   2. Replies    , a client you know messaged in and Florrie drafted an
+ *                   answer. Escalated rows in the messages table.
+ *
+ * Both show the client, why it is here, the exact words (editable), and two
+ * plain buttons: Send it, or Not now. Nothing goes out until you say so.
+ *
+ * APIs (all need the Supabase bearer token):
  *   GET   /api/outbound/pending
  *   PATCH /api/outbound/:id            { body }
  *   POST  /api/outbound/:id/approve
  *   POST  /api/outbound/:id/skip
  *   POST  /api/outbound/approve-all
+ *   GET   /api/escalations
+ *   POST  /api/escalations/:id/resolve { response, action }
  */
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase.js';
@@ -29,7 +38,6 @@ const TYPE_LABELS = {
 function typeLabel(type) {
   if (!type) return 'Message';
   if (TYPE_LABELS[type]) return TYPE_LABELS[type];
-  // Fallback: title-case the raw type (rebook_nudge -> "Rebook Nudge").
   return type
     .split(/[_\s]+/)
     .filter(Boolean)
@@ -37,19 +45,38 @@ function typeLabel(type) {
     .join(' ');
 }
 
-const REASON_LABELS = {
-  awaiting_approval: 'Waiting for your OK',
-};
-
-function reasonLabel(reason) {
-  if (!reason) return null;
-  return REASON_LABELS[reason] || null;
+// Plain "why this is here" lines. Proactive holds get a sentence tied to the
+// reason the guard held them; known regulars get a warmer one.
+function holdWhy(item) {
+  const reason = item.reason || '';
+  if (reason === 'known_client_review' || reason === 'known_client_reply') {
+    return 'A regular you know. I held it for your OK.';
+  }
+  return 'I lined this up. Send it whenever you like.';
 }
 
-function clientName(item) {
-  const c = item.clients || {};
-  const name = `${c.first_name || ''} ${c.last_name || ''}`.trim();
-  return name || 'A client';
+function isRegularHold(item) {
+  return String(item.reason || '').startsWith('known_client');
+}
+
+function channelMeta(channel) {
+  const c = String(channel || '').toLowerCase();
+  if (c === 'whatsapp') return { icon: 'chat', label: 'WhatsApp' };
+  if (c === 'instagram') return { icon: 'photo_camera', label: 'Instagram' };
+  if (c === 'sms') return { icon: 'sms', label: 'SMS' };
+  if (c === 'email') return { icon: 'mail', label: 'Email' };
+  return { icon: 'forum', label: c ? c.charAt(0).toUpperCase() + c.slice(1) : 'Message' };
+}
+
+function firstNameOf(first, last) {
+  const f = (first || '').trim();
+  if (f) return f;
+  const l = (last || '').trim();
+  return l || 'A client';
+}
+
+function initialOf(name) {
+  return (name || 'C').trim().charAt(0).toUpperCase() || 'C';
 }
 
 async function authedFetch(path, opts = {}) {
@@ -65,8 +92,46 @@ async function authedFetch(path, opts = {}) {
   });
 }
 
+// Normalise a held proactive row into the shared shape.
+function fromHold(row) {
+  const first = firstNameOf(row.clients?.first_name, row.clients?.last_name);
+  return {
+    key: `hold-${row.id}`,
+    kind: 'hold',
+    id: row.id,
+    firstName: first,
+    regular: isRegularHold(row),
+    channel: row.channel || 'whatsapp',
+    typeLabel: typeLabel(row.message_type),
+    why: holdWhy(row),
+    body: row.body || '',
+    createdAt: row.created_at,
+  };
+}
+
+// Normalise an escalated reply (messages row) into the shared shape. The
+// editable text is Florrie's suggested reply (ai_response), not the client's
+// inbound message.
+function fromEscalation(row) {
+  const first = firstNameOf(row.clients?.first_name, row.clients?.last_name);
+  return {
+    key: `reply-${row.id}`,
+    kind: 'reply',
+    id: row.id,
+    firstName: first,
+    regular: true, // these escalations are clients Florrie knows
+    channel: row.channel || 'sms',
+    typeLabel: 'Reply',
+    why: row.escalated_reason || 'A client you know messaged in. Have a look before it goes.',
+    inbound: row.content || '',
+    body: row.ai_response || '',
+    createdAt: row.created_at,
+  };
+}
+
 export default function Outbox() {
-  const [items, setItems] = useState([]);
+  const [holds, setHolds] = useState([]);
+  const [replies, setReplies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [approvingAll, setApprovingAll] = useState(false);
@@ -81,10 +146,23 @@ export default function Outbox() {
     setLoading(true);
     setError(null);
     try {
-      const res = await authedFetch('/api/outbound/pending');
-      if (!res.ok) throw new Error('Could not load the outbox');
-      const data = await res.json();
-      setItems(Array.isArray(data?.pending) ? data.pending : []);
+      const [pendRes, escRes] = await Promise.all([
+        authedFetch('/api/outbound/pending'),
+        authedFetch('/api/escalations').catch(() => null),
+      ]);
+      if (!pendRes.ok) throw new Error('Could not load your outbox');
+      const pendData = await pendRes.json();
+      const pend = Array.isArray(pendData?.pending) ? pendData.pending : [];
+      setHolds(pend.map(fromHold));
+
+      let esc = [];
+      if (escRes && escRes.ok) {
+        const escData = await escRes.json();
+        const rows = Array.isArray(escData?.escalations) ? escData.escalations : [];
+        // Only show escalations that actually have a drafted reply to approve.
+        esc = rows.filter(r => r.ai_response && String(r.ai_response).trim()).map(fromEscalation);
+      }
+      setReplies(esc);
     } catch (err) {
       setError(err.message || 'Something went wrong');
     } finally {
@@ -94,8 +172,8 @@ export default function Outbox() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Edit a draft. PATCH on blur or via the small Save action.
-  async function saveDraft(id, body) {
+  // ----- Hold actions (proactive) -----
+  async function saveHold(id, body) {
     try {
       const res = await authedFetch(`/api/outbound/${id}`, {
         method: 'PATCH',
@@ -107,29 +185,65 @@ export default function Outbox() {
     }
   }
 
-  async function approve(id) {
+  async function approveHold(id) {
     try {
       const res = await authedFetch(`/api/outbound/${id}/approve`, { method: 'POST' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data?.error) throw new Error(data?.error || 'Send failed');
-      setItems(prev => prev.filter(i => i.id !== id)); // optimistic remove
+      setHolds(prev => prev.filter(i => i.id !== id));
       showToast('Sent.');
-    } catch (err) {
-      showToast(err.message === 'Send failed' ? 'Could not send that one. Try again.' : 'Could not send that one. Try again.');
+    } catch {
+      showToast('Could not send that one. Try again.');
     }
   }
 
-  async function skip(id) {
+  async function skipHold(id) {
     try {
       const res = await authedFetch(`/api/outbound/${id}/skip`, { method: 'POST' });
       if (!res.ok) throw new Error();
-      setItems(prev => prev.filter(i => i.id !== id)); // optimistic remove
+      setHolds(prev => prev.filter(i => i.id !== id));
     } catch {
       showToast('Could not skip that one. Try again.');
     }
   }
 
-  async function approveAll() {
+  // ----- Reply actions (escalations) -----
+  // Reuse the Inbox / Escalations resolve path so the tone model still learns
+  // from any edit. action: 'send_as_is' | 'send_edited' | 'dismiss'.
+  async function approveReply(id, originalBody, body) {
+    const edited = body.trim() !== (originalBody || '').trim();
+    try {
+      const res = await authedFetch(`/api/escalations/${id}/resolve`, {
+        method: 'POST',
+        body: JSON.stringify({
+          response: body,
+          action: edited ? 'send_edited' : 'send_as_is',
+        }),
+      });
+      if (!res.ok) throw new Error();
+      setReplies(prev => prev.filter(i => i.id !== id));
+      showToast('Sent.');
+    } catch {
+      showToast('Could not send that one. Try again.');
+    }
+  }
+
+  async function skipReply(id) {
+    try {
+      const res = await authedFetch(`/api/escalations/${id}/resolve`, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'dismiss' }),
+      });
+      if (!res.ok) throw new Error();
+      setReplies(prev => prev.filter(i => i.id !== id));
+    } catch {
+      showToast('Could not dismiss that one. Try again.');
+    }
+  }
+
+  // Approve all only clears the proactive holds (safe, one transport). Replies
+  // stay so each client answer gets a real read first.
+  async function approveAllHolds() {
     setApprovingAll(true);
     try {
       const res = await authedFetch('/api/outbound/approve-all', { method: 'POST' });
@@ -137,56 +251,82 @@ export default function Outbox() {
       if (!res.ok) throw new Error();
       const sent = data?.sent ?? 0;
       const failed = data?.failed ?? 0;
-      if (failed > 0) {
-        showToast(`Sent ${sent}. ${failed} could not go out, still in your outbox.`);
-      } else {
-        showToast(`Sent ${sent}.`);
-      }
+      if (failed > 0) showToast(`Sent ${sent}. ${failed} could not go out, still here.`);
+      else showToast(`Sent ${sent}.`);
       await load();
     } catch {
-      showToast('Could not approve all. Try again.');
+      showToast('Could not send them all. Try again.');
     } finally {
       setApprovingAll(false);
     }
   }
 
+  const total = holds.length + replies.length;
+
   return (
     <div style={s.page}>
       <PageHeader
         title="Florrie's Outbox"
-        subtitle="What I'd like to send. Nothing goes out without your OK."
+        subtitle="Everything waiting on your yes or no. Nothing goes out without you."
       />
 
       {loading ? (
         <LoadingState />
       ) : error ? (
         <ErrorState message={error} onRetry={load} />
-      ) : items.length === 0 ? (
+      ) : total === 0 ? (
         <EmptyState />
       ) : (
         <>
           <div style={s.topBar}>
-            <span style={s.waitingLabel}>{items.length} waiting</span>
-            <button
-              onClick={approveAll}
-              disabled={approvingAll}
-              style={{ ...s.approveAllBtn, opacity: approvingAll ? 0.6 : 1 }}
-            >
-              {approvingAll ? 'Sending...' : 'Approve all'}
-            </button>
+            <span style={s.waitingLabel}>{total} waiting</span>
+            {holds.length > 0 && (
+              <button
+                onClick={approveAllHolds}
+                disabled={approvingAll}
+                style={{ ...s.approveAllBtn, opacity: approvingAll ? 0.6 : 1 }}
+              >
+                {approvingAll ? 'Sending...' : `Send all ${holds.length} hold${holds.length === 1 ? '' : 's'}`}
+              </button>
+            )}
           </div>
 
-          <div style={s.list}>
-            {items.map(item => (
-              <OutboxCard
-                key={item.id}
-                item={item}
-                onApprove={() => approve(item.id)}
-                onSkip={() => skip(item.id)}
-                onSave={(body) => saveDraft(item.id, body)}
-              />
-            ))}
-          </div>
+          {replies.length > 0 && (
+            <Section
+              icon="reply"
+              title="Replies to clients you know"
+              hint="A regular messaged in. Florrie drafted an answer for your OK."
+            >
+              {replies.map(item => (
+                <ReviewCard
+                  key={item.key}
+                  item={item}
+                  onApprove={(body) => approveReply(item.id, item.body, body)}
+                  onSkip={() => skipReply(item.id)}
+                  skipLabel="Dismiss"
+                />
+              ))}
+            </Section>
+          )}
+
+          {holds.length > 0 && (
+            <Section
+              icon="schedule_send"
+              title="Messages Florrie wants to send"
+              hint="Proactive nudges and check-ins. Send, tweak, or leave them."
+            >
+              {holds.map(item => (
+                <ReviewCard
+                  key={item.key}
+                  item={item}
+                  onApprove={(body) => approveHold(item.id, body)}
+                  onSkip={() => skipHold(item.id)}
+                  onSave={(body) => saveHold(item.id, body)}
+                  skipLabel="Not now"
+                />
+              ))}
+            </Section>
+          )}
         </>
       )}
 
@@ -195,28 +335,74 @@ export default function Outbox() {
   );
 }
 
-function OutboxCard({ item, onApprove, onSkip, onSave }) {
+function Section({ icon, title, hint, children }) {
+  return (
+    <div style={s.section}>
+      <div style={s.sectionHead}>
+        <span className="material-symbols-outlined" style={s.sectionIcon}>{icon}</span>
+        <div style={{ minWidth: 0 }}>
+          <div style={s.sectionTitle}>{title}</div>
+          <div style={s.sectionHint}>{hint}</div>
+        </div>
+      </div>
+      <div style={s.list}>{children}</div>
+    </div>
+  );
+}
+
+function ReviewCard({ item, onApprove, onSkip, onSave, skipLabel }) {
   const [body, setBody] = useState(item.body || '');
   const [dirty, setDirty] = useState(false);
-  const why = reasonLabel(item.reason);
-  const channel = (item.channel || '').toLowerCase();
+  const [busy, setBusy] = useState(false);
+  const ch = channelMeta(item.channel);
 
   function handleBlur() {
-    if (dirty) {
+    if (dirty && onSave) {
       onSave(body);
       setDirty(false);
     }
   }
 
+  async function send() {
+    if (busy) return;
+    setBusy(true);
+    if (dirty && onSave) { onSave(body); setDirty(false); }
+    await onApprove(body);
+    setBusy(false);
+  }
+
+  async function skip() {
+    if (busy) return;
+    setBusy(true);
+    await onSkip();
+    setBusy(false);
+  }
+
   return (
     <div style={s.card}>
       <div style={s.cardTop}>
-        <div style={s.cardTopLeft}>
-          <span style={s.clientName}>{clientName(item)}</span>
-          <span style={s.typeLabel}>{typeLabel(item.message_type)}</span>
+        <span style={s.avatar} aria-hidden>{initialOf(item.firstName)}</span>
+        <div style={s.cardTopText}>
+          <div style={s.nameRow}>
+            <span style={s.clientName}>{item.firstName}</span>
+            {item.regular && <span style={s.regularPill}>Regular</span>}
+          </div>
+          <span style={s.typeLabel}>{item.typeLabel}</span>
         </div>
-        {channel && <span style={s.channelChip}>{channel}</span>}
+        <span style={s.channelChip}>
+          <span className="material-symbols-outlined" style={s.channelChipIcon}>{ch.icon}</span>
+          {ch.label}
+        </span>
       </div>
+
+      <p style={s.why}>{item.why}</p>
+
+      {item.kind === 'reply' && item.inbound && (
+        <div style={s.inboundQuote}>
+          <span style={s.inboundLabel}>They said</span>
+          <span style={s.inboundText}>{item.inbound}</span>
+        </div>
+      )}
 
       <textarea
         value={body}
@@ -224,19 +410,14 @@ function OutboxCard({ item, onApprove, onSkip, onSave }) {
         onBlur={handleBlur}
         rows={4}
         style={s.textarea}
-        aria-label="Message draft"
+        aria-label="Message text"
       />
 
-      <div style={s.cardFooter}>
-        {why && <span style={s.why}>{why}</span>}
-        {dirty && (
-          <button onClick={handleBlur} style={s.saveBtn}>Save</button>
-        )}
-      </div>
-
       <div style={s.actions}>
-        <button onClick={onApprove} style={s.approveBtn}>Approve</button>
-        <button onClick={onSkip} style={s.skipBtn}>Skip</button>
+        <button onClick={send} disabled={busy || !body.trim()} style={{ ...s.approveBtn, opacity: busy || !body.trim() ? 0.6 : 1 }}>
+          {busy ? 'Sending...' : 'Send it'}
+        </button>
+        <button onClick={skip} disabled={busy} style={s.skipBtn}>{skipLabel || 'Not now'}</button>
       </div>
     </div>
   );
@@ -274,7 +455,7 @@ function EmptyState() {
       <span className="material-symbols-outlined" style={s.stateIcon}>mark_email_read</span>
       <p style={s.stateTitle}>All clear.</p>
       <p style={s.stateSub}>
-        Florrie will line up anything proactive here for your OK first.
+        Anything Florrie wants to send a client you know will wait here for your OK first.
       </p>
     </div>
   );
@@ -306,7 +487,7 @@ const s = {
     padding: '9px 16px',
     borderRadius: 999,
     border: 'none',
-    background: 'var(--accent, #C76B8A)',
+    background: 'var(--accent, #92405e)',
     color: '#fff',
     fontSize: 13,
     fontWeight: 700,
@@ -314,6 +495,33 @@ const s = {
     fontFamily: 'inherit',
     boxShadow: 'var(--shadow-sm, 0 1px 4px rgba(0,0,0,0.06))',
     WebkitTapHighlightColor: 'transparent',
+  },
+
+  section: { marginBottom: 22 },
+  sectionHead: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 10,
+    padding: '0 2px',
+  },
+  sectionIcon: {
+    fontSize: 20,
+    color: 'var(--accent, #92405e)',
+    marginTop: 1,
+    flexShrink: 0,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: 700,
+    color: 'var(--text-primary, #1d1b19)',
+    lineHeight: 1.25,
+  },
+  sectionHint: {
+    fontSize: 12,
+    color: 'var(--text-secondary, #867277)',
+    lineHeight: 1.4,
+    marginTop: 2,
   },
 
   list: { display: 'flex', flexDirection: 'column', gap: 12 },
@@ -327,17 +535,42 @@ const s = {
   },
   cardTop: {
     display: 'flex',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
-    gap: 10,
-    marginBottom: 12,
+    gap: 11,
+    marginBottom: 10,
   },
-  cardTopLeft: { display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 },
+  avatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    background: 'linear-gradient(135deg, #ffd9e2 0%, #ffb8c8 100%)',
+    color: '#92405e',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 16,
+    fontWeight: 700,
+    flexShrink: 0,
+    fontFamily: "'Noto Serif', Georgia, serif",
+  },
+  cardTopText: { display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0, flex: 1 },
+  nameRow: { display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 },
   clientName: {
     fontSize: 15,
     fontWeight: 700,
     color: 'var(--text-primary, #1d1b19)',
     lineHeight: 1.2,
+  },
+  regularPill: {
+    flexShrink: 0,
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: '0.02em',
+    padding: '2px 8px',
+    borderRadius: 999,
+    background: '#fff0f4',
+    color: 'var(--accent, #92405e)',
+    border: '1px solid #ffd9e2',
   },
   typeLabel: {
     fontSize: 12,
@@ -346,14 +579,48 @@ const s = {
   },
   channelChip: {
     flexShrink: 0,
-    fontSize: 10,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    fontSize: 10.5,
     fontWeight: 700,
-    textTransform: 'capitalize',
-    letterSpacing: '0.02em',
+    letterSpacing: '0.01em',
     padding: '4px 9px',
     borderRadius: 999,
     background: 'var(--accent-light, #ffd9e2)',
     color: 'var(--accent, #92405e)',
+  },
+  channelChipIcon: { fontSize: 13 },
+
+  why: {
+    fontSize: 12.5,
+    color: 'var(--text-secondary, #867277)',
+    lineHeight: 1.45,
+    margin: '0 0 10px',
+    fontWeight: 500,
+  },
+
+  inboundQuote: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 3,
+    background: 'var(--bg, #fef8f4)',
+    borderRadius: 12,
+    padding: '9px 12px',
+    marginBottom: 10,
+    borderLeft: '3px solid var(--accent-light, #ffd9e2)',
+  },
+  inboundLabel: {
+    fontSize: 10,
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+    color: 'var(--text-muted, #B5AFA8)',
+  },
+  inboundText: {
+    fontSize: 13,
+    color: 'var(--text-primary, #1d1b19)',
+    lineHeight: 1.45,
   },
 
   textarea: {
@@ -372,39 +639,13 @@ const s = {
     outline: 'none',
   },
 
-  cardFooter: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 8,
-    minHeight: 18,
-    marginTop: 8,
-  },
-  why: {
-    fontSize: 11,
-    color: 'var(--text-muted, #B5AFA8)',
-    fontWeight: 500,
-  },
-  saveBtn: {
-    marginLeft: 'auto',
-    padding: '5px 12px',
-    borderRadius: 8,
-    border: '1px solid var(--border, #E8E4E0)',
-    background: 'var(--bg-card, #fff)',
-    color: 'var(--text-primary, #1d1b19)',
-    fontSize: 12,
-    fontWeight: 600,
-    cursor: 'pointer',
-    fontFamily: 'inherit',
-  },
-
   actions: { display: 'flex', gap: 8, marginTop: 12 },
   approveBtn: {
     flex: 1,
     padding: '11px 0',
     borderRadius: 12,
     border: 'none',
-    background: 'var(--accent, #C76B8A)',
+    background: 'var(--accent, #92405e)',
     color: '#fff',
     fontSize: 14,
     fontWeight: 700,
@@ -425,7 +666,6 @@ const s = {
     WebkitTapHighlightColor: 'transparent',
   },
 
-  // Loading skeleton
   skeletonCard: { pointerEvents: 'none' },
   skelLine: {
     height: 13,
@@ -439,7 +679,6 @@ const s = {
     border: '1px solid var(--border-light, #F0ECE8)',
   },
 
-  // Center states (error / empty)
   centerState: {
     display: 'flex',
     flexDirection: 'column',
@@ -470,7 +709,7 @@ const s = {
     padding: '10px 22px',
     borderRadius: 999,
     border: 'none',
-    background: 'var(--accent, #C76B8A)',
+    background: 'var(--accent, #92405e)',
     color: '#fff',
     fontSize: 13,
     fontWeight: 700,

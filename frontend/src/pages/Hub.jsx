@@ -108,6 +108,9 @@ export default function Hub() {
           {/* Today summary , the hero card */}
           <TodaySummary beautician={beautician} onNav={navigate} />
 
+          {/* Yes/no flag: anything Florrie is holding for your OK. Hidden at zero. */}
+          <ApprovalCard onNav={navigate} />
+
           {/* Setup nudge: slim pointer to /setup while setup is incomplete */}
           <SetupNudge />
 
@@ -144,6 +147,97 @@ export default function Hub() {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * ApprovalCard , the home flag for anything waiting on the owner's yes or no.
+ *
+ * Combines two sources: proactive holds (outbound_sends pending_approval) and
+ * escalated replies to clients she knows (messages, escalated). Shows a count,
+ * a one-line preview of the most recent, and a button into the outbox. Renders
+ * nothing at all when there is nothing to approve.
+ */
+function ApprovalCard({ onNav }) {
+  const [state, setState] = useState(null); // { count, name, snippet } | null
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      const token = getToken();
+      if (!token) return;
+      const h = { Authorization: `Bearer ${token}` };
+      try {
+        const [pendRes, escRes] = await Promise.all([
+          fetch(`${API_BASE}/api/outbound/pending`, { headers: h }).catch(() => null),
+          fetch(`${API_BASE}/api/escalations`, { headers: h }).catch(() => null),
+        ]);
+        if (cancelled) return;
+
+        let items = [];
+        if (pendRes && pendRes.ok) {
+          const d = await pendRes.json();
+          for (const r of (d.pending || [])) {
+            items.push({
+              name: (r.clients?.first_name || '').trim() || 'A client',
+              snippet: r.body || '',
+              at: r.created_at,
+            });
+          }
+        }
+        if (escRes && escRes.ok) {
+          const d = await escRes.json();
+          for (const r of (d.escalations || [])) {
+            if (!r.ai_response || !String(r.ai_response).trim()) continue;
+            items.push({
+              name: (r.clients?.first_name || '').trim() || 'A client',
+              snippet: r.ai_response || '',
+              at: r.created_at,
+            });
+          }
+        }
+
+        if (items.length === 0) { setState({ count: 0 }); return; }
+        items.sort((a, b) => new Date(b.at) - new Date(a.at));
+        const top = items[0];
+        const flat = String(top.snippet).replace(/\s+/g, ' ').trim();
+        const snippet = flat.length > 70 ? `${flat.slice(0, 69)}…` : flat;
+        setState({ count: items.length, name: top.name, snippet });
+      } catch {
+        if (!cancelled) setState({ count: 0 });
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Render nothing until we know, and nothing when there is nothing to approve.
+  if (!state || !state.count) return null;
+
+  const { count, name, snippet } = state;
+
+  return (
+    <button onClick={() => onNav('/outbox')} style={AC.card} aria-label={`${count} messages waiting for your OK`}>
+      <div style={AC.iconWrap}>
+        <span className="material-symbols-outlined" style={AC.icon}>how_to_reg</span>
+      </div>
+      <div style={AC.body}>
+        <div style={AC.titleRow}>
+          <span style={AC.title}>
+            {count} message{count === 1 ? '' : 's'} waiting for your OK
+          </span>
+        </div>
+        {snippet && (
+          <span style={AC.preview}>
+            <span style={AC.previewName}>{name}:</span> {snippet}
+          </span>
+        )}
+      </div>
+      <span style={AC.cta}>
+        Review
+        <span className="material-symbols-outlined" style={AC.ctaChev}>chevron_right</span>
+      </span>
+    </button>
   );
 }
 
@@ -577,6 +671,60 @@ const TS = {
     flex: 1, height: 40, borderRadius: 10,
     background: 'rgba(255,255,255,0.12)',
   },
+};
+
+
+const AC = {
+  card: {
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    background: '#fff',
+    border: '1px solid rgba(146,64,94,0.12)',
+    borderRadius: 18,
+    padding: '14px 14px',
+    marginBottom: 14,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    textAlign: 'left',
+    boxShadow: '0 4px 16px rgba(146,64,94,0.08)',
+    WebkitTapHighlightColor: 'transparent',
+    boxSizing: 'border-box',
+  },
+  iconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    background: '#ffd9e2',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  icon: { fontSize: 22, color: '#92405e' },
+  body: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 },
+  titleRow: { display: 'flex', alignItems: 'center', gap: 8 },
+  title: { fontSize: 14, fontWeight: 700, color: '#1d1b19', lineHeight: 1.25 },
+  preview: {
+    fontSize: 12,
+    color: '#867277',
+    lineHeight: 1.35,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  previewName: { fontWeight: 600, color: '#92405e' },
+  cta: {
+    flexShrink: 0,
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 1,
+    fontSize: 12,
+    fontWeight: 700,
+    color: '#92405e',
+  },
+  ctaChev: { fontSize: 18 },
 };
 
 if (typeof document !== 'undefined' && !document.getElementById('hub-keyframes')) {

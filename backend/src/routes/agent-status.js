@@ -265,6 +265,7 @@ router.get('/counts', requireAuth, async (req, res) => {
       insightsRes,
       patchTestsRes,
       consultationRes,
+      outboundPendingRes,
     ] = await Promise.all([
       // Inbox: unresolved escalated messages
       supabase
@@ -317,6 +318,13 @@ router.get('/counts', requireAuth, async (req, res) => {
         .select('id', { count: 'exact', head: true })
         .eq('beautician_id', beauticianId)
         .eq('status', 'pending'),
+
+      // Approvals: proactive messages Florrie is holding for the owner's OK
+      supabase
+        .from('outbound_sends')
+        .select('id', { count: 'exact', head: true })
+        .eq('beautician_id', beauticianId)
+        .eq('status', 'pending_approval'),
     ]);
 
     const inbox      = escalationsRes.count  ?? 0;
@@ -325,12 +333,16 @@ router.get('/counts', requireAuth, async (req, res) => {
     const bookkeeper = bookkeeperRes.count   ?? 0;
     const insights   = insightsRes.count     ?? 0;
     const compliance = (patchTestsRes.count ?? 0) + (consultationRes.count ?? 0);
+    // Approvals waiting on the owner's yes/no: held proactive messages plus the
+    // escalated replies to clients she knows (those land in `inbox` already).
+    const heldProactive = outboundPendingRes.count ?? 0;
+    const approvals  = heldProactive + inbox;
     const total      = inbox + content + churn + bookkeeper + insights + compliance;
 
-    res.json({ inbox, content, churn, bookkeeper, insights, compliance, total });
+    res.json({ inbox, content, churn, bookkeeper, insights, compliance, approvals, total });
   } catch (err) {
     // Fail silently - badge counts are non-critical
-    res.json({ inbox: 0, content: 0, churn: 0, bookkeeper: 0, insights: 0, compliance: 0, total: 0 });
+    res.json({ inbox: 0, content: 0, churn: 0, bookkeeper: 0, insights: 0, compliance: 0, approvals: 0, total: 0 });
   }
 });
 

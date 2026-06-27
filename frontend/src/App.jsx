@@ -465,6 +465,7 @@ export default function App() {
 function BottomNav({ current, session }) {
   const navigate = useNavigate();
   const [inboxCount, setInboxCount] = useState(0);
+  const [approvalsCount, setApprovalsCount] = useState(0);
   const intervalRef = useRef(null);
   // Hold-to-speak on the centre petal. A long press (~450ms) opens Florrie
   // already listening; a plain tap opens her quietly. The didHold ref stops
@@ -508,6 +509,7 @@ function BottomNav({ current, session }) {
         if (!res.ok) return;
         const d = await res.json();
         setInboxCount(d.inbox || 0);
+        setApprovalsCount(d.approvals || 0);
       } catch { /* silent , badges are non-critical */ }
     }
     fetchCounts();
@@ -523,7 +525,7 @@ function BottomNav({ current, session }) {
   const isMoneyActive = current === '/money';
 
   const leftTabs = [
-    { path: '/today', label: 'Today', icon: 'today', active: isTodayActive, badge: 0 },
+    { path: '/today', label: 'Today', icon: 'today', active: isTodayActive, badge: approvalsCount },
     { path: '/inbox', label: 'Inbox', icon: 'forum', active: isInboxActive, badge: inboxCount },
   ];
   const rightTabs = [

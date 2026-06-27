@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, updateRow } from '../lib/supabase.js';
+import { useNavigate } from 'react-router-dom';
+import { useBeautician, fetchRows, updateRow, supabase } from '../lib/supabase.js';
+import { API_BASE } from '../lib/config.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 
@@ -40,11 +42,50 @@ function timeAgo(isoString) {
 
 export default function Notifications() {
   const { beautician } = useBeautician();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
+  const [approvals, setApprovals] = useState(null); // { count, name, snippet } | null
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { loadData(); }, [beautician]);
+  useEffect(() => { loadData(); loadApprovals(); }, [beautician]);
+
+  // Live "waiting on your OK" flag. Pulls the same two sources as the outbox so
+  // notifications, the home card, and the outbox always agree.
+  async function loadApprovals() {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data?.session?.access_token;
+      if (!token) return;
+      const h = { Authorization: `Bearer ${token}` };
+      const [pendRes, escRes] = await Promise.all([
+        fetch(`${API_BASE}/api/outbound/pending`, { headers: h }).catch(() => null),
+        fetch(`${API_BASE}/api/escalations`, { headers: h }).catch(() => null),
+      ]);
+      let items = [];
+      if (pendRes && pendRes.ok) {
+        const d = await pendRes.json();
+        for (const r of (d.pending || [])) {
+          items.push({ name: (r.clients?.first_name || '').trim() || 'A client', snippet: r.body || '', at: r.created_at });
+        }
+      }
+      if (escRes && escRes.ok) {
+        const d = await escRes.json();
+        for (const r of (d.escalations || [])) {
+          if (!r.ai_response || !String(r.ai_response).trim()) continue;
+          items.push({ name: (r.clients?.first_name || '').trim() || 'A client', snippet: r.ai_response || '', at: r.created_at });
+        }
+      }
+      if (items.length === 0) { setApprovals({ count: 0 }); return; }
+      items.sort((a, b) => new Date(b.at) - new Date(a.at));
+      const top = items[0];
+      const flat = String(top.snippet).replace(/\s+/g, ' ').trim();
+      const snippet = flat.length > 80 ? `${flat.slice(0, 79)}…` : flat;
+      setApprovals({ count: items.length, name: top.name, snippet });
+    } catch {
+      setApprovals({ count: 0 });
+    }
+  }
 
   async function loadData() {
     setLoading(true);
@@ -84,7 +125,7 @@ export default function Notifications() {
   }
 
   const filtered = filter === 'all' ? notifications : notifications.filter(n => n.category === filter);
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter(n => !n.read).length + (approvals?.count || 0);
 
   // Group by date
   const groups = {};
@@ -116,6 +157,30 @@ export default function Notifications() {
           <button onClick={markAllRead} style={styles.markAllBtn}>Mark all read</button>
         )}
       </div>
+
+      {/* Waiting on your OK , the one yes/no flag, links straight to the outbox */}
+      {approvals?.count > 0 && (
+        <button
+          onClick={() => navigate('/outbox')}
+          style={styles.approvalBanner}
+          aria-label={`${approvals.count} messages waiting for your OK`}
+        >
+          <div style={styles.approvalIcon}>
+            <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--accent, #C76B8A)' }}>how_to_reg</span>
+          </div>
+          <div style={styles.approvalBody}>
+            <span style={styles.approvalTitle}>
+              {approvals.count} message{approvals.count === 1 ? '' : 's'} waiting for your OK
+            </span>
+            {approvals.snippet && (
+              <span style={styles.approvalPreview}>
+                <span style={{ fontWeight: 600, color: 'var(--accent, #C76B8A)' }}>{approvals.name}:</span> {approvals.snippet}
+              </span>
+            )}
+          </div>
+          <span className="material-symbols-outlined" style={styles.approvalChev}>chevron_right</span>
+        </button>
+      )}
 
       {/* Category filter */}
       <div style={styles.filterRow}>
@@ -211,6 +276,36 @@ const styles = {
     background: 'var(--accent-light, #FFF0F3)', color: 'var(--accent, #C76B8A)', fontSize: 11, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
+
+  // Waiting-on-your-OK banner
+  approvalBanner: {
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 11,
+    background: 'var(--bg-card, #fff)',
+    border: '1px solid rgba(146,64,94,0.14)',
+    borderRadius: 14,
+    padding: '12px 12px',
+    margin: '4px 0 12px',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    textAlign: 'left',
+    boxShadow: '0 2px 10px rgba(146,64,94,0.07)',
+    boxSizing: 'border-box',
+  },
+  approvalIcon: {
+    width: 36, height: 36, borderRadius: 10,
+    background: 'var(--accent-light, #FFF0F3)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+  approvalBody: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 },
+  approvalTitle: { fontSize: 13, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', lineHeight: 1.25 },
+  approvalPreview: {
+    fontSize: 11.5, color: '#8A8580', lineHeight: 1.3,
+    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+  },
+  approvalChev: { fontSize: 20, color: 'var(--text-muted, #B5AFA8)', flexShrink: 0 },
 
   // Filters
   filterRow: {
