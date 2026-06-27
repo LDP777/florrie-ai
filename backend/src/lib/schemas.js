@@ -477,8 +477,17 @@ export const waitlistSchema = z.object({
 
 /**
  * @typedef {Object} CourseEnrollmentInput
- * @property {string} course_id - Course UUID
+ * @property {string} name  - Student full name
+ * @property {string} email - Student email (used for the deposit receipt and duplicate check)
+ * @property {string} [phone]
+ * @property {string} [notes]
+ *
+ * The course is identified by the URL path (:slug/:courseId), so it is not in
+ * the body. This schema validates the student details the public page posts.
  */
 export const enrollCourseSchema = z.object({
-  course_id: z.string().uuid(),
+  name: z.string().trim().min(1, 'Please enter your name').max(120),
+  email: z.string().trim().email('Please enter a valid email').max(200),
+  phone: z.string().trim().max(40).optional().or(z.literal('')),
+  notes: z.string().trim().max(2000).optional().or(z.literal('')),
 });

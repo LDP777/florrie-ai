@@ -108,7 +108,7 @@ export default function TrainingBooking() {
     }
   };
 
-  const brandColor = beautician?.brand_color || '#C76B8A';
+  const brandColor = beautician?.brand_color || '#92405e';
 
   const formatDate = (d) => {
     if (!d) return '';
@@ -241,7 +241,7 @@ export default function TrainingBooking() {
 
         {/* Price */}
         <div style={styles.priceSection}>
-          <div style={styles.priceMain}>£{Number(course.price).toFixed(0)}</div>
+          <div style={{ ...styles.priceMain, color: brandColor }}>£{Number(course.price).toFixed(0)}</div>
           {Number(course.deposit) > 0 && (
             <div style={styles.priceDeposit}>
               £{Number(course.deposit).toFixed(0)} deposit to secure your spot
@@ -346,23 +346,23 @@ export default function TrainingBooking() {
 const styles = {
   page: {
     minHeight: '100vh',
-    background: '#FAF8F5',
+    background: '#fef8f4',
     fontFamily: '"DM Sans", -apple-system, sans-serif',
     padding: '20px 16px 40px',
     maxWidth: 480,
     margin: '0 auto',
   },
   loadingWrap: { textAlign: 'center', padding: '80px 0' },
-  spinner: { width: 32, height: 32, border: '3px solid #E8E4E0', borderTopColor: 'var(--accent-rose)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' },
+  spinner: { width: 32, height: 32, border: '3px solid #E8E4E0', borderTopColor: '#92405e', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' },
   loadingText: { fontSize: 14, color: '#AAA5A0' },
 
   trainerHeader: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 },
   trainerAvatar: { width: 44, height: 44, borderRadius: 22, objectFit: 'cover' },
-  trainerName: { fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' },
+  trainerName: { fontSize: 16, fontWeight: 700, color: '#1d1b19' },
   trainerSub: { fontSize: 12, color: '#AAA5A0' },
 
-  courseCard: { background: 'var(--bg-card)', borderRadius: 16, padding: 20, marginBottom: 16, border: '1px solid var(--border-light)' },
-  courseName: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 16px' },
+  courseCard: { background: '#ffffff', borderRadius: 16, padding: 20, marginBottom: 16, border: '1px solid #efe2e5' },
+  courseName: { fontSize: 22, fontWeight: 700, color: '#1d1b19', margin: '0 0 16px' },
 
   detailsGrid: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 },
   detailItem: { display: 'flex', alignItems: 'center', gap: 8 },
@@ -374,16 +374,16 @@ const styles = {
   includesSection: { marginBottom: 16, paddingTop: 16, borderTop: '1px solid #F0ECE8' },
   includesTitle: { fontSize: 13, fontWeight: 600, color: '#AAA5A0', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.04em' },
   includesWrap: { display: 'flex', flexWrap: 'wrap', gap: 6 },
-  includeTag: { fontSize: 13, background: '#FAF8F5', border: '1px solid var(--border-light)', borderRadius: 8, padding: '5px 10px', color: '#4A4540' },
+  includeTag: { fontSize: 13, background: '#fef8f4', border: '1px solid #efe2e5', borderRadius: 8, padding: '5px 10px', color: '#4A4540' },
 
   priceSection: { paddingTop: 16, borderTop: '1px solid #F0ECE8', textAlign: 'center' },
-  priceMain: { fontSize: 28, fontWeight: 700, color: 'var(--accent-rose)' },
+  priceMain: { fontSize: 28, fontWeight: 700, color: '#92405e' },
   priceDeposit: { fontSize: 13, color: '#6B6560', marginTop: 4 },
 
-  formCard: { background: 'var(--bg-card)', borderRadius: 16, padding: 20, marginBottom: 16, border: '1px solid var(--border-light)' },
-  formTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 16px' },
+  formCard: { background: '#ffffff', borderRadius: 16, padding: 20, marginBottom: 16, border: '1px solid #efe2e5' },
+  formTitle: { fontSize: 18, fontWeight: 700, color: '#1d1b19', margin: '0 0 16px' },
   label: { display: 'block', fontSize: 12, fontWeight: 600, color: '#AAA5A0', marginBottom: 6, marginTop: 14, textTransform: 'uppercase', letterSpacing: '0.04em' },
-  input: { width: '100%', padding: '11px 14px', borderRadius: 10, border: '1.5px solid var(--border-light)', fontSize: 15, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: '#FAF8F5', color: 'var(--text-primary)' },
+  input: { width: '100%', padding: '11px 14px', borderRadius: 10, border: '1.5px solid #efe2e5', fontSize: 15, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: '#fef8f4', color: '#1d1b19' },
 
   submitBtn: { width: '100%', padding: '15px 0', borderRadius: 12, border: 'none', color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
   depositNote: { fontSize: 12, color: '#AAA5A0', textAlign: 'center', marginTop: 10, lineHeight: 1.5 },
@@ -393,13 +393,13 @@ const styles = {
 
   fullBanner: { display: 'flex', alignItems: 'center', gap: 12, background: '#FFF3E0', borderRadius: 12, padding: '16px 14px', marginBottom: 16 },
 
-  successCard: { background: 'var(--bg-card)', borderRadius: 16, padding: '40px 20px', textAlign: 'center', border: '1px solid var(--border-light)', marginTop: 40 },
+  successCard: { background: '#ffffff', borderRadius: 16, padding: '40px 20px', textAlign: 'center', border: '1px solid #efe2e5', marginTop: 40 },
   successIcon: { fontSize: 48, marginBottom: 12 },
-  successTitle: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 8px' },
+  successTitle: { fontSize: 22, fontWeight: 700, color: '#1d1b19', margin: '0 0 8px' },
   successText: { fontSize: 14, color: '#6B6560', lineHeight: 1.6, margin: '0 0 16px' },
-  successMeta: { fontSize: 13, color: '#4A4540', background: '#FAF8F5', borderRadius: 10, padding: 12, display: 'inline-block' },
+  successMeta: { fontSize: 13, color: '#4A4540', background: '#fef8f4', borderRadius: 10, padding: 12, display: 'inline-block' },
 
-  errorCard: { background: 'var(--bg-card)', borderRadius: 16, padding: '40px 20px', textAlign: 'center', border: '1px solid var(--border-light)', marginTop: 40 },
+  errorCard: { background: '#ffffff', borderRadius: 16, padding: '40px 20px', textAlign: 'center', border: '1px solid #efe2e5', marginTop: 40 },
   errorText: { fontSize: 14, color: '#6B6560', lineHeight: 1.5 },
 
   poweredBy: { textAlign: 'center', fontSize: 11, color: '#CCC', marginTop: 24 },
