@@ -1470,20 +1470,41 @@ router.post('/webhook-self-test', async (req, res) => {
       client = newClient;
     }
 
-    await processInboundMessage({
-      beautician,
-      client,
-      messageText: message.text.body,
-      whatsappMessageId: message.id,
-    });
+    // Store the inbound message first, exactly like the real webhook, then hand
+    // off to the AI Front Desk positionally (messageId, beautician, client, content).
+    // The old call passed a single object, so beautician/client/content were all
+    // undefined: it threw inside, was swallowed, and the route still reported
+    // success. That made the self-test a false positive.
+    const { data: storedMessage } = await supabase
+      .from('messages')
+      .insert({
+        beautician_id: beautician.id,
+        client_id: client?.id,
+        channel: 'whatsapp',
+        direction: 'inbound',
+        content: message.text.body,
+        external_message_id: message.id,
+        ai_handled: false,
+        escalated: false,
+      })
+      .select()
+      .single();
+
+    const result = await processInboundMessage(
+      storedMessage.id, beautician, client, message.text.body
+    );
 
     return res.json({
       ok: true,
       processed: true,
+      handled: !!result?.handled,
+      escalated: !!result?.escalated,
+      intent: result?.intent || null,
       beautician_id: beautician.id,
       client_id: client?.id,
+      stored_message_id: storedMessage.id,
       message_text: message.text.body,
-      note: 'If this saved a row in messages and triggered a reply, the inbound pipeline works and the issue is at the webhook delivery layer (likely signature verification or Meta not actually delivering).',
+      note: 'handled=true means a reply actually sent, escalated=true means it was held as a draft for you to approve. If this stored a message and returned an intent, the inbound pipeline works and any real-world failure is at the webhook delivery layer (signature verification or Meta not delivering).',
     });
   } catch (err) {
     logger.error({ err }, 'webhook-self-test failed');
