@@ -168,8 +168,9 @@ router.post('/', requireAuth, async (req, res) => {
 
   if (error) {
     logger.error({ err: error }, 'Failed to create appointment');
-    // 23505 = the no-double-book unique guard fired (slot already taken).
-    if (error.code === '23505') {
+    // 23505 = no-double-book unique guard (same start); 23P01 = no-overlap
+    // exclusion guard (overlapping times). Both mean the slot is taken.
+    if (error.code === '23505' || error.code === '23P01') {
       return res.status(409).json({ error: 'That time is already booked.' });
     }
     return res.status(500).json({ error: 'Something went wrong' });

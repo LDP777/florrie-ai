@@ -1976,9 +1976,11 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
 
   if (aError) {
     logger.error({ err: aError }, 'Appointment insert error');
-    // 23505 = unique violation: the slot was taken between the conflict check and
-    // the insert (a race), or this is a double-submit. Either way, never a 500.
-    if (aError.code === '23505') {
+    // The slot was taken between the conflict check and the insert (a race), or
+    // this is a double-submit, or the new appointment overlaps an existing one.
+    // 23505 = unique violation (same start), 23P01 = exclusion violation (overlap).
+    // Either way, never a 500.
+    if (aError.code === '23505' || aError.code === '23P01') {
       return res.status(409).json({ error: 'That time was just booked. Please pick another slot.' });
     }
     return res.status(500).json({ error: 'Failed to create booking' });
