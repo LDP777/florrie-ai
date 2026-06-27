@@ -54,7 +54,7 @@ const FEATURES = [
   // Communications
   { path: '/inbox', name: 'Inbox', desc: 'All messages in one place', icon: '💬', cat: 'Comms' },
   { path: '/escalations', name: 'Florrie Needs You', desc: 'Messages Florrie flagged', icon: '🚨', cat: 'AI' },
-  { path: '/approval-queue', name: "Florrie's Queue", desc: 'Actions awaiting your sign-off', icon: '✅', cat: 'AI' },
+  { path: '/outbox', name: 'Approvals', desc: 'Messages waiting for your yes/no', icon: '✅', cat: 'AI' },
   { path: '/whatsapp', name: 'WhatsApp', desc: 'Business messaging', icon: '📱', cat: 'Comms' },
   { path: '/templates', name: 'Message Templates', desc: 'Reusable messages', icon: '💬', cat: 'Comms' },
   { path: '/automations', name: 'Automations', desc: 'If-this-then-that rules', icon: '⚡', cat: 'Comms' },

@@ -354,7 +354,7 @@ export default function App() {
             <Route path="/calendar/week" element={<Hub />} />
             <Route path="/today" element={<Hub />} />
             <Route path="/escalations" element={<Escalations />} />
-            <Route path="/approval-queue" element={<ApprovalQueue />} />
+            <Route path="/approval-queue" element={<Navigate to="/outbox" replace />} />
             <Route path="/content" element={<PlanGate feature="content_autopilot"><ContentAutopilot /></PlanGate>} />
             <Route path="/money" element={<MoneyTracker />} />
             <Route path="/clients" element={<Clients />} />
