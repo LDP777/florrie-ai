@@ -3,6 +3,7 @@ import { useBeautician, updateRow, insertRow } from '../lib/supabase.js'
 import { PLAN } from '../lib/subscription.js';
 import { registerPush, getPushStatus } from '../lib/push.js';
 import logger from '../lib/logger.js';
+import { isIOSNative } from '../lib/platform.js';
 
 const API = import.meta.env.VITE_API_URL;
 async function getAuthToken() {
@@ -749,16 +750,31 @@ export default function Onboarding({ onComplete }) {
               <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>⚠ {billingError}</span>
             </div>
           )}
-          <button
-            onClick={startCardCapture}
-            disabled={billingLoading}
-            style={{ ...styles.primaryBtn, opacity: billingLoading ? 0.6 : 1 }}
-          >
-            {billingLoading ? 'Opening secure checkout...' : 'Add card and start trial'}
-          </button>
-          <p style={styles.trialNote}>
-            Free for 14 days, then {PLAN.monthlyLabel}. Save with annual billing at {PLAN.annualLabel}. Card details are handled securely by Stripe, we never see them.
-          </p>
+          {isIOSNative() ? (
+            <>
+              <div style={styles.messagingCard}>
+                <p style={{ fontSize: 14, color: 'var(--text)', margin: 0, lineHeight: 1.5 }}>
+                  To start your 14 day trial, add your card at <strong>florrie.ai</strong> from any browser. You will not be charged today, and you can cancel anytime before day 14.
+                </p>
+              </div>
+              <p style={styles.trialNote}>
+                Free for 14 days, then {PLAN.monthlyLabel}.
+              </p>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={startCardCapture}
+                disabled={billingLoading}
+                style={{ ...styles.primaryBtn, opacity: billingLoading ? 0.6 : 1 }}
+              >
+                {billingLoading ? 'Opening secure checkout...' : 'Add card and start trial'}
+              </button>
+              <p style={styles.trialNote}>
+                Free for 14 days, then {PLAN.monthlyLabel}. Save with annual billing at {PLAN.annualLabel}. Card details are handled securely by Stripe, we never see them.
+              </p>
+            </>
+          )}
           {/* WhatsApp-first connect card. SMS is already live so it sits below as reassurance. */}
           <div style={styles.messagingCard}>
             <div style={styles.channelRow}>
