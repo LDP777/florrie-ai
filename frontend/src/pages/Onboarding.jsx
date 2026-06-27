@@ -78,6 +78,9 @@ export default function Onboarding({ onComplete }) {
   const [smsTesting, setSmsTesting] = useState(false);
   const [smsSaving, setSmsSaving] = useState(false);
   const [smsError, setSmsError] = useState(null);
+  // Card capture (step 6): starts the 14-day trial with a card on file
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingError, setBillingError] = useState(null);
   const totalSteps = 6;
   const progress = (step / totalSteps) * 100;
   if (bLoading) {
@@ -252,6 +255,36 @@ export default function Onboarding({ onComplete }) {
   }
   function finishOnboarding(destination) {
     if (onComplete) onComplete(destination);
+  }
+  async function startCardCapture() {
+    setBillingError(null);
+    setBillingLoading(true);
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        setBillingError('Session expired. Please refresh and try again.');
+        setBillingLoading(false);
+        return;
+      }
+      const res = await fetch(`${API}/api/billing/create-checkout`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: PLAN.id, interval: 'monthly', trial: true }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        // Stripe's hosted page collects the card. On success Stripe sends the
+        // beautician back to /?billing=success and the trialing subscription is live.
+        window.location.href = data.url;
+        return;
+      }
+      setBillingError(data.error || 'Could not start card setup. Try again shortly.');
+    } catch (err) {
+      logger.error('Card capture error:', err);
+      setBillingError('Could not connect to billing. Try again shortly.');
+    } finally {
+      setBillingLoading(false);
+    }
   }
   async function enableNotifications() {
     setPushLoading(true);
@@ -692,7 +725,7 @@ export default function Onboarding({ onComplete }) {
             );
           })()}
           <p style={styles.trialNote}>
-            Your 14-day free trial is active. Full access to everything, no card needed.
+            Add your card to start your 14-day trial. You won't be charged today, and you can cancel any time before day 14.
           </p>
           <div style={{
             ...styles.planCard,
@@ -711,8 +744,20 @@ export default function Onboarding({ onComplete }) {
               ))}
             </ul>
           </div>
+          {billingError && (
+            <div style={styles.errorBanner}>
+              <span style={{ fontSize: 13, color: 'var(--danger-text)', fontWeight: 500 }}>⚠ {billingError}</span>
+            </div>
+          )}
+          <button
+            onClick={startCardCapture}
+            disabled={billingLoading}
+            style={{ ...styles.primaryBtn, opacity: billingLoading ? 0.6 : 1 }}
+          >
+            {billingLoading ? 'Opening secure checkout...' : 'Add card and start trial'}
+          </button>
           <p style={styles.trialNote}>
-            After your trial, it's {PLAN.monthlyLabel}. Save with annual billing at {PLAN.annualLabel}.
+            Free for 14 days, then {PLAN.monthlyLabel}. Save with annual billing at {PLAN.annualLabel}. Card details are handled securely by Stripe, we never see them.
           </p>
           {/* WhatsApp-first connect card. SMS is already live so it sits below as reassurance. */}
           <div style={styles.messagingCard}>

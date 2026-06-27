@@ -32,7 +32,7 @@ router.post('/create-checkout', requireAuth, async (req, res) => {
       return res.status(503).json({ error: 'Billing is not configured yet. Please contact support.' });
     }
 
-    const { plan, interval, embedded } = req.body;
+    const { plan, interval, embedded, trial } = req.body;
     // Support both monthly and annual: plan='florrie', interval='annual' → key='florrie_annual'
     const priceKey = interval === 'annual' ? `${plan}_annual` : plan;
     if (!plan || !PRICE_IDS[priceKey]) {
@@ -71,21 +71,31 @@ router.post('/create-checkout', requireAuth, async (req, res) => {
         interval: interval || 'monthly',
       },
       subscription_data: {
+        // Card is captured now; first charge is deferred 14 days. Onboarding
+        // passes trial:true so the beautician starts in a trialing subscription.
+        ...(trial ? { trial_period_days: 14 } : {}),
         metadata: {
           beautician_id: beautician.id,
           plan,
           interval: interval || 'monthly',
         },
       },
+      // Force Stripe to collect a card even when the first invoice is 0 (trial),
+      // so we have a payment method on file the moment the trial ends.
+      ...(trial ? { payment_method_collection: 'always' } : {}),
       allow_promotion_codes: true,
     };
 
+    // Onboarding card capture returns to the app home; pricing-page upgrades
+    // return to the pricing page as before.
+    const successPath = trial ? '/?billing=success' : '/pricing?session_id={CHECKOUT_SESSION_ID}&success=1';
+    const cancelPath = trial ? '/?billing=cancelled' : '/pricing?cancelled=1';
     if (embedded) {
       sessionParams.ui_mode = 'embedded';
-      sessionParams.return_url = `${APP_URL}/pricing?session_id={CHECKOUT_SESSION_ID}&success=1`;
+      sessionParams.return_url = `${APP_URL}${successPath}`;
     } else {
-      sessionParams.success_url = `${APP_URL}/pricing?session_id={CHECKOUT_SESSION_ID}&success=1`;
-      sessionParams.cancel_url = `${APP_URL}/pricing?cancelled=1`;
+      sessionParams.success_url = `${APP_URL}${successPath}`;
+      sessionParams.cancel_url = `${APP_URL}${cancelPath}`;
     }
 
     const session = await stripe.checkout.sessions.create(sessionParams);

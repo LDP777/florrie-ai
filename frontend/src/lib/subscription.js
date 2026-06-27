@@ -2,7 +2,7 @@
  * Subscription helpers — feature gating based on plan tier.
  *
  * Plans (Apr 2026 pricing):
- *   trial        — 14 days, full access, no card required
+ *   trial        — 14 days, full access, card required up front, billed after day 14
  *   florrie      — £29/mo (annual: £290/yr, saves £58). Solo beauticians.
  *   florrie_team — £29/mo base + £15/seat. Multi-location, staff rota, up to 10 team.
  *

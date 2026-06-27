@@ -388,7 +388,7 @@ export default function Login({ supabase }) {
       </form>
 
       {effectiveMode === 'signup' && !iosNative && (
-        <p style={styles.trialNote}>14-day free trial. No card required.</p>
+        <p style={styles.trialNote}>14-day trial. Card required, but you will not be charged until day 14.</p>
       )}
     </div>
   );
