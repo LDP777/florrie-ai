@@ -23,6 +23,7 @@ import { supabase } from '../config.js';
 import logger from './logger.js';
 import { getMonthlyUsage } from '../services/whatsapp-metering.js';
 import { inMarketingQuietHours } from './marketing-guard.js';
+import { deDash } from './text.js';
 
 // Expected, low-risk message types that always go (never gated).
 const TRANSACTIONAL = new Set([
@@ -149,7 +150,10 @@ export async function recordOutbound({ beauticianId, clientId, messageType, chan
         channel: channel || null,
         status,
         reason: reason || null,
-        body: body || null,
+        // House rule: no em/en dashes in anything a client sees. Clean at the
+        // gate so every queued or sent proactive body is safe regardless of
+        // which engine wrote it.
+        body: body ? deDash(body) : null,
         decided_at: status === 'pending_approval' ? null : new Date().toISOString(),
       })
       .select('id')
