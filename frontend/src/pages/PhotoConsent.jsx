@@ -34,6 +34,11 @@ export default function PhotoConsent() {
   const [consents, setConsents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState([]);
+  const [loadError, setLoadError] = useState('');
+  const [toast, setToast] = useState('');
+  const [sending, setSending] = useState(false);
+  const [modalError, setModalError] = useState('');
+  const [revokingId, setRevokingId] = useState(null);
   const [requestForm, setRequestForm] = useState({ client: '', scope: ['portfolio', 'booking-page'], method: 'digital', message: '' });
   const [settings, setSettings] = useState({
     autoRequest: true,
@@ -45,50 +50,64 @@ export default function PhotoConsent() {
   });
 
   // Fetch consents and clients
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const session = await supabase.auth.getSession();
-        if (!session.data.session) return;
-
-        const [consentsRes, clientsRes] = await Promise.all([
-          fetch(`${API_BASE}/api/photo-consent`, {
-            headers: { 'Authorization': `Bearer ${session.data.session.access_token}` }
-          }),
-          fetch(`${API_BASE}/api/clients`, {
-            headers: { 'Authorization': `Bearer ${session.data.session.access_token}` }
-          })
-        ]);
-
-        if (consentsRes.ok) {
-          const { data } = await consentsRes.json();
-          const transformed = data.map(c => ({
-            id: c.id,
-            clientId: c.client_id,
-            client: c.client_name || c.clients?.first_name || 'Unknown',
-            status: c.status,
-            grantedDate: c.granted_at,
-            scope: c.permitted_uses || [],
-            expiresAt: c.expires_at,
-            method: c.method,
-            notes: c.notes || ''
-          }));
-          setConsents(transformed);
-        }
-
-        if (clientsRes.ok) {
-          const { data } = await clientsRes.json();
-          setClients(data || []);
-        }
-      } catch (err) {
-        setConsents([]);
-        setClients([]);
-      } finally {
-        setLoading(false);
+  const fetchData = async () => {
+    setLoading(true);
+    setLoadError('');
+    try {
+      const session = await supabase.auth.getSession();
+      if (!session.data.session) {
+        setLoadError('Your session has expired. Please sign in again.');
+        return;
       }
-    };
+
+      const [consentsRes, clientsRes] = await Promise.all([
+        fetch(`${API_BASE}/api/photo-consent`, {
+          headers: { 'Authorization': `Bearer ${session.data.session.access_token}` }
+        }),
+        fetch(`${API_BASE}/api/clients`, {
+          headers: { 'Authorization': `Bearer ${session.data.session.access_token}` }
+        })
+      ]);
+
+      if (!consentsRes.ok) {
+        throw new Error('consents');
+      }
+
+      const { data } = await consentsRes.json();
+      const transformed = (data || []).map(c => ({
+        id: c.id,
+        clientId: c.client_id,
+        client: c.client_name || c.clients?.first_name || 'Unknown',
+        status: c.status,
+        grantedDate: c.granted_at,
+        scope: c.permitted_uses || [],
+        expiresAt: c.expires_at,
+        method: c.method,
+        notes: c.notes || ''
+      }));
+      setConsents(transformed);
+
+      if (clientsRes.ok) {
+        const { data: clientData } = await clientsRes.json();
+        setClients(clientData || []);
+      }
+    } catch (err) {
+      setLoadError("Couldn't load photo consents. Check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchData();
   }, []);
+
+  // Auto-dismiss the success toast after a few seconds.
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(''), 3000);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   const now = new Date();
   const consentsList = consents.map(c => {
@@ -108,18 +127,23 @@ export default function PhotoConsent() {
   };
 
   const handleSendRequest = async () => {
+    setModalError('');
     if (!requestForm.client || requestForm.scope.length === 0) {
-      alert('Please select a client and at least one scope');
+      setModalError('Pick a client and at least one place the photos can be used.');
       return;
     }
 
+    setSending(true);
     try {
       const session = await supabase.auth.getSession();
-      if (!session.data.session) return;
+      if (!session.data.session) {
+        setModalError('Your session has expired. Please sign in again.');
+        return;
+      }
 
       const selectedClient = clients.find(c => c.first_name === requestForm.client);
       if (!selectedClient) {
-        alert('Client not found');
+        setModalError("Couldn't find that client. Try reselecting.");
         return;
       }
 
@@ -143,7 +167,7 @@ export default function PhotoConsent() {
       setConsents([...consents, {
         id: newConsent.id,
         clientId: newConsent.client_id,
-        client: selectedClient.first_name,
+        client: newConsent.client_name || selectedClient.first_name,
         status: newConsent.status || 'pending',
         grantedDate: newConsent.granted_at,
         scope: newConsent.permitted_uses || [],
@@ -154,16 +178,23 @@ export default function PhotoConsent() {
 
       setShowRequest(false);
       setRequestForm({ client: '', scope: ['portfolio', 'booking-page'], method: 'digital', message: '' });
+      setToast(`Consent request sent to ${selectedClient.first_name}.`);
     } catch (err) {
-      alert('Failed to send request');
+      setModalError("Couldn't send the request. Check your connection and try again.");
+    } finally {
+      setSending(false);
     }
   };
 
   const handleRevoke = async (consent) => {
     if (!confirm(`Revoke photo consent for ${consent.client}?`)) return;
+    setRevokingId(consent.id);
     try {
       const session = await supabase.auth.getSession();
-      if (!session.data.session) return;
+      if (!session.data.session) {
+        setToast('Your session has expired. Please sign in again.');
+        return;
+      }
 
       const res = await fetch(`${API_BASE}/api/photo-consent/${consent.id}/revoke`, {
         method: 'PATCH',
@@ -179,13 +210,17 @@ export default function PhotoConsent() {
       setConsents(consents.map(c =>
         c.id === consent.id ? { ...c, status: 'declined', scope: [] } : c
       ));
+      setToast(`Consent revoked for ${consent.client}.`);
     } catch (err) {
-      alert('Failed to revoke consent');
+      setToast("Couldn't revoke consent. Please try again.");
+    } finally {
+      setRevokingId(null);
     }
   };
 
   const handleRequestRenewal = (consent) => {
     // Reuse the existing request flow, pre-filled for this client
+    setModalError('');
     setRequestForm({
       client: consent.client,
       scope: consent.scope.length ? consent.scope : ['portfolio', 'booking-page'],
@@ -203,8 +238,17 @@ export default function PhotoConsent() {
     <div style={S.page}>
       <div style={S.header}>
         <h1 style={S.title}>Photo Consent</h1>
-        <button style={S.reqBtn} onClick={() => setShowRequest(true)}>+ Request</button>
+        <button style={S.reqBtn} onClick={() => { setModalError(''); setShowRequest(true); }}>+ Request</button>
       </div>
+
+      {toast && <div style={S.toast}>{toast}</div>}
+
+      {loadError && (
+        <div style={S.errorBanner}>
+          <span>{loadError}</span>
+          <button style={S.retryBtn} onClick={fetchData}>Retry</button>
+        </div>
+      )}
 
       {/* Stats */}
       <div style={S.statsRow}>
@@ -278,7 +322,7 @@ export default function PhotoConsent() {
                   {(c.status === 'granted' || c.status === 'expired') && (
                     <div style={S.actionRow}>
                       {c.status === 'granted' && (
-                        <button style={S.actionBtn} onClick={(e) => { e.stopPropagation(); handleRevoke(c); }}>Revoke</button>
+                        <button style={{ ...S.actionBtn, ...(revokingId === c.id ? S.actionBtnBusy : {}) }} disabled={revokingId === c.id} onClick={(e) => { e.stopPropagation(); handleRevoke(c); }}>{revokingId === c.id ? 'Revoking...' : 'Revoke'}</button>
                       )}
                       {c.status === 'expired' && (
                         <button
@@ -307,7 +351,7 @@ export default function PhotoConsent() {
 
       {/* Request consent modal */}
       {showRequest && (
-        <div style={S.overlay} onClick={() => setShowRequest(false)}>
+        <div style={S.overlay} onClick={() => { setShowRequest(false); setModalError(''); }}>
           <div style={S.modal} onClick={e => e.stopPropagation()}>
             <h2 style={S.modalTitle}>Request Photo Consent</h2>
 
@@ -350,7 +394,15 @@ export default function PhotoConsent() {
             <div style={S.fieldLabel}>Message to Client</div>
             <textarea style={S.textarea} rows={3} value={requestForm.message || settings.consentMessage} onChange={e => setRequestForm(f => ({ ...f, message: e.target.value }))} />
 
-            <button style={S.saveBtn} onClick={handleSendRequest}>Send Request</button>
+            {modalError && <div style={S.modalError}>{modalError}</div>}
+
+            <button
+              style={{ ...S.saveBtn, ...(sending ? S.saveBtnBusy : {}) }}
+              disabled={sending}
+              onClick={handleSendRequest}
+            >
+              {sending ? 'Sending...' : 'Send Request'}
+            </button>
           </div>
         </div>
       )}
@@ -428,4 +480,14 @@ const S = {
   chipActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', border: '1px solid #C76B8A' },
   textarea: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 13, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
   saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
+  saveBtnBusy: { opacity: 0.6, cursor: 'default' },
+
+  actionBtnBusy: { opacity: 0.6, cursor: 'default' },
+
+  toast: { background: '#E8F5E9', color: '#2E7D32', borderRadius: 12, padding: '10px 14px', fontSize: 13, fontWeight: 500, marginBottom: 12 },
+
+  errorBanner: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, background: '#FFEBEE', color: '#C62828', borderRadius: 12, padding: '10px 14px', fontSize: 13, fontWeight: 500, marginBottom: 12 },
+  retryBtn: { background: '#C62828', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 },
+
+  modalError: { background: '#FFEBEE', color: '#C62828', borderRadius: 10, padding: '10px 12px', fontSize: 13, fontWeight: 500, marginTop: 16 },
 };

@@ -10,15 +10,49 @@ import {
 
 const router = Router();
 
+// Default consent window. The page can show this as the expiry and prompt a
+// renewal once it passes. Twelve months matches the page's default setting.
+const CONSENT_MONTHS = 12;
+
 /**
- * GET /api/photo-consent/:clientId
- * Get all photo consents for a specific client
+ * GET /api/photo-consent
+ * List every photo consent for the signed-in beautician, newest first.
+ * The page reads { data } and pulls the client's name off the joined row.
  */
-router.get('/:clientId', requireAuth, async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('photo_consents')
+      .select('*, clients(first_name, last_name)')
+      .eq('beautician_id', req.beautician.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      logger.error({ err: error }, 'Failed to list photo consents');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
+
+    const rows = (data || []).map((c) => ({
+      ...c,
+      client_name: c.clients?.first_name || null,
+    }));
+
+    res.json({ data: rows });
+  } catch (err) {
+    logger.error({ err }, 'List photo consents error');
+    res.status(500).json({ error: 'Failed to list consents' });
+  }
+});
+
+/**
+ * GET /api/photo-consent/client/:clientId
+ * Every photo consent for one client. Namespaced under /client so it can never
+ * shadow the list route above.
+ */
+router.get('/client/:clientId', requireAuth, async (req, res) => {
   try {
     const { clientId } = req.params;
 
-    // Verify client belongs to this beautician
     const { data: client, error: clientError } = await supabase
       .from('clients')
       .select('id')
@@ -38,35 +72,34 @@ router.get('/:clientId', requireAuth, async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (error) {
-      logger.error({ err: error }, 'Failed to complete photo consent operation');
+      logger.error({ err: error }, 'Failed to get client photo consents');
       return res.status(500).json({ error: 'Something went wrong' });
     }
-    res.json({ consents: data || [] });
+    res.json({ data: data || [] });
   } catch (err) {
-    logger.error({ err }, 'Get photo consents error');
+    logger.error({ err }, 'Get client photo consents error');
     res.status(500).json({ error: 'Failed to get consents' });
   }
 });
 
 /**
  * POST /api/photo-consent
- * Create a new photo consent record
+ * Request photo consent from a client.
  * Body: {
  *   client_id: uuid,
- *   consent_type: 'before_after' | 'social_media' | 'marketing' | 'portfolio',
- *   granted?: boolean,
- *   signature_data?: string,
- *   notes?: string
+ *   permitted_uses: string[],   // e.g. ['portfolio', 'booking-page']
+ *   method?: 'digital' | 'paper',
+ *   notes?: string              // the message sent to the client
  * }
+ * Creates a 'pending' record. Returns { data } shaped like a list row.
  */
 router.post('/', requireAuth, validate(createPhotoConsentSchema), async (req, res) => {
   try {
-    const { client_id, consent_type, granted, signature_data, notes } = req.body;
+    const { client_id, permitted_uses, method, notes } = req.body;
 
-    // Verify client belongs to this beautician
     const { data: client, error: clientError } = await supabase
       .from('clients')
-      .select('id')
+      .select('id, first_name')
       .eq('id', client_id)
       .eq('beautician_id', req.beautician.id)
       .single();
@@ -75,28 +108,34 @@ router.post('/', requireAuth, validate(createPhotoConsentSchema), async (req, re
       return res.status(404).json({ error: 'Client not found' });
     }
 
+    const nowIso = new Date().toISOString();
+    const expires = new Date();
+    expires.setMonth(expires.getMonth() + CONSENT_MONTHS);
+
     const consent = {
       beautician_id: req.beautician.id,
       client_id,
-      consent_type,
-      granted: granted || false,
-      signature_data: signature_data || null,
+      status: 'pending',
+      permitted_uses,
+      method: method || null,
       notes: notes || null,
-      granted_at: granted ? new Date().toISOString() : null,
-      created_at: new Date().toISOString(),
+      expires_at: expires.toISOString(),
+      created_at: nowIso,
+      updated_at: nowIso,
     };
 
     const { data, error } = await supabase
       .from('photo_consents')
       .insert([consent])
-      .select()
+      .select('*')
       .single();
 
     if (error) {
-      logger.error({ err: error }, 'Failed to complete photo consent operation');
+      logger.error({ err: error }, 'Failed to create photo consent');
       return res.status(500).json({ error: 'Something went wrong' });
     }
-    res.status(201).json({ consent: data });
+
+    res.status(201).json({ data: { ...data, client_name: client.first_name } });
   } catch (err) {
     logger.error({ err }, 'Create photo consent error');
     res.status(500).json({ error: 'Failed to create consent' });
@@ -105,14 +144,14 @@ router.post('/', requireAuth, validate(createPhotoConsentSchema), async (req, re
 
 /**
  * PATCH /api/photo-consent/:id/revoke
- * Revoke a consent (set granted=false, revoked_at=now)
+ * Withdraw a consent: status -> 'declined', clear the permitted uses, stamp
+ * revoked_at. Body: { notes?: string }. Returns { data }.
  */
 router.patch('/:id/revoke', requireAuth, validate(revokePhotoConsentSchema), async (req, res) => {
   try {
     const { id } = req.params;
     const { notes } = req.body;
 
-    // Verify consent belongs to this beautician
     const { data: existing, error: checkError } = await supabase
       .from('photo_consents')
       .select('id')
@@ -125,7 +164,9 @@ router.patch('/:id/revoke', requireAuth, validate(revokePhotoConsentSchema), asy
     }
 
     const updates = {
+      status: 'declined',
       granted: false,
+      permitted_uses: [],
       revoked_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -139,14 +180,14 @@ router.patch('/:id/revoke', requireAuth, validate(revokePhotoConsentSchema), asy
       .update(updates)
       .eq('id', id)
       .eq('beautician_id', req.beautician.id)
-      .select()
+      .select('*')
       .single();
 
     if (error) {
-      logger.error({ err: error }, 'Failed to complete photo consent operation');
+      logger.error({ err: error }, 'Failed to revoke photo consent');
       return res.status(500).json({ error: 'Something went wrong' });
     }
-    res.json({ consent: data });
+    res.json({ data });
   } catch (err) {
     logger.error({ err }, 'Revoke photo consent error');
     res.status(500).json({ error: 'Failed to revoke consent' });
