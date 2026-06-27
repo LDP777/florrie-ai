@@ -1025,7 +1025,11 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
       client_id: appointment.client_id,
       treatment_id: appointment.treatment_id,
       amount_cents: appointment.price_cents,
-      type: 'service',
+      // 'payment' is the only type the Money tab counts and the DB CHECK allows.
+      // 'service' was silently rejected by the CHECK, so completing an appointment
+      // marked it done but logged no takings (and threw an error every time).
+      type: 'payment',
+      status: 'completed',
       payment_method: method,
       description: `${appointment.treatments?.name} - ${appointment.clients?.first_name}`,
     });
