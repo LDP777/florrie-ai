@@ -33,39 +33,6 @@ const INCLUDES_OPTIONS = [
   { key: 'aftercare',   label: '📋 Aftercare pack' },
 ];
 
-const DEV_COURSES = [
-  {
-    id: 'dev-1',
-    name: 'Lash Extension Masterclass',
-    description: 'Full day hands-on lash extension training for beginners. By the end you\'ll be able to charge for full sets.',
-    date: '2026-05-10',
-    location: 'Henley-on-Thames, OX1',
-    duration: 'Full day (7hrs)',
-    max_students: 4,
-    price: 350,
-    deposit: 75,
-    includes: ['certificate', 'kit', 'manual', 'refreshments'],
-    enrolled: 2,
-    status: 'active',
-    booking_slug: 'dev-slug',
-  },
-  {
-    id: 'dev-2',
-    name: 'Brow Lamination Training',
-    description: 'Half day brow lamination technique course. Covers consultation, application, and aftercare.',
-    date: '2026-05-24',
-    location: 'Online (Zoom)',
-    duration: 'Half day (4hrs)',
-    max_students: 6,
-    price: 180,
-    deposit: 50,
-    includes: ['certificate', 'manual'],
-    enrolled: 5,
-    status: 'active',
-    booking_slug: 'dev-slug',
-  },
-];
-
 export default function Courses() {
   const { beautician, loading: bLoading } = useBeautician();
   const { dark } = useTheme();
@@ -384,8 +351,8 @@ export default function Courses() {
             onClick={() => setTab(t)}
             style={{
               ...s.tab,
-              color: tab === t ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #B5AFA8)',
-              borderBottom: tab === t ? '2px solid var(--accent, #C76B8A)' : '2px solid transparent',
+              color: tab === t ? 'var(--accent, #92405e)' : 'var(--text-muted, #B5AFA8)',
+              borderBottom: tab === t ? '2px solid var(--accent, #92405e)' : '2px solid transparent',
               fontWeight: tab === t ? 600 : 400,
             }}
           >
@@ -456,7 +423,7 @@ export default function Courses() {
                     style={{
                       ...s.spotsBarFill,
                       width: `${Math.min(100, ((course.enrolled || 0) / (course.max_students || 1)) * 100)}%`,
-                      background: isFull(course) ? 'var(--warning, #E8A838)' : 'var(--accent, #C76B8A)',
+                      background: isFull(course) ? 'var(--warning, #E8A838)' : 'var(--accent, #92405e)',
                     }}
                   />
                 </div>
@@ -475,7 +442,7 @@ export default function Courses() {
                 </div>
                 <button
                   onClick={() => copyLink(course)}
-                  style={{ ...s.copyBtn, background: copiedId === course.id ? 'var(--success, #5BA97B)' : 'var(--accent, #C76B8A)' }}
+                  style={{ ...s.copyBtn, background: copiedId === course.id ? 'var(--success, #5BA97B)' : 'var(--accent, #92405e)' }}
                 >
                   {copiedId === course.id ? '✓ Copied' : 'Copy link'}
                 </button>
@@ -574,7 +541,7 @@ const s = {
   header:       { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   title:        { fontSize: 24, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: 0 },
   sub:          { fontSize: 13, color: 'var(--text-muted, #B5AFA8)', margin: '4px 0 0' },
-  addBtn:       { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  addBtn:       { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
 
   statsRow:     { display: 'flex', gap: 8, marginBottom: 16 },
   statCard:     { flex: 1, background: 'var(--card-bg, #fff)', borderRadius: 12, padding: '12px 10px', textAlign: 'center', border: '1px solid var(--border, #EDE9E4)' },
@@ -590,15 +557,15 @@ const s = {
   row2:         { display: 'flex', gap: 10 },
   chipWrap:     { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 4 },
   chip:         { padding: '7px 12px', borderRadius: 8, border: '1.5px solid var(--border, #EDE9E4)', background: 'transparent', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
-  chipActive:   { background: 'var(--accent-light, #FFF0F3)', border: '1.5px solid var(--accent, #C76B8A)', color: 'var(--accent, #C76B8A)', fontWeight: 600 },
+  chipActive:   { background: 'var(--accent-light, #FFF0F3)', border: '1.5px solid var(--accent, #92405e)', color: 'var(--accent, #92405e)', fontWeight: 600 },
   depositNote:  { background: 'var(--accent-light, #FFF0F3)', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: 'var(--text-primary, #2D2A26)', marginTop: 8, marginBottom: 4, lineHeight: 1.5 },
   formActions:  { display: 'flex', gap: 10, marginTop: 16 },
-  saveBtn:      { flex: 1, padding: '12px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  saveBtn:      { flex: 1, padding: '12px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   cancelBtn:    { padding: '12px 20px', borderRadius: 12, border: '1.5px solid var(--border, #EDE9E4)', background: 'transparent', color: 'var(--text-muted, #B5AFA8)', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' },
 
   tabBar:       { display: 'flex', borderBottom: '1px solid var(--border, #EDE9E4)', marginBottom: 14 },
   tab:          { flex: 1, padding: '10px 0', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 },
-  badge:        { background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 10, padding: '1px 6px', minWidth: 16, textAlign: 'center' },
+  badge:        { background: 'var(--accent, #92405e)', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 10, padding: '1px 6px', minWidth: 16, textAlign: 'center' },
 
   list:         { display: 'flex', flexDirection: 'column', gap: 12 },
 
@@ -607,7 +574,7 @@ const s = {
   courseName:   { fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', marginBottom: 4 },
   courseMeta:   { fontSize: 12, color: 'var(--text-muted, #B5AFA8)', lineHeight: 1.6 },
   coursePrice:  { textAlign: 'right', flexShrink: 0 },
-  coursePriceMain: { display: 'block', fontSize: 18, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
+  coursePriceMain: { display: 'block', fontSize: 18, fontWeight: 700, color: 'var(--accent, #92405e)' },
   courseDeposit:{ display: 'block', fontSize: 11, color: 'var(--text-muted, #B5AFA8)', marginTop: 2 },
   courseDesc:   { fontSize: 13, color: 'var(--text-secondary, #6B6460)', lineHeight: 1.6, marginBottom: 10 },
 
@@ -625,16 +592,16 @@ const s = {
   copyBtn:      { padding: '8px 14px', borderRadius: 8, border: 'none', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'background 0.2s' },
 
   courseActions:{ display: 'flex', gap: 8, paddingTop: 10, borderTop: '1px solid var(--border, #EDE9E4)' },
-  actionBtn:    { flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border, #EDE9E4)', background: 'transparent', color: 'var(--accent, #C76B8A)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  actionBtn:    { flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border, #EDE9E4)', background: 'transparent', color: 'var(--accent, #92405e)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   enrollList:   { marginTop: 10, borderTop: '1px solid var(--border, #EDE9E4)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 8 },
   enrollRow:    { display: 'flex', alignItems: 'center', gap: 10 },
   enrollCard:   { background: 'var(--card-bg, #fff)', borderRadius: 14, padding: 14, border: '1px solid var(--border, #EDE9E4)' },
   enrollCardTop:{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 },
-  enrollAvatar: { width: 34, height: 34, borderRadius: 17, background: 'linear-gradient(135deg, #C76B8A22, #C76B8A44)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: 'var(--accent, #C76B8A)', flexShrink: 0 },
+  enrollAvatar: { width: 34, height: 34, borderRadius: 17, background: 'linear-gradient(135deg, #92405e22, #92405e44)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: 'var(--accent, #92405e)', flexShrink: 0 },
   enrollName:   { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
   enrollContact:{ fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },
-  enrollCourse: { fontSize: 11, color: 'var(--accent, #C76B8A)', fontWeight: 500, marginTop: 2 },
+  enrollCourse: { fontSize: 11, color: 'var(--accent, #92405e)', fontWeight: 500, marginTop: 2 },
   enrollMeta:   { fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },
   enrollStatus: { fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 6, whiteSpace: 'nowrap' },
 

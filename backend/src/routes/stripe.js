@@ -805,6 +805,17 @@ router.post('/webhook', async (req, res) => {
           const courseBeauticianId = session.metadata?.beautician_id;
           const courseId = session.metadata?.course_id;
 
+          // Read the current status first so this stays idempotent. Stripe can
+          // deliver the same event more than once; we only count the spot and
+          // log the transaction on the first transition into deposit_paid.
+          const { data: priorEnrollment } = await supabase
+            .from('course_enrollments')
+            .select('payment_status')
+            .eq('id', enrollmentId)
+            .single();
+          const alreadyPaid = priorEnrollment?.payment_status === 'deposit_paid'
+            || priorEnrollment?.payment_status === 'paid';
+
           // Mark enrollment as deposit_paid
           await supabase.from('course_enrollments')
             .update({
@@ -814,8 +825,22 @@ router.post('/webhook', async (req, res) => {
             })
             .eq('id', enrollmentId);
 
-          // Log the transaction
-          if (courseBeauticianId) {
+          // First confirmation: count the spot on the course. The enroll route
+          // deliberately defers this for the Stripe path so abandoned checkouts
+          // never eat a place.
+          if (!alreadyPaid && courseId) {
+            const { data: courseRow } = await supabase
+              .from('courses')
+              .select('enrolled')
+              .eq('id', courseId)
+              .single();
+            await supabase.from('courses')
+              .update({ enrolled: (courseRow?.enrolled || 0) + 1 })
+              .eq('id', courseId);
+          }
+
+          // Log the transaction (only once)
+          if (courseBeauticianId && !alreadyPaid) {
             await supabase.from('transactions').insert({
               beautician_id: courseBeauticianId,
               amount_cents: session.amount_total,

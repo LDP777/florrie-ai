@@ -1,9 +1,9 @@
 /**
- * Courses — public booking + enrollment for training courses.
+ * Courses: public booking + enrollment for training courses.
  *
  * Public endpoints:
- *   GET  /api/courses/:slug/:courseId  — load course details for public booking page
- *   POST /api/courses/:slug/:courseId/enroll — enroll a student (with optional Stripe deposit)
+ *   GET  /api/courses/:slug/:courseId  loads course details for the public booking page
+ *   POST /api/courses/:slug/:courseId/enroll enrolls a student (with optional Stripe deposit)
  *
  * The beautician's own CRUD is handled by Supabase client-side in Packages.jsx.
  */
@@ -157,19 +157,25 @@ router.post('/:slug/:courseId/enroll', async (req, res) => {
       return res.status(500).json({ error: 'Failed to enroll' });
     }
 
-    // Increment enrolled count on course
-    await supabase
-      .from('courses')
-      .update({ enrolled: (course.enrolled || 0) + 1 })
-      .eq('id', courseId);
-
     // Determine if deposit is needed
     const depositAmount = Number(course.deposit) || 0;
     const depositCents = Math.round(depositAmount * 100);
+    const stripeReady = !!(beautician.stripe_account_id && beautician.stripe_onboarding_complete);
+    const willTakePayment = depositCents > 0 && !!stripe && stripeReady;
     const needsPayment = depositCents > 0;
 
+    // Bump the enrolled count straight away ONLY when no live payment is pending.
+    // When we hand off to Stripe Checkout the webhook owns the count, so an
+    // abandoned checkout never permanently eats a spot.
+    if (!willTakePayment) {
+      await supabase
+        .from('courses')
+        .update({ enrolled: (course.enrolled || 0) + 1 })
+        .eq('id', courseId);
+    }
+
     // If Stripe is ready and deposit required, create Checkout session
-    if (needsPayment && stripe && beautician.stripe_account_id && beautician.stripe_onboarding_complete) {
+    if (willTakePayment) {
       try {
         const courseDate = course.date
           ? new Date(course.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
@@ -184,7 +190,7 @@ router.post('/:slug/:courseId/enroll', async (req, res) => {
             price_data: {
               currency: 'gbp',
               product_data: {
-                name: `${course.name} — deposit`,
+                name: `${course.name} deposit`,
                 description: courseDate
                   ? `${courseDate} with ${beautician.business_name || beautician.first_name}`
                   : `Training with ${beautician.business_name || beautician.first_name}`,
@@ -219,13 +225,19 @@ router.post('/:slug/:courseId/enroll', async (req, res) => {
         });
       } catch (stripeErr) {
         logger.error({ stripeErr }, 'Stripe checkout creation failed for course enrollment');
-        // Fall through to non-payment response
+        // Checkout never started, so the webhook will not run. Count the spot
+        // now and fall through to the arrange-payment-later response.
+        await supabase
+          .from('courses')
+          .update({ enrolled: (course.enrolled || 0) + 1 })
+          .eq('id', courseId);
       }
     }
 
-    // No Stripe or no deposit required — enrollment confirmed without payment
+    // No Stripe or no deposit required. Enrollment confirmed without an online payment.
+    const trainerName = beautician.business_name || beautician.first_name;
     const paymentNote = needsPayment
-      ? `Deposit of £${depositAmount.toFixed(2)} required — ${beautician.business_name || beautician.first_name} will be in touch to arrange payment.`
+      ? `Deposit of £${depositAmount.toFixed(2)} secures your spot. ${trainerName} will be in touch to arrange it.`
       : null;
 
     return res.status(201).json({

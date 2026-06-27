@@ -88,6 +88,7 @@ const CATEGORIES = [
     items: [
       { path: '/analytics',     label: 'Analytics',        matIcon: 'analytics',   desc: 'Performance and reports'   },
       { path: '/expenses',      label: 'Expenses',         matIcon: 'receipt_long', desc: 'Track outgoings'          },
+      { path: '/packages',      label: 'Training',         matIcon: 'school',       desc: 'Sell courses and masterclasses' },
       { path: '/deposits',      label: 'Deposits',         matIcon: 'savings',     desc: 'Held payments'             },
       { path: '/vouchers',      label: 'Vouchers',         matIcon: 'card_giftcard', desc: 'Gift vouchers'           },
       { path: '/promos',        label: 'Promo Codes',      matIcon: 'local_offer', desc: 'Discount codes'            },
@@ -123,7 +124,7 @@ const CATEGORIES = [
  *   /messaging (Overview), /business (Business), /templates (internal copy
  *   library, replaced by /whatsapp/templates in the menu), /integrations,
  *   /checklist (daily opening), /ai-insights (Biz), /client-intel (Client),
- *   /smart-schedule, /churn, /segments, /tags, /packages (Courses), /notes,
+ *   /smart-schedule, /churn, /segments, /tags, /notes,
  *   /inventory, /referrals, /portfolio
  */
 
