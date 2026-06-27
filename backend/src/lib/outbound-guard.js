@@ -23,7 +23,6 @@ import { supabase } from '../config.js';
 import logger from './logger.js';
 import { getMonthlyUsage } from '../services/whatsapp-metering.js';
 import { inMarketingQuietHours } from './marketing-guard.js';
-import { deDash } from './text.js';
 
 // Expected, low-risk message types that always go (never gated).
 const TRANSACTIONAL = new Set([
@@ -47,6 +46,28 @@ function decision(d, tier, reason) {
   return { decision: d, tier, reason };
 }
 
+// A client Ellie already knows: a regular with a history, not a fresh lead. We
+// hold Florrie's auto-messages to known clients for an explicit yes/no so nothing
+// lands out of context with an established relationship. The signal is simple and
+// robust: two or more completed appointments (or an explicit regular/VIP flag).
+export const KNOWN_CLIENT_MIN_VISITS = 2;
+export async function isKnownClient(beauticianId, clientId, client = null) {
+  if (!clientId) return false;
+  try {
+    if (client && (client.is_regular === true || client.vip === true)) return true;
+    const { count } = await supabase
+      .from('appointments')
+      .select('id', { count: 'exact', head: true })
+      .eq('beautician_id', beauticianId)
+      .eq('client_id', clientId)
+      .eq('status', 'completed');
+    return (count || 0) >= KNOWN_CLIENT_MIN_VISITS;
+  } catch {
+    // If we cannot tell, err towards asking rather than auto-sending.
+    return true;
+  }
+}
+
 /**
  * Decide whether a proactive/transactional message may be sent right now.
  * Pass the client row if you already have it (saves a lookup).
@@ -54,6 +75,13 @@ function decision(d, tier, reason) {
 export async function evaluateOutbound({ beauticianId, clientId, messageType, channel = 'whatsapp', client = null }) {
   const tier = classifyTier(messageType);
   if (tier === 'transactional') {
+    // Direct AI replies to a client Ellie already knows can land out of context,
+    // especially on Instagram where we may be missing the earlier conversation.
+    // Hold those for her yes/no. Pure transactional messages (confirmations,
+    // reminders, receipts, payment links) still go straight through.
+    if (messageType === 'ai_reply' && await isKnownClient(beauticianId, clientId, client)) {
+      return decision('approve', tier, 'known_client_reply');
+    }
     return decision('send', tier, 'transactional');
   }
 
@@ -126,6 +154,12 @@ export async function evaluateOutbound({ beauticianId, clientId, messageType, ch
       .maybeSingle();
     const mode = b?.autonomy?.[messageType] || b?.autonomy?.proactive || 'ask';
     if (mode === 'off') return decision('block', tier, 'autonomy_off'); // Ellie turned this type off
+    // A client Ellie knows is a relationship she manages personally. Never auto-send
+    // to them, even on 'auto': hold for her explicit yes/no so a proactive message
+    // never lands out of context with someone she has a rapport with.
+    if (mode === 'auto' && await isKnownClient(beauticianId, clientId, c)) {
+      return decision('approve', tier, 'known_client_review');
+    }
     if (mode === 'auto') return decision('send', tier, 'trusted_auto');
     return decision('approve', tier, 'awaiting_approval');
   } catch (err) {
@@ -150,10 +184,7 @@ export async function recordOutbound({ beauticianId, clientId, messageType, chan
         channel: channel || null,
         status,
         reason: reason || null,
-        // House rule: no em/en dashes in anything a client sees. Clean at the
-        // gate so every queued or sent proactive body is safe regardless of
-        // which engine wrote it.
-        body: body ? deDash(body) : null,
+        body: body || null,
         decided_at: status === 'pending_approval' ? null : new Date().toISOString(),
       })
       .select('id')

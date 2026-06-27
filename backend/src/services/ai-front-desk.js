@@ -6,6 +6,7 @@ import { cleanReply } from '../lib/text.js';
 import { createBookingSuggestion } from './automations.js';
 import { sendMessage, sendInstagramDM, sendWhatsAppText, sendSMS } from './notifications.js';
 import { pushEscalation, pushTeamUpdate } from './push-notifications.js';
+import { isKnownClient } from '../lib/outbound-guard.js';
 
 /**
  * AI Front Desk — The core agentic service.
@@ -97,7 +98,15 @@ export async function processInboundMessage(messageId, beautician, client, messa
     const classification = await classifyIntent(messageContent, context);
 
     // 3. Decide: act or escalate?
-    const shouldAct = canActAutonomously(classification, beautician.confidence_threshold);
+    let shouldAct = canActAutonomously(classification, beautician.confidence_threshold);
+
+    // Clients Ellie already knows are relationships she manages personally. Never
+    // auto-reply to them: draft the response and escalate so she gives the yes/no.
+    // This is the main guard against a regular getting an out of context message,
+    // which is most likely on Instagram where we may be missing the earlier chat.
+    if (shouldAct && await isKnownClient(beautician.id, client?.id, client)) {
+      shouldAct = false;
+    }
 
     if (shouldAct) {
       // 4a. Generate response and take action
