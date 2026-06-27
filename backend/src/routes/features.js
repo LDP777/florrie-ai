@@ -2052,13 +2052,23 @@ router.delete('/rebook-reminders/:id', requireAuth, async (req, res) => {
 
 // WAITLIST (existing table without backend routes)
 
+// Shared join shape so every response carries the client + treatment a row points at.
+const WAITLIST_SELECT =
+  '*, clients(id, first_name, last_name, email, phone), treatments(id, name, duration_minutes, price_cents)';
+
+// Whitelist of statuses the canonical waitlist table accepts (see migration 070).
+const WAITLIST_STATUSES = ['waiting', 'active', 'notified', 'offered', 'booked', 'expired'];
+const WAITLIST_PRIORITIES = ['vip', 'regular', 'flexible'];
+
 /**
  * GET /api/features/waitlist
+ * Returns every waitlist row for the signed-in beautician, newest first,
+ * with the joined client and treatment so the UI never has to look them up.
  */
 router.get('/waitlist', requireAuth, async (req, res) => {
   const { data, error } = await supabase
     .from('waitlist')
-    .select('*, clients(first_name, last_name, email), treatments(name)')
+    .select(WAITLIST_SELECT)
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
@@ -2071,24 +2081,45 @@ router.get('/waitlist', requireAuth, async (req, res) => {
 
 /**
  * POST /api/features/waitlist
+ * Adds a client to the waitlist. client_id and treatment_id are real foreign
+ * keys (both NOT NULL on the table), so the picker must send IDs, not names.
  */
 router.post('/waitlist', requireAuth, async (req, res) => {
-  const { client_id, treatment_id, preferred_dates } = req.body;
+  const {
+    client_id,
+    treatment_id,
+    priority,
+    preferred_days,
+    preferred_time,
+    notes,
+    max_wait_days,
+    deposit_held,
+    deposit_amount_cents,
+  } = req.body;
 
   if (!client_id || !treatment_id) {
     return res.status(400).json({ error: 'client_id and treatment_id are required' });
   }
 
+  const row = {
+    beautician_id: req.beautician.id,
+    client_id,
+    treatment_id,
+    status: 'waiting',
+    priority: WAITLIST_PRIORITIES.includes(priority) ? priority : 'regular',
+    preferred_days: Array.isArray(preferred_days) ? preferred_days : [],
+    preferred_time: preferred_time || 'any',
+    notes: notes || null,
+    max_wait_days: Number.isInteger(max_wait_days) ? max_wait_days : 14,
+    deposit_held: deposit_held === true,
+    deposit_amount_cents: Number.isInteger(deposit_amount_cents) ? deposit_amount_cents : 0,
+    notify_count: 0,
+  };
+
   const { data, error } = await supabase
     .from('waitlist')
-    .insert({
-      beautician_id: req.beautician.id,
-      client_id,
-      treatment_id,
-      preferred_dates: preferred_dates || [],
-      status: 'active'
-    })
-    .select('*, clients(first_name, last_name, email), treatments(name)')
+    .insert(row)
+    .select(WAITLIST_SELECT)
     .single();
 
   if (error) {
@@ -2100,20 +2131,38 @@ router.post('/waitlist', requireAuth, async (req, res) => {
 
 /**
  * PATCH /api/features/waitlist/:id
+ * Edits status, priority, preferences or deposit details on a single row.
  */
 router.patch('/waitlist/:id', requireAuth, async (req, res) => {
-  const { status, preferred_dates } = req.body;
+  const b = req.body || {};
   const updates = {};
 
-  if (status !== undefined) updates.status = status;
-  if (preferred_dates !== undefined) updates.preferred_dates = preferred_dates;
+  if (b.status !== undefined) {
+    if (!WAITLIST_STATUSES.includes(b.status)) {
+      return res.status(400).json({ error: 'Invalid status' });
+    }
+    updates.status = b.status;
+  }
+  if (b.priority !== undefined) {
+    if (!WAITLIST_PRIORITIES.includes(b.priority)) {
+      return res.status(400).json({ error: 'Invalid priority' });
+    }
+    updates.priority = b.priority;
+  }
+  if (Array.isArray(b.preferred_days)) updates.preferred_days = b.preferred_days;
+  if (b.preferred_time !== undefined) updates.preferred_time = b.preferred_time;
+  if (b.notes !== undefined) updates.notes = b.notes;
+  if (Number.isInteger(b.max_wait_days)) updates.max_wait_days = b.max_wait_days;
+  if (b.deposit_held !== undefined) updates.deposit_held = b.deposit_held === true;
+  if (Number.isInteger(b.deposit_amount_cents)) updates.deposit_amount_cents = b.deposit_amount_cents;
+  if (b.offer_expires_at !== undefined) updates.offer_expires_at = b.offer_expires_at;
 
   const { data, error } = await supabase
     .from('waitlist')
     .update(updates)
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id)
-    .select('*, clients(first_name, last_name, email), treatments(name)')
+    .select(WAITLIST_SELECT)
     .single();
 
   if (error) {
@@ -2121,6 +2170,63 @@ router.patch('/waitlist/:id', requireAuth, async (req, res) => {
     return res.status(500).json({ error: 'Something went wrong' });
   }
   res.json({ waitlistEntry: data });
+});
+
+/**
+ * POST /api/features/waitlist/:id/notify
+ * Messages the waitlisted client that a slot may be free, on their preferred
+ * channel (SMS if we have a number, email otherwise), then records the nudge.
+ */
+router.post('/waitlist/:id/notify', requireAuth, async (req, res) => {
+  const { data: entry, error: loadErr } = await supabase
+    .from('waitlist')
+    .select(WAITLIST_SELECT)
+    .eq('id', req.params.id)
+    .eq('beautician_id', req.beautician.id)
+    .single();
+
+  if (loadErr || !entry) {
+    return res.status(404).json({ error: 'Waitlist entry not found' });
+  }
+
+  const client = entry.clients || {};
+  const treatmentName = entry.treatments?.name || 'your treatment';
+  const firstName = client.first_name || 'there';
+  const msg = `Hi ${firstName}, a slot for ${treatmentName} may have just opened up. Reply to grab it before it goes.`;
+
+  let delivered = false;
+  try {
+    const { sendSMS, sendEmail } = await import('../services/notifications.js');
+    if (client.phone) {
+      await sendSMS({ to: client.phone, body: msg, beauticianId: req.beautician.id, messageType: 'waitlist_alert' });
+      delivered = true;
+    } else if (client.email) {
+      await sendEmail({ to: client.email, subject: 'A slot may have opened up', html: `<p>${msg}</p>`, text: msg });
+      delivered = true;
+    }
+  } catch (err) {
+    logger.error({ err }, 'Waitlist notify send failed');
+  }
+
+  const nowIso = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('waitlist')
+    .update({
+      status: 'notified',
+      notify_count: (entry.notify_count || 0) + 1,
+      notified_at: nowIso,
+      last_notified_at: nowIso,
+    })
+    .eq('id', req.params.id)
+    .eq('beautician_id', req.beautician.id)
+    .select(WAITLIST_SELECT)
+    .single();
+
+  if (error) {
+    logger.error({ err: error }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+  res.json({ waitlistEntry: data, delivered });
 });
 
 /**
