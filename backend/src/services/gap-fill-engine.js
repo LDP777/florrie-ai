@@ -1,12 +1,12 @@
 /**
- * Gap-Fill Engine — Proactive calendar gap matcher.
+ * Gap-Fill Engine, Proactive calendar gap matcher.
  *
  * Scans the next 7 days of each beautician's calendar, finds gaps ≥30 min,
  * then cross-references three pools of potential fills:
  *
- *   1. Waitlist — clients explicitly waiting for a slot (highest priority)
- *   2. Rebook overdue — clients past their predicted next visit (medium)
- *   3. Dormant — clients absent 60+ days (lowest, comeback offer)
+ *   1. Waitlist, clients explicitly waiting for a slot (highest priority)
+ *   2. Rebook overdue, clients past their predicted next visit (medium)
+ *   3. Dormant, clients absent 60+ days (lowest, comeback offer)
  *
  * For each match, either auto-sends a "slot opened up" message (if confidence
  * meets threshold) or queues a suggestion for the beautician to approve.
@@ -21,14 +21,14 @@ import { guardedSend } from '../lib/outbound-guard.js';
 import { getFutureBookedClientIds } from '../lib/future-bookings.js';
 import logger from '../lib/logger.js';
 
-const MAX_OFFERS_PER_CYCLE = 5;    // Don't spam — cap per beautician per run
+const MAX_OFFERS_PER_CYCLE = 5;    // Don't spam, cap per beautician per run
 const GAP_MIN_MINUTES = 30;        // Ignore gaps shorter than this
 const DORMANT_THRESHOLD_DAYS = 60; // 60+ days = dormant client
 const REBOOK_GRACE_DAYS = 3;       // Only nudge if overdue by 3+ days
 const DEDUP_WINDOW_DAYS = 7;       // Don't re-contact within 7 days
 
 /**
- * Main entry — called per beautician from autonomous-scheduler.
+ * Main entry, called per beautician from autonomous-scheduler.
  * Returns { matched, sent, queued } counts.
  */
 export async function checkGapFillOpportunities(beauticianId, threshold) {
@@ -142,7 +142,7 @@ export async function checkGapFillOpportunities(beauticianId, threshold) {
           treatment: { name: client.last_treatment, duration_minutes: client.treatment_duration || 60 },
           gap,
           matchType: 'dormant_rescue',
-          confidence: 0.75, // Lower — they've been gone a while
+          confidence: 0.75, // Lower, they've been gone a while
           threshold,
           beauticianPrefs,
         });
@@ -166,7 +166,7 @@ export async function checkGapFillOpportunities(beauticianId, threshold) {
 }
 
 /**
- * GET endpoint helper — returns gap-fill suggestions for the frontend
+ * GET endpoint helper, returns gap-fill suggestions for the frontend
  * without sending anything. Read-only analysis.
  */
 export async function getGapFillSuggestions(beauticianId) {
@@ -509,11 +509,11 @@ async function processMatch({ beauticianId, client, treatment, gap, matchType, c
   // Build the message based on match type
   let message;
   if (matchType === 'waitlist') {
-    message = `Hi ${client.first_name}! Great news — a ${gap.duration_minutes}-min slot just opened up on ${dayLabel} at ${timeLabel}. Perfect for your ${treatment.name}! Reply YES to grab it 💕`;
+    message = `Hi ${client.first_name}! Good news, a ${gap.duration_minutes}-min slot just opened up on ${dayLabel} at ${timeLabel}. Perfect for your ${treatment.name}! Reply YES to grab it 💕`;
   } else if (matchType === 'rebook_overdue') {
     message = `Hi ${client.first_name}! Your ${treatment.name} is overdue and I have a lovely slot on ${dayLabel} at ${timeLabel}. Want me to pop you in? Just reply YES 🌸`;
   } else {
-    message = `Hi ${client.first_name}! It's been a while and we miss you 💕 I have a slot on ${dayLabel} at ${timeLabel} — fancy popping in for your ${treatment.name}?`;
+    message = `Hi ${client.first_name}! It's been a while and we miss you 💕 I have a slot on ${dayLabel} at ${timeLabel}. Fancy popping in for your ${treatment.name}?`;
   }
 
   const summary = `Gap-fill: ${client.first_name} → ${dayLabel} ${timeLabel} (${matchType}, ${treatment.name})`;
@@ -571,7 +571,7 @@ async function processMatch({ beauticianId, client, treatment, gap, matchType, c
     return 'failed';
   }
 
-  // Below threshold — queue for approval
+  // Below threshold, queue for approval
   await logGapFillAction(beauticianId, actionType, 'pending_approval', summary, confidence, client.id);
   return 'queued';
 }

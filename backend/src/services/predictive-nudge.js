@@ -1,5 +1,5 @@
 /**
- * Predictive Nudge Service — smarter than the basic rebook check.
+ * Predictive Nudge Service, smarter than the basic rebook check.
  *
  * Runs daily (via cron in index.js). For each active beautician:
  *   1. Finds clients whose next_predicted_visit is within the next 7 days
@@ -7,7 +7,7 @@
  *   3. Generates a personalised nudge with a suggested time
  *   4. Queues to approval or auto-sends based on confidence_threshold
  *
- * This is the "Florrie spots you're due" magic — not nagging after they're
+ * This is the "Florrie spots you're due" magic, not nagging after they're
  * overdue, but reaching out *before* they even think about rebooking.
  */
 import { supabase } from '../config.js';
@@ -19,7 +19,7 @@ import { getFutureBookedClientIds } from '../lib/future-bookings.js';
 import logger from '../lib/logger.js';
 
 /**
- * Main entry — called by daily cron.
+ * Main entry, called by daily cron.
  */
 export async function runPredictiveNudges() {
   logger.info('Predictive nudge: starting daily scan');
@@ -58,7 +58,7 @@ async function nudgeForBeautician(beautician) {
   const threshold = beautician.confidence_threshold || 0.90;
   let count = 0;
 
-  // Window: next 3–7 days (skip the immediate 2 days to avoid being pushy)
+  // Window: next 3-7 days (skip the immediate 2 days to avoid being pushy)
   const windowStart = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
   const windowEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
@@ -110,13 +110,13 @@ async function nudgeForBeautician(beautician) {
       ? `${nearSlot.date.toLocaleDateString('en-GB', { weekday: 'short' })} at ${nearSlot.time}`
       : null;
 
-    const confidence = 0.82; // Predictive nudges — moderate-high confidence
+    const confidence = 0.82; // Predictive nudges, moderate-high confidence
     const summary = slotLabel
       ? `${client.first_name} is predicted to rebook around ${dayLabel}. Suggest ${slotLabel}?`
       : `${client.first_name} is predicted to rebook around ${dayLabel}. Send a nudge?`;
 
     const message = slotLabel
-      ? `Hey ${client.first_name}! Just thinking of you — you're usually due around now. I've got a spot on ${slotLabel} if you fancy it? 💕`
+      ? `Hey ${client.first_name}! Just thinking of you. You're usually due around now, and I've got a spot on ${slotLabel} if you fancy it? 💕`
       : `Hey ${client.first_name}! You're usually due around now. Fancy booking in? I'd love to see you! 💕`;
 
     if (confidence >= threshold && (client.phone || client.email)) {

@@ -1,5 +1,5 @@
 /**
- * Autonomous Scheduler — Florrie's proactive brain.
+ * Autonomous Scheduler, Florrie's proactive brain.
  *
  * Runs every 2 hours via cron in index.js. For each active beautician:
  *   1. Checks for rebook-due clients → queues nudge or auto-sends if confident
@@ -28,7 +28,7 @@ import logger from '../lib/logger.js';
 const DEFAULT_CONFIDENCE = 0.90;
 
 /**
- * Main entry point — called by cron every 2 hours.
+ * Main entry point, called by cron every 2 hours.
  */
 export async function runAutonomousCycle() {
   logger.info('Autonomous scheduler: starting cycle');
@@ -164,7 +164,7 @@ async function checkRebookDueClients(beauticianId, threshold) {
         ...(bPrefs?.client_reminder_prefs || {}),
       };
 
-      const nudgeBody = `Hey ${client.first_name}! It's been a while since your last visit. We'd love to see you again — fancy booking in? 💕`;
+      const nudgeBody = `Hey ${client.first_name}! It's been a while since your last visit. We'd love to see you again. Fancy booking in? 💕`;
       try {
         let sent = null;
         const guard = await guardedSend({
@@ -385,7 +385,7 @@ async function checkPatchTestsExpiring(beauticianId, beautician) {
     expiryDate.setMonth(expiryDate.getMonth() + expiryMonths);
     const daysLeft = Math.ceil((expiryDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
 
-    const nudgeBody = `Hi ${client.first_name}! Just a heads up — your patch test is expiring in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}. You'll need a fresh one before your next tint or lift appointment. Give us a message to book one in 💕`;
+    const nudgeBody = `Hi ${client.first_name}! Just a heads up, your patch test is expiring in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}. You'll need a fresh one before your next tint or lift appointment. Give us a message to book one in 💕`;
 
     try {
       const result = await sendNudge({
@@ -400,7 +400,7 @@ async function checkPatchTestsExpiring(beauticianId, beautician) {
           beauticianId,
           'patch_test_reminder',
           'executed',
-          `Patch test reminder sent to ${client.first_name} — expires in ${daysLeft} days`,
+          `Patch test reminder sent to ${client.first_name}, expires in ${daysLeft} days`,
           0.95,
           client.id
         );

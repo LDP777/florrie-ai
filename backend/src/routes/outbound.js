@@ -12,6 +12,7 @@ import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { sendOnChannel } from '../services/messaging.js';
 import logger from '../lib/logger.js';
+import { deDash } from '../lib/text.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -44,7 +45,8 @@ router.get('/count', async (req, res) => {
 
 /** PATCH /api/outbound/:id - edit the drafted message before approving. */
 router.patch('/:id', async (req, res) => {
-  const body = String(req.body?.body || '').trim();
+  // Keep Ellie's edits to the house rule too: no em/en dashes go out.
+  const body = deDash(String(req.body?.body || '').trim());
   if (!body) return res.status(400).json({ error: 'Message body required' });
   const { error } = await supabase
     .from('outbound_sends')
