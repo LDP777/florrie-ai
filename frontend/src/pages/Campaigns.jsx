@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, insertRow, updateRow } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow, supabase } from '../lib/supabase.js';
+import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
@@ -77,6 +78,8 @@ export default function Campaigns() {
   const [form, setForm] = useState({ name: '', message: '', targetCount: 0 });
   const [saving, setSaving] = useState(false);
   const [detail, setDetail] = useState(null);
+  const [sendingId, setSendingId] = useState(null);
+  const [sendResult, setSendResult] = useState(null);
 
   useEffect(() => { if (beautician && !bLoading) loadCampaigns(); }, [beautician, bLoading]);
 
@@ -166,6 +169,39 @@ export default function Campaigns() {
     } catch (err) {
       logger.error('Cancel campaign:', err);
     }
+  }
+
+  // Dispatch an approved campaign. Every recipient is routed through Florrie's
+  // outbound guard on the backend, so consent, the known-client hold and the
+  // frequency / monthly / allowance caps are all respected. The response is an
+  // honest tally, not a vanity number.
+  async function handleSend(id) {
+    if (sendingId) return;
+    setSendingId(id);
+    setCampaigns(prev => prev.map(c => c.id === id ? { ...c, status: 'sending' } : c));
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      const resp = await fetch(`${API_BASE}/api/features/campaigns/${id}/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      const result = await resp.json();
+      if (!resp.ok) throw new Error(result?.error || `Send failed (${resp.status})`);
+      setCampaigns(prev => prev.map(c => c.id === id
+        ? { ...c, status: result.status, delivered_count: result.sent, target_count: result.audience }
+        : c));
+      setSendResult({ id, ...result });
+    } catch (err) {
+      logger.error('Send campaign:', err);
+      // Roll back to approved so she can retry.
+      setCampaigns(prev => prev.map(c => c.id === id ? { ...c, status: 'approved' } : c));
+      setSendResult({ id, error: err.message || 'Could not send. Try again in a moment.' });
+    }
+    setSendingId(null);
   }
 
   const active = campaigns.filter(c => ['draft', 'approved', 'sending'].includes(c.status));
@@ -330,7 +366,9 @@ export default function Campaigns() {
                 <CampaignCard
                   key={c.id}
                   campaign={c}
+                  sending={sendingId === c.id}
                   onApprove={() => handleApprove(c.id)}
+                  onSend={() => handleSend(c.id)}
                   onCancel={() => handleCancel(c.id)}
                   onView={() => setDetail(c)}
                 />
@@ -409,11 +447,63 @@ export default function Campaigns() {
           </div>
         </div>
       )}
+
+      {/* ═══ SEND RESULT ═══ */}
+      {sendResult && (
+        <div style={styles.overlay} onClick={() => setSendResult(null)}>
+          <div style={styles.detailPanel} onClick={e => e.stopPropagation()}>
+            <button onClick={() => setSendResult(null)} style={styles.closeBtn}>×</button>
+            {sendResult.error ? (
+              <div style={styles.resultHeader}>
+                <span style={{ fontSize: 30 }}>😕</span>
+                <h2 style={styles.detailName}>Couldn't send</h2>
+                <p style={styles.resultSubtle}>{sendResult.error}</p>
+              </div>
+            ) : (
+              <>
+                <div style={styles.resultHeader}>
+                  <span style={{ fontSize: 30 }}>✨</span>
+                  <h2 style={styles.detailName}>
+                    {sendResult.sent > 0
+                      ? `${sendResult.sent} message${sendResult.sent !== 1 ? 's' : ''} on the way`
+                      : 'Nothing went out this time'}
+                  </h2>
+                  <p style={styles.resultSubtle}>
+                    {sendResult.audience} client{sendResult.audience !== 1 ? 's' : ''} in this campaign
+                  </p>
+                </div>
+                <div style={styles.resultGrid}>
+                  <PerfStat label="Sent" value={sendResult.sent} color="var(--accent, #C76B8A)" />
+                  <PerfStat label="Held for you" value={sendResult.held} />
+                  <PerfStat label="Blocked" value={sendResult.blocked} />
+                  <PerfStat label="Skipped" value={sendResult.skipped} />
+                </div>
+                {sendResult.held > 0 && (
+                  <p style={styles.resultNote}>
+                    {sendResult.held} regular{sendResult.held !== 1 ? 's' : ''} held for your yes or no. They're in your approvals so nothing lands out of context.
+                  </p>
+                )}
+                {sendResult.blocked > 0 && (
+                  <p style={styles.resultNote}>
+                    {sendResult.blocked} skipped to protect your clients: no marketing consent, a recent message already sent, or your monthly limit reached.
+                  </p>
+                )}
+                {sendResult.skipped > 0 && (
+                  <p style={styles.resultNote}>
+                    {sendResult.skipped} had no reachable phone, WhatsApp or email on file.
+                  </p>
+                )}
+              </>
+            )}
+            <button onClick={() => setSendResult(null)} style={{ ...styles.primaryBtn, marginTop: 12 }}>Done</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function CampaignCard({ campaign, onApprove, onCancel, onView }) {
+function CampaignCard({ campaign, sending, onApprove, onSend, onCancel, onView }) {
   const cfg = TYPE_CONFIG[campaign.type] || TYPE_CONFIG.custom;
   return (
     <div style={styles.campaignCard} onClick={onView}>
@@ -445,13 +535,21 @@ function CampaignCard({ campaign, onApprove, onCancel, onView }) {
         </div>
       )}
 
-      {/* Draft/approved actions */}
-      {(campaign.status === 'draft' || campaign.status === 'approved') && (
+      {/* Draft / approved / sending actions */}
+      {(campaign.status === 'draft' || campaign.status === 'approved' || campaign.status === 'sending') && (
         <div style={styles.cardActions} onClick={e => e.stopPropagation()}>
           {campaign.status === 'draft' && onApprove && (
             <button onClick={onApprove} style={styles.approveBtn}>Approve</button>
           )}
-          {onCancel && (
+          {campaign.status === 'approved' && onSend && (
+            <button onClick={onSend} disabled={sending} style={{ ...styles.approveBtn, opacity: sending ? 0.6 : 1 }}>
+              {sending ? 'Sending...' : 'Send now'}
+            </button>
+          )}
+          {campaign.status === 'sending' && (
+            <button disabled style={{ ...styles.approveBtn, opacity: 0.6 }}>Sending...</button>
+          )}
+          {onCancel && campaign.status !== 'sending' && (
             <button onClick={onCancel} style={styles.cancelCardBtn}>Cancel</button>
           )}
         </div>
@@ -618,4 +716,10 @@ const styles = {
   emptyState: { textAlign: 'center', padding: '40px 20px' },
   emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 6px' },
   emptyDesc: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', margin: 0, lineHeight: 1.5 },
+
+  // Send result
+  resultHeader: { textAlign: 'center', paddingTop: 8, paddingBottom: 12 },
+  resultSubtle: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', margin: '4px 0 0' },
+  resultGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, marginBottom: 12 },
+  resultNote: { fontSize: 12, color: 'var(--text-secondary, #8A8580)', margin: '0 0 8px', lineHeight: 1.5, background: 'var(--bg-card, #fff)', borderRadius: 10, padding: '10px 12px' },
 };

@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
+import { guardedSend } from '../lib/outbound-guard.js';
+import { sendNudge } from '../services/notifications.js';
 
 const router = Router();
 
@@ -2383,6 +2385,157 @@ router.patch('/campaigns/:id', requireAuth, async (req, res) => {
     return res.status(500).json({ error: 'Something went wrong' });
   }
   res.json({ campaign: data });
+});
+
+/**
+ * POST /api/features/campaigns/:id/send
+ *
+ * Dispatch an approved campaign. Marketing campaigns are PROACTIVE, so every
+ * single recipient goes through the one outbound gate (guardedSend): consent
+ * (PECR, fail closed), the known-client hold (regulars are held for the
+ * beautician's yes/no), the cross-engine 7-day frequency cap, the monthly-4
+ * per-client cap and the transactional allowance reserve. We never send
+ * directly. A regular who is held lands in the daily outbox as pending_approval,
+ * which is exactly what we want.
+ *
+ * The response is an honest tally: sent, held (waiting for her yes/no), blocked
+ * (consent / cap / allowance / quiet hours), skipped (no reachable channel).
+ */
+router.post('/campaigns/:id/send', requireAuth, async (req, res) => {
+  const beauticianId = req.beautician.id;
+
+  const { data: campaign, error: cErr } = await supabase
+    .from('campaigns')
+    .select('*')
+    .eq('id', req.params.id)
+    .eq('beautician_id', beauticianId)
+    .maybeSingle();
+
+  if (cErr) {
+    logger.error({ err: cErr }, 'Database operation failed');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+  if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+  if (!['draft', 'approved'].includes(campaign.status)) {
+    return res.status(409).json({ error: `Campaign is ${campaign.status}, nothing to send` });
+  }
+
+  const { data: bPrefs } = await supabase
+    .from('beauticians')
+    .select('whatsapp_phone_id, client_reminder_prefs')
+    .eq('id', beauticianId)
+    .maybeSingle();
+  const beauticianPrefs = {
+    whatsapp_connected: !!bPrefs?.whatsapp_phone_id,
+    ...(bPrefs?.client_reminder_prefs || {}),
+  };
+
+  // Resolve the audience. If the campaign pinned specific client ids use those;
+  // otherwise derive from the campaign type the same way the page does.
+  const audienceCols = 'id, first_name, last_name, phone, email, whatsapp_id, preferred_channel, status, last_visit_at, is_regular, vip, marketing_opted_out_at';
+  let clients = [];
+  if (Array.isArray(campaign.target_client_ids) && campaign.target_client_ids.length) {
+    const { data } = await supabase
+      .from('clients')
+      .select(audienceCols)
+      .eq('beautician_id', beauticianId)
+      .in('id', campaign.target_client_ids);
+    clients = data || [];
+  } else {
+    const { data } = await supabase
+      .from('clients')
+      .select(audienceCols)
+      .eq('beautician_id', beauticianId);
+    const all = data || [];
+    if (campaign.type === 'reactivation') {
+      const cutoff = Date.now() - 30 * 86400000;
+      clients = all.filter(c =>
+        c.status === 'dormant' || c.status === 'lost' ||
+        (c.last_visit_at && new Date(c.last_visit_at).getTime() < cutoff)
+      );
+    } else {
+      // Broadcast types (weather, bank_holiday, event, custom) reach the active base.
+      clients = all.filter(c => c.status !== 'lost');
+    }
+  }
+
+  if (!clients.length) {
+    return res.status(409).json({ error: 'No recipients match this campaign' });
+  }
+
+  // Mark sending so a double-tap cannot fire it twice.
+  await supabase.from('campaigns').update({ status: 'sending' })
+    .eq('id', campaign.id).eq('beautician_id', beauticianId);
+
+  let sent = 0, held = 0, blocked = 0, skipped = 0;
+
+  for (const client of clients) {
+    const firstName = client.first_name || 'there';
+    const days = client.last_visit_at
+      ? Math.max(0, Math.round((Date.now() - new Date(client.last_visit_at).getTime()) / 86400000))
+      : '';
+    const message = (campaign.message_template || '')
+      .replace(/\{name\}/g, firstName)
+      .replace(/\{days\}/g, String(days))
+      .replace(/\{day\}/g, 'this week');
+
+    // Pick the client's preferred reachable channel for the audit row. sendNudge
+    // itself cascades WhatsApp -> SMS -> email, so this is the recorded intent.
+    let channel = client.preferred_channel || 'whatsapp';
+    if (channel === 'whatsapp' && !(client.whatsapp_id && beauticianPrefs.whatsapp_connected)) {
+      channel = client.phone ? 'sms' : (client.email ? 'email' : 'whatsapp');
+    }
+    if (channel === 'sms' && !client.phone) channel = client.email ? 'email' : 'sms';
+
+    if (!client.phone && !client.email && !client.whatsapp_id) {
+      skipped++;
+      continue;
+    }
+
+    try {
+      let delivery = null;
+      const verdict = await guardedSend({
+        beauticianId,
+        clientId: client.id,
+        messageType: 'campaign',
+        channel,
+        client,
+        body: message,
+        send: async () => {
+          delivery = await sendNudge({ client, body: message, beauticianId, beauticianPrefs });
+          return delivery && !delivery.skipped ? delivery : null;
+        },
+      });
+
+      if (verdict.delivered) sent++;
+      else if (verdict.decision === 'approve') held++;
+      else if (verdict.decision === 'block') blocked++;
+      else skipped++;
+    } catch (err) {
+      logger.warn({ err, clientId: client.id, campaignId: campaign.id }, 'Campaign recipient failed');
+      blocked++;
+    }
+  }
+
+  const finalStatus = sent > 0 ? 'sent' : 'approved';
+  await supabase.from('campaigns').update({
+    status: finalStatus,
+    sent_at: sent > 0 ? new Date().toISOString() : null,
+    delivered_count: sent,
+    target_count: clients.length,
+  }).eq('id', campaign.id).eq('beautician_id', beauticianId);
+
+  logger.info({ campaignId: campaign.id, sent, held, blocked, skipped }, 'Campaign dispatched');
+
+  res.json({
+    campaign_id: campaign.id,
+    status: finalStatus,
+    audience: clients.length,
+    sent,
+    held,
+    blocked,
+    skipped,
+  });
 });
 
 // CONTENT POSTS
