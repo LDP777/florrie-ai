@@ -56,6 +56,9 @@ export default function Onboarding({ onComplete }) {
   const [treatments, setTreatments] = useState([
     { name: '', duration_minutes: 60, price_cents: 0, category: 'brows' }
   ]);
+  // Tracks whether the user has been warned that 0-price treatments will not
+  // appear on their public booking page. The second Next press then proceeds.
+  const [pricelessAck, setPricelessAck] = useState(false);
   // Step 3: Working hours
   const [hours, setHours] = useState(DEFAULT_HOURS);
   // Step 4: Booking slug
@@ -114,6 +117,17 @@ export default function Onboarding({ onComplete }) {
         setSaving(false);
         return;
       }
+      // Clients can only book treatments that have a price. If every treatment is
+      // still 0, warn once before saving so the booking page is not empty. The
+      // next tap proceeds, so prices can still be set later.
+      const anyPriced = valid.some(t => parseFloat(t.price_cents) > 0);
+      if (!anyPriced && !pricelessAck) {
+        setPricelessAck(true);
+        setError('Add a price to at least one treatment so clients can book it. Tap Next again to carry on and set prices later.');
+        setSaving(false);
+        return;
+      }
+      let idx = 0;
       for (const t of valid) {
         await insertRow('treatments', {
           beautician_id: beautician.id,
@@ -121,7 +135,9 @@ export default function Onboarding({ onComplete }) {
           duration_minutes: parseInt(t.duration_minutes) || 60,
           price_cents: Math.round(parseFloat(t.price_cents) * 100) || 0,
           category: t.category,
-          is_active: true
+          is_active: true,
+          booking_enabled: true,
+          sort_order: idx++
         });
       }
       setStep(3);
@@ -174,7 +190,16 @@ export default function Onboarding({ onComplete }) {
       setStep(5);
     } catch (err) {
       logger.error('Slug save error:', err);
-      setError('Failed to save booking link. Please try again.');
+      // 23505 = Postgres unique violation. booking_slug is UNIQUE, so this means
+      // another beautician already has this link. Tell the user plainly so they
+      // can pick a different one instead of hitting a generic dead end.
+      const code = err?.code || err?.details || '';
+      const msg = (err?.message || '').toLowerCase();
+      if (code === '23505' || msg.includes('duplicate') || msg.includes('unique')) {
+        setError('That link is already taken. Try adding your town or a number, like your-name-leeds.');
+      } else {
+        setError('Could not save your booking link. Please try again.');
+      }
     } finally {
       setSaving(false);
     }
@@ -432,6 +457,7 @@ export default function Onboarding({ onComplete }) {
                   />
                 </div>
               </div>
+              <p style={styles.priceHint}>Clients can only book treatments that have a price set.</p>
               <div style={styles.formGroup}>
                 <label style={styles.formLabel}>Category</label>
                 <select
@@ -1053,6 +1079,7 @@ const styles = {
     marginBottom: 12,
     border: '1.5px dashed var(--border)'
   },
+  priceHint: { fontSize: 11, color: 'var(--text-muted)', margin: '2px 0 0' },
   fileInput: { marginBottom: 12, fontSize: 13 },
   importResult: { fontSize: 13, color: 'var(--success)', marginTop: 10, fontWeight: 500 },
   // Error and skip
