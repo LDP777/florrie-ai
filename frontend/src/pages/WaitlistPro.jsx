@@ -248,7 +248,7 @@ export default function WaitlistPro() {
         <div style={S.list}>
           {activeList.length === 0 && (
             <EmptyState
-              icon="hourglass_empty"
+              icon="⏳"
               title="No one waiting yet"
               subtitle="Add a client who wants a slot and Florrie will nudge them the moment one frees up."
               actionLabel="Add to waitlist"
@@ -344,7 +344,7 @@ export default function WaitlistPro() {
       {tab === 'archived' && (
         <div style={S.list}>
           {archivedList.length === 0 && (
-            <EmptyState icon="inventory_2" title="Nothing archived" subtitle="Booked and expired waitlist entries land here." />
+            <EmptyState icon="📦" title="Nothing archived" subtitle="Booked and expired waitlist entries land here." />
           )}
           {archivedList.map(w => {
             const st = STATUS_CONFIG[w.status] || STATUS_CONFIG.expired;

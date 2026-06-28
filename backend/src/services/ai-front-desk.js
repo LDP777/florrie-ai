@@ -370,7 +370,7 @@ function getEscalationReason(classification) {
     return `Intent "${classification.intent}" requires human judgment`;
   }
   if (classification.confidence < 0.9) {
-    return `Low confidence (${(classification.confidence * 100).toFixed(0)}%) — not sure enough to respond autonomously`;
+    return `Low confidence (${(classification.confidence * 100).toFixed(0)}%), not sure enough to respond autonomously`;
   }
   return `Intent "${classification.intent}" is not in the autonomous action list`;
 }

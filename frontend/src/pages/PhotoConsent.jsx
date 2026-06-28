@@ -1,5 +1,5 @@
 /**
- * Photo Consent - GDPR-compliant photo permission management.
+ * Photo Consent. GDPR-compliant photo permission management.
  *
  * Before sharing any before/after pics on Instagram or the booking
  * page, Ellie needs written consent. This page tracks who's given
