@@ -514,7 +514,18 @@ function BottomNav({ current, session }) {
     }
     fetchCounts();
     intervalRef.current = setInterval(fetchCounts, 60_000);
-    return () => clearInterval(intervalRef.current);
+    // Refresh the badges the moment Ellie acts, so reviewing a message visibly
+    // drops the Today count instead of waiting up to a minute for the next poll.
+    const onFocus = () => { if (document.visibilityState !== 'hidden') fetchCounts(); };
+    window.addEventListener('florrie:refresh-counts', fetchCounts);
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      clearInterval(intervalRef.current);
+      window.removeEventListener('florrie:refresh-counts', fetchCounts);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
   }, [session]);
 
   // Paths that count as the Today tab being active.

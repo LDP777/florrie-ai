@@ -201,6 +201,8 @@ export default function Inbox() {
       const json = await authFetch('/api/inbox/threads?limit=80');
       setThreads(json.threads || []);
       setThreadsError(null);
+      // Keep the Today/Inbox nav badges in step when a thread is read or replied to.
+      window.dispatchEvent(new Event('florrie:refresh-counts'));
     } catch (err) {
       logger.error({ err }, 'inbox threads load failed');
       setThreadsError(err.message || 'Failed to load');

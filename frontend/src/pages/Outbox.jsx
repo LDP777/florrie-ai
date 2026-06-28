@@ -190,7 +190,7 @@ export default function Outbox() {
       const res = await authedFetch(`/api/outbound/${id}/approve`, { method: 'POST' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data?.error) throw new Error(data?.error || 'Send failed');
-      setHolds(prev => prev.filter(i => i.id !== id));
+      setHolds(prev => prev.filter(i => i.id !== id)); window.dispatchEvent(new Event('florrie:refresh-counts'));
       showToast('Sent.');
     } catch {
       showToast('Could not send that one. Try again.');
@@ -201,7 +201,7 @@ export default function Outbox() {
     try {
       const res = await authedFetch(`/api/outbound/${id}/skip`, { method: 'POST' });
       if (!res.ok) throw new Error();
-      setHolds(prev => prev.filter(i => i.id !== id));
+      setHolds(prev => prev.filter(i => i.id !== id)); window.dispatchEvent(new Event('florrie:refresh-counts'));
     } catch {
       showToast('Could not skip that one. Try again.');
     }
@@ -221,7 +221,7 @@ export default function Outbox() {
         }),
       });
       if (!res.ok) throw new Error();
-      setReplies(prev => prev.filter(i => i.id !== id));
+      setReplies(prev => prev.filter(i => i.id !== id)); window.dispatchEvent(new Event('florrie:refresh-counts'));
       showToast('Sent.');
     } catch {
       showToast('Could not send that one. Try again.');
@@ -235,7 +235,7 @@ export default function Outbox() {
         body: JSON.stringify({ action: 'dismiss' }),
       });
       if (!res.ok) throw new Error();
-      setReplies(prev => prev.filter(i => i.id !== id));
+      setReplies(prev => prev.filter(i => i.id !== id)); window.dispatchEvent(new Event('florrie:refresh-counts'));
     } catch {
       showToast('Could not dismiss that one. Try again.');
     }

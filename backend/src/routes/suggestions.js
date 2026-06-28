@@ -181,7 +181,7 @@ function friendlyWhen(date, daysAway) {
 async function fromBookingSuggestions(beauticianId) {
   const { data, error } = await supabase
     .from('booking_suggestions')
-    .select('id, treatment_name, suggested_date, suggested_time, client_id, clients(first_name, last_name)')
+    .select('id, treatment_name, suggested_date, suggested_time, client_id, clients(first_name, last_name, phone)')
     .eq('beautician_id', beauticianId)
     .eq('status', 'pending')
     .order('created_at', { ascending: false })
@@ -190,7 +190,9 @@ async function fromBookingSuggestions(beauticianId) {
   if (error || !data) return [];
 
   return data.map(row => {
-    const first = row.clients?.first_name?.trim() || 'a client';
+    const c = row.clients || {};
+    const fullName = [c.first_name, c.last_name].map(x => (x || '').trim()).filter(Boolean).join(' ');
+    const first = fullName || (c.phone ? `New enquiry (...${String(c.phone).slice(-4)})` : 'A new enquiry');
     const date = formatShortDate(row.suggested_date);
     const time = row.suggested_time ? ` at ${row.suggested_time.slice(0, 5)}` : '';
     // Land Ellie on the day she needs to book, so the calendar opens right where
