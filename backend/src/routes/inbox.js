@@ -25,7 +25,43 @@ const THREAD_FETCH_CAP = 1000;
 function previewOf(content) {
   if (!content) return '';
   const flat = String(content).replace(/\s+/g, ' ').trim();
+  if (!flat) return '';
   return flat.length > PREVIEW_MAX ? `${flat.slice(0, PREVIEW_MAX - 1)}…` : flat;
+}
+
+// A quiet stand-in when a message carries no text (a photo, sticker, voice
+// note). Never let a row render a blank preview line.
+function mediaPlaceholder(mediaType) {
+  const t = String(mediaType || '').toLowerCase();
+  if (t.includes('image') || t === 'photo' || t === 'sticker') return 'Sent a photo';
+  if (t.includes('video')) return 'Sent a video';
+  if (t.includes('audio') || t === 'voice') return 'Sent a voice note';
+  if (t) return 'Sent an attachment';
+  return 'No message text';
+}
+
+// Build the preview for a single row: its text if it has any, otherwise a
+// media placeholder. Used for both the latest message and the latest text.
+function rowPreview(row) {
+  const text = previewOf(row.content);
+  if (text) return text;
+  return mediaPlaceholder(row.media_type);
+}
+
+// Phone, email, whatsapp and instagram handles that identify the SAME person
+// across duplicate client records. Normalised so "+44 7..." and "447..." match.
+function identityKeys(c) {
+  if (!c) return [];
+  const keys = [];
+  const phone = String(c.phone || '').replace(/[^0-9]/g, '');
+  if (phone) keys.push('p:' + phone.slice(-10));
+  const wa = String(c.whatsapp_id || '').replace(/[^0-9]/g, '');
+  if (wa) keys.push('p:' + wa.slice(-10));
+  const email = String(c.email || '').trim().toLowerCase();
+  if (email) keys.push('e:' + email);
+  const ig = String(c.instagram_id || '').trim().toLowerCase();
+  if (ig) keys.push('i:' + ig);
+  return keys;
 }
 
 /**
@@ -66,6 +102,7 @@ router.get('/threads', requireAuth, async (req, res) => {
         channel,
         direction,
         content,
+        media_type,
         created_at,
         resolved,
         read_at,
@@ -73,7 +110,7 @@ router.get('/threads', requireAuth, async (req, res) => {
         escalated,
         digital_employee,
         ai_intent,
-        clients ( id, first_name, last_name )
+        clients ( id, first_name, last_name, phone, email, whatsapp_id, instagram_id )
       `)
       .eq('beautician_id', req.beautician.id)
       .order('created_at', { ascending: false })
@@ -84,53 +121,111 @@ router.get('/threads', requireAuth, async (req, res) => {
       return res.status(500).json({ error: 'Failed to load threads' });
     }
 
-    const buckets = new Map();
+    // Bucket every message into exactly one thread. We key first on client_id,
+    // then collapse buckets that are the SAME person held as duplicate client
+    // records (one from SMS, one from Instagram, etc.) by matching contact
+    // details. Rows arrive newest-first, so the first row we see for a bucket
+    // is its most recent message.
+    const buckets = new Map();          // client_id -> bucket
+    const identityToBucket = new Map(); // identity key -> bucket (for de-dup)
+
     for (const row of data || []) {
-      // If a row has no client (rare: webhook fired before client lookup),
-      // bucket by external_message_id-less placeholder so the UI at least
-      // sees one "Unknown" thread per orphan. For now, skip orphans rather
-      // than show useless rows.
+      // Orphan rows (webhook fired before the client lookup) carry no client.
+      // Skip them rather than render a useless "Unknown" thread.
       if (!row.client_id) continue;
 
       let bucket = buckets.get(row.client_id);
+
       if (!bucket) {
-        bucket = {
-          client_id: row.client_id,
-          client_first_name: row.clients?.first_name || 'Client',
-          client_last_name: row.clients?.last_name || '',
-          client_avatar_url: null, // clients table has no avatar; UI shows initial
-          last_message_preview: previewOf(row.content),
-          last_message_at: row.created_at,
-          last_message_direction: row.direction,
-          last_channel: row.channel,
-          // Type of the most recent message, so the list can label the row.
-          last_message_type: messageType(row),
-          unread_count: 0,
-          // True if any message in this thread was escalated and not yet
-          // resolved. This is the strongest "needs you" signal: Florrie
-          // deliberately handed it back for a human reply.
-          needs_attention: false,
-          // The intent of the most recent INBOUND message. Lets the UI treat a
-          // pure thank-you or sign-off as handled, not as a reply owed.
-          last_inbound_intent: null,
-        };
-        buckets.set(row.client_id, bucket);
+        // New client_id. Before creating a fresh thread, see if this person
+        // already has one under a different client record (same phone, email,
+        // whatsapp or instagram). If so, fold this client_id into it.
+        const keys = identityKeys(row.clients);
+        for (const k of keys) {
+          const existing = identityToBucket.get(k);
+          if (existing) { bucket = existing; break; }
+        }
+        if (bucket) {
+          // Map this duplicate client_id at it so its later rows land here too.
+          buckets.set(row.client_id, bucket);
+          bucket.client_ids.add(row.client_id);
+        } else {
+          bucket = {
+            // Represent the thread by the most recent message's client_id, so
+            // opening it lands on the record the client last used.
+            client_id: row.client_id,
+            client_ids: new Set([row.client_id]),
+            client_first_name: row.clients?.first_name || 'Client',
+            client_last_name: row.clients?.last_name || '',
+            client_avatar_url: null, // no avatar column; UI shows the initial
+            last_message_preview: rowPreview(row),
+            last_message_at: row.created_at,
+            last_message_direction: row.direction,
+            last_message_type: messageType(row),
+            last_channel: row.channel,
+            unread_count: 0,
+            needs_attention: false,
+            last_inbound_intent: null,
+            // The client's own most recent words. On a thread that is waiting
+            // on her, this is what she needs to answer, even if Florrie spoke
+            // last. Filled from the newest inbound row with usable text.
+            last_inbound_preview: null,
+            _hasInboundText: false,
+          };
+          buckets.set(row.client_id, bucket);
+          for (const k of keys) identityToBucket.set(k, bucket);
+        }
       }
-      // We iterate newest-first, so the first row we see for a client is
-      // the latest. Subsequent rows only contribute to unread_count.
+
+      // Unread = inbound, not read, not resolved.
       if (row.direction === 'inbound' && !row.read_at && !row.resolved) {
         bucket.unread_count += 1;
       }
-      // Newest-first: the first inbound we encounter is the most recent one.
+      // Newest-first: the first inbound we meet is the most recent one.
       if (row.direction === 'inbound' && bucket.last_inbound_intent === null) {
         bucket.last_inbound_intent = row.ai_intent || 'unknown';
+      }
+      // Latest inbound preview: prefer the newest inbound that actually has
+      // text, so "Waiting on you" shows her the question, not a media stub.
+      if (row.direction === 'inbound') {
+        const text = previewOf(row.content);
+        if (text && !bucket._hasInboundText) {
+          bucket.last_inbound_preview = text;
+          bucket._hasInboundText = true;
+        } else if (!bucket.last_inbound_preview) {
+          // No text yet anywhere; hold a media stub as a fallback.
+          bucket.last_inbound_preview = rowPreview(row);
+        }
+      }
+      // Latest-message preview: the first row set it via rowPreview (never
+      // blank). If that was a media placeholder because the newest message had
+      // no text, upgrade it to the newest row that DOES have text, so the row
+      // reads as a real message rather than "Sent a photo" when avoidable.
+      if (!bucket._lastTextLocked) {
+        const text = previewOf(row.content);
+        if (text) {
+          bucket.last_message_preview = text;
+          bucket._lastTextLocked = true;
+        }
       }
       if (row.escalated && !row.resolved) {
         bucket.needs_attention = true;
       }
     }
 
-    const threads = Array.from(buckets.values())
+    // Clean up internal scaffolding and guarantee no blank preview survives.
+    for (const bucket of new Set(buckets.values())) {
+      if (!bucket.last_message_preview) {
+        bucket.last_message_preview = bucket.last_inbound_preview || 'No message text';
+      }
+      delete bucket.client_ids;
+      delete bucket._hasInboundText;
+      delete bucket._lastTextLocked;
+    }
+
+    // De-dup: buckets.values() now contains each thread once per client_id key,
+    // but folded duplicates share the SAME object. Collapse to unique objects.
+    const threads = Array.from(new Set(buckets.values()))
       .sort((a, b) => new Date(b.last_message_at) - new Date(a.last_message_at))
       .slice(0, limit);
 

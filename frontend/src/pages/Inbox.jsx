@@ -135,12 +135,22 @@ function ChannelMark({ channel, size = 16 }) {
 const HANDLED_INTENTS = new Set(['review_thanks', 'greeting']);
 
 // "Needs you" means a human reply is genuinely owed:
-//   - Florrie escalated something and it is not resolved, or
+//   - Florrie escalated something and the client's last word still asks
+//     something (a real open question), or
 //   - the client had the last word and was not just saying thanks.
 // Florrie's own replies and proactive housekeeping never count, even if the
 // thread shows unread automated rows.
+//
+// An escalation whose latest inbound is a pure closer ("No worries x",
+// "Thanks!") is treated as handled: there is nothing to answer, so it drops
+// out of Waiting. We never demote a thread where the client actually asked
+// something, so a missing intent stays owed.
+function isCloserOnly(t) {
+  return t.last_message_direction === 'inbound'
+    && HANDLED_INTENTS.has(t.last_inbound_intent || 'unknown');
+}
 function needsYou(t) {
-  if (t.needs_attention) return true;
+  if (t.needs_attention) return !isCloserOnly(t);
   if (t.last_message_direction !== 'inbound') return false;
   // Client spoke last. Skip pure acknowledgements (thanks, hello with nothing
   // to answer). Treat a missing intent as "owed" rather than silently hiding it.
@@ -386,102 +396,89 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, hideTypeCh
   const owed = needsYou(thread);          // genuinely waiting on a human reply
   const automated = isAutomated(thread);  // Florrie's own housekeeping
   const type = typeMeta(thread.last_message_type);
-  const directionPrefix = thread.last_message_direction === 'outbound' ? 'You: ' : '';
 
-  const REVEAL = 84;
-  const [dx, setDx] = useState(0);
-  const start = useRef(null);
-  const horiz = useRef(false);
+  // What to show as the preview line.
+  //  - Waiting on her: show the CLIENT's own latest words, so she sees what to
+  //    answer, even when Florrie spoke last. No "You:" in this view.
+  //  - Otherwise: the latest message, prefixed "You:" when it was outbound.
+  let previewText;
+  let previewPrefix = '';
+  if (owed && thread.last_inbound_preview) {
+    previewText = thread.last_inbound_preview;
+  } else {
+    previewText = thread.last_message_preview || '';
+    if (thread.last_message_direction === 'outbound') previewPrefix = 'You: ';
+  }
 
-  function onTouchStart(e) {
-    const t = e.touches[0];
-    start.current = { x: t.clientX, y: t.clientY, base: dx };
-    horiz.current = false;
-  }
-  function onTouchMove(e) {
-    if (!start.current) return;
-    const t = e.touches[0];
-    const ddx = t.clientX - start.current.x;
-    const ddy = t.clientY - start.current.y;
-    if (!horiz.current) {
-      if (Math.abs(ddx) > Math.abs(ddy) + 6) horiz.current = true;
-      else if (Math.abs(ddy) > 8) { start.current = null; return; }
-      else return;
-    }
-    let next = start.current.base + ddx;
-    if (next > 0) next = 0;
-    if (next < -REVEAL) next = -REVEAL;
-    setDx(next);
-  }
-  function onTouchEnd() {
-    if (!start.current) return;
-    setDx(dx < -REVEAL / 2 ? -REVEAL : 0);
-    start.current = null;
-  }
-  function handleRowClick() {
-    if (dx < 0) { setDx(0); return; }
-    onOpen(thread.client_id);
-  }
+  // Explicit delete via a small menu. A swipe gesture fired on vertical scroll
+  // and revealed delete across many rows at once, so this replaces it with a
+  // deliberate, one-row-at-a-time affordance that never triggers from scrolling.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const rowRef = useRef(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDoc = (e) => { if (rowRef.current && !rowRef.current.contains(e.target)) setMenuOpen(false); };
+    document.addEventListener('pointerdown', onDoc);
+    return () => document.removeEventListener('pointerdown', onDoc);
+  }, [menuOpen]);
 
   return (
-    <li style={{ position: 'relative', overflow: 'hidden', borderRadius: 16 }}>
+    <li ref={rowRef} style={{ position: 'relative', borderRadius: 16 }}>
       <button
         type="button"
-        aria-label={`Delete conversation with ${name}`}
-        onClick={() => { setDx(0); onDelete && onDelete(thread.client_id); }}
-        style={S.deleteReveal}
-      >
-        <span className="material-symbols-outlined" style={{ fontSize: 20 }}>delete</span>
-        Delete
-      </button>
-      <button
-        onClick={handleRowClick}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
+        onClick={() => onOpen(thread.client_id)}
         style={{
           ...S.row,
           ...(automated || muted ? S.rowMuted : {}),
           ...(owed ? S.rowOwed : {}),
-          ...(flagged ? S.rowFlagged : {}),
           background: active
             ? 'var(--accent-light, #ffe5ec)'
             : owed ? '#fffaf6' : (automated || muted) ? 'transparent' : 'var(--bg-card, #fff)',
           borderColor: active ? 'var(--accent, #92405e)' : undefined,
-          transform: `translateX(${dx}px)`,
-          transition: start.current ? 'none' : 'transform 0.2s ease',
-          touchAction: 'pan-y',
+          paddingRight: 38,
         }}
       >
         <span style={S.avatarWrap}>
-          <span style={{ ...S.avatar, ...(automated && !owed ? S.avatarMuted : {}) }} aria-hidden>
+          <span style={{
+            ...S.avatar,
+            ...((automated || muted) && !owed ? S.avatarMuted : {}),
+          }} aria-hidden>
             {initialOf(name)}
           </span>
-          {owed && <span style={S.flagDot} aria-hidden />}
+          {flagged && <span style={S.flagDot} title="Florrie escalated this" aria-label="Escalated" />}
         </span>
 
         <span style={S.rowBody}>
           <span style={S.rowTop}>
             <span style={{
               ...S.rowName,
-              fontWeight: owed || isUnread ? 700 : automated ? 500 : 600,
-              color: automated && !owed ? 'var(--text-secondary, #867277)' : 'var(--text-primary, #1d1b19)',
+              ...((automated || muted) && !owed ? S.rowNameMuted : {}),
+              fontWeight: owed || isUnread ? 700 : (automated || muted) ? 500 : 600,
             }}>{name}</span>
-            <span style={S.rowTime}>{formatTimeShort(thread.last_message_at)}</span>
+            <span style={{ ...S.rowTime, ...((automated || muted) && !owed ? S.rowTimeMuted : {}) }}>
+              {formatTimeShort(thread.last_message_at)}
+            </span>
           </span>
 
           <span style={S.rowBottom}>
-            <ChannelMark channel={thread.last_channel} size={15} />
+            <ChannelMark channel={thread.last_channel} size={(automated || muted) && !owed ? 13 : 15} />
             <span style={{
               ...S.rowPreview,
+              ...((automated || muted) && !owed ? S.rowPreviewMuted : {}),
               color: isUnread ? 'var(--text-primary, #1d1b19)' : 'var(--text-muted, #9B8A8E)',
               fontWeight: isUnread ? 600 : 400,
             }}>
-              {directionPrefix}{thread.last_message_preview || ''}
+              {previewPrefix}{previewText}
             </span>
             {isUnread && <span style={S.rowBadge}>{thread.unread_count}</span>}
           </span>
 
+          {/* In the all view we still label Florrie's own housekeeping so she
+              knows it was automated. We do NOT label "Waiting" rows: the
+              section header already says it, and a per-card "handed back" tag
+              just repeated on every escalation. An escalation is marked by the
+              quiet pip on the avatar instead. */}
           {!hideTypeChip && !owed && (
             <span style={S.rowMetaRow}>
               <span style={S.typeChip}>
@@ -490,16 +487,33 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, hideTypeCh
               </span>
             </span>
           )}
-          {!hideTypeChip && flagged && (
-            <span style={S.rowMetaRow}>
-              <span style={{ ...S.typeChip, ...S.typeChipFlagged }}>
-                <span style={{ ...S.typeDot, background: '#c2410c' }} aria-hidden />
-                Florrie handed this back
-              </span>
-            </span>
-          )}
         </span>
       </button>
+
+      <button
+        type="button"
+        aria-label={`More options for ${name}`}
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        onClick={(e) => { e.stopPropagation(); setMenuOpen(o => !o); }}
+        style={S.rowMenuBtn}
+      >
+        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>more_vert</span>
+      </button>
+
+      {menuOpen && (
+        <div role="menu" style={S.rowMenu}>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onDelete && onDelete(thread.client_id); }}
+            style={S.rowMenuItem}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 17 }}>delete</span>
+            Delete conversation
+          </button>
+        </div>
+      )}
     </li>
   );
 }
@@ -958,14 +972,14 @@ const S = {
     borderLeft: '3px solid var(--accent, #92405e)',
     boxShadow: 'var(--shadow-sm, 0 1px 3px rgba(146,64,94,0.06))',
   },
-  rowFlagged: {
-    borderLeft: '3px solid #c2410c',
-  },
   // Automated housekeeping: flat, borderless-feeling, no shadow. Reads quietly
   // as "for reference" so it never competes with real conversations.
   rowMuted: {
     border: '1px solid transparent',
     boxShadow: 'none',
+    padding: '8px 13px',
+    gap: 10,
+    opacity: 0.92,
   },
   row: {
     width: '100%', display: 'flex', alignItems: 'flex-start', gap: 12,
@@ -975,11 +989,21 @@ const S = {
     boxShadow: 'var(--shadow-sm, 0 1px 3px rgba(146,64,94,0.04))',
     WebkitTapHighlightColor: 'transparent',
   },
-  deleteReveal: {
-    position: 'absolute', top: 0, right: 0, bottom: 0, width: 84,
-    background: 'var(--danger, #c2410c)', color: '#fff', border: 'none', cursor: 'pointer',
-    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
-    fontSize: 11, fontWeight: 700, fontFamily: 'inherit', borderRadius: 16,
+  rowMenuBtn: {
+    position: 'absolute', top: 6, right: 4, width: 30, height: 30, borderRadius: 15,
+    background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted, #B5AFA8)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit',
+  },
+  rowMenu: {
+    position: 'absolute', top: 36, right: 6, zIndex: 5,
+    background: 'var(--bg-card, #fff)', border: '1px solid var(--border, #E8E4E0)',
+    borderRadius: 12, boxShadow: '0 6px 20px rgba(146,64,94,0.16)', padding: 4, minWidth: 184,
+  },
+  rowMenuItem: {
+    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+    padding: '9px 11px', borderRadius: 9, border: 'none', background: 'transparent',
+    color: 'var(--danger, #c2410c)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+    fontFamily: 'inherit', textAlign: 'left',
   },
   avatarWrap: { position: 'relative', flexShrink: 0 },
   avatar: {
@@ -1004,6 +1028,10 @@ const S = {
   rowPreview: {
     fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0,
   },
+  // Quieter type ramp for the Earlier (handled) section so it visibly recedes.
+  rowNameMuted: { fontSize: 13.5, color: 'var(--text-secondary, #867277)' },
+  rowTimeMuted: { color: 'var(--text-muted, #B5AFA8)' },
+  rowPreviewMuted: { fontSize: 12.5 },
   rowBadge: {
     fontSize: 11, fontWeight: 700, color: '#fff', background: 'var(--accent, #92405e)',
     padding: '1px 8px', borderRadius: 20, minWidth: 18, textAlign: 'center', flexShrink: 0,
@@ -1014,7 +1042,6 @@ const S = {
     fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #9a8f93)',
     letterSpacing: '0.01em',
   },
-  typeChipFlagged: { color: '#c2410c', fontWeight: 700 },
   typeDot: { width: 6, height: 6, borderRadius: 3, flexShrink: 0 },
 
   empty: {
