@@ -387,18 +387,36 @@ router.patch('/:id', requireAuth, async (req, res) => {
     updates.cancellation_reason = req.body.cancellation_reason || null;
   }
 
-  // If rescheduling, recalculate ends_at
-  if (req.body.starts_at && !req.body.ends_at) {
-    const { data: existing } = await supabase
-      .from('appointments')
-      .select('duration_minutes, buffer_minutes, extra_padding_minutes')
-      .eq('id', req.params.id)
-      .single();
+  // If moving the appointment (new starts_at), store wall-clock and recompute
+  // ends_at from the treatment length. Appointment times are wall-clock strings
+  // (no trailing Z): the frontend sends "...T14:00:00.000Z", so we slice to the
+  // first 16 chars (YYYY-MM-DDTHH:MM) and rebuild as a plain wall-clock string,
+  // exactly how manual-create stores it. Never toISOString() here - that would
+  // convert to UTC and shift the day/hour under British Summer Time.
+  if (req.body.starts_at) {
+    const m = String(req.body.starts_at).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if (!m) {
+      return res.status(400).json({ error: 'That date and time look wrong. Please pick again.' });
+    }
+    const [, yy, mo, dd, hh, mi] = m;
+    updates.starts_at = `${yy}-${mo}-${dd}T${hh}:${mi}:00`;
 
-    if (existing) {
-      const total = existing.duration_minutes + existing.buffer_minutes + (existing.extra_padding_minutes || 0);
-      const newEnd = new Date(new Date(req.body.starts_at).getTime() + total * 60 * 1000);
-      updates.ends_at = newEnd.toISOString();
+    // Recompute ends_at unless the caller passed one explicitly.
+    if (!req.body.ends_at) {
+      const { data: existing } = await supabase
+        .from('appointments')
+        .select('duration_minutes, buffer_minutes, extra_padding_minutes')
+        .eq('id', req.params.id)
+        .single();
+
+      if (existing) {
+        const total = (existing.duration_minutes || 0) + (existing.buffer_minutes || 0) + (existing.extra_padding_minutes || 0);
+        // UTC arithmetic on the wall-clock parts, then read the parts straight
+        // back out, so no local timezone leaks into the stored string.
+        const endDate = new Date(Date.UTC(Number(yy), Number(mo) - 1, Number(dd), Number(hh), Number(mi) + total));
+        const pad = (n) => String(n).padStart(2, '0');
+        updates.ends_at = `${endDate.getUTCFullYear()}-${pad(endDate.getUTCMonth() + 1)}-${pad(endDate.getUTCDate())}T${pad(endDate.getUTCHours())}:${pad(endDate.getUTCMinutes())}:00`;
+      }
     }
   }
 
@@ -411,6 +429,12 @@ router.patch('/:id', requireAuth, async (req, res) => {
     .single();
 
   if (error) {
+    // 23505 = no-double-book unique guard (same start); 23P01 = no-overlap
+    // exclusion guard (overlapping times). Either means the new slot is taken,
+    // so the move is rejected and the old time is kept.
+    if (error.code === '23505' || error.code === '23P01') {
+      return res.status(409).json({ error: 'That time is already booked.' });
+    }
     logger.error({ err: error }, 'Failed to update appointment');
     return res.status(500).json({ error: 'Something went wrong' });
   }

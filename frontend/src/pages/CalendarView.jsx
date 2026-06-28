@@ -5,6 +5,7 @@ import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import { hapticTap, hapticSuccess } from '../lib/native.js';
 import { treatmentColor, tint } from '../lib/treatmentColors.js';
+import { parseDateOnly } from '../lib/dates.js';
 /**
  * CalendarView - Day and Week view of appointments.
  * Wired to Supabase with client/treatment joins.
@@ -762,7 +763,17 @@ export default function CalendarView({ initialView } = {}) {
               // swap the freshly-edited row into the open detail so the panel
               // shows the new time/price immediately.
               if (patched) setSelectedAppointment(prev => (prev ? { ...prev, ...patched } : prev));
-              loadAppointments({ keepScroll: true });
+              // If the appointment was moved to a different day, follow it there
+              // (parseDateOnly = local noon, no British Summer Time shift) so it
+              // doesn't just vanish off the day she's looking at. loadAppointments
+              // re-runs from the effect on currentDate, so no double fetch.
+              if (patched && patched._movedToDay) {
+                const d = parseDateOnly(patched._movedToDay);
+                if (d) setCurrentDate(d);
+                else loadAppointments({ keepScroll: true });
+              } else {
+                loadAppointments({ keepScroll: true });
+              }
             }}
             onCompleted={(completed) => advanceToNextAppointment(completed)}
             getStatusColor={getStatusColor}
@@ -834,11 +845,16 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     setTimeEditing(true);
     hapticTap();
   }
-  // PATCH the new start. Backend recomputes ends_at from the treatment length.
+  // PATCH the new start (date AND time). Backend recomputes ends_at from the
+  // treatment length and enforces the no-double-book / no-overlap DB guards.
   async function handleSaveTime() {
     if (!timeInput || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(timeInput)) return;
-    // Send the wall-clock as a stable ISO string (treat as UTC so no shift).
+    // datetime-local gives "YYYY-MM-DDTHH:MM" (wall-clock). Send it as a stable
+    // ISO string the backend slices back to wall-clock, so the day she picked is
+    // the day that saves (no British Summer Time shift).
     const startsAt = `${timeInput.slice(0, 16)}:00.000Z`;
+    const newDay = timeInput.slice(0, 10); // YYYY-MM-DD she picked
+    const oldDay = String(appointment.starts_at || '').slice(0, 10);
     setTimeSaving(true);
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
@@ -848,7 +864,13 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
         body: JSON.stringify({ starts_at: startsAt }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Could not update the time');
+      if (res.status === 409) {
+        // The DB guard rejected it: that slot already has an appointment. The
+        // original time is untouched, so she just picks another.
+        alert('That time is taken. Pick another slot.');
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || 'Could not move the appointment');
       hapticSuccess();
       setTimeEditing(false);
       // ends_at comes back recalculated; fold both into the open panel.
@@ -856,11 +878,14 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
       const updated = data.appointment || data;
       const patch = { starts_at: updated.starts_at || startsAt };
       if (updated.ends_at) patch.ends_at = updated.ends_at;
+      // On a cross-day move tell the parent the new day so the calendar can
+      // follow the appointment instead of losing it off the current day.
+      if (newDay !== oldDay) patch._movedToDay = newDay;
       if (onRefresh) onRefresh(patch);
       else onUpdate();
     } catch (err) {
       logger.error('Save time error:', err);
-      alert(err.message || 'Could not update the time. Please try again.');
+      alert(err.message || 'Could not move the appointment. Please try again.');
     } finally {
       setTimeSaving(false);
     }
@@ -1155,28 +1180,31 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
             <div style={styles.detailRow}>
               <span style={styles.detailLabel}>Time</span>
               {timeEditing ? (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  <input
-                    type="datetime-local" autoFocus
-                    value={timeInput}
-                    onChange={e => setTimeInput(e.target.value)}
-                    style={{ padding: '5px 8px', borderRadius: 8, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 12.5, fontFamily: 'inherit', outline: 'none' }}
-                  />
-                  <button onClick={handleSaveTime} disabled={timeSaving}
-                    style={{ padding: '5px 10px', borderRadius: 8, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    {timeSaving ? '…' : 'Save'}
-                  </button>
-                  <button onClick={() => setTimeEditing(false)} disabled={timeSaving}
-                    style={{ background: 'none', border: 'none', fontSize: 12, fontWeight: 600, color: COLORS.stone400, cursor: 'pointer', fontFamily: 'inherit', padding: '5px 4px' }}>
-                    Cancel
-                  </button>
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <input
+                      type="datetime-local" autoFocus
+                      value={timeInput}
+                      onChange={e => setTimeInput(e.target.value)}
+                      style={{ padding: '5px 8px', borderRadius: 8, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 12.5, fontFamily: 'inherit', outline: 'none' }}
+                    />
+                    <button onClick={handleSaveTime} disabled={timeSaving}
+                      style={{ padding: '5px 10px', borderRadius: 8, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      {timeSaving ? '…' : 'Move'}
+                    </button>
+                    <button onClick={() => setTimeEditing(false)} disabled={timeSaving}
+                      style={{ background: 'none', border: 'none', fontSize: 12, fontWeight: 600, color: COLORS.stone400, cursor: 'pointer', fontFamily: 'inherit', padding: '5px 4px' }}>
+                      Cancel
+                    </button>
+                  </span>
+                  <span style={{ fontSize: 10.5, color: COLORS.stone400, fontFamily: 'inherit' }}>Pick any day and time</span>
                 </span>
               ) : (
                 <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={styles.detailValue}>{formatWallTime(appointment.starts_at)}{appointment.ends_at ? ` - ${formatWallTime(appointment.ends_at)}` : ''}</span>
                   <button onClick={openTimeEdit}
                     style={{ background: 'none', border: `1.5px dashed ${COLORS.outlineVariant}`, borderRadius: 8, padding: '3px 9px', fontSize: 11, fontWeight: 600, color: COLORS.primary, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    Edit time
+                    Move
                   </button>
                 </span>
               )}
