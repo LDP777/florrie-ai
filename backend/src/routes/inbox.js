@@ -110,6 +110,9 @@ router.get('/threads', requireAuth, async (req, res) => {
           // resolved. This is the strongest "needs you" signal: Florrie
           // deliberately handed it back for a human reply.
           needs_attention: false,
+          // The intent of the most recent INBOUND message. Lets the UI treat a
+          // pure thank-you or sign-off as handled, not as a reply owed.
+          last_inbound_intent: null,
         };
         buckets.set(row.client_id, bucket);
       }
@@ -117,6 +120,10 @@ router.get('/threads', requireAuth, async (req, res) => {
       // the latest. Subsequent rows only contribute to unread_count.
       if (row.direction === 'inbound' && !row.read_at && !row.resolved) {
         bucket.unread_count += 1;
+      }
+      // Newest-first: the first inbound we encounter is the most recent one.
+      if (row.direction === 'inbound' && bucket.last_inbound_intent === null) {
+        bucket.last_inbound_intent = row.ai_intent || 'unknown';
       }
       if (row.escalated && !row.resolved) {
         bucket.needs_attention = true;

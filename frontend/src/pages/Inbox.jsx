@@ -130,11 +130,28 @@ function ChannelMark({ channel, size = 16 }) {
   );
 }
 
-// "Needs you" = the client had the last word, there are unread messages, or
-// Florrie escalated something. These are the threads genuinely waiting on a
-// human. Everything else is Florrie's own housekeeping.
+// A pure thank-you or sign-off does not owe a reply, so it should never nag
+// her. Anything else the client said last is a real reply owed.
+const HANDLED_INTENTS = new Set(['review_thanks', 'greeting']);
+
+// "Needs you" means a human reply is genuinely owed:
+//   - Florrie escalated something and it is not resolved, or
+//   - the client had the last word and was not just saying thanks.
+// Florrie's own replies and proactive housekeeping never count, even if the
+// thread shows unread automated rows.
 function needsYou(t) {
-  return t.needs_attention || t.unread_count > 0 || t.last_message_direction === 'inbound';
+  if (t.needs_attention) return true;
+  if (t.last_message_direction !== 'inbound') return false;
+  // Client spoke last. Skip pure acknowledgements (thanks, hello with nothing
+  // to answer). Treat a missing intent as "owed" rather than silently hiding it.
+  return !HANDLED_INTENTS.has(t.last_inbound_intent || 'unknown');
+}
+
+// Automated housekeeping: a reply Florrie sent or a nudge she lined up. These
+// stay quiet and muted so real client messages and escalations pop above them.
+function isAutomated(t) {
+  if (needsYou(t)) return false;
+  return t.last_message_type === 'auto_reply' || t.last_message_type === 'proactive';
 }
 
 export default function Inbox() {
@@ -176,26 +193,39 @@ export default function Inbox() {
     [threads]
   );
 
-  // Sort: escalated first, then unread, then by recency. So whatever is
-  // actually waiting on the owner sits at the top, automated noise below.
-  function rank(t) {
-    if (t.needs_attention) return 0;
-    if (t.unread_count > 0 || t.last_message_direction === 'inbound') return 1;
-    return 2;
-  }
+  // Newest first within any group.
+  const byRecency = (a, b) => new Date(b.last_message_at) - new Date(a.last_message_at);
 
-  const filtered = useMemo(() => {
+  // Build the section structure the list renders.
+  //   Needs-you view: one flat list of items owed a reply, newest first. No
+  //                   group headers, no redundant "Needs you" tag, the whole
+  //                   view is needs-you.
+  //   All view:       "Waiting on you" first (real client messages and
+  //                   escalations), then "Earlier" (everything Florrie has
+  //                   already handled or sent on her own), each newest first.
+  const sections = useMemo(() => {
     if (!threads) return null;
-    let list = filter === 'needs' ? threads.filter(needsYou) : threads.slice();
     const q = search.trim().toLowerCase();
-    if (q) list = list.filter(t => clientFullName(t).toLowerCase().includes(q));
-    list.sort((a, b) => {
-      const r = rank(a) - rank(b);
-      if (r !== 0) return r;
-      return new Date(b.last_message_at) - new Date(a.last_message_at);
-    });
-    return list;
+    const match = (t) => !q || clientFullName(t).toLowerCase().includes(q);
+
+    if (filter === 'needs') {
+      const items = threads.filter(t => needsYou(t) && match(t)).sort(byRecency);
+      return [{ key: 'needs', header: null, items, muted: false }];
+    }
+
+    const list = threads.filter(match);
+    const waiting = list.filter(needsYou).sort(byRecency);
+    const earlier = list.filter(t => !needsYou(t)).sort(byRecency);
+    const out = [];
+    if (waiting.length) out.push({ key: 'waiting', header: 'Waiting on you', items: waiting, muted: false });
+    if (earlier.length) out.push({ key: 'earlier', header: 'Earlier', items: earlier, muted: true });
+    return out;
   }, [threads, search, filter]);
+
+  const visibleCount = useMemo(
+    () => (sections || []).reduce((n, sec) => n + sec.items.length, 0),
+    [sections]
+  );
 
   function openThread(clientId) {
     setActiveClientId(clientId);
@@ -228,7 +258,8 @@ export default function Inbox() {
       <div style={S.pageWide}>
         <aside style={S.paneList}>
           <ThreadList
-            threads={filtered}
+            sections={sections}
+            visibleCount={visibleCount}
             error={threadsError}
             search={search}
             onSearch={setSearch}
@@ -255,7 +286,8 @@ export default function Inbox() {
   return (
     <div style={S.page}>
       <ThreadList
-        threads={filtered}
+        sections={sections}
+        visibleCount={visibleCount}
         error={threadsError}
         search={search}
         onSearch={setSearch}
@@ -281,7 +313,13 @@ function FilterChip({ active, onClick, label, count }) {
   );
 }
 
-function ThreadList({ threads, error, search, onSearch, onOpen, onDelete, activeId, filter, onFilter, needsCount, totalCount }) {
+function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, onDelete, activeId, filter, onFilter, needsCount, totalCount }) {
+  const loading = sections === null;
+  const isEmpty = !loading && visibleCount === 0;
+  // In the needs-you view the whole list is needs-you, so the per-row tag is
+  // redundant. Hide it there; show the informative type label in the all view.
+  const hideTypeChip = filter === 'needs';
+
   return (
     <>
       <PageHeader title="Inbox" subtitle="One thread per client. Florrie keeps the quiet ones tidy." />
@@ -302,39 +340,51 @@ function ThreadList({ threads, error, search, onSearch, onOpen, onDelete, active
         <FilterChip active={filter === 'all'} onClick={() => onFilter('all')} label="All" count={totalCount} />
       </div>
 
-      {threads === null && <ThreadSkeleton />}
-      {threads !== null && error && (
+      {loading && <ThreadSkeleton />}
+      {!loading && error && (
         <div style={S.errorCard}>
           Couldn't load conversations. Pull down to refresh, or check back in a bit.
         </div>
       )}
-      {threads !== null && !error && threads.length === 0 && (
+      {!loading && !error && isEmpty && (
         filter === 'needs' && totalCount > 0
           ? <CaughtUp onShowAll={() => onFilter('all')} />
           : <EmptyInbox />
       )}
 
-      {threads !== null && threads.length > 0 && (
-        <ul style={S.list}>
-          {threads.map(t => (
-            <ThreadRow
-              key={t.client_id}
-              thread={t}
-              active={t.client_id === activeId}
-              onOpen={onOpen}
-              onDelete={onDelete}
-            />
-          ))}
-        </ul>
-      )}
+      {!loading && !error && !isEmpty && sections.map(sec => (
+        <section key={sec.key} style={S.section}>
+          {sec.header && (
+            <div style={S.sectionHead}>
+              <span style={S.sectionTitle}>{sec.header}</span>
+              <span style={S.sectionCount}>{sec.items.length}</span>
+            </div>
+          )}
+          <ul style={S.list}>
+            {sec.items.map(t => (
+              <ThreadRow
+                key={t.client_id}
+                thread={t}
+                active={t.client_id === activeId}
+                onOpen={onOpen}
+                onDelete={onDelete}
+                muted={sec.muted}
+                hideTypeChip={hideTypeChip}
+              />
+            ))}
+          </ul>
+        </section>
+      ))}
     </>
   );
 }
 
-function ThreadRow({ thread, active, onOpen, onDelete }) {
+function ThreadRow({ thread, active, onOpen, onDelete, muted = false, hideTypeChip = false }) {
   const name = clientFullName(thread);
   const isUnread = thread.unread_count > 0;
   const flagged = !!thread.needs_attention;
+  const owed = needsYou(thread);          // genuinely waiting on a human reply
+  const automated = isAutomated(thread);  // Florrie's own housekeeping
   const type = typeMeta(thread.last_message_type);
   const directionPrefix = thread.last_message_direction === 'outbound' ? 'You: ' : '';
 
@@ -391,21 +441,32 @@ function ThreadRow({ thread, active, onOpen, onDelete }) {
         onTouchEnd={onTouchEnd}
         style={{
           ...S.row,
-          background: active ? 'var(--accent-light, #ffe5ec)' : 'var(--bg-card, #fff)',
-          borderColor: active ? 'var(--accent, #92405e)' : 'var(--border-light, #F0ECE8)',
+          ...(automated || muted ? S.rowMuted : {}),
+          ...(owed ? S.rowOwed : {}),
+          ...(flagged ? S.rowFlagged : {}),
+          background: active
+            ? 'var(--accent-light, #ffe5ec)'
+            : owed ? '#fffaf6' : (automated || muted) ? 'transparent' : 'var(--bg-card, #fff)',
+          borderColor: active ? 'var(--accent, #92405e)' : undefined,
           transform: `translateX(${dx}px)`,
           transition: start.current ? 'none' : 'transform 0.2s ease',
           touchAction: 'pan-y',
         }}
       >
         <span style={S.avatarWrap}>
-          <span style={S.avatar} aria-hidden>{initialOf(name)}</span>
-          {flagged && <span style={S.flagDot} aria-hidden />}
+          <span style={{ ...S.avatar, ...(automated && !owed ? S.avatarMuted : {}) }} aria-hidden>
+            {initialOf(name)}
+          </span>
+          {owed && <span style={S.flagDot} aria-hidden />}
         </span>
 
         <span style={S.rowBody}>
           <span style={S.rowTop}>
-            <span style={{ ...S.rowName, fontWeight: isUnread || flagged ? 700 : 600 }}>{name}</span>
+            <span style={{
+              ...S.rowName,
+              fontWeight: owed || isUnread ? 700 : automated ? 500 : 600,
+              color: automated && !owed ? 'var(--text-secondary, #867277)' : 'var(--text-primary, #1d1b19)',
+            }}>{name}</span>
             <span style={S.rowTime}>{formatTimeShort(thread.last_message_at)}</span>
           </span>
 
@@ -421,12 +482,22 @@ function ThreadRow({ thread, active, onOpen, onDelete }) {
             {isUnread && <span style={S.rowBadge}>{thread.unread_count}</span>}
           </span>
 
-          <span style={S.rowMetaRow}>
-            <span style={{ ...S.typeChip, ...(flagged ? S.typeChipFlagged : {}) }}>
-              <span style={{ ...S.typeDot, background: type.dot }} aria-hidden />
-              {flagged ? 'Needs you' : type.label}
+          {!hideTypeChip && !owed && (
+            <span style={S.rowMetaRow}>
+              <span style={S.typeChip}>
+                <span style={{ ...S.typeDot, background: type.dot }} aria-hidden />
+                {type.label}
+              </span>
             </span>
-          </span>
+          )}
+          {!hideTypeChip && flagged && (
+            <span style={S.rowMetaRow}>
+              <span style={{ ...S.typeChip, ...S.typeChipFlagged }}>
+                <span style={{ ...S.typeDot, background: '#c2410c' }} aria-hidden />
+                Florrie handed this back
+              </span>
+            </span>
+          )}
         </span>
       </button>
     </li>
@@ -867,6 +938,35 @@ const S = {
   },
 
   list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 },
+
+  section: { marginBottom: 14 },
+  sectionHead: {
+    display: 'flex', alignItems: 'center', gap: 8, padding: '2px 4px 8px',
+  },
+  sectionTitle: {
+    fontSize: 11.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+    color: 'var(--text-muted, #B5AFA8)',
+  },
+  sectionCount: {
+    fontSize: 11, fontWeight: 700, color: 'var(--text-muted, #B5AFA8)',
+    background: 'var(--border-light, #F0ECE8)', borderRadius: 999, padding: '1px 8px',
+  },
+  // Owed: a real client message or escalation. Gets a soft tint, an accent left
+  // stripe and a touch more presence so it pops above the housekeeping.
+  rowOwed: {
+    borderColor: 'var(--border-light, #F0ECE8)',
+    borderLeft: '3px solid var(--accent, #92405e)',
+    boxShadow: 'var(--shadow-sm, 0 1px 3px rgba(146,64,94,0.06))',
+  },
+  rowFlagged: {
+    borderLeft: '3px solid #c2410c',
+  },
+  // Automated housekeeping: flat, borderless-feeling, no shadow. Reads quietly
+  // as "for reference" so it never competes with real conversations.
+  rowMuted: {
+    border: '1px solid transparent',
+    boxShadow: 'none',
+  },
   row: {
     width: '100%', display: 'flex', alignItems: 'flex-start', gap: 12,
     padding: '12px 13px',
@@ -887,6 +987,10 @@ const S = {
     background: 'linear-gradient(135deg, #ffd9e2 0%, #ffb8c8 100%)',
     color: '#92405e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 16, fontWeight: 700, fontFamily: "'Noto Serif', Georgia, serif",
+  },
+  avatarMuted: {
+    background: 'var(--border-light, #F0ECE8)',
+    color: 'var(--text-muted, #9a8f93)',
   },
   flagDot: {
     position: 'absolute', top: -1, right: -1, width: 12, height: 12,
