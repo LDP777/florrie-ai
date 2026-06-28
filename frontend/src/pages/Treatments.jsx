@@ -5,6 +5,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
+import { TREATMENT_PALETTE, treatmentColor } from '../lib/treatmentColors.js';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 /**
@@ -42,6 +43,7 @@ export default function Treatments() {
     category: 'brows', description: '', buffer_minutes: 0,
     requires_consultation: false, requires_patch_test: false, no_show_fee: '', booking_enabled: true,
     consultation_form_id: '',
+    color: null,
   };
   const [form, setForm] = useState(blank);
 
@@ -84,6 +86,8 @@ export default function Treatments() {
       // Link the chosen form so the booking page shows Ellie's own questions.
       // Cleared when consultation isn't required.
       consultation_form_id: form.requires_consultation ? (form.consultation_form_id || null) : null,
+      // null = auto-assigned from the palette in the UI.
+      color: form.color || null,
     };
 
     try {
@@ -129,6 +133,7 @@ export default function Treatments() {
       no_show_fee: t.no_show_fee_cents ? (t.no_show_fee_cents / 100).toFixed(2) : '',
       booking_enabled: t.booking_enabled !== false,
       consultation_form_id: t.consultation_form_id || '',
+      color: t.color || null,
     });
     setEditing(t.id);
     setShowAdd(true);
@@ -243,6 +248,38 @@ export default function Treatments() {
                 ))}
               </select>
             </div>
+          </div>
+
+          <div style={styles.formGroup}>
+            <label style={styles.formLabel}>Calendar colour</label>
+            <div style={styles.swatchRow}>
+              <button
+                type="button"
+                onClick={() => setForm(p => ({ ...p, color: null }))}
+                style={{
+                  ...styles.autoSwatch,
+                  borderColor: !form.color ? 'var(--accent)' : 'var(--border)',
+                  color: !form.color ? 'var(--accent)' : 'var(--text-muted)',
+                }}
+              >
+                Auto
+              </button>
+              {TREATMENT_PALETTE.map(c => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setForm(p => ({ ...p, color: c }))}
+                  aria-label={`Use colour ${c}`}
+                  style={{
+                    ...styles.swatch,
+                    background: c,
+                    outline: form.color === c ? '2px solid var(--accent)' : '2px solid transparent',
+                    outlineOffset: 2,
+                  }}
+                />
+              ))}
+            </div>
+            <span style={styles.formHint}>Auto picks a distinct colour for you. Pick one to set it yourself.</span>
           </div>
 
           <div style={styles.formRow}>
@@ -373,7 +410,10 @@ export default function Treatments() {
               {grouped[cat].map(t => (
                 <div key={t.id} style={styles.treatmentCard}>
                   <div style={styles.treatmentInfo}>
-                    <span style={styles.treatmentName}>{t.name}</span>
+                    <span style={styles.treatmentNameRow}>
+                      <span style={{ ...styles.colorDot, background: treatmentColor(t) }} />
+                      <span style={styles.treatmentName}>{t.name}</span>
+                    </span>
                     <span style={styles.treatmentMeta}>
                       {t.duration_minutes} min{t.buffer_minutes > 0 && ` + ${t.buffer_minutes} buffer`} · {formatCurrency(t.price_cents)}
                       {t.deposit_percent > 0 ? ` · ${t.deposit_percent}% deposit` : t.deposit_cents > 0 ? ` · ${formatCurrency(t.deposit_cents)} deposit` : ''}
@@ -415,7 +455,10 @@ export default function Treatments() {
               {showInactive && inactive.map(t => (
                 <div key={t.id} style={{ ...styles.treatmentCard, opacity: 0.6 }}>
                   <div style={styles.treatmentInfo}>
-                    <span style={styles.treatmentName}>{t.name}</span>
+                    <span style={styles.treatmentNameRow}>
+                      <span style={{ ...styles.colorDot, background: treatmentColor(t) }} />
+                      <span style={styles.treatmentName}>{t.name}</span>
+                    </span>
                     <span style={styles.treatmentMeta}>
                       {t.duration_minutes} min · {formatCurrency(t.price_cents)}
                     </span>
@@ -505,6 +548,11 @@ const styles = {
   },
   treatmentInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 },
   treatmentName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' },
+  treatmentNameRow: { display: 'flex', alignItems: 'center', gap: 8 },
+  colorDot: { width: 10, height: 10, borderRadius: '50%', flexShrink: 0 },
+  swatchRow: { display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' },
+  swatch: { width: 26, height: 26, borderRadius: '50%', border: 'none', cursor: 'pointer', padding: 0 },
+  autoSwatch: { height: 26, padding: '0 12px', borderRadius: 13, border: '1.5px solid var(--border)', background: 'var(--bg-card)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   treatmentMeta: { fontSize: 12, color: 'var(--text-muted)' },
   treatmentDesc: { fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   treatmentActions: { display: 'flex', gap: 6, marginLeft: 10, flexShrink: 0 },

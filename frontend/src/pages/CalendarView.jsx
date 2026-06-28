@@ -4,6 +4,7 @@ import { useBeautician, supabase, updateRow, insertRow } from '../lib/supabase.j
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import { hapticTap, hapticSuccess } from '../lib/native.js';
+import { treatmentColor, tint } from '../lib/treatmentColors.js';
 /**
  * CalendarView - Day and Week view of appointments.
  * Wired to Supabase with client/treatment joins.
@@ -234,7 +235,7 @@ export default function CalendarView({ initialView } = {}) {
     try {
       const { data, error } = await supabase
         .from('appointments')
-        .select('*, clients(first_name, last_name), treatments(name, price_cents)')
+        .select('*, clients(first_name, last_name), treatments(name, price_cents, color, sort_order)')
         .eq('beautician_id', beautician.id)
         .gte('starts_at', `${from}T00:00:00Z`)
         .lte('starts_at', `${to}T23:59:59Z`)
@@ -497,6 +498,10 @@ export default function CalendarView({ initialView } = {}) {
             {layoutDayAppointments(getAppointmentsForDate(currentDate)).map(({ appt, top, height, col, cols }) => {
               const cardStyle = getAppointmentCardStyle(appt);
               const statusColor = getStatusColor(appt.status);
+              // Treatment colour drives the block (left stripe + soft tint) so each
+              // service type is distinct; status stays readable on the avatar.
+              const treatColor = treatmentColor(appt.treatments);
+              const dead = DEAD_STATUSES.includes(appt.status);
               const clientInitials = `${appt.clients?.first_name?.[0] || ''}${appt.clients?.last_name?.[0] || ''}`.toUpperCase();
               const compact = cols > 1 || height < 72;
               const showTreatment = height >= 60 && cols < 3;
@@ -515,8 +520,9 @@ export default function CalendarView({ initialView } = {}) {
                     minHeight: 0,
                     overflow: 'hidden',
                     padding: compact ? '4px 8px' : '6px 10px',
-                    background: cardStyle.background,
-                    borderLeftColor: statusColor,
+                    background: tint(treatColor, 0.1),
+                    borderLeftColor: treatColor,
+                    opacity: dead ? 0.55 : 1,
                   }}
                 >
                   <div style={styles.appointmentCardContent}>
@@ -525,7 +531,7 @@ export default function CalendarView({ initialView } = {}) {
                         {clientInitials}
                       </div>
                       <div style={styles.appointmentCardTextBlock}>
-                        <div style={{ ...styles.appointmentCardClientName, ...(compact ? { fontSize: 12 } : {}) }}>{appt.clients?.first_name} {appt.clients?.last_name || ''}</div>
+                        <div style={{ ...styles.appointmentCardClientName, ...(compact ? { fontSize: 12 } : {}), ...(dead ? { textDecoration: 'line-through' } : {}) }}>{appt.clients?.first_name} {appt.clients?.last_name || ''}</div>
                         {showTreatment && (
                           <div style={styles.appointmentCardTreatment}>{appt.treatments?.name}</div>
                         )}
@@ -680,7 +686,7 @@ export default function CalendarView({ initialView } = {}) {
                 {live.length > 0 && (
                   <div style={styles.weekDayRows}>
                     {dayAppts.map(appt => {
-                      const statusCol = getStatusColor(appt.status);
+                      const dotColor = treatmentColor(appt.treatments);
                       const dead = DEAD_STATUSES.includes(appt.status);
                       const firstName = appt.clients?.first_name || '';
                       const lastInitial = appt.clients?.last_name ? ' ' + appt.clients.last_name.charAt(0) + '.' : '';
@@ -704,7 +710,7 @@ export default function CalendarView({ initialView } = {}) {
                           style={{ ...styles.weekRow, opacity: dead ? 0.5 : 1 }}
                         >
                           <span style={styles.weekRowTime}>{formatWallTime(appt.starts_at)}</span>
-                          <span style={{ ...styles.weekRowDot, background: statusCol }} />
+                          <span style={{ ...styles.weekRowDot, background: dotColor }} />
                           <span style={styles.weekRowBody}>
                             <span style={{ ...styles.weekRowName, textDecoration: dead ? 'line-through' : 'none' }}>{clientLabel}</span>
                             {appt.treatments?.name && <span style={styles.weekRowTreatment}>{appt.treatments.name}</span>}
