@@ -128,13 +128,13 @@ function ChannelMark({ channel, size = 22 }) {
       style={{
         width: size,
         height: size,
-        borderRadius: Math.round(size * 0.32),
+        borderRadius: Math.round(size * 0.34),
         background: c.fill,
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
         flexShrink: 0,
-        boxShadow: '0 1px 2px rgba(146,64,94,0.18)',
+        boxShadow: '0 1px 1.5px rgba(146,64,94,0.14)',
       }}
     >
       <span
@@ -453,10 +453,12 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, hideTypeCh
           ...(automated || muted ? S.rowMuted : {}),
           ...(owed ? S.rowOwed : {}),
           background: active
-            ? 'var(--accent-light, #ffe5ec)'
-            : owed ? '#fffaf6' : (automated || muted) ? 'transparent' : 'var(--bg-card, #fff)',
-          borderColor: active ? 'var(--accent, #92405e)' : undefined,
-          paddingRight: 38,
+            ? 'var(--accent-wash, #fdeef3)'
+            : owed ? 'rgba(146,64,94,0.035)' : 'transparent',
+          borderColor: active ? 'rgba(146,64,94,0.16)' : undefined,
+          borderLeft: active ? '2.5px solid var(--accent, #92405e)' : undefined,
+          boxShadow: active ? '0 1px 5px rgba(146,64,94,0.07)' : undefined,
+          paddingRight: 40,
         }}
       >
         <span style={S.avatarWrap}>
@@ -580,10 +582,19 @@ function CaughtUp({ onShowAll }) {
 function EmptyConvoPlaceholder() {
   return (
     <div style={S.placeholder}>
-      <span className="material-symbols-outlined" style={{ fontSize: 30, color: 'var(--text-muted, #B5AFA8)', marginBottom: 8 }}>
+      <span
+        className="material-symbols-outlined"
+        style={{
+          fontSize: 30, color: 'var(--accent, #92405e)', marginBottom: 12,
+          width: 68, height: 68, borderRadius: 34,
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          background: 'linear-gradient(135deg, #ffe7ee 0%, #fdeef3 100%)',
+          boxShadow: 'inset 0 0 0 1px rgba(146,64,94,0.08)',
+        }}
+      >
         forum
       </span>
-      <div style={{ fontSize: 14, color: 'var(--text-muted, #9B8A8E)', fontFamily: "'Noto Serif', Georgia, serif", fontStyle: 'italic' }}>
+      <div style={{ fontSize: 16, color: 'var(--text-secondary, #867277)', fontFamily: "'Noto Serif', Georgia, serif", fontStyle: 'italic' }}>
         Pick a conversation
       </div>
     </div>
@@ -874,8 +885,8 @@ function Bubble({ msg }) {
             background: out ? 'var(--accent, #92405e)' : 'var(--bg-card, #fff)',
             color: out ? '#fff' : 'var(--text-primary, #1d1b19)',
             borderColor: out ? 'var(--accent, #92405e)' : 'var(--border-light, #f0d2dd)',
-            borderBottomLeftRadius: out ? 16 : 4,
-            borderBottomRightRadius: out ? 4 : 16,
+            borderBottomLeftRadius: out ? 18 : 5,
+            borderBottomRightRadius: out ? 5 : 18,
           }}
         >
           {msg.image_url && (
@@ -945,18 +956,20 @@ const S = {
   searchInput: {
     width: '100%', boxSizing: 'border-box',
     padding: '11px 12px 11px 40px',
-    border: '1px solid var(--border, #E8E4E0)',
-    borderRadius: 14, background: 'var(--bg-card, #fff)',
+    border: '1px solid var(--border-light, #F0ECE8)',
+    borderRadius: 16, background: 'var(--bg, #fef8f4)',
     fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #1d1b19)', outline: 'none',
+    transition: 'border-color 0.15s ease, background 0.15s ease',
   },
 
   filterRow: { display: 'flex', gap: 8, marginBottom: 12 },
   filterChip: {
     display: 'inline-flex', alignItems: 'center', gap: 6,
-    padding: '8px 15px', borderRadius: 999,
-    border: '1px solid var(--border, #E8E4E0)',
+    padding: '8px 16px', borderRadius: 999,
+    border: '1px solid var(--border-light, #F0ECE8)',
     background: 'var(--bg-card, #fff)', color: 'var(--text-secondary, #867277)',
     fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+    transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease',
   },
   filterChipActive: { background: 'var(--accent, #92405e)', borderColor: 'var(--accent, #92405e)', color: '#fff' },
   filterChipCount: {
@@ -972,53 +985,57 @@ const S = {
     fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
   },
 
-  list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 },
+  list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 3 },
 
-  section: { marginBottom: 14 },
+  section: { marginBottom: 18 },
   sectionHead: {
-    display: 'flex', alignItems: 'center', gap: 8, padding: '2px 4px 8px',
+    display: 'flex', alignItems: 'center', gap: 8, padding: '6px 6px 8px',
   },
   sectionTitle: {
-    fontSize: 11.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+    fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
     color: 'var(--text-muted, #B5AFA8)',
   },
   sectionCount: {
-    fontSize: 11, fontWeight: 700, color: 'var(--text-muted, #B5AFA8)',
-    background: 'var(--border-light, #F0ECE8)', borderRadius: 999, padding: '1px 8px',
+    fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted, #9a8f93)',
+    background: 'rgba(146,64,94,0.06)', borderRadius: 999, padding: '1px 7px', minWidth: 16, textAlign: 'center',
   },
-  // Owed: a real client message or escalation. Gets a soft tint, an accent left
-  // stripe and a touch more presence so it pops above the housekeeping.
+  // Owed: a real client message or escalation. A slim accent rail plus the
+  // faintest warm wash give it presence without a heavy per-row card.
   rowOwed: {
-    borderColor: 'var(--border-light, #F0ECE8)',
-    borderLeft: '3px solid var(--accent, #92405e)',
-    boxShadow: 'var(--shadow-sm, 0 1px 3px rgba(146,64,94,0.06))',
+    border: '1px solid transparent',
+    borderLeft: '2.5px solid var(--accent, #92405e)',
+    boxShadow: 'none',
   },
   // Automated housekeeping: flat, borderless-feeling, no shadow. Reads quietly
   // as "for reference" so it never competes with real conversations.
   rowMuted: {
     border: '1px solid transparent',
     boxShadow: 'none',
-    padding: '6px 13px',
+    padding: '7px 12px',
     gap: 9,
-    opacity: 0.9,
+    opacity: 0.92,
   },
+  // Light list feel: no per-row card, generous padding and a quiet wash. The
+  // border, rail and shadow are reserved for owed and selected rows.
   row: {
     width: '100%', display: 'flex', alignItems: 'flex-start', gap: 12,
-    padding: '12px 13px',
-    border: '1px solid var(--border-light, #F0ECE8)',
-    borderRadius: 16, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
-    boxShadow: 'var(--shadow-sm, 0 1px 3px rgba(146,64,94,0.04))',
+    padding: '11px 12px',
+    border: '1px solid transparent',
+    borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+    boxShadow: 'none',
+    transition: 'background 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease',
     WebkitTapHighlightColor: 'transparent',
   },
   rowMenuBtn: {
-    position: 'absolute', top: 6, right: 4, width: 30, height: 30, borderRadius: 15,
-    background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted, #B5AFA8)',
+    position: 'absolute', top: 8, right: 4, width: 30, height: 30, borderRadius: 15,
+    background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted, #C4BBB6)',
     display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit',
+    transition: 'color 0.15s ease, background 0.15s ease',
   },
   rowMenu: {
-    position: 'absolute', top: 36, right: 6, zIndex: 5,
-    background: 'var(--bg-card, #fff)', border: '1px solid var(--border, #E8E4E0)',
-    borderRadius: 12, boxShadow: '0 6px 20px rgba(146,64,94,0.16)', padding: 4, minWidth: 184,
+    position: 'absolute', top: 38, right: 6, zIndex: 5,
+    background: 'var(--bg-card, #fff)', border: '1px solid var(--border-light, #F0ECE8)',
+    borderRadius: 14, boxShadow: '0 10px 28px rgba(146,64,94,0.16)', padding: 5, minWidth: 188,
   },
   rowMenuItem: {
     display: 'flex', alignItems: 'center', gap: 8, width: '100%',
@@ -1029,9 +1046,10 @@ const S = {
   avatarWrap: { position: 'relative', flexShrink: 0 },
   avatar: {
     width: 42, height: 42, borderRadius: 21,
-    background: 'linear-gradient(135deg, #ffd9e2 0%, #ffb8c8 100%)',
+    background: 'linear-gradient(135deg, #ffe0e7 0%, #ffbecd 100%)',
     color: '#92405e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 16, fontWeight: 700, fontFamily: "'Noto Serif', Georgia, serif",
+    boxShadow: 'inset 0 0 0 1px rgba(146,64,94,0.05)',
   },
   avatarMuted: {
     width: 34, height: 34, borderRadius: 17, fontSize: 14,
@@ -1044,19 +1062,21 @@ const S = {
   },
   rowBody: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 },
   rowTop: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
-  rowName: { fontSize: 14.5, color: 'var(--text-primary, #1d1b19)' },
-  rowTime: { fontSize: 11, color: 'var(--text-muted, #9B8A8E)', flexShrink: 0, fontWeight: 500 },
+  rowName: { fontSize: 14.5, color: 'var(--text-primary, #1d1b19)', letterSpacing: '-0.005em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 },
+  rowTime: { fontSize: 10.5, color: 'var(--text-muted, #B5AFA8)', flexShrink: 0, fontWeight: 500, letterSpacing: '0.01em' },
   rowBottom: { display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 },
   rowPreview: {
     fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0,
+    letterSpacing: '-0.003em', lineHeight: 1.35,
   },
   // Quieter type ramp for the Earlier (handled) section so it visibly recedes.
   rowNameMuted: { fontSize: 13.5, color: 'var(--text-secondary, #867277)' },
   rowTimeMuted: { color: 'var(--text-muted, #B5AFA8)' },
   rowPreviewMuted: { fontSize: 12.5 },
   rowBadge: {
-    fontSize: 11, fontWeight: 700, color: '#fff', background: 'var(--accent, #92405e)',
-    padding: '1px 8px', borderRadius: 20, minWidth: 18, textAlign: 'center', flexShrink: 0,
+    fontSize: 10.5, fontWeight: 700, color: '#fff', background: 'var(--accent, #92405e)',
+    padding: '1px 7px', borderRadius: 20, minWidth: 17, textAlign: 'center', flexShrink: 0,
+    lineHeight: 1.5, boxShadow: '0 1px 2px rgba(146,64,94,0.22)',
   },
   rowMetaRow: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 1 },
   typeChip: {
@@ -1068,10 +1088,16 @@ const S = {
 
   empty: {
     display: 'flex', flexDirection: 'column', alignItems: 'center',
-    padding: '52px 14px', textAlign: 'center', gap: 10,
+    padding: '56px 14px', textAlign: 'center', gap: 10,
   },
-  emptyIcon: { fontSize: 42, color: 'var(--text-muted, #B5AFA8)', lineHeight: 1 },
-  emptyText: { fontSize: 14, color: 'var(--text-secondary, #867277)', lineHeight: 1.5, margin: 0, maxWidth: 280 },
+  emptyIcon: {
+    fontSize: 30, color: 'var(--accent, #92405e)', lineHeight: 1,
+    width: 64, height: 64, borderRadius: 32,
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    background: 'linear-gradient(135deg, #ffe7ee 0%, #fdeef3 100%)',
+    boxShadow: 'inset 0 0 0 1px rgba(146,64,94,0.08)', marginBottom: 4,
+  },
+  emptyText: { fontSize: 14.5, color: 'var(--text-secondary, #867277)', lineHeight: 1.5, margin: 0, maxWidth: 280 },
   emptyCta: {
     marginTop: 6, padding: '10px 18px', background: 'var(--accent, #92405e)', color: '#fff',
     borderRadius: 999, fontSize: 13, fontWeight: 600, textDecoration: 'none', fontFamily: 'inherit',
@@ -1119,10 +1145,10 @@ const S = {
   scroller: { flex: 1, overflowY: 'auto', padding: '12px 14px 8px', display: 'flex', flexDirection: 'column', gap: 10 },
   bubbleRow: { display: 'flex', width: '100%' },
   bubbleStack: { display: 'flex', flexDirection: 'column', gap: 3, maxWidth: '82%' },
-  bubbleTag: { fontSize: 10, fontWeight: 700, color: 'var(--accent, #92405e)', letterSpacing: '0.03em', paddingLeft: 2 },
+  bubbleTag: { fontSize: 9.5, fontWeight: 700, color: 'var(--accent, #92405e)', letterSpacing: '0.05em', textTransform: 'uppercase', paddingLeft: 3, opacity: 0.85 },
   bubble: {
-    padding: '9px 12px', border: '1px solid', borderRadius: 16,
-    boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(146,64,94,0.05))',
+    padding: '9px 13px', border: '1px solid', borderRadius: 18,
+    boxShadow: '0 1px 3px rgba(146,64,94,0.07)',
   },
   bubbleText: { fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
   bubbleMeta: { fontSize: 10, marginTop: 4, display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' },
@@ -1150,19 +1176,22 @@ const S = {
   },
   suggestionRow: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 },
   suggestionChip: {
-    background: 'var(--bg-card, #fff)', border: '1.5px solid var(--border, #f0d2dd)', color: 'var(--accent, #92405e)',
+    background: 'var(--accent-wash, #fdeef3)', border: '1px solid rgba(146,64,94,0.16)', color: 'var(--accent, #92405e)',
     borderRadius: 999, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     lineHeight: 1.2, maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+    transition: 'background 0.15s ease',
   },
   composerRow: { display: 'flex', alignItems: 'flex-end', gap: 8 },
   composerInput: {
-    flex: 1, padding: '10px 14px', border: '1px solid var(--border, #E8E4E0)', borderRadius: 18,
+    flex: 1, padding: '11px 15px', border: '1px solid var(--border-light, #F0ECE8)', borderRadius: 20,
     background: 'var(--bg, #fef8f4)', fontSize: 14, fontFamily: 'inherit', resize: 'none', maxHeight: 140,
     color: 'var(--text-primary, #1d1b19)', outline: 'none', lineHeight: 1.4,
+    transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
   },
   sendBtn: {
     width: 38, height: 38, borderRadius: 19, border: 'none', background: 'var(--accent, #92405e)', color: '#fff',
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    boxShadow: '0 2px 6px rgba(146,64,94,0.24)', transition: 'opacity 0.15s ease, transform 0.1s ease',
   },
   sendError: {
     fontSize: 12, color: '#8A2A1C', background: '#FDECEA', border: '1px solid #F5C6C0', borderRadius: 10, padding: '6px 10px',
