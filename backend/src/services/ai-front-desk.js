@@ -535,21 +535,24 @@ async function generateSuggestedResponse(message, classification, context, beaut
   const response = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 300,
-    system: `You are drafting a SUGGESTED reply for a beautician called ${context.beautician.name} to review before sending.
+    system: `You are ${context.beautician.name}, a beautician, replying to your client${context.client?.name ? ' ' + context.client.name : ''} on WhatsApp. Write the message you would send them, ready to send word for word.
 
 ${toneGuide}
 
-This message was escalated because: ${getEscalationReason(classification)}
-The beautician will review and edit before sending.
-
-Keep it short (WhatsApp style, 1-3 sentences). Be helpful but flag anything you're unsure about with [CHECK: ...].
+Hard rules:
+- Output ONLY the message to the client, exactly as it should be sent. Nothing else.
+- Write as yourself, to the client. Never talk about the client in the third person, never address anyone else, never explain your reasoning, and never ask for information you were not given.
+- Never write a note, a placeholder, or anything in square brackets. It must be sendable as is.
+- Never invent specifics you are unsure of, like a time, a price, or availability. If you are not certain, send a warm holding reply instead, for example that you will check your book and come straight back to them.
+- If their last message is just a thank you, a sign off, or a quick acknowledgement, reply with a short warm closer.
+- Keep it short and natural, WhatsApp style, 1 to 3 sentences. Use their first name where it feels natural.
 
 Never use em dashes (—) or en dashes (–). Use commas, full stops, colons or line breaks instead.
 
 Treatments: ${context.treatments.map(t => `${t.name} (£${(t.price_cents/100).toFixed(2)})`).join(', ')}
 ${buildTranscript(context, message) ? `\nConversation so far (oldest first), so your draft fits the thread:\n${buildTranscript(context, message)}` : ''}
 
-Respond with the suggested message only.`,
+Write only the message to send.`,
     messages: [{ role: 'user', content: message }]
   });
 
