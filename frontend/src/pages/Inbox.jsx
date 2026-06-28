@@ -352,7 +352,9 @@ function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, o
 
   return (
     <>
-      <PageHeader title="Inbox" subtitle="One thread per client. Florrie keeps the quiet ones tidy." />
+      <div style={S.headerWrap}>
+        <PageHeader title="Inbox" subtitle="One thread per client. Florrie keeps the quiet ones tidy." />
+      </div>
 
       <div style={S.searchWrap}>
         <span className="material-symbols-outlined" style={S.searchIcon} aria-hidden>search</span>
@@ -444,21 +446,16 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, hideTypeCh
   }, [menuOpen]);
 
   return (
-    <li ref={rowRef} style={{ position: 'relative', borderRadius: 16 }}>
+    <li ref={rowRef} className="inbox-row-li" style={S.rowLi}>
+      {active && <span aria-hidden style={S.selectedBar} />}
       <button
         type="button"
+        className={active ? 'inbox-row inbox-row-active' : 'inbox-row'}
         onClick={() => onOpen(thread.client_id)}
         style={{
           ...S.row,
-          ...(automated || muted ? S.rowMuted : {}),
-          ...(owed ? S.rowOwed : {}),
-          background: active
-            ? 'var(--accent-wash, #fdeef3)'
-            : owed ? 'rgba(146,64,94,0.035)' : 'transparent',
-          borderColor: active ? 'rgba(146,64,94,0.16)' : undefined,
-          borderLeft: active ? '2.5px solid var(--accent, #92405e)' : undefined,
-          boxShadow: active ? '0 1px 5px rgba(146,64,94,0.07)' : undefined,
-          paddingRight: 40,
+          ...((automated || muted) && !owed ? S.rowMuted : {}),
+          background: active ? 'var(--accent-wash, #fbe9f0)' : 'transparent',
         }}
       >
         <span style={S.avatarWrap}>
@@ -467,6 +464,9 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, hideTypeCh
             ...((automated || muted) && !owed ? S.avatarMuted : {}),
           }} aria-hidden>
             {initialOf(name)}
+          </span>
+          <span style={S.avatarChannel}>
+            <ChannelMark channel={thread.last_channel} size={(automated || muted) && !owed ? 15 : 16} />
           </span>
           {flagged && <span style={S.flagDot} title="Florrie escalated this" aria-label="Escalated" />}
         </span>
@@ -484,7 +484,6 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, hideTypeCh
           </span>
 
           <span style={S.rowBottom}>
-            <ChannelMark channel={thread.last_channel} size={(automated || muted) && !owed ? 18 : 21} />
             <span style={{
               ...S.rowPreview,
               ...((automated || muted) && !owed ? S.rowPreviewMuted : {}),
@@ -882,11 +881,11 @@ function Bubble({ msg }) {
         <div
           style={{
             ...S.bubble,
-            background: out ? 'var(--accent, #92405e)' : 'var(--bg-card, #fff)',
+            background: out ? 'var(--accent, #92405e)' : '#fff4ee',
             color: out ? '#fff' : 'var(--text-primary, #1d1b19)',
-            borderColor: out ? 'var(--accent, #92405e)' : 'var(--border-light, #f0d2dd)',
-            borderBottomLeftRadius: out ? 18 : 5,
-            borderBottomRightRadius: out ? 5 : 18,
+            borderColor: out ? 'var(--accent, #92405e)' : 'rgba(146,64,94,0.10)',
+            borderBottomLeftRadius: out ? 20 : 6,
+            borderBottomRightRadius: out ? 6 : 20,
           }}
         >
           {msg.image_url && (
@@ -909,7 +908,7 @@ const S = {
     minHeight: '100vh',
     background: 'var(--bg, #fef8f4)',
     fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
-    padding: '0 16px 24px',
+    padding: '0 0 24px',
     maxWidth: 480,
     margin: '0 auto',
     color: 'var(--text-primary, #1d1b19)',
@@ -930,7 +929,7 @@ const S = {
     background: 'var(--bg-card, #fff)',
     border: '1px solid var(--border-light, #F0ECE8)',
     borderRadius: 20,
-    padding: '4px 12px 14px',
+    padding: '4px 0 14px',
     boxShadow: 'var(--shadow-sm, 0 1px 4px rgba(146,64,94,0.05))',
     maxHeight: 'calc(100vh - 32px)',
     overflowY: 'auto',
@@ -948,9 +947,9 @@ const S = {
     marginTop: 16,
   },
 
-  searchWrap: { position: 'relative', marginBottom: 10 },
+  searchWrap: { position: 'relative', marginBottom: 10, padding: '0 18px' },
   searchIcon: {
-    position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
+    position: 'absolute', left: 32, top: '50%', transform: 'translateY(-50%)',
     fontSize: 18, color: 'var(--text-muted, #B5AFA8)',
   },
   searchInput: {
@@ -962,7 +961,7 @@ const S = {
     transition: 'border-color 0.15s ease, background 0.15s ease',
   },
 
-  filterRow: { display: 'flex', gap: 8, marginBottom: 12 },
+  filterRow: { display: 'flex', gap: 8, marginBottom: 4, padding: '0 18px' },
   filterChip: {
     display: 'inline-flex', alignItems: 'center', gap: 6,
     padding: '8px 16px', borderRadius: 999,
@@ -978,6 +977,7 @@ const S = {
   },
   filterChipCountActive: { background: 'rgba(255,255,255,0.24)', color: '#fff' },
 
+  headerWrap: { padding: '0 18px' },
   caughtUpBtn: {
     marginTop: 4, padding: '10px 18px',
     background: 'var(--bg-card, #fff)', color: 'var(--accent, #92405e)',
@@ -985,52 +985,52 @@ const S = {
     fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
   },
 
-  list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 3 },
+  list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column' },
 
-  section: { marginBottom: 18 },
+  section: { marginBottom: 8 },
   sectionHead: {
-    display: 'flex', alignItems: 'center', gap: 8, padding: '6px 6px 8px',
+    display: 'flex', alignItems: 'center', gap: 8, padding: '20px 18px 7px',
   },
   sectionTitle: {
-    fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+    fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase',
     color: 'var(--text-muted, #B5AFA8)',
   },
   sectionCount: {
     fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted, #9a8f93)',
     background: 'rgba(146,64,94,0.06)', borderRadius: 999, padding: '1px 7px', minWidth: 16, textAlign: 'center',
   },
-  // Owed: a real client message or escalation. A slim accent rail plus the
-  // faintest warm wash give it presence without a heavy per-row card.
-  rowOwed: {
-    border: '1px solid transparent',
-    borderLeft: '2.5px solid var(--accent, #92405e)',
-    boxShadow: 'none',
+  // Each row is a slice of an open list, not a card. A single hairline warm
+  // divider sits under it (the last row drops its own via :last-child below),
+  // and the whole thing is full-bleed to the pane's horizontal padding.
+  rowLi: { position: 'relative', listStyle: 'none' },
+  // Selected: a 3px maroon bar pinned to the left edge, spanning the full row
+  // height. Pairs with the warm tint applied to the button background.
+  selectedBar: {
+    position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, borderRadius: 0,
+    background: 'var(--accent, #92405e)', zIndex: 1,
   },
-  // Automated housekeeping: flat, borderless-feeling, no shadow. Reads quietly
-  // as "for reference" so it never competes with real conversations.
+  // Automated housekeeping: a touch denser and quieter so it recedes. No box,
+  // no border, just the shared divider and a lighter density.
   rowMuted: {
-    border: '1px solid transparent',
-    boxShadow: 'none',
-    padding: '7px 12px',
-    gap: 9,
-    opacity: 0.92,
+    paddingTop: 9, paddingBottom: 9, gap: 11, opacity: 0.94,
   },
-  // Light list feel: no per-row card, generous padding and a quiet wash. The
-  // border, rail and shadow are reserved for owed and selected rows.
+  // The airy list row. No border, no shadow, no rounded card. Hover and the
+  // selected tint wash the full width (handled by .inbox-row + inline bg).
   row: {
-    width: '100%', display: 'flex', alignItems: 'flex-start', gap: 12,
-    padding: '11px 12px',
-    border: '1px solid transparent',
-    borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+    position: 'relative',
+    width: '100%', display: 'flex', alignItems: 'center', gap: 13,
+    padding: '13px 44px 13px 18px',
+    border: 'none', borderRadius: 0, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
     boxShadow: 'none',
-    transition: 'background 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease',
+    transition: 'background 0.16s ease',
     WebkitTapHighlightColor: 'transparent',
   },
   rowMenuBtn: {
-    position: 'absolute', top: 8, right: 4, width: 30, height: 30, borderRadius: 15,
+    position: 'absolute', top: '50%', transform: 'translateY(-50%)', right: 8,
+    width: 30, height: 30, borderRadius: 15,
     background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted, #C4BBB6)',
     display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit',
-    transition: 'color 0.15s ease, background 0.15s ease',
+    transition: 'color 0.15s ease, background 0.15s ease', zIndex: 3,
   },
   rowMenu: {
     position: 'absolute', top: 38, right: 6, zIndex: 5,
@@ -1045,25 +1045,33 @@ const S = {
   },
   avatarWrap: { position: 'relative', flexShrink: 0 },
   avatar: {
-    width: 42, height: 42, borderRadius: 21,
+    width: 44, height: 44, borderRadius: 22,
     background: 'linear-gradient(135deg, #ffe0e7 0%, #ffbecd 100%)',
     color: '#92405e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 16, fontWeight: 700, fontFamily: "'Noto Serif', Georgia, serif",
+    fontSize: 16.5, fontWeight: 700, fontFamily: "'Noto Serif', Georgia, serif",
     boxShadow: 'inset 0 0 0 1px rgba(146,64,94,0.05)',
   },
   avatarMuted: {
-    width: 34, height: 34, borderRadius: 17, fontSize: 14,
+    width: 38, height: 38, borderRadius: 19, fontSize: 15,
     background: 'var(--border-light, #F0ECE8)',
     color: 'var(--text-muted, #9a8f93)',
   },
+  // The channel mark rides the avatar's bottom-right corner so the row reads
+  // cleanly, with a cream ring punching it off the photo. Uses ChannelMark.
+  avatarChannel: {
+    position: 'absolute', right: -3, bottom: -3, borderRadius: 8,
+    padding: 2, background: 'var(--bg-card, #fff)',
+    display: 'inline-flex', lineHeight: 0,
+    boxShadow: '0 1px 2px rgba(146,64,94,0.16)',
+  },
   flagDot: {
-    position: 'absolute', top: -1, right: -1, width: 12, height: 12,
-    borderRadius: 6, background: '#c2410c', border: '2px solid var(--bg-card, #fff)',
+    position: 'absolute', top: -1, left: -1, width: 12, height: 12,
+    borderRadius: 6, background: '#c2410c', border: '2px solid var(--bg-card, #fff)', zIndex: 2,
   },
   rowBody: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 },
   rowTop: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
-  rowName: { fontSize: 14.5, color: 'var(--text-primary, #1d1b19)', letterSpacing: '-0.005em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 },
-  rowTime: { fontSize: 10.5, color: 'var(--text-muted, #B5AFA8)', flexShrink: 0, fontWeight: 500, letterSpacing: '0.01em' },
+  rowName: { fontSize: 15, color: 'var(--text-primary, #1d1b19)', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 },
+  rowTime: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)', flexShrink: 0, fontWeight: 500, letterSpacing: '0.01em' },
   rowBottom: { display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 },
   rowPreview: {
     fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0,
@@ -1088,14 +1096,14 @@ const S = {
 
   empty: {
     display: 'flex', flexDirection: 'column', alignItems: 'center',
-    padding: '56px 14px', textAlign: 'center', gap: 10,
+    padding: '64px 22px', textAlign: 'center', gap: 12,
   },
   emptyIcon: {
-    fontSize: 30, color: 'var(--accent, #92405e)', lineHeight: 1,
-    width: 64, height: 64, borderRadius: 32,
+    fontSize: 32, color: 'var(--accent, #92405e)', lineHeight: 1,
+    width: 72, height: 72, borderRadius: 36,
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     background: 'linear-gradient(135deg, #ffe7ee 0%, #fdeef3 100%)',
-    boxShadow: 'inset 0 0 0 1px rgba(146,64,94,0.08)', marginBottom: 4,
+    boxShadow: 'inset 0 0 0 1px rgba(146,64,94,0.08)', marginBottom: 6,
   },
   emptyText: { fontSize: 14.5, color: 'var(--text-secondary, #867277)', lineHeight: 1.5, margin: 0, maxWidth: 280 },
   emptyCta: {
@@ -1104,7 +1112,7 @@ const S = {
   },
   emptyHint: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)', margin: 0, maxWidth: 260 },
   errorCard: {
-    margin: '12px 0', padding: 14, background: '#FFF8F0', border: '1px solid #FFE8CC',
+    margin: '12px 18px', padding: 14, background: '#FFF8F0', border: '1px solid #FFE8CC',
     borderRadius: 12, fontSize: 13, color: '#7B5E00', lineHeight: 1.5,
   },
 
@@ -1144,11 +1152,11 @@ const S = {
 
   scroller: { flex: 1, overflowY: 'auto', padding: '12px 14px 8px', display: 'flex', flexDirection: 'column', gap: 10 },
   bubbleRow: { display: 'flex', width: '100%' },
-  bubbleStack: { display: 'flex', flexDirection: 'column', gap: 3, maxWidth: '82%' },
+  bubbleStack: { display: 'flex', flexDirection: 'column', gap: 3, maxWidth: '78%' },
   bubbleTag: { fontSize: 9.5, fontWeight: 700, color: 'var(--accent, #92405e)', letterSpacing: '0.05em', textTransform: 'uppercase', paddingLeft: 3, opacity: 0.85 },
   bubble: {
-    padding: '9px 13px', border: '1px solid', borderRadius: 18,
-    boxShadow: '0 1px 3px rgba(146,64,94,0.07)',
+    padding: '10px 14px', border: '1px solid', borderRadius: 20,
+    boxShadow: '0 1px 2px rgba(146,64,94,0.06)',
   },
   bubbleText: { fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
   bubbleMeta: { fontSize: 10, marginTop: 4, display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' },
@@ -1200,3 +1208,15 @@ const S = {
   skelLine: { height: 12, width: '60%', borderRadius: 6, background: 'var(--border-light, #F0ECE8)', display: 'block' },
   skelLineShort: { height: 10, width: '40%', borderRadius: 5, background: 'var(--border-light, #F0ECE8)', display: 'block', marginTop: 4 },
 };
+
+if (typeof document !== 'undefined' && !document.getElementById('inbox-bold-css')) {
+  const s = document.createElement('style');
+  s.id = 'inbox-bold-css';
+  s.textContent = `
+    .inbox-row-li { border-bottom: 1px solid rgba(146,64,94,0.07); }
+    .inbox-row-li:last-child { border-bottom: none; }
+    .inbox-row:hover { background: rgba(146,64,94,0.045) !important; }
+    .inbox-row-active, .inbox-row-active:hover { background: var(--accent-wash, #fbe9f0) !important; }
+  `;
+  document.head.appendChild(s);
+}
