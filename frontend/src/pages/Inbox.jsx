@@ -24,10 +24,10 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 
 // Channel marks. Material Symbols so they sit with the rest of the app.
 const CHANNEL = {
-  whatsapp:  { icon: 'chat',           label: 'WhatsApp',  tint: '#1f9d55' },
-  instagram: { icon: 'photo_camera',   label: 'Instagram', tint: '#c13584' },
-  sms:       { icon: 'sms',            label: 'SMS',       tint: '#3a6ea5' },
-  email:     { icon: 'mail',           label: 'Email',     tint: '#92405e' },
+  whatsapp:  { icon: 'chat',         label: 'WhatsApp',  tint: '#1f9d55', fill: '#1f9d55' },
+  instagram: { icon: 'photo_camera', label: 'Instagram', tint: '#c13584', fill: 'linear-gradient(135deg, #c13584 0%, #e1306c 55%, #f56040 100%)' },
+  sms:       { icon: 'sms',          label: 'SMS',       tint: '#3a6ea5', fill: '#3a6ea5' },
+  email:     { icon: 'mail',         label: 'Email',     tint: '#92405e', fill: '#92405e' },
 };
 function channelOf(key) {
   return CHANNEL[key] || CHANNEL.whatsapp;
@@ -116,16 +116,34 @@ function setClientInUrl(clientId) {
   window.history.replaceState({}, '', u.toString());
 }
 
-function ChannelMark({ channel, size = 16 }) {
+function ChannelMark({ channel, size = 22 }) {
   const c = channelOf(channel);
+  // Filled rounded-square chip in the channel's own colour with a white glyph,
+  // so WhatsApp / Instagram / SMS / Email read apart at a glance. The glyph is
+  // sized to the chip; Instagram carries its magenta-to-orange gradient.
   return (
     <span
-      className="material-symbols-outlined"
       aria-label={c.label}
       title={c.label}
-      style={{ fontSize: size, color: c.tint, lineHeight: 1, flexShrink: 0 }}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: Math.round(size * 0.32),
+        background: c.fill,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        boxShadow: '0 1px 2px rgba(146,64,94,0.18)',
+      }}
     >
-      {c.icon}
+      <span
+        className="material-symbols-outlined"
+        aria-hidden
+        style={{ fontSize: Math.round(size * 0.62), color: '#fff', lineHeight: 1, fontVariationSettings: "'FILL' 1" }}
+      >
+        {c.icon}
+      </span>
     </span>
   );
 }
@@ -462,7 +480,7 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, hideTypeCh
           </span>
 
           <span style={S.rowBottom}>
-            <ChannelMark channel={thread.last_channel} size={(automated || muted) && !owed ? 13 : 15} />
+            <ChannelMark channel={thread.last_channel} size={(automated || muted) && !owed ? 18 : 21} />
             <span style={{
               ...S.rowPreview,
               ...((automated || muted) && !owed ? S.rowPreviewMuted : {}),
@@ -712,6 +730,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
         clientName={fullName}
         navigate={navigate}
         clientId={client?.id}
+        channel={channel}
       />
 
       <div ref={scrollerRef} style={S.scroller}>
@@ -810,7 +829,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
   );
 }
 
-function ConvoHeader({ onBack, embedded, clientName, navigate, clientId }) {
+function ConvoHeader({ onBack, embedded, clientName, navigate, clientId, channel = null }) {
   return (
     <div style={S.convoHeader}>
       {!embedded && (
@@ -820,7 +839,10 @@ function ConvoHeader({ onBack, embedded, clientName, navigate, clientId }) {
       )}
       <span style={S.convoAvatar}>{initialOf(clientName)}</span>
       <div style={S.convoNameWrap}>
-        <span style={S.convoName}>{clientName}</span>
+        <span style={S.convoNameRow}>
+          <span style={S.convoName}>{clientName}</span>
+          {channel && <ChannelMark channel={channel} size={18} />}
+        </span>
         {clientId && (
           <button onClick={() => navigate('/clients', { state: { clientId } })} style={S.viewProfileBtn}>
             View profile
@@ -833,7 +855,6 @@ function ConvoHeader({ onBack, embedded, clientName, navigate, clientId }) {
 
 function Bubble({ msg }) {
   const out = msg.direction === 'outbound';
-  const meta = channelOf(msg.channel);
   // Label outbound bubbles so the owner can tell what Florrie sent and why.
   const type = msg.message_type;
   let tag = null;
@@ -860,9 +881,7 @@ function Bubble({ msg }) {
           )}
           {msg.body && <div style={S.bubbleText}>{msg.body}</div>}
           <div style={{ ...S.bubbleMeta, color: out ? 'rgba(255,255,255,0.78)' : '#9B8A8E' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 12, color: out ? 'rgba(255,255,255,0.78)' : meta.tint }} aria-hidden>
-              {meta.icon}
-            </span>
+            <ChannelMark channel={msg.channel} size={14} />
             <span>{formatBubbleTime(msg.created_at)}</span>
             {msg.status === 'sending' && <span>· sending</span>}
           </div>
@@ -977,9 +996,9 @@ const S = {
   rowMuted: {
     border: '1px solid transparent',
     boxShadow: 'none',
-    padding: '8px 13px',
-    gap: 10,
-    opacity: 0.92,
+    padding: '6px 13px',
+    gap: 9,
+    opacity: 0.9,
   },
   row: {
     width: '100%', display: 'flex', alignItems: 'flex-start', gap: 12,
@@ -1013,6 +1032,7 @@ const S = {
     fontSize: 16, fontWeight: 700, fontFamily: "'Noto Serif', Georgia, serif",
   },
   avatarMuted: {
+    width: 34, height: 34, borderRadius: 17, fontSize: 14,
     background: 'var(--border-light, #F0ECE8)',
     color: 'var(--text-muted, #9a8f93)',
   },
@@ -1084,9 +1104,10 @@ const S = {
     fontSize: 14, fontWeight: 700, fontFamily: "'Noto Serif', Georgia, serif",
   },
   convoNameWrap: { display: 'flex', flexDirection: 'column', gap: 1, flex: 1, minWidth: 0 },
+  convoNameRow: { display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 },
   convoName: {
     fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #1d1b19)',
-    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0,
   },
   viewProfileBtn: {
     background: 'none', border: 'none', color: 'var(--accent, #92405e)', fontSize: 11, fontWeight: 600,
