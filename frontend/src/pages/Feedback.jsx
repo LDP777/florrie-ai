@@ -30,7 +30,7 @@ export default function Feedback() {
     channel: 'whatsapp',
     askReview: true,
     reviewThreshold: 4,
-    reviewLink: 'https://g.page/ellindigo/review',
+    reviewLink: '',
   });
   const [settingsDirty, setSettingsDirty] = useState(false);
 
