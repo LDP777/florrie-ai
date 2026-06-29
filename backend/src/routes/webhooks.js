@@ -189,13 +189,21 @@ router.post('/whatsapp', async (req, res) => {
       .single();
 
     if (!client) {
-      // Try matching by phone number
-      const { data: phoneClient } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('beautician_id', beautician.id)
-        .eq('phone', waId)
-        .single();
+      // Try matching by phone number. Clients added by SMS/Bird or by hand may
+      // be stored in E.164 ('+447...'), while WhatsApp delivers bare digits
+      // ('447...'). Try both forms so a person Ellie already knows gets linked
+      // to their existing record instead of spawning a duplicate 'Unknown'
+      // thread. (Mirrors the Twilio WhatsApp path's dual-format match.)
+      let phoneClient = null;
+      for (const candidate of [waId, `+${waId}`]) {
+        const { data: match } = await supabase
+          .from('clients')
+          .select('*')
+          .eq('beautician_id', beautician.id)
+          .eq('phone', candidate)
+          .maybeSingle();
+        if (match) { phoneClient = match; break; }
+      }
 
       if (phoneClient) {
         // Link WhatsApp ID to existing client
