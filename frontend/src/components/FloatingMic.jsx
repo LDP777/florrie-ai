@@ -69,6 +69,16 @@ export default function FloatingMic() {
   const [result, setResult] = useState(null); // { transcript, reply, actions }
   const [error, setError] = useState(null);
 
+  // Transient mic errors (failed recognition, "didn't catch that") should never
+  // linger or block the UI, they self-clear after a few seconds so the next tap
+  // is clean. The permission-denied message is the one exception: it stays so
+  // the user can read how to re-enable the mic, and is only cleared on retry.
+  useEffect(() => {
+    if (!error || error === MIC_DENIED_MSG) return;
+    const t = setTimeout(() => setError(null), 4000);
+    return () => clearTimeout(t);
+  }, [error]);
+
   const recognitionRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
