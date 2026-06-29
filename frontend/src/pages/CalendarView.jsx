@@ -1943,16 +1943,25 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], onClose, 
     }) || null;
   })();
   const overlay = { position: 'fixed', left: 0, right: 0, top: vp ? vp.top : 0, height: vp ? vp.height : '100%', background: 'rgba(0,0,0,0.4)', zIndex: 900, display: 'flex', alignItems: 'flex-end' };
-  const sheet = { background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', padding: '20px 20px calc(28px + env(safe-area-inset-bottom))', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif', maxHeight: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch' };
+  // The sheet is a flex column: a fixed header, a scrollable body, and a STICKY
+  // footer that always holds Cancel + the primary action. The body scrolls
+  // under the keyboard; the footer never moves, so the Add button is always one
+  // tap away without hunting, and it clears the iOS home indicator via the
+  // safe-area inset.
+  const sheet = { background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif', maxHeight: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' };
+  const sheetBody = { padding: '20px 20px 16px', overflowY: 'auto', WebkitOverflowScrolling: 'touch', flex: '1 1 auto', minHeight: 0 };
+  const sheetFooter = { flexShrink: 0, padding: '12px 20px calc(14px + env(safe-area-inset-bottom))', borderTop: `1px solid ${COLORS.outlineVariant}55`, background: 'var(--bg-card)', boxShadow: '0 -4px 16px rgba(0,0,0,0.06)' };
   const labelStyle = { fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' };
   const inputStyle = { display: 'block', width: '100%', marginTop: 4, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: 'var(--bg-card)', color: COLORS.onSurface };
   return (
     <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={sheet}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 20px 12px', flexShrink: 0 }}>
           <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: COLORS.onSurface }}>New appointment</h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: COLORS.stone400 }}>×</button>
         </div>
+        {/* Scrollable body: every field lives here so it can scroll under the keyboard */}
+        <div style={sheetBody}>
         {/* Client */}
         <span style={labelStyle}>Client</span>
         {selectedClient ? (
@@ -2106,28 +2115,44 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], onClose, 
             <div style={{ width: 20, height: 20, borderRadius: 10, background: '#fff', position: 'absolute', top: 2, transition: 'transform 0.2s', transform: sendConfirmation ? 'translateX(20px)' : 'translateX(2px)' }} />
           </button>
         </div>
-        <p style={{ fontSize: 11, color: COLORS.stone400, margin: '0 0 18px' }}>
+        <p style={{ fontSize: 11, color: COLORS.stone400, margin: '0 0 4px' }}>
           Leave off when copying over bookings from your old system, so clients don't get a duplicate message.
         </p>
-        {clash && (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 10, background: 'var(--warning-bg)', border: '1px solid #FED7AA', margin: '0 0 12px' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#C2410C', flexShrink: 0 }}>warning</span>
-            <span style={{ fontSize: 12.5, color: 'var(--warning-text)', lineHeight: 1.45 }}>
-              This overlaps {clash.clients?.first_name || 'another booking'} at {formatWallTime(clash.starts_at)}
-              {clash.treatments?.name ? ` (${clash.treatments.name})` : ''}. You can still add it if you mean to double-book.
-            </span>
+        </div>{/* end scrollable body */}
+        {/* Sticky footer: the clash note, any error, and the always-visible
+            primary action. Sits above the iOS home indicator and never scrolls
+            away behind the keyboard or bottom nav. */}
+        <div style={sheetFooter}>
+          {clash && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 10, background: 'var(--warning-bg)', border: '1px solid #FED7AA', margin: '0 0 10px' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#C2410C', flexShrink: 0 }}>warning</span>
+              <span style={{ fontSize: 12.5, color: 'var(--warning-text)', lineHeight: 1.45 }}>
+                This overlaps {clash.clients?.first_name || 'another booking'} at {formatWallTime(clash.starts_at)}
+                {clash.treatments?.name ? ` (${clash.treatments.name})` : ''}. You can still add it if you mean to double-book.
+              </span>
+            </div>
+          )}
+          {error && (
+            <p style={{ fontSize: 13, color: '#B91C1C', margin: '0 0 10px', fontWeight: 600 }}>{error}</p>
+          )}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              style={{ flex: '0 0 auto', padding: '14px 18px', borderRadius: 12, border: `1.5px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.onSurface, fontSize: 15, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => { hapticTap(); handleSave(); }}
+              disabled={saving}
+              style={{ flex: 1, padding: '14px 0', borderRadius: 12, border: 'none', background: saving ? COLORS.stone400 : COLORS.primary, color: '#fff', fontSize: 15, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
+            >
+              {saving ? 'Saving...' : (clash ? 'Add anyway' : 'Add appointment')}
+            </button>
           </div>
-        )}
-        {error && (
-          <p style={{ fontSize: 13, color: '#B91C1C', margin: '0 0 12px', fontWeight: 600 }}>{error}</p>
-        )}
-        <button
-          onClick={() => { hapticTap(); handleSave(); }}
-          disabled={saving}
-          style={{ width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: saving ? COLORS.stone400 : COLORS.primary, color: '#fff', fontSize: 15, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}
-        >
-          {saving ? 'Saving...' : (clash ? 'Add anyway' : 'Add appointment')}
-        </button>
+        </div>
       </div>
     </div>
   );

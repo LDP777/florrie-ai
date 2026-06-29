@@ -319,6 +319,15 @@ router.post('/manual', requireAuth, validate(manualAppointmentSchema), async (re
 
   if (error) {
     logger.error({ err: error }, 'Failed to create manual appointment');
+    // 23505 = no-double-book unique guard (same exact start time);
+    // 23P01 = no-overlap exclusion guard. After migration 070 re-scopes the
+    // overlap constraint to non-manual bookings, an intentional manual
+    // double-book succeeds; these only fire when a manual add collides with a
+    // protected online booking (or on the exact-start unique index). Either way
+    // the slot is genuinely taken, so surface that clearly, not a generic 500.
+    if (error.code === '23505' || error.code === '23P01') {
+      return res.status(409).json({ error: 'That time is already taken by another booking.' });
+    }
     return res.status(500).json({ error: 'Something went wrong' });
   }
 
