@@ -324,6 +324,14 @@ export default function Treatments() {
                   </span>
                 )
               )}
+              {form.requires_consultation && (
+                <div style={{ marginTop: 8, padding: '8px 10px', background: 'var(--accent-wash, #fdeef3)', borderRadius: 8, display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--accent)', flexShrink: 0 }}>verified</span>
+                  <span style={{ fontSize: 12, color: 'var(--text, #1d1b19)', lineHeight: 1.45 }}>
+                    New clients booking this online get {(() => { const n = forms.find(f => f.id === form.consultation_form_id)?.name; return n ? `the "${n}" form` : 'your questions'; })()} to complete first. Returning clients are not asked again.
+                  </span>
+                </div>
+              )}
             </div>
             <div style={styles.formGroup}>
               <label style={styles.formLabel}>Patch test</label>
