@@ -469,7 +469,7 @@ function BottomNav({ current, session }) {
   const [inboxCount, setInboxCount] = useState(0);
   const [approvalsCount, setApprovalsCount] = useState(0);
   const intervalRef = useRef(null);
-  // Hold-to-speak on the centre petal. A long press (~450ms) opens Florrie
+  // Hold-to-speak on the centre petal. A deliberate long press (~700ms) opens Florrie
   // already listening; a plain tap opens her quietly. The didHold ref stops
   // the click that fires after a long press from double-navigating.
   const holdTimerRef = useRef(null);
@@ -482,7 +482,7 @@ function BottomNav({ current, session }) {
       didHoldRef.current = true;
       try { hapticTap(); } catch {}
       navigate('/voice', { state: { autoListen: true } });
-    }, 450);
+    }, 700);
   }
   function cancelHold() {
     clearTimeout(holdTimerRef.current);

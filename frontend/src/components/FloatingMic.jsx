@@ -8,12 +8,14 @@ import logger from '../lib/logger.js';
  * FloatingMic, Day 5 of the 2026-05-28 refactor sprint.
  *
  * A small mauve mic button sitting bottom-right, above the 3-tab nav. Tap
- * once for a quick command (up to 30s). Long-press to keep recording
+ * once for a quick command (up to 12s). Long-press to keep recording
  * until release. Result drops into a transient confirmation card the
  * salon owner can accept, tweak, or dismiss.
  *
  * Hidden on the Inbox conversation view so it can't sit on top of the
- * reply composer.
+ * reply composer, and hidden whenever a modal / bottom sheet / dialog is
+ * open so it never floats over the price editor, daily brief, or the New
+ * Appointment sheet.
  *
  * Two transports:
  *   1. Web Speech API where available (Chrome / Edge / desktop Safari 16+).
@@ -27,7 +29,11 @@ const SpeechRecognition = typeof window !== 'undefined'
   ? (window.SpeechRecognition || window.webkitSpeechRecognition)
   : null;
 
-const MAX_TAP_SECONDS = 30;
+// Hard recording cap. Kept short so a tap can never leave the mic stuck
+// "on" for half a minute if silence detection misfires (common in iOS
+// WKWebView, where Web Speech is unavailable and we fall back to a recorder
+// that never auto-stops).
+const MAX_TAP_SECONDS = 12;
 const LONG_PRESS_MS = 350;
 
 // Inside the native app, "allow access" means the OS Settings app, not the browser.
@@ -46,6 +52,63 @@ function shouldHide(pathname) {
   if (pathname === '/login' || pathname === '/update-password') return true;
   if (pathname.startsWith('/book/') || pathname.startsWith('/form/')) return true;
   if (pathname === '/onboarding') return true;
+  return false;
+}
+
+// True when an element looks like an open modal / bottom sheet / dialog that
+// the mic must not float over. We catch two shapes:
+//   1. Explicit a11y modals: role="dialog" or aria-modal="true".
+//   2. Dimmed full-screen backdrops: a position:fixed element pinned to all
+//      four edges (the rgba(0,0,0,0.4) overlays the calendar + suggestion
+//      sheets use). These carry no role but are exactly what blocks Ellie.
+// The mic's own result card is a role="dialog"; we tag it and skip it here so
+// the mic never hides itself.
+function isBlockingOverlay(el) {
+  if (!el || el.nodeType !== 1) return false;
+  if (el.closest?.('[data-floating-mic]')) return false; // our own result card
+  const role = el.getAttribute?.('role');
+  const ariaModal = el.getAttribute?.('aria-modal');
+  if (role === 'dialog' || role === 'alertdialog' || ariaModal === 'true') return true;
+  // Full-screen dimmed backdrop heuristic.
+  try {
+    const cs = window.getComputedStyle(el);
+    if (cs.position !== 'fixed') return false;
+    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return false;
+    const pinnedTop = cs.top === '0px';
+    const pinnedBottom = cs.bottom === '0px';
+    const pinnedLeft = cs.left === '0px';
+    const pinnedRight = cs.right === '0px';
+    const fullInset = pinnedTop && pinnedBottom && pinnedLeft && pinnedRight;
+    if (!fullInset) return false;
+    // A real dimming backdrop has a translucent dark/colour wash. Plain
+    // transparent full-screen wrappers (e.g. a layout root) are ignored.
+    const bg = cs.backgroundColor || '';
+    const m = bg.match(/rgba?\(([^)]+)\)/);
+    if (!m) return false;
+    const parts = m[1].split(',').map(s => parseFloat(s.trim()));
+    const alpha = parts.length >= 4 ? parts[3] : 1;
+    return alpha > 0.05;
+  } catch {
+    return false;
+  }
+}
+
+function anyModalOpen() {
+  if (typeof document === 'undefined') return false;
+  const explicit = document.querySelectorAll('[role="dialog"], [role="alertdialog"], [aria-modal="true"]');
+  for (const el of explicit) {
+    if (isBlockingOverlay(el)) return true;
+  }
+  // Scan direct-ish fixed backdrops on body. We keep this cheap by only
+  // looking at body's element children and one level down (overlays mount
+  // shallow), rather than the whole tree.
+  const candidates = document.body ? document.body.children : [];
+  for (const el of candidates) {
+    if (isBlockingOverlay(el)) return true;
+    for (const child of el.children || []) {
+      if (isBlockingOverlay(child)) return true;
+    }
+  }
   return false;
 }
 
@@ -68,16 +131,7 @@ export default function FloatingMic() {
   const [interim, setInterim] = useState('');
   const [result, setResult] = useState(null); // { transcript, reply, actions }
   const [error, setError] = useState(null);
-
-  // Transient mic errors (failed recognition, "didn't catch that") should never
-  // linger or block the UI, they self-clear after a few seconds so the next tap
-  // is clean. The permission-denied message is the one exception: it stays so
-  // the user can read how to re-enable the mic, and is only cleared on retry.
-  useEffect(() => {
-    if (!error || error === MIC_DENIED_MSG) return;
-    const t = setTimeout(() => setError(null), 4000);
-    return () => clearTimeout(t);
-  }, [error]);
+  const [modalOpen, setModalOpen] = useState(false);
 
   const recognitionRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -91,22 +145,70 @@ export default function FloatingMic() {
   const isInboxThread = location.pathname === '/inbox' && /[?&]client=/.test(location.search || '');
   const hide = shouldHide(location.pathname) || isInboxThread;
 
+  // Watch the DOM for any open modal / sheet / dialog and hide the mic while
+  // one is up, so it never floats over the price editor, daily brief, or the
+  // New Appointment sheet. A MutationObserver on body keeps this live as
+  // sheets open and close. Cleaned up on unmount.
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+    let raf = 0;
+    const check = () => {
+      raf = 0;
+      const open = anyModalOpen();
+      setModalOpen(prev => (prev === open ? prev : open));
+    };
+    const schedule = () => {
+      if (raf) return;
+      raf = window.requestAnimationFrame(check);
+    };
+    schedule();
+    const observer = new MutationObserver(schedule);
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['role', 'aria-modal', 'style', 'class'],
+    });
+    return () => {
+      observer.disconnect();
+      if (raf) window.cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  // Belt-and-braces: if a modal opens mid-recording, tear voice down so it
+  // can't keep running invisibly behind the sheet.
+  useEffect(() => {
+    if (modalOpen) hardReset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalOpen]);
+
   // Clean up timers + active streams when unmounting or hiding.
   useEffect(() => {
     return () => {
-      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
-      if (stopTimeoutRef.current) clearTimeout(stopTimeoutRef.current);
-      stopRecognition();
-      stopMediaRecorder();
+      hardReset();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Fully tear down any in-flight recording and clear every transient state
+  // flag. Safe to call from anywhere, any number of times.
+  function hardReset() {
+    if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; }
+    if (stopTimeoutRef.current) { clearTimeout(stopTimeoutRef.current); stopTimeoutRef.current = null; }
+    isLongPressRef.current = false;
+    stoppedAutomaticallyRef.current = true;
+    stopRecognition();
+    stopMediaRecorder();
+    setRecording(false);
+    setInterim('');
+  }
+
   // ---- Web Speech API path (fast, transcription is free in-browser) ----
   function startRecognition({ continuous }) {
     if (!SpeechRecognition) return false;
+    let rec;
     try {
-      const rec = new SpeechRecognition();
+      rec = new SpeechRecognition();
       rec.lang = 'en-GB';
       rec.interimResults = true;
       rec.continuous = continuous;
@@ -139,13 +241,17 @@ export default function FloatingMic() {
           logger.error('Speech recognition error:', event.error);
           setError("Mic didn't work. Try again.");
         }
+        // Always clear any lingering recording / interim state.
+        if (stopTimeoutRef.current) { clearTimeout(stopTimeoutRef.current); stopTimeoutRef.current = null; }
+        recognitionRef.current = null;
         setRecording(false);
         setInterim('');
       };
       rec.onend = () => {
+        if (stopTimeoutRef.current) { clearTimeout(stopTimeoutRef.current); stopTimeoutRef.current = null; }
+        recognitionRef.current = null;
         setRecording(false);
         setInterim('');
-        if (stopTimeoutRef.current) { clearTimeout(stopTimeoutRef.current); stopTimeoutRef.current = null; }
       };
       recognitionRef.current = rec;
       rec.start();
@@ -153,27 +259,41 @@ export default function FloatingMic() {
       stopTimeoutRef.current = setTimeout(() => {
         stoppedAutomaticallyRef.current = true;
         stopRecognition();
+        // If onend never fires (some WebViews), force the state clear.
+        setRecording(false);
+        setInterim('');
       }, MAX_TAP_SECONDS * 1000);
       return true;
     } catch (err) {
+      // Engine threw (frequent in iOS WKWebView). Never leave a hanging
+      // recording or interim state behind; signal failure so the caller can
+      // fall back to MediaRecorder.
       logger.error('startRecognition failed:', err);
+      try { rec?.stop(); } catch {}
+      recognitionRef.current = null;
+      setRecording(false);
+      setInterim('');
       return false;
     }
   }
 
   function stopRecognition() {
     try { recognitionRef.current?.stop(); } catch {}
+    try { recognitionRef.current?.abort?.(); } catch {}
     recognitionRef.current = null;
   }
 
   // ---- MediaRecorder fallback (Safari iOS) ----
   async function startMediaRecorder({ continuous }) {
+    let stream;
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
         setError('Voice not supported on this browser. Type your command instead.');
+        setRecording(false);
+        setInterim('');
         return false;
       }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mimeType = MediaRecorder.isTypeSupported('audio/webm')
         ? 'audio/webm'
         : MediaRecorder.isTypeSupported('audio/mp4')
@@ -184,8 +304,11 @@ export default function FloatingMic() {
       mr.ondataavailable = (ev) => { if (ev.data?.size) audioChunksRef.current.push(ev.data); };
       mr.onstop = async () => {
         // Release the mic immediately.
-        stream.getTracks().forEach(t => t.stop());
+        try { stream.getTracks().forEach(t => t.stop()); } catch {}
+        if (stopTimeoutRef.current) { clearTimeout(stopTimeoutRef.current); stopTimeoutRef.current = null; }
+        mediaRecorderRef.current = null;
         setRecording(false);
+        setInterim('');
         const blob = new Blob(audioChunksRef.current, { type: mr.mimeType || 'audio/webm' });
         audioChunksRef.current = [];
         if (blob.size === 0) return;
@@ -193,7 +316,10 @@ export default function FloatingMic() {
       };
       mr.onerror = (ev) => {
         logger.error('MediaRecorder error:', ev);
+        if (stopTimeoutRef.current) { clearTimeout(stopTimeoutRef.current); stopTimeoutRef.current = null; }
+        mediaRecorderRef.current = null;
         setRecording(false);
+        setInterim('');
         setError("Mic didn't work. Try again.");
         try { stream.getTracks().forEach(t => t.stop()); } catch {}
       };
@@ -209,6 +335,10 @@ export default function FloatingMic() {
       return true;
     } catch (err) {
       logger.error('startMediaRecorder failed:', err);
+      try { stream?.getTracks().forEach(t => t.stop()); } catch {}
+      mediaRecorderRef.current = null;
+      setRecording(false);
+      setInterim('');
       if (err?.name === 'NotAllowedError') {
         setError(MIC_DENIED_MSG);
       } else {
@@ -223,6 +353,7 @@ export default function FloatingMic() {
       const mr = mediaRecorderRef.current;
       if (mr && mr.state !== 'inactive') mr.stop();
     } catch {}
+    // onstop clears the ref + state; if it never fires, this still drops the ref.
     mediaRecorderRef.current = null;
   }
 
@@ -296,6 +427,9 @@ export default function FloatingMic() {
   function beginPress(e) {
     e.preventDefault();
     if (processing) return;
+    // A tap while already recording is a stop, handled in endPress. Don't arm
+    // a fresh long-press in that case.
+    if (recording) return;
     isLongPressRef.current = false;
     longPressTimerRef.current = setTimeout(() => {
       isLongPressRef.current = true;
@@ -319,15 +453,19 @@ export default function FloatingMic() {
       isLongPressRef.current = false;
       return;
     }
-    // Tap: start a single short recording. Web Speech ends on its own when
-    // it detects silence; MediaRecorder uses the hard cap.
-    if (recording) {
-      // Already recording (rare race), stop and submit.
+    // Tap while recording reliably stops and clears, whichever transport is live.
+    if (recording || recognitionRef.current || mediaRecorderRef.current) {
       stoppedAutomaticallyRef.current = true;
       if (recognitionRef.current) stopRecognition();
       else stopMediaRecorder();
+      // Force-clear in case the engine's onend / onstop never fires.
+      if (stopTimeoutRef.current) { clearTimeout(stopTimeoutRef.current); stopTimeoutRef.current = null; }
+      setRecording(false);
+      setInterim('');
       return;
     }
+    // Fresh tap: start a single short recording. Web Speech ends on its own
+    // when it detects silence; MediaRecorder uses the hard cap.
     if (!startRecognition({ continuous: false })) {
       startMediaRecorder({ continuous: false });
     }
@@ -353,7 +491,9 @@ export default function FloatingMic() {
     navigate('/voice');
   }
 
-  if (hide) return null;
+  // Hide on excluded routes, and whenever a modal / sheet / dialog is open so
+  // the mic never overlaps its content or buttons.
+  if (hide || modalOpen) return null;
 
   // The mic sits bottom-right, hovering above the bottom nav. Bottom nav is
   // ~58px tall on iOS notch devices, plus safe-area. We push the mic above
@@ -369,7 +509,7 @@ export default function FloatingMic() {
 
       {/* Result card, ephemeral suggestion */}
       {result && !recording && !processing && (
-        <div style={S.resultCard} role="dialog" aria-label="Voice result">
+        <div style={S.resultCard} data-floating-mic="result" role="dialog" aria-label="Voice result">
           <div style={S.resultTranscript}>"{result.transcript}"</div>
           <div style={S.resultReply}>{result.reply}</div>
           <div style={S.resultActions}>
