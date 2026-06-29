@@ -232,7 +232,7 @@ function SuggestionCard({ s, featured, onDone, onRecord, navigate }) {
 
   // ---- Render: inline price editor ----
   if (phase === 'prices') {
-    return <PriceEditor s={s} featured={featured} onClose={() => { onRecord(s, 'yes', true); onDone(s.id); }} onCancel={() => onDone(s.id)} />;
+    return <PriceEditor s={s} onClose={() => { onRecord(s, 'yes', true); onDone(s.id); }} onCancel={() => onDone(s.id)} />;
   }
 
   // ---- Render: bank-holiday featured card ----
@@ -313,14 +313,18 @@ function ConfirmRow({ text, onYes, onCancel, big }) {
 }
 
 /**
- * Inline mini editor for the unpriced-appointments card. Lists each upcoming
- * booking with no price and a small GBP input; Save writes that one price.
+ * Full-width price editor for the unpriced-appointments card. Renders as a
+ * bottom sheet that breaks out of the horizontal cards row, so every booking
+ * gets a comfortable full-width row with a clearly tappable Save. Each row
+ * shows a saved tick on success and an inline error if a save fails.
  */
-function PriceEditor({ s, featured, onClose, onCancel }) {
+function PriceEditor({ s, onClose, onCancel }) {
   const [rows, setRows] = useState(null); // null = loading
   const [vals, setVals] = useState({});
   const [savingId, setSavingId] = useState(null);
+  const [savingAll, setSavingAll] = useState(false);
   const [savedIds, setSavedIds] = useState(new Set());
+  const [errorIds, setErrorIds] = useState(new Set());
 
   useEffect(() => {
     let cancelled = false;
@@ -331,69 +335,145 @@ function PriceEditor({ s, featured, onClose, onCancel }) {
     return () => { cancelled = true; };
   }, []);
 
+  // Lock the page behind the sheet while it is open.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  function clearError(id) {
+    setErrorIds(prev => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }
+
+  // Save one row. Returns true on success so "Save all" can sequence them.
   async function save(row) {
     const pounds = parseFloat(vals[row.id]);
-    if (!Number.isFinite(pounds) || pounds < 0) return;
+    if (!Number.isFinite(pounds) || pounds < 0) {
+      setErrorIds(prev => new Set(prev).add(row.id));
+      return false;
+    }
     setSavingId(row.id);
-    const { ok } = await api(`/api/suggestions/appointments/${row.id}/price`, {
-      method: 'PATCH',
-      body: { price_cents: Math.round(pounds * 100) },
-    });
+    clearError(row.id);
+    let ok = false;
+    try {
+      const res = await api(`/api/suggestions/appointments/${row.id}/price`, {
+        method: 'PATCH',
+        body: { price_cents: Math.round(pounds * 100) },
+      });
+      ok = res.ok;
+    } catch {
+      ok = false;
+    }
     setSavingId(null);
     if (ok) {
       setSavedIds(prev => new Set(prev).add(row.id));
+    } else {
+      setErrorIds(prev => new Set(prev).add(row.id));
     }
+    return ok;
   }
 
-  const pending = (rows || []).filter(r => !savedIds.has(r.id));
+  async function saveAll() {
+    setSavingAll(true);
+    for (const row of pending) {
+      const v = parseFloat(vals[row.id]);
+      if (!Number.isFinite(v) || v < 0) continue; // skip blanks, leave them open
+      // eslint-disable-next-line no-await-in-loop
+      await save(row);
+    }
+    setSavingAll(false);
+  }
+
+  const all = rows || [];
+  const pending = all.filter(r => !savedIds.has(r.id));
+  const anyToSave = pending.some(r => {
+    const v = parseFloat(vals[r.id]);
+    return Number.isFinite(v) && v >= 0;
+  });
 
   return (
-    <article style={featured ? SC.featured : { ...SC.card, flex: '0 0 300px', minWidth: 300 }}>
-      <div style={SC.cardHead}>
-        <span style={SC.icon} aria-hidden>{s.icon || '🏷️'}</span>
-        <span style={SC.priceHeader}>Set prices</span>
-      </div>
-
-      {rows === null && <p style={SC.summary}>Loading your bookings…</p>}
-
-      {rows !== null && pending.length === 0 && (
-        <p style={SC.summary}>{savedIds.size > 0 ? 'All sorted. Nice one.' : 'Nothing left to price.'}</p>
-      )}
-
-      {pending.map(row => (
-        <div key={row.id} style={SC.priceRow}>
-          <div style={SC.priceRowInfo}>
-            <span style={SC.priceClient}>{row.client}</span>
-            <span style={SC.priceMeta}>{row.treatment}</span>
-          </div>
-          <div style={SC.priceInputWrap}>
-            <span style={SC.priceCurrency}>£</span>
-            <input
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="1"
-              value={vals[row.id] || ''}
-              onChange={e => setVals(v => ({ ...v, [row.id]: e.target.value }))}
-              style={SC.priceInput}
-              placeholder="0"
-            />
-            <button
-              onClick={() => save(row)}
-              disabled={savingId === row.id || !vals[row.id]}
-              style={SC.priceSave}
-            >
-              {savingId === row.id ? '…' : 'Save'}
-            </button>
+    <div style={SC.sheetOverlay} role="dialog" aria-modal="true" aria-label="Set prices" onClick={onCancel}>
+      <div style={SC.sheet} onClick={e => e.stopPropagation()}>
+        <div style={SC.sheetGrab} aria-hidden />
+        <div style={SC.sheetHead}>
+          <span style={SC.icon} aria-hidden>{s.icon || '\u{1F3F7}️'}</span>
+          <div style={{ minWidth: 0 }}>
+            <p style={SC.sheetTitle}>Set prices</p>
+            <p style={SC.sheetSub}>Add a price to each booking so your takings stay right.</p>
           </div>
         </div>
-      ))}
 
-      <div style={{ ...SC.actions, marginTop: 10 }}>
-        <button onClick={onClose} style={{ ...SC.btn, ...SC.btnYes }}>Done</button>
-        <button onClick={onCancel} style={{ ...SC.btn, ...SC.btnNo }}>Later</button>
+        <div style={SC.sheetBody}>
+          {rows === null && <p style={SC.sheetEmpty}>Loading your bookings...</p>}
+
+          {rows !== null && pending.length === 0 && (
+            <p style={SC.sheetEmpty}>{savedIds.size > 0 ? 'All sorted. Nice one.' : 'Nothing left to price.'}</p>
+          )}
+
+          {pending.map(row => {
+            const errored = errorIds.has(row.id);
+            return (
+              <div key={row.id} style={SC.sheetRow}>
+                <div style={SC.sheetRowTop}>
+                  <div style={SC.sheetRowInfo}>
+                    <span style={SC.sheetClient}>{row.client}</span>
+                    <span style={SC.sheetMeta}>{row.treatment}</span>
+                  </div>
+                  <div style={SC.sheetInputWrap}>
+                    <span style={SC.sheetCurrency}>£</span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="1"
+                      value={vals[row.id] || ''}
+                      onChange={e => { setVals(v => ({ ...v, [row.id]: e.target.value })); clearError(row.id); }}
+                      style={{ ...SC.sheetInput, ...(errored ? SC.sheetInputError : null) }}
+                      placeholder="0"
+                      aria-label={`Price for ${row.client}`}
+                    />
+                  </div>
+                  <button
+                    onClick={() => save(row)}
+                    disabled={savingId === row.id || savingAll || !vals[row.id]}
+                    style={SC.sheetSave}
+                  >
+                    {savingId === row.id ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
+                {errored && (
+                  <p style={SC.sheetRowError} role="alert">Could not save, try again.</p>
+                )}
+              </div>
+            );
+          })}
+
+          {savedIds.size > 0 && pending.length > 0 && (
+            <p style={SC.sheetSaved}>
+              <span className="material-symbols-outlined" style={SC.sheetSavedIcon}>check_circle</span>
+              {savedIds.size} price{savedIds.size === 1 ? '' : 's'} saved
+            </p>
+          )}
+        </div>
+
+        <div style={SC.sheetFooter}>
+          {pending.length > 1 && (
+            <button onClick={saveAll} disabled={savingAll || !anyToSave} style={{ ...SC.sheetBtn, ...SC.sheetBtnPrimary }}>
+              {savingAll ? 'Saving...' : 'Save all'}
+            </button>
+          )}
+          <button onClick={pending.length === 0 ? onClose : onCancel} style={{ ...SC.sheetBtn, ...SC.sheetBtnGhost }}>
+            {pending.length === 0 ? 'Done' : 'Later'}
+          </button>
+        </div>
       </div>
-    </article>
+    </div>
   );
 }
 
@@ -488,25 +568,68 @@ const SC = {
   resultLabel: { fontSize: 14, fontWeight: 700, color: '#1d1b19', margin: 0 },
   resultDetail: { fontSize: 12, color: '#867277', margin: '2px 0 0', lineHeight: 1.35 },
 
-  priceHeader: {
-    fontSize: 13, fontWeight: 700, color: 'var(--accent)',
-    fontFamily: "'Playfair Display', Georgia, serif", fontStyle: 'italic',
+  // ---- Set-prices bottom sheet (full width, breaks out of the cards row) ----
+  sheetOverlay: {
+    position: 'fixed', inset: 0, zIndex: 1200,
+    background: 'rgba(29,27,25,0.42)',
+    display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+    WebkitTapHighlightColor: 'transparent',
   },
-  priceRow: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-    padding: '8px 0', borderTop: '1px solid rgba(146,64,94,0.08)',
+  sheet: {
+    width: '100%', maxWidth: 560, background: '#fef8f4',
+    borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    boxShadow: '0 -10px 40px rgba(29,27,25,0.22)',
+    padding: '8px 16px calc(16px + env(safe-area-inset-bottom, 0px))',
+    display: 'flex', flexDirection: 'column', maxHeight: '82vh',
   },
-  priceRowInfo: { display: 'flex', flexDirection: 'column', minWidth: 0 },
-  priceClient: { fontSize: 13, fontWeight: 600, color: '#1d1b19', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  priceMeta: { fontSize: 11, color: '#867277', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
-  priceInputWrap: { display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 },
-  priceCurrency: { fontSize: 13, fontWeight: 700, color: '#867277' },
-  priceInput: {
-    width: 52, padding: '6px 6px', borderRadius: 8, border: '1px solid rgba(146,64,94,0.25)',
-    fontSize: 13, fontWeight: 600, fontFamily: 'inherit', textAlign: 'right',
+  sheetGrab: {
+    width: 40, height: 4, borderRadius: 999, background: 'rgba(146,64,94,0.22)',
+    margin: '6px auto 12px',
   },
-  priceSave: {
-    padding: '6px 10px', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff',
-    fontSize: 12, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
+  sheetHead: { display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12 },
+  sheetTitle: {
+    fontSize: 18, fontWeight: 700, color: '#1d1b19',
+    fontFamily: "'Playfair Display', Georgia, serif", margin: 0,
   },
+  sheetSub: { fontSize: 12.5, color: '#867277', margin: '2px 0 0', lineHeight: 1.4 },
+  sheetBody: { overflowY: 'auto', WebkitOverflowScrolling: 'touch', flex: '1 1 auto' },
+  sheetEmpty: { fontSize: 14, color: '#5c5450', fontWeight: 500, padding: '18px 2px', margin: 0 },
+  sheetRow: {
+    padding: '12px 0', borderTop: '1px solid rgba(146,64,94,0.10)',
+  },
+  sheetRowTop: { display: 'flex', alignItems: 'center', gap: 10 },
+  sheetRowInfo: { display: 'flex', flexDirection: 'column', minWidth: 0, flex: '1 1 auto' },
+  sheetClient: { fontSize: 15, fontWeight: 600, color: '#1d1b19', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  sheetMeta: { fontSize: 12.5, color: '#867277', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 1 },
+  sheetInputWrap: {
+    display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
+    background: '#fff', borderRadius: 10, border: '1px solid rgba(146,64,94,0.22)', padding: '0 10px',
+  },
+  sheetCurrency: { fontSize: 15, fontWeight: 700, color: '#867277' },
+  sheetInput: {
+    width: 64, padding: '10px 2px', borderRadius: 8, border: 'none', background: 'transparent',
+    fontSize: 15, fontWeight: 600, fontFamily: 'inherit', textAlign: 'right', outline: 'none',
+  },
+  sheetInputError: { color: '#b3602f' },
+  sheetSave: {
+    flexShrink: 0, padding: '10px 16px', borderRadius: 10, border: 'none',
+    background: 'var(--accent)', color: '#fff', fontSize: 14, fontWeight: 700,
+    fontFamily: 'inherit', cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
+  },
+  sheetRowError: { fontSize: 12, color: '#b3602f', fontWeight: 600, margin: '8px 0 0' },
+  sheetSaved: {
+    display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600,
+    color: 'var(--accent)', margin: '14px 0 2px',
+  },
+  sheetSavedIcon: { fontSize: 18, lineHeight: 1, color: 'var(--accent)' },
+  sheetFooter: {
+    display: 'flex', gap: 10, paddingTop: 14, marginTop: 4,
+    borderTop: '1px solid rgba(146,64,94,0.10)',
+  },
+  sheetBtn: {
+    flex: 1, padding: '13px 10px', borderRadius: 12, border: 'none', fontSize: 14, fontWeight: 700,
+    fontFamily: 'inherit', cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
+  },
+  sheetBtnPrimary: { background: 'var(--accent)', color: '#fff' },
+  sheetBtnGhost: { background: '#f3ede9', color: '#867277' },
 };

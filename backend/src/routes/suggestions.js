@@ -716,7 +716,9 @@ async function fromGapFill(beauticianId) {
   const { gap, matches } = withMatches[0];
   const n = matches.length;
   const dayLabel = gap.dayLabel || gap.date;
-  const window = `${gap.start} to ${gap.end}`;
+  // Friendly window, e.g. "9am to 11am" rather than "09:00 to 11:00".
+  const window = `${friendlyTime(gap.start)} to ${friendlyTime(gap.end)}`;
+  const clients = `${n} client${n === 1 ? '' : 's'} who ${n === 1 ? 'is' : 'are'} due a visit`;
 
   // Money on the table soon. Value it at the average completed price per client
   // we could fill the slot with (capped to the number who fit the gap).
@@ -727,7 +729,7 @@ async function fromGapFill(beauticianId) {
     id: `gap-fill-${gap.date}-${gap.start}`,
     type: 'gap_fill',
     icon: '🌷',
-    summary: `${dayLabel} has an open ${window} slot. ${n} client${n === 1 ? '' : 's'} due a visit could take it. Offer it?`,
+    summary: `${dayLabel} has an open slot, ${window}. ${n} client${n === 1 ? '' : 's'} due a visit could take it. Offer it?`,
     action_label: 'Offer it',
     impact_pence: fillImpact,
     // A near-term fillable gap is real money soon. Sit it just under live bookings
@@ -739,10 +741,24 @@ async function fromGapFill(beauticianId) {
       endpoint: '/api/suggestions/fill-gap',
       method: 'POST',
       body: { date: gap.date },
-      confirm: `Offer ${dayLabel} ${window} to ${n} client${n === 1 ? '' : 's'} who ${n === 1 ? 'is' : 'are'} due a visit?`,
+      // Names the day, the window and how many clients, plainly.
+      confirm: `Offer ${dayLabel}, ${window}, to ${clients}?`,
     },
     link_to: '/smart-schedule',
   }];
+}
+
+// Turn a 24-hour "HH:MM" into a warm "9am" / "1:30pm" label.
+function friendlyTime(hhmm) {
+  if (!hhmm || typeof hhmm !== 'string') return hhmm || '';
+  const [hStr, mStr] = hhmm.split(':');
+  let h = Number(hStr);
+  const m = Number(mStr);
+  if (!Number.isFinite(h)) return hhmm;
+  const suffix = h < 12 ? 'am' : 'pm';
+  let h12 = h % 12;
+  if (h12 === 0) h12 = 12;
+  return m ? `${h12}:${String(m).padStart(2, '0')}${suffix}` : `${h12}${suffix}`;
 }
 
 async function fromUnpricedAppointments(beauticianId) {
