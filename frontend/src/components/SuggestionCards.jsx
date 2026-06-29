@@ -179,6 +179,19 @@ function SuggestionCard({ s, featured, onDone, onRecord, navigate }) {
         else if (json.outcome === 'sent') res = { label: 'Offer sent', tone: 'ok', detail: null };
         else res = { label: 'Not sent', tone: 'warn', detail: json.reason || 'Could not send right now.' };
       }
+      if (action.kind === 'fill_gap') {
+        const sent = json.sent || 0;
+        const held = json.held || 0;
+        if (sent === 0 && held === 0) {
+          res = { label: 'Nothing sent', tone: 'warn', detail: json.reason || 'No one was free to offer it to.' };
+        } else {
+          // "3 offers sent, 2 waiting for your OK": name both outcomes plainly.
+          const bits = [];
+          if (sent > 0) bits.push(`${sent} offer${sent === 1 ? '' : 's'} sent`);
+          if (held > 0) bits.push(`${held} waiting for your OK`);
+          res = { label: bits.join(', '), tone: 'ok', detail: held > 0 ? 'Held offers are in your outbox.' : null };
+        }
+      }
 
       setResult(res);
       setPhase('result');

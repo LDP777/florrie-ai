@@ -1141,3 +1141,35 @@ export async function processReminders() {
 
   return { sent, total: appointments.length };
 }
+
+/**
+ * Send a message on the channel the client actually uses, mirroring the front
+ * desk's escalation routing: Instagram for an IG regular, WhatsApp for a WA one,
+ * SMS as the fallback. Returns { ok, channel } so callers can report what
+ * happened. This is the SEND step only; consent, caps and the known-client hold
+ * live in guardedSend and must wrap this, never the other way round.
+ */
+export async function sendOnPreferredChannel({ client, body, beautician, messageType = 'general' }) {
+  const channel = client?.preferred_channel || 'sms';
+  try {
+    if (channel === 'instagram' && client?.instagram_id) {
+      const sent = await sendInstagramDM({
+        recipientId: client.instagram_id,
+        text: body,
+        pageToken: beautician?.instagram_page_token,
+      });
+      return { ok: !!sent, channel: 'instagram' };
+    }
+    if (channel === 'whatsapp' && beautician?.whatsapp_phone_id && client?.whatsapp_id) {
+      const sent = await sendWhatsAppText({ to: client.whatsapp_id, body, beauticianId: beautician.id });
+      return { ok: !!sent, channel: 'whatsapp' };
+    }
+    if (client?.phone) {
+      const sent = await sendSMS({ to: client.phone, body, beauticianId: beautician?.id, messageType });
+      return { ok: !!sent, channel: 'sms' };
+    }
+  } catch (err) {
+    logger.error({ err, channel }, 'sendOnPreferredChannel failed');
+  }
+  return { ok: false, channel };
+}

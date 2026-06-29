@@ -5,7 +5,8 @@ import logger from '../lib/logger.js';
 import { nextBankHoliday, postcodeToDivision } from '../lib/bank-holidays.js';
 import { getFutureBookedClientIds } from '../lib/future-bookings.js';
 import { guardedSend } from '../lib/outbound-guard.js';
-import { sendSMS } from '../services/notifications.js';
+import { sendSMS, sendOnPreferredChannel } from '../services/notifications.js';
+import { getGapFillSuggestions } from '../services/gap-fill-engine.js';
 
 const router = Router();
 
@@ -15,7 +16,8 @@ const router = Router();
  * GET  /api/suggestions                     -> one prioritised, deduped stream
  * POST /api/suggestions/respond             -> record yes / no / tweak / dismiss
  * POST /api/suggestions/book                -> actually create the appointment
- * POST /api/suggestions/send-offer          -> send rebook/gap-fill offer (guarded)
+ * POST /api/suggestions/send-offer          -> send rebook offer (guarded, channel-faithful)
+ * POST /api/suggestions/fill-gap            -> offer a near-term gap to its matched clients (guarded)
  * POST /api/suggestions/block-day           -> block a bank-holiday date
  * GET  /api/suggestions/unpriced            -> upcoming appointments with no price
  * PATCH /api/suggestions/appointments/:id/price -> set price on one appointment
@@ -49,7 +51,7 @@ router.get('/', requireAuth, async (req, res) => {
       fromBookingSuggestions(beauticianId),
       fromRebookReminders(beauticianId),
       fromValueCoaching(beauticianId),
-      fromEmptyTomorrow(beauticianId),
+      fromGapFill(beauticianId),
       fromUnpricedAppointments(beauticianId),
       // tag_dormant deliberately dropped: it was busywork, not money.
     ]);
@@ -209,76 +211,154 @@ router.post('/book', requireAuth, async (req, res) => {
 
 /**
  * POST /api/suggestions/send-offer
- * Send a rebook / gap-fill offer to the client through the single outbound gate.
- * guardedSend returns 'send' (delivered now) or 'approve' (held in the owner's
- * outbox for known clients / awaiting trust) or 'block'. We report which, so the
- * UI can say "Offer sent" vs "Held for your OK".
+ * Send a rebook offer to the client through the single outbound gate, on the
+ * channel they actually use (Instagram regular gets it on Instagram, not a stray
+ * text). guardedSend returns 'send' (delivered now) or 'approve' (held in the
+ * owner's outbox for known clients / awaiting trust) or 'block'. We report which,
+ * so the UI can say "Offer sent" vs "Held for your OK".
  */
 router.post('/send-offer', requireAuth, async (req, res) => {
-  const beauticianId = req.beautician.id;
+  const beautician = req.beautician;
+  const beauticianId = beautician.id;
   const clientId = req.body?.client_id;
   if (!clientId) return res.status(400).json({ error: 'Missing client_id' });
 
   const { data: client } = await supabase
     .from('clients')
-    .select('id, first_name, phone, marketing_consent, marketing_opted_out_at, status')
+    .select('id, first_name, phone, whatsapp_id, instagram_id, preferred_channel, marketing_consent, marketing_opted_out_at, status')
     .eq('id', clientId)
     .eq('beautician_id', beauticianId)
     .maybeSingle();
   if (!client) return res.status(404).json({ error: 'Client not found' });
-  if (!client.phone) {
-    return res.status(400).json({ error: 'No phone number on file to message this client. Open them to add one.' });
+
+  // Make sure there is at least one channel we can actually reach them on, so we
+  // never hold an offer we could never deliver.
+  if (!reachable(client, beautician)) {
+    return res.status(400).json({ error: 'No contact details on file to message this client. Open them to add a number or connect a channel.' });
   }
 
-  const { data: b } = await supabase
-    .from('beauticians')
-    .select('business_name, booking_slug')
-    .eq('id', beauticianId)
-    .maybeSingle();
-
   const firstName = client.first_name?.trim() || 'there';
-  const businessName = b?.business_name || 'us';
-  const bookingUrl = b?.booking_slug ? `florrie.ai/book/${b.booking_slug}` : null;
-  const cta = bookingUrl
-    ? `book your next visit here: ${bookingUrl}`
-    : `just reply and I'll get you booked in`;
-  const message = `Hi ${firstName}, it's been a while since we saw you at ${businessName}. We'd love to have you back, ${cta} 💕`;
+  const message = buildRebookMessage(firstName, beautician);
+  const channel = client.preferred_channel || 'sms';
 
   // The one gate: consent (fail closed), frequency + monthly caps, allowance
-  // reserve, the trust dial, and the known-client hold. Never weakened here.
+  // reserve, the trust dial, and the known-client hold. Never weakened here. The
+  // SEND step routes to the client's own channel.
   const verdict = await guardedSend({
     beauticianId,
     clientId,
     messageType: 'rebook_offer',
-    channel: 'sms',
+    channel,
     client,
     body: message,
-    send: () => sendSMS({ to: client.phone, body: message, beauticianId, messageType: 'rebook_offer' }),
+    send: async () => {
+      const r = await sendOnPreferredChannel({ client, body: message, beautician, messageType: 'rebook_offer' });
+      return r.ok;
+    },
   });
 
-  // 'sent' = delivered now. 'held' = queued in her outbox for a one-tap approve
-  // (known client, or trust dial set to ask). 'blocked' = consent/cap/hours.
-  let outcome = 'blocked';
-  if (verdict.delivered) outcome = 'sent';
-  else if (verdict.decision === 'approve') outcome = 'held';
+  return res.json(describeVerdict(verdict, firstName));
+});
 
-  const reasons = {
-    no_client_match: 'No contact details to message on.',
-    opted_out: `${firstName} has opted out of messages.`,
-    quiet_hours: 'Saved for daytime, it is too late to message now.',
-    frequency_cap: `${firstName} was messaged recently, this is on hold.`,
-    monthly_cap: `${firstName} has had a few messages this month, this is on hold.`,
-    allowance_reserved: 'Your message allowance is low, this is on hold.',
-    autonomy_off: 'Rebook offers are switched off in your settings.',
-    send_failed: 'The message could not be sent. Try again shortly.',
-  };
+/**
+ * POST /api/suggestions/fill-gap
+ * The flagship one-tap money-maker. Reuses the gap-fill engine's own gap
+ * detection + candidate matching (getGapFillSuggestions: it scans the next 7
+ * days, finds gaps >=30min, builds waitlist/rebook/dormant pools, matches them
+ * to gaps with fitsGap/matchesPreferences, and already skips anyone contacted in
+ * the last 7 days). We never rebuild that matching here.
+ *
+ * Default target is the soonest gap (or tomorrow if a date is passed). For each
+ * matched client we send a warm, personalised offer naming the open day/time and
+ * their usual treatment, with the real booking link, THROUGH guardedSend on the
+ * client's own channel. guardedSend respects consent, caps and the known-client
+ * hold, so regulars Ellie knows land in her outbox for approval, not auto-sent.
+ *
+ * Returns { sent, held, blocked, gap, candidates } so the card can say what
+ * happened. One bad candidate never aborts the batch.
+ */
+router.post('/fill-gap', requireAuth, async (req, res) => {
+  const beautician = req.beautician;
+  const beauticianId = beautician.id;
+  const wantDate = req.body?.date ? String(req.body.date).slice(0, 10) : null;
+
+  // Reuse the engine's read-only matcher: gaps + matched clients, already deduped
+  // against recent contacts and waitlist/preference rules.
+  let groups = [];
+  try {
+    groups = await getGapFillSuggestions(beauticianId);
+  } catch (err) {
+    logger.error({ err }, 'fill-gap: gap-fill matcher failed');
+    return res.status(500).json({ error: 'Could not work out who to offer the slot to.' });
+  }
+
+  if (!groups.length) {
+    return res.json({ sent: 0, held: 0, blocked: 0, candidates: 0, gap: null, reason: 'No matching clients for a near-term gap right now.' });
+  }
+
+  // Pick the target gap: the one matching the passed date, else the soonest.
+  const sorted = [...groups].sort((a, b) => String(a.gap.date).localeCompare(String(b.gap.date)));
+  const target = (wantDate && sorted.find(g => g.gap.date === wantDate)) || sorted[0];
+  const gap = target.gap;
+  const matches = target.matches || [];
+
+  if (!matches.length) {
+    return res.json({ sent: 0, held: 0, blocked: 0, candidates: 0, gap, reason: 'No clients are a fit for that gap.' });
+  }
+
+  // Pull full client records for the matched ids so we can route channel-faithful.
+  const clientIds = matches.map(m => m.client?.id).filter(Boolean);
+  const { data: clientRows } = await supabase
+    .from('clients')
+    .select('id, first_name, phone, whatsapp_id, instagram_id, preferred_channel, marketing_consent, marketing_opted_out_at, status')
+    .eq('beautician_id', beauticianId)
+    .in('id', clientIds);
+  const clientById = new Map((clientRows || []).map(c => [c.id, c]));
+
+  const dayLabel = gap.dayLabel || gap.date;
+  const timeLabel = gap.start;
+  let sent = 0, held = 0, blocked = 0;
+
+  for (const match of matches) {
+    const client = clientById.get(match.client?.id);
+    if (!client) { blocked++; continue; }
+    // Never offer where we have no channel to reach them on.
+    if (!reachable(client, beautician)) { blocked++; continue; }
+
+    try {
+      const treatmentName = match.treatment?.name || 'your usual';
+      const message = buildGapMessage(client.first_name, dayLabel, timeLabel, treatmentName, beautician);
+      const channel = client.preferred_channel || 'sms';
+
+      const verdict = await guardedSend({
+        beauticianId,
+        clientId: client.id,
+        messageType: 'gap_fill_offer',
+        channel,
+        client,
+        body: message,
+        send: async () => {
+          const r = await sendOnPreferredChannel({ client, body: message, beautician, messageType: 'gap_fill_offer' });
+          return r.ok;
+        },
+      });
+
+      if (verdict.delivered) sent++;
+      else if (verdict.decision === 'approve') held++;
+      else blocked++;
+    } catch (err) {
+      // One bad candidate must not abort the batch.
+      logger.warn({ err, clientId: client.id }, 'fill-gap: one offer failed');
+      blocked++;
+    }
+  }
 
   return res.json({
-    ok: outcome !== 'blocked',
-    outcome,
-    held: outcome === 'held',
-    sent: outcome === 'sent',
-    reason: outcome === 'blocked' ? (reasons[verdict.reason] || 'Could not send right now.') : null,
+    sent,
+    held,
+    blocked,
+    candidates: matches.length,
+    gap: { date: gap.date, dayLabel, start: gap.start, end: gap.end, duration_minutes: gap.duration_minutes },
   });
 });
 
@@ -557,80 +637,109 @@ async function fromValueCoaching(beauticianId) {
 
   if (error || !data) return [];
 
-  return data
+  const cards = [];
+  for (const row of data) {
+    if (!row.summary) continue;
     // Never surface a "£0" insight; legacy rows from imported £0 treatments can
     // still exist. Matches £0 only when it is a standalone zero amount.
-    .filter(row => row.summary && !/£0(?![.\d])/.test(row.summary))
-    .slice(0, 2)
-    .map(row => {
-      // Pull a pounds figure out of the coaching copy if it has one, so the card
-      // can show the upside and rank on it.
-      const m = String(row.summary).match(/£\s?(\d[\d,]*)/);
-      const impact = m ? parseInt(m[1].replace(/,/g, ''), 10) * 100 : 0;
-      const priority = 25 + Math.min(15, Math.round(impact / 1000));
-      return {
-        id: `coaching-${row.id}`,
-        type: 'value_coaching',
-        icon: '💡',
-        summary: row.summary,
-        action_label: 'Review prices',
-        impact_pence: impact,
-        priority,
-        payload: { ai_action_id: row.id },
-        // No safe one-tap execute (it is judgement, not a single action), so the
-        // primary action navigates to where she edits prices.
-        action: {
-          kind: 'navigate',
-          endpoint: null,
-          method: null,
-          body: null,
-          confirm: null,
-        },
-        link_to: '/treatments',
-      };
+    if (/£0(?![.\d])/.test(row.summary)) continue;
+
+    // A coaching card earns its place only if it names a real pounds figure to
+    // gain. No figure (or under a fiver) is judgement noise, not money, so we
+    // drop it rather than clutter the feed.
+    const m = String(row.summary).match(/£\s?(\d[\d,]*)/);
+    const impact = m ? parseInt(m[1].replace(/,/g, ''), 10) * 100 : 0;
+    if (impact < 500) continue;
+
+    cards.push({
+      id: `coaching-${row.id}`,
+      type: 'value_coaching',
+      icon: '💡',
+      // Keep it to one tight line so a rambling insight can't blow out the card.
+      summary: tidyCoaching(row.summary),
+      action_label: 'Review prices',
+      impact_pence: impact,
+      // Judgement, not a one-tap action. It must rank BELOW everything that books,
+      // fills a gap, or recovers untracked money, so the band tops out low.
+      priority: 20 + Math.min(8, Math.round(impact / 2000)),
+      payload: { ai_action_id: row.id },
+      // No safe one-tap execute, so the primary action navigates to where she
+      // edits prices and treatments.
+      action: {
+        kind: 'navigate',
+        endpoint: null,
+        method: null,
+        body: null,
+        confirm: null,
+      },
+      link_to: '/treatments',
     });
+    // One coaching insight at a time keeps the feed varied, not all-pricing.
+    if (cards.length >= 1) break;
+  }
+  return cards;
 }
 
-async function fromEmptyTomorrow(beauticianId) {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(tomorrow);
-  dayEnd.setDate(dayEnd.getDate() + 1);
+// Trim a coaching insight to a single clean sentence so the card stays scannable.
+function tidyCoaching(text) {
+  let t = String(text).replace(/\s+/g, ' ').trim();
+  // Take the first sentence if it already carries the pounds figure; otherwise
+  // keep up to the first two so the number is never cut off.
+  const parts = t.split(/(?<=[.!?])\s+/);
+  let out = parts[0] || t;
+  if (!/£\s?\d/.test(out) && parts[1]) out = `${parts[0]} ${parts[1]}`;
+  if (out.length > 130) out = `${out.slice(0, 127).trimEnd()}...`;
+  return out;
+}
 
-  const { data, error } = await supabase
-    .from('appointments')
-    .select('id')
-    .eq('beautician_id', beauticianId)
-    .gte('starts_at', tomorrow.toISOString())
-    .lt('starts_at', dayEnd.toISOString())
-    .neq('status', 'cancelled');
+async function fromGapFill(beauticianId) {
+  // Reuse the gap-fill engine's own gap detection + candidate matching. It scans
+  // the next 7 days, finds gaps >=30min, and matches waitlist / overdue-rebook /
+  // dormant clients to them, already deduped against recent contacts. We never
+  // rebuild that here; we just turn the soonest gap-with-candidates into a card
+  // whose ONE TAP offers it to those exact clients.
+  let groups = [];
+  try {
+    groups = await getGapFillSuggestions(beauticianId);
+  } catch (err) {
+    logger.error({ err }, 'fromGapFill: matcher failed');
+    return [];
+  }
+  if (!groups.length) return [];
 
-  if (error) return [];
-  if ((data || []).length > 0) return [];
+  // Soonest gap that actually has matched clients to offer.
+  const withMatches = groups
+    .filter(g => (g.matches || []).length > 0)
+    .sort((a, b) => String(a.gap.date).localeCompare(String(b.gap.date)));
+  if (!withMatches.length) return [];
 
-  // A whole empty day is a real revenue hole; an average day's takings is a fair
-  // stand-in for what filling it could be worth.
-  const dateStr = localDateOnly(tomorrow);
-  const impact = await averageDayTakings(beauticianId);
+  const { gap, matches } = withMatches[0];
+  const n = matches.length;
+  const dayLabel = gap.dayLabel || gap.date;
+  const window = `${gap.start} to ${gap.end}`;
+
+  // Money on the table soon. Value it at the average completed price per client
+  // we could fill the slot with (capped to the number who fit the gap).
+  // A gap is one bookable slot, so its worth is roughly one completed visit.
+  const fillImpact = await averageCompletedPrice(beauticianId);
 
   return [{
-    id: 'gap-fill-tomorrow',
-    type: 'gap_fill_tomorrow',
+    id: `gap-fill-${gap.date}-${gap.start}`,
+    type: 'gap_fill',
     icon: '🌷',
-    summary: 'Tomorrow is quiet. Want Florrie to offer your waitlist a slot?',
+    summary: `${dayLabel} has an open ${window} slot. ${n} client${n === 1 ? '' : 's'} due a visit could take it. Offer it?`,
     action_label: 'Offer it',
-    impact_pence: impact,
-    priority: 45 + Math.min(15, Math.round(impact / 2000)),
-    payload: { date: dateStr },
-    // No bulk waitlist-blast endpoint yet, so this still opens Smart Schedule.
-    // The booking + rebook cards carry the executing actions this pass.
+    impact_pence: fillImpact,
+    // A near-term fillable gap is real money soon. Sit it just under live bookings
+    // and unpriced money, above plain rebook nudges.
+    priority: 60 + Math.min(10, Math.round(fillImpact / 3000)),
+    payload: { date: gap.date },
     action: {
-      kind: 'navigate',
-      endpoint: null,
-      method: null,
-      body: null,
-      confirm: null,
+      kind: 'fill_gap',
+      endpoint: '/api/suggestions/fill-gap',
+      method: 'POST',
+      body: { date: gap.date },
+      confirm: `Offer ${dayLabel} ${window} to ${n} client${n === 1 ? '' : 's'} who ${n === 1 ? 'is' : 'are'} due a visit?`,
     },
     link_to: '/smart-schedule',
   }];
@@ -789,26 +898,6 @@ async function getUnpricedUpcoming(beauticianId, limit = 12) {
     }));
 }
 
-async function averageDayTakings(beauticianId) {
-  // Rough: mean price of the last 30 completed appointments times a typical
-  // 3-booking day. Falls back to a sensible default when there is no history.
-  try {
-    const { data } = await supabase
-      .from('appointments')
-      .select('price_cents')
-      .eq('beautician_id', beauticianId)
-      .eq('status', 'completed')
-      .gt('price_cents', 0)
-      .order('starts_at', { ascending: false })
-      .limit(30);
-    if (!data || !data.length) return 9000;
-    const mean = data.reduce((s, a) => s + (a.price_cents || 0), 0) / data.length;
-    return Math.round(mean * 3);
-  } catch {
-    return 9000;
-  }
-}
-
 async function averageCompletedPrice(beauticianId) {
   try {
     const { data } = await supabase
@@ -824,6 +913,63 @@ async function averageCompletedPrice(beauticianId) {
   } catch {
     return 3500;
   }
+}
+
+// True if there is at least one channel we can actually reach this client on,
+// mirroring how sendOnPreferredChannel decides where a message would go.
+function reachable(client, beautician) {
+  const channel = client?.preferred_channel || 'sms';
+  if (channel === 'instagram' && client?.instagram_id) return true;
+  if (channel === 'whatsapp' && beautician?.whatsapp_phone_id && client?.whatsapp_id) return true;
+  return !!client?.phone; // SMS fallback
+}
+
+// Booking link for this beautician, or null if she has no slug yet.
+function bookingUrlFor(beautician) {
+  return beautician?.booking_slug ? `florrie.ai/book/${beautician.booking_slug}` : null;
+}
+
+// Warm rebook copy. No em dashes, no slop.
+function buildRebookMessage(firstName, beautician) {
+  const businessName = beautician?.business_name || 'us';
+  const url = bookingUrlFor(beautician);
+  const cta = url ? `book your next visit here: ${url}` : `just reply and I'll get you booked in`;
+  return `Hi ${firstName}, it's been a while since we saw you at ${businessName}. We'd love to have you back, ${cta} 💕`;
+}
+
+// Warm gap-fill copy naming the open day, time and their usual treatment.
+function buildGapMessage(firstName, dayLabel, timeLabel, treatmentName, beautician) {
+  const name = firstName?.trim() || 'there';
+  const url = bookingUrlFor(beautician);
+  const cta = url ? `Grab it here: ${url}` : `Reply and I'll pop you in`;
+  return `Hi ${name}, a slot has just opened up on ${dayLabel} at ${timeLabel}, perfect for your ${treatmentName}. ${cta} 💕`;
+}
+
+// Turn a guardedSend verdict into the { ok, outcome, sent, held, reason } shape
+// the single-offer card expects.
+function describeVerdict(verdict, firstName) {
+  let outcome = 'blocked';
+  if (verdict.delivered) outcome = 'sent';
+  else if (verdict.decision === 'approve') outcome = 'held';
+
+  const reasons = {
+    no_client_match: 'No contact details to message on.',
+    opted_out: `${firstName} has opted out of messages.`,
+    quiet_hours: 'Saved for daytime, it is too late to message now.',
+    frequency_cap: `${firstName} was messaged recently, this is on hold.`,
+    monthly_cap: `${firstName} has had a few messages this month, this is on hold.`,
+    allowance_reserved: 'Your message allowance is low, this is on hold.',
+    autonomy_off: 'Rebook offers are switched off in your settings.',
+    send_failed: 'The message could not be sent. Try again shortly.',
+  };
+
+  return {
+    ok: outcome !== 'blocked',
+    outcome,
+    held: outcome === 'held',
+    sent: outcome === 'sent',
+    reason: outcome === 'blocked' ? (reasons[verdict.reason] || 'Could not send right now.') : null,
+  };
 }
 
 function formatShortDate(iso) {
@@ -845,10 +991,5 @@ function isoDateOnly(value) {
   } catch { return ''; }
 }
 
-// Local YYYY-MM-DD for a Date, never via toISOString (which shifts the day).
-function localDateOnly(d) {
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
 
 export default router;
