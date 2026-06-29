@@ -412,13 +412,13 @@ function trialWarning(b) {
       But the AI features will pause until you pick a plan.
     </p>
     <p style="margin:0 0 16px;color:#6b6560;font-size:15px;line-height:1.6">
-      Plans start at £19/month. That's less than one brow appointment —
+      Plans start at £29/month. That's less than one brow appointment —
       and it saves you 8+ hours a week.
     </p>
     ${ctaButton('Choose a plan', 'https://florrie.ai/settings#billing', b.brand_color || '#92405E')}
   `);
 
-  const text = `Hey ${name}, your Florrie trial ends in 3 days. Your data is safe — but AI features will pause. Plans start at £19/month. Choose a plan: https://florrie.ai/settings#billing`;
+  const text = `Hey ${name}, your Florrie trial ends in 3 days. Your data is safe — but AI features will pause. Plans start at £29/month. Choose a plan: https://florrie.ai/settings#billing`;
 
   return { html, text };
 }
