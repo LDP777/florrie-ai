@@ -7,6 +7,7 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import { TREATMENT_PALETTE, treatmentColor } from '../lib/treatmentColors.js';
 import ErrorCard from '../components/ErrorCard.jsx';
+import { API_BASE } from '../lib/config.js';
 
 /**
  * Treatments - manage treatment menu.
@@ -46,6 +47,50 @@ export default function Treatments() {
     color: null,
   };
   const [form, setForm] = useState(blank);
+  // "Preview as a new client" modal: loads the linked consultation form's real
+  // questions via the same public endpoint the booking page uses, so Ellie sees
+  // exactly what a new client gets.
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState(null);
+  const [previewForm, setPreviewForm] = useState(null); // { name, consent_text, consultation_form_fields[] }
+
+  async function openPreview() {
+    setPreviewOpen(true);
+    setPreviewError(null);
+    setPreviewForm(null);
+    const slug = beautician?.booking_slug;
+    const formId = form.consultation_form_id;
+    if (!slug || !formId) {
+      setPreviewError('Add a booking link in Settings, then choose a form, to preview it.');
+      return;
+    }
+    setPreviewLoading(true);
+    try {
+      // Identical call to BookingPage.jsx (public, slug-scoped). Faithful questions.
+      const res = await fetch(`${API_BASE}/api/booking/${slug}/consultation-form/${formId}`);
+      const data = await res.json();
+      if (res.ok && data.form) {
+        setPreviewForm(data.form);
+      } else {
+        setPreviewError("Couldn't load this form. Check it's active in Form Builder.");
+      }
+    } catch (err) {
+      logger.error('Preview form error:', err);
+      setPreviewError("Couldn't load this form right now.");
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  // Map stored fields to the same question shape BookingPage renders.
+  const previewQuestions = (previewForm?.consultation_form_fields || []).map(f => ({
+    key: f.id,
+    label: f.label,
+    type: f.type,
+    options: f.options || [],
+    required: f.required,
+  }));
 
   useEffect(() => {
     if (beautician) loadTreatments();
@@ -332,6 +377,16 @@ export default function Treatments() {
                   </span>
                 </div>
               )}
+              {form.requires_consultation && form.consultation_form_id && (
+                <button
+                  type="button"
+                  onClick={openPreview}
+                  style={styles.previewBtn}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>visibility</span>
+                  Preview as a new client
+                </button>
+              )}
             </div>
             <div style={styles.formGroup}>
               <label style={styles.formLabel}>Patch test</label>
@@ -488,6 +543,119 @@ export default function Treatments() {
           )}
         </>
       )}
+
+      {/* Preview as a new client: read-only render of the linked form's real
+          questions, mirroring the booking page. Non-submitting, preview only. */}
+      {previewOpen && (
+        <div style={styles.previewOverlay} onClick={() => setPreviewOpen(false)}>
+          <div style={styles.previewSheet} onClick={e => e.stopPropagation()}>
+            <div style={styles.previewHeader}>
+              <div>
+                <h3 style={styles.previewTitle}>This is what a new client sees</h3>
+                <p style={styles.previewSub}>
+                  Returning clients skip this. They are never asked again.
+                </p>
+              </div>
+              <button type="button" onClick={() => setPreviewOpen(false)} aria-label="Close" style={styles.previewClose}>
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div style={styles.previewBody}>
+              {previewLoading && (
+                <p style={styles.previewMuted}>Loading the form...</p>
+              )}
+              {previewError && (
+                <p style={styles.previewMuted}>{previewError}</p>
+              )}
+              {previewForm && !previewLoading && !previewError && (
+                <>
+                  <h4 style={styles.previewFormName}>{previewForm.name || 'Consultation form'}</h4>
+                  {previewForm.consent_text && (
+                    <p style={styles.previewConsent}>{previewForm.consent_text}</p>
+                  )}
+                  {previewQuestions.length === 0 && (
+                    <p style={styles.previewMuted}>This form has no questions yet. Add some in Form Builder.</p>
+                  )}
+                  {previewQuestions.map(q => (
+                    <div key={q.key} style={{ marginBottom: 16 }}>
+                      <label style={styles.previewQLabel}>
+                        {q.label}{q.required && <span style={{ color: 'var(--danger, #DC2626)' }}> *</span>}
+                      </label>
+
+                      {/* Yes / No */}
+                      {q.type === 'yes_no' && (
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          {['Yes', 'No'].map(opt => (
+                            <span key={opt} style={styles.previewChoice}>{opt}</span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Single select */}
+                      {q.type === 'single_select' && q.options?.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          {q.options.map(opt => (
+                            <span key={opt} style={styles.previewChoice}>{opt}</span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Multi select */}
+                      {q.type === 'multi_select' && q.options?.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                          {q.options.map(opt => (
+                            <span key={opt} style={styles.previewChoice}>{opt}</span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Checkbox */}
+                      {q.type === 'checkbox' && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--text-secondary)' }}>
+                          <span style={styles.previewCheckbox} />
+                          I confirm
+                        </span>
+                      )}
+
+                      {/* Text block */}
+                      {q.type === 'text_block' && (
+                        <div style={{ ...styles.previewInputGhost, minHeight: 64 }}>
+                          <span style={styles.previewGhostText}>Type here...</span>
+                        </div>
+                      )}
+
+                      {/* Signature */}
+                      {q.type === 'signature' && (
+                        <div>
+                          <div style={styles.previewInputGhost}>
+                            <span style={{ ...styles.previewGhostText, fontFamily: "'Brush Script MT', 'Segoe Script', cursive", fontSize: 18 }}>
+                              Type your full name to sign
+                            </span>
+                          </div>
+                          <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>Typing their name here counts as their signature.</p>
+                        </div>
+                      )}
+
+                      {/* Default: text input */}
+                      {(q.type === 'text' || (!['yes_no', 'single_select', 'multi_select', 'checkbox', 'text_block', 'signature'].includes(q.type))) && (
+                        <div style={styles.previewInputGhost}>
+                          <span style={styles.previewGhostText}>Type here...</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+
+            <div style={styles.previewFooter}>
+              <span style={styles.previewMutedSmall}>Preview only. Nothing is sent or saved.</span>
+              <button type="button" onClick={() => setPreviewOpen(false)} style={styles.previewDoneBtn}>Done</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -587,5 +755,74 @@ const styles = {
   loadingText: { textAlign: 'center', color: 'var(--text-muted)', padding: 40, fontSize: 14 },
   emptyState: { textAlign: 'center', padding: '40px 20px' },
   emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 6px' },
-  emptyDesc: { fontSize: 13, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }
+  emptyDesc: { fontSize: 13, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 },
+  previewBtn: {
+    marginTop: 8, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    gap: 6, padding: '9px 12px', borderRadius: 8,
+    border: '1.5px solid var(--accent)', background: 'transparent', color: 'var(--accent)',
+    fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit'
+  },
+  previewOverlay: {
+    position: 'fixed', inset: 0, zIndex: 1000,
+    background: 'rgba(29,27,25,0.45)', display: 'flex',
+    alignItems: 'flex-end', justifyContent: 'center',
+    animation: 'fadeIn 0.2s ease'
+  },
+  previewSheet: {
+    width: '100%', maxWidth: 480, maxHeight: '88vh',
+    background: 'var(--bg, #fef8f4)', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    display: 'flex', flexDirection: 'column', overflow: 'hidden',
+    boxShadow: '0 -8px 40px rgba(0,0,0,0.18)',
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)"
+  },
+  previewHeader: {
+    display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+    gap: 12, padding: '18px 18px 14px', borderBottom: '1px solid var(--border-light)'
+  },
+  previewTitle: {
+    margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text-primary, #1d1b19)',
+    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)"
+  },
+  previewSub: { margin: '4px 0 0', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 },
+  previewClose: {
+    flexShrink: 0, width: 32, height: 32, borderRadius: '50%', border: 'none',
+    background: 'var(--border-light)', color: 'var(--text-secondary)',
+    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0
+  },
+  previewBody: { padding: '16px 18px', overflowY: 'auto', flex: 1 },
+  previewFormName: {
+    margin: '0 0 12px', fontSize: 15, fontWeight: 700, color: 'var(--accent)',
+    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)"
+  },
+  previewConsent: {
+    fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.5,
+    padding: '10px 12px', background: 'var(--bg-card, #fff)', borderRadius: 8,
+    border: '1px solid var(--border-light)'
+  },
+  previewQLabel: { display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-primary, #444)', marginBottom: 6 },
+  previewChoice: {
+    padding: '8px 14px', borderRadius: 8, background: 'var(--bg-card, #fff)',
+    border: '1px solid var(--border)', fontSize: 13, color: 'var(--text-secondary)'
+  },
+  previewCheckbox: {
+    width: 18, height: 18, borderRadius: 4, border: '1.5px solid var(--border)',
+    background: 'var(--bg-card, #fff)', display: 'inline-block', flexShrink: 0
+  },
+  previewInputGhost: {
+    width: '100%', padding: '10px 12px', borderRadius: 8,
+    border: '1.5px solid var(--border)', background: 'var(--bg-card, #fff)',
+    boxSizing: 'border-box', display: 'flex', alignItems: 'flex-start'
+  },
+  previewGhostText: { fontSize: 14, color: 'var(--text-muted, #a8a29e)' },
+  previewMuted: { fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0' },
+  previewMutedSmall: { fontSize: 11, color: 'var(--text-muted)' },
+  previewFooter: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+    padding: '14px 18px', borderTop: '1px solid var(--border-light)'
+  },
+  previewDoneBtn: {
+    padding: '10px 22px', borderRadius: 10, border: 'none',
+    background: 'var(--accent)', color: '#fff', fontSize: 14, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'inherit'
+  },
 };
