@@ -1141,7 +1141,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     try {
       const d = new Date();
       d.setDate(d.getDate() + rebookWeeks * 7);
-      const reminderDate = formatDate(d); // local date — avoids the BST day-shift
+      const reminderDate = formatDate(d); // local date, avoids the BST day-shift
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
       const res = await fetch(`${API_BASE}/api/features/rebook-reminders`, {
         method: 'POST',
@@ -1458,12 +1458,12 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     </div>
   );
 }
-// LOCAL calendar date as YYYY-MM-DD — never toISOString(), which converts to UTC
+// LOCAL calendar date as YYYY-MM-DD, never toISOString(), which converts to UTC
 // and, under British Summer Time (UTC+1), rolls every date back to the previous
 // day. That's the bug that "shifted the whole calendar": blocking a day or
 // grouping appointments by formatDate() landed everything on the day before.
 // The rest of the diary reads stored times as wall-clock (see wallMinutes), and
-// BookingPage/HoursExceptions already build their date keys from local parts —
+// BookingPage/HoursExceptions already build their date keys from local parts,
 // this keeps day-grouping consistent with both.
 function formatDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -1799,18 +1799,9 @@ function BlockDetailSheet({ block, onDelete, onClose }) {
 }
 // NewAppointmentModal - manual entry from the day calendar's plus button.
 // Search an existing client or quick-create one (name + optional phone),
-// pick a treatment (price autofills but stays editable), any 15-min time
-// across the full 06:00-23:00 day. "Send confirmation message" defaults
+// pick a treatment (price autofills but stays editable), and any time to the
+// minute via a native time input. "Send confirmation message" defaults
 // OFF so bookings mirrored from an old system never double-message clients.
-const TIME_OPTIONS = (() => {
-  const opts = [];
-  for (let h = START_HOUR; h < END_HOUR; h++) {
-    for (let m = 0; m < 60; m += 15) {
-      opts.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-    }
-  }
-  return opts;
-})();
 function NewAppointmentModal({ defaultDate, existingAppointments = [], onClose, onSaved }) {
   const [treatments, setTreatments] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]); // one or more treatments
@@ -2080,9 +2071,18 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], onClose, 
           </div>
           <div style={{ flex: 1 }}>
             <span style={labelStyle}>Time</span>
-            <select value={time} onChange={e => setTime(e.target.value)} style={inputStyle}>
-              {TIME_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
+            {/* Native time input: on iOS this is the time wheel, so Ellie can set
+                ANY minute (08:30, 14:25, 16:55). step=60 = minute granularity.
+                The value is still the same "HH:MM" wall-clock string the create
+                logic and clash check already expect, so nothing downstream
+                changes and there is no British Summer Time day-shift. */}
+            <input
+              type="time"
+              step={60}
+              value={time}
+              onChange={e => setTime(e.target.value)}
+              style={inputStyle}
+            />
           </div>
         </div>
         {/* Duration + price */}
