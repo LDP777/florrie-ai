@@ -1524,7 +1524,7 @@ const styles = {
   weekDaySectionToday: { boxShadow: `0 0 0 1.5px ${COLORS.primary}, 0 10px 30px rgba(146, 64, 94, 0.10)` },
   weekDayHead: { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' },
   weekDayHeadLeft: { display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 },
-  weekDayDow: { fontSize: 15, fontWeight: 700 },
+  weekDayDow: { fontSize: 17, fontWeight: 600, fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
   weekDayDate: { fontSize: 12, fontWeight: 500, color: COLORS.stone400 },
   weekTodayTag: { fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#fff', background: COLORS.primary, padding: '2px 6px', borderRadius: 5 },
   weekDayStats: { display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 },
