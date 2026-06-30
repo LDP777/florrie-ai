@@ -28,6 +28,7 @@ const Button = ({
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
+    minHeight: 44,
     gap: 8,
     position: 'relative',
     opacity: disabled ? 0.6 : 1,

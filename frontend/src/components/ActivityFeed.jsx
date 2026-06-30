@@ -184,7 +184,7 @@ export default function ActivityFeed({ limit = 50 }) {
         : groups.earlier.length > 0 && (
             <button
               onClick={() => setShowEarlier(true)}
-              style={{ width: '100%', padding: '11px 0', marginTop: 4, background: 'none', border: 'none', borderTop: '1px solid var(--border-light, #F0E8EC)', color: 'var(--accent, #92405e)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+              style={{ width: '100%', minHeight: 44, padding: '11px 0', marginTop: 4, background: 'none', border: 'none', borderTop: '1px solid var(--border-light, #F0E8EC)', color: 'var(--accent, #92405e)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
             >
               Show {groups.earlier.length} earlier
             </button>
@@ -298,6 +298,7 @@ const F = {
     display: 'grid',
     gridTemplateColumns: '24px 1fr auto 14px',
     alignItems: 'flex-start',
+    minHeight: 44,
     gap: 10,
     padding: '10px 6px',
     background: 'none',

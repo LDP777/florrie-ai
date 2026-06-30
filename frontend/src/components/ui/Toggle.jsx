@@ -12,6 +12,7 @@ const Toggle = ({ checked = false, onChange, label, disabled = false }) => {
   const toggleStyle = {
     display: 'flex',
     alignItems: 'center',
+    minHeight: 44,
     gap: 12,
     cursor: disabled ? 'not-allowed' : 'pointer',
     opacity: disabled ? 0.6 : 1,
