@@ -275,8 +275,14 @@ function TodaySummary({ beautician, onNav }) {
       const h = { Authorization: `Bearer ${token}` };
 
       const now   = new Date();
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-      const end   = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
+      // Local wall-clock dates (YYYY-MM-DD), never toISOString() , which shifts
+      // to UTC and in British Summer Time buckets late-evening bookings onto the
+      // wrong day, making Today's takings / potential / next appointment wrong
+      // around the day boundary. The /appointments from/to filter is a date.
+      const pad   = n => String(n).padStart(2, '0');
+      const ymd   = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      const start = ymd(now);
+      const end   = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
 
       try {
         const [apptRes, msgRes] = await Promise.all([
