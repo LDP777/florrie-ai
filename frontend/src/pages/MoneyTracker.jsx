@@ -573,7 +573,7 @@ export default function MoneyTracker() {
       }}>
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.85 }}>Revenue today</div>
-          <div style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1, marginTop: 2 }}>{fmt(Math.round(animatedToday))}</div>
+          <div style={{ fontSize: 34, fontWeight: 600, lineHeight: 1.1, marginTop: 2, fontFamily: "'Playfair Display', Georgia, serif", fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em' }}>{fmt(Math.round(animatedToday))}</div>
           {todayRevenue === 0 && (
             <div style={{ fontSize: 11.5, opacity: 0.85, marginTop: 4, maxWidth: 220 }}>
               Tap a client and Mark complete to log their takings here.
@@ -1404,7 +1404,7 @@ const S = {
   },
   reportsRow: { display: 'flex', gap: 12, justifyContent: 'space-between' },
   reportStat: { display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0 },
-  reportValue: { fontSize: 24, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.1 },
+  reportValue: { fontSize: 25, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.1, fontFamily: "'Playfair Display', Georgia, serif", fontVariantNumeric: 'tabular-nums' },
   reportLabel: { fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   reportInsight: {
     marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border-light)',
@@ -1445,9 +1445,10 @@ const S = {
     fontWeight: 700, opacity: 0.8,
   },
   heroValue: {
-    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
-    fontSize: 36, fontStyle: 'normal', fontWeight: 700,
-    lineHeight: 1.15, margin: '0 0 8px', letterSpacing: '-0.02em',
+    fontFamily: "'Playfair Display', Georgia, serif",
+    fontSize: 40, fontStyle: 'normal', fontWeight: 600,
+    lineHeight: 1.1, margin: '0 0 8px', letterSpacing: '-0.02em',
+    fontVariantNumeric: 'tabular-nums',
   },
   changeBadge: {
     display: 'inline-block', padding: '3px 10px', borderRadius: 12,
