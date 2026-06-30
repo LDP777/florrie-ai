@@ -1165,6 +1165,7 @@ const styles = {
   title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
   subtitle: { fontSize: 13, color: 'var(--accent, #C76B8A)', margin: 0, fontWeight: 500 },
   uploadBtn: {
+    minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     padding: '10px 18px',
     borderRadius: 10,
     border: 'none',
@@ -1182,6 +1183,7 @@ const styles = {
     marginBottom: 16
   },
   tab: {
+    minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     padding: '10px 0',
     background: 'none',
     border: 'none',
@@ -1212,6 +1214,7 @@ const styles = {
   composeArea: { display: 'flex', flexDirection: 'column', gap: 12 },
   composeTypeRow: { display: 'flex', flexWrap: 'wrap', gap: 6 },
   composeTypeBtn: {
+    minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     padding: '6px 12px',
     borderRadius: 8,
     border: 'none',
@@ -1244,6 +1247,7 @@ const styles = {
     boxSizing: 'border-box',
   },
   shuffleBtn: {
+    minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     alignSelf: 'flex-start',
     padding: '6px 14px',
     borderRadius: 8,
@@ -1385,6 +1389,7 @@ const styles = {
   // Gallery
   galleryHeaderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
   galleryAddBtn: {
+    minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     padding: '8px 14px', borderRadius: 8, border: 'none',
     background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 12, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
@@ -1435,7 +1440,7 @@ const styles = {
   // AI suggestions
   aiSuggestionsSection: { marginBottom: 4 },
   aiSuggestionsHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  refreshBtn: { padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border, #EDE9E4)', background: 'transparent', cursor: 'pointer', fontSize: 14, color: 'var(--text-muted, #7a7470)', fontFamily: 'inherit' },
+  refreshBtn: { minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border, #EDE9E4)', background: 'transparent', cursor: 'pointer', fontSize: 14, color: 'var(--text-muted, #7a7470)', fontFamily: 'inherit' },
   aiLoadingCard: { padding: 14, borderRadius: 12, background: 'linear-gradient(135deg, #FBF0F3, #F3EEFF)', textAlign: 'center' },
   aiSuggestionCard: {
     background: 'linear-gradient(135deg, #FBF0F3, #F3EEFF)',
@@ -1450,6 +1455,7 @@ const styles = {
   // Streams
   streamSelector: { display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 12, marginBottom: 8, scrollBehavior: 'smooth' },
   streamPill: {
+    minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     padding: '6px 12px',
     borderRadius: 16,
     border: 'none',
@@ -1513,6 +1519,7 @@ const styles = {
     marginBottom: 12,
   },
   promptActionBtn: {
+    minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     padding: '6px 12px',
     borderRadius: 8,
     border: 'none',
@@ -1534,6 +1541,7 @@ const styles = {
     padding: '0 0 8px',
   },
   calendarNav: {
+    minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     background: 'transparent',
     border: 'none',
     fontSize: 16,
