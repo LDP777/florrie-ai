@@ -525,7 +525,7 @@ const SC = {
   featuredSummary: { fontSize: 13, lineHeight: 1.45, color: '#5c5450', fontWeight: 500, margin: '0 0 12px' },
   featuredActions: { display: 'flex', gap: 8 },
   featuredBtn: {
-    flex: 1, padding: '11px 8px', borderRadius: 12, border: 'none', fontSize: 13, fontWeight: 700,
+    flex: 1, padding: '11px 8px', minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 12, border: 'none', fontSize: 13, fontWeight: 700,
     fontFamily: 'inherit', cursor: 'pointer', WebkitTapHighlightColor: 'transparent',
   },
   featuredBtnPrimary: { background: 'var(--accent)', color: '#fff' },
@@ -553,7 +553,7 @@ const SC = {
   summary: { fontSize: 13, lineHeight: 1.4, color: '#1d1b19', fontWeight: 500, margin: '4px 0 12px', minHeight: 36 },
   actions: { display: 'flex', gap: 6, marginTop: 'auto' },
   btn: {
-    flex: 1, padding: '8px 6px', borderRadius: 10, border: 'none', fontSize: 12, fontWeight: 600,
+    flex: 1, padding: '8px 6px', minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 10, border: 'none', fontSize: 12, fontWeight: 600,
     fontFamily: 'inherit', cursor: 'pointer', WebkitTapHighlightColor: 'transparent', transition: 'transform 0.1s ease',
   },
   btnYes: { background: 'var(--accent)', color: '#fff' },

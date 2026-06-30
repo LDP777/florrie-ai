@@ -964,7 +964,7 @@ const S = {
   filterRow: { display: 'flex', gap: 8, marginBottom: 4, padding: '0 18px' },
   filterChip: {
     display: 'inline-flex', alignItems: 'center', gap: 6,
-    padding: '8px 16px', borderRadius: 999,
+    padding: '8px 16px', minHeight: 44, borderRadius: 999,
     border: '1px solid var(--border-light, #F0ECE8)',
     background: 'var(--bg-card, #fff)', color: 'var(--text-secondary, #867277)',
     fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
@@ -979,7 +979,7 @@ const S = {
 
   headerWrap: { padding: '0 18px' },
   caughtUpBtn: {
-    marginTop: 4, padding: '10px 18px',
+    marginTop: 4, padding: '10px 18px', minHeight: 44,
     background: 'var(--bg-card, #fff)', color: 'var(--accent, #92405e)',
     border: '1px solid var(--border, #E8E4E0)', borderRadius: 999,
     fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
@@ -1027,7 +1027,7 @@ const S = {
   },
   rowMenuBtn: {
     position: 'absolute', top: '50%', transform: 'translateY(-50%)', right: 8,
-    width: 30, height: 30, borderRadius: 15,
+    width: 44, height: 44, borderRadius: 22,
     background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted, #C4BBB6)',
     display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit',
     transition: 'color 0.15s ease, background 0.15s ease', zIndex: 3,
@@ -1131,7 +1131,7 @@ const S = {
   },
   backBtn: {
     background: 'none', border: 'none', color: 'var(--accent, #92405e)', padding: 4, cursor: 'pointer',
-    fontFamily: 'inherit', display: 'flex', alignItems: 'center',
+    fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 44, minHeight: 44,
   },
   convoAvatar: {
     width: 36, height: 36, borderRadius: 18,
@@ -1147,7 +1147,7 @@ const S = {
   },
   viewProfileBtn: {
     background: 'none', border: 'none', color: 'var(--accent, #92405e)', fontSize: 11, fontWeight: 600,
-    padding: 0, cursor: 'pointer', fontFamily: 'inherit', alignSelf: 'flex-start', textDecoration: 'underline',
+    padding: 0, minHeight: 44, display: 'inline-flex', alignItems: 'center', cursor: 'pointer', fontFamily: 'inherit', alignSelf: 'flex-start', textDecoration: 'underline',
   },
 
   scroller: { flex: 1, overflowY: 'auto', padding: '12px 14px 8px', display: 'flex', flexDirection: 'column', gap: 10 },
@@ -1178,14 +1178,14 @@ const S = {
   },
   channelToggle: { display: 'flex', gap: 6, overflowX: 'auto' },
   channelPill: {
-    padding: '6px 12px', borderRadius: 999, border: '1px solid', fontSize: 12, fontWeight: 600,
+    padding: '6px 12px', minHeight: 44, borderRadius: 999, border: '1px solid', fontSize: 12, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 5,
     whiteSpace: 'nowrap', flexShrink: 0,
   },
   suggestionRow: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 },
   suggestionChip: {
     background: 'var(--accent-wash, #fdeef3)', border: '1px solid rgba(146,64,94,0.16)', color: 'var(--accent, #92405e)',
-    borderRadius: 999, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+    borderRadius: 999, padding: '13px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     lineHeight: 1.2, maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
     transition: 'background 0.15s ease',
   },
@@ -1197,7 +1197,7 @@ const S = {
     transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
   },
   sendBtn: {
-    width: 38, height: 38, borderRadius: 19, border: 'none', background: 'var(--accent, #92405e)', color: '#fff',
+    width: 44, height: 44, borderRadius: 22, border: 'none', background: 'var(--accent, #92405e)', color: '#fff',
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
     boxShadow: '0 2px 6px rgba(146,64,94,0.24)', transition: 'opacity 0.15s ease, transform 0.1s ease',
   },
