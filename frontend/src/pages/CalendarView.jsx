@@ -399,10 +399,12 @@ export default function CalendarView({ initialView } = {}) {
           <button onClick={() => navigateDate(1)} style={styles.navBtn}>›</button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          <div style={styles.viewToggle}>
-            <button onClick={() => setView('day')} style={{ ...styles.toggleBtn, background: view === 'day' ? COLORS.primary : 'transparent', color: view === 'day' ? '#fff' : COLORS.stone400 }}>Day</button>
-            <button onClick={() => setView('week')} style={{ ...styles.toggleBtn, background: view === 'week' ? COLORS.primary : 'transparent', color: view === 'week' ? '#fff' : COLORS.stone400 }}>Week</button>
-          </div>
+          {!initialView && (
+            <div style={styles.viewToggle}>
+              <button onClick={() => setView('day')} style={{ ...styles.toggleBtn, background: view === 'day' ? COLORS.primary : 'transparent', color: view === 'day' ? '#fff' : COLORS.stone400 }}>Day</button>
+              <button onClick={() => setView('week')} style={{ ...styles.toggleBtn, background: view === 'week' ? COLORS.primary : 'transparent', color: view === 'week' ? '#fff' : COLORS.stone400 }}>Week</button>
+            </div>
+          )}
           <button
             onClick={() => navigate('/calendar/full')}
             title="Open full calendar"
@@ -1475,7 +1477,7 @@ function getWeekEnd(d) { const e = getWeekStart(d); e.setDate(e.getDate() + 6); 
 function getNowPosition() { const now = new Date(); return ((now.getHours() * 60 + now.getMinutes() - START_HOUR * 60) / 60) * HOUR_HEIGHT; }
 const styles = {
   page: { minHeight: '100vh', background: 'var(--bg)', fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)", padding: '0 16px 120px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)', animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' },
-  header: { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 52px)', paddingBottom: 16 },
+  header: { paddingTop: 8, paddingBottom: 16 },
   headerTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   headerCenter: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 },
   dateTitle: { fontSize: 17, fontWeight: 600, margin: 0, textAlign: 'center', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
