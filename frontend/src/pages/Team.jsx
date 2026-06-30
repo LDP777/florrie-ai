@@ -364,7 +364,7 @@ function SkeletonCard() {
 }
 
 const styles = {
-  page: { minHeight: '100vh', background: 'var(--bg, #FAF8F5)', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)' },
+  page: { minHeight: '100vh', background: 'var(--bg, #FAF8F5)', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 'calc(env(safe-area-inset-top, 0px) + 52px)', paddingBottom: 12 },
   title: { fontSize: 22, fontWeight: 700, margin: 0 },
   subtitle: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', margin: '4px 0 0' },

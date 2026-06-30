@@ -664,7 +664,7 @@ const styles = {
   page: {
     minHeight: '100vh', background: 'var(--bg)',
     fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)",
-    padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)',
+    padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)',
     animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
   },
   header: {

@@ -587,7 +587,7 @@ const styles = {
   page: {
     minHeight: '100vh', background: 'var(--bg)',
     fontFamily: '"DM Sans", -apple-system, sans-serif',
-    padding: '0 16px 40px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)',
+    padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)',
   },
   header: { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 52px)', paddingBottom: 8 },
   title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
