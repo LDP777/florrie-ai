@@ -29,13 +29,11 @@ export async function logAssumedTakings(beauticianId, appt) {
     beautician_id: beauticianId,
     appointment_id: appt.id,
     client_id: appt.client_id || null,
-    treatment_id: appt.treatment_id || null,
     amount_cents: takings,
     type: 'payment',
     status: 'completed',
     payment_method: null,
     tax_year: getTaxYear(new Date(appt.starts_at || Date.now())),
-    description: 'Appointment takings',
   });
   if (error) logger.error({ err: error, appointmentId: appt.id }, 'logAssumedTakings insert failed');
 }
