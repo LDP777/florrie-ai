@@ -455,7 +455,7 @@ function PrintStyles() {
 
 /* ============================ STYLES ============================ */
 const S = {
-  page: { minHeight: '100vh', background: C.bg, color: C.text, fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)", padding: '16px clamp(12px, 4vw, 40px) 60px', boxSizing: 'border-box' },
+  page: { minHeight: '100vh', background: C.bg, color: C.text, fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)", padding: 'calc(env(safe-area-inset-top, 0px) + 16px) clamp(12px, 4vw, 40px) calc(env(safe-area-inset-bottom, 0px) + 96px)', boxSizing: 'border-box' },
 
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 14 },
   headerLeft: { display: 'flex', alignItems: 'center', gap: 10 },

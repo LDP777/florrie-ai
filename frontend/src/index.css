@@ -82,3 +82,17 @@ body {
   box-shadow: 0 0 0 3px rgba(199, 107, 138, 0.15);
   border-radius: 8px;
 }
+
+/* ===== Florrie design tokens (UX blueprint 2026-06-30) ===== */
+:root {
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px;
+  --space-6:24px; --space-8:32px; --space-10:40px; --space-12:48px; --space-16:64px;
+  --radius-xs:6px; --radius-sm:10px; --radius-md:16px; --radius-lg:22px; --radius-xl:28px; --radius-pill:999px;
+  --tap-min:44px; --tap-comfort:48px; --tap-gap:8px;
+  --elev-1:0 1px 2px rgba(92,40,46,.06); --elev-2:0 4px 16px rgba(92,40,46,.08); --elev-3:0 -8px 32px rgba(92,40,46,.12);
+  --z-sticky-cta:20; --z-header:30; --z-bottom-nav:40; --z-scrim:50; --z-sheet:60; --z-toast:70;
+  --nav-height:56px; --header-height:52px;
+  --safe-top:env(safe-area-inset-top,0px); --safe-bottom:env(safe-area-inset-bottom,0px);
+  --scroll-pad-bottom:calc(var(--nav-height) + var(--safe-bottom) + 16px);
+  --dur-fast:140ms; --dur-base:220ms; --dur-slow:320ms; --ease-out:cubic-bezier(.22,1,.36,1);
+}
