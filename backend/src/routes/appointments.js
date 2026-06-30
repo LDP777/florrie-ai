@@ -7,6 +7,7 @@ import { triggerSequence } from '../services/email-sequences.js';
 import { scheduleReviewRequest } from '../services/review-requests.js';
 import { awardLoyaltyPoints } from '../services/loyalty.js';
 import { chargePolicyFee, chargeRemainingBalance } from '../services/policy-fees.js';
+import { logAssumedTakings } from '../lib/takings.js';
 import logger from '../lib/logger.js';
 import { parsePagination, buildPaginationMeta, handleQueryError } from '../lib/queries.js';
 import { completeDaySchema, manualAppointmentSchema } from '../lib/schemas.js';
@@ -451,6 +452,13 @@ router.patch('/:id', requireAuth, async (req, res) => {
   // Fire-and-forget: award loyalty points when marked completed (idempotent)
   if (req.body.status === 'completed') {
     awardLoyaltyPoints(req.beautician.id, data).catch(() => {});
+    // Log takings so the Money tab counts this as income, exactly like the
+    // auto-complete sweep and the "All done" batch. Without this, tapping a
+    // single appointment complete recorded NO income, so the Money page read
+    // far too low. Guarded + null-method so it never double-logs and the
+    // no_show reversal above still clears it.
+    logAssumedTakings(req.beautician.id, data).catch(err =>
+      logger.error({ err, appointmentId: data.id }, 'manual complete takings log failed'));
   }
 
   if (req.body.status === 'no_show') {
