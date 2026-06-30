@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useBeautician, supabase, updateRow, insertRow } from '../lib/supabase.js'
 import { API_BASE } from '../lib/config.js';
@@ -1639,9 +1640,9 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
       end_time: type === 'closed' ? undefined : endTime,
     });
   }
-  const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'flex-end' };
+  const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' };
   const sheet = { background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif', maxHeight: '90vh', overflowY: 'auto' };
-  return (
+  return createPortal(
     <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={sheet}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -1737,7 +1738,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
         </button>
       </div>
     </div>
-  );
+  , document.body);
 }
 // BlockDetailSheet - shows an existing block + remove option
 function BlockDetailSheet({ block, onDelete, onClose }) {
@@ -1746,9 +1747,9 @@ function BlockDetailSheet({ block, onDelete, onClose }) {
   const timeRange = isClosed
     ? 'All day'
     : `${block.start_time || block.custom_start || '?'} → ${block.end_time || block.custom_end || '?'}`;
-  const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50, display: 'flex', alignItems: 'flex-end' };
+  const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' };
   const sheet = { background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif' };
-  return (
+  return createPortal(
     <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={sheet}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -1797,7 +1798,7 @@ function BlockDetailSheet({ block, onDelete, onClose }) {
         )}
       </div>
     </div>
-  );
+  , document.body);
 }
 // NewAppointmentModal - manual entry from the day calendar's plus button.
 // Search an existing client or quick-create one (name + optional phone),
@@ -1943,7 +1944,7 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], onClose, 
       return newStart < aEnd && aStart < newEnd;
     }) || null;
   })();
-  const overlay = { position: 'fixed', left: 0, right: 0, top: vp ? vp.top : 0, height: vp ? vp.height : '100%', background: 'rgba(0,0,0,0.4)', zIndex: 900, display: 'flex', alignItems: 'flex-end' };
+  const overlay = { position: 'fixed', left: 0, right: 0, top: vp ? vp.top : 0, height: vp ? vp.height : '100%', background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' };
   // The sheet is a flex column: a fixed header, a scrollable body, and a STICKY
   // footer that always holds Cancel + the primary action. The body scrolls
   // under the keyboard; the footer never moves, so the Add button is always one
@@ -1954,7 +1955,7 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], onClose, 
   const sheetFooter = { flexShrink: 0, padding: '12px 20px calc(14px + env(safe-area-inset-bottom))', borderTop: `1px solid ${COLORS.outlineVariant}55`, background: 'var(--bg-card)', boxShadow: '0 -4px 16px rgba(0,0,0,0.06)' };
   const labelStyle = { fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' };
   const inputStyle = { display: 'block', width: '100%', marginTop: 4, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: 'var(--bg-card)', color: COLORS.onSurface };
-  return (
+  return createPortal(
     <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={sheet}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '18px 20px 12px', flexShrink: 0 }}>
@@ -2165,5 +2166,5 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], onClose, 
         </div>
       </div>
     </div>
-  );
+  , document.body);
 }
