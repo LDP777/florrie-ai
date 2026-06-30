@@ -967,7 +967,7 @@ const styles = {
     margin: '0 auto',
     color: 'var(--text-primary, #2D2A26)',
   },
-  header: { paddingTop: 28, paddingBottom: 8 },
+  header: { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 52px)', paddingBottom: 8 },
   title: {
     fontSize: 24,
     fontWeight: 700,

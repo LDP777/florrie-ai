@@ -1118,7 +1118,7 @@ const styles = {
     color: 'var(--text-primary)',
     animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
   },
-  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 28, paddingBottom: 12 },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 'calc(env(safe-area-inset-top, 0px) + 52px)', paddingBottom: 12 },
   title: {
     fontSize: 22,
     fontWeight: 700,
