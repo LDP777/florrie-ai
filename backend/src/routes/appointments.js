@@ -514,6 +514,35 @@ router.delete('/:id', requireAuth, async (req, res) => {
     });
   }
 
+  // Don't silently drop a real card payment record: block + tell her to cancel.
+  const { data: paidTx } = await supabase
+    .from('transactions')
+    .select('id')
+    .eq('appointment_id', appt.id)
+    .or('stripe_payment_intent_id.not.is.null,stripe_charge_id.not.is.null')
+    .limit(1);
+  if (paidTx && paidTx.length) {
+    return res.status(409).json({
+      error: 'This booking has a card payment attached. Cancel it instead so the payment is handled correctly.',
+      code: 'has_payment',
+    });
+  }
+
+  // Several tables reference appointments(id) with NO ON DELETE rule, so a
+  // booking that has been completed (assumed-takings row), had a consultation
+  // form, earned loyalty, etc. would fail to delete with a foreign-key error
+  // (the old "Something went wrong"). Clear those dependents first: the booking's
+  // own assumed-takings transactions are removed with it; the rest are preserved
+  // but unlinked so audit/consent/loyalty history survives.
+  await supabase.from('transactions').delete().eq('appointment_id', appt.id);
+  for (const tbl of ['consultations', 'form_submissions', 'loyalty_points', 'ai_actions', 'reviews']) {
+    try {
+      await supabase.from(tbl).update({ appointment_id: null }).eq('appointment_id', appt.id);
+    } catch (e) {
+      logger.warn({ err: e, table: tbl }, 'Could not unlink dependent on appointment delete');
+    }
+  }
+
   const { error } = await supabase
     .from('appointments')
     .delete()
@@ -522,7 +551,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
 
   if (error) {
     logger.error({ err: error }, 'Failed to delete appointment');
-    return res.status(500).json({ error: 'Something went wrong' });
+    return res.status(500).json({ error: "Couldn't delete this booking. If it has a payment, cancel it instead." });
   }
 
   res.json({ success: true });
