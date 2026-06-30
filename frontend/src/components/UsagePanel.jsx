@@ -6,7 +6,7 @@ import { API_BASE } from '../lib/config.js';
  * UsagePanel, Day 5 of the 2026-05-28 refactor sprint.
  *
  * One slim line: "47 of 120 messages used this month." Sits just under
- * TodaySummary on Hub. Tap to open Money for the billing detail. Builds
+ * TodaySummary on Hub. Tap to open Settings > Payments for the plan + message allowance detail. Builds
  * trust on the cost side without taking a whole card.
  *
  * Fresh tenant: shows 0 of 120 (the plan default).
@@ -69,7 +69,7 @@ export default function UsagePanel() {
   return (
     <button
       type="button"
-      onClick={() => navigate('/money')}
+      onClick={() => navigate('/settings?section=payments')}
       style={S.row}
       aria-label={`${safeUsed} of ${limit} messages used this month`}
     >
