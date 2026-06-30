@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { isVoiceEnabled } from '../lib/voicePref.js';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
@@ -132,6 +133,7 @@ export default function FloatingMic() {
   const [result, setResult] = useState(null); // { transcript, reply, actions }
   const [error, setError] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [voiceOn, setVoiceOn] = useState(isVoiceEnabled());
 
   const recognitionRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -144,6 +146,14 @@ export default function FloatingMic() {
   // Hide on inbox thread view too. The conversation route is /inbox?client=…
   const isInboxThread = location.pathname === '/inbox' && /[?&]client=/.test(location.search || '');
   const hide = shouldHide(location.pathname) || isInboxThread;
+
+  // Voice button is opt-in. Keep it in sync with the Settings toggle live so
+  // switching it on/off never needs an app reload.
+  useEffect(() => {
+    const sync = () => setVoiceOn(isVoiceEnabled());
+    window.addEventListener('florrie:voice-pref', sync);
+    return () => window.removeEventListener('florrie:voice-pref', sync);
+  }, []);
 
   // Watch the DOM for any open modal / sheet / dialog and hide the mic while
   // one is up, so it never floats over the price editor, daily brief, or the
@@ -493,7 +503,7 @@ export default function FloatingMic() {
 
   // Hide on excluded routes, and whenever a modal / sheet / dialog is open so
   // the mic never overlaps its content or buttons.
-  if (hide || modalOpen) return null;
+  if (hide || modalOpen || !voiceOn) return null;
 
   // The mic sits bottom-right, hovering above the bottom nav. Bottom nav is
   // ~58px tall on iOS notch devices, plus safe-area. We push the mic above

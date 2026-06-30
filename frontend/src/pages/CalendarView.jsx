@@ -1679,7 +1679,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
         {/* Time range - only when not all day */}
         {type !== 'closed' && (
           <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'center' }}>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <label style={{ fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em' }}>From</label>
               <input
                 type="time"
@@ -1689,7 +1689,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
               />
             </div>
             <span style={{ fontSize: 14, color: COLORS.stone400, marginTop: 16 }}>→</span>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <label style={{ fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em' }}>To</label>
               <input
                 type="time"
@@ -2065,11 +2065,11 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], onClose, 
         </div>
         {/* Date + time */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <span style={labelStyle}>Date</span>
             <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle} />
           </div>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <span style={labelStyle}>Time</span>
             {/* Native time input: on iOS this is the time wheel, so Ellie can set
                 ANY minute (08:30, 14:25, 16:55). step=60 = minute granularity.
@@ -2087,7 +2087,7 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], onClose, 
         </div>
         {/* Duration + price */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <span style={labelStyle}>Duration (min)</span>
             <input
               type="number"
@@ -2098,7 +2098,7 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], onClose, 
               style={inputStyle}
             />
           </div>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <span style={labelStyle}>Price (£)</span>
             <input
               type="number"

@@ -9,6 +9,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { isIOSNative } from '../lib/platform.js';
+import { isVoiceEnabled, setVoiceEnabled } from '../lib/voicePref.js';
 
 /**
  * Settings, beautician profile and app configuration.
@@ -1393,6 +1394,8 @@ export default function Settings({ onLogout }) {
             </div>
           </div>
 
+          <VoiceControlCard />
+
           <div style={styles.card}>
             <h3 style={styles.cardTitle}>Florrie's Voice</h3>
             <p style={styles.cardDesc}>
@@ -2011,6 +2014,31 @@ function SubscriptionManager({ beautician }) {
       >
         {loading ? 'Opening...' : 'Open Stripe Portal'}
       </button>
+    </div>
+  );
+}
+
+
+function VoiceControlCard() {
+  const [on, setOn] = useState(isVoiceEnabled());
+  return (
+    <div style={styles.card}>
+      <h3 style={styles.cardTitle}>Voice button</h3>
+      <p style={styles.cardDesc}>
+        Shows the round microphone button for talking to Florrie. It is off by
+        default. Turn it on only if you want to dictate by voice, and off any
+        time to stop it appearing or making a sound.
+      </p>
+      <div style={styles.toggleRow}>
+        <span style={styles.toggleLabel}>Show the voice button</span>
+        <button
+          onClick={() => { const next = !on; setVoiceEnabled(next); setOn(next); }}
+          aria-pressed={on}
+          style={{ ...styles.toggle, background: on ? 'var(--accent)' : 'var(--border)' }}
+        >
+          <div style={{ ...styles.toggleDot, transform: on ? 'translateX(20px)' : 'translateX(2px)' }} />
+        </button>
+      </div>
     </div>
   );
 }

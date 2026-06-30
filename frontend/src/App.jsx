@@ -9,6 +9,7 @@ import PlanGate from './components/PlanGate.jsx';
 import InstallPrompt from './components/InstallPrompt.jsx';
 import CoachNudge from './components/CoachNudge.jsx';
 import FloatingMic from './components/FloatingMic.jsx';
+import { isVoiceEnabled } from './lib/voicePref.js';
 import { CoachProvider } from './contexts/CoachContext.jsx';
 import { isIOSNative } from './lib/platform.js';
 import { hapticTap } from './lib/native.js';
@@ -476,6 +477,7 @@ function BottomNav({ current, session }) {
   const didHoldRef = useRef(false);
 
   function startHold() {
+    if (!isVoiceEnabled()) return; // voice off: petal never starts listening
     didHoldRef.current = false;
     clearTimeout(holdTimerRef.current);
     holdTimerRef.current = setTimeout(() => {
