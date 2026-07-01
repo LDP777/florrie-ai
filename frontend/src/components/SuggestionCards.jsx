@@ -245,7 +245,7 @@ function SuggestionCard({ s, featured, onDone, onRecord, navigate }) {
         </div>
         <p style={SC.featuredTitle}>{s.title || 'Upcoming bank holiday'}</p>
         <p style={SC.featuredSummary}>{s.summary}</p>
-        {impact > 0 && <p style={SC.featuredImpact}>About £{impact} back in your diary if it books</p>}
+        {s.impact_pence > 0 && impact && <p style={SC.featuredImpact}>About {impact} back in your diary if it books</p>}
         {phase === 'confirming' ? (
           <ConfirmRow text={action.confirm} onYes={execute} onCancel={() => setPhase('idle')} big />
         ) : (
