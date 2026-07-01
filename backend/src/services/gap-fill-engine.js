@@ -24,7 +24,8 @@ import logger from '../lib/logger.js';
 const MAX_OFFERS_PER_CYCLE = 5;    // Don't spam, cap per beautician per run
 const GAP_MIN_MINUTES = 30;        // Ignore gaps shorter than this
 const DORMANT_THRESHOLD_DAYS = 60; // 60+ days = dormant client
-const REBOOK_GRACE_DAYS = 3;       // Only nudge if overdue by 3+ days
+const REBOOK_GRACE_DAYS = 3;       // (legacy) Only nudge if overdue by 3+ days
+const REBOOK_DUE_DAYS = 30;        // Lapsed 30+ days (but < dormant) = due a rebook
 const DEDUP_WINDOW_DAYS = 7;       // Don't re-contact within 7 days
 
 /**
@@ -433,27 +434,37 @@ async function fetchWaitlistPool(beauticianId) {
  * Fetch clients overdue for a rebook (past predicted next visit by 3+ days).
  */
 async function fetchRebookPool(beauticianId) {
-  const cutoff = new Date(Date.now() - REBOOK_GRACE_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  // "Due a rebook": last visit is past a typical cadence but not yet dormant.
+  // Derived from last_visit_at (kept fresh by the 067 trigger) because there is
+  // no per-client predicted-next-visit column. Window: REBOOK_DUE_DAYS..DORMANT.
+  const now = Date.now();
+  const dueCutoff = new Date(now - REBOOK_DUE_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const dormantCutoff = new Date(now - DORMANT_THRESHOLD_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
   const { data } = await supabase
     .from('clients')
-    .select('id, first_name, last_name, phone, email, next_predicted_visit, last_treatment_name, last_treatment_duration')
+    .select('id, first_name, last_name, phone, email, last_visit_at')
     .eq('beautician_id', beauticianId)
     .eq('status', 'active')
-    .not('next_predicted_visit', 'is', null)
-    .lt('next_predicted_visit', cutoff)
-    .order('next_predicted_visit', { ascending: true })
+    .not('last_visit_at', 'is', null)
+    .lt('last_visit_at', dueCutoff)
+    .gte('last_visit_at', dormantCutoff)
+    .order('last_visit_at', { ascending: true })
     .limit(20);
 
   // Skip anyone already booked in for a future appointment.
   const booked = await getFutureBookedClientIds(beauticianId);
 
   return (data || []).filter(c => !booked.has(c.id)).map(c => {
-    const daysOverdue = Math.floor((Date.now() - new Date(c.next_predicted_visit).getTime()) / (24 * 60 * 60 * 1000));
+    const daysOverdue = Math.floor((now - new Date(c.last_visit_at).getTime()) / (24 * 60 * 60 * 1000));
     return {
-      ...c,
-      treatment_name: c.last_treatment_name || 'Treatment',
-      treatment_duration: c.last_treatment_duration || 60,
+      id: c.id,
+      first_name: c.first_name,
+      last_name: c.last_name,
+      phone: c.phone,
+      email: c.email,
+      treatment_name: 'Treatment',
+      treatment_duration: 60,
       days_overdue: daysOverdue,
     };
   });
