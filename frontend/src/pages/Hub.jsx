@@ -168,76 +168,70 @@ function ApprovalCard({ onNav }) {
       if (!token) return;
       const h = { Authorization: `Bearer ${token}` };
       try {
-        const [pendRes, escRes] = await Promise.all([
+        const [pendRes, escRes, actRes] = await Promise.all([
           fetch(`${API_BASE}/api/outbound/pending`, { headers: h }).catch(() => null),
           fetch(`${API_BASE}/api/escalations`, { headers: h }).catch(() => null),
+          fetch(`${API_BASE}/api/activity/feed?limit=50`, { headers: h }).catch(() => null),
         ]);
         if (cancelled) return;
 
-        let items = [];
+        let approvals = 0;
         if (pendRes && pendRes.ok) {
           const d = await pendRes.json();
-          for (const r of (d.pending || [])) {
-            items.push({
-              name: (r.clients?.first_name || '').trim() || 'A client',
-              snippet: r.body || '',
-              at: r.created_at,
-            });
-          }
+          approvals += (d.pending || []).length;
         }
         if (escRes && escRes.ok) {
           const d = await escRes.json();
-          for (const r of (d.escalations || [])) {
-            if (!r.ai_response || !String(r.ai_response).trim()) continue;
-            items.push({
-              name: (r.clients?.first_name || '').trim() || 'A client',
-              snippet: r.ai_response || '',
-              at: r.created_at,
-            });
-          }
+          approvals += (d.escalations || []).filter(r => r.ai_response && String(r.ai_response).trim()).length;
         }
 
-        if (items.length === 0) { setState({ count: 0 }); return; }
-        items.sort((a, b) => new Date(b.at) - new Date(a.at));
-        const top = items[0];
-        const flat = String(top.snippet).replace(/\s+/g, ' ').trim();
-        const snippet = flat.length > 70 ? `${flat.slice(0, 69)}…` : flat;
-        setState({ count: items.length, name: top.name, snippet });
+        // What Florrie has already handled today (matches the "What Florrie did"
+        // feed: deduped rows, counted from local midnight).
+        let handledToday = 0;
+        if (actRes && actRes.ok) {
+          const d = await actRes.json();
+          const start = new Date(); start.setHours(0, 0, 0, 0);
+          handledToday = (d.rows || []).filter(r => new Date(r.created_at) >= start).length;
+        }
+
+        setState({ approvals, handledToday });
       } catch {
-        if (!cancelled) setState({ count: 0 });
+        if (!cancelled) setState({ approvals: 0, handledToday: 0 });
       }
     }
     load();
     return () => { cancelled = true; };
   }, []);
 
-  // Render nothing until we know, and nothing when there is nothing to approve.
-  if (!state || !state.count) return null;
-
-  const { count, name, snippet } = state;
+  // Lead with what Florrie DID today; approvals become a quiet secondary ask.
+  if (!state) return null;
+  const { approvals, handledToday } = state;
+  if (!approvals && !handledToday) return null;
 
   return (
-    <button onClick={() => onNav('/outbox')} style={AC.card} aria-label={`${count} messages waiting for your OK`}>
+    <div style={AC.card}>
       <div style={AC.iconWrap}>
-        <span className="material-symbols-outlined" style={AC.icon}>how_to_reg</span>
+        <span className="material-symbols-outlined" style={AC.icon}>auto_awesome</span>
       </div>
       <div style={AC.body}>
-        <div style={AC.titleRow}>
-          <span style={AC.title}>
-            {count} message{count === 1 ? '' : 's'} waiting for your OK
-          </span>
-        </div>
-        {snippet && (
-          <span style={AC.preview}>
-            <span style={AC.previewName}>{name}:</span> {snippet}
-          </span>
-        )}
+        <span style={AC.title}>
+          {handledToday > 0
+            ? `Florrie handled ${handledToday} thing${handledToday === 1 ? '' : 's'} today`
+            : "Florrie's on it"}
+        </span>
+        <span style={AC.sub}>
+          {approvals > 0
+            ? `${approvals} ${approvals === 1 ? 'needs' : 'need'} your yes or no`
+            : 'Nothing needs you right now'}
+        </span>
       </div>
-      <span style={AC.cta}>
-        Review
-        <span className="material-symbols-outlined" style={AC.ctaChev}>chevron_right</span>
-      </span>
-    </button>
+      {approvals > 0 && (
+        <button onClick={() => onNav('/outbox')} style={AC.cta} aria-label={`Review ${approvals} waiting for your OK`}>
+          Review
+          <span className="material-symbols-outlined" style={AC.ctaChev}>chevron_right</span>
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -696,7 +690,7 @@ const AC = {
     borderRadius: 16,
     padding: '16px',
     marginBottom: 14,
-    cursor: 'pointer',
+    cursor: 'default',
     fontFamily: 'inherit',
     textAlign: 'left',
     boxShadow: 'var(--elev-2)',
@@ -717,6 +711,7 @@ const AC = {
   body: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 },
   titleRow: { display: 'flex', alignItems: 'center', gap: 8 },
   title: { fontSize: 15, fontWeight: 700, color: '#2b1d22', lineHeight: 1.25 },
+  sub: { fontSize: 13, color: '#6e5a60', fontWeight: 500, lineHeight: 1.3 },
   preview: {
     fontSize: 12,
     color: '#867277',
@@ -731,9 +726,16 @@ const AC = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 1,
-    fontSize: 12,
+    minHeight: 44,
+    padding: '0 4px',
+    background: 'transparent',
+    border: 'none',
+    fontFamily: 'inherit',
+    fontSize: 13,
     fontWeight: 700,
     color: '#92405e',
+    cursor: 'pointer',
+    WebkitTapHighlightColor: 'transparent',
   },
   ctaChev: { fontSize: 18 },
 };
