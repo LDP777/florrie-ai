@@ -315,79 +315,77 @@ export async function gapFillDiagnostic(beauticianId) {
 /**
  * Compute all gaps ≥30 min for the next 7 days.
  */
+const SALON_TZ = 'Europe/London'; // UK product; make per-beautician later if needed
+
+// Salon-local (SALON_TZ) parts of an instant: calendar date, minute-of-day, weekday.
+// The server runs in UTC, so reading appt times as UTC and comparing to the
+// beautician's local working hours shifted every gap ~1 hour (a booked slot could
+// look free). Convert to the salon's own timezone first.
+function localParts(instant) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: SALON_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false, weekday: 'short',
+  }).formatToParts(instant);
+  const g = (t) => parts.find((x) => x.type === t)?.value;
+  let hh = parseInt(g('hour'), 10); if (hh === 24) hh = 0;
+  const dow = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }[g('weekday')];
+  return { date: `${g('year')}-${g('month')}-${g('day')}`, minutes: hh * 60 + parseInt(g('minute'), 10), dow };
+}
+
 function computeWeekGaps(now, appointments, workingHours) {
   const gaps = [];
   const dayKeyMap = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
-  for (let i = 0; i < 7; i++) {
-    const date = new Date(now);
-    date.setDate(now.getDate() + i);
-    date.setHours(0, 0, 0, 0);
+  const apptsLocal = (appointments || [])
+    .filter((a) => a.starts_at)
+    .map((a) => {
+      const lp = localParts(new Date(a.starts_at));
+      return { date: lp.date, start: lp.minutes, duration: a.duration_minutes || 60 };
+    });
 
-    const dayKey = dayKeyMap[date.getDay()];
+  const nowLocal = localParts(now);
+
+  for (let i = 0; i < 7; i++) {
+    const dayParts = localParts(new Date(now.getTime() + i * 86400000));
+    const dayKey = dayKeyMap[dayParts.dow];
     const dayHours = workingHours[dayKey];
     if (!dayHours?.start) continue;
 
-    const dateStr = date.toISOString().split('T')[0];
-    const dayLabel = date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    const dateStr = dayParts.date;
+    const dayLabel = new Intl.DateTimeFormat('en-GB', {
+      timeZone: SALON_TZ, weekday: 'short', day: 'numeric', month: 'short',
+    }).format(new Date(`${dateStr}T12:00:00Z`));
 
     const [startH, startM] = dayHours.start.split(':').map(Number);
     const [endH, endM] = dayHours.end.split(':').map(Number);
     const dayStartMins = startH * 60 + startM;
     const dayEndMins = endH * 60 + endM;
 
-    // Get appointments for this specific day
-    const dayAppts = appointments
-      .filter(a => a.starts_at?.slice(0, 10) === dateStr)
-      .map(a => {
-        const [h, m] = a.starts_at.slice(11, 16).split(':').map(Number);
-        return { start: h * 60 + m, duration: a.duration_minutes || 60 };
-      })
+    const dayAppts = apptsLocal
+      .filter((a) => a.date === dateStr)
       .sort((a, b) => a.start - b.start);
 
-    // Walk through the day finding gaps
     let cursor = dayStartMins;
-
-    // For today, skip past the current time
-    if (i === 0) {
-      const nowMins = now.getHours() * 60 + now.getMinutes();
-      cursor = Math.max(cursor, nowMins);
-    }
+    if (i === 0) cursor = Math.max(cursor, nowLocal.minutes);
 
     for (const appt of dayAppts) {
       if (appt.start > cursor) {
         const gapMins = appt.start - cursor;
         if (gapMins >= GAP_MIN_MINUTES) {
-          gaps.push({
-            date: dateStr,
-            dayLabel,
-            start: minsToTime(cursor),
-            end: minsToTime(appt.start),
-            duration_minutes: gapMins,
-            dayOfWeek: date.getDay(),
-          });
+          gaps.push({ date: dateStr, dayLabel, start: minsToTime(cursor), end: minsToTime(appt.start), duration_minutes: gapMins, dayOfWeek: dayParts.dow });
         }
       }
       cursor = Math.max(cursor, appt.start + appt.duration);
     }
 
-    // Closing gap after last appointment
     if (cursor < dayEndMins) {
       const gapMins = dayEndMins - cursor;
       if (gapMins >= GAP_MIN_MINUTES) {
-        gaps.push({
-          date: dateStr,
-          dayLabel,
-          start: minsToTime(cursor),
-          end: minsToTime(dayEndMins),
-          duration_minutes: gapMins,
-          dayOfWeek: date.getDay(),
-        });
+        gaps.push({ date: dateStr, dayLabel, start: minsToTime(cursor), end: minsToTime(dayEndMins), duration_minutes: gapMins, dayOfWeek: dayParts.dow });
       }
     }
   }
 
-  // Sort by date, then by gap size descending (fill biggest gaps first)
   return gaps.sort((a, b) => {
     if (a.date !== b.date) return a.date.localeCompare(b.date);
     return b.duration_minutes - a.duration_minutes;
