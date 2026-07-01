@@ -1394,6 +1394,39 @@ export default function Settings({ onLogout }) {
             </div>
           </div>
 
+          <div style={styles.card}>
+            <h3 style={styles.cardTitle}>How much Florrie handles</h3>
+            <p style={styles.cardDesc}>
+              Let Florrie act on her own for clients you know, or check with you first. New clients are always double-checked either way.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+              {[
+                { key: 'auto', label: 'Handle my regulars', hint: 'Florrie sends reminders, rebooks and gap offers to clients you know, then tells you. New clients still come to you.' },
+                { key: 'ask', label: 'Check with me first', hint: 'Florrie drafts everything and waits for your yes or no. Nothing goes out without you.' },
+                { key: 'off', label: 'Pause proactive messages', hint: 'Florrie stops reaching out for now. She still replies when a client messages first.' },
+              ].map(opt => {
+                const active = (beautician.autonomy?.proactive || 'ask') === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    onClick={() => saveProfile({ autonomy: { ...(beautician.autonomy || {}), proactive: opt.key } })}
+                    style={{
+                      textAlign: 'left', padding: '12px 14px', borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit',
+                      border: active ? '1.5px solid var(--accent)' : '1.5px solid var(--border)',
+                      background: active ? 'rgba(146,64,94,0.06)' : 'var(--bg-card)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ width: 16, height: 16, borderRadius: 8, flexShrink: 0, boxSizing: 'border-box', border: active ? '5px solid var(--accent)' : '1.5px solid var(--border)' }} />
+                      <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{opt.label}</span>
+                    </div>
+                    <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '6px 0 0 24px', lineHeight: 1.4 }}>{opt.hint}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <VoiceControlCard />
 
           <div style={styles.card}>
