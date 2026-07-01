@@ -245,6 +245,7 @@ function SuggestionCard({ s, featured, onDone, onRecord, navigate }) {
         </div>
         <p style={SC.featuredTitle}>{s.title || 'Upcoming bank holiday'}</p>
         <p style={SC.featuredSummary}>{s.summary}</p>
+        {impact > 0 && <p style={SC.featuredImpact}>About £{impact} back in your diary if it books</p>}
         {phase === 'confirming' ? (
           <ConfirmRow text={action.confirm} onYes={execute} onCancel={() => setPhase('idle')} big />
         ) : (
@@ -522,7 +523,8 @@ const SC = {
     fontSize: 16, fontWeight: 700, color: '#1d1b19',
     fontFamily: "'Playfair Display', Georgia, serif", margin: '2px 0 4px',
   },
-  featuredSummary: { fontSize: 13, lineHeight: 1.45, color: '#5c5450', fontWeight: 500, margin: '0 0 12px' },
+  featuredSummary: { fontSize: 13, lineHeight: 1.45, color: '#5c5450', fontWeight: 500, margin: '0 0 6px' },
+  featuredImpact: { fontSize: 13, fontWeight: 700, color: 'var(--accent)', margin: '0 0 12px' },
   featuredActions: { display: 'flex', gap: 8 },
   featuredBtn: {
     flex: 1, padding: '11px 8px', minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 12, border: 'none', fontSize: 13, fontWeight: 700,
