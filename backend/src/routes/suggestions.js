@@ -478,6 +478,7 @@ async function fromUpcomingBankHoliday(beauticianId) {
       id: `bankholiday-${next.date}`,
       type: 'bank_holiday',
       featured: true,
+      pill: 'Bank holiday',
       icon: '\u{1F4C5}',
       title: next.title,
       date: next.date,
@@ -728,9 +729,13 @@ async function fromGapFill(beauticianId) {
   return [{
     id: `gap-fill-${gap.date}-${gap.start}`,
     type: 'gap_fill',
+    featured: true,
     icon: '🌷',
-    summary: `${dayLabel} has an open slot, ${window}. ${n} client${n === 1 ? '' : 's'} due a visit could take it. Offer it?`,
+    pill: 'Gap to fill',
+    title: `${dayLabel}, ${window}`,
+    summary: `${n} client${n === 1 ? '' : 's'} due a visit ${n === 1 ? 'is' : 'are'} a match. One tap and I'll offer it to them in your voice.`,
     action_label: 'Offer it',
+    secondary_label: 'Not now',
     impact_pence: fillImpact,
     // A near-term fillable gap is real money soon. Sit it just under live bookings
     // and unpriced money, above plain rebook nudges.

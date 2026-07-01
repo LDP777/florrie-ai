@@ -241,7 +241,7 @@ function SuggestionCard({ s, featured, onDone, onRecord, navigate }) {
       <article style={SC.featured}>
         <div style={SC.featuredTop}>
           <span style={SC.featuredIcon} aria-hidden>{s.icon || '\u{1F4C5}'}</span>
-          <span style={SC.featuredPill}>Bank holiday</span>
+          <span style={SC.featuredPill}>{s.pill || 'Bank holiday'}</span>
         </div>
         <p style={SC.featuredTitle}>{s.title || 'Upcoming bank holiday'}</p>
         <p style={SC.featuredSummary}>{s.summary}</p>
