@@ -468,7 +468,7 @@ async function fetchDormantPool(beauticianId) {
   // Clients whose last appointment was 60+ days ago
   const { data } = await supabase
     .from('clients')
-    .select('id, first_name, last_name, phone, email, last_visit_at, last_treatment_name, last_treatment_duration')
+    .select('id, first_name, last_name, phone, email, last_visit_at')
     .eq('beautician_id', beauticianId)
     .eq('status', 'active')
     .not('last_visit_at', 'is', null)
