@@ -6,7 +6,7 @@ import { nextBankHoliday, postcodeToDivision } from '../lib/bank-holidays.js';
 import { getFutureBookedClientIds } from '../lib/future-bookings.js';
 import { guardedSend } from '../lib/outbound-guard.js';
 import { sendSMS, sendOnPreferredChannel } from '../services/notifications.js';
-import { getGapFillSuggestions } from '../services/gap-fill-engine.js';
+import { getGapFillSuggestions, gapFillDiagnostic } from '../services/gap-fill-engine.js';
 
 const router = Router();
 
@@ -71,6 +71,10 @@ router.get('/', requireAuth, async (req, res) => {
   const out = suggestions.length > 0 ? suggestions : syntheticDefaults(req.beautician);
 
   res.json({ suggestions: out.slice(0, MAX_SUGGESTIONS), count: out.length });
+});
+
+router.get('/_gapdebug', requireAuth, async (req, res) => {
+  res.json(await gapFillDiagnostic(req.beautician.id));
 });
 
 router.post('/respond', requireAuth, async (req, res) => {

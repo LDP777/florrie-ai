@@ -274,6 +274,44 @@ export async function getGapFillSuggestions(beauticianId) {
 }
 
 /**
+ * Read-only diagnostic: why is (or isn't) a gap-fill card being produced?
+ * Returns only counts + one gap time window (no client PII). Auth-gated.
+ */
+export async function gapFillDiagnostic(beauticianId) {
+  const out = { working_hours_days: 0, appts_next_7d: 0, gaps_found: 0, first_gap: null,
+                waitlist: 0, rebook: 0, dormant: 0, recently_contacted: 0, error: null };
+  try {
+    const { data: beautician } = await supabase
+      .from('beauticians').select('working_hours').eq('id', beauticianId).single();
+    out.working_hours_days = beautician?.working_hours ? Object.keys(beautician.working_hours).length : 0;
+
+    const now = new Date();
+    const weekEnd = new Date(now); weekEnd.setDate(now.getDate() + 7);
+    const { data: appointments } = await supabase
+      .from('appointments')
+      .select('starts_at, duration_minutes, status, treatment_id')
+      .eq('beautician_id', beauticianId)
+      .gte('starts_at', now.toISOString())
+      .lte('starts_at', weekEnd.toISOString())
+      .neq('status', 'cancelled');
+    out.appts_next_7d = (appointments || []).length;
+
+    const gaps = computeWeekGaps(now, appointments || [], beautician?.working_hours || {});
+    out.gaps_found = gaps.length;
+    if (gaps[0]) out.first_gap = { date: gaps[0].date, start: gaps[0].start, end: gaps[0].end, mins: gaps[0].duration_minutes };
+
+    const [waitlistPool, rebookPool, dormantPool] = await Promise.all([
+      fetchWaitlistPool(beauticianId), fetchRebookPool(beauticianId), fetchDormantPool(beauticianId),
+    ]);
+    out.waitlist = waitlistPool.length; out.rebook = rebookPool.length; out.dormant = dormantPool.length;
+    out.recently_contacted = (await fetchRecentlyContacted(beauticianId)).size;
+  } catch (err) {
+    out.error = String(err?.message || err);
+  }
+  return out;
+}
+
+/**
  * Compute all gaps ≥30 min for the next 7 days.
  */
 function computeWeekGaps(now, appointments, workingHours) {
