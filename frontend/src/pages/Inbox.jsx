@@ -841,6 +841,73 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
   );
 }
 
+/**
+ * Who messages this person? Per-client autonomy (Levi + Ellie, 2026-07-04):
+ * Auto (dial + regular detection decide) / Florrie handles / Drafts first /
+ * Just me (Florrie never initiates; quiet drafts only). Tap to set; tapping
+ * the active choice returns to Auto. Saves straight to the client row.
+ */
+function AutonomyPills({ clientId }) {
+  const [value, setValue] = useState(undefined); // undefined = loading, null = auto
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from('clients')
+          .select('messaging_autonomy')
+          .eq('id', clientId)
+          .maybeSingle();
+        if (!cancelled) setValue(data?.messaging_autonomy || null);
+      } catch { if (!cancelled) setValue(null); }
+    })();
+    return () => { cancelled = true; };
+  }, [clientId]);
+
+  if (value === undefined) return null;
+
+  const OPTS = [
+    { key: 'florrie', label: 'Florrie handles' },
+    { key: 'drafts', label: 'Drafts first' },
+    { key: 'just_me', label: 'Just me' },
+  ];
+
+  async function setAutonomy(next) {
+    const v = value === next ? null : next; // tap active = back to Auto
+    setValue(v);
+    try {
+      await supabase.from('clients').update({ messaging_autonomy: v }).eq('id', clientId);
+    } catch { /* optimistic; reload corrects */ }
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4, flexWrap: 'wrap' }}>
+      <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted, #9B8A8E)' }}>Who messages them</span>
+      {OPTS.map(o => {
+        const on = value === o.key;
+        return (
+          <button
+            key={o.key}
+            onClick={() => setAutonomy(o.key)}
+            style={{
+              padding: '4px 10px', minHeight: 26, borderRadius: 999, border: 'none',
+              fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+              background: on ? 'var(--accent, #92405e)' : 'var(--tone-2, #f6e7dd)',
+              color: on ? '#fff' : 'var(--text-secondary, #867277)',
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+      {value === null && (
+        <span style={{ fontSize: 11, color: 'var(--text-muted, #9B8A8E)' }}>Auto</span>
+      )}
+    </div>
+  );
+}
+
 function ConvoHeader({ onBack, embedded, clientName, navigate, clientId, channel = null }) {
   return (
     <div style={S.convoHeader}>
@@ -860,6 +927,7 @@ function ConvoHeader({ onBack, embedded, clientName, navigate, clientId, channel
             View profile
           </button>
         )}
+        {clientId && <AutonomyPills clientId={clientId} />}
       </div>
     </div>
   );

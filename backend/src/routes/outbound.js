@@ -39,7 +39,8 @@ router.get('/count', async (req, res) => {
     .from('outbound_sends')
     .select('id', { count: 'exact', head: true })
     .eq('beautician_id', req.beautician.id)
-    .eq('status', 'pending_approval');
+    .eq('status', 'pending_approval')
+    .neq('reason', 'just_me_silent_draft') // quiet drafts never nag;
   res.json({ count: count || 0 });
 });
 

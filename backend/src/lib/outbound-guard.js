@@ -46,26 +46,53 @@ function decision(d, tier, reason) {
   return { decision: d, tier, reason };
 }
 
-// A client Ellie already knows: a regular with a history, not a fresh lead. We
-// hold Florrie's auto-messages to known clients for an explicit yes/no so nothing
-// lands out of context with an established relationship. The signal is simple and
-// robust: two or more completed appointments (or an explicit regular/VIP flag).
-export const KNOWN_CLIENT_MIN_VISITS = 2;
+// A client Ellie already knows: a CURRENT regular, not just anyone with old
+// history. Frequency-based (Levi, 2026-07-04): 3+ completed appointments in
+// the last 6 months. A one-off client from last year is not a regular; someone
+// in every fortnight is. Explicit regular/VIP flags still count immediately.
+export const KNOWN_CLIENT_MIN_VISITS = 3;
+export const KNOWN_CLIENT_WINDOW_DAYS = 183;
 export async function isKnownClient(beauticianId, clientId, client = null, minVisits = KNOWN_CLIENT_MIN_VISITS) {
   if (!clientId) return false;
   const threshold = Number.isFinite(minVisits) && minVisits > 0 ? minVisits : KNOWN_CLIENT_MIN_VISITS;
   try {
     if (client && (client.is_regular === true || client.vip === true)) return true;
+    const windowStart = new Date(Date.now() - KNOWN_CLIENT_WINDOW_DAYS * 86400000).toISOString();
     const { count } = await supabase
       .from('appointments')
       .select('id', { count: 'exact', head: true })
       .eq('beautician_id', beauticianId)
       .eq('client_id', clientId)
-      .eq('status', 'completed');
+      .eq('status', 'completed')
+      .gte('starts_at', windowStart);
     return (count || 0) >= threshold;
   } catch {
     // If we cannot tell, err towards asking rather than auto-sending.
     return true;
+  }
+}
+
+/**
+ * Per-client autonomy override (clients.messaging_autonomy):
+ *   'florrie' - full autonomy for this person, even where the dial would hold
+ *   'drafts'  - always draft for approval, never auto-send
+ *   'just_me' - Florrie never initiates; drafts are prepared SILENTLY (quiet
+ *               Outbox section, no badge) so Ellie can use them if she wants
+ *   null      - no override: dial + regular-classification decide
+ */
+export async function clientAutonomyOverride(beauticianId, clientId, client = null) {
+  if (!clientId) return null;
+  try {
+    if (client && client.messaging_autonomy !== undefined) return client.messaging_autonomy || null;
+    const { data } = await supabase
+      .from('clients')
+      .select('messaging_autonomy')
+      .eq('id', clientId)
+      .eq('beautician_id', beauticianId)
+      .maybeSingle();
+    return data?.messaging_autonomy || null;
+  } catch {
+    return null;
   }
 }
 
@@ -93,7 +120,7 @@ export async function evaluateOutbound({ beauticianId, clientId, messageType, ch
     if (!c && clientId) {
       const { data } = await supabase
         .from('clients')
-        .select('id, marketing_consent, marketing_opted_out_at')
+        .select('id, marketing_consent, marketing_opted_out_at, messaging_autonomy')
         .eq('id', clientId)
         .eq('beautician_id', beauticianId)
         .maybeSingle();
@@ -162,8 +189,17 @@ export async function evaluateOutbound({ beauticianId, clientId, messageType, ch
       .select('autonomy')
       .eq('id', beauticianId)
       .maybeSingle();
+    // Per-client override beats the global dial: the relationship is
+    // per-person knowledge only Ellie has.
+    const override = await clientAutonomyOverride(beauticianId, clientId, c);
+    if (override === 'just_me') return decision('approve', tier, 'just_me_silent_draft');
+    if (override === 'drafts') return decision('approve', tier, 'client_prefers_drafts');
+
     const mode = b?.autonomy?.[messageType] || b?.autonomy?.proactive || 'ask';
     if (mode === 'off') return decision('block', tier, 'autonomy_off'); // Ellie turned this type off
+    if (override === 'florrie') {
+      return mode === 'off' ? decision('block', tier, 'autonomy_off') : decision('send', tier, 'client_trusted_florrie');
+    }
     // A client Ellie knows is a relationship she manages personally. Never auto-send
     // to them, even on 'auto': hold for her explicit yes/no so a proactive message
     // never lands out of context with someone she has a rapport with.

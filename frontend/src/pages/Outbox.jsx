@@ -118,6 +118,7 @@ function fromHold(row) {
     why: holdWhy(row),
     body: row.body || '',
     createdAt: row.created_at,
+    quiet: row.reason === 'just_me_silent_draft',
   };
 }
 
@@ -287,7 +288,11 @@ export default function Outbox() {
     }
   }
 
-  const total = holds.length + replies.length;
+  // Quiet drafts: clients Ellie marked "just me". Florrie prepares the words
+  // but never nags: tucked at the bottom, excluded from counts and Send all.
+  const loudHolds = holds.filter(h => !h.quiet);
+  const quietHolds = holds.filter(h => h.quiet);
+  const total = loudHolds.length + replies.length;
 
   return (
     <div style={s.page}>
@@ -300,19 +305,19 @@ export default function Outbox() {
         <LoadingState />
       ) : error ? (
         <ErrorState message={error} onRetry={load} />
-      ) : total === 0 ? (
+      ) : total === 0 && quietHolds.length === 0 ? (
         <EmptyState />
       ) : (
         <>
           <div style={s.topBar}>
             <span style={s.waitingLabel}>{total} waiting</span>
-            {holds.length > 0 && (
+            {loudHolds.length > 0 && (
               <button
                 onClick={approveAllHolds}
                 disabled={approvingAll}
                 style={{ ...s.approveAllBtn, opacity: approvingAll ? 0.6 : 1 }}
               >
-                {approvingAll ? 'Sending...' : `Send all ${holds.length} hold${holds.length === 1 ? '' : 's'}`}
+                {approvingAll ? 'Sending...' : `Send all ${loudHolds.length} hold${loudHolds.length === 1 ? '' : 's'}`}
               </button>
             )}
           </div>
@@ -335,13 +340,32 @@ export default function Outbox() {
             </Section>
           )}
 
-          {holds.length > 0 && (
+          {loudHolds.length > 0 && (
             <Section
               icon="schedule_send"
               title="Messages Florrie wants to send"
               hint="Proactive nudges and check-ins. Send, tweak, or leave them."
             >
-              {holds.map(item => (
+              {loudHolds.map(item => (
+                <ReviewCard
+                  key={item.key}
+                  item={item}
+                  onApprove={(body) => approveHold(item.id, body)}
+                  onSkip={() => skipHold(item.id)}
+                  onSave={(body) => saveHold(item.id, body)}
+                  skipLabel="Not now"
+                />
+              ))}
+            </Section>
+          )}
+
+          {quietHolds.length > 0 && (
+            <Section
+              icon="volume_off"
+              title="Quiet drafts for people you handle yourself"
+              hint="You said these clients are yours. The words are here if you ever want them, and nothing sends unless you say so."
+            >
+              {quietHolds.map(item => (
                 <ReviewCard
                   key={item.key}
                   item={item}
