@@ -1055,26 +1055,23 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
   // Shared write: mark completed + log the takings. `method` defaults to the
   // last one Ellie used (remembered silently) so she never has to type it.
   async function writeCompletion(method) {
-    await updateRow('appointments', appointment.id, {
-      status: 'completed',
-      completed_at: new Date().toISOString(),
-      beautician_notes: notes || null,
-      payment_method: method,
+    // Completion goes through the backend PATCH so takings are logged
+    // server-side (service role, idempotent). The old direct transactions
+    // insert could fail silently client-side, leaving appointments completed
+    // with NO income row - Money read £0 for the day.
+    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ status: 'completed', beautician_notes: notes || null }),
     });
-    await insertRow('transactions', {
-      beautician_id: beautician.id,
-      appointment_id: appointment.id,
-      client_id: appointment.client_id,
-      treatment_id: appointment.treatment_id,
-      amount_cents: appointment.price_cents,
-      // 'payment' is the only type the Money tab counts and the DB CHECK allows.
-      // 'service' was silently rejected by the CHECK, so completing an appointment
-      // marked it done but logged no takings (and threw an error every time).
-      type: 'payment',
-      status: 'completed',
-      payment_method: method,
-      description: `${appointment.treatments?.name} - ${appointment.clients?.first_name}`,
-    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error || 'Could not mark complete');
+    }
+    // How she took payment, remembered on the appointment record. Purely
+    // informational; takings are already logged by the server.
+    updateRow('appointments', appointment.id, { payment_method: method, completed_at: new Date().toISOString() }).catch(() => {});
   }
   // One-tap complete: the default action. Logs takings and jumps to the next
   // client in the day, no payment screen. Payment type isn't the point here,

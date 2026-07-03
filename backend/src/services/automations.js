@@ -159,7 +159,7 @@ export async function processRebookNudges() {
 
   const { data: reminders } = await supabase
     .from('rebook_reminders')
-    .select('*, clients(first_name, phone, email), beauticians(business_name, first_name, client_reminder_prefs)')
+    .select('*, clients(first_name, phone, email), beauticians(business_name, first_name, client_reminder_prefs, booking_slug)')
     .eq('sent', false)
     .lte('reminder_date', now);
 
@@ -168,7 +168,9 @@ export async function processRebookNudges() {
   let sent = 0;
   for (const reminder of reminders) {
     try {
-      const defaultMsg = `Hey {name}, it's been a while! Ready for your next appointment? Book in when you're ready — would love to see you soon xx`;
+      const slug = reminder.beauticians?.booking_slug;
+      const linkLine = slug ? ` Book in here: florrie.ai/book/${slug}` : '';
+      const defaultMsg = `Hey {name}, it's been a while! Ready for your next appointment?${linkLine} Would love to see you soon xx`;
       const body = reminder.message || defaultMsg;
 
       await sendOnChannel({

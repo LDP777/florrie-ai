@@ -81,6 +81,11 @@ export default function UsagePanel() {
       <span style={{ ...S.bar, background: trackColor }}>
         <span style={{ ...S.fill, width: `${pct}%`, background: fillColor }} />
       </span>
+      {near && (
+        <span style={{ fontSize: 11, fontWeight: 600, color: fillColor, whiteSpace: 'nowrap' }}>
+          {over ? 'Over - extras billed' : 'Nearly there'}
+        </span>
+      )}
     </button>
   );
 }

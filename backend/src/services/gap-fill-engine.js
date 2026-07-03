@@ -39,7 +39,7 @@ export async function checkGapFillOpportunities(beauticianId, threshold) {
     // 1. Get beautician working hours + prefs
     const { data: beautician } = await supabase
       .from('beauticians')
-      .select('working_hours, whatsapp_phone_id, client_reminder_prefs, timezone')
+      .select('working_hours, whatsapp_phone_id, client_reminder_prefs, timezone, booking_slug')
       .eq('id', beauticianId)
       .single();
 
@@ -75,6 +75,7 @@ export async function checkGapFillOpportunities(beauticianId, threshold) {
     // 6. Match candidates to gaps
     const beauticianPrefs = {
       whatsapp_connected: !!beautician.whatsapp_phone_id,
+      booking_slug: beautician.booking_slug || null,
       ...(beautician.client_reminder_prefs || {}),
     };
 
@@ -517,7 +518,7 @@ async function fetchRecentlyContacted(beauticianId) {
     .from('ai_actions')
     .select('client_id')
     .eq('beautician_id', beauticianId)
-    .in('action_type', ['gap_fill', 'gap_fill_waitlist', 'gap_fill_rebook', 'gap_fill_dormant'])
+    .like('action_type', 'gap_fill%')
     .gte('created_at', windowStart);
 
   return new Set((data || []).map(a => a.client_id).filter(Boolean));
@@ -567,17 +568,21 @@ async function processMatch({ beauticianId, client, treatment, gap, matchType, c
   const dayLabel = gap.dayLabel || gap.date;
   const timeLabel = gap.start;
 
-  // Build the message based on match type
+  // Build the message based on match type. The imported rebook pool has no
+  // reliable treatment name (placeholder 'Treatment'), so never say it.
+  const treatName = treatment.name && treatment.name !== 'Treatment' ? treatment.name : null;
+  const bookLink = beauticianPrefs.booking_slug ? ` Or book yourself in: florrie.ai/book/${beauticianPrefs.booking_slug}` : '';
   let message;
   if (matchType === 'waitlist') {
-    message = `Hi ${client.first_name}! Good news, a ${gap.duration_minutes}-min slot just opened up on ${dayLabel} at ${timeLabel}. Perfect for your ${treatment.name}! Reply YES to grab it 💕`;
+    message = `Hi ${client.first_name}! Good news, a ${gap.duration_minutes}-min slot just opened up on ${dayLabel} at ${timeLabel}.${treatName ? ` Perfect for your ${treatName}!` : ''} Reply YES to grab it 💕`;
   } else if (matchType === 'rebook_overdue') {
-    message = `Hi ${client.first_name}! Your ${treatment.name} is overdue and I have a lovely slot on ${dayLabel} at ${timeLabel}. Want me to pop you in? Just reply YES 🌸`;
+    message = `Hi ${client.first_name}! It's been a while since your last visit and I have a lovely slot on ${dayLabel} at ${timeLabel}. Want me to pop you in? Just reply YES 🌸${bookLink}`;
   } else {
-    message = `Hi ${client.first_name}! It's been a while and we miss you 💕 I have a slot on ${dayLabel} at ${timeLabel}. Fancy popping in for your ${treatment.name}?`;
+    message = `Hi ${client.first_name}! It's been a while and we miss you 💕 I have a slot on ${dayLabel} at ${timeLabel}. Fancy popping in?${bookLink}`;
   }
 
-  const summary = `Gap-fill: ${client.first_name} → ${dayLabel} ${timeLabel} (${matchType}, ${treatment.name})`;
+  // Human copy for the activity feed, not an engine log line.
+  const summary = `Offered ${client.first_name} the ${dayLabel} ${timeLabel} slot${treatName ? ` for a ${treatName}` : ''}`;
 
   if (confidence >= threshold && (client.phone || client.email)) {
     // Check SMS metering
