@@ -334,10 +334,8 @@ function SkeletonRow() {
 
 const F = {
   card: {
-    background: '#fff',
+    background: 'var(--tone-1, #fbf1ea)',
     borderRadius: 20,
-    border: '1px solid rgba(146,64,94,0.07)',
-    boxShadow: '0 1px 4px rgba(146,64,94,0.05)',
     padding: '14px 14px 8px',
     marginBottom: 16,
   },

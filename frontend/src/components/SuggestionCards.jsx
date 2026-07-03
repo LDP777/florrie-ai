@@ -542,8 +542,7 @@ const SC = {
     scrollSnapType: 'x mandatory', msOverflowStyle: 'none', scrollbarWidth: 'none',
   },
   card: {
-    flex: '0 0 260px', minWidth: 260, background: '#fff', borderRadius: 16,
-    border: '1px solid rgba(146,64,94,0.10)', boxShadow: '0 2px 8px rgba(146,64,94,0.06)',
+    flex: '0 0 260px', minWidth: 260, background: 'var(--tone-1, #fbf1ea)', borderRadius: 20,
     padding: '12px 12px 12px', display: 'flex', flexDirection: 'column', scrollSnapAlign: 'start',
   },
   cardHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 },

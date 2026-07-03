@@ -79,12 +79,10 @@ export default function ValueReceipt() {
 
 const S = {
   card: {
-    background: 'var(--bg-card, #fff)',
-    border: '1px solid var(--border-light, #ede7e3)',
-    borderRadius: 16,
+    background: 'var(--tone-1, #fbf1ea)',
+    borderRadius: 20,
     padding: '14px 16px',
     marginBottom: 14,
-    boxShadow: 'var(--shadow-xs, 0 1px 2px rgba(146,64,94,.04))',
   },
   eyebrow: {
     fontSize: 10.5,
