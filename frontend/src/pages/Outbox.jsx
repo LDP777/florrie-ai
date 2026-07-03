@@ -496,7 +496,6 @@ const s = {
     fontWeight: 700,
     cursor: 'pointer',
     fontFamily: 'inherit',
-    boxShadow: 'var(--shadow-sm, 0 1px 4px rgba(0,0,0,0.06))',
     WebkitTapHighlightColor: 'transparent',
   },
 
@@ -530,11 +529,9 @@ const s = {
   list: { display: 'flex', flexDirection: 'column', gap: 12 },
 
   card: {
-    background: 'var(--bg-card, #fff)',
-    borderRadius: 16,
+    background: 'var(--tone-1, #fbf1ea)',
+    borderRadius: 20,
     padding: 16,
-    border: '1px solid var(--border-light, #F0ECE8)',
-    boxShadow: 'var(--shadow-sm, 0 1px 4px rgba(0,0,0,0.05))',
   },
   cardTop: {
     display: 'flex',
@@ -633,8 +630,8 @@ const s = {
     minHeight: 80,
     padding: '11px 12px',
     borderRadius: 12,
-    border: '1px solid var(--border, #E8E4E0)',
-    background: 'var(--bg, #fef8f4)',
+    border: 'none',
+    background: 'var(--tone-2, #f6e7dd)',
     color: 'var(--text-primary, #1d1b19)',
     fontSize: 13,
     lineHeight: 1.5,
@@ -659,8 +656,8 @@ const s = {
   skipBtn: {
     padding: '11px 20px',
     borderRadius: 12,
-    border: '1px solid var(--border, #E8E4E0)',
-    background: 'var(--bg-card, #fff)',
+    border: 'none',
+    background: 'var(--tone-2, #f6e7dd)',
     color: 'var(--text-secondary, #867277)',
     fontSize: 14,
     fontWeight: 600,
@@ -678,8 +675,7 @@ const s = {
   skelBlock: {
     height: 70,
     borderRadius: 12,
-    background: 'var(--bg, #fef8f4)',
-    border: '1px solid var(--border-light, #F0ECE8)',
+    background: 'var(--tone-2, #f6e7dd)',
   },
 
   centerState: {
