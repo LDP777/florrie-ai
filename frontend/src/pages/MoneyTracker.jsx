@@ -704,14 +704,14 @@ export default function MoneyTracker() {
 
               {/* ─── Breakdown Bento ─── */}
               <section style={S.bentoGrid}>
-                <div style={{ ...S.bentoCard, background: 'rgba(255, 217, 226, 0.3)', border: '1px solid rgba(146, 64, 94, 0.08)' }}>
+                <div style={{ ...S.bentoCard, background: 'rgba(255, 217, 226, 0.3)' }}>
                   <MIcon name="content_cut" size={20} style={{ color: 'var(--accent)' }} />
                   <span style={S.bentoLabel}>Treatments</span>
                   <span style={{ ...S.bentoValue, color: 'var(--accent)' }}>{fmtShort(breakdown.treatments)}</span>
                 </div>
                 <div
                   onClick={() => setShowLogSale(s => !s)}
-                  style={{ ...S.bentoCard, background: 'rgba(254, 219, 155, 0.3)', border: '1px solid rgba(116, 90, 39, 0.08)', cursor: 'pointer' }}
+                  style={{ ...S.bentoCard, background: 'rgba(254, 219, 155, 0.3)', cursor: 'pointer' }}
                 >
                   <MIcon name="shopping_bag" size={20} style={{ color: 'var(--gold)' }} />
                   <span style={S.bentoLabel}>Products</span>
@@ -720,7 +720,7 @@ export default function MoneyTracker() {
                 </div>
                 <div
                   onClick={() => setShowLogTip(s => !s)}
-                  style={{ ...S.bentoCard, background: 'rgba(91, 169, 123, 0.1)', border: '1px solid rgba(91, 169, 123, 0.08)', cursor: 'pointer' }}
+                  style={{ ...S.bentoCard, background: 'rgba(91, 169, 123, 0.1)', cursor: 'pointer' }}
                 >
                   <MIcon name="volunteer_activism" size={20} style={{ color: 'var(--success)' }} />
                   <span style={S.bentoLabel}>Tips</span>
@@ -1378,7 +1378,7 @@ const S = {
   // Tab bar - pill style
   tabBar: {
     display: 'flex', gap: 4,
-    background: 'var(--bg-hover)', borderRadius: 14, padding: 4,
+    background: 'var(--tone-2, #f6e7dd)', borderRadius: 14, padding: 4,
     marginBottom: 20,
   },
   tab: {
@@ -1388,15 +1388,13 @@ const S = {
     transition: 'all 0.2s ease',
   },
   tabActive: {
-    background: 'var(--bg-card)', color: 'var(--text-primary)',
-    boxShadow: '0 1px 3px rgba(146, 64, 94, 0.06), 0 1px 2px rgba(146, 64, 94, 0.04)',
+    background: 'var(--bg-elevated)', color: 'var(--text-primary)',
     fontWeight: 600,
   },
 
   // Period selector
   reportsCard: {
-    background: 'var(--bg-card)', borderRadius: 18, padding: '18px 16px', marginBottom: 16,
-    boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)',
+    background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: '18px 16px', marginBottom: 16,
   },
   reportsTitle: {
     fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
@@ -1414,15 +1412,14 @@ const S = {
     display: 'flex', gap: 8, marginBottom: 16,
   },
   periodBtn: {
-    padding: '6px 14px', borderRadius: 20,
-    border: '1px solid rgba(146, 64, 94, 0.1)', background: 'transparent',
+    padding: '7px 15px', borderRadius: 20,
+    border: 'none', background: 'var(--tone-2, #f6e7dd)',
     fontSize: 12, fontWeight: 500, color: 'var(--text-muted)',
     cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s ease',
   },
   periodBtnActive: {
     background: 'var(--accent)', color: '#fff',
-    border: '1px solid var(--accent)',
-    boxShadow: '0 2px 8px rgba(146, 64, 94, 0.2)',
+    border: 'none',
   },
 
   // Hero revenue card
@@ -1457,9 +1454,7 @@ const S = {
 
   // Chart card
   chartCard: {
-    background: 'var(--bg-card)', borderRadius: 16, padding: 16,
-    border: '1px solid rgba(146, 64, 94, 0.05)',
-    boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
+    background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: 16,
     marginBottom: 16,
   },
 
@@ -1480,18 +1475,14 @@ const S = {
 
   // Quick log card
   quickLogCard: {
-    background: 'var(--bg-card)', borderRadius: 16, padding: 16, marginBottom: 16,
-    border: '1px solid rgba(146, 64, 94, 0.08)',
-    boxShadow: '0 2px 8px rgba(146, 64, 94, 0.06)',
+    background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: 16, marginBottom: 16,
     animation: 'fadeIn 0.2s ease',
   },
 
   // Quick stats row
   quickStats: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-around',
-    background: 'var(--bg-card)', borderRadius: 16, padding: '14px 8px',
-    border: '1px solid rgba(146, 64, 94, 0.05)',
-    boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
+    background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: '14px 8px',
     marginBottom: 24,
   },
   qStat: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
@@ -1516,10 +1507,8 @@ const S = {
 
   // Transaction rows
   txRow: {
-    background: 'var(--bg-card)', padding: 14, borderRadius: 16,
+    background: 'var(--tone-1, #fbf1ea)', padding: 14, borderRadius: 16,
     display: 'flex', alignItems: 'center', gap: 12,
-    border: '1px solid rgba(146, 64, 94, 0.05)',
-    boxShadow: '0 1px 2px rgba(146, 64, 94, 0.04)',
   },
   txAvatar: {
     width: 36, height: 36, borderRadius: 12,
@@ -1535,9 +1524,7 @@ const S = {
 
   // Comparison card
   compCard: {
-    background: 'var(--bg-card)', borderRadius: 16, padding: 16,
-    border: '1px solid rgba(146, 64, 94, 0.05)',
-    boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
+    background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: 16,
   },
   compTitle: {
     fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 12px',
@@ -1557,9 +1544,7 @@ const S = {
     textAlign: 'center',
   },
   taxCard: {
-    background: 'var(--bg-card)', borderRadius: 16, padding: 16,
-    border: '1px solid rgba(146, 64, 94, 0.05)',
-    boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
+    background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: 16,
   },
   taxCardLabel: {
     display: 'block', fontSize: 10, textTransform: 'uppercase',
@@ -1572,9 +1557,7 @@ const S = {
 
   // Breakdown sections
   breakdownCard: {
-    background: 'var(--bg-card)', borderRadius: 16, padding: 16, marginBottom: 12,
-    border: '1px solid rgba(146, 64, 94, 0.05)',
-    boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
+    background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: 16, marginBottom: 12,
   },
   breakdownTitle: { fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 12px' },
   breakdownRow: {
@@ -1605,9 +1588,7 @@ const S = {
 
   // Form
   formCard: {
-    background: 'var(--bg-card)', borderRadius: 16, padding: 16, marginBottom: 16,
-    border: '1px solid rgba(146, 64, 94, 0.05)',
-    boxShadow: '0 1px 3px rgba(146, 64, 94, 0.04)',
+    background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: 16, marginBottom: 16,
   },
   formLabel: {
     display: 'block', fontSize: 12, fontWeight: 600,

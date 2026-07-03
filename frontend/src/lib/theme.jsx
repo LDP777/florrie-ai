@@ -46,6 +46,10 @@ function applyTheme(dark) {
 const lightTokens = {
   // Backgrounds - Stitch surface scale
   '--bg': '#fef8f4',
+  // Tonal layers (Aesop-style): structure from tone, not borders/shadows.
+  // Trialled on Money first; roll out if it lands.
+  '--tone-1': '#fbf1ea',
+  '--tone-2': '#f6e7dd',
   '--bg-card': '#FFFFFF',
   '--bg-elevated': '#FFFFFF',
   '--bg-hover': '#f3ede9',
@@ -132,6 +136,8 @@ const lightTokens = {
 const darkTokens = {
   // Backgrounds - Stitch inverse
   '--bg': '#161514',
+  '--tone-1': '#1E1D1B',
+  '--tone-2': '#262523',
   '--bg-card': '#1E1D1B',
   '--bg-elevated': '#262523',
   '--bg-hover': '#2E2D2B',
