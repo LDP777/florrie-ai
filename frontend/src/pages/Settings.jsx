@@ -304,8 +304,7 @@ export default function Settings({ onLogout }) {
           <FieldEditor label="Last name" value={beautician.last_name || ''} onSave={v => saveProfile({ last_name: v })} />
           <FieldEditor label="Business name" value={beautician.business_name || ''} onSave={v => saveProfile({ business_name: v })} />
           <FieldEditor label="Phone" value={beautician.phone || ''} onSave={v => saveProfile({ phone: v })} />
-          <FieldEditor label="Salon address" value={beautician.address || ''} onSave={v => saveProfile({ address: v })} />
-          <FieldEditor label="Postcode" value={beautician.postcode || ''} onSave={v => saveProfile({ postcode: v.toUpperCase().trim() })} />
+          <FieldEditor label="Salon address" value={beautician.address || ''} onSave={v => saveProfile({ address: v })} placeholder="e.g. 12 Bell Street, Henley-on-Thames, RG9 2BA" />
 
           {/* Booking link, shareable */}
           {beautician.booking_slug ? (

@@ -51,6 +51,67 @@ function iconFor(type) {
   return TYPE_ICONS[type] || '🌷';
 }
 
+// --- Daily receipt ---------------------------------------------------------
+// Curated once-a-day summary of today's rows: whitelisted buckets only, so
+// heartbeat "watched your inbox" scan rows never make the receipt, and 15
+// pending offers for one slot collapse into a single line. Reads like a
+// receipt, not a log.
+const GAP_TYPES = ['gap_fill', 'gap_fill_waitlist', 'gap_fill_rebook', 'gap_fill_dormant', 'gap_fill_rebook_overdue', 'cancellation_filled', 'waitlist_offered'];
+
+function moneyFrom(text) {
+  const m = /£\s?([\d,]+(?:\.\d{1,2})?)/.exec(String(text || ''));
+  return m ? parseFloat(m[1].replace(/,/g, '')) : 0;
+}
+
+export function buildReceipt(rows) {
+  const lines = [];
+  const by = t => rows.filter(r => r.type === t);
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + 's')}`;
+
+  // Gaps actually closed, with the money where it is visible on the row.
+  const wins = rows.filter(r => GAP_TYPES.includes(r.type) && r.outcome === 'success');
+  if (wins.length) {
+    const money = wins.reduce((sum, r) => sum + moneyFrom(r.summary), 0);
+    const moneyStr = money ? ` (+£${money % 1 ? money.toFixed(2) : money})` : '';
+    lines.push({ icon: '✨', text: `Closed ${plural(wins.length, 'gap')}${moneyStr}` });
+  }
+
+  // Pending gap offers, collapsed to distinct clients x distinct slots.
+  const offers = rows.filter(r => GAP_TYPES.includes(r.type) && r.outcome !== 'success');
+  if (offers.length) {
+    const clients = new Set(offers.map(r => r.client_id || r.id)).size;
+    const slots = new Set(offers.map(r => (/→\s*(.+?)\s*\(/.exec(r.summary || '') || [])[1] || 'slot')).size;
+    lines.push({ icon: '🌷', text: `Invited ${plural(clients, 'client')} to fill ${slots === 1 ? 'an open slot' : `${slots} open slots`}` });
+  }
+
+  const replied = by('message_replied').length;
+  if (replied) lines.push({ icon: '💬', text: `Replied to ${plural(replied, 'client message')}` });
+
+  const held = by('message_escalated').length;
+  if (held) lines.push({ icon: '✋', text: `Queued ${plural(held, 'reply', 'replies')} for your yes or no` });
+
+  const booked = by('booking_created').length;
+  if (booked) lines.push({ icon: '📅', text: `Took ${plural(booked, 'booking')}` });
+
+  const moved = by('booking_rescheduled').length;
+  if (moved) lines.push({ icon: '🔄', text: `Moved ${plural(moved, 'booking')}` });
+
+  const reminders = by('appointment_reminder').length + by('prearrival_reminder').length;
+  if (reminders) lines.push({ icon: '⏰', text: `Sent ${plural(reminders, 'reminder')}` });
+
+  const nudges = by('predictive_nudge').length + by('rebook_nudge').length + by('client_reactivated').length;
+  if (nudges) lines.push({ icon: '💕', text: `Nudged ${plural(nudges, 'client')} to rebook` });
+
+  const released = by('booking_auto_cancelled').length;
+  if (released) lines.push({ icon: '🧹', text: `Released ${plural(released, 'unpaid slot')}` });
+
+  const reviews = by('review_requested').length;
+  if (reviews) lines.push({ icon: '⭐', text: `Asked ${plural(reviews, 'client')} for a review` });
+
+  // Cap the length: a receipt, not a scroll.
+  return lines.slice(0, 5);
+}
+
 function startOfDay(d) {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
@@ -98,6 +159,7 @@ export default function ActivityFeed({ limit = 50 }) {
   // Keep the feed glanceable: show Today + Yesterday, tuck the long tail of
   // history behind a "Show earlier" toggle instead of one endless list.
   const [showEarlier, setShowEarlier] = useState(false);
+  const [showDetail, setShowDetail] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -177,7 +239,32 @@ export default function ActivityFeed({ limit = 50 }) {
         <span style={F.count}>{state.rows.length}</span>
       </div>
 
-      {renderGroup('Today',     groups.today,     navigate, now)}
+      {(() => {
+        const receipt = buildReceipt(groups.today);
+        if (!receipt.length) return renderGroup('Today', groups.today, navigate, now);
+        return (
+          <div style={F.group}>
+            <div style={F.groupLabel}>While you were with clients today</div>
+            <ul style={F.list}>
+              {receipt.map((l, i) => (
+                <li key={i} style={F.receiptLine}>
+                  <span style={F.icon} aria-hidden>{l.icon}</span>
+                  <span style={F.receiptText}>{l.text}</span>
+                </li>
+              ))}
+            </ul>
+            {groups.today.length > 0 && (
+              <button
+                onClick={() => setShowDetail(v => !v)}
+                style={{ width: '100%', minHeight: 44, padding: '11px 0', background: 'none', border: 'none', color: 'var(--accent, #92405e)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                {showDetail ? 'Hide the detail' : `See the detail (${groups.today.length})`}
+              </button>
+            )}
+            {showDetail && renderGroup('The detail', groups.today, navigate, now)}
+          </div>
+        );
+      })()}
       {renderGroup('Yesterday', groups.yesterday, navigate, now)}
       {showEarlier
         ? renderGroup('Earlier', groups.earlier, navigate, now)
@@ -318,6 +405,8 @@ const F = {
     lineHeight: 1,
     borderRadius: 8,
   },
+  receiptLine: { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 4px', fontSize: 14, color: 'var(--text-primary, #3D3438)' },
+  receiptText: { flex: 1, lineHeight: 1.4, fontWeight: 500 },
   summary: {
     fontSize: 13,
     fontWeight: 500,
