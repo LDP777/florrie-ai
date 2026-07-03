@@ -17,11 +17,16 @@ import { supabase } from '../config.js';
 import { normaliseOutcome } from '../lib/ai-actions.js';
 import { sendNudge } from './notifications.js';
 import { shouldAutoSend } from './sms-metering.js';
-import { guardedSend } from '../lib/outbound-guard.js';
+import { guardedSend, recordOutbound } from '../lib/outbound-guard.js';
 import { getFutureBookedClientIds } from '../lib/future-bookings.js';
 import logger from '../lib/logger.js';
 
 const MAX_OFFERS_PER_CYCLE = 5;    // Don't spam, cap per beautician per run
+const MAX_OFFERS_PER_GAP = 3;      // One slot goes to at most 3 people TOTAL
+                                   // (cumulative across runs), or every cron
+                                   // tick walks 5 more clients into the same
+                                   // gap and one Monday 13:30 collects the
+                                   // entire rebook pool
 const GAP_MIN_MINUTES = 30;        // Ignore gaps shorter than this
 const DORMANT_THRESHOLD_DAYS = 60; // 60+ days = dormant client
 const REBOOK_GRACE_DAYS = 3;       // (legacy) Only nudge if overdue by 3+ days
@@ -84,8 +89,15 @@ export async function checkGapFillOpportunities(beauticianId, threshold) {
     for (const gap of gaps) {
       if (offersSent >= MAX_OFFERS_PER_CYCLE) break;
 
+      // Cumulative cap: count offers ALREADY out for this slot (any previous
+      // run) and never let the total pass MAX_OFFERS_PER_GAP.
+      const slotTag = `${gap.dayLabel || gap.date} ${gap.start}`;
+      let gapOffers = recentlyContacted.offersForSlot ? recentlyContacted.offersForSlot(slotTag) : 0;
+      if (gapOffers >= MAX_OFFERS_PER_GAP) continue;
+
       // Try waitlist first (highest priority)
       for (const waiter of waitlistPool) {
+        if (gapOffers >= MAX_OFFERS_PER_GAP) break;
         if (offersSent >= MAX_OFFERS_PER_CYCLE) break;
         if (recentlyContacted.has(waiter.client_id)) continue;
         if (!fitsGap(waiter.treatment_duration, gap.duration_minutes)) continue;
@@ -103,15 +115,15 @@ export async function checkGapFillOpportunities(beauticianId, threshold) {
         });
 
         result.matched++;
-        if (sent === 'executed') { result.sent++; offersSent++; }
-        else if (sent === 'queued') { result.queued++; offersSent++; }
+        if (sent === 'executed') { result.sent++; offersSent++; gapOffers++; }
+        else if (sent === 'queued') { result.queued++; offersSent++; gapOffers++; }
 
         recentlyContacted.add(waiter.client_id); // Don't double-match
       }
 
       // Rebook overdue (medium priority)
       for (const client of rebookPool) {
-        if (offersSent >= MAX_OFFERS_PER_CYCLE) break;
+        if (offersSent >= MAX_OFFERS_PER_CYCLE || gapOffers >= MAX_OFFERS_PER_GAP) break;
         if (recentlyContacted.has(client.id)) continue;
         if (!fitsGap(client.treatment_duration, gap.duration_minutes)) continue;
 
@@ -127,15 +139,15 @@ export async function checkGapFillOpportunities(beauticianId, threshold) {
         });
 
         result.matched++;
-        if (sent === 'executed') { result.sent++; offersSent++; }
-        else if (sent === 'queued') { result.queued++; offersSent++; }
+        if (sent === 'executed') { result.sent++; offersSent++; gapOffers++; }
+        else if (sent === 'queued') { result.queued++; offersSent++; gapOffers++; }
 
         recentlyContacted.add(client.id);
       }
 
       // Dormant rescue (lowest priority)
       for (const client of dormantPool) {
-        if (offersSent >= MAX_OFFERS_PER_CYCLE) break;
+        if (offersSent >= MAX_OFFERS_PER_CYCLE || gapOffers >= MAX_OFFERS_PER_GAP) break;
         if (recentlyContacted.has(client.id)) continue;
 
         const sent = await processMatch({
@@ -150,8 +162,8 @@ export async function checkGapFillOpportunities(beauticianId, threshold) {
         });
 
         result.matched++;
-        if (sent === 'executed') { result.sent++; offersSent++; }
-        else if (sent === 'queued') { result.queued++; offersSent++; }
+        if (sent === 'executed') { result.sent++; offersSent++; gapOffers++; }
+        else if (sent === 'queued') { result.queued++; offersSent++; gapOffers++; }
 
         recentlyContacted.add(client.id);
       }
@@ -516,12 +528,18 @@ async function fetchRecentlyContacted(beauticianId) {
 
   const { data } = await supabase
     .from('ai_actions')
-    .select('client_id')
+    .select('client_id, summary')
     .eq('beautician_id', beauticianId)
     .like('action_type', 'gap_fill%')
     .gte('created_at', windowStart);
 
-  return new Set((data || []).map(a => a.client_id).filter(Boolean));
+  const rows = data || [];
+  const contacted = new Set(rows.map(a => a.client_id).filter(Boolean));
+  // How many offers are already out for a given slot, matched on the slot
+  // string both summary formats contain ("Mon 6 Jul 13:30").
+  const offersForSlot = (slotTag) => rows.filter(r => (r.summary || '').includes(slotTag)).length;
+  contacted.offersForSlot = offersForSlot;
+  return contacted;
 }
 
 /**
@@ -581,8 +599,12 @@ async function processMatch({ beauticianId, client, treatment, gap, matchType, c
     message = `Hi ${client.first_name}! It's been a while and we miss you 💕 I have a slot on ${dayLabel} at ${timeLabel}. Fancy popping in?${bookLink}`;
   }
 
-  // Human copy for the activity feed, not an engine log line.
-  const summary = `Offered ${client.first_name} the ${dayLabel} ${timeLabel} slot${treatName ? ` for a ${treatName}` : ''}`;
+  // Human copy for the activity feed, not an engine log line. A held draft
+  // must never read like a sent message (Ellie thought Florrie was spamming
+  // when most of these were drafts waiting for her OK).
+  const slotBit = `${dayLabel} ${timeLabel}`;
+  const summary = `Offered ${client.first_name} the ${slotBit} slot${treatName ? ` for a ${treatName}` : ''}`;
+  const draftSummary = `Drafted an offer for ${client.first_name}: the ${slotBit} slot (waiting for your OK)`;
 
   if (confidence >= threshold && (client.phone || client.email)) {
     // Check SMS metering
@@ -626,7 +648,7 @@ async function processMatch({ beauticianId, client, treatment, gap, matchType, c
       }
 
       if (guard.decision === 'approve') {
-        await logGapFillAction(beauticianId, actionType, 'pending_approval', summary, confidence, client.id);
+        await logGapFillAction(beauticianId, actionType, 'pending_approval', draftSummary, confidence, client.id);
         return 'queued';
       }
     } catch (err) {
@@ -637,8 +659,20 @@ async function processMatch({ beauticianId, client, treatment, gap, matchType, c
     return 'failed';
   }
 
-  // Below threshold, queue for approval
-  await logGapFillAction(beauticianId, actionType, 'pending_approval', summary, confidence, client.id);
+  // Below threshold: create a REAL draft in the Outbox so Ellie can actually
+  // send or bin it. This used to log only an ai_actions row - the feed said
+  // 'Offered X' while nothing existed anywhere she could act on (13 phantom
+  // rows for one Monday slot).
+  await recordOutbound({
+    beauticianId,
+    clientId: client.id,
+    messageType: 'gap_fill',
+    channel: beauticianPrefs.whatsapp_connected ? 'whatsapp' : 'sms',
+    status: 'pending_approval',
+    reason: 'below_confidence_threshold',
+    body: message,
+  });
+  await logGapFillAction(beauticianId, actionType, 'pending_approval', draftSummary, confidence, client.id);
   return 'queued';
 }
 

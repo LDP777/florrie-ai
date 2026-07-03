@@ -25,7 +25,25 @@ export function useBeautician() {
 
   const refresh = useCallback(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      // supabase-js serialises auth calls behind a navigator.locks lock; under
+      // concurrent load (several components asking at once, extra tabs, the
+      // iOS webview) a request can have its lock STOLEN and throw AbortError.
+      // That is transient by definition - retry once before giving up, so the
+      // app never sticks on the splash screen over a lock squabble.
+      let user = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          ({ data: { user } } = await supabase.auth.getUser());
+          break;
+        } catch (err) {
+          const lockStolen = err?.name === 'AbortError' || /lock/i.test(String(err?.message || ''));
+          if (lockStolen && attempt === 0) {
+            await new Promise(r => setTimeout(r, 350 + Math.random() * 250));
+            continue;
+          }
+          throw err;
+        }
+      }
       if (!user) { setLoading(false); return; }
 
       let { data, error } = await supabase
