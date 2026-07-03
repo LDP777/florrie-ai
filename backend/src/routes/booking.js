@@ -160,7 +160,7 @@ router.get('/:slug', async (req, res) => {
 router.get('/:slug/page', async (req, res) => {
   const { data: salon, error } = await supabase
     .from('beauticians')
-    .select('id, first_name, business_name, booking_slug, brand_color, working_hours, payment_settings, stripe_onboarding_complete, avatar_url, logo_url, tagline, booking_policy, address, postcode')
+    .select('id, first_name, business_name, booking_slug, brand_color, working_hours, payment_settings, stripe_onboarding_complete, avatar_url, logo_url, tagline, booking_policy, address')
     .eq('booking_slug', req.params.slug)
     .maybeSingle();
 
