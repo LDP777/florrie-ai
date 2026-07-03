@@ -160,7 +160,7 @@ router.get('/:slug', async (req, res) => {
 router.get('/:slug/page', async (req, res) => {
   const { data: salon, error } = await supabase
     .from('beauticians')
-    .select('id, first_name, business_name, booking_slug, brand_color, working_hours, payment_settings, stripe_onboarding_complete, avatar_url, logo_url, tagline, booking_policy')
+    .select('id, first_name, business_name, booking_slug, brand_color, working_hours, payment_settings, stripe_onboarding_complete, avatar_url, logo_url, tagline, booking_policy, address, postcode')
     .eq('booking_slug', req.params.slug)
     .maybeSingle();
 
@@ -199,6 +199,53 @@ router.get('/:slug/page', async (req, res) => {
     treatments: treatments || [],
     addOns: addOns || [],
   });
+});
+
+/**
+ * GET /api/booking/:slug/reviews
+ * Public — read-only review summary for the booking page. Returns only
+ * booking-safe fields (rating, comment, reviewer first name, date), never
+ * client contact data. The page hides the section when there are none.
+ */
+router.get('/:slug/reviews', async (req, res) => {
+  try {
+    const { data: salon } = await supabase
+      .from('beauticians')
+      .select('id')
+      .eq('booking_slug', req.params.slug)
+      .maybeSingle();
+    if (!salon) return res.status(404).json({ error: 'not_found' });
+
+    const { data: rows } = await supabase
+      .from('reviews')
+      .select('rating, comment, created_at, clients(first_name)')
+      .eq('beautician_id', salon.id)
+      .eq('is_public', true)
+      .not('rating', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    const reviews = rows || [];
+    const count = reviews.length;
+    const average = count
+      ? Math.round((reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / count) * 10) / 10
+      : 0;
+    const recent = reviews
+      .filter(r => (r.comment || '').trim().length > 0)
+      .slice(0, 3)
+      .map(r => ({
+        rating: r.rating,
+        comment: r.comment,
+        first_name: r.clients?.first_name || null,
+        created_at: r.created_at,
+      }));
+
+    res.json({ count, average, recent });
+  } catch (err) {
+    logger.error({ err }, 'Failed to fetch public reviews');
+    // Fail soft: the booking page simply hides the section.
+    res.json({ count: 0, average: 0, recent: [] });
+  }
 });
 
 /**

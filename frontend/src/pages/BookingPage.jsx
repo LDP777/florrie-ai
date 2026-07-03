@@ -116,6 +116,7 @@ export default function BookingPage() {
   const [monthAppointments, setMonthAppointments] = useState([]);
   const [monthClosures, setMonthClosures] = useState([]);
   const [monthBlocks, setMonthBlocks] = useState([]);
+  const [reviewsData, setReviewsData] = useState(null);
   const [calLoading, setCalLoading] = useState(false);
   // User selections, multi-treatment support
   const [selectedTreatments, setSelectedTreatments] = useState([]);
@@ -510,6 +511,21 @@ export default function BookingPage() {
     }
     return map;
   }, [monthAppointments]);
+  // Public review summary for the info section below the flow. Fails soft:
+  // on any error the section simply stays hidden.
+  useEffect(() => {
+    if (!slug) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/booking/${slug}/reviews`);
+        if (!res.ok) return;
+        const d = await res.json();
+        if (!cancelled) setReviewsData(d);
+      } catch { /* hidden */ }
+    })();
+    return () => { cancelled = true; };
+  }, [slug]);
   const closureSet = useMemo(() => new Set(monthClosures || []), [monthClosures]);
   // Partial-day blocks keyed by date, as taken minute-ranges (mirrors apptsByDay).
   const blocksByDay = useMemo(() => {
@@ -1767,11 +1783,94 @@ export default function BookingPage() {
           </div>
         )}
       </div>
+      <SalonInfo beautician={beautician} reviewsData={reviewsData} brand={brand} />
       <div style={styles.footer}>
         <span style={styles.footerText}>Powered by </span>
         <span style={{ ...styles.footerBrand, color: brand }}>florrie.ai</span>
       </div>
     </div>
+  );
+}
+// Supporting info below the booking flow: where the salon is, when it opens,
+// and what clients say. Each block hides itself when there is nothing to show,
+// so prospective clients never see an empty state.
+function SalonInfo({ beautician, reviewsData, brand }) {
+  const DAYS = [
+    ['mon', 'Monday'], ['tue', 'Tuesday'], ['wed', 'Wednesday'],
+    ['thu', 'Thursday'], ['fri', 'Friday'], ['sat', 'Saturday'], ['sun', 'Sunday'],
+  ];
+  const hours = beautician?.working_hours || null;
+  const address = (beautician?.address || '').trim();
+  const postcode = (beautician?.postcode || '').trim();
+  const fullAddress = [address, postcode].filter(Boolean).join(', ');
+  const hasHours = !!hours && DAYS.some(([k]) => hours[k]?.start && hours[k]?.end);
+  const recent = reviewsData?.recent || [];
+  const hasReviews = (reviewsData?.count || 0) > 0;
+  if (!fullAddress && !hasHours && !hasReviews) return null;
+
+  const todayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][new Date().getDay()];
+  const sectionCard = { background: 'var(--bg-card)', borderRadius: 16, padding: '20px 24px', boxShadow: 'var(--shadow-md)', marginTop: 16 };
+  const heading = { fontSize: 16, fontWeight: 600, margin: '0 0 12px', color: 'var(--text-primary)', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" };
+  const stars = n => '★'.repeat(Math.round(n)) + '☆'.repeat(5 - Math.round(n));
+
+  return (
+    <>
+      {fullAddress && (
+        <div style={sectionCard}>
+          <h3 style={heading}>Find us</h3>
+          <p style={{ fontSize: 14, color: 'var(--text-primary)', margin: '0 0 10px', lineHeight: 1.5 }}>{fullAddress}</p>
+          <a
+            href={`https://maps.google.com/?q=${encodeURIComponent(fullAddress)}`}
+            target="_blank"
+            rel="noreferrer"
+            style={{ display: 'inline-block', minHeight: 44, lineHeight: '44px', fontSize: 14, fontWeight: 600, color: brand, textDecoration: 'none' }}
+          >
+            Get directions →
+          </a>
+        </div>
+      )}
+      {hasHours && (
+        <div style={sectionCard}>
+          <h3 style={heading}>Opening hours</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {DAYS.map(([key, label]) => {
+              const day = hours[key];
+              const open = day?.start && day?.end;
+              const isToday = key === todayKey;
+              return (
+                <div key={key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
+                  <span style={{ color: isToday ? brand : 'var(--text-secondary)', fontWeight: isToday ? 700 : 400 }}>{label}</span>
+                  <span style={{ color: open ? (isToday ? brand : 'var(--text-primary)') : 'var(--text-muted)', fontWeight: isToday ? 700 : 500 }}>
+                    {open ? `${day.start} - ${day.end}` : 'Closed'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {hasReviews && (
+        <div style={sectionCard}>
+          <h3 style={heading}>What clients say</h3>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: recent.length ? 14 : 0 }}>
+            <span style={{ fontSize: 18, color: brand, letterSpacing: 2 }}>{stars(reviewsData.average)}</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>{reviewsData.average}</span>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+              {reviewsData.count} review{reviewsData.count === 1 ? '' : 's'}
+            </span>
+          </div>
+          {recent.map((r, i) => (
+            <div key={i} style={{ padding: '10px 0', borderTop: i === 0 ? 'none' : '1px solid var(--border-light)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{r.first_name || 'A client'}</span>
+                <span style={{ fontSize: 13, color: brand }}>{stars(r.rating)}</span>
+              </div>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>{r.comment}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 const DEV_BOOKING_BEAUTICIAN = {
