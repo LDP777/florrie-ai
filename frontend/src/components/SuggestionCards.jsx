@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
+import { bloom } from '../lib/bloom.js';
 
 /**
  * SuggestionCards: the "Florrie thinks" feed on the Today page.
@@ -196,6 +197,8 @@ function SuggestionCard({ s, featured, onDone, onRecord, navigate }) {
       setResult(res);
       setPhase('result');
       onRecord(s, 'yes', res.tone === 'ok');
+      // Florrie just did real work for you: the signature bloom.
+      if (res.tone === 'ok') bloom();
       settle(res.tone === 'ok' ? 1600 : 2600);
     } catch {
       setResult({ label: 'Something went wrong', tone: 'warn', detail: 'Please try again.' });

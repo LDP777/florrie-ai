@@ -10,6 +10,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { isIOSNative } from '../lib/platform.js';
 import { isVoiceEnabled, setVoiceEnabled } from '../lib/voicePref.js';
+import { celebrationsEnabled, setCelebrationsEnabled, bloom } from '../lib/bloom.js';
 
 /**
  * Settings, beautician profile and app configuration.
@@ -1429,6 +1430,7 @@ export default function Settings({ onLogout }) {
           </div>
 
           <VoiceControlCard />
+          <CelebrationsCard />
 
           <div style={styles.card}>
             <h3 style={styles.cardTitle}>Florrie's Voice</h3>
@@ -2052,6 +2054,29 @@ function SubscriptionManager({ beautician }) {
   );
 }
 
+
+function CelebrationsCard() {
+  const [on, setOn] = useState(celebrationsEnabled());
+  return (
+    <div style={styles.card}>
+      <h3 style={styles.cardTitle}>Celebrations</h3>
+      <p style={styles.cardDesc}>
+        A little petal bloom, chime and buzz whenever Florrie gets something
+        done for you, like an offer sent or a gap filled. Turn it off any time.
+      </p>
+      <div style={styles.toggleRow}>
+        <span style={styles.toggleLabel}>Bloom when Florrie delivers</span>
+        <button
+          onClick={() => { const next = !on; setCelebrationsEnabled(next); setOn(next); if (next) bloom(); }}
+          aria-pressed={on}
+          style={{ ...styles.toggle, background: on ? 'var(--accent)' : 'var(--border)' }}
+        >
+          <div style={{ ...styles.toggleDot, transform: on ? 'translateX(20px)' : 'translateX(2px)' }} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function VoiceControlCard() {
   const [on, setOn] = useState(isVoiceEnabled());

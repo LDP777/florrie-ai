@@ -26,6 +26,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import { bloom } from '../lib/bloom.js';
 
 const TYPE_LABELS = {
   rebook_nudge: 'Rebook nudge',
@@ -191,6 +192,7 @@ export default function Outbox() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok || data?.error) throw new Error(data?.error || 'Send failed');
       setHolds(prev => prev.filter(i => i.id !== id)); window.dispatchEvent(new Event('florrie:refresh-counts'));
+      bloom();
       showToast('Sent.');
     } catch {
       showToast('Could not send that one. Try again.');
@@ -222,6 +224,7 @@ export default function Outbox() {
       });
       if (!res.ok) throw new Error();
       setReplies(prev => prev.filter(i => i.id !== id)); window.dispatchEvent(new Event('florrie:refresh-counts'));
+      bloom();
       showToast('Sent.');
     } catch {
       showToast('Could not send that one. Try again.');
