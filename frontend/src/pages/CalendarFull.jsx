@@ -109,6 +109,7 @@ export default function CalendarFull() {
   const [view, setView] = useState('week'); // 'week' | 'month'
   const [anchor, setAnchor] = useState(() => { const d = new Date(); d.setHours(12, 0, 0, 0); return d; });
   const [appts, setAppts] = useState([]);
+  const [blocks, setBlocks] = useState([]); // hours_exceptions: closed days + blocked hours
   const [loading, setLoading] = useState(true);
   const [syncOpen, setSyncOpen] = useState(false);
 
@@ -137,6 +138,17 @@ export default function CalendarFull() {
         .order('starts_at');
       if (error) logger.error('CalendarFull load:', error);
       setAppts(data || []);
+
+      // Blocked time: without this the full calendar looked OPEN on days
+      // Ellie had blocked off. Same source as the day view.
+      try {
+        const token = (await supabase.auth.getSession()).data.session?.access_token;
+        const bres = await fetch(`${API_BASE}/api/hours-exceptions`, { headers: { Authorization: `Bearer ${token}` } });
+        if (bres.ok) {
+          const bdata = await bres.json();
+          setBlocks((bdata.exceptions || []).filter(b => b.date >= fromStr && b.date <= toStr));
+        }
+      } catch { /* blocks are supplementary; appointments still render */ }
     } catch (err) {
       logger.error('CalendarFull load error:', err);
     } finally {
@@ -150,6 +162,10 @@ export default function CalendarFull() {
 
   function apptsOn(dateStr) {
     return liveAppts.filter(a => String(a.starts_at || '').startsWith(dateStr));
+  }
+
+  function blocksOn(dateStr) {
+    return blocks.filter(b => b.date === dateStr);
   }
 
   // ---- navigation ----
@@ -213,8 +229,8 @@ export default function CalendarFull() {
       {loading && <div style={S.loading} className="cf-noprint">Loading your diary…</div>}
 
       {view === 'week'
-        ? <WeekGrid days={days} apptsOn={apptsOn} onPickDay={(d) => { setAnchor(d); }} />
-        : <MonthGrid anchor={anchor} apptsOn={apptsOn} onPickDay={(d) => { setAnchor(d); setView('week'); }} />}
+        ? <WeekGrid days={days} apptsOn={apptsOn} blocksOn={blocksOn} onPickDay={(d) => { setAnchor(d); }} />
+        : <MonthGrid anchor={anchor} apptsOn={apptsOn} blocksOn={blocksOn} onPickDay={(d) => { setAnchor(d); setView('week'); }} />}
 
       {syncOpen && <SyncPanel onClose={() => setSyncOpen(false)} />}
     </div>
@@ -222,7 +238,7 @@ export default function CalendarFull() {
 }
 
 /* ============================ WEEK GRID ============================ */
-function WeekGrid({ days, apptsOn, onPickDay }) {
+function WeekGrid({ days, apptsOn, blocksOn = () => [], onPickDay }) {
   const hours = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
   const gridHeight = (END_HOUR - START_HOUR) * HOUR_HEIGHT;
   const todayStr = todayLocal();
@@ -262,6 +278,35 @@ function WeekGrid({ days, apptsOn, onPickDay }) {
                 {hours.map((h, i) => (
                   <div key={h} style={{ ...S.hourLine, top: i * HOUR_HEIGHT }} />
                 ))}
+                {/* Blocked time: closed days stripe the whole column, hour
+                    blocks stripe just their range (same rule as the day view). */}
+                {blocksOn(ds).map(b => {
+                  const isClosed = b.type ? b.type === 'closed' : !!b.is_closed;
+                  let top = 0, height = gridHeight;
+                  if (!isClosed && b.start_time && b.end_time) {
+                    const [sh, sm] = String(b.start_time).split(':').map(Number);
+                    const [eh, em] = String(b.end_time).split(':').map(Number);
+                    top = ((sh + sm / 60) - hours[0]) * HOUR_HEIGHT;
+                    height = Math.max(((eh + em / 60) - (sh + sm / 60)) * HOUR_HEIGHT, 20);
+                  }
+                  return (
+                    <div
+                      key={b.id}
+                      title={isClosed ? 'Closed all day' : `Blocked ${String(b.start_time).slice(0, 5)} to ${String(b.end_time).slice(0, 5)}`}
+                      style={{
+                        position: 'absolute', left: 1, right: 1, top: Math.max(0, top), height,
+                        background: 'repeating-linear-gradient(45deg, rgba(146,64,94,0.08) 0px, rgba(146,64,94,0.08) 5px, rgba(146,64,94,0.02) 5px, rgba(146,64,94,0.02) 10px)',
+                        borderLeft: '3px solid rgba(146,64,94,0.45)',
+                        borderRadius: 4, zIndex: 1, pointerEvents: 'none',
+                        display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 4,
+                      }}
+                    >
+                      <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.05em', color: 'rgba(146,64,94,0.75)' }}>
+                        {isClosed ? 'CLOSED' : 'BLOCKED'}
+                      </span>
+                    </div>
+                  );
+                })}
                 {rects.map(({ a, top, height, col, cols }) => {
                   const color = treatmentColor(a.treatments);
                   const widthPct = 100 / cols;
@@ -296,7 +341,7 @@ function WeekGrid({ days, apptsOn, onPickDay }) {
 }
 
 /* ============================ MONTH GRID ============================ */
-function MonthGrid({ anchor, apptsOn, onPickDay }) {
+function MonthGrid({ anchor, apptsOn, blocksOn = () => [], onPickDay }) {
   const todayStr = todayLocal();
   const monthIdx = anchor.getMonth();
   const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1, 12);
@@ -316,6 +361,9 @@ function MonthGrid({ anchor, apptsOn, onPickDay }) {
           const inMonth = d.getMonth() === monthIdx;
           const isToday = ds === todayStr;
           const dots = list.slice(0, 4);
+          const dayBlocks = blocksOn(ds);
+          const isClosedDay = dayBlocks.some(b => (b.type ? b.type === 'closed' : !!b.is_closed));
+          const hasHourBlock = !isClosedDay && dayBlocks.length > 0;
           return (
             <button
               key={ds}
@@ -324,11 +372,16 @@ function MonthGrid({ anchor, apptsOn, onPickDay }) {
                 ...S.monthCell,
                 opacity: inMonth ? 1 : 0.4,
                 ...(isToday ? S.monthCellToday : {}),
+                ...(isClosedDay ? { background: 'repeating-linear-gradient(45deg, rgba(146,64,94,0.07) 0px, rgba(146,64,94,0.07) 5px, transparent 5px, transparent 10px)' } : {}),
               }}
             >
               <div style={S.monthCellTop}>
                 <span style={{ ...S.monthDayNum, ...(isToday ? S.monthDayNumToday : {}) }}>{d.getDate()}</span>
-                {list.length > 0 && <span style={S.monthCount}>{list.length}</span>}
+                {isClosedDay
+                  ? <span style={{ fontSize: 8, fontWeight: 800, letterSpacing: '0.04em', color: 'rgba(146,64,94,0.7)' }}>CLOSED</span>
+                  : hasHourBlock
+                    ? <span title="Some hours blocked" style={{ fontSize: 9, color: 'rgba(146,64,94,0.7)' }}>▮</span>
+                    : (list.length > 0 && <span style={S.monthCount}>{list.length}</span>)}
               </div>
               <div style={S.monthDots}>
                 {dots.map(a => (
