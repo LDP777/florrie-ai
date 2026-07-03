@@ -58,6 +58,10 @@ router.post('/', requireAuth, async (req, res) => {
       beautician_id: req.beautician.id,
       date,
       type,
+      // The legacy is_closed column DEFAULTS TO TRUE, so it must be set
+      // explicitly: an 'amended' time-range block left it true and the
+      // calendar rendered every partial block as a full-day closure.
+      is_closed: type === 'closed',
       reason,
       note: note || null,
       notify_clients: notify_clients !== false,

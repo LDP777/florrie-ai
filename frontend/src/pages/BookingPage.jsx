@@ -115,6 +115,7 @@ export default function BookingPage() {
   const [calMonth, setCalMonth] = useState(null);
   const [monthAppointments, setMonthAppointments] = useState([]);
   const [monthClosures, setMonthClosures] = useState([]);
+  const [monthBlocks, setMonthBlocks] = useState([]);
   const [calLoading, setCalLoading] = useState(false);
   // User selections, multi-treatment support
   const [selectedTreatments, setSelectedTreatments] = useState([]);
@@ -402,14 +403,31 @@ export default function BookingPage() {
       // Booked blocks via the public backend endpoint (works logged-out).
       let bookedSlots = [];
       let appts = [];
+      let dayBlocks = [];
+      let dayClosed = false;
       try {
         const avRes = await fetch(`${API_BASE}/api/booking/${slug}/availability?date=${selectedDate}`);
-        if (avRes.ok) appts = (await avRes.json()).appointments || [];
+        if (avRes.ok) {
+          const av = await avRes.json();
+          appts = av.appointments || [];
+          dayBlocks = av.blocks || [];
+          dayClosed = av.closed === true;
+        }
       } catch { appts = []; }
+      if (dayClosed) {
+        setSlots([]);
+        setSelectedSlot(null);
+        return;
+      }
       bookedSlots = (appts || []).map(a => ({
         start: new Date(a.starts_at).getHours() * 60 + new Date(a.starts_at).getMinutes(),
         end: new Date(a.starts_at).getHours() * 60 + new Date(a.starts_at).getMinutes() + (a.duration_minutes || 60) + (a.buffer_minutes || 0),
       }));
+      // Blocked-out time ranges count as taken, same as appointments.
+      const toMin = t => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
+      for (const b of dayBlocks) {
+        if (b.start_time && b.end_time) bookedSlots.push({ start: toMin(b.start_time), end: toMin(b.end_time) });
+      }
       const generated = [];
       for (let m = startMin; m + totalBlock <= endMin; m += 30) {
         const isBooked = bookedSlots.some(b => m < b.end && m + totalBlock > b.start);
@@ -471,6 +489,7 @@ export default function BookingPage() {
         if (cancelled) return;
         setMonthAppointments(data.appointments || []);
         setMonthClosures(data.closures || []);
+        setMonthBlocks(data.blocks || []);
       } catch {
         if (!cancelled) { setMonthAppointments([]); setMonthClosures([]); }
       } finally {
@@ -492,6 +511,17 @@ export default function BookingPage() {
     return map;
   }, [monthAppointments]);
   const closureSet = useMemo(() => new Set(monthClosures || []), [monthClosures]);
+  // Partial-day blocks keyed by date, as taken minute-ranges (mirrors apptsByDay).
+  const blocksByDay = useMemo(() => {
+    const map = {};
+    for (const b of monthBlocks || []) {
+      if (!b.date || !b.start_time || !b.end_time) continue;
+      const [sh, sm] = String(b.start_time).split(':').map(Number);
+      const [eh, em] = String(b.end_time).split(':').map(Number);
+      (map[b.date] = map[b.date] || []).push({ start: sh * 60 + sm, end: eh * 60 + em });
+    }
+    return map;
+  }, [monthBlocks]);
   // Compute a status for a given Date cell: 'past' | 'beyond' | 'off' | 'closed'
   // | 'open' (has space) | 'full' (working but no fitting slot).
   function dayStatus(d) {
@@ -511,7 +541,7 @@ export default function BookingPage() {
     const [endH, endM] = hours.end.split(':').map(Number);
     const startMin = startH * 60 + startM;
     const endMin = endH * 60 + endM;
-    const booked = apptsByDay[iso] || [];
+    const booked = [...(apptsByDay[iso] || []), ...(blocksByDay[iso] || [])];
     for (let m = startMin; m + totalBlock <= endMin; m += 30) {
       const clashes = booked.some(b => m < b.end && m + totalBlock > b.start);
       if (!clashes) return 'open';

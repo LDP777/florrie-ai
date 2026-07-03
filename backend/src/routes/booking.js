@@ -224,7 +224,26 @@ router.get('/:slug/availability', async (req, res) => {
     .lte('starts_at', `${date}T23:59:59`)
     .not('status', 'in', '(cancelled,cancelled_by_client,cancelled_by_beautician,rescheduled)');
 
-  res.json({ appointments: appts || [] });
+  // Blocked-off time for the day: partial (amended) blocks come back with
+  // their time range so the picker can grey those slots out; anything
+  // without a usable range is treated as a full-day closure.
+  const { data: exceptionRows } = await supabase
+    .from('hours_exceptions')
+    .select('type, start_time, end_time')
+    .eq('beautician_id', salon.id)
+    .eq('date', date);
+
+  const blocks = [];
+  let dayClosed = false;
+  for (const r of exceptionRows || []) {
+    if (r.type !== 'closed' && r.start_time && r.end_time) {
+      blocks.push({ start_time: r.start_time, end_time: r.end_time });
+    } else {
+      dayClosed = true;
+    }
+  }
+
+  res.json({ appointments: appts || [], blocks, closed: dayClosed });
 });
 
 /**
@@ -255,18 +274,30 @@ router.get('/:slug/availability-range', async (req, res) => {
     .lte('starts_at', `${to}T23:59:59`)
     .not('status', 'in', '(cancelled,cancelled_by_client,cancelled_by_beautician,rescheduled)');
 
-  // Days the beautician has fully blocked off (holiday/sick/etc).
-  const { data: closuresRows } = await supabase
+  // Blocked-off time: full-day closures AND partial-day (amended) blocks.
+  // Previously only type='closed' was returned, so a client could book
+  // straight into an hour the beautician had blocked out.
+  const { data: exceptionRows } = await supabase
     .from('hours_exceptions')
-    .select('date')
+    .select('date, type, start_time, end_time')
     .eq('beautician_id', salon.id)
-    .eq('type', 'closed')
     .gte('date', from)
     .lte('date', to);
 
+  const closures = [];
+  const blocks = [];
+  for (const r of exceptionRows || []) {
+    if (r.type !== 'closed' && r.start_time && r.end_time) {
+      blocks.push({ date: r.date, start_time: r.start_time, end_time: r.end_time });
+    } else {
+      closures.push(r.date);
+    }
+  }
+
   res.json({
     appointments: appts || [],
-    closures: (closuresRows || []).map(r => r.date),
+    closures,
+    blocks,
   });
 });
 
@@ -1809,6 +1840,36 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
 
   if (conflicts && conflicts.length > 0) {
     return res.status(409).json({ error: 'This time slot is no longer available' });
+  }
+
+  // Blocked-time guard: never accept a booking on a closed day or inside a
+  // blocked-out time range (hours_exceptions). The picker hides these, but a
+  // stale page or direct API call could still slip through without this.
+  // starts_at from the public picker is salon-local wall time ('...THH:MM:00',
+  // no Z), and exception times are salon-local too, so compare wall minutes.
+  const bookDate = String(starts_at).slice(0, 10);
+  const { data: dayExceptions } = await supabase
+    .from('hours_exceptions')
+    .select('type, start_time, end_time')
+    .eq('beautician_id', beautician.id)
+    .eq('date', bookDate);
+
+  if (dayExceptions && dayExceptions.length > 0) {
+    const wall = /T(\d{2}):(\d{2})/.exec(String(starts_at));
+    const slotStartMin = wall ? Number(wall[1]) * 60 + Number(wall[2]) : null;
+    const slotEndMin = slotStartMin === null ? null : slotStartMin + totalMinutes;
+    for (const ex of dayExceptions) {
+      const timed = ex.type !== 'closed' && ex.start_time && ex.end_time;
+      if (!timed) {
+        return res.status(409).json({ error: 'This day is no longer available. Please choose another date.' });
+      }
+      if (slotStartMin === null) continue;
+      const [sh, sm] = ex.start_time.split(':').map(Number);
+      const [eh, em] = ex.end_time.split(':').map(Number);
+      if (slotStartMin < eh * 60 + em && slotEndMin > sh * 60 + sm) {
+        return res.status(409).json({ error: 'This time slot is no longer available. Please choose another time.' });
+      }
+    }
   }
 
   // Build client_notes — combine free text notes + consultation form answers

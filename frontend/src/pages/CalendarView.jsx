@@ -564,7 +564,7 @@ export default function CalendarView({ initialView } = {}) {
               .filter(b => b.date === formatDate(currentDate))
               .map(block => {
                 let top = 0, height = (END_HOUR - START_HOUR) * HOUR_HEIGHT;
-                const isClosed = block.type === 'closed' || block.is_closed;
+                const isClosed = block.type ? block.type === 'closed' : !!block.is_closed;
                 if (!isClosed) {
                   const st = block.start_time || block.custom_start;
                   const et = block.end_time || block.custom_end;
@@ -1743,7 +1743,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
 // BlockDetailSheet - shows an existing block + remove option
 function BlockDetailSheet({ block, onDelete, onClose }) {
   const [confirming, setConfirming] = useState(false);
-  const isClosed = block.type === 'closed' || block.is_closed;
+  const isClosed = block.type ? block.type === 'closed' : !!block.is_closed;
   const timeRange = isClosed
     ? 'All day'
     : `${block.start_time || block.custom_start || '?'} → ${block.end_time || block.custom_end || '?'}`;
