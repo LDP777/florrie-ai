@@ -83,14 +83,25 @@ function initialOf(name) {
 async function authedFetch(path, opts = {}) {
   const { data } = await supabase.auth.getSession();
   const token = data?.session?.access_token;
-  return fetch(`${API_BASE}${path}`, {
+  const doFetch = (tok) => fetch(`${API_BASE}${path}`, {
     ...opts,
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${tok}`,
       'Content-Type': 'application/json',
       ...(opts.headers || {}),
     },
   });
+  let res = await doFetch(token);
+  // One retry after a forced session refresh: a stale token mid-session made
+  // every action toast a generic failure even though the tap was fine.
+  if (res.status === 401) {
+    try {
+      const { data: refreshed } = await supabase.auth.refreshSession();
+      const fresh = refreshed?.session?.access_token;
+      if (fresh) res = await doFetch(fresh);
+    } catch { /* fall through with the 401 */ }
+  }
+  return res;
 }
 
 // Normalise a held proactive row into the shared shape.
@@ -222,12 +233,15 @@ export default function Outbox() {
           action: edited ? 'send_edited' : 'send_as_is',
         }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || '');
+      }
       setReplies(prev => prev.filter(i => i.id !== id)); window.dispatchEvent(new Event('florrie:refresh-counts'));
       bloom();
       showToast('Sent.');
-    } catch {
-      showToast('Could not send that one. Try again.');
+    } catch (err) {
+      showToast(err?.message ? `Could not send: ${err.message}` : 'Could not send that one. Try again.');
     }
   }
 
@@ -237,10 +251,19 @@ export default function Outbox() {
         method: 'POST',
         body: JSON.stringify({ action: 'dismiss' }),
       });
-      if (!res.ok) throw new Error();
+      // 404 = already resolved elsewhere (another device, the inbox, a retry):
+      // the card is done either way, so clear it instead of erroring.
+      if (res.status === 404) {
+        setReplies(prev => prev.filter(i => i.id !== id)); window.dispatchEvent(new Event('florrie:refresh-counts'));
+        return;
+      }
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || '');
+      }
       setReplies(prev => prev.filter(i => i.id !== id)); window.dispatchEvent(new Event('florrie:refresh-counts'));
-    } catch {
-      showToast('Could not dismiss that one. Try again.');
+    } catch (err) {
+      showToast(err?.message ? `Could not dismiss: ${err.message}` : 'Could not dismiss that one. Try again.');
     }
   }
 
