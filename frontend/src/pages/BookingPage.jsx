@@ -420,10 +420,14 @@ export default function BookingPage() {
         setSelectedSlot(null);
         return;
       }
-      bookedSlots = (appts || []).map(a => ({
-        start: new Date(a.starts_at).getHours() * 60 + new Date(a.starts_at).getMinutes(),
-        end: new Date(a.starts_at).getHours() * 60 + new Date(a.starts_at).getMinutes() + (a.duration_minutes || 60) + (a.buffer_minutes || 0),
-      }));
+      // starts_at stores salon WALL time in the string (11:00 salon = 11:00Z),
+      // so read it straight off the string. new Date().getHours() shifted it
+      // +1h in BST and the picker offered slots that were actually booked.
+      bookedSlots = (appts || []).map(a => {
+        const str = String(a.starts_at || '');
+        const start = parseInt(str.slice(11, 13), 10) * 60 + parseInt(str.slice(14, 16), 10);
+        return { start, end: start + (a.duration_minutes || 60) + (a.buffer_minutes || 0) };
+      }).filter(b => !Number.isNaN(b.start));
       // Blocked-out time ranges count as taken, same as appointments.
       const toMin = t => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
       for (const b of dayBlocks) {
@@ -503,9 +507,12 @@ export default function BookingPage() {
   const apptsByDay = useMemo(() => {
     const map = {};
     for (const a of monthAppointments) {
-      const start = new Date(a.starts_at);
-      const key = isoLocal(start);
-      const startMin = start.getHours() * 60 + start.getMinutes();
+      // Wall-time read off the stored string (see loadSlots): no browser
+      // timezone may shift the date or the minutes.
+      const str = String(a.starts_at || '');
+      const key = str.slice(0, 10);
+      const startMin = parseInt(str.slice(11, 13), 10) * 60 + parseInt(str.slice(14, 16), 10);
+      if (!key || Number.isNaN(startMin)) continue;
       const endMin = startMin + (a.duration_minutes || 60) + (a.buffer_minutes || 0);
       (map[key] = map[key] || []).push({ start: startMin, end: endMin });
     }

@@ -27,11 +27,20 @@ export function isMarketingSmsType(messageType) {
   return MARKETING_SMS_TYPES.has(String(messageType || ''));
 }
 
-/** Marketing only between 08:00 and 21:00 UK time. */
-export function inMarketingQuietHours(now = new Date()) {
-  const hour = Number(
-    new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hour12: false, timeZone: 'Europe/London' }).format(now)
-  );
+/** Marketing only between 08:00 and 21:00 in the salon's own timezone
+ *  (defaults to Europe/London when the beautician has none set). */
+export function inMarketingQuietHours(now = new Date(), tz = 'Europe/London') {
+  let hour;
+  try {
+    hour = Number(
+      new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hour12: false, timeZone: tz || 'Europe/London' }).format(now)
+    );
+  } catch {
+    // Bad tz string on the record: fall back to the UK default.
+    hour = Number(
+      new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hour12: false, timeZone: 'Europe/London' }).format(now)
+    );
+  }
   return hour >= 21 || hour < 8;
 }
 

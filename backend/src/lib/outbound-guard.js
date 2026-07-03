@@ -102,8 +102,17 @@ export async function evaluateOutbound({ beauticianId, clientId, messageType, ch
     if (!c) return decision('block', tier, 'no_client_match');
     if (c.marketing_opted_out_at) return decision('block', tier, 'opted_out');
 
-    // 2) Sociable hours only (marketing). Held, not killed.
-    if (inMarketingQuietHours()) return decision('block', tier, 'quiet_hours');
+    // 2) Sociable hours only (marketing), in the salon's own timezone. Held, not killed.
+    let salonTz = null;
+    try {
+      const { data: b } = await supabase
+        .from('beauticians')
+        .select('timezone')
+        .eq('id', beauticianId)
+        .maybeSingle();
+      salonTz = b?.timezone || null;
+    } catch { /* default applies */ }
+    if (inMarketingQuietHours(new Date(), salonTz || undefined)) return decision('block', tier, 'quiet_hours');
 
     // 3) Cross-engine frequency cap: nothing proactive within the last N days,
     //    counting anything already sent, approved, or waiting for approval.

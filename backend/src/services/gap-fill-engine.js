@@ -39,7 +39,7 @@ export async function checkGapFillOpportunities(beauticianId, threshold) {
     // 1. Get beautician working hours + prefs
     const { data: beautician } = await supabase
       .from('beauticians')
-      .select('working_hours, whatsapp_phone_id, client_reminder_prefs')
+      .select('working_hours, whatsapp_phone_id, client_reminder_prefs, timezone')
       .eq('id', beauticianId)
       .single();
 
@@ -59,7 +59,7 @@ export async function checkGapFillOpportunities(beauticianId, threshold) {
       .neq('status', 'cancelled');
 
     // 3. Compute gaps across the week
-    const gaps = computeWeekGaps(now, appointments || [], beautician.working_hours);
+    const gaps = computeWeekGaps(now, appointments || [], beautician.working_hours, beautician.timezone);
     if (gaps.length === 0) return result;
 
     // 4. Fetch candidate pools in parallel
@@ -176,7 +176,7 @@ export async function getGapFillSuggestions(beauticianId) {
   try {
     const { data: beautician } = await supabase
       .from('beauticians')
-      .select('working_hours')
+      .select('working_hours, timezone')
       .eq('id', beauticianId)
       .single();
 
@@ -194,7 +194,7 @@ export async function getGapFillSuggestions(beauticianId) {
       .lte('starts_at', weekEnd.toISOString())
       .neq('status', 'cancelled');
 
-    const gaps = computeWeekGaps(now, appointments || [], beautician.working_hours);
+    const gaps = computeWeekGaps(now, appointments || [], beautician.working_hours, beautician.timezone);
     if (gaps.length === 0) return suggestions;
 
     const [waitlistPool, rebookPool, dormantPool] = await Promise.all([
@@ -283,7 +283,7 @@ export async function gapFillDiagnostic(beauticianId) {
                 waitlist: 0, rebook: 0, dormant: 0, recently_contacted: 0, error: null };
   try {
     const { data: beautician } = await supabase
-      .from('beauticians').select('working_hours').eq('id', beauticianId).single();
+      .from('beauticians').select('working_hours, timezone').eq('id', beauticianId).single();
     out.working_hours_days = beautician?.working_hours ? Object.keys(beautician.working_hours).length : 0;
 
     const now = new Date();
@@ -297,7 +297,7 @@ export async function gapFillDiagnostic(beauticianId) {
       .neq('status', 'cancelled');
     out.appts_next_7d = (appointments || []).length;
 
-    const gaps = computeWeekGaps(now, appointments || [], beautician?.working_hours || {});
+    const gaps = computeWeekGaps(now, appointments || [], beautician?.working_hours || {}, beautician?.timezone);
     out.gaps_found = gaps.length;
     if (gaps[0]) out.first_gap = { date: gaps[0].date, start: gaps[0].start, end: gaps[0].end, mins: gaps[0].duration_minutes };
 
@@ -315,15 +315,14 @@ export async function gapFillDiagnostic(beauticianId) {
 /**
  * Compute all gaps ≥30 min for the next 7 days.
  */
-const SALON_TZ = 'Europe/London'; // UK product; make per-beautician later if needed
+const DEFAULT_TZ = 'Europe/London'; // fallback when beauticians.timezone is null
 
-// Salon-local (SALON_TZ) parts of an instant: calendar date, minute-of-day, weekday.
-// The server runs in UTC, so reading appt times as UTC and comparing to the
-// beautician's local working hours shifted every gap ~1 hour (a booked slot could
-// look free). Convert to the salon's own timezone first.
-function localParts(instant) {
+// Salon-local parts of a TRUE instant (like `now`): calendar date,
+// minute-of-day, weekday. The server runs in UTC, so the day frame and the
+// "no gaps in the past" cursor must be converted to the salon's timezone.
+function localParts(instant, tz = DEFAULT_TZ) {
   const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: SALON_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+    timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
     hour: '2-digit', minute: '2-digit', hour12: false, weekday: 'short',
   }).formatToParts(instant);
   const g = (t) => parts.find((x) => x.type === t)?.value;
@@ -332,28 +331,43 @@ function localParts(instant) {
   return { date: `${g('year')}-${g('month')}-${g('day')}`, minutes: hh * 60 + parseInt(g('minute'), 10), dow };
 }
 
-function computeWeekGaps(now, appointments, workingHours) {
+// Appointment starts_at is stored as SALON WALL TIME in the timestamp string
+// (11:00 salon time is saved as 11:00Z; the calendar UI reads slice(11,16)
+// for exactly this reason). So wall parts come straight off the string. An
+// Intl conversion here double-shifts during BST: an 11:00 booking read as
+// 12:00 made the engine offer the genuinely-booked 11:00 slot as a gap.
+function wallParts(isoish) {
+  const str = String(isoish || '');
+  const h = parseInt(str.slice(11, 13), 10);
+  const m = parseInt(str.slice(14, 16), 10);
+  if (Number.isNaN(h) || Number.isNaN(m)) return null;
+  return { date: str.slice(0, 10), minutes: h * 60 + m };
+}
+
+function computeWeekGaps(now, appointments, workingHours, tz = DEFAULT_TZ) {
   const gaps = [];
   const dayKeyMap = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
   const apptsLocal = (appointments || [])
     .filter((a) => a.starts_at)
     .map((a) => {
-      const lp = localParts(new Date(a.starts_at));
-      return { date: lp.date, start: lp.minutes, duration: a.duration_minutes || 60 };
-    });
+      const wp = wallParts(a.starts_at);
+      if (!wp) return null;
+      return { date: wp.date, start: wp.minutes, duration: a.duration_minutes || 60 };
+    })
+    .filter(Boolean);
 
-  const nowLocal = localParts(now);
+  const nowLocal = localParts(now, tz);
 
   for (let i = 0; i < 7; i++) {
-    const dayParts = localParts(new Date(now.getTime() + i * 86400000));
+    const dayParts = localParts(new Date(now.getTime() + i * 86400000), tz);
     const dayKey = dayKeyMap[dayParts.dow];
     const dayHours = workingHours[dayKey];
     if (!dayHours?.start) continue;
 
     const dateStr = dayParts.date;
     const dayLabel = new Intl.DateTimeFormat('en-GB', {
-      timeZone: SALON_TZ, weekday: 'short', day: 'numeric', month: 'short',
+      timeZone: tz || DEFAULT_TZ, weekday: 'short', day: 'numeric', month: 'short',
     }).format(new Date(`${dateStr}T12:00:00Z`));
 
     const [startH, startM] = dayHours.start.split(':').map(Number);
