@@ -9,8 +9,9 @@
  * This file is intentionally minimal.
  */
 import { Router } from 'express';
+import { executeTool } from '../services/voice-tools.js';
 import { requireAuth } from '../middleware/auth.js';
-import { processVoiceCommand } from '../services/voice-orchestrator.js';
+import { processVoiceCommand, CONFIRM_REQUIRED } from '../services/voice-orchestrator.js';
 import logger from '../lib/logger.js';
 import { supabase } from '../config.js';
 
@@ -53,6 +54,26 @@ router.post('/command', requireAuth, async (req, res) => {
     }
 
     return res.status(500).json({ error: 'Something went wrong. Try again in a moment.' });
+  }
+});
+
+/**
+ * POST /api/voice/execute
+ * Runs ONE previously-proposed consequential tool after the beautician tapped
+ * the visual confirm card. Only tools on the confirm list are accepted here.
+ * Body: { tool: string, input: object }
+ */
+router.post('/execute', requireAuth, async (req, res) => {
+  const { tool, input } = req.body || {};
+  if (!tool || !CONFIRM_REQUIRED.has(tool)) {
+    return res.status(400).json({ error: 'Unknown or non-confirmable tool' });
+  }
+  try {
+    const result = await executeTool(tool, input || {}, req.beautician, supabase);
+    res.json({ result: result.result, data: result.data || null });
+  } catch (err) {
+    logger.error({ err, tool }, 'voice execute failed');
+    res.status(500).json({ error: 'Could not do that. Try again.' });
   }
 });
 

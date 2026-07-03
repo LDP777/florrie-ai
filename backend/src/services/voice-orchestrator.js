@@ -21,6 +21,16 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { TOOL_DEFINITIONS, executeTool, findClient } from './voice-tools.js';
+
+// Tools with consequences never fire on speech alone (Levi, 2026-07-04):
+// they come back as PROPOSALS the app renders as a visual confirm card.
+// Read-only insight tools still answer instantly.
+export const CONFIRM_REQUIRED = new Set([
+  'book_appointment', 'reschedule_appointment', 'cancel_appointment',
+  'block_date', 'block_date_range', 'clear_block',
+  'send_message', 'send_bulk_message', 'send_payment_link', 'send_rebook_reminder',
+  'create_expense',
+]);
 import logger from '../lib/logger.js';
 import { cleanReply } from '../lib/text.js';
 
@@ -73,6 +83,7 @@ export async function processVoiceCommand({ audioBase64, text, mimeType, beautic
   const messages = [{ role: 'user', content: transcript }];
 
   const executedActions = [];
+  const proposals = [];
   let finalReply = null;
   let rounds = 0;
 
@@ -112,10 +123,22 @@ export async function processVoiceCommand({ audioBase64, text, mimeType, beautic
       break;
     }
 
-    // Execute all tool calls in this round
+    // Execute all tool calls in this round. Consequential tools are NOT
+    // executed: they become proposals for the on-screen confirm card.
     const toolResults = [];
 
     for (const toolCall of toolUseBlocks) {
+      if (CONFIRM_REQUIRED.has(toolCall.name)) {
+        logger.info({ toolName: toolCall.name, input: toolCall.input }, 'Voice tool held for confirmation');
+        proposals.push({ tool: toolCall.name, input: toolCall.input });
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: toolCall.id,
+          content: 'Held for on-screen confirmation. Nothing has happened yet. Tell the beautician, in one short sentence, exactly what you are proposing and that she can confirm it on the card below.',
+        });
+        continue;
+      }
+
       logger.info({ toolName: toolCall.name, input: toolCall.input }, 'Executing voice tool');
 
       const result = await executeTool(toolCall.name, toolCall.input, beautician, supabase);
@@ -149,6 +172,9 @@ export async function processVoiceCommand({ audioBase64, text, mimeType, beautic
     }
   }
 
+  if (!finalReply && proposals.length > 0) {
+    finalReply = 'Here is what I would like to do. Have a look at the card and confirm it.';
+  }
   if (!finalReply) {
     if (executedActions.length === 1) {
       finalReply = executedActions[0].result;
@@ -162,6 +188,7 @@ export async function processVoiceCommand({ audioBase64, text, mimeType, beautic
   return {
     transcript,
     reply: cleanReply(finalReply),
+    proposals,
     actions: executedActions,
     status: executedActions.length > 0 ? 'ok' : 'unknown',
   };

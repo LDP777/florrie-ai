@@ -4,6 +4,7 @@ import { useBeautician, supabase, fetchRows } from '../lib/supabase.js'
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import { deDash } from '../lib/text.js';
+import { bloom } from '../lib/bloom.js';
 /**
  * Voice Commander - Talk to florrie.ai.
  *
@@ -49,6 +50,83 @@ function FloriePetal({ size = 28, spinning = false, white = false }) {
   );
 }
 // Map tool names → which agent "handled" it (for avatar/colour display)
+/**
+ * Visual confirm card: a spoken command with consequences renders THIS instead
+ * of executing. Shows exactly what will happen; nothing runs until the tap.
+ */
+function ProposalCard({ prop, onDone }) {
+  const [state, setState] = useState('idle'); // idle | running | done | failed
+  async function confirm() {
+    if (state !== 'idle') return;
+    setState('running');
+    try {
+      const token = (await supabase?.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/voice/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ tool: prop.tool, input: prop.input }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not do that.');
+      setState('done');
+      bloom();
+      onDone && onDone(data.result || 'Done.');
+    } catch (err) {
+      setState('failed');
+      onDone && onDone(err.message || 'Could not do that. Try again.');
+    }
+  }
+  if (state === 'done') {
+    return (
+      <div style={{ marginTop: 8, padding: '10px 14px', borderRadius: 14, background: 'var(--tone-2, #f6e7dd)', fontSize: 13, fontWeight: 600, color: 'var(--accent, #92405e)' }}>
+        Done ✓
+      </div>
+    );
+  }
+  return (
+    <div style={{ marginTop: 8, padding: '12px 14px', borderRadius: 16, background: 'var(--tone-1, #fbf1ea)', border: '1.5px solid var(--accent, #92405e)' }}>
+      <p style={{ margin: 0, fontSize: 11, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--accent, #92405e)' }}>Confirm to make it happen</p>
+      <p style={{ margin: '6px 0 10px', fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #3d3438)', lineHeight: 1.45 }}>{proposalSummary(prop.tool, prop.input)}</p>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          onClick={confirm}
+          disabled={state === 'running'}
+          style={{ flex: 1, minHeight: 42, borderRadius: 12, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: state === 'running' ? 0.6 : 1 }}
+        >
+          {state === 'running' ? 'Doing it…' : 'Yes, do it'}
+        </button>
+        {state === 'idle' && (
+          <button
+            onClick={() => setState('done')}
+            style={{ minHeight: 42, padding: '0 16px', borderRadius: 12, border: 'none', background: 'var(--tone-2, #f6e7dd)', color: 'var(--text-secondary, #867277)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            Leave it
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Human line for a proposed tool call on the confirm card. */
+function proposalSummary(tool, input = {}) {
+  const when = [input.date, input.time].filter(Boolean).join(' at ');
+  switch (tool) {
+    case 'book_appointment': return `Book ${input.client_name || 'a client'} in${input.treatment_name ? ` for ${input.treatment_name}` : ''}${when ? ` on ${when}` : ''}`;
+    case 'reschedule_appointment': return `Move ${input.client_name || 'the appointment'}${input.new_date ? ` to ${input.new_date}` : ''}${input.new_time ? ` at ${input.new_time}` : ''}`;
+    case 'cancel_appointment': return `Cancel ${input.client_name || 'the appointment'}${input.date ? ` on ${input.date}` : ''}${input.notify_client === false ? '' : ' and let them know'}`;
+    case 'block_date': return `Block ${input.date || 'the day'}${input.start_time ? ` from ${input.start_time}${input.end_time ? ` to ${input.end_time}` : ''}` : ' all day'}`;
+    case 'block_date_range': return `Block ${input.from_date} to ${input.to_date}${input.skip_weekends ? ', keeping weekends open' : ''}`;
+    case 'clear_block': return `Unblock ${input.date}`;
+    case 'send_message': return `Message ${input.client_name || 'a client'}: "${(input.message || '').slice(0, 80)}"`;
+    case 'send_bulk_message': return `Message ${input.client_names?.length || 'several'} clients`;
+    case 'send_payment_link': return `Send ${input.client_name || 'a client'} a payment link${input.amount ? ` for £${input.amount}` : ''}`;
+    case 'send_rebook_reminder': return `Send ${input.client_name || 'a client'} a rebook nudge`;
+    case 'create_expense': return `Log a £${input.amount || '?'} expense${input.description ? ` (${input.description})` : ''}`;
+    default: return tool.replace(/_/g, ' ');
+  }
+}
+
 const TOOL_TO_AGENT = {
   check_schedule: 'calendar',
   get_upcoming_appointments: 'calendar',
@@ -461,6 +539,9 @@ export default function VoiceCommander() {
         action,
         multiStep,
         toolCount: toolsUsed.length,
+        // Consequential actions come back as proposals: nothing has happened
+        // yet, the confirm card below is what makes it real.
+        proposals: Array.isArray(data.proposals) ? data.proposals : [],
         timestamp: new Date().toISOString(),
       };
       setMessages(prev => [...prev, aiMsg]);
@@ -593,6 +674,11 @@ export default function VoiceCommander() {
                   {msg.action.label} →
                 </button>
               )}
+              {(msg.proposals || []).map((prop, pi) => (
+                <ProposalCard key={pi} prop={prop} onDone={(resultText) => {
+                  setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'assistant', text: resultText, agent: 'general', timestamp: new Date().toISOString() }]);
+                }} />
+              ))}
             </div>
           </div>
         ))}
@@ -632,6 +718,20 @@ export default function VoiceCommander() {
       )}
       {/* Input area */}
       <div style={styles.inputArea}>
+        {/* Insight chips: safe read-only questions, answered instantly */}
+        {!isProcessing && !isRecording && (
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 8, scrollbarWidth: 'none' }}>
+            {['How was my week?', "Who's gone quiet lately?", 'What does tomorrow look like?', 'Who are my top clients?', 'Which days are busiest?'].map(q => (
+              <button
+                key={q}
+                onClick={() => processMessage(q, false)}
+                style={{ flex: 'none', padding: '8px 14px', minHeight: 36, borderRadius: 999, border: 'none', background: 'var(--tone-2, #f6e7dd)', color: 'var(--accent, #92405e)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', WebkitTapHighlightColor: 'transparent' }}
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        )}
         {/* Live transcript preview */}
         {interimTranscript && (
           <div style={styles.interimBar}>
