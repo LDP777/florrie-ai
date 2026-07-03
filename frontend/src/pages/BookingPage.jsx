@@ -651,7 +651,7 @@ export default function BookingPage() {
           notes: clientDetails.notes || null,
           // Only new clients submit consultation/patch-test answers; returning
           // clients skip the form entirely so we never send (or require) it.
-          consultation: (needsConsultation && !recognisedClient?.found) ? consultationAnswers : null,
+          consultation: !recognisedClient?.found ? consultationAnswers : null,
           add_ons: selectedAddOns.map(ao => ({ id: ao.id, price_cents: ao.price_cents })),
           products: cartItems.map(item => ({ id: item.id, quantity: item.qty, price_cents: item.price_cents })),
           payment_type: paymentType,
@@ -1393,7 +1393,7 @@ export default function BookingPage() {
                     // Consultation form + patch test are ONLY for new clients.
                     // A recognised (returning) client always skips straight to review,
                     // never re-asked for a form or patch test they've already done.
-                    const askForms = (needsConsultation || needsPatchTest) && !recognisedClient?.found;
+                    const askForms = !recognisedClient?.found /* every first visit gets the form (Ellie's rule) */;
                     setStep(askForms ? 2.5 : 3);
                   }
                 }}
@@ -1404,7 +1404,7 @@ export default function BookingPage() {
                   cursor: (!clientDetails.name || !clientDetails.phone) ? 'not-allowed' : 'pointer'
                 }}
               >
-                {(needsConsultation || needsPatchTest) && !recognisedClient?.found ? 'Next: Consultation form' : 'Review booking'}
+                {!recognisedClient?.found /* every first visit gets the form (Ellie's rule) */ ? 'Next: Consultation form' : 'Review booking'}
               </button>
             </div>
           </div>
@@ -1416,7 +1416,9 @@ export default function BookingPage() {
               {consultationForm?.name || 'Consultation form'}
             </h2>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
-              Required for {selectedTreatment?.name}. This information helps your beautician prepare and is kept for insurance records.
+              {needsConsultation
+                ? `Required for ${selectedTreatment?.name}. This information helps your beautician prepare and is kept for insurance records.`
+                : 'A few quick questions for your first visit. It helps your beautician look after you properly and is kept for insurance records.'}
             </p>
             {consultationForm?.consent_text && (
               <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.5, padding: '10px 12px', background: 'var(--bg-subtle, #FDFCFB)', borderRadius: 8, border: '1px solid var(--border-light)' }}>
