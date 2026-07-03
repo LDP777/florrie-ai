@@ -1767,7 +1767,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   if (extra_treatment_ids && extra_treatment_ids.length > 0) {
     const { data: extras } = await supabase
       .from('treatments')
-      .select('id, name, duration_minutes, buffer_minutes, price_cents, deposit_cents, deposit_percent')
+      .select('id, name, duration_minutes, buffer_minutes, price_cents, deposit_cents, deposit_percent, requires_patch_test, requires_consultation')
       .in('id', extra_treatment_ids)
       .eq('beautician_id', beautician.id);
     extraTreatments = extras || [];
@@ -1941,6 +1941,29 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
         return res.status(409).json({ error: 'This time slot is no longer available. Please choose another time.' });
       }
     }
+  }
+
+  // ---- New-client safety gate (Ellie's rule, 2026-07-04) -------------------
+  // First-time clients booking a patch-test treatment must be 24h+ out so the
+  // test can happen at least 24 hours before the appointment. starts_at is
+  // salon wall time stored as UTC, so in BST this reads up to 1h generous;
+  // acceptable for a v1 gate. The confirmation + manage portal then walk the
+  // client through booking the actual patch-test slot (24h validation there).
+  const gateNeedsPatchTest = isNewClient && allTreatments.some(t => t.requires_patch_test === true);
+  if (gateNeedsPatchTest) {
+    const hoursAway = (startsDate.getTime() - Date.now()) / 3600000;
+    if (hoursAway < 24) {
+      return res.status(409).json({
+        error: 'As a new client, this treatment needs a quick patch test at least 24 hours before your appointment. Please choose a time from tomorrow onwards so there is time to fit it in.',
+      });
+    }
+  }
+
+  // First visit + a treatment that asks for consultation answers: the form is
+  // not optional. The page always collects it; this stops anything skipping it.
+  const gateNeedsConsultation = isNewClient && allTreatments.some(t => t.requires_consultation === true);
+  if (gateNeedsConsultation && (!consultation || Object.keys(consultation).length === 0)) {
+    return res.status(400).json({ error: 'Please fill in the quick consultation form to book this treatment.' });
   }
 
   // Build client_notes — combine free text notes + consultation form answers
@@ -2127,6 +2150,29 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     }));
     const { error: aoErr } = await supabase.from('appointment_add_ons').insert(addOnRows);
     if (aoErr) logger.warn({ err: aoErr }, 'Add-on insert failed (non-fatal)');
+  }
+
+  // New client + patch-test treatment: the pending patch test is created WITH
+  // the booking (idempotent), so it is tracked from second one and the manage
+  // portal can offer test slots immediately (its own 24h validation applies).
+  if (gateNeedsPatchTest) {
+    try {
+      const { data: priorPt } = await supabase
+        .from('patch_tests')
+        .select('id')
+        .eq('appointment_id', appointment.id)
+        .limit(1);
+      if (!priorPt || priorPt.length === 0) {
+        await supabase.from('patch_tests').insert({
+          client_id: client.id,
+          beautician_id: beautician.id,
+          appointment_id: appointment.id,
+          status: 'pending',
+        });
+      }
+    } catch (err) {
+      logger.warn({ err }, 'Pending patch test insert failed (non-fatal)');
+    }
   }
 
   // Calculate total including add-ons for Stripe line items
