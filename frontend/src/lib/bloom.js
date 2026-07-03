@@ -95,28 +95,96 @@ export function bloom(el = null) {
     const host = document.createElement('div');
     host.style.cssText = `position:fixed;left:${x}px;top:${y}px;width:0;height:0;pointer-events:none;z-index:9999;`;
     document.body.appendChild(host);
-
-    for (let i = 0; i < 12; i++) {
-      const p = document.createElement('div');
-      p.style.cssText = 'position:absolute;width:10px;height:14px;left:-5px;top:-7px;' +
-        'border-radius:50% 50% 50% 50% / 62% 62% 38% 38%;opacity:0;' +
-        `background:${PETAL_COLORS[i % PETAL_COLORS.length]};`;
-      host.appendChild(p);
-      const ang = (Math.random() * 140 - 160) * Math.PI / 180; // mostly upward
-      const dist = 30 + Math.random() * 55;
-      const dx = Math.cos(ang) * dist;
-      const dy = Math.sin(ang) * dist;
-      const drift = dy + 34 + Math.random() * 26;
-      const rot0 = Math.random() * 360;
-      const rot1 = rot0 + (Math.random() * 220 - 110);
-      p.animate([
-        { transform: `translate(0,0) rotate(${rot0}deg) scale(0.4)`, opacity: 0 },
-        { transform: `translate(${dx}px, ${dy}px) rotate(${(rot0 + rot1) / 2}deg) scale(1)`, opacity: 1, offset: 0.38 },
-        { transform: `translate(${dx * 1.15}px, ${drift}px) rotate(${rot1}deg) scale(0.92)`, opacity: 0 },
-      ], { duration: 760 + Math.random() * 180, delay: i * 14, easing: 'cubic-bezier(0.16, 0.84, 0.44, 1)', fill: 'forwards' });
-    }
+    spawnPetals(host, 1, 12);
     setTimeout(() => host.remove(), 1400);
   } catch { /* celebration must never break the flow */ }
+}
+
+function spawnPetals(host, scale, n) {
+  for (let i = 0; i < n; i++) {
+    const p = document.createElement('div');
+    p.style.cssText = `position:absolute;width:${10 * scale}px;height:${14 * scale}px;left:${-5 * scale}px;top:${-7 * scale}px;` +
+      'border-radius:50% 50% 50% 50% / 62% 62% 38% 38%;opacity:0;' +
+      `background:${PETAL_COLORS[i % PETAL_COLORS.length]};`;
+    host.appendChild(p);
+    const ang = (Math.random() * 140 - 160) * Math.PI / 180; // mostly upward
+    const dist = (30 + Math.random() * 55) * scale;
+    const dx = Math.cos(ang) * dist;
+    const dy = Math.sin(ang) * dist;
+    const drift = dy + (34 + Math.random() * 26) * scale;
+    const rot0 = Math.random() * 360;
+    const rot1 = rot0 + (Math.random() * 220 - 110);
+    p.animate([
+      { transform: `translate(0,0) rotate(${rot0}deg) scale(0.4)`, opacity: 0 },
+      { transform: `translate(${dx}px, ${dy}px) rotate(${(rot0 + rot1) / 2}deg) scale(1)`, opacity: 1, offset: 0.38 },
+      { transform: `translate(${dx * 1.15}px, ${drift}px) rotate(${rot1}deg) scale(0.92)`, opacity: 0 },
+    ], { duration: (760 + Math.random() * 180) * (scale > 1 ? 1.25 : 1), delay: i * 14, easing: 'cubic-bezier(0.16, 0.84, 0.44, 1)', fill: 'forwards' });
+  }
+}
+
+/**
+ * The rare, big version: full-screen petal moment with a shareable line.
+ * Fires once per milestone (callers track what has been seen). Tap anywhere
+ * to dismiss; Share uses the native sheet where available, else clipboard.
+ */
+export function milestoneBloom({ title, sub = '', shareText = '' }) {
+  if (!celebrationsEnabled()) return;
+  if (typeof document === 'undefined') return;
+  try {
+    chime();
+    hapticSuccess();
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:32px;background:rgba(254,248,244,0.96);';
+    const anchor = document.createElement('div');
+    anchor.style.cssText = 'position:relative;width:0;height:0;';
+    const h = document.createElement('h2');
+    h.textContent = title;
+    h.style.cssText = "font-family:var(--font-display, 'Playfair Display', Georgia, serif);font-size:26px;font-weight:700;color:var(--accent, #92405e);margin:96px 0 0;max-width:320px;line-height:1.25;opacity:0;";
+    const p = document.createElement('p');
+    p.textContent = sub;
+    p.style.cssText = 'font-size:14px;color:var(--text-secondary, #867277);margin:10px 0 0;max-width:300px;line-height:1.5;opacity:0;';
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:10px;margin-top:26px;opacity:0;';
+    const mkBtn = (label, primary) => {
+      const b = document.createElement('button');
+      b.textContent = label;
+      b.style.cssText = `min-height:44px;padding:0 22px;border-radius:12px;border:none;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;background:${primary ? 'var(--accent, #92405e)' : 'var(--tone-2, #f6e7dd)'};color:${primary ? '#fff' : 'var(--accent, #92405e)'};`;
+      return b;
+    };
+    const shareBtn = shareText ? mkBtn('Share it', true) : null;
+    const closeBtn = mkBtn('Lovely', !shareText);
+    if (shareBtn) {
+      shareBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        try {
+          if (navigator.share) await navigator.share({ text: shareText });
+          else { await navigator.clipboard.writeText(shareText); shareBtn.textContent = 'Copied!'; return; }
+        } catch { /* user cancelled */ }
+        ov.remove();
+      });
+      row.appendChild(shareBtn);
+    }
+    closeBtn.addEventListener('click', (e) => { e.stopPropagation(); ov.remove(); });
+    row.appendChild(closeBtn);
+    ov.addEventListener('click', () => ov.remove());
+    ov.appendChild(anchor); ov.appendChild(h); ov.appendChild(p); ov.appendChild(row);
+    document.body.appendChild(ov);
+
+    if (!reduce) {
+      spawnPetals(anchor, 2.4, 14);
+      setTimeout(() => spawnPetals(anchor, 2.0, 12), 300);
+      [h, p, row].forEach((el, i) => {
+        el.animate(
+          [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' }],
+          { duration: 400, delay: 450 + i * 140, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards' }
+        );
+      });
+    } else {
+      [h, p, row].forEach(el => { el.style.opacity = 1; });
+    }
+  } catch { /* never break the app for a party */ }
 }
 
 export default bloom;

@@ -9,6 +9,7 @@ import MorningCatchup from '../components/MorningCatchup.jsx';
 import UsagePanel from '../components/UsagePanel.jsx';
 import ValueReceipt from '../components/ValueReceipt.jsx';
 import SetupNudge from '../components/SetupNudge.jsx';
+import { milestoneBloom } from '../lib/bloom.js';
 
 const CalendarView = lazy(() => import('./CalendarView.jsx'));
 const SmartSchedule = lazy(() => import('./SmartSchedule.jsx'));
@@ -52,6 +53,51 @@ function getToken() {
     const parsed = JSON.parse(raw);
     return parsed?.access_token || parsed?.session?.access_token || raw;
   } catch { return null; }
+}
+
+/**
+ * Milestones: the rare, big bloom. Checks Florrie's cumulative proof-of-work
+ * once per Hub mount, fires at most ONE unseen milestone (the biggest), and
+ * remembers what has been celebrated per device. Scarcity is the mechanic.
+ */
+const MILESTONES = [
+  { id: 'booking_1', test: st => st.bookings_created >= 1, title: 'Florrie took her first booking for you', sub: 'A client booked in without you lifting a finger.', share: n => 'My AI receptionist Florrie just took her first booking for me 🌸 florrie.ai' },
+  { id: 'gaps_10', test: st => st.gaps_closed >= 10, title: 'Ten gaps filled and counting', sub: 'Cancellations that would have been dead time, back in the diary.', share: n => 'My AI receptionist Florrie has refilled 10 cancelled slots for me 🌸 florrie.ai' },
+  { id: 'messages_100', test: st => st.messages_handled >= 100, title: 'Florrie has answered 100 client messages', sub: 'A hundred replies you never had to type.', share: n => 'My AI receptionist Florrie just answered her 100th client message for me 🌸 florrie.ai' },
+  { id: 'messages_500', test: st => st.messages_handled >= 500, title: '500 client messages handled', sub: 'Five hundred conversations, handled in your voice.', share: n => 'My AI receptionist Florrie has handled 500 client messages for me 🌸 florrie.ai' },
+  { id: 'actions_500', test: st => st.total_actions >= 500, title: '500 things handled for you', sub: 'Bookings, replies, reminders, chased deposits. Florrie keeps count so you do not have to.', share: n => 'My AI assistant Florrie has now handled 500 things for my salon 🌸 florrie.ai' },
+  { id: 'actions_1000', test: st => st.total_actions >= 1000, title: 'One thousand things, handled', sub: 'Florrie has now done a thousand jobs for your salon.', share: n => '1,000 salon jobs handled by my AI assistant Florrie 🌸 florrie.ai' },
+];
+
+function MilestoneWatcher() {
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = getToken();
+        if (!token) return;
+        const res = await fetch(`${API_BASE}/api/activity/stats`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        const st = await res.json();
+        if (cancelled) return;
+        let seen = [];
+        try { seen = JSON.parse(localStorage.getItem('florrie_milestones_seen') || '[]'); } catch { seen = []; }
+        // Highest-value unseen milestone wins; later entries are bigger.
+        const due = [...MILESTONES].reverse().find(m => !seen.includes(m.id) && m.test(st));
+        if (!due) return;
+        // Mark the due one AND everything smaller as seen, so a long-running
+        // account gets one big moment, not a backlog of six overlays.
+        const dueIdx = MILESTONES.findIndex(m => m.id === due.id);
+        const nowSeen = [...new Set([...seen, ...MILESTONES.slice(0, dueIdx + 1).map(m => m.id)])];
+        try { localStorage.setItem('florrie_milestones_seen', JSON.stringify(nowSeen)); } catch { /* ignore */ }
+        setTimeout(() => {
+          if (!cancelled) milestoneBloom({ title: due.title, sub: due.sub, shareText: due.share(st) });
+        }, 1200);
+      } catch { /* milestones are a garnish */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  return null;
 }
 
 function greetingFor(now = new Date()) {
@@ -110,6 +156,9 @@ export default function Hub() {
 
           {/* Yes/no flag: anything Florrie is holding for your OK. Hidden at zero. */}
           <ApprovalCard onNav={navigate} />
+
+          {/* Rare big bloom when a cumulative milestone is newly crossed */}
+          <MilestoneWatcher />
 
           {/* Setup nudge: slim pointer to /setup while setup is incomplete */}
           <SetupNudge />

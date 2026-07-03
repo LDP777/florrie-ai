@@ -54,6 +54,37 @@ router.get('/feed', requireAuth, async (req, res) => {
 });
 
 /**
+ * GET /api/activity/stats
+ * Cumulative proof-of-work counts for milestone moments (first booking,
+ * 100th message handled, ...). Cheap head-only counts, no rows fetched.
+ */
+router.get('/stats', requireAuth, async (req, res) => {
+  try {
+    const bid = req.beautician.id;
+    const countOf = async (extra) => {
+      let q = supabase
+        .from('ai_actions')
+        .select('id', { count: 'exact', head: true })
+        .eq('beautician_id', bid);
+      if (extra) q = extra(q);
+      const { count, error } = await q;
+      if (error) throw error;
+      return count || 0;
+    };
+    const [total, messages, bookings, gaps] = await Promise.all([
+      countOf(null),
+      countOf(q => q.eq('action_type', 'message_replied')),
+      countOf(q => q.eq('action_type', 'booking_created')),
+      countOf(q => q.in('action_type', ['gap_fill', 'gap_fill_waitlist', 'gap_fill_rebook', 'gap_fill_dormant', 'gap_fill_rebook_overdue', 'cancellation_filled']).eq('outcome', 'success')),
+    ]);
+    res.json({ total_actions: total, messages_handled: messages, bookings_created: bookings, gaps_closed: gaps });
+  } catch (err) {
+    logger.error({ err }, 'Failed to compute activity stats');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+/**
  * Shape an ai_actions row into the lightweight activity-feed contract.
  * Keep this pure so it's easy to unit-test later.
  */
