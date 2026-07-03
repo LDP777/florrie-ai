@@ -117,6 +117,10 @@ export default function BookingPage() {
   const [monthClosures, setMonthClosures] = useState([]);
   const [monthBlocks, setMonthBlocks] = useState([]);
   const [reviewsData, setReviewsData] = useState(null);
+  // "Booked before?" one-tap rebook path on step 0
+  const [rebookPhone, setRebookPhone] = useState('');
+  const [rebookState, setRebookState] = useState('idle'); // idle | looking | matched | nomatch
+  const [rebookMatch, setRebookMatch] = useState(null);   // lookup payload when matched
   const [calLoading, setCalLoading] = useState(false);
   // User selections, multi-treatment support
   const [selectedTreatments, setSelectedTreatments] = useState([]);
@@ -316,6 +320,46 @@ export default function BookingPage() {
       setLookingUpClient(false);
     }
   }
+  // "Booked before?" quick path: phone-only lookup on step 0. On a match we
+  // greet by name, prefill details, and offer their last treatment one-tap.
+  async function quickRebookLookup() {
+    const phone = rebookPhone.trim();
+    if (phone.length < 7) return;
+    setRebookState('looking');
+    try {
+      const res = await fetch(`${API_BASE}/api/booking/${slug}/lookup-client`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      });
+      const data = res.ok ? await res.json() : { found: false };
+      if (data.found && data.client) {
+        setRecognisedClient(data);
+        setRebookMatch(data);
+        setRebookState('matched');
+        setClientDetails(prev => ({
+          ...prev,
+          name: prev.name || data.client.name,
+          phone: prev.phone || data.client.phone || phone,
+          email: prev.email || data.client.email || '',
+        }));
+      } else {
+        setRebookState('nomatch');
+      }
+    } catch {
+      setRebookState('nomatch');
+    }
+  }
+
+  function rebookSameAgain() {
+    const lastId = rebookMatch?.lastTreatment?.id;
+    const t = treatments.find(x => x.id === lastId);
+    if (!t) return;
+    setSelectedTreatments([t]);
+    setFieldErrors({});
+    setStep(1);
+  }
+
   // Validate and apply a discount code
   async function validateDiscountCode() {
     if (!discountInput.trim()) return;
@@ -888,6 +932,64 @@ export default function BookingPage() {
         {/* Step 0: Select Treatment */}
         {step === 0 && (
           <div>
+            {/* Returning clients: recognise + one-tap "same again" */}
+            {rebookState !== 'matched' && (
+              <div style={{ background: 'var(--tone-2, #f6e7dd)', borderRadius: 14, padding: '12px 14px', marginBottom: 18 }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 8px' }}>
+                  Been here before? Pop your mobile in and skip the form.
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    type="tel"
+                    inputMode="tel"
+                    placeholder="07..."
+                    value={rebookPhone}
+                    onChange={e => { setRebookPhone(e.target.value); if (rebookState === 'nomatch') setRebookState('idle'); }}
+                    onKeyDown={e => { if (e.key === 'Enter') quickRebookLookup(); }}
+                    style={{ flex: 1, minWidth: 0, minHeight: 44, padding: '0 12px', borderRadius: 10, border: 'none', background: 'var(--bg-card)', fontSize: 14, fontFamily: 'inherit', outline: 'none' }}
+                  />
+                  <button
+                    onClick={quickRebookLookup}
+                    disabled={rebookState === 'looking' || rebookPhone.trim().length < 7}
+                    style={{ minHeight: 44, padding: '0 16px', borderRadius: 10, border: 'none', background: brand, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: rebookState === 'looking' || rebookPhone.trim().length < 7 ? 0.55 : 1 }}
+                  >
+                    {rebookState === 'looking' ? 'Looking…' : 'Find me'}
+                  </button>
+                </div>
+                {rebookState === 'nomatch' && (
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '8px 0 0' }}>
+                    No booking under that number yet. Pick a treatment below and we will set you up.
+                  </p>
+                )}
+              </div>
+            )}
+            {rebookState === 'matched' && rebookMatch && (
+              <div style={{ background: brandLight, borderRadius: 14, padding: '14px 16px', marginBottom: 18 }}>
+                <p style={{ fontSize: 15, fontWeight: 700, color: brand, margin: 0, fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" }}>
+                  Welcome back, {rebookMatch.client.name.split(' ')[0]}
+                </p>
+                {rebookMatch.lastTreatment && treatments.some(x => x.id === rebookMatch.lastTreatment.id) ? (
+                  <>
+                    <p style={{ fontSize: 13.5, color: 'var(--text-primary)', margin: '6px 0 12px', lineHeight: 1.5 }}>
+                      Same {rebookMatch.lastTreatment.name} as last time?
+                    </p>
+                    <button
+                      onClick={rebookSameAgain}
+                      style={{ width: '100%', minHeight: 46, borderRadius: 12, border: 'none', background: brand, color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+                    >
+                      Yes, pick a time
+                    </button>
+                    <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '8px 0 0', textAlign: 'center' }}>
+                      Or choose something different below. Your details are already filled in.
+                    </p>
+                  </>
+                ) : (
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '6px 0 0', lineHeight: 1.5 }}>
+                    Lovely to see you again. Pick a treatment below, your details are already filled in.
+                  </p>
+                )}
+              </div>
+            )}
             <h2 style={styles.stepTitle}>Choose your treatment{selectedTreatments.length > 1 ? 's' : ''}</h2>
             {selectedTreatments.length === 0 && (
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '-12px 0 14px' }}>Tap multiple to book them together</p>

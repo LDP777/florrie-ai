@@ -414,8 +414,9 @@ router.post('/:slug/lookup-client', async (req, res) => {
 
     if (!client) return res.json({ found: false });
 
-    // Fetch their upcoming appointment count + patch test status
-    const [{ data: upcoming }, { data: pendingTests }, { data: pendingForms }] = await Promise.all([
+    // Fetch their upcoming appointment count + patch test status + what they
+    // had last time (for the one-tap "same again?" rebook path)
+    const [{ data: upcoming }, { data: pendingTests }, { data: pendingForms }, { data: lastVisit }] = await Promise.all([
       supabase
         .from('appointments')
         .select('id, starts_at, status')
@@ -440,7 +441,29 @@ router.post('/:slug/lookup-client', async (req, res) => {
         .eq('beautician_id', b.id)
         .eq('status', 'pending')
         .limit(1),
+
+      supabase
+        .from('appointments')
+        .select('starts_at, treatments(id, name, duration_minutes, price_cents)')
+        .eq('client_id', client.id)
+        .eq('beautician_id', b.id)
+        .eq('status', 'completed')
+        .not('treatment_id', 'is', null)
+        .order('starts_at', { ascending: false })
+        .limit(1),
     ]);
+
+    // Booking-safe: treatment name/price is already public on this page.
+    const lastRow = (lastVisit || [])[0];
+    const lastTreatment = lastRow?.treatments
+      ? {
+          id: lastRow.treatments.id,
+          name: lastRow.treatments.name,
+          duration_minutes: lastRow.treatments.duration_minutes,
+          price_cents: lastRow.treatments.price_cents,
+          last_visit: String(lastRow.starts_at || '').slice(0, 10),
+        }
+      : null;
 
     res.json({
       found: true,
@@ -453,6 +476,7 @@ router.post('/:slug/lookup-client', async (req, res) => {
       upcomingAppointments: (upcoming || []).length,
       hasPendingPatchTest: (pendingTests || []).length > 0,
       hasPendingForm: (pendingForms || []).length > 0,
+      lastTreatment,
     });
   } catch (err) {
     logger.error({ err }, 'Client lookup failed');
