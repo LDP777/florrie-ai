@@ -1496,7 +1496,7 @@ const styles = {
   weeklyStripDayNumber: { fontSize: 16, fontWeight: 700, marginTop: 2 },
   // Day View Timeline. The grid scrolls inside its own container so the
   // full 06:00-23:00 day fits and we can auto-scroll to the first booking.
-  dayGrid: { display: 'flex', gap: 0, background: 'var(--bg-card)', borderRadius: 16, overflowY: 'auto', overflowX: 'hidden', maxHeight: 'calc(100dvh - 300px)', minHeight: 420, boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)', WebkitOverflowScrolling: 'touch' },
+  dayGrid: { display: 'flex', gap: 0, background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, overflowY: 'auto', overflowX: 'hidden', maxHeight: 'calc(100dvh - 300px)', minHeight: 420, WebkitOverflowScrolling: 'touch' },
   timeColumn: { width: 56, position: 'relative', borderRight: `1px solid ${COLORS.outlineVariant}33`, flexShrink: 0 },
   timeLabel: { position: 'absolute', right: 8, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: COLORS.stone400, transform: 'translateY(-6px)' },
   appointmentColumn: { flex: 1, position: 'relative' },
@@ -1521,8 +1521,8 @@ const styles = {
   openSlotText: { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.stone400 },
   // Week View - agenda by day
   weekAgenda: { display: 'flex', flexDirection: 'column', gap: 12 },
-  weekDaySection: { background: 'var(--bg-card)', borderRadius: 16, boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)', overflow: 'hidden' },
-  weekDaySectionToday: { boxShadow: `0 0 0 1.5px ${COLORS.primary}, 0 10px 30px rgba(146, 64, 94, 0.10)` },
+  weekDaySection: { background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, overflow: 'hidden' },
+  weekDaySectionToday: { boxShadow: `0 0 0 1.5px ${COLORS.primary}` },
   weekDayHead: { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' },
   weekDayHeadLeft: { display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 },
   weekDayDow: { fontSize: 17, fontWeight: 600, fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
@@ -1545,7 +1545,7 @@ const styles = {
   insightsPillIcon: { fontSize: 14 },
   insightsPillText: { fontSize: 12, fontWeight: 600 },
   // Detail Panel
-  detailPanel: { background: 'var(--bg-card)', borderRadius: 16, padding: 20, marginTop: 16, boxShadow: '0 10px 30px rgba(146, 64, 94, 0.06)' },
+  detailPanel: { background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: 20, marginTop: 16 },
   detailHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   detailTitle: { fontSize: 17, fontWeight: 700, margin: 0 },
   detailClose: { background: 'none', border: 'none', fontSize: 22, color: COLORS.stone400, cursor: 'pointer', minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
