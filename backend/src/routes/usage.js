@@ -27,7 +27,27 @@ router.get('/messages', requireAuth, async (req, res) => {
   try {
     const { start, end } = monthBounds();
 
-    // head: true means we get the count without dragging rows over the wire.
+    // Read the BILLING meter (message_usage), not a raw messages count: the
+    // number Ellie sees must be the number that bills. The old count included
+    // free in-window replies, so the panel read 22 while billing metered 9.
+    const monthKey = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-01`;
+    const { data: usageRow } = await supabase
+      .from('message_usage')
+      .select('sms_sent, whatsapp_sent, free_limit')
+      .eq('beautician_id', req.beautician.id)
+      .eq('month', monthKey)
+      .maybeSingle();
+
+    if (usageRow) {
+      return res.json({
+        used: (usageRow.sms_sent || 0) + (usageRow.whatsapp_sent || 0),
+        limit: usageRow.free_limit || DEFAULT_LIMIT,
+        month_start: start.toISOString(),
+        month_end: end.toISOString(),
+      });
+    }
+
+    // No metered row yet this month: fall back to the raw outbound count.
     const { count, error } = await supabase
       .from('messages')
       .select('id', { count: 'exact', head: true })
