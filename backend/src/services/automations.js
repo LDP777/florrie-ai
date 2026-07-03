@@ -19,7 +19,7 @@ import { shouldAutoSend } from './sms-metering.js';
 
 // messageType must match a key in DEFAULT_PRIORITY_RULES (e.g. 'aftercare_followup', 'rebook_nudge', 'review_request', 'marketing').
 // shouldAutoSend() is checked before any AI-initiated SMS to respect autopilot credit rules.
-async function sendOnChannel({ beautician, client, body, beauticianId, messageType = 'general' }) {
+async function sendOnChannel({ beautician, client, body, beauticianId, messageType = 'general', clientId = null }) {
   const prefs = beautician.client_reminder_prefs || {};
   // Master pause — halt every automated send (gap offers, rebook nudges, aftercare…).
   if (prefs.paused) {
@@ -43,6 +43,7 @@ async function sendOnChannel({ beautician, client, body, beauticianId, messageTy
       templateName: 'generic_message_v2',
       templateParams: [client.first_name, message],
       beauticianId,
+      clientId,
     }));
   } else if (client.phone) {
     // Respect autopilot credit rules for AI-initiated sends
@@ -51,7 +52,7 @@ async function sendOnChannel({ beautician, client, body, beauticianId, messageTy
       logger.info({ beauticianId, messageType, reason }, 'Autopilot SMS skipped — credit headroom below threshold');
       results.push(null);
     } else {
-      results.push(await sendSMS({ to: client.phone, body: message, beauticianId, messageType }));
+      results.push(await sendSMS({ to: client.phone, body: message, beauticianId, messageType , clientId }));
     }
   }
 
@@ -128,6 +129,7 @@ export async function processAftercareFollowups() {
           body: tpl.message_text,
           beauticianId: appt.beautician_id,
           messageType: 'aftercare_followup',
+          clientId: appt.client_id || appt.clients?.id || null,
         });
 
         // Record send
@@ -179,6 +181,7 @@ export async function processRebookNudges() {
         body,
         beauticianId: reminder.beautician_id,
         messageType: 'rebook_nudge',
+        clientId: reminder.client_id || null,
       });
 
       // Mark as sent
@@ -246,6 +249,7 @@ export async function processReviewRequests() {
         body,
         beauticianId: appt.beautician_id,
         messageType: 'review_request',
+        clientId: appt.client_id || null,
       });
 
       await supabase.from('review_requests_sent').insert({
@@ -416,6 +420,7 @@ async function executeRuleAction(rule, target) {
         body: config.message || 'Hey {name}, just a quick message from {business}!',
         beauticianId: rule.beautician_id,
         messageType: 'marketing',
+        clientId: raw.client_id || raw.id || null,
       });
       break;
     }
@@ -566,6 +571,7 @@ export async function processFollowUpSequences() {
           body: step.message,
           beauticianId: enrollment.beautician_id,
           messageType: 'marketing',
+          clientId: enrollment.client_id || null,
         });
 
         // Advance to next step

@@ -80,7 +80,7 @@ function toE164(raw) {
   return '+' + digits;                                                // assume already E.164 digits
 }
 
-export async function sendSMS({ to, body, beauticianId, originator, messageType = 'general' }) {
+export async function sendSMS({ to, body, beauticianId, originator, messageType = 'general', clientId = null, skipThreadLog = false }) {
   if (!BIRD_API_KEY) {
     logger.debug('Bird not configured, skipping SMS');
     return null;
@@ -173,7 +173,7 @@ export async function sendSMS({ to, body, beauticianId, originator, messageType 
       logger.info({ to, channelId, id: data?.id }, 'SMS sent via Bird');
       // ai_reply texts are already written to the thread by the front desk;
       // everything else (reminders, confirmations, nudges) gets logged here.
-      if (messageType !== 'ai_reply') logOutboundToThread({ beauticianId, to, channel: 'sms', body });
+      if (messageType !== 'ai_reply' && !skipThreadLog) logOutboundToThread({ beauticianId, to, clientId, channel: 'sms', body });
       // Meter the confirmed send: weekly counter (legacy/display) + the monthly
       // combined quota (message_usage), which is the meter we actually bill from.
       if (beauticianId) {
@@ -331,7 +331,13 @@ async function logOutboundToThread({ beauticianId, to, clientId, channel, templa
     let resolvedClientId = clientId || null;
     if (!resolvedClientId) {
       const client = await findClientByPhone(beauticianId, to);
-      if (!client) return;
+      if (!client) {
+        // The message WAS sent but we cannot place it in a thread. This was a
+        // silent return: sends vanished from the feed and Ellie stopped
+        // trusting the log. Now it screams in the logs so drops are visible.
+        logger.warn({ beauticianId, to: String(to).slice(-4), channel }, 'OUTBOUND SENT BUT NOT THREADED: no client matched this number');
+        return;
+      }
       resolvedClientId = client.id;
     }
     let content = body;
@@ -393,7 +399,7 @@ const TWILIO_FALLBACK_BODIES = {
  * the free-form fallback, then the same post-send wrappers as the Meta path
  * (trackWhatsAppMessage, logOutboundToThread, logSendFailure).
  */
-async function sendWhatsAppTemplateViaTwilio({ to, templateName, templateParams, sender, beauticianId, bizName }) {
+async function sendWhatsAppTemplateViaTwilio({ to, templateName, templateParams, sender, beauticianId, bizName, clientId = null, skipThreadLog = false }) {
   // Mirror resolvePersonalisedTemplate: a mapped _v3 (salon name in the body)
   // wins over the requested _v2 name.
   const upgraded = /_v2$/.test(templateName) ? templateName.replace(/_v2$/, '_v3') : null;
@@ -420,7 +426,7 @@ async function sendWhatsAppTemplateViaTwilio({ to, templateName, templateParams,
   if (result) {
     logger.info({ to, templateName: sentAs, provider: 'twilio', contentSid: contentSid || null }, 'WhatsApp template sent');
     if (beauticianId) await trackWhatsAppMessage(beauticianId);
-    logOutboundToThread({ beauticianId, to, channel: 'whatsapp', templateName, templateParams });
+    if (!skipThreadLog) logOutboundToThread({ beauticianId, to, clientId, channel: 'whatsapp', templateName, templateParams });
     return result;
   }
   await logSendFailure({ beauticianId, to, channel: 'WhatsApp', detail: `Twilio send failed (${sentAs})` });
@@ -432,7 +438,7 @@ async function sendWhatsAppTemplateViaTwilio({ to, templateName, templateParams,
  * beauticianId is required — used to look up per-beautician provider config
  * (wa_provider: meta | twilio), phone_number_id / twilio_wa_sender, and quota.
  */
-export async function sendWhatsApp({ to, templateName, templateParams, beauticianId }) {
+export async function sendWhatsApp({ to, templateName, templateParams, beauticianId, clientId = null, skipThreadLog = false }) {
   // Resolve provider + sender config from the beautician record. Twilio
   // tenants don't need the Meta token at all, so this runs before the
   // WA_TOKEN gate.
@@ -475,7 +481,7 @@ export async function sendWhatsApp({ to, templateName, templateParams, beauticia
   }
 
   if (useTwilio) {
-    return sendWhatsAppTemplateViaTwilio({ to, templateName, templateParams, sender: twilioSender, beauticianId, bizName });
+    return sendWhatsAppTemplateViaTwilio({ to, templateName, templateParams, sender: twilioSender, beauticianId, bizName, clientId, skipThreadLog });
   }
 
   if (!WA_TOKEN) {
@@ -526,7 +532,7 @@ export async function sendWhatsApp({ to, templateName, templateParams, beauticia
       if (res.ok) {
         logger.info({ to, templateName, lang }, 'WhatsApp template sent');
         if (beauticianId) await trackWhatsAppMessage(beauticianId);
-        logOutboundToThread({ beauticianId, to, channel: 'whatsapp', templateName, templateParams });
+        if (!skipThreadLog) logOutboundToThread({ beauticianId, to, clientId, channel: 'whatsapp', templateName, templateParams });
         return data;
       }
       lastErr = data?.error || data;
@@ -766,7 +772,7 @@ export async function sendNudge({ client, body, templateName, templateParams, be
 
   // Path 2: WhatsApp template (client has opted in, we have a template, session not required)
   if (client?.whatsapp_id && (WA_TOKEN || twilioConfigured()) && beauticianPrefs?.whatsapp_connected && templateName) {
-    const result = await sendWhatsApp({ to: client.whatsapp_id, templateName, templateParams, beauticianId });
+    const result = await sendWhatsApp({ to: client.whatsapp_id, templateName, templateParams, beauticianId, clientId: client.id, skipThreadLog: true });
     if (result) {
       await logComms(beauticianId, client.id, 'whatsapp', 'outbound', body);
       return { channel: 'whatsapp_template', result };
@@ -775,7 +781,7 @@ export async function sendNudge({ client, body, templateName, templateParams, be
 
   // Path 3: SMS — universal fallback for proactive outbound
   if (client?.phone && BIRD_API_KEY) {
-    const result = await sendSMS({ to: client.phone, body, beauticianId, messageType: 'ai_checkin' });
+    const result = await sendSMS({ to: client.phone, body, beauticianId, messageType: 'ai_checkin', clientId: client.id, skipThreadLog: true });
     if (result) {
       await logComms(beauticianId, client.id, 'sms', 'outbound', body);
       return { channel: 'sms', result };
