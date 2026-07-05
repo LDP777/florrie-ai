@@ -194,7 +194,18 @@ export default function BookingPage() {
   // Multi-treatment totals
   const combinedTreatmentCents = selectedTreatments.reduce((sum, t) => sum + (t.price_cents || 0), 0);
   const combinedDuration = selectedTreatments.reduce((sum, t) => sum + (t.duration_minutes || 0), 0);
-  const depositCents = selectedTreatments.reduce((sum, t) => sum + getDepositCents(t), 0);
+  const rawDepositCents = selectedTreatments.reduce((sum, t) => sum + getDepositCents(t), 0);
+  // Every booking secures a card deposit. If no treatment sets one, fall back to
+  // the salon's configured deposit amount (mirrors the backend). Capped at price.
+  const depositCents = (() => {
+    if (rawDepositCents > 0) return Math.min(rawDepositCents, combinedTreatmentCents || rawDepositCents);
+    if (!combinedTreatmentCents) return 0;
+    const dAmt = beautician?.payment_settings?.deposit_amount || '£10';
+    const floor = String(dAmt).endsWith('%')
+      ? Math.round(combinedTreatmentCents * parseInt(dAmt, 10) / 100)
+      : Math.round(parseFloat(String(dAmt).replace('£', '')) * 100);
+    return Math.min(floor, combinedTreatmentCents);
+  })();
   const hasDeposit = depositCents > 0;
   // Add-on totals
   const addOnTotal = selectedAddOns.reduce((sum, ao) => sum + (ao.price_cents || 0), 0);
@@ -1704,8 +1715,8 @@ export default function BookingPage() {
                   {(paymentMethod === 'cash' || paymentMethod === 'bank_transfer') && (
                     <p style={{ fontSize: 12, color: 'var(--text-muted, #999)', margin: '8px 0 0' }}>
                       {paymentMethod === 'bank_transfer'
-                        ? 'Your beautician will send bank details after booking.'
-                        : 'Payment collected at your appointment.'}
+                        ? `A card deposit of £${(depositCents / 100).toFixed(2)} secures your booking now. You'll transfer the rest to your beautician's bank details, sent after booking.`
+                        : `A card deposit of £${(depositCents / 100).toFixed(2)} secures your booking now. You'll pay the rest in cash at your appointment.`}
                     </p>
                   )}
                 </div>

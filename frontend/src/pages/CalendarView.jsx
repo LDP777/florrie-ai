@@ -1991,7 +1991,7 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
   const sheetBody = { padding: '20px 20px 16px', overflowY: 'auto', WebkitOverflowScrolling: 'touch', flex: '1 1 auto', minHeight: 0 };
   const sheetFooter = { flexShrink: 0, padding: '12px 20px calc(14px + env(safe-area-inset-bottom))', borderTop: `1px solid ${COLORS.outlineVariant}55`, background: 'var(--bg-card)', boxShadow: '0 -4px 16px rgba(0,0,0,0.06)' };
   const labelStyle = { fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' };
-  const inputStyle = { display: 'block', width: '100%', marginTop: 4, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: 'var(--bg-card)', color: COLORS.onSurface };
+  const inputStyle = { display: 'block', width: '100%', minWidth: 0, maxWidth: '100%', marginTop: 4, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: 'var(--bg-card)', color: COLORS.onSurface };
   return createPortal(
     <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={sheet}>
@@ -2095,7 +2095,7 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
                   color: on ? '#fff' : COLORS.onSurface,
                 }}
               >
-                {on ? '✓ ' : ''}{t.name} £{((t.price_cents || 0) / 100).toFixed(0)}
+                {on ? '✓ ' : ''}{t.name} £{(t.price_cents || 0) % 100 === 0 ? ((t.price_cents || 0) / 100).toFixed(0) : ((t.price_cents || 0) / 100).toFixed(2)}
               </button>
             );
           })}
@@ -2104,7 +2104,7 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
           )}
         </div>
         {/* Date + time */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <span style={labelStyle}>Date</span>
             <input type="date" value={date} onChange={e => setDate(e.target.value)} style={inputStyle} />
@@ -2126,7 +2126,7 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
           </div>
         </div>
         {/* Duration + price */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <span style={labelStyle}>Duration (min)</span>
             <input

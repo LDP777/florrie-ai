@@ -2072,10 +2072,13 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
       return sum + (t.deposit_cents || 0);
     }, 0);
 
-    // Apply global require_deposit override (only for card payments)
+    // Every booking secures a deposit by card, no matter how the balance is
+    // paid. If a treatment has no deposit of its own, fall back to the salon's
+    // configured deposit amount. A salon that truly wants no deposit sets it to
+    // £0. The payment method (card / cash / bank) only governs the BALANCE.
     const paySettings = beautician.payment_settings || {};
-    if (!isOfflinePayment && paySettings.require_deposit && depositCents === 0 && combinedPriceCents > 0) {
-      // Parse global deposit amount setting (e.g. '£10', '£15', '50%')
+    if (depositCents === 0 && combinedPriceCents > 0) {
+      // Parse the deposit amount setting (e.g. '£10', '£15', '50%')
       const dAmt = paySettings.deposit_amount || '£10';
       if (dAmt.endsWith('%')) {
         depositCents = Math.round(combinedPriceCents * parseInt(dAmt) / 100);
@@ -2088,11 +2091,13 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     // misconfigured fixed deposit or percent that's larger than the treatment).
     if (combinedPriceCents > 0) depositCents = Math.min(depositCents, combinedPriceCents);
 
-    // If client chose to pay full amount, charge treatment price + add-ons minus discount
-    isFullPayment = payment_type === 'full' && combinedPriceCents > 0;
+    // Full payment up front only applies to card. Cash/bank pay the balance
+    // offline, so those only ever pay the DEPOSIT by card here.
+    isFullPayment = payment_type === 'full' && combinedPriceCents > 0 && !isOfflinePayment;
 
-    // Offline payments never require online deposit — appointment confirmed directly
-    depositRequired = !isOfflinePayment && (depositCents > 0 || isFullPayment);
+    // The deposit is taken on EVERY booking, whatever the payment method. Cash
+    // and bank transfer no longer skip it; they just pay the balance offline.
+    depositRequired = depositCents > 0 || isFullPayment;
   }
 
   // Payment buffer: if enabled, set expiry timestamp
