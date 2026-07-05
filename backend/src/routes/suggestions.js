@@ -649,7 +649,7 @@ async function fromBookingSuggestions(beauticianId) {
         body: { booking_suggestion_id: row.id },
         confirm: `Book ${first} in for ${row.treatment_name || 'this'}${time}?`,
       },
-      link_to: calendarDate ? `/calendar?date=${calendarDate}` : '/today',
+      link_to: calendarDate ? `/calendar/week?date=${calendarDate}` : '/calendar/week',
     };
   });
 }
@@ -989,7 +989,7 @@ async function fromUnpricedAppointments(beauticianId) {
       body: null,
       confirm: null,
     },
-    link_to: '/calendar',
+    link_to: '/calendar/week',
   }];
 }
 
