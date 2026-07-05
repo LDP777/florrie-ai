@@ -180,9 +180,13 @@ function isCloserOnly(t) {
   return t.last_message_direction === 'inbound'
     && HANDLED_INTENTS.has(t.last_inbound_intent || 'unknown');
 }
+const NEEDS_YOU_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 function needsYou(t) {
   if (t.needs_attention) return !isCloserOnly(t);
   if (t.last_message_direction !== 'inbound') return false;
+  // A message older than a week that she never answered has answered itself.
+  // It drops to Everyone else instead of guilt-tripping her with "waiting 17d".
+  if (Date.now() - new Date(t.last_message_at).getTime() > NEEDS_YOU_WINDOW_MS) return false;
   // Client spoke last. Skip pure acknowledgements (thanks, hello with nothing
   // to answer). Treat a missing intent as "owed" rather than silently hiding it.
   return !HANDLED_INTENTS.has(t.last_inbound_intent || 'unknown');
@@ -199,7 +203,7 @@ export default function Inbox() {
   const [threads, setThreads] = useState(null);
   const [threadsError, setThreadsError] = useState(null);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('needs'); // 'needs' | 'all'
+  const [filter, setFilter] = useState('all'); // 'all' (sectioned, default) | 'needs'
   const [activeClientId, setActiveClientId] = useState(readClientFromUrl());
   const [isWide, setIsWide] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : false);
 
@@ -502,6 +506,7 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, hideTypeCh
           <span style={{
             ...S.avatar,
             ...((automated || muted) && !owed ? S.avatarMuted : {}),
+            boxShadow: `0 0 0 2px ${channelOf(thread.last_channel).tint}${(automated || muted) && !owed ? '55' : '99'}`,
           }} aria-hidden>
             {initialOf(name)}
           </span>
@@ -1022,39 +1027,44 @@ function ConvoHeader({ onBack, embedded, clientName, navigate, clientId, channel
   }
   return (
     <div style={S.convoHeader}>
-      {!embedded && (
-        <button onClick={onBack} style={S.backBtn} aria-label="Back to inbox">
-          <span className="material-symbols-outlined" style={{ fontSize: 22 }}>chevron_left</span>
-        </button>
-      )}
-      <span style={S.convoAvatar}>{initialOf(clientName)}</span>
-      <div style={S.convoNameWrap}>
-        <span style={S.convoNameRow}>
-          <span style={S.convoName}>{clientName}</span>
-          {channel && <ChannelMark channel={channel} size={18} />}
-        </span>
-        {metaBits.length > 0 && (
-          <span style={S.metaLine}>{metaBits.join(' \u00B7 ')}</span>
+      <div style={S.convoTopRow}>
+        {!embedded && (
+          <button onClick={onBack} style={S.backBtn} aria-label="Back to inbox">
+            <span className="material-symbols-outlined" style={{ fontSize: 22 }}>chevron_left</span>
+          </button>
         )}
-        <span style={S.headerActions}>
-          {clientId && meta && !meta.next_appointment_at && (
-            <button
-              type="button"
-              onClick={() => navigate('/calendar/week', { state: { bookClient: { id: clientId, name: clientName } } })}
-              style={S.bookChip}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 15 }} aria-hidden>event</span>
-              Book her in
-            </button>
+        <span style={{
+          ...S.convoAvatar,
+          boxShadow: channel ? `0 0 0 2px ${channelOf(channel).tint}99` : 'inset 0 0 0 1px rgba(146,64,94,0.05)',
+        }}>{initialOf(clientName)}</span>
+        <div style={S.convoNameCol}>
+          <span style={S.convoNameRow}>
+            <span style={S.convoName}>{clientName}</span>
+            {channel && <ChannelMark channel={channel} size={16} />}
+          </span>
+          {metaBits.length > 0 && (
+            <span style={S.metaLine}>{metaBits.join(' \u00B7 ')}</span>
           )}
-          {clientId && (
-            <button onClick={() => navigate('/clients', { state: { clientId } })} style={S.viewProfileBtn}>
-              View profile
-            </button>
-          )}
-        </span>
-        {clientId && <ClientControls clientId={clientId} initialAutonomy={initialAutonomy} />}
+        </div>
+        {clientId && (
+          <button onClick={() => navigate('/clients', { state: { clientId } })} style={S.viewProfileBtn}>
+            View profile
+          </button>
+        )}
       </div>
+      {clientId && meta && !meta.next_appointment_at && (
+        <div style={S.headerActions}>
+          <button
+            type="button"
+            onClick={() => navigate('/calendar/week', { state: { bookClient: { id: clientId, name: clientName } } })}
+            style={S.bookChip}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 15 }} aria-hidden>event</span>
+            Book her in
+          </button>
+        </div>
+      )}
+      {clientId && <ClientControls clientId={clientId} initialAutonomy={initialAutonomy} />}
     </div>
   );
 }
@@ -1152,6 +1162,21 @@ function Bubble({ msg }) {
   else if (out && type === 'proactive') tag = '\u{1F337} Florrie \u00B7 reached out';
   else if (out && msg.ai_generated) tag = '\u{1F337} Florrie';
 
+  // Florrie's own sends read QUIET (tonal); only what Ellie typed herself is
+  // maroon. Walls of automated reminders stop shouting at her.
+  const florrieSent = out && (type === 'auto_reply' || type === 'proactive' || msg.ai_generated);
+  const bubbleBg = !out ? '#fff4ee' : florrieSent ? 'var(--tone-2, #f6e7dd)' : 'var(--accent, #92405e)';
+  const bubbleFg = out && !florrieSent ? '#fff' : 'var(--text-primary, #1d1b19)';
+  const metaFg = out && !florrieSent ? 'rgba(255,255,255,0.78)' : '#9B8A8E';
+
+  // A media message with no text still deserves words, not an empty pill.
+  const mediaStub = !msg.body && !msg.image_url
+    ? (msg.media_type === 'audio' ? '\u{1F3A4} Voice note'
+      : msg.media_type === 'video' ? '\u{1F39E}\uFE0F Video'
+      : msg.media_type ? '\u{1F4CE} Attachment'
+      : 'Message without text')
+    : null;
+
   return (
     <div style={{ ...S.bubbleRow, justifyContent: out ? 'flex-end' : 'flex-start' }}>
       <div style={{ ...S.bubbleStack, alignItems: out ? 'flex-end' : 'flex-start' }}>
@@ -1159,9 +1184,9 @@ function Bubble({ msg }) {
         <div
           style={{
             ...S.bubble,
-            background: out ? 'var(--accent, #92405e)' : '#fff4ee',
-            color: out ? '#fff' : 'var(--text-primary, #1d1b19)',
-            borderColor: out ? 'var(--accent, #92405e)' : 'rgba(146,64,94,0.10)',
+            background: bubbleBg,
+            color: bubbleFg,
+            borderColor: out && !florrieSent ? 'var(--accent, #92405e)' : 'rgba(146,64,94,0.10)',
             borderBottomLeftRadius: out ? 20 : 6,
             borderBottomRightRadius: out ? 6 : 20,
           }}
@@ -1170,7 +1195,8 @@ function Bubble({ msg }) {
             <img src={msg.image_url} alt="" style={{ maxWidth: '100%', borderRadius: 10, marginBottom: msg.body ? 6 : 0 }} />
           )}
           {msg.body && <div style={S.bubbleText}>{msg.body}</div>}
-          <div style={{ ...S.bubbleMeta, color: out ? 'rgba(255,255,255,0.78)' : '#9B8A8E' }}>
+          {mediaStub && <div style={{ ...S.bubbleText, fontStyle: 'italic', opacity: 0.75 }}>{mediaStub}</div>}
+          <div style={{ ...S.bubbleMeta, color: metaFg }}>
             <ChannelMark channel={msg.channel} size={14} />
             <span>{formatBubbleTime(msg.created_at)}</span>
             {msg.status === 'sending' && <span>· sending</span>}
@@ -1276,16 +1302,16 @@ const S = {
   petalNote: { fontSize: 11, color: 'var(--accent, #92405e)', fontWeight: 600 },
   metaLine: {
     display: 'block', fontSize: 11.5, color: 'var(--text-muted, #9B8A8E)',
-    marginTop: 2, lineHeight: 1.4,
+    lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   },
-  headerActions: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, flexWrap: 'wrap' },
+  headerActions: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   bookChip: {
     display: 'inline-flex', alignItems: 'center', gap: 5,
     padding: '5px 12px', minHeight: 28, borderRadius: 999, border: 'none',
     background: '#f0e3cf', color: '#8a6d3b', fontSize: 11.5, fontWeight: 700,
     cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent',
   },
-  controlsWrap: { marginTop: 8 },
+  controlsWrap: { marginTop: 2 },
   driverRow: {
     display: 'flex', alignItems: 'center', gap: 8,
     background: 'var(--tone-2, #f6e7dd)', borderRadius: 999, padding: 3,
@@ -1465,16 +1491,18 @@ const S = {
   placeholder: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 },
 
   convoFull: {
-    minHeight: '100vh', background: 'var(--bg, #fef8f4)',
+    height: '100dvh', overflow: 'hidden', background: 'var(--bg, #fef8f4)',
     fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
-    display: 'flex', flexDirection: 'column', color: 'var(--text-primary, #1d1b19)', paddingBottom: 120,
+    display: 'flex', flexDirection: 'column', color: 'var(--text-primary, #1d1b19)',
   },
   convoEmbedded: { flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 },
   convoHeader: {
-    display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px',
-    background: 'var(--bg-card, #fff)', borderBottom: '1px solid var(--border-light, #F0ECE8)',
-    position: 'sticky', top: 0, zIndex: 2,
+    display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 14px 12px',
+    background: 'var(--tone-1, #fbf1ea)', borderBottom: '1px solid rgba(146,64,94,0.06)',
+    flexShrink: 0,
   },
+  convoTopRow: { display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 },
+  convoNameCol: { display: 'flex', flexDirection: 'column', gap: 1, flex: 1, minWidth: 0 },
   backBtn: {
     background: 'none', border: 'none', color: 'var(--accent, #92405e)', padding: 4, cursor: 'pointer',
     fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 44, minHeight: 44,
@@ -1492,11 +1520,13 @@ const S = {
     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0,
   },
   viewProfileBtn: {
-    background: 'none', border: 'none', color: 'var(--accent, #92405e)', fontSize: 11, fontWeight: 600,
-    padding: 0, minHeight: 44, display: 'inline-flex', alignItems: 'center', cursor: 'pointer', fontFamily: 'inherit', alignSelf: 'flex-start', textDecoration: 'underline',
+    background: 'var(--tone-2, #f6e7dd)', border: 'none', color: 'var(--accent, #92405e)',
+    fontSize: 11, fontWeight: 700, padding: '6px 12px', minHeight: 30, borderRadius: 999,
+    display: 'inline-flex', alignItems: 'center', cursor: 'pointer', fontFamily: 'inherit',
+    whiteSpace: 'nowrap', flexShrink: 0, WebkitTapHighlightColor: 'transparent',
   },
 
-  scroller: { flex: 1, overflowY: 'auto', padding: '12px 14px 8px', display: 'flex', flexDirection: 'column', gap: 10 },
+  scroller: { flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '12px 14px 12px', display: 'flex', flexDirection: 'column', gap: 10 },
   bubbleRow: { display: 'flex', width: '100%' },
   bubbleStack: { display: 'flex', flexDirection: 'column', gap: 3, maxWidth: '78%' },
   bubbleTag: { fontSize: 9.5, fontWeight: 700, color: 'var(--accent, #92405e)', letterSpacing: '0.05em', textTransform: 'uppercase', paddingLeft: 3, opacity: 0.85 },
@@ -1518,9 +1548,11 @@ const S = {
   },
 
   composerBar: {
-    padding: '8px 12px 16px', background: 'var(--bg-card, #fff)',
-    borderTop: '1px solid var(--border-light, #F0ECE8)',
-    display: 'flex', flexDirection: 'column', gap: 8, position: 'sticky', bottom: 0,
+    // In-flow at the column's bottom (the column is height-contained), with
+    // clearance for the floating bottom nav so nothing hides behind it.
+    padding: '8px 12px calc(env(safe-area-inset-bottom, 0px) + 92px)', background: 'var(--tone-1, #fbf1ea)',
+    borderTop: '1px solid rgba(146,64,94,0.08)',
+    display: 'flex', flexDirection: 'column', gap: 8,
   },
   channelToggle: { display: 'flex', gap: 6, overflowX: 'auto' },
   channelPill: {

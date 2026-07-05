@@ -446,7 +446,9 @@ export default function App() {
 
       {showNav && <BottomNav current={location.pathname} session={session} />}
       {showNav && location.pathname !== '/calendar/full' && <FloatingBack current={location.pathname} />}
-      {showNav && location.pathname !== '/calendar/full' && <FloatingMore current={location.pathname} />}
+      {showNav && location.pathname !== '/calendar/full'
+        && !(location.pathname === '/inbox' && location.search.includes('client='))
+        && <FloatingMore current={location.pathname} />}
       {showNav && <FloatingMic />}
       <CoachNudge />
       </div>

@@ -199,5 +199,6 @@ export function shapeMessage(row) {
     status: row.read_at ? 'read' : row.delivered_at ? 'delivered' : 'sent',
     ai_generated: !!row.ai_handled,
     image_url: row.media_type === 'image' ? row.media_url : null,
+    media_type: row.media_type || null,
   };
 }
