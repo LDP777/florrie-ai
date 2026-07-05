@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
 import { bloom } from '../lib/bloom.js';
@@ -401,7 +402,7 @@ function PriceEditor({ s, onClose, onCancel }) {
     return Number.isFinite(v) && v >= 0;
   });
 
-  return (
+  return createPortal(
     <div style={SC.sheetOverlay} role="dialog" aria-modal="true" aria-label="Set prices" onClick={onCancel}>
       <div style={SC.sheet} onClick={e => e.stopPropagation()}>
         <div style={SC.sheetGrab} aria-hidden />
@@ -477,7 +478,8 @@ function PriceEditor({ s, onClose, onCancel }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
