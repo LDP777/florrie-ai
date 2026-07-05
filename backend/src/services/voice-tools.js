@@ -451,7 +451,10 @@ async function toolBookAppointment({ client_name, treatment, date, time }, beaut
       ends_at: endsAt.toISOString(),
       status: 'confirmed',
       price_cents: priceCents,
-      source: 'voice_command',
+      // appointments has no 'source' column - this insert was rejected whole,
+      // so voice booking NEVER worked. booked_via has a CHECK; 'voice_note'
+      // is the allowed voice-ish value.
+      booked_via: 'voice_note',
     })
     .select('id')
     .single();
@@ -998,7 +1001,8 @@ async function toolCreateExpense({ amount_pence, category, description, date }, 
     category,
     description,
     date: expenseDate,
-    source: 'voice_command',
+    // expenses has no 'source' column either - the same rejected-insert bug
+    // as bookings: voice expense logging never worked until this line died.
   });
 
   if (error) {
