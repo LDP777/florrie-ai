@@ -19,7 +19,7 @@
  */
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
-import { getGapFillSuggestions } from './gap-fill-engine.js';
+import { gapFillDiagnostic } from './gap-fill-engine.js';
 
 const REBOOK_WINDOW_DAYS = 42;
 const NEW_CLIENT_WINDOW_DAYS = 7;
@@ -377,11 +377,12 @@ export async function quietWeekStatus(beauticianId, opts = {}) {
 
     let openSlots = 0;
     if (belowNormal) {
-      // Only real, offerable gaps count: gaps that have a matched client to
-      // offer to (getGapFillSuggestions is already deduped + capped).
+      // Count the open calendar gaps in the week ahead (the "N open slots" the
+      // card names). Who is offerable is the accept run's concern, which does
+      // its own recently-contacted dedup.
       try {
-        const groups = await getGapFillSuggestions(beauticianId);
-        openSlots = (groups || []).filter(g => (g.matches || []).length > 0).length;
+        const diag = await gapFillDiagnostic(beauticianId);
+        openSlots = diag?.gaps_found || 0;
       } catch { openSlots = 0; }
     }
 
