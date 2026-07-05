@@ -22,7 +22,7 @@
  *   GET   /api/escalations
  *   POST  /api/escalations/:id/resolve { response, action }
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import PageHeader from '../components/ui/PageHeader.jsx';
@@ -119,6 +119,12 @@ function fromHold(row) {
     body: row.body || '',
     createdAt: row.created_at,
     quiet: row.reason === 'just_me_silent_draft',
+    // Gap offers carry their slot in the drafted copy ("... on Mon 6 Jul at
+    // 13:30 ..."), which lets the page collapse many offers for one slot
+    // into a single decision.
+    slot: row.message_type === 'gap_fill'
+      ? (/(?:on|slot on)\s+(.+?)\s+at\s+(\d{1,2}:\d{2})/.exec(row.body || '') || []).slice(1).join(' ') || null
+    : null,
   };
 }
 
@@ -292,7 +298,40 @@ export default function Outbox() {
   // but never nags: tucked at the bottom, excluded from counts and Send all.
   const loudHolds = holds.filter(h => !h.quiet);
   const quietHolds = holds.filter(h => h.quiet);
+
+  // Structure (approved concept): many offers for ONE slot are one decision,
+  // replies and gap offers are time-sensitive, everything else can wait.
+  const gapHolds = loudHolds.filter(h => h.slot);
+  const otherHolds = loudHolds.filter(h => !h.slot);
+  const batches = Object.values(gapHolds.reduce((acc, h) => {
+    (acc[h.slot] = acc[h.slot] || { slot: h.slot, items: [] }).items.push(h);
+    return acc;
+  }, {}));
+  const decisions = replies.length + otherHolds.length + batches.length;
   const total = loudHolds.length + replies.length;
+  const [deckOpen, setDeckOpen] = useState(false);
+
+  async function approveBatch(batch) {
+    let sent = 0;
+    for (const item of batch.items) {
+      try {
+        const res = await authedFetch(`/api/outbound/${item.id}/approve`, { method: 'POST' });
+        if (res.ok) sent++;
+      } catch { /* count what went */ }
+    }
+    setHolds(prev => prev.filter(i => !batch.items.some(b => b.id === i.id)));
+    window.dispatchEvent(new Event('florrie:refresh-counts'));
+    if (sent > 0) bloom();
+    showToast(sent === batch.items.length ? `Offered to ${sent}.` : `Offered to ${sent} of ${batch.items.length}.`);
+  }
+
+  async function skipBatch(batch) {
+    for (const item of batch.items) {
+      try { await authedFetch(`/api/outbound/${item.id}/skip`, { method: 'POST' }); } catch { /* best effort */ }
+    }
+    setHolds(prev => prev.filter(i => !batch.items.some(b => b.id === i.id)));
+    window.dispatchEvent(new Event('florrie:refresh-counts'));
+  }
 
   return (
     <div style={s.page}>
@@ -310,23 +349,19 @@ export default function Outbox() {
       ) : (
         <>
           <div style={s.topBar}>
-            <span style={s.waitingLabel}>{total} waiting</span>
-            {loudHolds.length > 0 && (
-              <button
-                onClick={approveAllHolds}
-                disabled={approvingAll}
-                style={{ ...s.approveAllBtn, opacity: approvingAll ? 0.6 : 1 }}
-              >
-                {approvingAll ? 'Sending...' : `Send all ${loudHolds.length} hold${loudHolds.length === 1 ? '' : 's'}`}
+            <span style={s.waitingLabel}>{decisions} for your yes or no</span>
+            {decisions > 1 && (
+              <button onClick={() => setDeckOpen(true)} style={s.approveAllBtn}>
+                Review one by one
               </button>
             )}
           </div>
 
-          {replies.length > 0 && (
+          {(replies.length > 0 || batches.length > 0) && (
             <Section
-              icon="reply"
-              title="Replies to clients you know"
-              hint="A regular messaged in. Florrie drafted an answer for your OK."
+              icon="bolt"
+              title="Worth doing now"
+              hint="Clients waiting on an answer and slots that expire."
             >
               {replies.map(item => (
                 <ReviewCard
@@ -337,16 +372,25 @@ export default function Outbox() {
                   skipLabel="Dismiss"
                 />
               ))}
+              {batches.map(batch => (
+                <BatchCard
+                  key={batch.slot}
+                  batch={batch}
+                  onSendAll={() => approveBatch(batch)}
+                  onSkipAll={() => skipBatch(batch)}
+                  onSkipOne={(id) => skipHold(id)}
+                />
+              ))}
             </Section>
           )}
 
-          {loudHolds.length > 0 && (
+          {otherHolds.length > 0 && (
             <Section
               icon="schedule_send"
-              title="Messages Florrie wants to send"
-              hint="Proactive nudges and check-ins. Send, tweak, or leave them."
+              title="When you have a minute"
+              hint="Nothing here expires. Send, tweak, or leave them."
             >
-              {loudHolds.map(item => (
+              {otherHolds.map(item => (
                 <ReviewCard
                   key={item.key}
                   item={item}
@@ -380,7 +424,151 @@ export default function Outbox() {
         </>
       )}
 
+      {deckOpen && (
+        <ReviewDeck
+          replies={replies}
+          batches={batches}
+          holds={otherHolds}
+          onReply={(item) => approveReply(item.id, item.body, item.body)}
+          onReplySkip={(item) => skipReply(item.id)}
+          onBatch={(batch) => approveBatch(batch)}
+          onBatchSkip={(batch) => skipBatch(batch)}
+          onHold={(item) => approveHold(item.id, item.body)}
+          onHoldSkip={(item) => skipHold(item.id)}
+          onClose={() => setDeckOpen(false)}
+        />
+      )}
+
       {toast && <div style={s.toast}>{toast}</div>}
+    </div>
+  );
+}
+
+/**
+ * One card per DECISION: many offers for a slot collapse into a single card
+ * with a choose-who expander. The gold edge marks a Florrie initiative.
+ */
+function BatchCard({ batch, onSendAll, onSkipAll, onSkipOne }) {
+  const [expanded, setExpanded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [skipped, setSkipped] = useState([]);
+  const live = batch.items.filter(i => !skipped.includes(i.id));
+  if (live.length === 0) return null;
+  const preview = live[0]?.body || '';
+
+  return (
+    <div style={{ ...s.card, borderLeft: '3px solid #c9a96e' }}>
+      <div style={s.cardTop}>
+        <span style={{ ...s.avatar, background: '#f6ead6', color: '#8a6d3b' }} aria-hidden>🌷</span>
+        <div style={s.cardTopText}>
+          <div style={s.nameRow}>
+            <span style={s.clientName}>Fill the {batch.slot} gap</span>
+          </div>
+          <span style={s.typeLabel}>One decision, {live.length} offer{live.length === 1 ? '' : 's'}. Florrie staggers them so nobody clashes.</span>
+        </div>
+      </div>
+      <div style={s.bodyBox}>{preview}</div>
+      <div style={s.actions}>
+        <button
+          onClick={async () => { setBusy(true); await onSendAll(); setBusy(false); }}
+          disabled={busy}
+          style={{ ...s.approveBtn, opacity: busy ? 0.6 : 1 }}
+        >
+          {busy ? 'Sending…' : `Offer it to ${live.length === 1 ? live[0].firstName : `all ${live.length}`}`}
+        </button>
+        <button onClick={onSkipAll} disabled={busy} style={s.skipBtn}>Not now</button>
+      </div>
+      <button onClick={() => setExpanded(v => !v)} style={s.chooseWho}>
+        {expanded ? 'Hide the list' : 'Choose who ›'}
+      </button>
+      {expanded && live.map(item => (
+        <div key={item.id} style={s.batchRow}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>{item.firstName}</span>
+          <button
+            onClick={() => { setSkipped(prev => [...prev, item.id]); onSkipOne(item.id); }}
+            style={{ ...s.skipBtn, minHeight: 34, padding: '0 14px', fontSize: 12.5 }}
+          >
+            Skip her
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Review deck: approvals as a 20-second swipe session. Right or "Yes" sends,
+ * left or "Not now" skips. Ends on the earned empty state.
+ */
+function ReviewDeck({ replies, batches, holds, onReply, onReplySkip, onBatch, onBatchSkip, onHold, onHoldSkip, onClose }) {
+  const items = [
+    ...replies.map(r => ({ kind: 'reply', title: `${r.firstName} is waiting on a reply`, why: r.why, body: r.body, data: r })),
+    ...batches.map(b => ({ kind: 'batch', title: `Fill the ${b.slot} gap`, why: `One yes offers it to ${b.items.length} client${b.items.length === 1 ? '' : 's'}`, body: b.items[0]?.body || '', data: b })),
+    ...holds.map(h => ({ kind: 'hold', title: `${h.firstName} · ${h.typeLabel}`, why: h.why, body: h.body, data: h })),
+  ];
+  const [idx, setIdx] = useState(0);
+  const [leaving, setLeaving] = useState(null); // 'yes' | 'no'
+  const startX = useRef(null);
+  const done = idx >= items.length;
+
+  useEffect(() => { if (done && items.length > 0) bloom(); }, [done]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function act(yes) {
+    if (leaving || done) return;
+    const it = items[idx];
+    setLeaving(yes ? 'yes' : 'no');
+    try {
+      if (yes) {
+        if (it.kind === 'reply') await onReply(it.data);
+        else if (it.kind === 'batch') await onBatch(it.data);
+        else await onHold(it.data);
+      } else {
+        if (it.kind === 'reply') await onReplySkip(it.data);
+        else if (it.kind === 'batch') await onBatchSkip(it.data);
+        else await onHoldSkip(it.data);
+      }
+    } finally {
+      setTimeout(() => { setIdx(i => i + 1); setLeaving(null); }, 260);
+    }
+  }
+
+  const cardShift = leaving === 'yes' ? 'translateX(120%) rotate(8deg)' : leaving === 'no' ? 'translateX(-120%) rotate(-8deg)' : 'translateX(0)';
+
+  return (
+    <div style={s.deckOverlay} role="dialog" aria-modal="true" aria-label="Review one by one">
+      <button onClick={onClose} style={s.deckClose} aria-label="Close">×</button>
+      {done ? (
+        <div style={{ textAlign: 'center' }} onClick={onClose}>
+          <p style={s.deckDone}>All caught up 🌸</p>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary, #867277)', marginTop: 8 }}>Florrie handles the rest. Tap to close.</p>
+        </div>
+      ) : (
+        <>
+          <p style={s.deckProg}>{idx + 1} of {items.length}</p>
+          <div style={{ position: 'relative', width: '100%', maxWidth: 340 }}>
+            <div style={s.deckBehind} />
+            <div
+              style={{ ...s.deckCard, transform: cardShift, opacity: leaving ? 0 : 1 }}
+              onTouchStart={e => { startX.current = e.touches[0].clientX; }}
+              onTouchEnd={e => {
+                if (startX.current === null) return;
+                const dx = e.changedTouches[0].clientX - startX.current;
+                if (dx > 60) act(true);
+                else if (dx < -60) act(false);
+                startX.current = null;
+              }}
+            >
+              <p style={{ margin: 0, fontSize: 15.5, fontWeight: 700 }}>{items[idx].title}</p>
+              <p style={{ margin: '4px 0 10px', fontSize: 12, color: 'var(--text-secondary, #867277)' }}>{items[idx].why}</p>
+              <div style={{ ...s.bodyBox, maxHeight: 180, overflowY: 'auto' }}>{items[idx].body}</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 18, width: '100%', maxWidth: 340 }}>
+            <button onClick={() => act(false)} disabled={!!leaving} style={{ ...s.skipBtn, flex: 1 }}>Not now</button>
+            <button onClick={() => act(true)} disabled={!!leaving} style={{ ...s.approveBtn, flex: 1 }}>Yes, send</button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -713,6 +901,44 @@ const s = {
     WebkitTapHighlightColor: 'transparent',
   },
 
+  bodyBox: {
+    background: 'var(--tone-2, #f6e7dd)', borderRadius: 12,
+    padding: '10px 12px', fontSize: 13, lineHeight: 1.5,
+    color: 'var(--text-primary, #3d3438)', whiteSpace: 'pre-wrap',
+  },
+  chooseWho: {
+    width: '100%', minHeight: 40, padding: '9px 0', marginTop: 4,
+    background: 'none', border: 'none', color: 'var(--accent, #92405e)',
+    fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+    textAlign: 'left', WebkitTapHighlightColor: 'transparent',
+  },
+  batchRow: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    background: 'var(--tone-2, #f6e7dd)', borderRadius: 12, padding: '8px 12px', marginTop: 6,
+  },
+  deckOverlay: {
+    position: 'fixed', inset: 0, zIndex: 1000,
+    background: 'rgba(254,248,244,0.97)',
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    padding: 24,
+  },
+  deckClose: {
+    position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 16px)', right: 20,
+    width: 44, height: 44, background: 'none', border: 'none',
+    fontSize: 26, color: 'var(--text-muted, #9B8A8E)', cursor: 'pointer',
+  },
+  deckProg: { fontSize: 12.5, fontWeight: 600, color: 'var(--text-muted, #9B8A8E)', marginBottom: 14 },
+  deckBehind: { position: 'absolute', left: '8%', right: '8%', bottom: -10, height: 16, background: 'var(--tone-2, #f6e7dd)', borderRadius: 16, zIndex: 0 },
+  deckCard: {
+    position: 'relative', zIndex: 1,
+    background: 'var(--tone-1, #fbf1ea)', borderRadius: 24, padding: 20,
+    boxShadow: '0 18px 44px rgba(146,64,94,0.14)',
+    transition: 'transform 0.26s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.26s',
+  },
+  deckDone: {
+    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
+    fontSize: 24, color: 'var(--accent, #92405e)', margin: 0,
+  },
   skeletonCard: { pointerEvents: 'none' },
   skelLine: {
     height: 13,
