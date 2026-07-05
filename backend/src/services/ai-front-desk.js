@@ -299,7 +299,7 @@ async function gatherContext(beautician, client) {
     const nowMs = Date.now();
     const sixMonthsMs = 1000 * 60 * 60 * 24 * 183;
     const hasValid = ptRows.some(pt =>
-      (pt.status === 'passed' || pt.result === 'passed') && (
+      (pt.status === 'passed' || pt.result === 'pass') && (
         (pt.expires_at && new Date(pt.expires_at).getTime() > nowMs) ||
         (pt.test_date && (nowMs - new Date(pt.test_date).getTime()) < sixMonthsMs)
       )
