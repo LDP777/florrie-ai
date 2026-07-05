@@ -406,6 +406,17 @@ export default function CalendarView({ initialView } = {}) {
               <button onClick={() => setView('week')} style={{ ...styles.toggleBtn, background: view === 'week' ? COLORS.primary : 'transparent', color: view === 'week' ? '#fff' : COLORS.stone400 }}>Week</button>
             </div>
           )}
+          {/* Embedded on the Hub week tab: tapping a day chip opens day view,
+              and this is the way back. Without it Ellie was stuck in day
+              view with no route home. */}
+          {initialView === 'week' && view === 'day' && (
+            <button
+              onClick={() => setView('week')}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minHeight: 40, padding: '8px 14px', borderRadius: 999, border: 'none', background: 'var(--tone-2, #f6e7dd)', color: COLORS.primary, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
+            >
+              ‹ Week
+            </button>
+          )}
           <button
             onClick={() => navigate('/calendar/full')}
             title="Open full calendar"

@@ -23,7 +23,7 @@ const CATEGORIES = [
     items: [
       { path: '/inbox',          label: 'Front Desk',       matIcon: 'forum',                  desc: 'Handles every message'        },
       { path: '/outbox',         label: "Florrie's Outbox", matIcon: 'outbox',                 desc: 'Approve what Florrie sends'   },
-      { path: '/outbox', label: 'Approvals', matIcon: 'fact_check', desc: 'Review messages waiting for your yes/no' },
+      { path: '/outbox', label: 'Outbox', matIcon: 'fact_check', desc: 'Everything waiting on your yes or no' },
       { path: '/clients',        label: 'Directory',        matIcon: 'people',                 desc: 'All client profiles'          },
       { path: '/money',          label: 'Money Tracker',    matIcon: 'account_balance_wallet', desc: 'Revenue dashboard'            },
       { path: '/calendar/week',  label: 'Week view',        matIcon: 'calendar_view_week',     desc: 'Whole week at a glance'       },

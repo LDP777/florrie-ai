@@ -18,7 +18,6 @@ import { hapticTap } from './lib/native.js';
 const CalendarView = lazy(() => import('./pages/CalendarView.jsx'));
 const CalendarFull = lazy(() => import('./pages/CalendarFull.jsx'));
 const Escalations = lazy(() => import('./pages/Escalations.jsx'));
-const ApprovalQueue = lazy(() => import('./pages/ApprovalQueue.jsx'));
 const ContentAutopilot = lazy(() => import('./pages/ContentAutopilot.jsx'));
 const MoneyTracker = lazy(() => import('./pages/MoneyTracker.jsx'));
 const BookingPage = lazy(() => import('./pages/BookingPage.jsx'));
