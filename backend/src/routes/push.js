@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
+import { buildDeskState, endLiveActivity } from '../services/live-activity.js';
 
 const router = Router();
 
@@ -91,6 +92,57 @@ router.delete('/subscribe', requireAuth, async (req, res) => {
     .eq('endpoint', endpoint);
 
   res.json({ success: true });
+});
+
+/**
+ * POST /api/push/live-activity/register
+ * Store the APNs push token for a running Florrie "on the desk" Live Activity.
+ * The native app calls this right after it starts the activity.
+ */
+router.post('/live-activity/register', requireAuth, async (req, res) => {
+  const { activity_id, push_token } = req.body || {};
+  if (!push_token || typeof push_token !== 'string' || push_token.length > 512) {
+    return res.status(400).json({ error: 'push_token is required' });
+  }
+  const { error } = await supabase
+    .from('live_activity_tokens')
+    .upsert({
+      beautician_id: req.beautician.id,
+      activity_id: activity_id || null,
+      push_token,
+      started_at: new Date().toISOString(),
+      ended_at: null,
+    }, { onConflict: 'push_token' });
+  if (error) {
+    logger.error({ err: error }, 'Failed to store live activity token');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+  res.json({ success: true });
+});
+
+/**
+ * POST /api/push/live-activity/end
+ * The app ends the strip (day over, or user closed it). Sends the end event
+ * and retires the beautician's tokens.
+ */
+router.post('/live-activity/end', requireAuth, async (req, res) => {
+  endLiveActivity(req.beautician.id).catch(() => {});
+  res.json({ success: true });
+});
+
+/**
+ * GET /api/push/live-activity/state
+ * The current desk state, so the app can seed a freshly started activity with
+ * real content before the first push update lands.
+ */
+router.get('/live-activity/state', requireAuth, async (req, res) => {
+  try {
+    const state = await buildDeskState(req.beautician.id);
+    res.json({ state });
+  } catch (err) {
+    logger.warn({ err }, 'live-activity state failed');
+    res.json({ state: { handled: 0, nextClient: '', nextTime: '', status: 'On the desk' } });
+  }
 });
 
 export default router;

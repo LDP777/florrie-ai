@@ -183,6 +183,18 @@ export default function App() {
     }).catch(() => {});
   }, [session]);
 
+  // Native app (iOS): start the "Florrie on the desk" Live Activity once signed
+  // in, so the lock-screen / Dynamic Island strip is live through the day.
+  useEffect(() => {
+    if (!session || !beautician) return;
+    import('./lib/platform.js').then(({ isNativeApp }) => {
+      if (!isNativeApp()) return;
+      import('./lib/liveActivity.js')
+        .then(({ startDeskActivity }) => startDeskActivity(beautician.business_name || beautician.first_name || 'Florrie'))
+        .catch(() => {});
+    }).catch(() => {});
+  }, [session, beautician]);
+
   // Warm the main route chunks in the background once signed in, so tapping a
   // tab navigates instantly instead of showing the lazy-load spinner each time.
   useEffect(() => {

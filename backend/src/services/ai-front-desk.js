@@ -6,6 +6,7 @@ import { cleanReply } from '../lib/text.js';
 import { createBookingSuggestion } from './automations.js';
 import { sendMessage, sendInstagramDM, sendWhatsAppText, sendSMS } from './notifications.js';
 import { pushEscalation, pushTeamUpdate } from './push-notifications.js';
+import { refreshLiveActivity } from './live-activity.js';
 import { isKnownClient, clientAutonomyOverride } from '../lib/outbound-guard.js';
 import { getLoyaltyConfig, getClientPoints, loyaltyProximity } from './loyalty.js';
 import { getActivePromos, describePromo } from '../lib/promos.js';
@@ -192,6 +193,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
 
       // Push notification for escalation — beautician needs to act
       pushEscalation(beautician.id, client?.first_name || 'Someone', messageContent).catch(() => {});
+    refreshLiveActivity(beautician.id).catch(() => {});
 
       logger.info({ handled: false, intent: classification.intent, escalated: true }, 'AI Front Desk escalated message');
       return { handled: false, intent: classification.intent, escalated: true, suggestion };
@@ -878,6 +880,7 @@ async function sendResponse(beautician, client, responseText, classification, me
       notification_text: `A reply to ${client?.first_name || 'a client'} is ready, tap to send`
     });
     pushEscalation(beautician.id, client?.first_name || 'Someone', responseText).catch(() => {});
+    refreshLiveActivity(beautician.id).catch(() => {});
   }
 
   return sent;

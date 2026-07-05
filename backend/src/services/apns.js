@@ -227,3 +227,75 @@ export async function sendApnsToBeautician(beauticianId, { title, body, badge, d
 
   return { sent, removed: dead.length };
 }
+
+// ---------------------------------------------------------------------------
+// Live Activity updates (ActivityKit). Uses the activity's OWN push token, the
+// liveactivity push type, and the .push-type.liveactivity topic. Payload shape
+// per Apple: aps.timestamp, aps.event ('update'|'end'), aps['content-state'].
+// Fail soft, never throws.
+// ---------------------------------------------------------------------------
+export async function sendLiveActivityPush(activityPushToken, {
+  event = 'update',
+  contentState = {},
+  staleDate = null,
+  dismissalDate = null,
+  alert = null,
+  priority = 5,
+} = {}) {
+  const jwt = getProviderJwt();
+  if (!jwt || !activityPushToken) return null;
+
+  const aps = {
+    timestamp: Math.floor(Date.now() / 1000),
+    event,
+    'content-state': contentState,
+  };
+  if (staleDate) aps['stale-date'] = Math.floor(new Date(staleDate).getTime() / 1000);
+  if (event === 'end' && dismissalDate) aps['dismissal-date'] = Math.floor(new Date(dismissalDate).getTime() / 1000);
+  if (alert) aps.alert = alert; // optional: surfaces an update on the lock screen
+
+  const payload = JSON.stringify({ aps });
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (result) => {
+      if (settled) return;
+      settled = true;
+      try { client.close(); } catch { /* noop */ }
+      resolve(result);
+    };
+
+    let client;
+    try {
+      client = http2.connect(apnsHost());
+    } catch (err) {
+      logger.warn({ err }, 'APNs (live activity) connect failed');
+      return resolve(null);
+    }
+    client.on('error', (err) => { logger.warn({ err }, 'APNs (live activity) connection error'); done(null); });
+
+    const req = client.request({
+      ':method': 'POST',
+      ':path': `/3/device/${activityPushToken}`,
+      'authorization': `bearer ${jwt}`,
+      'apns-topic': `${APNS_BUNDLE_ID}.push-type.liveactivity`,
+      'apns-push-type': 'liveactivity',
+      'apns-priority': String(priority),
+      'content-type': 'application/json',
+    });
+
+    let status = 0, responseBody = '';
+    req.setEncoding('utf8');
+    req.setTimeout(10000, () => { logger.warn('APNs (live activity) timed out'); try { req.close(); } catch { /* noop */ } done(null); });
+    req.on('response', (headers) => { status = headers[':status']; });
+    req.on('data', (chunk) => { responseBody += chunk; });
+    req.on('end', () => {
+      if (status === 200) return done({ ok: true, status });
+      let reason = '';
+      try { reason = JSON.parse(responseBody)?.reason || ''; } catch { /* noop */ }
+      done({ ok: false, status, reason });
+    });
+    req.on('error', (err) => { logger.warn({ err }, 'APNs (live activity) request error'); done(null); });
+    req.end(payload);
+  });
+}

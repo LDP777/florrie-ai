@@ -4,6 +4,7 @@ import Stripe from 'stripe';
 import { supabase } from '../config.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
 import { pushNewBooking } from '../services/push-notifications.js';
+import { refreshLiveActivity } from '../services/live-activity.js';
 import { sendConsultationFormSMS } from './consultation-forms.js';
 import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -2202,6 +2203,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   const timeStr = startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   const dateStr = startsDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   pushNewBooking(beautician.id, firstName, treatmentNames, `${dateStr} at ${timeStr}`).catch(() => {});
+  refreshLiveActivity(beautician.id).catch(() => {});
 
   // If deposit required but Stripe isn't configured, return booking with deposit_pending flag
   // so the frontend can show an appropriate message instead of silently skipping payment.

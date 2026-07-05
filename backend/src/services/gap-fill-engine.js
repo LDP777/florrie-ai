@@ -21,6 +21,7 @@ import { guardedSend, recordOutbound } from '../lib/outbound-guard.js';
 import { getFutureBookedClientIds } from '../lib/future-bookings.js';
 import { getLoyaltyConfig, getClientPoints, loyaltyProximity } from './loyalty.js';
 import { getActivePromos, describePromo } from '../lib/promos.js';
+import { refreshLiveActivity } from './live-activity.js';
 import logger from '../lib/logger.js';
 
 const MAX_OFFERS_PER_CYCLE = 5;    // Don't spam, cap per beautician per run
@@ -668,6 +669,7 @@ async function processMatch({ beauticianId, client, treatment, gap, matchType, c
 
       if (guard.delivered && sent) {
         await logGapFillAction(beauticianId, actionType, 'executed', `${summary} (via ${sent.channel})`, confidence, client.id);
+        refreshLiveActivity(beauticianId).catch(() => {});
 
         // Mark waitlist entry as notified
         if (matchType === 'waitlist' && client.waitlist_id) {
