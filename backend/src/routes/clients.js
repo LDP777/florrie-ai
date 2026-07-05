@@ -238,7 +238,14 @@ router.post('/:id/merge', requireAuth, async (req, res) => {
         .from(table)
         .update({ client_id: primaryId })
         .eq('client_id', duplicateId);
-      if (error) failed.push({ table, code: error.code });
+      if (error && error.code === '23505') {
+        // The primary already has an identical row (same tag, same waitlist
+        // entry...): the duplicate's copy is redundant, so drop it.
+        const { error: delErr } = await supabase.from(table).delete().eq('client_id', duplicateId);
+        if (delErr) failed.push({ table, code: delErr.code });
+      } else if (error) {
+        failed.push({ table, code: error.code });
+      }
     }
 
     // 2) Backfill contact/identity gaps on the primary from the duplicate.
