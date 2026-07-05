@@ -35,7 +35,7 @@ const SmartSchedule = lazy(() => import('./SmartSchedule.jsx'));
 
 const SUB_TABS = [
   { id: 'day',   label: 'Day',            path: '/today' },
-  { id: 'week',  label: 'Week',           path: '/calendar/week' },
+  { id: 'week',  label: 'Calendar',       path: '/calendar/week' },
   { id: 'smart', label: 'Schedule', path: '/smart-schedule' },
 ];
 

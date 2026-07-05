@@ -21,12 +21,11 @@ const CATEGORIES = [
     label: 'Daily',
     matIcon: 'wb_sunny',
     items: [
-      { path: '/inbox',          label: 'Front Desk',       matIcon: 'forum',                  desc: 'Handles every message'        },
-      { path: '/outbox',         label: "Florrie's Outbox", matIcon: 'outbox',                 desc: 'Approve what Florrie sends'   },
-      { path: '/outbox', label: 'Outbox', matIcon: 'fact_check', desc: 'Everything waiting on your yes or no' },
-      { path: '/clients',        label: 'Directory',        matIcon: 'people',                 desc: 'All client profiles'          },
-      { path: '/money',          label: 'Money Tracker',    matIcon: 'account_balance_wallet', desc: 'Revenue dashboard'            },
-      { path: '/calendar/week',  label: 'Week view',        matIcon: 'calendar_view_week',     desc: 'Whole week at a glance'       },
+      { path: '/inbox',          label: 'Inbox',            matIcon: 'forum',                  desc: 'Every client message'         },
+      { path: '/outbox',         label: 'Outbox',           matIcon: 'outbox',                 desc: 'Waiting on your yes or no'    },
+      { path: '/clients',        label: 'Clients',          matIcon: 'people',                 desc: 'All client profiles'          },
+      { path: '/money',          label: 'Money',            matIcon: 'account_balance_wallet', desc: 'Revenue dashboard'            },
+      { path: '/calendar/week',  label: 'Calendar',         matIcon: 'calendar_month',         desc: 'Your week and days'           },
       { path: '/waitlist-pro',   label: 'Waitlist',         matIcon: 'history',                desc: 'Manage waiting clients'       },
       { path: '/end-of-day',     label: 'End of Day',       matIcon: 'nightlight',             desc: 'Cash-up and close'            },
       { path: '/hours',          label: 'Hours and Time Off', matIcon: 'beach_access',         desc: 'Holidays and closures'        },
@@ -337,7 +336,7 @@ function ItemCard({ item, locked, isActive, onNav }) {
 const S = {
   page: {
     minHeight: '100vh',
-    background: '#fef8f4',
+    background: 'var(--bg, #fef8f4)',
     fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
     padding: '16px 16px var(--scroll-pad-bottom)',
     maxWidth: 480,
@@ -345,12 +344,13 @@ const S = {
     color: '#1d1b19',
   },
   heading: {
-    fontSize: 22,
-    fontWeight: 700,
-    fontFamily: "'Noto Serif', Georgia, serif",
+    fontSize: 26,
+    fontWeight: 600,
+    fontFamily: "'Playfair Display', Georgia, serif",
     fontStyle: 'italic',
-    color: '#92405e',
-    margin: '4px 0 16px',
+    color: 'var(--text-primary, #2b1d22)',
+    margin: '12px 0 16px',
+    letterSpacing: '-0.01em',
   },
 
   searchWrap: { position: 'relative', marginBottom: 20 },
@@ -360,16 +360,15 @@ const S = {
   },
   searchInput: {
     width: '100%',
-    padding: '11px 36px 11px 42px',
-    borderRadius: 99,
+    padding: '12px 36px 12px 42px',
+    borderRadius: 16,
     border: 'none',
-    background: '#fff',
+    background: 'var(--tone-2, #f6e7dd)',
     fontSize: 14,
     fontFamily: 'inherit',
-    color: '#1d1b19',
+    color: 'var(--text-primary, #1d1b19)',
     outline: 'none',
     boxSizing: 'border-box',
-    boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
   },
   searchClear: {
     position: 'absolute', right: 10, top: '50%',
@@ -390,13 +389,13 @@ const S = {
   },
   recentChip: {
     display: 'flex', alignItems: 'center', gap: 6,
-    padding: '7px 13px', borderRadius: 99,
-    border: '1px solid rgba(146,64,94,0.1)', background: '#fff',
+    padding: '8px 14px', minHeight: 34, borderRadius: 999,
+    border: 'none', background: 'var(--tone-2, #f6e7dd)',
     cursor: 'pointer', fontFamily: 'inherit',
     flexShrink: 0, whiteSpace: 'nowrap',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+    WebkitTapHighlightColor: 'transparent',
   },
-  recentLabel: { fontSize: 12, fontWeight: 600, color: '#534247' },
+  recentLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #534247)' },
 
   emptySearch: {
     display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -404,11 +403,10 @@ const S = {
   },
 
   catCard: {
-    background: '#fff',
+    background: 'var(--tone-1, #fbf1ea)',
     borderRadius: 20,
-    border: '1px solid rgba(146,64,94,0.07)',
+    border: 'none',
     overflow: 'hidden',
-    boxShadow: '0 1px 4px rgba(146,64,94,0.05)',
   },
   catHeader: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -418,12 +416,10 @@ const S = {
     WebkitTapHighlightColor: 'transparent',
   },
   catLabel: {
-    fontSize: 14, fontWeight: 700, color: '#1d1b19',
+    fontSize: 14, fontWeight: 700, color: 'var(--text-primary, #1d1b19)',
   },
   expandedBody: {
-    background: '#f8f2ef',
-    padding: '12px 12px 14px',
-    borderTop: '1px solid rgba(146,64,94,0.06)',
+    padding: '2px 12px 14px',
   },
 
   itemGrid: {
@@ -436,30 +432,30 @@ const S = {
     flexDirection: 'column',
     alignItems: 'flex-start',
     padding: '14px 12px 12px',
+    minHeight: 44,
     borderRadius: 14,
     border: 'none',
-    background: '#fff',
+    background: 'var(--bg, #fef8f4)',
     cursor: 'pointer',
     fontFamily: 'inherit',
     textAlign: 'left',
     transition: 'background 0.12s, transform 0.1s',
     WebkitTapHighlightColor: 'transparent',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
   },
   itemActive: {
-    background: '#ffd9e2',
-    boxShadow: 'inset 0 0 0 1.5px #92405e',
+    background: 'var(--accent-wash, #fbe9f0)',
+    boxShadow: 'inset 0 0 0 1.5px var(--accent, #92405e)',
   },
   itemLabel: {
-    fontSize: 11, fontWeight: 700, color: '#1d1b19', lineHeight: 1.3, marginBottom: 2,
+    fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary, #1d1b19)', lineHeight: 1.3, marginBottom: 2,
   },
   itemDesc: {
-    fontSize: 9.5, color: '#B5AFA8', lineHeight: 1.35, fontWeight: 400,
+    fontSize: 11, color: 'var(--text-muted, #9B8A8E)', lineHeight: 1.35, fontWeight: 400,
   },
   lockBadge: {
-    fontSize: 8, fontWeight: 700,
+    fontSize: 9, fontWeight: 700,
     background: 'linear-gradient(135deg, #745a27, #fedb9b)',
-    color: '#fff', padding: '2px 5px', borderRadius: 5,
+    color: '#fff', padding: '2px 6px', borderRadius: 5,
     letterSpacing: '0.05em',
   },
 };

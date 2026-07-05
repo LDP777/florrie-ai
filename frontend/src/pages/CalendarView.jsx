@@ -419,7 +419,7 @@ export default function CalendarView({ initialView } = {}) {
               onClick={() => setView('week')}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minHeight: 40, padding: '8px 14px', borderRadius: 999, border: 'none', background: 'var(--tone-2, #f6e7dd)', color: COLORS.primary, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
             >
-              ‹ Week
+              ‹ Calendar
             </button>
           )}
           <button
