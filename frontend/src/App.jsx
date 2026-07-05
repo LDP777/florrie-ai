@@ -624,12 +624,34 @@ function NavTab({ tab, onNav }) {
  * destinations (which are roots, nothing to go back to) and on /more. One
  * component covers every pushed page without touching 80 files.
  */
+/**
+ * Compact-on-scroll for the floating pills. The moment the page scrolls the
+ * Back/More pills shrink to icon-only circles and go slightly translucent,
+ * so they read as chrome instead of sitting on top of content. Expanded
+ * again at the top of the page. The app scrolls inside #app-scroll (the
+ * shell is fixed), so that's the element we watch; re-bound per route since
+ * the scroller can remount.
+ */
+function useScrolledDown(current, threshold = 20) {
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const el = document.getElementById('app-scroll');
+    if (!el) { setScrolled(false); return; }
+    const onScroll = () => setScrolled(el.scrollTop > threshold);
+    onScroll();
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [current, threshold]);
+  return scrolled;
+}
+
 const ROOT_PATHS = new Set([
   '/', '/hub', '/today', '/calendar', '/calendar/week', '/smart-schedule',
   '/inbox', '/money', '/content', '/voice', '/more',
 ]);
 function FloatingBack({ current }) {
   const navigate = useNavigate();
+  const compact = useScrolledDown(current);
   if (ROOT_PATHS.has(current)) return null;
 
   return (
@@ -646,21 +668,26 @@ function FloatingBack({ current }) {
         left: 14,
         display: 'flex',
         alignItems: 'center',
-        gap: 4,
+        justifyContent: 'center',
+        gap: compact ? 0 : 4,
         height: 44,
-        padding: '0 12px 0 8px',
+        width: compact ? 44 : 'auto',
+        padding: compact ? 0 : '0 12px 0 8px',
         borderRadius: 999,
-        background: 'rgba(255,255,255,0.98)',
+        background: compact ? 'rgba(255,255,255,0.72)' : 'rgba(255,255,255,0.98)',
+        backdropFilter: compact ? 'blur(6px)' : 'none',
+        WebkitBackdropFilter: compact ? 'blur(6px)' : 'none',
         border: '1px solid rgba(146,64,94,0.12)',
-        boxShadow: '0 2px 8px rgba(146,64,94,0.1)',
+        boxShadow: compact ? '0 1px 5px rgba(146,64,94,0.08)' : '0 2px 8px rgba(146,64,94,0.1)',
         cursor: 'pointer',
         zIndex: 900,
         fontFamily: 'inherit',
         WebkitTapHighlightColor: 'transparent',
+        transition: 'width 0.18s ease, padding 0.18s ease, background 0.18s ease, box-shadow 0.18s ease',
       }}
     >
       <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#92405e' }}>arrow_back_ios_new</span>
-      <span style={{ fontSize: 12, fontWeight: 600, color: '#92405e', letterSpacing: '0.01em' }}>Back</span>
+      {!compact && <span style={{ fontSize: 12, fontWeight: 600, color: '#92405e', letterSpacing: '0.01em' }}>Back</span>}
     </button>
   );
 }
@@ -673,6 +700,7 @@ function FloatingBack({ current }) {
  */
 function FloatingMore({ current }) {
   const navigate = useNavigate();
+  const compact = useScrolledDown(current);
   if (current === '/more') return null;
 
   return (
@@ -685,21 +713,26 @@ function FloatingMore({ current }) {
         right: 14,
         display: 'flex',
         alignItems: 'center',
-        gap: 6,
+        justifyContent: 'center',
+        gap: compact ? 0 : 6,
         height: 44,
-        padding: '0 12px 0 10px',
+        width: compact ? 44 : 'auto',
+        padding: compact ? 0 : '0 12px 0 10px',
         borderRadius: 999,
-        background: 'rgba(255,255,255,0.98)',
+        background: compact ? 'rgba(255,255,255,0.72)' : 'rgba(255,255,255,0.98)',
+        backdropFilter: compact ? 'blur(6px)' : 'none',
+        WebkitBackdropFilter: compact ? 'blur(6px)' : 'none',
         border: '1px solid rgba(146,64,94,0.12)',
-        boxShadow: '0 2px 8px rgba(146,64,94,0.1)',
+        boxShadow: compact ? '0 1px 5px rgba(146,64,94,0.08)' : '0 2px 8px rgba(146,64,94,0.1)',
         cursor: 'pointer',
         zIndex: 900,
         fontFamily: 'inherit',
         WebkitTapHighlightColor: 'transparent',
+        transition: 'width 0.18s ease, padding 0.18s ease, background 0.18s ease, box-shadow 0.18s ease',
       }}
     >
       <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#92405e' }}>apps</span>
-      <span style={{ fontSize: 12, fontWeight: 600, color: '#92405e', letterSpacing: '0.01em' }}>More</span>
+      {!compact && <span style={{ fontSize: 12, fontWeight: 600, color: '#92405e', letterSpacing: '0.01em' }}>More</span>}
     </button>
   );
 }

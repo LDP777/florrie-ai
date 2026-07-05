@@ -188,6 +188,9 @@ export default function CalendarView({ initialView } = {}) {
   const [showNewAppt, setShowNewAppt] = useState(!!bookClient);
   // Day grid scroll container + once-per-day auto-scroll tracking
   const gridScrollRef = useRef(null);
+  // Week strip swipe: start point + horizontal-intent lock, so a horizontal
+  // flick moves a week without hijacking vertical page scrolling.
+  const stripTouch = useRef(null);
   const lastScrollKey = useRef(null);
   useEffect(() => {
     if (beautician) {
@@ -448,8 +451,27 @@ export default function CalendarView({ initialView } = {}) {
           )}
         </div>
       </div>
-      {/* Weekly Date Strip (shared for both views) */}
-      <div style={styles.weeklyStripContainer}>
+      {/* Weekly Date Strip (shared for both views). Swipe it sideways to
+          move a week at a time - left for next, right for last. */}
+      <div
+        style={{ ...styles.weeklyStripContainer, touchAction: 'pan-y' }}
+        onTouchStart={e => {
+          stripTouch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }}
+        onTouchEnd={e => {
+          const start = stripTouch.current;
+          stripTouch.current = null;
+          if (!start) return;
+          const dx = e.changedTouches[0].clientX - start.x;
+          const dy = e.changedTouches[0].clientY - start.y;
+          // Horizontal intent only: a decent sideways travel that clearly
+          // beats the vertical drift. Anything else is a scroll or a tap.
+          if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+          const d = new Date(currentDate);
+          d.setDate(d.getDate() + (dx < 0 ? 7 : -7));
+          setCurrentDate(d);
+        }}
+      >
         <div style={styles.weeklyStripHeader}>
           <span style={styles.weeklyStripMonth}>{weekMonthName} WEEK {weekNumber}</span>
         </div>
