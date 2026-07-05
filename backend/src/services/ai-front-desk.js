@@ -216,11 +216,11 @@ async function gatherContext(beautician, client) {
   const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   // Parallel fetches for speed
-  const [treatments, upcomingAppointments, clientHistory, clientIntelligence, conversation, loyaltyConfig, clientPoints] = await Promise.all([
+  const [treatments, upcomingAppointments, clientHistory, clientIntelligence, conversation, loyaltyConfig, clientPoints, patchTests] = await Promise.all([
     // Treatment menu
     supabase
       .from('treatments')
-      .select('id, name, duration_minutes, price_cents, deposit_cents, category, contraindications')
+      .select('id, name, duration_minutes, price_cents, deposit_cents, category, contraindications, requires_patch_test')
       .eq('beautician_id', beautician.id)
       .eq('is_active', true)
       .eq('booking_enabled', true),
@@ -264,7 +264,18 @@ async function gatherContext(beautician, client) {
     // this client's running points balance, so replies can nod to reward
     // proximity. Both fail soft so a loyalty hiccup never blanks the brain.
     getLoyaltyConfig(beautician.id),
-    client?.id ? getClientPoints(beautician.id, client.id) : 0
+    client?.id ? getClientPoints(beautician.id, client.id) : 0,
+
+    // Patch test history so Florrie can sell the patch-test visit instead of
+    // stalling when a new or lapsed client asks for a treatment that needs one.
+    // Read only, conversational; the /book endpoint keeps its own hard gates.
+    client?.id ? supabase
+      .from('patch_tests')
+      .select('status, result, test_date, expires_at, confirmed_at')
+      .eq('client_id', client.id)
+      .eq('beautician_id', beautician.id)
+      .order('created_at', { ascending: false })
+      .limit(5) : { data: [] }
   ]);
 
   // Oldest to newest, ready to render as a transcript.
@@ -278,6 +289,26 @@ async function gatherContext(beautician, client) {
     : null;
   const loyalty = client?.id ? loyaltyProximity(loyaltyConfig, clientPoints, avgSpendPounds) : null;
 
+  // Guardian: which treatments need a patch test, and where this client stands.
+  const treatmentsNeedingTest = (treatments.data || [])
+    .filter(t => t.requires_patch_test)
+    .map(t => t.name);
+  let patchTest = null;
+  if (treatmentsNeedingTest.length) {
+    const ptRows = patchTests.data || [];
+    const nowMs = Date.now();
+    const sixMonthsMs = 1000 * 60 * 60 * 24 * 183;
+    const hasValid = ptRows.some(pt =>
+      (pt.status === 'passed' || pt.result === 'passed') && (
+        (pt.expires_at && new Date(pt.expires_at).getTime() > nowMs) ||
+        (pt.test_date && (nowMs - new Date(pt.test_date).getTime()) < sixMonthsMs)
+      )
+    );
+    const hasPending = ptRows.some(pt => pt.status === 'pending' || pt.confirmed_at);
+    const status = hasValid ? 'completed' : (hasPending ? 'pending' : 'none');
+    patchTest = { status, treatmentsNeedingTest };
+  }
+
   return {
     treatments: treatments.data || [],
     upcomingAppointments: upcomingAppointments.data || [],
@@ -285,6 +316,7 @@ async function gatherContext(beautician, client) {
     clientIntelligence: clientIntelligence.data,
     conversation: conversationThread,
     loyalty,
+    patchTest,
     beautician: {
       name: beautician.business_name || beautician.first_name,
       workingHours: beautician.working_hours,
@@ -464,6 +496,7 @@ Treatments: ${context.treatments.map(t => `${t.name} (${t.duration_minutes}min, 
 ${context.client ? `Client: ${context.client.name}, ${context.client.totalVisits || 0} previous visits` : 'New client'}
 ${context.clientIntelligence?.favourite_treatments?.length ? `Favourite treatments: ${context.clientIntelligence.favourite_treatments.join(', ')}` : ''}
 ${context.loyalty ? `LOYALTY: ${context.loyalty.summary} If it fits this message, you may mention it once, warmly and naturally, never pushy. Never invent points or rewards beyond what is stated here.` : ''}
+${context.patchTest ? `PATCH TEST: These treatments need a patch test at least 24 hours before the first appointment: ${context.patchTest.treatmentsNeedingTest.join(', ')}. This client's patch test status: ${context.patchTest.status}. If they want to book one of these and their status is none or pending, warmly explain they need a quick patch test first and offer to pop them in for it at a real available time before the main appointment, rather than stalling. If their status is completed, treat it as a normal booking. Never invent a patch test result.` : ''}
 ${buildTranscript(context, message) ? `\nConversation so far (oldest first). Continue it naturally, do not repeat yourself or reintroduce yourself:\n${buildTranscript(context, message)}` : ''}
 
 Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`,
@@ -579,6 +612,7 @@ Never use em dashes (—) or en dashes (–). Use commas, full stops, colons or 
 
 Treatments: ${context.treatments.map(t => `${t.name} (£${(t.price_cents/100).toFixed(2)})`).join(', ')}
 ${context.loyalty ? `Loyalty: ${context.loyalty.summary} If it fits, you may mention it once, warmly, never pushy. Never invent points or rewards beyond this.` : ''}
+${context.patchTest ? `Patch test: these treatments need one at least 24h before the first visit: ${context.patchTest.treatmentsNeedingTest.join(', ')}. This client's status: ${context.patchTest.status}. If they want one of these and status is none or pending, offer to book the quick patch test first at a real time; if completed, book as normal. Never invent a result.` : ''}
 ${buildTranscript(context, message) ? `\nConversation so far (oldest first), so your draft fits the thread:\n${buildTranscript(context, message)}` : ''}
 
 Write only the message to send.`,
@@ -915,6 +949,7 @@ Rules:
 
 Treatments: ${context.treatments.map(t => `${t.name} (£${(t.price_cents/100).toFixed(2)})`).join(', ') || 'none listed'}.
 ${context.loyalty ? `Loyalty: ${context.loyalty.summary} One of the 3 options may nod to this if it fits, warmly and never pushy.` : ''}
+${context.patchTest ? `Patch test: these treatments need one at least 24h before the first visit: ${context.patchTest.treatmentsNeedingTest.join(', ')}. This client's status: ${context.patchTest.status}. If they want one of these and status is none or pending, offer to book the quick patch test first at a real time; if completed, book as normal. Never invent a result.` : ''}
 
 Respond with ONLY a JSON array of exactly 3 objects: [{"label":"...","text":"..."}].`,
     messages: [{ role: 'user', content: lastInboundMessage }],
