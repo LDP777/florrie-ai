@@ -125,10 +125,14 @@ export default function CalendarView({ initialView } = {}) {
     const q = new URLSearchParams(location.search).get('date');
     if (q && /^\d{4}-\d{2}-\d{2}/.test(q)) setCurrentDate(new Date(`${q.slice(0, 10)}T12:00:00`));
   }, [location.search]);
+  const [appointments, setAppointments] = useState([]);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const detailRef = useRef(null);
 
   // Deep-link to a specific appointment (?appt=<id>): once that day's
-  // appointments have loaded, open its detail. The selection effect below then
-  // scrolls it into view. From the "someone booked" push and the home feed.
+  // appointments have loaded, open its detail. The selection effect further
+  // down scrolls it into view. Used by the "someone booked" push + home feed.
   useEffect(() => {
     const apptId = new URLSearchParams(location.search).get('appt');
     if (!apptId || !appointments.length) return;
@@ -138,10 +142,6 @@ export default function CalendarView({ initialView } = {}) {
       setSelectedAppointment(match);
     }
   }, [appointments, location.search]);
-  const [appointments, setAppointments] = useState([]);
-  const [selectedAppointment, setSelectedAppointment] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const detailRef = useRef(null);
   // Press-and-hold a row in the agenda to delete it (iOS style). The backend
   // blocks deletion when money is attached (409) and steers Ellie to cancel.
   const longPressTimer = useRef(null);
