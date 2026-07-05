@@ -468,7 +468,6 @@ export async function sendConsultationFormSMS({
     direction: 'outbound',
     channel: 'sms',
     content: smsBody,
-    status: 'sent',
   }).catch(() => {}); // non-fatal
 
   // Do not log the token: it is the only credential guarding the public

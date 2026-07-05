@@ -88,7 +88,8 @@ export async function autoCompletePastAppointments() {
       beautician_id: appt.beautician_id,
       appointment_id: appt.id,
       client_id: appt.client_id || null,
-      treatment_id: appt.treatment_id || null,
+      // transactions has no treatment_id column - its presence rejected the
+      // WHOLE insert, so cron-completed appointments logged no takings.
       amount_cents: takings,
       type: 'payment',
       status: 'completed',

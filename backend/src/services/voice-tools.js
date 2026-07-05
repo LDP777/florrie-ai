@@ -746,9 +746,15 @@ async function toolAddClientNote({ client_name, note }, beautician, supabase) {
   const client = await findClient(beautician.id, client_name, supabase);
   if (!client) return { result: `Can't find "${client_name}".` };
 
+  // There is no client_notes table: notes live on the client record. The old
+  // insert failed every time, so voice notes were never saved.
+  const stamp = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const combined = client.notes ? `${client.notes}\n[${stamp}] ${note}` : `[${stamp}] ${note}`;
   const { error } = await supabase
-    .from('client_notes')
-    .insert({ beautician_id: beautician.id, client_id: client.id, note, created_at: new Date().toISOString() });
+    .from('clients')
+    .update({ notes: combined })
+    .eq('id', client.id)
+    .eq('beautician_id', beautician.id);
 
   if (error) {
     logger.error({ err: error }, 'add_client_note failed');

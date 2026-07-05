@@ -78,7 +78,6 @@ router.post('/send-reminder', requireAuth, async (req, res) => {
         direction: 'outbound',
         channel: 'sms',
         content: body,
-        status: result ? 'sent' : 'failed',
       }).catch(() => {});
 
       return res.json({ success: !!result, channel: 'sms' });
@@ -137,7 +136,6 @@ router.post('/send-sms', requireAuth, async (req, res) => {
       direction: 'outbound',
       channel: 'sms',
       content: message,
-      status: result ? 'sent' : 'failed',
     });
 
     if (logError) {
@@ -187,7 +185,6 @@ router.post('/send-email', requireAuth, async (req, res) => {
       direction: 'outbound',
       channel: 'email',
       content: text || subject,
-      status: result ? 'sent' : 'failed',
     });
 
     if (logError) {

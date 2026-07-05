@@ -1754,9 +1754,10 @@ router.post('/client-tag-assignments', requireAuth, async (req, res) => {
   const { data, error } = await supabase
     .from('client_tag_assignments')
     .insert({
-      beautician_id: req.beautician.id,
+      // table has client_id + tag_id only; beautician_id/client_tag_id were
+      // phantoms and the insert always failed
       client_id,
-      client_tag_id
+      tag_id: client_tag_id,
     })
     .select()
     .single();
@@ -1820,8 +1821,10 @@ router.post('/reviews', requireAuth, async (req, res) => {
       beautician_id: req.beautician.id,
       client_id,
       rating,
-      review_text: review_text || null,
-      platform: platform || 'website'
+      // the column is 'comment' and 'website' fails the platform CHECK -
+      // this insert never once succeeded
+      comment: review_text || null,
+      platform: platform || 'manual'
     })
     .select()
     .single();

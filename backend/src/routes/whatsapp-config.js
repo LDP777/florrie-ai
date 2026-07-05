@@ -1463,7 +1463,6 @@ router.post('/webhook-self-test', async (req, res) => {
           last_name: '',
           phone: `+${waId}`,
           whatsapp_id: waId,
-          source: 'whatsapp',
         })
         .select()
         .single();

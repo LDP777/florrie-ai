@@ -1176,8 +1176,8 @@ router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
         beautician_id: beautician.id,
         client_id: appt.client_id,
         client_email: appt.client_email,
-        client_name: appt.client_name,
-        client_phone: appt.client_phone,
+        // client_name/client_phone are not appointment columns; client_id
+        // carries the person. Their presence rejected the insert whole.
         treatment_id: null,
         starts_at: slotTime.toISOString(),
         ends_at: slotEnd.toISOString(),
