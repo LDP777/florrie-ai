@@ -130,8 +130,16 @@ const CATEGORIES = [
 const RECENT_KEY = 'florrie_recent_pages';
 const RECENT_MAX = 6;
 
+// Only pages still in the catalogue count as recents - old localStorage
+// entries otherwise resurrect parked pages (Integrations, Overview, Notes)
+// as chips pointing at retired screens.
+const CATALOGUE_PATHS = new Set(CATEGORIES.flatMap(c => c.items.map(i => i.path)));
+
 function getRecents() {
-  try { return JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); }
+  try {
+    const all = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]');
+    return all.filter(r => CATALOGUE_PATHS.has(r.path));
+  }
   catch { return []; }
 }
 
