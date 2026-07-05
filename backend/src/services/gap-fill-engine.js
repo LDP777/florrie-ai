@@ -19,6 +19,7 @@ import { sendNudge } from './notifications.js';
 import { shouldAutoSend } from './sms-metering.js';
 import { guardedSend, recordOutbound } from '../lib/outbound-guard.js';
 import { getFutureBookedClientIds } from '../lib/future-bookings.js';
+import { getLoyaltyConfig, getClientPoints, loyaltyProximity } from './loyalty.js';
 import logger from '../lib/logger.js';
 
 const MAX_OFFERS_PER_CYCLE = 5;    // Don't spam, cap per beautician per run
@@ -78,9 +79,13 @@ export async function checkGapFillOpportunities(beauticianId, threshold) {
     const recentlyContacted = await fetchRecentlyContacted(beauticianId);
 
     // 6. Match candidates to gaps
+    // Loyalty settings once per run so offers can nod to reward proximity.
+    const loyaltyConfig = await getLoyaltyConfig(beauticianId);
+
     const beauticianPrefs = {
       whatsapp_connected: !!beautician.whatsapp_phone_id,
       booking_slug: beautician.booking_slug || null,
+      loyaltyConfig,
       ...(beautician.client_reminder_prefs || {}),
     };
 
@@ -597,6 +602,18 @@ async function processMatch({ beauticianId, client, treatment, gap, matchType, c
     message = `Hi ${client.first_name}! It's been a while since your last visit and I have a lovely slot on ${dayLabel} at ${timeLabel}. Want me to pop you in? Just reply YES 🌸${bookLink}`;
   } else {
     message = `Hi ${client.first_name}! It's been a while and we miss you 💕 I have a slot on ${dayLabel} at ${timeLabel}. Fancy popping in?${bookLink}`;
+  }
+
+  // If this client is close to their loyalty reward, add one warm nudge line.
+  // Fail soft: any loyalty hiccup just leaves the message as it was.
+  try {
+    if (beauticianPrefs.loyaltyConfig && client.id) {
+      const points = await getClientPoints(beauticianId, client.id);
+      const prox = loyaltyProximity(beauticianPrefs.loyaltyConfig, points, null);
+      if (prox) message += prox.hook;
+    }
+  } catch (err) {
+    logger.warn({ err, clientId: client.id }, 'Gap-fill loyalty hook skipped');
   }
 
   // Human copy for the activity feed, not an engine log line. A held draft

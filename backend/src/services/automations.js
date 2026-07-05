@@ -16,6 +16,7 @@ import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 import { sendEmail, sendSMS, sendWhatsApp } from './notifications.js';
 import { shouldAutoSend } from './sms-metering.js';
+import { getLoyaltyConfig, getClientPoints, loyaltyProximity } from './loyalty.js';
 
 // messageType must match a key in DEFAULT_PRIORITY_RULES (e.g. 'aftercare_followup', 'rebook_nudge', 'review_request', 'marketing').
 // shouldAutoSend() is checked before any AI-initiated SMS to respect autopilot credit rules.
@@ -173,7 +174,19 @@ export async function processRebookNudges() {
       const slug = reminder.beauticians?.booking_slug;
       const linkLine = slug ? ` Book in here: florrie.ai/book/${slug}` : '';
       const defaultMsg = `Hey {name}, it's been a while! Ready for your next appointment?${linkLine} Would love to see you soon xx`;
-      const body = reminder.message || defaultMsg;
+      let body = reminder.message || defaultMsg;
+
+      // Nudge towards their loyalty reward when they are close. Fail soft.
+      try {
+        const loyaltyConfig = await getLoyaltyConfig(reminder.beautician_id);
+        if (loyaltyConfig && reminder.client_id) {
+          const points = await getClientPoints(reminder.beautician_id, reminder.client_id);
+          const prox = loyaltyProximity(loyaltyConfig, points, null);
+          if (prox) body += prox.hook;
+        }
+      } catch (err) {
+        logger.warn({ err, reminderId: reminder.id }, 'Rebook nudge loyalty hook skipped');
+      }
 
       await sendOnChannel({
         beautician: reminder.beauticians,

@@ -7,6 +7,7 @@ import { createBookingSuggestion } from './automations.js';
 import { sendMessage, sendInstagramDM, sendWhatsAppText, sendSMS } from './notifications.js';
 import { pushEscalation, pushTeamUpdate } from './push-notifications.js';
 import { isKnownClient, clientAutonomyOverride } from '../lib/outbound-guard.js';
+import { getLoyaltyConfig, getClientPoints, loyaltyProximity } from './loyalty.js';
 
 /**
  * AI Front Desk — The core agentic service.
@@ -215,7 +216,7 @@ async function gatherContext(beautician, client) {
   const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   // Parallel fetches for speed
-  const [treatments, upcomingAppointments, clientHistory, clientIntelligence, conversation] = await Promise.all([
+  const [treatments, upcomingAppointments, clientHistory, clientIntelligence, conversation, loyaltyConfig, clientPoints] = await Promise.all([
     // Treatment menu
     supabase
       .from('treatments')
@@ -257,11 +258,25 @@ async function gatherContext(beautician, client) {
       .select('direction, content, channel, created_at')
       .eq('client_id', client.id)
       .order('created_at', { ascending: false })
-      .limit(12) : { data: [] }
+      .limit(12) : { data: [] },
+
+    // Loyalty programme settings (null when the beautician has it off) and
+    // this client's running points balance, so replies can nod to reward
+    // proximity. Both fail soft so a loyalty hiccup never blanks the brain.
+    getLoyaltyConfig(beautician.id),
+    client?.id ? getClientPoints(beautician.id, client.id) : 0
   ]);
 
   // Oldest to newest, ready to render as a transcript.
   const conversationThread = (conversation.data || []).slice().reverse();
+
+  // Average spend from recent history lets us judge 'within one visit'.
+  const historyRows = clientHistory.data || [];
+  const pricedVisits = historyRows.filter(a => (a.price_cents || 0) > 0);
+  const avgSpendPounds = pricedVisits.length
+    ? (pricedVisits.reduce((sum, a) => sum + a.price_cents, 0) / pricedVisits.length) / 100
+    : null;
+  const loyalty = client?.id ? loyaltyProximity(loyaltyConfig, clientPoints, avgSpendPounds) : null;
 
   return {
     treatments: treatments.data || [],
@@ -269,6 +284,7 @@ async function gatherContext(beautician, client) {
     clientHistory: clientHistory.data || [],
     clientIntelligence: clientIntelligence.data,
     conversation: conversationThread,
+    loyalty,
     beautician: {
       name: beautician.business_name || beautician.first_name,
       workingHours: beautician.working_hours,
@@ -447,6 +463,7 @@ CONTEXT:
 Treatments: ${context.treatments.map(t => `${t.name} (${t.duration_minutes}min, £${(t.price_cents/100).toFixed(2)})`).join(', ')}
 ${context.client ? `Client: ${context.client.name}, ${context.client.totalVisits || 0} previous visits` : 'New client'}
 ${context.clientIntelligence?.favourite_treatments?.length ? `Favourite treatments: ${context.clientIntelligence.favourite_treatments.join(', ')}` : ''}
+${context.loyalty ? `LOYALTY: ${context.loyalty.summary} If it fits this message, you may mention it once, warmly and naturally, never pushy. Never invent points or rewards beyond what is stated here.` : ''}
 ${buildTranscript(context, message) ? `\nConversation so far (oldest first). Continue it naturally, do not repeat yourself or reintroduce yourself:\n${buildTranscript(context, message)}` : ''}
 
 Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`,
@@ -561,6 +578,7 @@ Hard rules:
 Never use em dashes (—) or en dashes (–). Use commas, full stops, colons or line breaks instead.
 
 Treatments: ${context.treatments.map(t => `${t.name} (£${(t.price_cents/100).toFixed(2)})`).join(', ')}
+${context.loyalty ? `Loyalty: ${context.loyalty.summary} If it fits, you may mention it once, warmly, never pushy. Never invent points or rewards beyond this.` : ''}
 ${buildTranscript(context, message) ? `\nConversation so far (oldest first), so your draft fits the thread:\n${buildTranscript(context, message)}` : ''}
 
 Write only the message to send.`,
@@ -896,6 +914,7 @@ Rules:
 - Use the client's real first name (${firstName}) where natural, not a placeholder.
 
 Treatments: ${context.treatments.map(t => `${t.name} (£${(t.price_cents/100).toFixed(2)})`).join(', ') || 'none listed'}.
+${context.loyalty ? `Loyalty: ${context.loyalty.summary} One of the 3 options may nod to this if it fits, warmly and never pushy.` : ''}
 
 Respond with ONLY a JSON array of exactly 3 objects: [{"label":"...","text":"..."}].`,
     messages: [{ role: 'user', content: lastInboundMessage }],
