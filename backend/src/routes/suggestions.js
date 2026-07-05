@@ -7,6 +7,7 @@ import { getFutureBookedClientIds } from '../lib/future-bookings.js';
 import { guardedSend } from '../lib/outbound-guard.js';
 import { sendSMS, sendOnPreferredChannel } from '../services/notifications.js';
 import { getGapFillSuggestions, gapFillDiagnostic } from '../services/gap-fill-engine.js';
+import { quietWeekStatus } from '../services/florrie-heartbeat.js';
 
 const router = Router();
 
@@ -54,6 +55,7 @@ router.get('/', requireAuth, async (req, res) => {
       fromGapFill(beauticianId),
       fromUnpricedAppointments(beauticianId),
       fromFiveStarReviews(beauticianId),
+      fromQuietWeek(beauticianId, req.query),
       // tag_dormant deliberately dropped: it was busywork, not money.
     ]);
     for (const g of groups) suggestions.push(...g);
@@ -365,6 +367,88 @@ router.post('/fill-gap', requireAuth, async (req, res) => {
     candidates: matches.length,
     gap: { date: gap.date, dayLabel, start: gap.start, end: gap.end, duration_minutes: gap.duration_minutes },
   });
+});
+
+/**
+ * POST /api/suggestions/fill-week
+ * The quiet-week card's accept. Offers next week's open slots (all gaps that
+ * have a matched client) to those clients, one offer per client, capped so a
+ * single tap never floods the outbox. Every offer goes THROUGH the outbound
+ * guard, so proactive offers land as pending_approval in the outbox and only
+ * auto-send if Ellie has explicitly trusted this. Mirrors /fill-gap over the
+ * whole week rather than a single gap.
+ */
+router.post('/fill-week', requireAuth, async (req, res) => {
+  const beautician = req.beautician;
+  const beauticianId = beautician.id;
+
+  let groups = [];
+  try {
+    groups = await getGapFillSuggestions(beauticianId);
+  } catch (err) {
+    logger.error({ err }, 'fill-week: gap-fill matcher failed');
+    return res.status(500).json({ error: 'Could not work out who to offer the slots to.' });
+  }
+
+  const withMatches = [...groups]
+    .filter(g => (g.matches || []).length > 0)
+    .sort((a, b) => String(a.gap.date).localeCompare(String(b.gap.date)));
+  if (!withMatches.length) {
+    return res.json({ sent: 0, held: 0, blocked: 0, candidates: 0, gaps: 0, reason: 'No clients are a fit for next week\'s open slots right now.' });
+  }
+
+  const allIds = [...new Set(withMatches.flatMap(g => (g.matches || []).map(m => m.client?.id).filter(Boolean)))];
+  const { data: clientRows } = await supabase
+    .from('clients')
+    .select('id, first_name, phone, whatsapp_id, instagram_id, preferred_channel, marketing_consent, marketing_opted_out_at, status')
+    .eq('beautician_id', beauticianId)
+    .in('id', allIds);
+  const clientById = new Map((clientRows || []).map(c => [c.id, c]));
+
+  const MAX_OFFERS = 8;          // one tap never floods the outbox
+  const offeredTo = new Set();   // at most one offer per client across the week
+  let sent = 0, held = 0, blocked = 0, candidates = 0;
+
+  for (const { gap, matches } of withMatches) {
+    if (sent + held >= MAX_OFFERS) break;
+    const dayLabel = gap.dayLabel || gap.date;
+    const timeLabel = gap.start;
+    for (const match of (matches || [])) {
+      if (sent + held >= MAX_OFFERS) break;
+      const id = match.client?.id;
+      if (!id || offeredTo.has(id)) continue;
+      const client = clientById.get(id);
+      if (!client) { blocked++; continue; }
+      if (!reachable(client, beautician)) { blocked++; continue; }
+      candidates++;
+      offeredTo.add(id);
+      try {
+        const treatmentName = match.treatment?.name || 'your usual';
+        const message = buildGapMessage(client.first_name, dayLabel, timeLabel, treatmentName, beautician);
+        const channel = client.preferred_channel || 'sms';
+        const verdict = await guardedSend({
+          beauticianId,
+          clientId: id,
+          messageType: 'gap_fill_offer',
+          channel,
+          client,
+          body: message,
+          send: async () => {
+            const r = await sendOnPreferredChannel({ client, body: message, beautician, messageType: 'gap_fill_offer' });
+            return r.ok;
+          },
+        });
+        if (verdict.delivered) sent++;
+        else if (verdict.decision === 'approve') held++;
+        else blocked++;
+      } catch (err) {
+        logger.warn({ err, clientId: id }, 'fill-week: one offer failed');
+        blocked++;
+      }
+    }
+  }
+
+  return res.json({ sent, held, blocked, candidates, gaps: withMatches.length });
 });
 
 /**
@@ -769,6 +853,51 @@ function friendlyTime(hhmm) {
   let h12 = h % 12;
   if (h12 === 0) h12 = 12;
   return m ? `${h12}:${String(m).padStart(2, '0')}${suffix}` : `${h12}${suffix}`;
+}
+
+async function fromQuietWeek(beauticianId, query = {}) {
+  // A quiet week ahead is a chance to fill, not a chart. Surface ONE actionable
+  // card whose accept offers the week's open slots to clients due back (guarded,
+  // so they land in the outbox for Ellie's OK, nothing sends on its own).
+  const forceRatio = query && query.qw_debug_ratio !== undefined
+    ? parseFloat(query.qw_debug_ratio) : undefined;
+  const status = await quietWeekStatus(
+    beauticianId,
+    Number.isFinite(forceRatio) ? { forceRatio } : {}
+  );
+  if (!status.quiet) return [];
+
+  // One card per ISO week: once she has offered or dismissed it, it is gone.
+  const { data: decisions } = await supabase
+    .from('florrie_decisions')
+    .select('suggestion_payload')
+    .eq('beautician_id', beauticianId)
+    .eq('suggestion_type', 'quiet_week');
+  const answered = new Set(
+    (decisions || []).map(d => d?.suggestion_payload?.iso_week).filter(Boolean)
+  );
+  if (answered.has(status.isoWeek)) return [];
+
+  const n = status.openSlots;
+  const slotWord = n === 1 ? 'slot' : 'slots';
+  return [{
+    id: `quiet-week-${status.isoWeek}`,
+    type: 'quiet_week',
+    icon: '\u{1F5D3}\u{FE0F}',
+    summary: `Next week looks quiet, ${status.nextCount} booked against your usual ${status.baseline}. I can offer ${n} open ${slotWord} to clients due back. Want me to?`,
+    action_label: 'Offer the slots',
+    impact_pence: 0,
+    priority: 44,
+    payload: { iso_week: status.isoWeek, open_slots: n },
+    action: {
+      kind: 'fill_gap',
+      endpoint: '/api/suggestions/fill-week',
+      method: 'POST',
+      body: {},
+      confirm: `Offer ${n} open ${slotWord} to clients due back? They wait in your outbox for your OK. You can add a promo code from Offers first.`,
+    },
+    link_to: '/promos',
+  }];
 }
 
 async function fromFiveStarReviews(beauticianId) {

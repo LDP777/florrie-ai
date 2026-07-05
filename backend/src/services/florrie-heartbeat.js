@@ -19,6 +19,7 @@
  */
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
+import { getGapFillSuggestions } from './gap-fill-engine.js';
 
 const REBOOK_WINDOW_DAYS = 42;
 const NEW_CLIENT_WINDOW_DAYS = 7;
@@ -96,6 +97,7 @@ export async function runHeartbeatFor(beautician) {
     () => overnightBookingWatch(bid),
     () => clientListScan(bid),
     () => inboxWatch(bid),
+    () => quietWeekCheck(bid),
   ];
 
   // Stagger the timestamps over the last hour so the feed shows a natural
@@ -313,6 +315,106 @@ async function inboxWatch(beauticianId) {
     details: {
       check: 'inbox_watch',
       unread_count: n,
+    },
+  };
+}
+
+
+// ───── Wire 4: quiet-week detection ─────
+// Compares bookings in the next 7 days against the trailing 4-week weekly
+// average. A week that is running well below normal is a chance to fill, not a
+// chart to look at. The detection lives here (the heartbeat is the home for
+// proactive checks); the Hub surfaces it as an actionable card via a generator
+// in routes/suggestions.js that imports quietWeekStatus.
+
+const QUIET_MIN_BASELINE = 3;   // ignore brand-new or very low-volume weeks
+const QUIET_RATIO = 0.6;        // "quiet" = below 60% of the usual week
+
+function isoWeekKey(date) {
+  // ISO-8601 week key like "2026-W28", stable for once-per-week dedupe.
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const week = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+/**
+ * How busy the week ahead looks versus normal. Fail-soft: returns
+ * { quiet: false } on any error so callers never throw.
+ *   opts.forceRatio  optional override of the quiet ratio (verification aid).
+ */
+export async function quietWeekStatus(beauticianId, opts = {}) {
+  try {
+    const now = new Date();
+    const in7 = new Date(now.getTime() + 7 * 86400000);
+    const past28 = new Date(now.getTime() - 28 * 86400000);
+
+    const { count: next7 } = await supabase
+      .from('appointments')
+      .select('id', { count: 'exact', head: true })
+      .eq('beautician_id', beauticianId)
+      .gte('starts_at', now.toISOString())
+      .lte('starts_at', in7.toISOString())
+      .neq('status', 'cancelled');
+
+    const { count: prior } = await supabase
+      .from('appointments')
+      .select('id', { count: 'exact', head: true })
+      .eq('beautician_id', beauticianId)
+      .gte('starts_at', past28.toISOString())
+      .lt('starts_at', now.toISOString())
+      .neq('status', 'cancelled');
+
+    const baseline = (prior || 0) / 4;            // usual bookings per week
+    const nextCount = next7 || 0;
+    const ratio = (typeof opts.forceRatio === 'number' && isFinite(opts.forceRatio))
+      ? Math.max(0, Math.min(20, opts.forceRatio))
+      : QUIET_RATIO;
+
+    const belowNormal = baseline >= QUIET_MIN_BASELINE && nextCount < baseline * ratio;
+
+    let openSlots = 0;
+    if (belowNormal) {
+      // Only real, offerable gaps count: gaps that have a matched client to
+      // offer to (getGapFillSuggestions is already deduped + capped).
+      try {
+        const groups = await getGapFillSuggestions(beauticianId);
+        openSlots = (groups || []).filter(g => (g.matches || []).length > 0).length;
+      } catch { openSlots = 0; }
+    }
+
+    return {
+      quiet: belowNormal && openSlots > 0,
+      nextCount,
+      baseline: Math.round(baseline * 10) / 10,
+      openSlots,
+      isoWeek: isoWeekKey(in7),
+    };
+  } catch (err) {
+    logger.warn({ err, beauticianId }, 'quietWeekStatus failed');
+    return { quiet: false };
+  }
+}
+
+// Heartbeat pass: log a proactive note when the week ahead is quiet, so the
+// activity feed records that Florrie noticed (the actionable card lives on the
+// Hub via routes/suggestions.js). Returns an ai_actions payload or null.
+async function quietWeekCheck(beauticianId) {
+  const status = await quietWeekStatus(beauticianId);
+  if (!status.quiet) return null;
+  const n = status.openSlots;
+  return {
+    action_type: 'quiet_week_detected',
+    digital_employee: 'scout',
+    summary: `Florrie noticed next week is quiet and found ${n} open slot${n === 1 ? '' : 's'} worth offering`,
+    details: {
+      check: 'quiet_week',
+      next_week_booked: status.nextCount,
+      usual_week: status.baseline,
+      open_slots: n,
+      iso_week: status.isoWeek,
     },
   };
 }
