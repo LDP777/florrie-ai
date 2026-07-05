@@ -156,8 +156,8 @@ function resolveLink(row) {
   const apptDay = row.appointments?.starts_at ? String(row.appointments.starts_at).slice(0, 10) : null;
   const day = apptDay || (row.created_at || '').slice(0, 10);
   const calendarDay = day
-    ? `/calendar?date=${day}${row.appointment_id ? `&appt=${row.appointment_id}` : ''}`
-    : (row.appointment_id ? `/calendar?appt=${row.appointment_id}` : '/calendar');
+    ? `/calendar/week?date=${day}${row.appointment_id ? `&appt=${row.appointment_id}` : ''}`
+    : (row.appointment_id ? `/calendar/week?appt=${row.appointment_id}` : '/calendar/week');
   // Florrie is conversation-first: one thread per client, so the client's thread
   // is the right landing for anything message/relationship related. There is no
   // /clients/:id page, so never link there.
@@ -167,7 +167,7 @@ function resolveLink(row) {
   const check = row.details?.check;
   switch (check) {
     case 'calendar_lookahead':
-    case 'overnight_booking_watch': return '/calendar';
+    case 'overnight_booking_watch': return '/calendar/week';
     case 'dormant_scan':            return '/clients?filter=dormant';
     case 'client_list_scan':        return '/clients';
     case 'inbox_watch':             return '/inbox';
@@ -195,9 +195,9 @@ function resolveLink(row) {
     case 'gap_fill_waitlist':
     case 'gap_fill_rebook':
     case 'gap_fill_dormant':
-      return row.appointment_id ? calendarDay : '/calendar';
+      return row.appointment_id ? calendarDay : '/calendar/week';
     case 'quiet_week_detected':
-      return '/calendar';
+      return '/calendar/week';
 
     // → content / marketing
     case 'content_drafted':

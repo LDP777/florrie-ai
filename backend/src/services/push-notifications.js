@@ -166,9 +166,9 @@ export async function pushNewBooking(beauticianId, clientName, treatmentName, da
   // Tap the notification -> open the calendar on the appointment's day, with
   // that appointment selected. Falls back gracefully if the id/date is missing.
   const day = apptDate ? String(apptDate).slice(0, 10) : null;
-  const url = appointmentId && day ? `/calendar?date=${day}&appt=${appointmentId}`
-    : appointmentId ? `/calendar?appt=${appointmentId}`
-    : '/calendar';
+  const url = appointmentId && day ? `/calendar/week?date=${day}&appt=${appointmentId}`
+    : appointmentId ? `/calendar/week?appt=${appointmentId}`
+    : '/calendar/week';
   return pushTeamUpdate(beauticianId, 'booking_confirmed',
     `${clientName} booked ${treatmentName} for ${dateStr}`,
     { url, clientName }
