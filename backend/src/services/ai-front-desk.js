@@ -6,7 +6,7 @@ import { cleanReply } from '../lib/text.js';
 import { createBookingSuggestion } from './automations.js';
 import { sendMessage, sendInstagramDM, sendWhatsAppText, sendSMS } from './notifications.js';
 import { pushEscalation, pushTeamUpdate } from './push-notifications.js';
-import { isKnownClient } from '../lib/outbound-guard.js';
+import { isKnownClient, clientAutonomyOverride } from '../lib/outbound-guard.js';
 
 /**
  * AI Front Desk — The core agentic service.
@@ -100,11 +100,22 @@ export async function processInboundMessage(messageId, beautician, client, messa
     // 3. Decide: act or escalate?
     let shouldAct = canActAutonomously(classification, beautician.confidence_threshold);
 
+    // Per-client driver setting comes FIRST. 'just_me' / 'drafts' means she
+    // asked Florrie not to speak in this thread: always draft + escalate,
+    // never auto-send. 'florrie' is an explicit whitelist that also skips the
+    // known-client hold below.
+    const autonomyOverride = await clientAutonomyOverride(beautician.id, client?.id, client);
+    if (autonomyOverride === 'just_me' || autonomyOverride === 'drafts') {
+      shouldAct = false;
+    }
+
     // Clients Ellie already knows are relationships she manages personally. Never
     // auto-reply to them: draft the response and escalate so she gives the yes/no.
     // This is the main guard against a regular getting an out of context message,
     // which is most likely on Instagram where we may be missing the earlier chat.
-    if (shouldAct && await isKnownClient(beautician.id, client?.id, client, beautician.autonomy?.known_client_min_visits)) {
+    // Skipped when she explicitly set this client to 'Florrie handles'.
+    if (shouldAct && autonomyOverride !== 'florrie'
+        && await isKnownClient(beautician.id, client?.id, client, beautician.autonomy?.known_client_min_visits)) {
       shouldAct = false;
     }
 

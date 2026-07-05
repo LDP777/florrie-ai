@@ -182,8 +182,10 @@ export default function CalendarView({ initialView } = {}) {
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [selectedBlock, setSelectedBlock] = useState(null); // existing block tapped
   const [savingBlock, setSavingBlock] = useState(false);
-  // Manual appointment modal (plus button)
-  const [showNewAppt, setShowNewAppt] = useState(false);
+  // Manual appointment modal (plus button). Inbox's "Book her in" arrives
+  // via location.state with the client pre-picked and the sheet open.
+  const bookClient = location.state?.bookClient || null;
+  const [showNewAppt, setShowNewAppt] = useState(!!bookClient);
   // Day grid scroll container + once-per-day auto-scroll tracking
   const gridScrollRef = useRef(null);
   const lastScrollKey = useRef(null);
@@ -808,6 +810,7 @@ export default function CalendarView({ initialView } = {}) {
         <NewAppointmentModal
           defaultDate={formatDate(currentDate)}
           existingAppointments={appointments}
+          initialClient={bookClient}
           onClose={() => setShowNewAppt(false)}
           onSaved={() => { setShowNewAppt(false); loadAppointments(); }}
         />
@@ -1813,7 +1816,7 @@ function BlockDetailSheet({ block, onDelete, onClose }) {
 // pick a treatment (price autofills but stays editable), and any time to the
 // minute via a native time input. "Send confirmation message" defaults
 // OFF so bookings mirrored from an old system never double-message clients.
-function NewAppointmentModal({ defaultDate, existingAppointments = [], onClose, onSaved }) {
+function NewAppointmentModal({ defaultDate, existingAppointments = [], initialClient = null, onClose, onSaved }) {
   const [treatments, setTreatments] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]); // one or more treatments
   const [price, setPrice] = useState('');
@@ -1826,7 +1829,11 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], onClose, 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
-  const [selectedClient, setSelectedClient] = useState(null);
+  const [selectedClient, setSelectedClient] = useState(() => {
+    if (!initialClient?.id) return null;
+    const parts = String(initialClient.name || '').trim().split(/\s+/);
+    return { id: initialClient.id, first_name: parts[0] || 'Client', last_name: parts.slice(1).join(' ') };
+  });
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [saving, setSaving] = useState(false);

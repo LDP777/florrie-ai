@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useBeautician, fetchRows, insertRow, updateRow } from '../lib/supabase.js';
+import { useBeautician, fetchRows, insertRow, updateRow, supabase } from '../lib/supabase.js';
 import { formatCurrency, formatDuration } from '../lib/formatting.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -102,8 +102,17 @@ export default function Treatments() {
       setTreatments(data);
       // Ellie's consultation forms, so a treatment can be linked to the form she
       // built (otherwise the booking page falls back to generic questions).
-      try { setForms((await fetchRows('consultation_forms', beautician.id)) || []); }
-      catch { setForms([]); }
+      // Loaded through the backend (same as Form Builder) because RLS blocks a
+      // direct table read from the browser - a direct read comes back empty and
+      // the form picker silently never renders.
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(`${API_BASE}/api/consultation-forms`, {
+          headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+        });
+        const body = await res.json().catch(() => ({}));
+        setForms(res.ok ? (body.forms || []) : []);
+      } catch { setForms([]); }
     } catch (err) {
       logger.error('Load treatments error:', err);
       setTreatments([]);

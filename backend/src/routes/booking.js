@@ -1767,7 +1767,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   if (extra_treatment_ids && extra_treatment_ids.length > 0) {
     const { data: extras } = await supabase
       .from('treatments')
-      .select('id, name, duration_minutes, buffer_minutes, price_cents, deposit_cents, deposit_percent, requires_patch_test, requires_consultation')
+      .select('id, name, duration_minutes, buffer_minutes, price_cents, deposit_cents, deposit_percent, requires_patch_test, requires_consultation, consultation_form_id')
       .in('id', extra_treatment_ids)
       .eq('beautician_id', beautician.id);
     extraTreatments = extras || [];
@@ -2214,15 +2214,16 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
       );
     }
 
-    // Send consultation form to first-time clients (non-blocking)
-    if (isNewClient && client_phone) {
+    // Send consultation form to first-time clients (non-blocking).
+    // Skipped when they already answered inline during booking (double-ask bug).
+    if (isNewClient && client_phone && !(consultation && Object.keys(consultation).length > 0)) {
       sendConsultationFormSMS({
         beauticianId: beautician.id,
         clientId: client.id,
         appointmentId: appointment.id,
         clientPhone: client_phone,
         clientFirstName: firstName,
-        treatmentId: treatment_id,
+        treatmentId: (allTreatments.find(t => t.consultation_form_id)?.id) || treatment_id,
         beauticianName: beautician.business_name || beautician.first_name,
       }).catch(err =>
         logger.warn({ err }, 'Consultation form SMS failed (non-fatal)')
@@ -2385,15 +2386,18 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
         );
       }
 
-      // Send consultation form to first-time clients (non-blocking)
-      if (isNewClient && client_phone) {
+      // Send consultation form to first-time clients (non-blocking).
+      // SKIPPED when they already answered inline during booking - texting the
+      // same form again straight after was Ellie's double-ask bug.
+      const answeredInline = consultation && Object.keys(consultation).length > 0;
+      if (isNewClient && client_phone && !answeredInline) {
         sendConsultationFormSMS({
           beauticianId: beautician.id,
           clientId: client.id,
           appointmentId: appointment.id,
           clientPhone: client_phone,
           clientFirstName: firstName,
-          treatmentId: treatment_id,
+          treatmentId: (allTreatments.find(t => t.consultation_form_id)?.id) || treatment_id,
           beauticianName: beautician.business_name || beautician.first_name,
         }).catch(err =>
           logger.warn({ err }, 'Consultation form SMS failed (non-fatal)')
@@ -2432,15 +2436,16 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     logger.warn({ err }, 'Booking confirmation notification failed (non-fatal)')
   );
 
-  // Send consultation form to first-time clients (non-blocking)
-  if (isNewClient && client_phone) {
+  // Send consultation form to first-time clients (non-blocking).
+  // Skipped when they already answered inline during booking (double-ask bug).
+  if (isNewClient && client_phone && !(consultation && Object.keys(consultation).length > 0)) {
     sendConsultationFormSMS({
       beauticianId: beautician.id,
       clientId: client.id,
       appointmentId: appointment.id,
       clientPhone: client_phone,
       clientFirstName: firstName,
-      treatmentId: treatment_id,
+      treatmentId: (allTreatments.find(t => t.consultation_form_id)?.id) || treatment_id,
       beauticianName: beautician.business_name || beautician.first_name,
     }).catch(err =>
       logger.warn({ err }, 'Consultation form SMS failed (non-fatal)')

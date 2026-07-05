@@ -158,8 +158,10 @@ export default function BookingPage() {
   const [discountLoading, setDiscountLoading] = useState(false);
   const [discountError, setDiscountError] = useState(null);
   const [appliedDiscount, setAppliedDiscount] = useState(null); // { code, type, discount_type, discount_value, promo_id?, voucher_id? }
-  // Dynamic consultation form (loaded from form builder, falls back to defaults)
-  const [consultationForm, setConsultationForm] = useState(null);
+  // Dynamic consultation forms (loaded from form builder, falls back to defaults).
+  // An ARRAY: booking brows + lashes together must ask BOTH forms, not just the first.
+  const [consultationForms, setConsultationForms] = useState([]);
+  const consultationForm = consultationForms[0] || null;
   const DEFAULT_CONSULTATION_QUESTIONS = [
     { key: 'allergies', label: 'Do you have any known allergies? (e.g. latex, adhesive, tint)', type: 'text' },
     { key: 'patch_test', label: 'Have you had a patch test in the last 6 months?', type: 'yes_no' },
@@ -171,14 +173,15 @@ export default function BookingPage() {
   const needsPatchTest = selectedTreatments.some(t => t.requires_patch_test);
   // The questions to render, dynamic form fields if available, else defaults
   // Filter out the patch_test question for treatments that don't require it (wax, microblading, etc.)
-  const consultationQuestions = consultationForm?.consultation_form_fields?.length
-    ? consultationForm.consultation_form_fields.map(f => ({
+  const consultationQuestions = consultationForms.some(f => f.consultation_form_fields?.length)
+    ? consultationForms.flatMap(cf => (cf.consultation_form_fields || []).map(f => ({
         key: f.id,
         label: f.label,
         type: f.type,   // text, yes_no, multi_select, single_select, checkbox, text_block, signature
         options: f.options || [],
         required: f.required,
-      }))
+        section: consultationForms.length > 1 ? cf.name : null,
+      })))
     : DEFAULT_CONSULTATION_QUESTIONS.filter(q => q.key !== 'patch_test' || needsPatchTest);
   // Compute deposit amount (percentage overrides flat)
   function getDepositCents(treatment) {
@@ -237,23 +240,25 @@ export default function BookingPage() {
       return { ...prev, [productId]: next };
     });
   }
-  // Load consultation form when treatment with a form is selected
+  // Load consultation forms for EVERY selected treatment that has one linked.
+  // Distinct ids, selection order kept, so brows + lashes asks both forms.
+  const consultationFormIds = [...new Set(selectedTreatments.map(t => t.consultation_form_id).filter(Boolean))];
   useEffect(() => {
-    if (!selectedTreatment?.consultation_form_id) {
-      setConsultationForm(null);
-      return;
-    }
-    async function loadForm() {
-      try {
-        const res = await fetch(`${API_BASE}/api/booking/${slug}/consultation-form/${selectedTreatment.consultation_form_id}`);
-        const data = await res.json();
-        if (res.ok && data.form) setConsultationForm(data.form);
-      } catch {
-        // Fall back to default questions, non-blocking
+    if (!consultationFormIds.length) { setConsultationForms([]); return; }
+    let alive = true;
+    (async () => {
+      const loaded = [];
+      for (const formId of consultationFormIds) {
+        try {
+          const res = await fetch(`${API_BASE}/api/booking/${slug}/consultation-form/${formId}`);
+          const data = await res.json();
+          if (res.ok && data.form) loaded.push(data.form);
+        } catch { /* fall back to default questions, non-blocking */ }
       }
-    }
-    loadForm();
-  }, [selectedTreatment?.consultation_form_id, slug]);
+      if (alive) setConsultationForms(loaded);
+    })();
+    return () => { alive = false; };
+  }, [consultationFormIds.join(','), slug]);
   // Check membership + packages when phone number looks complete
   useEffect(() => {
     const cleaned = clientDetails.phone.replace(/[^\d]/g, '');
@@ -1413,21 +1418,26 @@ export default function BookingPage() {
         {step === 2.5 && (
           <div>
             <h2 style={styles.stepTitle}>
-              {consultationForm?.name || 'Consultation form'}
+              {consultationForms.length > 1 ? 'Consultation forms' : (consultationForm?.name || 'Consultation form')}
             </h2>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
               {needsConsultation
                 ? `Required for ${selectedTreatment?.name}. This information helps your beautician prepare and is kept for insurance records.`
                 : 'A few quick questions for your first visit. It helps your beautician look after you properly and is kept for insurance records.'}
             </p>
-            {consultationForm?.consent_text && (
-              <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.5, padding: '10px 12px', background: 'var(--bg-subtle, #FDFCFB)', borderRadius: 8, border: '1px solid var(--border-light)' }}>
-                {consultationForm.consent_text}
+            {[...new Set(consultationForms.map(f => f.consent_text).filter(Boolean))].map((txt, i) => (
+              <p key={i} style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.5, padding: '10px 12px', background: 'var(--bg-subtle, #FDFCFB)', borderRadius: 8, border: '1px solid var(--border-light)' }}>
+                {txt}
               </p>
-            )}
+            ))}
             <div style={styles.formFields}>
-              {consultationQuestions.map(q => (
+              {consultationQuestions.map((q, qi) => (
                 <div key={q.key} style={{ marginBottom: 14 }}>
+                  {q.section && (qi === 0 || consultationQuestions[qi - 1].section !== q.section) && (
+                    <div style={{ fontSize: 14, fontWeight: 700, color: brand, margin: '18px 0 10px', paddingBottom: 6, borderBottom: '1px solid var(--border-light, #eee)' }}>
+                      {q.section}
+                    </div>
+                  )}
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#444', marginBottom: 4 }}>
                     {q.label}{q.required && <span style={{ color: 'var(--danger, #DC2626)' }}> *</span>}
                   </label>

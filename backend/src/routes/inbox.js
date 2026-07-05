@@ -172,6 +172,7 @@ router.get('/threads', requireAuth, async (req, res) => {
             // on her, this is what she needs to answer, even if Florrie spoke
             // last. Filled from the newest inbound row with usable text.
             last_inbound_preview: null,
+            last_inbound_at: null,
             _hasInboundText: false,
           };
           buckets.set(row.client_id, bucket);
@@ -186,6 +187,7 @@ router.get('/threads', requireAuth, async (req, res) => {
       // Newest-first: the first inbound we meet is the most recent one.
       if (row.direction === 'inbound' && bucket.last_inbound_intent === null) {
         bucket.last_inbound_intent = row.ai_intent || 'unknown';
+        bucket.last_inbound_at = row.created_at;
       }
       // Latest inbound preview: prefer the newest inbound that actually has
       // text, so "Waiting on you" shows her the question, not a media stub.
@@ -253,7 +255,7 @@ router.get('/thread/:client_id', requireAuth, async (req, res) => {
     // Verify the client belongs to this beautician first. Cheap query.
     const { data: client, error: cErr } = await supabase
       .from('clients')
-      .select('id, first_name, last_name, phone, email, whatsapp_id')
+      .select('id, first_name, last_name, phone, email, whatsapp_id, messaging_autonomy')
       .eq('id', clientId)
       .eq('beautician_id', req.beautician.id)
       .maybeSingle();
@@ -264,19 +266,40 @@ router.get('/thread/:client_id', requireAuth, async (req, res) => {
     }
     if (!client) return res.status(404).json({ error: 'Client not found' });
 
-    const { data, error } = await supabase
-      .from('messages')
-      .select(`
-        id, client_id, channel, direction, content, created_at,
-        ai_handled, media_url, media_type,
-        external_message_id, whatsapp_message_id,
-        escalated, escalated_reason, resolved, digital_employee, ai_intent,
-        delivered_at, read_at
-      `)
-      .eq('beautician_id', req.beautician.id)
-      .eq('client_id', clientId)
-      .order('created_at', { ascending: false })
-      .limit(THREAD_MESSAGE_LIMIT);
+    // Messages + client meta + pending drafts in parallel. The meta powers the
+    // client-card header (visits, last in, next booked); the drafts render
+    // inline in the thread as dashed bubbles with Send / Edit / Bin.
+    const [msgRes, apptRes, draftRes] = await Promise.all([
+      supabase
+        .from('messages')
+        .select(`
+          id, client_id, channel, direction, content, created_at,
+          ai_handled, media_url, media_type,
+          external_message_id, whatsapp_message_id,
+          escalated, escalated_reason, resolved, digital_employee, ai_intent,
+          delivered_at, read_at
+        `)
+        .eq('beautician_id', req.beautician.id)
+        .eq('client_id', clientId)
+        .order('created_at', { ascending: false })
+        .limit(THREAD_MESSAGE_LIMIT),
+      supabase
+        .from('appointments')
+        .select('id, starts_at, status')
+        .eq('beautician_id', req.beautician.id)
+        .eq('client_id', clientId)
+        .order('starts_at', { ascending: false })
+        .limit(300),
+      supabase
+        .from('outbound_sends')
+        .select('id, body, channel, message_type, created_at, reason')
+        .eq('beautician_id', req.beautician.id)
+        .eq('client_id', clientId)
+        .eq('status', 'pending_approval')
+        .order('created_at', { ascending: true })
+        .limit(10),
+    ]);
+    const { data, error } = msgRes;
 
     if (error) {
       logger.error({ err: error }, 'inbox.thread supabase failed');
@@ -315,6 +338,16 @@ router.get('/thread/:client_id', requireAuth, async (req, res) => {
       lastInbound?.channel
       || (client.whatsapp_id ? 'whatsapp' : client.phone ? 'sms' : client.email ? 'email' : 'sms');
 
+    // Visits meta. starts_at is SALON WALL TIME in the UTC slot - compare on
+    // the ISO string against "now" rendered in the same convention, never
+    // through timezone conversion.
+    const appts = apptRes.data || [];
+    const nowIso = new Date().toISOString();
+    const completed = appts.filter(a => a.status === 'completed');
+    const upcoming = appts
+      .filter(a => a.starts_at > nowIso && !['cancelled', 'no_show'].includes(a.status))
+      .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+
     res.json({
       client: {
         id: client.id,
@@ -323,7 +356,14 @@ router.get('/thread/:client_id', requireAuth, async (req, res) => {
         has_phone: !!client.phone,
         has_email: !!client.email,
         has_whatsapp: !!(client.whatsapp_id || client.phone),
+        messaging_autonomy: client.messaging_autonomy || null,
       },
+      meta: {
+        visits: completed.length,
+        last_visit_at: completed.length ? completed[0].starts_at : null,
+        next_appointment_at: upcoming.length ? upcoming[0].starts_at : null,
+      },
+      drafts: draftRes.data || [],
       default_channel: defaultChannel,
       messages,
       count: messages.length,

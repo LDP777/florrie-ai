@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageHeader from '../components/ui/PageHeader.jsx';
+import { bloom } from '../lib/bloom.js';
 
 /**
  * Inbox , one calm thread per client.
@@ -85,6 +86,18 @@ function clientFullName(t) {
 
 function initialOf(name) {
   return (name || 'C').trim().charAt(0).toUpperCase() || 'C';
+}
+
+// How long a needs-you thread has been waiting on her. Amber chip fuel.
+function waitingLabel(t) {
+  const ts = t.last_inbound_at || (t.last_message_direction === 'inbound' ? t.last_message_at : null);
+  if (!ts) return null;
+  const mins = Math.round((Date.now() - new Date(ts).getTime()) / 60000);
+  if (mins < 2) return 'just now';
+  if (mins < 60) return `waiting ${mins}m`;
+  const h = Math.round(mins / 60);
+  if (h < 24) return `waiting ${h}h`;
+  return `waiting ${Math.round(h / 24)}d`;
 }
 
 function formatTimeShort(iso, now = new Date()) {
@@ -243,12 +256,16 @@ export default function Inbox() {
       return [{ key: 'needs', header: null, items, muted: false }];
     }
 
+    // Three sections by WHO HOLDS THE THREAD, so a glance answers
+    // "what needs me?": you, Florrie, or nobody.
     const list = threads.filter(match);
     const waiting = list.filter(needsYou).sort(byRecency);
-    const earlier = list.filter(t => !needsYou(t)).sort(byRecency);
+    const handling = list.filter(t => !needsYou(t) && isAutomated(t)).sort(byRecency);
+    const everyone = list.filter(t => !needsYou(t) && !isAutomated(t)).sort(byRecency);
     const out = [];
-    if (waiting.length) out.push({ key: 'waiting', header: 'Waiting on you', items: waiting, muted: false });
-    if (earlier.length) out.push({ key: 'earlier', header: 'Earlier', items: earlier, muted: true });
+    if (waiting.length) out.push({ key: 'waiting', header: 'Needs you', items: waiting, muted: false });
+    if (handling.length) out.push({ key: 'handling', header: "Florrie's handling it", items: handling, muted: true });
+    if (everyone.length) out.push({ key: 'everyone', header: 'Everyone else', items: everyone, muted: true, collapsible: true });
     return out;
   }, [threads, search, filter]);
 
@@ -345,6 +362,9 @@ function FilterChip({ active, onClick, label, count }) {
 
 function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, onDelete, activeId, filter, onFilter, needsCount, totalCount }) {
   const loading = sections === null;
+  // "Everyone else" starts folded to one line; searching unfolds everything.
+  const [expanded, setExpanded] = useState({});
+  const isCollapsed = (sec) => sec.collapsible && !expanded[sec.key] && !search.trim();
   const isEmpty = !loading && visibleCount === 0;
   // In the needs-you view the whole list is needs-you, so the per-row tag is
   // redundant. Hide it there; show the informative type label in the all view.
@@ -387,24 +407,44 @@ function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, o
       {!loading && !error && !isEmpty && sections.map(sec => (
         <section key={sec.key} style={S.section}>
           {sec.header && (
-            <div style={S.sectionHead}>
-              <span style={S.sectionTitle}>{sec.header}</span>
-              <span style={S.sectionCount}>{sec.items.length}</span>
-            </div>
+            sec.collapsible ? (
+              <button
+                type="button"
+                onClick={() => setExpanded(prev => ({ ...prev, [sec.key]: !prev[sec.key] }))}
+                style={S.sectionHeadBtn}
+                aria-expanded={!isCollapsed(sec)}
+              >
+                <span style={S.sectionTitle}>{sec.header}</span>
+                <span style={S.sectionCount}>{sec.items.length}</span>
+                <span className="material-symbols-outlined" style={S.sectionChevron} aria-hidden>
+                  {isCollapsed(sec) ? 'expand_more' : 'expand_less'}
+                </span>
+                {isCollapsed(sec) && (
+                  <span style={S.sectionQuietNote}>quiet threads, all handled</span>
+                )}
+              </button>
+            ) : (
+              <div style={S.sectionHead}>
+                <span style={S.sectionTitle}>{sec.header}</span>
+                <span style={S.sectionCount}>{sec.items.length}</span>
+              </div>
+            )
           )}
-          <ul style={S.list}>
-            {sec.items.map(t => (
-              <ThreadRow
-                key={t.client_id}
-                thread={t}
-                active={t.client_id === activeId}
-                onOpen={onOpen}
-                onDelete={onDelete}
-                muted={sec.muted}
-                hideTypeChip={hideTypeChip}
-              />
-            ))}
-          </ul>
+          {!isCollapsed(sec) && (
+            <ul style={S.list}>
+              {sec.items.map(t => (
+                <ThreadRow
+                  key={t.client_id}
+                  thread={t}
+                  active={t.client_id === activeId}
+                  onOpen={onOpen}
+                  onDelete={onDelete}
+                  muted={sec.muted}
+                  hideTypeChip={hideTypeChip}
+                />
+              ))}
+            </ul>
+          )}
         </section>
       ))}
     </>
@@ -495,11 +535,15 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, hideTypeCh
             {isUnread && <span style={S.rowBadge}>{thread.unread_count}</span>}
           </span>
 
-          {/* In the all view we still label Florrie's own housekeeping so she
-              knows it was automated. We do NOT label "Waiting" rows: the
-              section header already says it, and a per-card "handed back" tag
-              just repeated on every escalation. An escalation is marked by the
-              quiet pip on the avatar instead. */}
+          {/* Owed rows: an amber waiting-time chip, plus a petal line when
+              Florrie escalated (she has something prepared for a yes or no).
+              Florrie's own housekeeping keeps its quiet type label. */}
+          {owed && waitingLabel(thread) && (
+            <span style={S.rowMetaRow}>
+              <span style={S.waitChip}>{waitingLabel(thread)}</span>
+              {flagged && <span style={S.petalNote}>{'\u{1F337}'} needs your yes or no</span>}
+            </span>
+          )}
           {!hideTypeChip && !owed && (
             <span style={S.rowMetaRow}>
               <span style={S.typeChip}>
@@ -720,8 +764,31 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
     );
   }
 
-  const { client, messages = [] } = state;
+  const { client, messages = [], meta = null, drafts = [] } = state;
   const fullName = [client?.first_name, client?.last_name].filter(Boolean).join(' ') || 'Client';
+
+  // Fold runs of consecutive Florrie-sent messages (2+) behind a quiet
+  // divider, so stretches she handled alone read as one line, not noise.
+  const renderItems = (() => {
+    const out = [];
+    let run = [];
+    const flush = () => {
+      if (run.length >= 2) out.push({ divider: true, id: `div-${run[0].id}`, count: run.length });
+      run.forEach(m => out.push(m));
+      run = [];
+    };
+    for (const m of messages) {
+      const florrieSent = m.direction === 'outbound' && (m.message_type === 'auto_reply' || m.message_type === 'proactive');
+      if (florrieSent) run.push(m);
+      else { flush(); out.push(m); }
+    }
+    flush();
+    return out;
+  })();
+
+  function removeDraft(id) {
+    setState(prev => ({ ...prev, drafts: (prev.drafts || []).filter(d => d.id !== id) }));
+  }
 
   const lastInbound = [...messages].reverse().find(m => m.direction === 'inbound');
   const lastInboundAge = lastInbound ? Date.now() - new Date(lastInbound.created_at).getTime() : Infinity;
@@ -743,6 +810,8 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
         navigate={navigate}
         clientId={client?.id}
         channel={channel}
+        meta={meta}
+        initialAutonomy={client?.messaging_autonomy ?? null}
       />
 
       <div ref={scrollerRef} style={S.scroller}>
@@ -751,7 +820,13 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
             No messages yet. Type below to start the conversation.
           </div>
         )}
-        {messages.map(m => <Bubble key={m.id} msg={m} />)}
+        {renderItems.map(m => m.divider
+          ? <HandledDivider key={m.id} count={m.count} />
+          : <Bubble key={m.id} msg={m} />
+        )}
+        {drafts.map(d => (
+          <DraftBubble key={d.id} draft={d} onDone={removeDraft} onSent={() => { removeDraft(d.id); load(); onSent?.(); }} />
+        ))}
       </div>
 
       {showWaWindowHint && (
@@ -842,73 +917,109 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
 }
 
 /**
- * Who messages this person? Per-client autonomy (Levi + Ellie, 2026-07-04):
- * Auto (dial + regular detection decide) / Florrie handles / Drafts first /
- * Just me (Florrie never initiates; quiet drafts only). Tap to set; tapping
- * the active choice returns to Auto. Saves straight to the client row.
+ * Who drives this thread. One headline switch (Florrie / Me) backed by the
+ * same clients.messaging_autonomy field the outbound guard enforces:
+ *   Me      = 'just_me'  (Florrie never initiates; quiet drafts only)
+ *   Florrie = null/'florrie'/'drafts' (Auto by default, fine-tuned by pills)
+ * Tapping the active pill returns to Auto. Saves straight to the client row.
  */
-function AutonomyPills({ clientId }) {
-  const [value, setValue] = useState(undefined); // undefined = loading, null = auto
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const { data } = await supabase
-          .from('clients')
-          .select('messaging_autonomy')
-          .eq('id', clientId)
-          .maybeSingle();
-        if (!cancelled) setValue(data?.messaging_autonomy || null);
-      } catch { if (!cancelled) setValue(null); }
-    })();
-    return () => { cancelled = true; };
-  }, [clientId]);
+function ClientControls({ clientId, initialAutonomy = null }) {
+  const [value, setValue] = useState(initialAutonomy);
+  useEffect(() => { setValue(initialAutonomy); }, [clientId, initialAutonomy]);
 
-  if (value === undefined) return null;
+  const meDriving = value === 'just_me';
 
-  const OPTS = [
-    { key: 'florrie', label: 'Florrie handles' },
-    { key: 'drafts', label: 'Drafts first' },
-    { key: 'just_me', label: 'Just me' },
-  ];
-
-  async function setAutonomy(next) {
-    const v = value === next ? null : next; // tap active = back to Auto
+  async function save(v) {
     setValue(v);
     try {
       await supabase.from('clients').update({ messaging_autonomy: v }).eq('id', clientId);
     } catch { /* optimistic; reload corrects */ }
   }
 
+  const PILLS = [
+    { key: 'florrie', label: 'Florrie handles' },
+    { key: 'drafts', label: 'Drafts first' },
+  ];
+
   return (
-    <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 4, flexWrap: 'wrap' }}>
-      <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted, #9B8A8E)' }}>Who messages them</span>
-      {OPTS.map(o => {
-        const on = value === o.key;
-        return (
+    <div style={S.controlsWrap}>
+      <div style={S.driverRow} role="tablist" aria-label="Who drives this thread">
+        {[{ k: 'florrie_side', label: '\u{1F337} Florrie', on: !meDriving, set: () => save(null) },
+          { k: 'me_side', label: 'Me', on: meDriving, set: () => save('just_me') }].map(seg => (
           <button
-            key={o.key}
-            onClick={() => setAutonomy(o.key)}
+            key={seg.k}
+            type="button"
+            role="tab"
+            aria-selected={seg.on}
+            onClick={seg.set}
             style={{
-              padding: '4px 10px', minHeight: 26, borderRadius: 999, border: 'none',
-              fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-              background: on ? 'var(--accent, #92405e)' : 'var(--tone-2, #f6e7dd)',
-              color: on ? '#fff' : 'var(--text-secondary, #867277)',
-              WebkitTapHighlightColor: 'transparent',
+              ...S.driverSeg,
+              background: seg.on ? 'var(--accent, #92405e)' : 'transparent',
+              color: seg.on ? '#fff' : 'var(--text-secondary, #867277)',
             }}
           >
-            {o.label}
+            {seg.label}
           </button>
-        );
-      })}
-      {value === null && (
-        <span style={{ fontSize: 11, color: 'var(--text-muted, #9B8A8E)' }}>Auto</span>
+        ))}
+        <span style={S.driverCaption}>
+          {meDriving ? "You've taken over. Florrie stays quiet here." : 'Florrie is answering this thread.'}
+        </span>
+      </div>
+      {!meDriving && (
+        <div style={S.pillRow}>
+          {PILLS.map(o => {
+            const on = value === o.key;
+            return (
+              <button
+                key={o.key}
+                type="button"
+                onClick={() => save(on ? null : o.key)}
+                style={{
+                  ...S.finePill,
+                  background: on ? 'var(--tone-2, #f6e7dd)' : 'transparent',
+                  color: on ? 'var(--accent, #92405e)' : 'var(--text-muted, #9B8A8E)',
+                  fontWeight: on ? 700 : 500,
+                }}
+              >
+                {o.label}
+              </button>
+            );
+          })}
+          {value === null && <span style={{ fontSize: 11, color: 'var(--text-muted, #9B8A8E)' }}>Auto</span>}
+        </div>
       )}
     </div>
   );
 }
 
-function ConvoHeader({ onBack, embedded, clientName, navigate, clientId, channel = null }) {
+// Wall-time reads only: starts_at stores salon wall time in the UTC slot, so
+// date/time come from string slices, never timezone conversion.
+function relDays(iso) {
+  if (!iso) return null;
+  const d = new Date(iso.slice(0, 10));
+  const today = new Date(new Date().toISOString().slice(0, 10));
+  const days = Math.round((today - d) / 86400000);
+  if (days <= 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 30) return `${days} days ago`;
+  const months = Math.round(days / 30);
+  return months === 1 ? 'a month ago' : `${months} months ago`;
+}
+function nextApptLabel(iso) {
+  if (!iso) return null;
+  const d = new Date(iso.slice(0, 10));
+  const wd = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  return `${wd}, ${iso.slice(11, 16)}`;
+}
+
+function ConvoHeader({ onBack, embedded, clientName, navigate, clientId, channel = null, meta = null, initialAutonomy = null }) {
+  const metaBits = [];
+  if (meta) {
+    if (meta.visits >= 3) metaBits.push('Regular');
+    metaBits.push(`${meta.visits} visit${meta.visits === 1 ? '' : 's'}`);
+    if (meta.last_visit_at) metaBits.push(`last in ${relDays(meta.last_visit_at)}`);
+    metaBits.push(meta.next_appointment_at ? `next: ${nextApptLabel(meta.next_appointment_at)}` : 'next: none booked');
+  }
   return (
     <div style={S.convoHeader}>
       {!embedded && (
@@ -922,12 +1033,111 @@ function ConvoHeader({ onBack, embedded, clientName, navigate, clientId, channel
           <span style={S.convoName}>{clientName}</span>
           {channel && <ChannelMark channel={channel} size={18} />}
         </span>
-        {clientId && (
-          <button onClick={() => navigate('/clients', { state: { clientId } })} style={S.viewProfileBtn}>
-            View profile
-          </button>
+        {metaBits.length > 0 && (
+          <span style={S.metaLine}>{metaBits.join(' \u00B7 ')}</span>
         )}
-        {clientId && <AutonomyPills clientId={clientId} />}
+        <span style={S.headerActions}>
+          {clientId && meta && !meta.next_appointment_at && (
+            <button
+              type="button"
+              onClick={() => navigate('/calendar', { state: { bookClient: { id: clientId, name: clientName } } })}
+              style={S.bookChip}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: 15 }} aria-hidden>event</span>
+              Book her in
+            </button>
+          )}
+          {clientId && (
+            <button onClick={() => navigate('/clients', { state: { clientId } })} style={S.viewProfileBtn}>
+              View profile
+            </button>
+          )}
+        </span>
+        {clientId && <ClientControls clientId={clientId} initialAutonomy={initialAutonomy} />}
+      </div>
+    </div>
+  );
+}
+
+/** Quiet divider over a stretch Florrie handled on her own. */
+function HandledDivider({ count }) {
+  return (
+    <div style={S.handledDivider} aria-label={`Florrie handled ${count} messages`}>
+      <span style={S.handledLine} aria-hidden />
+      <span style={S.handledText}>{'\u{1F337}'} Florrie handled {count} messages</span>
+      <span style={S.handledLine} aria-hidden />
+    </div>
+  );
+}
+
+/**
+ * A pending outbound draft, rendered IN the thread as a dashed bubble so a
+ * draft can never be mistaken for a sent message. Send / Edit / Bin inline,
+ * wired to the same outbox endpoints the Outbox page uses.
+ */
+function DraftBubble({ draft, onDone, onSent }) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(draft.body || '');
+  const [busy, setBusy] = useState(false);
+
+  async function act(fn) {
+    if (busy) return;
+    setBusy(true);
+    try { await fn(); }
+    catch (err) {
+      // 404 = already handled elsewhere; just drop it from view.
+      if (err?.status === 404) onDone(draft.id);
+      else logger.error({ err }, 'draft action failed');
+    }
+    finally { setBusy(false); }
+  }
+
+  async function saveEditIfNeeded() {
+    if (text.trim() && text.trim() !== (draft.body || '').trim()) {
+      await authFetch(`/api/outbound/${draft.id}`, { method: 'PATCH', body: JSON.stringify({ body: text.trim() }) });
+    }
+  }
+
+  const send = () => act(async () => {
+    await saveEditIfNeeded();
+    await authFetch(`/api/outbound/${draft.id}/approve`, { method: 'POST' });
+    bloom();
+    onSent();
+  });
+  const bin = () => act(async () => {
+    await authFetch(`/api/outbound/${draft.id}/skip`, { method: 'POST' });
+    onDone(draft.id);
+  });
+
+  return (
+    <div style={{ ...S.bubbleRow, justifyContent: 'flex-end' }}>
+      <div style={{ ...S.bubbleStack, alignItems: 'flex-end' }}>
+        <span style={S.bubbleTag}>{'\u{1F337}'} Draft {'\u00B7'} waiting for your OK</span>
+        <div style={S.draftBubble}>
+          {editing ? (
+            <textarea
+              value={text}
+              onChange={e => setText(e.target.value)}
+              rows={3}
+              style={S.draftEdit}
+              autoFocus
+            />
+          ) : (
+            <div style={S.bubbleText}>{text}</div>
+          )}
+          <div style={S.draftActions}>
+            <button type="button" onClick={send} disabled={busy} style={S.draftSend}>Send</button>
+            <button
+              type="button"
+              onClick={() => setEditing(e => !e)}
+              disabled={busy}
+              style={S.draftGhost}
+            >
+              {editing ? 'Done' : 'Edit'}
+            </button>
+            <button type="button" onClick={bin} disabled={busy} style={S.draftGhost}>Bin</button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -938,9 +1148,9 @@ function Bubble({ msg }) {
   // Label outbound bubbles so the owner can tell what Florrie sent and why.
   const type = msg.message_type;
   let tag = null;
-  if (out && type === 'auto_reply') tag = 'Florrie replied';
-  else if (out && type === 'proactive') tag = 'Florrie reached out';
-  else if (out && msg.ai_generated) tag = 'Florrie';
+  if (out && type === 'auto_reply') tag = '\u{1F337} Florrie \u00B7 replied';
+  else if (out && type === 'proactive') tag = '\u{1F337} Florrie \u00B7 reached out';
+  else if (out && msg.ai_generated) tag = '\u{1F337} Florrie';
 
   return (
     <div style={{ ...S.bubbleRow, justifyContent: out ? 'flex-end' : 'flex-start' }}>
@@ -1052,6 +1262,78 @@ const S = {
   list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column' },
 
   section: { marginBottom: 8 },
+  sectionHeadBtn: {
+    display: 'flex', alignItems: 'center', gap: 8, padding: '20px 18px 7px',
+    width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+    fontFamily: 'inherit', textAlign: 'left', minHeight: 44,
+  },
+  sectionChevron: { fontSize: 18, color: 'var(--text-muted, #B5AFA8)' },
+  sectionQuietNote: { fontSize: 11.5, color: 'var(--text-muted, #B5AFA8)', fontStyle: 'italic', marginLeft: 'auto' },
+  waitChip: {
+    fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
+    background: '#fdf0e3', color: '#b3602f', letterSpacing: '0.02em',
+  },
+  petalNote: { fontSize: 11, color: 'var(--accent, #92405e)', fontWeight: 600 },
+  metaLine: {
+    display: 'block', fontSize: 11.5, color: 'var(--text-muted, #9B8A8E)',
+    marginTop: 2, lineHeight: 1.4,
+  },
+  headerActions: { display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, flexWrap: 'wrap' },
+  bookChip: {
+    display: 'inline-flex', alignItems: 'center', gap: 5,
+    padding: '5px 12px', minHeight: 28, borderRadius: 999, border: 'none',
+    background: '#f0e3cf', color: '#8a6d3b', fontSize: 11.5, fontWeight: 700,
+    cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent',
+  },
+  controlsWrap: { marginTop: 8 },
+  driverRow: {
+    display: 'flex', alignItems: 'center', gap: 8,
+    background: 'var(--tone-2, #f6e7dd)', borderRadius: 999, padding: 3,
+    width: 'fit-content', maxWidth: '100%', flexWrap: 'wrap',
+  },
+  driverSeg: {
+    padding: '5px 13px', minHeight: 28, borderRadius: 999, border: 'none',
+    fontSize: 11.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+    WebkitTapHighlightColor: 'transparent', transition: 'background 0.15s ease',
+  },
+  driverCaption: { fontSize: 10.5, color: 'var(--text-muted, #9B8A8E)', padding: '0 10px 0 4px' },
+  pillRow: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' },
+  finePill: {
+    padding: '4px 10px', minHeight: 26, borderRadius: 999, border: 'none',
+    fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
+    WebkitTapHighlightColor: 'transparent',
+  },
+  handledDivider: {
+    display: 'flex', alignItems: 'center', gap: 10, margin: '14px 6px',
+  },
+  handledLine: { flex: 1, height: 1, background: 'rgba(146,64,94,0.12)' },
+  handledText: {
+    fontSize: 11, color: 'var(--text-muted, #9B8A8E)', fontWeight: 600,
+    whiteSpace: 'nowrap',
+  },
+  draftBubble: {
+    maxWidth: 'min(78%, 420px)', padding: '10px 14px', borderRadius: 20,
+    borderBottomRightRadius: 6, background: 'rgba(146,64,94,0.04)',
+    border: '1.5px dashed rgba(146,64,94,0.45)', color: 'var(--text-primary, #1d1b19)',
+    boxSizing: 'border-box',
+  },
+  draftEdit: {
+    width: '100%', boxSizing: 'border-box', border: '1px solid rgba(146,64,94,0.25)',
+    borderRadius: 10, padding: '8px 10px', fontSize: 14, fontFamily: 'inherit',
+    background: '#fff', color: 'var(--text-primary, #1d1b19)', resize: 'vertical', outline: 'none',
+  },
+  draftActions: { display: 'flex', gap: 6, marginTop: 8 },
+  draftSend: {
+    padding: '6px 16px', minHeight: 32, borderRadius: 999, border: 'none',
+    background: 'var(--accent, #92405e)', color: '#fff', fontSize: 12, fontWeight: 700,
+    cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent',
+  },
+  draftGhost: {
+    padding: '6px 12px', minHeight: 32, borderRadius: 999, border: 'none',
+    background: 'var(--tone-2, #f6e7dd)', color: 'var(--text-secondary, #867277)',
+    fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+    WebkitTapHighlightColor: 'transparent',
+  },
   sectionHead: {
     display: 'flex', alignItems: 'center', gap: 8, padding: '20px 18px 7px',
   },
