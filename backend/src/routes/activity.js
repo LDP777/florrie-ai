@@ -155,7 +155,9 @@ function resolveLink(row) {
   // the day of the appointment, not the day Florrie happened to log the action.
   const apptDay = row.appointments?.starts_at ? String(row.appointments.starts_at).slice(0, 10) : null;
   const day = apptDay || (row.created_at || '').slice(0, 10);
-  const calendarDay = day ? `/calendar?date=${day}` : '/calendar';
+  const calendarDay = day
+    ? `/calendar?date=${day}${row.appointment_id ? `&appt=${row.appointment_id}` : ''}`
+    : (row.appointment_id ? `/calendar?appt=${row.appointment_id}` : '/calendar');
   // Florrie is conversation-first: one thread per client, so the client's thread
   // is the right landing for anything message/relationship related. There is no
   // /clients/:id page, so never link there.

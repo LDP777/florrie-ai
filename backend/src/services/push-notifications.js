@@ -162,10 +162,16 @@ export async function pushTeamUpdate(beauticianId, actionType, summary, { url, c
   });
 }
 
-export async function pushNewBooking(beauticianId, clientName, treatmentName, dateStr) {
+export async function pushNewBooking(beauticianId, clientName, treatmentName, dateStr, { appointmentId = null, apptDate = null } = {}) {
+  // Tap the notification -> open the calendar on the appointment's day, with
+  // that appointment selected. Falls back gracefully if the id/date is missing.
+  const day = apptDate ? String(apptDate).slice(0, 10) : null;
+  const url = appointmentId && day ? `/calendar?date=${day}&appt=${appointmentId}`
+    : appointmentId ? `/calendar?appt=${appointmentId}`
+    : '/calendar';
   return pushTeamUpdate(beauticianId, 'booking_confirmed',
     `${clientName} booked ${treatmentName} for ${dateStr}`,
-    { url: '/calendar', clientName }
+    { url, clientName }
   );
 }
 

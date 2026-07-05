@@ -125,6 +125,19 @@ export default function CalendarView({ initialView } = {}) {
     const q = new URLSearchParams(location.search).get('date');
     if (q && /^\d{4}-\d{2}-\d{2}/.test(q)) setCurrentDate(new Date(`${q.slice(0, 10)}T12:00:00`));
   }, [location.search]);
+
+  // Deep-link to a specific appointment (?appt=<id>): once that day's
+  // appointments have loaded, open its detail. The selection effect below then
+  // scrolls it into view. From the "someone booked" push and the home feed.
+  useEffect(() => {
+    const apptId = new URLSearchParams(location.search).get('appt');
+    if (!apptId || !appointments.length) return;
+    const match = appointments.find(a => a.id === apptId);
+    if (match) {
+      setView('day');
+      setSelectedAppointment(match);
+    }
+  }, [appointments, location.search]);
   const [appointments, setAppointments] = useState([]);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [loading, setLoading] = useState(true);
