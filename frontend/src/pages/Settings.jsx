@@ -1298,6 +1298,35 @@ export default function Settings({ onLogout }) {
                   </div>
                 </div>
 
+                {/* Wire 5: add a live promo code to gap-fill offers. Off by
+                    default. Writes autonomy.promos_in_offers, merged into the
+                    same autonomy object so per-type modes are kept. */}
+                <div style={{ marginTop: 20, paddingTop: 18, borderTop: '1px solid var(--border-light)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <div>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Add a promo to gap offers</span>
+                      <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0', lineHeight: 1.4 }}>
+                        When you have a promo code running, Florrie can add it to a last-minute gap offer, like "use FLASH10 for 10% off". Off by default.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const next = { ...auto, promos_in_offers: !auto.promos_in_offers };
+                        setPendingAutonomy(next);
+                        saveProfile({ autonomy: next }).finally(() => setPendingAutonomy(null));
+                      }}
+                      style={{
+                        flexShrink: 0, padding: '5px 12px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600,
+                        cursor: 'pointer', fontFamily: 'inherit',
+                        background: auto.promos_in_offers ? 'var(--success)' : 'var(--border-light)',
+                        color: auto.promos_in_offers ? '#fff' : 'var(--text-muted)',
+                      }}
+                    >
+                      {auto.promos_in_offers ? 'On' : 'Off'}
+                    </button>
+                  </div>
+                </div>
+
                 <button
                   onClick={() => navigate('/outbox')}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 14, background: 'none', border: 'none', padding: 0, fontSize: 13, fontWeight: 600, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}

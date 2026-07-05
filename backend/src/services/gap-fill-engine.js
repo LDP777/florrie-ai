@@ -20,6 +20,7 @@ import { shouldAutoSend } from './sms-metering.js';
 import { guardedSend, recordOutbound } from '../lib/outbound-guard.js';
 import { getFutureBookedClientIds } from '../lib/future-bookings.js';
 import { getLoyaltyConfig, getClientPoints, loyaltyProximity } from './loyalty.js';
+import { getActivePromos, describePromo } from '../lib/promos.js';
 import logger from '../lib/logger.js';
 
 const MAX_OFFERS_PER_CYCLE = 5;    // Don't spam, cap per beautician per run
@@ -45,7 +46,7 @@ export async function checkGapFillOpportunities(beauticianId, threshold) {
     // 1. Get beautician working hours + prefs
     const { data: beautician } = await supabase
       .from('beauticians')
-      .select('working_hours, whatsapp_phone_id, client_reminder_prefs, timezone, booking_slug')
+      .select('working_hours, whatsapp_phone_id, client_reminder_prefs, timezone, booking_slug, autonomy')
       .eq('id', beauticianId)
       .single();
 
@@ -82,10 +83,19 @@ export async function checkGapFillOpportunities(beauticianId, threshold) {
     // Loyalty settings once per run so offers can nod to reward proximity.
     const loyaltyConfig = await getLoyaltyConfig(beauticianId);
 
+    // A promo line is added to gap offers only when the beautician has opted in
+    // (autonomy.promos_in_offers) AND a promo is actually live. Default off.
+    let promoLine = '';
+    if (beautician.autonomy?.promos_in_offers === true) {
+      const promos = await getActivePromos(beauticianId, 1);
+      if (promos.length) promoLine = ` ${describePromo(promos[0])}.`;
+    }
+
     const beauticianPrefs = {
       whatsapp_connected: !!beautician.whatsapp_phone_id,
       booking_slug: beautician.booking_slug || null,
       loyaltyConfig,
+      promoLine,
       ...(beautician.client_reminder_prefs || {}),
     };
 
@@ -615,6 +625,9 @@ async function processMatch({ beauticianId, client, treatment, gap, matchType, c
   } catch (err) {
     logger.warn({ err, clientId: client.id }, 'Gap-fill loyalty hook skipped');
   }
+
+  // Opted-in promo line (already gated + resolved once per run).
+  if (beauticianPrefs.promoLine) message += beauticianPrefs.promoLine;
 
   // Human copy for the activity feed, not an engine log line. A held draft
   // must never read like a sent message (Ellie thought Florrie was spamming

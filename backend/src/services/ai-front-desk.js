@@ -8,6 +8,7 @@ import { sendMessage, sendInstagramDM, sendWhatsAppText, sendSMS } from './notif
 import { pushEscalation, pushTeamUpdate } from './push-notifications.js';
 import { isKnownClient, clientAutonomyOverride } from '../lib/outbound-guard.js';
 import { getLoyaltyConfig, getClientPoints, loyaltyProximity } from './loyalty.js';
+import { getActivePromos, describePromo } from '../lib/promos.js';
 
 /**
  * AI Front Desk — The core agentic service.
@@ -216,7 +217,7 @@ async function gatherContext(beautician, client) {
   const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   // Parallel fetches for speed
-  const [treatments, upcomingAppointments, clientHistory, clientIntelligence, conversation, loyaltyConfig, clientPoints, patchTests] = await Promise.all([
+  const [treatments, upcomingAppointments, clientHistory, clientIntelligence, conversation, loyaltyConfig, clientPoints, patchTests, activePromos] = await Promise.all([
     // Treatment menu
     supabase
       .from('treatments')
@@ -275,7 +276,11 @@ async function gatherContext(beautician, client) {
       .eq('client_id', client.id)
       .eq('beautician_id', beautician.id)
       .order('created_at', { ascending: false })
-      .limit(5) : { data: [] }
+      .limit(5) : { data: [] },
+
+    // Live promo codes so Florrie can answer "any offers?" truthfully. Fail
+    // soft to [] so a promo hiccup never blanks the brain.
+    getActivePromos(beautician.id, 3)
   ]);
 
   // Oldest to newest, ready to render as a transcript.
@@ -309,6 +314,8 @@ async function gatherContext(beautician, client) {
     patchTest = { status, treatmentsNeedingTest };
   }
 
+  const offers = (activePromos || []).map(describePromo).filter(Boolean);
+
   return {
     treatments: treatments.data || [],
     upcomingAppointments: upcomingAppointments.data || [],
@@ -317,6 +324,7 @@ async function gatherContext(beautician, client) {
     conversation: conversationThread,
     loyalty,
     patchTest,
+    offers,
     beautician: {
       name: beautician.business_name || beautician.first_name,
       workingHours: beautician.working_hours,
@@ -497,6 +505,7 @@ ${context.client ? `Client: ${context.client.name}, ${context.client.totalVisits
 ${context.clientIntelligence?.favourite_treatments?.length ? `Favourite treatments: ${context.clientIntelligence.favourite_treatments.join(', ')}` : ''}
 ${context.loyalty ? `LOYALTY: ${context.loyalty.summary} If it fits this message, you may mention it once, warmly and naturally, never pushy. Never invent points or rewards beyond what is stated here.` : ''}
 ${context.patchTest ? `PATCH TEST: These treatments need a patch test at least 24 hours before the first appointment: ${context.patchTest.treatmentsNeedingTest.join(', ')}. This client's patch test status: ${context.patchTest.status}. If they want to book one of these and their status is none or pending, warmly explain they need a quick patch test first and offer to pop them in for it at a real available time before the main appointment, rather than stalling. If their status is completed, treat it as a normal booking. Never invent a patch test result.` : ''}
+${context.offers?.length ? `OFFERS: ${context.offers.join('; ')}. Only mention an offer if the client asks about price or offers, or is hesitating on cost. Never volunteer it otherwise, and never invent a code.` : ''}
 ${buildTranscript(context, message) ? `\nConversation so far (oldest first). Continue it naturally, do not repeat yourself or reintroduce yourself:\n${buildTranscript(context, message)}` : ''}
 
 Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`,
@@ -613,6 +622,7 @@ Never use em dashes (—) or en dashes (–). Use commas, full stops, colons or 
 Treatments: ${context.treatments.map(t => `${t.name} (£${(t.price_cents/100).toFixed(2)})`).join(', ')}
 ${context.loyalty ? `Loyalty: ${context.loyalty.summary} If it fits, you may mention it once, warmly, never pushy. Never invent points or rewards beyond this.` : ''}
 ${context.patchTest ? `Patch test: these treatments need one at least 24h before the first visit: ${context.patchTest.treatmentsNeedingTest.join(', ')}. This client's status: ${context.patchTest.status}. If they want one of these and status is none or pending, offer to book the quick patch test first at a real time; if completed, book as normal. Never invent a result.` : ''}
+${context.offers?.length ? `Offers: ${context.offers.join('; ')}. Mention only if they ask about price or offers, or hesitate on cost. Never volunteer, never invent a code.` : ''}
 ${buildTranscript(context, message) ? `\nConversation so far (oldest first), so your draft fits the thread:\n${buildTranscript(context, message)}` : ''}
 
 Write only the message to send.`,
@@ -950,6 +960,7 @@ Rules:
 Treatments: ${context.treatments.map(t => `${t.name} (£${(t.price_cents/100).toFixed(2)})`).join(', ') || 'none listed'}.
 ${context.loyalty ? `Loyalty: ${context.loyalty.summary} One of the 3 options may nod to this if it fits, warmly and never pushy.` : ''}
 ${context.patchTest ? `Patch test: these treatments need one at least 24h before the first visit: ${context.patchTest.treatmentsNeedingTest.join(', ')}. This client's status: ${context.patchTest.status}. If they want one of these and status is none or pending, offer to book the quick patch test first at a real time; if completed, book as normal. Never invent a result.` : ''}
+${context.offers?.length ? `Offers: ${context.offers.join('; ')}. Mention only if they ask about price or offers, or hesitate on cost. Never volunteer, never invent a code.` : ''}
 
 Respond with ONLY a JSON array of exactly 3 objects: [{"label":"...","text":"..."}].`,
     messages: [{ role: 'user', content: lastInboundMessage }],
