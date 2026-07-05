@@ -53,6 +53,7 @@ router.get('/', requireAuth, async (req, res) => {
       fromValueCoaching(beauticianId),
       fromGapFill(beauticianId),
       fromUnpricedAppointments(beauticianId),
+      fromFiveStarReviews(beauticianId),
       // tag_dormant deliberately dropped: it was busywork, not money.
     ]);
     for (const g of groups) suggestions.push(...g);
@@ -768,6 +769,67 @@ function friendlyTime(hhmm) {
   let h12 = h % 12;
   if (h12 === 0) h12 = 12;
   return m ? `${h12}:${String(m).padStart(2, '0')}${suffix}` : `${h12}${suffix}`;
+}
+
+async function fromFiveStarReviews(beauticianId) {
+  // A glowing review is free marketing. Turn a recent 5-star review with a
+  // real comment into a one-tap post, prefilled and ready for Ellie to edit.
+  const { data, error } = await supabase
+    .from('reviews')
+    .select('id, rating, comment, created_at, clients(first_name)')
+    .eq('beautician_id', beauticianId)
+    .gte('rating', 5)
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  if (error || !data?.length) return [];
+
+  const qualifying = data.filter(r => (r.comment || '').trim().length > 20);
+  if (!qualifying.length) return [];
+
+  // Durable dedupe: once she has posted or dismissed a review card it never
+  // comes back, even past the 7-day answer window applyLearning enforces.
+  const { data: decisions } = await supabase
+    .from('florrie_decisions')
+    .select('suggestion_payload')
+    .eq('beautician_id', beauticianId)
+    .eq('suggestion_type', 'review_post');
+  const answered = new Set(
+    (decisions || []).map(d => d?.suggestion_payload?.review_id).filter(Boolean)
+  );
+
+  const fresh = qualifying.filter(r => !answered.has(r.id)).slice(0, 2);
+  if (!fresh.length) return [];
+
+  // Booking slug for the caption's book-your-own link.
+  const { data: beaut } = await supabase
+    .from('beauticians')
+    .select('booking_slug')
+    .eq('id', beauticianId)
+    .maybeSingle();
+  const slug = beaut?.booking_slug || 'book';
+
+  return fresh.map(r => {
+    const first = r.clients?.first_name?.trim() || null;
+    const comment = r.comment.trim();
+    const caption = first
+      ? `${first} said: "${comment}" \u{1F337}\n\nThank you ${first}! Book your own in: florrie.ai/book/${slug}`
+      : `A lovely client said: "${comment}" \u{1F337}\n\nBook your own in: florrie.ai/book/${slug}`;
+    const who = first || 'A client';
+    return {
+      id: `review-${r.id}`,
+      type: 'review_post',
+      icon: '\u2B50',
+      summary: `${who} left you a 5-star review. Turn it into a post?`,
+      action_label: 'Make a post',
+      impact_pence: 0,
+      priority: 32,
+      payload: { review_id: r.id },
+      action: { kind: 'navigate', endpoint: null, method: null, body: null, confirm: null },
+      link_to: '/content',
+      prefill: { compose: 'review', type: 'testimonial', caption },
+    };
+  });
 }
 
 async function fromUnpricedAppointments(beauticianId) {

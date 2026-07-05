@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useBeautician, supabase, fetchRows, insertRow, updateRow, deleteRow } from '../lib/supabase.js'
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
@@ -146,6 +147,19 @@ export default function ContentAutopilot() {
       loadCancelledAppointments();
     }
   }, [beautician]);
+
+  // A review-to-post card from the Hub navigates here with a prefilled caption
+  // in router state. Open the composer on it once, then clear the state so a
+  // refresh or back-navigation does not recompose.
+  const location = useLocation();
+  useEffect(() => {
+    const st = location.state;
+    if (st && st.compose === 'review' && st.caption) {
+      startCompose(st.type || 'testimonial', st.caption);
+      window.history.replaceState({}, document.title);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
   useEffect(() => {
     if (beautician && selectedStreamId) {
       loadAll();

@@ -143,7 +143,7 @@ function SuggestionCard({ s, featured, onDone, onRecord, navigate }) {
     if (action.kind === 'navigate' || !action.endpoint) {
       onRecord(s, 'yes', false);
       onDone(s.id);
-      if (s.link_to) navigate(s.link_to);
+      if (s.link_to) navigate(s.link_to, s.prefill ? { state: s.prefill } : undefined);
       return;
     }
 
@@ -290,7 +290,7 @@ function SuggestionCard({ s, featured, onDone, onRecord, navigate }) {
             No
           </button>
           {s.link_to && (
-            <button onClick={() => navigate(s.link_to)} disabled={phase === 'running'} style={{ ...SC.btn, ...SC.btnOpen }}>
+            <button onClick={() => navigate(s.link_to, s.prefill ? { state: s.prefill } : undefined)} disabled={phase === 'running'} style={{ ...SC.btn, ...SC.btnOpen }}>
               Open
             </button>
           )}
