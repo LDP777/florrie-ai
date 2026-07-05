@@ -37,7 +37,9 @@ function mediaPlaceholder(mediaType) {
   if (t.includes('video')) return 'Sent a video';
   if (t.includes('audio') || t === 'voice') return 'Sent a voice note';
   if (t) return 'Sent an attachment';
-  return 'No message text';
+  // A row with no text and no known media type is usually a template send or
+  // a system-logged touch. 'No message text' read like a bug to Ellie.
+  return 'Sent a message';
 }
 
 // Build the preview for a single row: its text if it has any, otherwise a
@@ -216,7 +218,7 @@ router.get('/threads', requireAuth, async (req, res) => {
     // Clean up internal scaffolding and guarantee no blank preview survives.
     for (const bucket of new Set(buckets.values())) {
       if (!bucket.last_message_preview) {
-        bucket.last_message_preview = bucket.last_inbound_preview || 'No message text';
+        bucket.last_message_preview = bucket.last_inbound_preview || 'Sent a message';
       }
       delete bucket.client_ids;
       delete bucket._hasInboundText;
