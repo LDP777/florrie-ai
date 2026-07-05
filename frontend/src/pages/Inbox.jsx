@@ -1040,7 +1040,7 @@ function ConvoHeader({ onBack, embedded, clientName, navigate, clientId, channel
           {clientId && meta && !meta.next_appointment_at && (
             <button
               type="button"
-              onClick={() => navigate('/calendar', { state: { bookClient: { id: clientId, name: clientName } } })}
+              onClick={() => navigate('/calendar/week', { state: { bookClient: { id: clientId, name: clientName } } })}
               style={S.bookChip}
             >
               <span className="material-symbols-outlined" style={{ fontSize: 15 }} aria-hidden>event</span>
