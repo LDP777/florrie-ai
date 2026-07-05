@@ -196,5 +196,86 @@ router.post('/refresh-intelligence', requireAuth, async (req, res) => {
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
+/**
+ * POST /api/clients/:id/merge   Body: { duplicate_id }
+ * Folds a duplicate client record into this one: every referencing row moves
+ * to the primary, missing contact details are backfilled from the duplicate,
+ * then the duplicate is deleted. This is the cure for split threads (an IG
+ * DM creating a second record next to the imported one, etc).
+ */
+const CLIENT_REF_TABLES = [
+  'ai_actions', 'appointments', 'booking_suggestions', 'client_intelligence',
+  'client_packages', 'client_portal_tokens', 'client_tag_assignments',
+  'consultation_responses', 'consultations', 'follow_up_enrollments',
+  'form_submissions', 'loyalty_points', 'membership_subscriptions', 'messages',
+  'outbound_sends', 'patch_tests', 'payment_links', 'photo_consents',
+  'reviews', 'transactions', 'voice_metrics', 'waitlist',
+];
+
+router.post('/:id/merge', requireAuth, async (req, res) => {
+  const primaryId = req.params.id;
+  const duplicateId = req.body?.duplicate_id;
+  if (!duplicateId || duplicateId === primaryId) {
+    return res.status(400).json({ error: 'duplicate_id required (and must differ)' });
+  }
+  try {
+    // Both records must belong to this beautician.
+    const { data: rows } = await supabase
+      .from('clients')
+      .select('*')
+      .in('id', [primaryId, duplicateId])
+      .eq('beautician_id', req.beautician.id);
+    const primary = (rows || []).find(r => r.id === primaryId);
+    const duplicate = (rows || []).find(r => r.id === duplicateId);
+    if (!primary || !duplicate) return res.status(404).json({ error: 'Client not found' });
+
+    // 1) Move every referencing row. Per-table best effort: a unique-index
+    //    clash on one table must not strand the rest half-merged silently,
+    //    so failures are collected and reported.
+    const failed = [];
+    for (const table of CLIENT_REF_TABLES) {
+      const { error } = await supabase
+        .from(table)
+        .update({ client_id: primaryId })
+        .eq('client_id', duplicateId);
+      if (error) failed.push({ table, code: error.code });
+    }
+
+    // 2) Backfill contact/identity gaps on the primary from the duplicate.
+    const fill = {};
+    for (const f of ['phone', 'email', 'whatsapp_id', 'instagram_id', 'last_name', 'notes']) {
+      if ((primary[f] == null || primary[f] === '') && duplicate[f]) fill[f] = duplicate[f];
+    }
+    if (duplicate.last_visit_at && (!primary.last_visit_at || duplicate.last_visit_at > primary.last_visit_at)) {
+      fill.last_visit_at = duplicate.last_visit_at;
+    }
+    if (Object.keys(fill).length) {
+      await supabase.from('clients').update(fill).eq('id', primaryId);
+    }
+
+    // 3) Remove the duplicate (only if nothing still points at it).
+    let deleted = false;
+    if (failed.length === 0) {
+      const { error: delErr } = await supabase.from('clients').delete().eq('id', duplicateId);
+      deleted = !delErr;
+      if (delErr) failed.push({ table: 'clients(delete)', code: delErr.code });
+    }
+
+    await supabase.from('ai_actions').insert({
+      beautician_id: req.beautician.id,
+      client_id: primaryId,
+      action_type: 'client_profile_updated',
+      outcome: failed.length ? 'partial' : 'success',
+      summary: `Merged a duplicate record into ${primary.first_name}${primary.last_name ? ' ' + primary.last_name : ''}`,
+      digital_employee: 'front_desk',
+      created_at: new Date().toISOString(),
+    });
+
+    res.json({ merged: true, deleted, filled: Object.keys(fill), failed });
+  } catch (err) {
+    logger.error({ err, primaryId, duplicateId }, 'Client merge failed');
+    res.status(500).json({ error: 'Merge failed part-way. Nothing was lost; try again.' });
+  }
+});
 
 export default router;
