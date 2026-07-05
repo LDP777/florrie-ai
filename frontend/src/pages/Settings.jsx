@@ -793,20 +793,20 @@ export default function Settings({ onLogout }) {
               <span style={styles.payoutValue}>Daily (arrives next business day)</span>
             </div>
             <div style={styles.payoutRow}>
-              <span style={styles.payoutLabel}>Stripe processing</span>
-              <span style={styles.payoutValue}>1.4% + 20p per transaction</span>
-            </div>
-            <div style={styles.payoutRow}>
-              <span style={styles.payoutLabel}>Florrie platform fee</span>
-              <span style={styles.payoutValue}>1.5% per transaction</span>
+              <span style={styles.payoutLabel}>Card processing</span>
+              <span style={styles.payoutValue}>2.9% + 20p per card payment</span>
             </div>
             <div style={styles.payoutRow}>
               <span style={styles.payoutLabel}>Account</span>
               <span style={styles.payoutValue}>{beautician.stripe_onboarding_complete ? 'Connected via Stripe' : 'Not linked'}</span>
             </div>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, marginBottom: 8 }}>
-              On a £10 deposit: ~34p to Stripe + ~15p to Florrie = you keep £9.51.
-              Florrie's fee covers payment processing, booking management, and client communications.
+              That's Stripe's 1.4% + 20p plus Florrie's 1.5% (never more than £5), and it only
+              applies to CARD payments. On a £10 card deposit you keep £9.51.
+            </p>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 0, marginBottom: 8 }}>
+              Bank transfers and cash are always fee free. Add your bank details above and the
+              booking page shows them, so clients can transfer the balance straight to you.
             </p>
             {beautician.stripe_onboarding_complete && (
               <a
