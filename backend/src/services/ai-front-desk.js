@@ -505,7 +505,7 @@ ${context.client ? `Client: ${context.client.name}, ${context.client.totalVisits
 ${context.clientIntelligence?.favourite_treatments?.length ? `Favourite treatments: ${context.clientIntelligence.favourite_treatments.join(', ')}` : ''}
 ${context.loyalty ? `LOYALTY: ${context.loyalty.summary} If it fits this message, you may mention it once, warmly and naturally, never pushy. Never invent points or rewards beyond what is stated here.` : ''}
 ${context.patchTest ? `PATCH TEST: These treatments need a patch test at least 24 hours before the first appointment: ${context.patchTest.treatmentsNeedingTest.join(', ')}. This client's patch test status: ${context.patchTest.status}. If they want to book one of these and their status is none or pending, warmly explain they need a quick patch test first and offer to pop them in for it at a real available time before the main appointment, rather than stalling. If their status is completed, treat it as a normal booking. Never invent a patch test result.` : ''}
-${context.offers?.length ? `OFFERS: ${context.offers.join('; ')}. Only mention an offer if the client asks about price or offers, or is hesitating on cost. Never volunteer it otherwise, and never invent a code.` : ''}
+${context.offers?.length ? `OFFERS: ${context.offers.join('; ')}. Only mention an offer if the client asks about price or offers, or is hesitating on cost. Never volunteer it otherwise, and never invent a code.` : `OFFERS: none running right now. If the client asks about offers or discounts, tell them there is nothing on at the moment. Never invent an offer, discount, or code.`}
 ${buildTranscript(context, message) ? `\nConversation so far (oldest first). Continue it naturally, do not repeat yourself or reintroduce yourself:\n${buildTranscript(context, message)}` : ''}
 
 Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`,
@@ -622,7 +622,7 @@ Never use em dashes (—) or en dashes (–). Use commas, full stops, colons or 
 Treatments: ${context.treatments.map(t => `${t.name} (£${(t.price_cents/100).toFixed(2)})`).join(', ')}
 ${context.loyalty ? `Loyalty: ${context.loyalty.summary} If it fits, you may mention it once, warmly, never pushy. Never invent points or rewards beyond this.` : ''}
 ${context.patchTest ? `Patch test: these treatments need one at least 24h before the first visit: ${context.patchTest.treatmentsNeedingTest.join(', ')}. This client's status: ${context.patchTest.status}. If they want one of these and status is none or pending, offer to book the quick patch test first at a real time; if completed, book as normal. Never invent a result.` : ''}
-${context.offers?.length ? `Offers: ${context.offers.join('; ')}. Mention only if they ask about price or offers, or hesitate on cost. Never volunteer, never invent a code.` : ''}
+${context.offers?.length ? `Offers: ${context.offers.join('; ')}. Mention only if they ask about price or offers, or hesitate on cost. Never volunteer, never invent a code.` : `Offers: none running right now. If they ask about offers, say there is nothing on at the moment. Never invent an offer, discount, or code.`}
 ${buildTranscript(context, message) ? `\nConversation so far (oldest first), so your draft fits the thread:\n${buildTranscript(context, message)}` : ''}
 
 Write only the message to send.`,
@@ -960,7 +960,7 @@ Rules:
 Treatments: ${context.treatments.map(t => `${t.name} (£${(t.price_cents/100).toFixed(2)})`).join(', ') || 'none listed'}.
 ${context.loyalty ? `Loyalty: ${context.loyalty.summary} One of the 3 options may nod to this if it fits, warmly and never pushy.` : ''}
 ${context.patchTest ? `Patch test: these treatments need one at least 24h before the first visit: ${context.patchTest.treatmentsNeedingTest.join(', ')}. This client's status: ${context.patchTest.status}. If they want one of these and status is none or pending, offer to book the quick patch test first at a real time; if completed, book as normal. Never invent a result.` : ''}
-${context.offers?.length ? `Offers: ${context.offers.join('; ')}. Mention only if they ask about price or offers, or hesitate on cost. Never volunteer, never invent a code.` : ''}
+${context.offers?.length ? `Offers: ${context.offers.join('; ')}. Mention only if they ask about price or offers, or hesitate on cost. Never volunteer, never invent a code.` : `Offers: none running right now. If they ask about offers, say there is nothing on at the moment. Never invent an offer, discount, or code.`}
 
 Respond with ONLY a JSON array of exactly 3 objects: [{"label":"...","text":"..."}].`,
     messages: [{ role: 'user', content: lastInboundMessage }],
