@@ -66,11 +66,12 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'reschedule_appointment',
-    description: 'Move a client\'s next upcoming appointment to a new date/time.',
+    description: 'Move a client appointment to a new date/time. ALWAYS pass appointment_date when the beautician names which appointment (e.g. "her appointment on the 15th").',
     input_schema: {
       type: 'object',
       properties: {
         client_name: { type: 'string' },
+        appointment_date: { type: 'string', description: 'ISO date YYYY-MM-DD of the appointment being moved. Pass it whenever the beautician says which day.' },
         new_date: { type: 'string', description: 'ISO date YYYY-MM-DD.' },
         new_time: { type: 'string', description: '24h time HH:MM.' },
         notify_client: { type: 'boolean', description: 'Send SMS/WhatsApp confirmation (default true).' },
@@ -80,11 +81,12 @@ export const TOOL_DEFINITIONS = [
   },
   {
     name: 'cancel_appointment',
-    description: 'Cancel a client\'s next upcoming appointment.',
+    description: 'Cancel a client appointment. ALWAYS pass appointment_date when the beautician names which appointment.',
     input_schema: {
       type: 'object',
       properties: {
         client_name: { type: 'string' },
+        appointment_date: { type: 'string', description: 'ISO date YYYY-MM-DD of the appointment being cancelled. Pass it whenever the beautician says which day.' },
         notify_client: { type: 'boolean', description: 'Send cancellation message (default true).' },
       },
       required: ['client_name'],
@@ -481,22 +483,42 @@ async function toolBookAppointment({ client_name, treatment, date, time }, beaut
   };
 }
 
-async function toolReschedule({ client_name, new_date, new_time, notify_client = true }, beautician, supabase) {
+/**
+ * Find THE appointment the beautician means. Scoped to a named day when
+ * given; if she didn't name a day and the client has several upcoming
+ * appointments, we ask instead of guessing. Guessing moved the WRONG
+ * appointment in live testing (earliest-upcoming grabbed a different one).
+ */
+async function findTargetAppointment(beauticianId, clientId, appointmentDate, supabase) {
+  let q = supabase
+    .from('appointments')
+    .select('id, starts_at, duration_minutes, treatments(name)')
+    .eq('beautician_id', beauticianId)
+    .eq('client_id', clientId)
+    .in('status', ['confirmed', 'pending'])
+    .order('starts_at', { ascending: true });
+  if (appointmentDate) {
+    q = q.gte('starts_at', `${appointmentDate}T00:00:00`).lte('starts_at', `${appointmentDate}T23:59:59`);
+  } else {
+    q = q.gte('starts_at', new Date().toISOString());
+  }
+  const { data: appts } = await q.limit(5);
+  if (!appts || appts.length === 0) return { appt: null, ambiguous: false };
+  if (!appointmentDate && appts.length > 1) return { appt: null, ambiguous: true, options: appts };
+  return { appt: appts[0], ambiguous: false };
+}
+
+async function toolReschedule({ client_name, appointment_date, new_date, new_time, notify_client = true }, beautician, supabase) {
   const client = await findClient(beautician.id, client_name, supabase);
   if (!client) return { result: `Can't find a client called "${client_name}".` };
 
-  const { data: appts } = await supabase
-    .from('appointments')
-    .select('id, starts_at, duration_minutes, treatments(name)')
-    .eq('beautician_id', beautician.id)
-    .eq('client_id', client.id)
-    .in('status', ['confirmed', 'pending'])
-    .gte('starts_at', new Date().toISOString())
-    .order('starts_at', { ascending: true })
-    .limit(1);
-
-  const appt = appts?.[0];
-  if (!appt) return { result: `${client.first_name} has no upcoming appointments to reschedule.` };
+  const found = await findTargetAppointment(beautician.id, client.id, appointment_date || null, supabase);
+  if (found.ambiguous) {
+    const opts = found.options.map(a => new Date(a.starts_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })).join(', ');
+    return { result: `${client.first_name} has more than one upcoming appointment (${opts}). Which day did you mean?` };
+  }
+  const appt = found.appt;
+  if (!appt) return { result: appointment_date ? `${client.first_name} has nothing booked on ${appointment_date}.` : `${client.first_name} has no upcoming appointments to reschedule.` };
 
   const existing = new Date(appt.starts_at);
   const resolvedDate = new_date || existing.toISOString().slice(0, 10);
@@ -533,22 +555,17 @@ async function toolReschedule({ client_name, new_date, new_time, notify_client =
   };
 }
 
-async function toolCancelAppointment({ client_name, notify_client = true }, beautician, supabase) {
+async function toolCancelAppointment({ client_name, appointment_date, notify_client = true }, beautician, supabase) {
   const client = await findClient(beautician.id, client_name, supabase);
   if (!client) return { result: `Can't find "${client_name}".` };
 
-  const { data: appts } = await supabase
-    .from('appointments')
-    .select('id, starts_at, treatments(name)')
-    .eq('beautician_id', beautician.id)
-    .eq('client_id', client.id)
-    .in('status', ['confirmed', 'pending'])
-    .gte('starts_at', new Date().toISOString())
-    .order('starts_at', { ascending: true })
-    .limit(1);
-
-  const appt = appts?.[0];
-  if (!appt) return { result: `${client.first_name} has no upcoming appointments to cancel.` };
+  const found = await findTargetAppointment(beautician.id, client.id, appointment_date || null, supabase);
+  if (found.ambiguous) {
+    const opts = found.options.map(a => new Date(a.starts_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })).join(', ');
+    return { result: `${client.first_name} has more than one upcoming appointment (${opts}). Which day did you mean?` };
+  }
+  const appt = found.appt;
+  if (!appt) return { result: appointment_date ? `${client.first_name} has nothing booked on ${appointment_date}.` : `${client.first_name} has no upcoming appointments to cancel.` };
 
   await supabase.from('appointments').update({ status: 'cancelled' }).eq('id', appt.id);
 

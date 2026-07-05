@@ -113,8 +113,8 @@ function proposalSummary(tool, input = {}) {
   const when = [input.date, input.time].filter(Boolean).join(' at ');
   switch (tool) {
     case 'book_appointment': return `Book ${input.client_name || 'a client'} in${(input.treatment || input.treatment_name) ? ` for ${input.treatment || input.treatment_name}` : ''}${when ? ` on ${when}` : ''}`;
-    case 'reschedule_appointment': return `Move ${input.client_name || 'the appointment'}${input.new_date ? ` to ${input.new_date}` : ''}${input.new_time ? ` at ${input.new_time}` : ''}`;
-    case 'cancel_appointment': return `Cancel ${input.client_name || 'the appointment'}${input.date ? ` on ${input.date}` : ''}${input.notify_client === false ? '' : ' and let them know'}`;
+    case 'reschedule_appointment': return `Move ${input.client_name || 'the appointment'}${input.appointment_date ? `'s ${input.appointment_date} appointment` : ''}${input.new_date ? ` to ${input.new_date}` : ''}${input.new_time ? ` at ${input.new_time}` : ''}`;
+    case 'cancel_appointment': return `Cancel ${input.client_name || 'the appointment'}${input.appointment_date ? ` on ${input.appointment_date}` : ''}${input.notify_client === false ? '' : ' and let them know'}`;
     case 'block_date': return `Block ${input.date || 'the day'}${input.start_time ? ` from ${input.start_time}${input.end_time ? ` to ${input.end_time}` : ''}` : ' all day'}`;
     case 'block_date_range': return `Block ${input.from_date} to ${input.to_date}${input.skip_weekends ? ', keeping weekends open' : ''}`;
     case 'clear_block': return `Unblock ${input.date}`;
