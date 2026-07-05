@@ -449,6 +449,7 @@ async function toolBookAppointment({ client_name, treatment, date, time }, beaut
       treatment_id: treatmentId,
       starts_at: startsAt.toISOString(),
       ends_at: endsAt.toISOString(),
+      duration_minutes: durationMins, // NOT NULL - its absence also killed every insert
       status: 'confirmed',
       price_cents: priceCents,
       // appointments has no 'source' column - this insert was rejected whole,
