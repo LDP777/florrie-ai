@@ -290,7 +290,10 @@ function SuggestionCard({ s, featured, onDone, onRecord, navigate }) {
           <button onClick={dismiss} disabled={phase === 'running'} style={{ ...SC.btn, ...SC.btnNo }}>
             No
           </button>
-          {s.link_to && (
+          {/* Only offer a separate "Open" when the primary button DOES something
+              (an execute endpoint). Navigate-only cards already open on the
+              primary tap, so a second "Open" was a confusing duplicate. */}
+          {s.link_to && action.endpoint && (
             <button onClick={() => navigate(s.link_to, s.prefill ? { state: s.prefill } : undefined)} disabled={phase === 'running'} style={{ ...SC.btn, ...SC.btnOpen }}>
               Open
             </button>
