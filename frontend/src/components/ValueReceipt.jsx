@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
@@ -6,10 +7,15 @@ import logger from '../lib/logger.js';
 /**
  * ValueReceipt
  *
- * The monthly receipt for having Florrie: money her agentic actions recovered
- * (filled gaps, rebooks she nudged into existence) plus deposits protected and
- * the voice stat. Hidden entirely until there's something worth showing, so a
- * fresh account never sees an empty brag.
+ * The monthly receipt for having Florrie: money her agentic actions helped
+ * bring in (gaps she filled, rebooks she nudged into existence) plus deposits
+ * protected and the voice stat. Hidden entirely until there's something worth
+ * showing, so a fresh account never sees an empty brag.
+ *
+ * The wording is deliberately measured (Florrie "helped bring in", not a blunt
+ * "found") and every figure is backed by a tap-through breakdown at /value that
+ * lists the exact appointments counted and how they were attributed, so Ellie
+ * can judge the accuracy herself.
  */
 
 async function authedGet(path) {
@@ -27,6 +33,7 @@ function pounds(pence) {
 }
 
 export default function ValueReceipt() {
+  const navigate = useNavigate();
   const [receipt, setReceipt] = useState(null);
   const [voice, setVoice] = useState(null);
 
@@ -50,17 +57,27 @@ export default function ValueReceipt() {
   if (recovered === 0 && deposits === 0 && voicePct == null) return null;
 
   const lines = [];
-  if (receipt.parts?.gap_fill_pence > 0) lines.push(`${pounds(receipt.parts.gap_fill_pence)} of cancellations refilled`);
+  if (receipt.parts?.gap_fill_pence > 0) lines.push(`${pounds(receipt.parts.gap_fill_pence)} from gaps Florrie filled`);
   if (receipt.parts?.rebook_pence > 0) lines.push(`${pounds(receipt.parts.rebook_pence)} from rebook nudges`);
   if (deposits > 0) lines.push(`${pounds(deposits)} protected by deposits`);
   if (voicePct != null && voice.total >= 5) lines.push(`${voicePct}% of her drafts sent without an edit`);
 
+  // Tappable only when there's a money story to break down.
+  const tappable = recovered > 0 || deposits > 0;
+  const open = () => { if (tappable) navigate('/value'); };
+
   return (
-    <div style={S.card}>
+    <div
+      style={{ ...S.card, ...(tappable ? S.cardTappable : {}) }}
+      onClick={open}
+      role={tappable ? 'button' : undefined}
+      tabIndex={tappable ? 0 : undefined}
+      onKeyDown={(e) => { if (tappable && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(); } }}
+    >
       <div style={S.eyebrow}>This month</div>
       <div style={S.headline}>
         {recovered > 0
-          ? <>Florrie found you <span style={S.amount}>{pounds(recovered)}</span></>
+          ? <>Florrie helped bring in <span style={S.amount}>{pounds(recovered)}</span></>
           : 'Florrie, quietly at work'}
       </div>
       {lines.length > 0 && (
@@ -71,6 +88,12 @@ export default function ValueReceipt() {
               {l}
             </div>
           ))}
+        </div>
+      )}
+      {tappable && (
+        <div style={S.more}>
+          See how it adds up
+          <span aria-hidden="true" style={{ marginLeft: 4 }}>›</span>
         </div>
       )}
     </div>
@@ -84,6 +107,7 @@ const S = {
     padding: '14px 16px',
     marginBottom: 14,
   },
+  cardTappable: { cursor: 'pointer' },
   eyebrow: {
     fontSize: 10.5,
     fontWeight: 800,
@@ -113,5 +137,13 @@ const S = {
     borderRadius: 999,
     background: 'var(--accent, #92405e)',
     flexShrink: 0,
+  },
+  more: {
+    marginTop: 10,
+    fontSize: 12.5,
+    fontWeight: 700,
+    color: 'var(--accent, #92405e)',
+    display: 'flex',
+    alignItems: 'center',
   },
 };

@@ -28,6 +28,11 @@ export default function ClientManagePage() {
   const [rescheduling, setRescheduling] = useState(false);
   const [rescheduleResult, setRescheduleResult] = useState(null);
   const [rescheduleError, setRescheduleError] = useState(null);
+  // Back-to-back reschedule slots (used when the beautician restricts moves to
+  // times that butt against existing bookings).
+  const [rescheduleSlots, setRescheduleSlots] = useState(null);
+  const [loadingReschedSlots, setLoadingReschedSlots] = useState(false);
+  const [reschedSlotsError, setReschedSlotsError] = useState(null);
 
   // Resend payment state
   const [resendingPayment, setResendingPayment] = useState(false);
@@ -83,14 +88,39 @@ export default function ClientManagePage() {
     }
   }
 
-  async function handleReschedule() {
-    if (!rescheduleDate || !rescheduleTime) return;
+  function openReschedule() {
+    setShowReschedule(true);
+    setRescheduleError(null);
+    // Restricted to back-to-back slots? Fetch the offered times up front.
+    if (data?.policy?.reschedule_between_only) loadRescheduleSlots();
+  }
+
+  async function loadRescheduleSlots() {
+    setLoadingReschedSlots(true);
+    setReschedSlotsError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/booking/${slug}/manage/${token}/reschedule/slots`);
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Could not load available times');
+      setRescheduleSlots(result.slots || []);
+    } catch (err) {
+      setReschedSlotsError(err.message);
+    } finally {
+      setLoadingReschedSlots(false);
+    }
+  }
+
+  async function handleReschedule(explicitStartsAt) {
+    // A slot tap passes the ISO string directly; the free picker builds it from
+    // the date + time inputs. Guard against an event object sneaking in.
+    const fromInputs = rescheduleDate && rescheduleTime ? `${rescheduleDate}T${rescheduleTime}:00` : null;
+    const new_starts_at = (typeof explicitStartsAt === 'string' && explicitStartsAt) ? explicitStartsAt : fromInputs;
+    if (!new_starts_at) return;
     setRescheduling(true);
     setRescheduleError(null);
     try {
       // Wall-clock convention: appointments are stored as the salon's local time.
       // Send the string raw (same as the booking page); toISOString() would shift it.
-      const new_starts_at = `${rescheduleDate}T${rescheduleTime}:00`;
       const res = await fetch(`${API_BASE}/api/booking/${slug}/manage/${token}/reschedule`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -590,50 +620,103 @@ export default function ClientManagePage() {
         {/* Reschedule section */}
         {!isCancelled && !isCompleted && !isPast && (
           <div>
-            {!showReschedule ? (
-              <button onClick={() => setShowReschedule(true)} style={S.rescheduleBtn}>
+            {policy.reschedule_once && policy.alreadyRescheduled ? (
+              <div style={S.reschedUsedNote}>
+                You've already moved this booking once. Please contact {appointment.beautician.name} directly if you need to change it again.
+              </div>
+            ) : !showReschedule ? (
+              <button onClick={openReschedule} style={S.rescheduleBtn}>
                 Reschedule appointment
               </button>
             ) : (
               <div style={S.rescheduleCard}>
-                <p style={{ fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: '#1a1a1a' }}>
-                  Choose a new date and time
-                </p>
                 {policy.withinCancellationWindow && policy.late_cancel_charge_percent > 0 && (
                   <div style={{ ...S.warningBanner, marginBottom: 12 }}>
                     ⚠️ You're within the {policy.cancellation_notice_hours}-hour window. Rescheduling now may result in a {policy.late_cancel_charge_percent}% charge for this appointment, plus you'll need to pay for your new booking.
                   </div>
                 )}
-                <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                  <input
-                    type="date"
-                    value={rescheduleDate}
-                    min={new Date().toISOString().split('T')[0]}
-                    onChange={e => setRescheduleDate(e.target.value)}
-                    style={{ ...S.dateInput, flex: 1 }}
-                  />
-                  <input
-                    type="time"
-                    value={rescheduleTime}
-                    onChange={e => setRescheduleTime(e.target.value)}
-                    style={{ ...S.dateInput, flex: '0 0 auto', width: 120 }}
-                  />
-                </div>
-                {rescheduleError && (
-                  <p style={{ fontSize: 13, color: 'var(--danger)', margin: '0 0 10px' }}>{rescheduleError}</p>
+
+                {policy.reschedule_between_only ? (
+                  <>
+                    <p style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px', color: '#1a1a1a' }}>
+                      Pick a new time
+                    </p>
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.5 }}>
+                      These are the times that fit right before or after another booking.
+                    </p>
+                    {loadingReschedSlots ? (
+                      <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px' }}>Finding times…</p>
+                    ) : reschedSlotsError ? (
+                      <p style={{ fontSize: 13, color: 'var(--danger)', margin: '0 0 12px' }}>{reschedSlotsError}</p>
+                    ) : rescheduleSlots && rescheduleSlots.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                        {rescheduleSlots.map((slot) => (
+                          <button
+                            key={slot}
+                            onClick={() => handleReschedule(slot)}
+                            disabled={rescheduling}
+                            style={{
+                              padding: '12px 14px', borderRadius: 10, border: '1.5px solid #E8E4DF',
+                              background: 'var(--bg-card)', fontSize: 13, fontWeight: 600, color: '#2D1B1B',
+                              cursor: rescheduling ? 'not-allowed' : 'pointer', opacity: rescheduling ? 0.5 : 1,
+                              textAlign: 'left', fontFamily: 'inherit', transition: 'all 0.2s',
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.borderColor = brand}
+                            onMouseLeave={(e) => e.currentTarget.style.borderColor = '#E8E4DF'}
+                          >
+                            {slotLabel(slot)}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.5 }}>
+                        No back-to-back times are free in the next few weeks. Please contact {appointment.beautician.name} directly to rearrange.
+                      </p>
+                    )}
+                    {rescheduleError && (
+                      <p style={{ fontSize: 13, color: 'var(--danger)', margin: '0 0 10px' }}>{rescheduleError}</p>
+                    )}
+                    <button onClick={() => { setShowReschedule(false); setRescheduleError(null); }} style={S.keepBtn}>
+                      Back
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p style={{ fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: '#1a1a1a' }}>
+                      Choose a new date and time
+                    </p>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                      <input
+                        type="date"
+                        value={rescheduleDate}
+                        min={new Date().toISOString().split('T')[0]}
+                        onChange={e => setRescheduleDate(e.target.value)}
+                        style={{ ...S.dateInput, flex: 1 }}
+                      />
+                      <input
+                        type="time"
+                        value={rescheduleTime}
+                        onChange={e => setRescheduleTime(e.target.value)}
+                        style={{ ...S.dateInput, flex: '0 0 auto', width: 120 }}
+                      />
+                    </div>
+                    {rescheduleError && (
+                      <p style={{ fontSize: 13, color: 'var(--danger)', margin: '0 0 10px' }}>{rescheduleError}</p>
+                    )}
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button onClick={() => { setShowReschedule(false); setRescheduleError(null); }} style={S.keepBtn}>
+                        Back
+                      </button>
+                      <button
+                        onClick={() => handleReschedule()}
+                        disabled={rescheduling || !rescheduleDate || !rescheduleTime}
+                        style={{ ...S.confirmCancelBtn, background: brand, opacity: (!rescheduleDate || !rescheduleTime) ? 0.5 : 1 }}
+                      >
+                        {rescheduling ? 'Moving…' : 'Confirm reschedule'}
+                      </button>
+                    </div>
+                  </>
                 )}
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <button onClick={() => { setShowReschedule(false); setRescheduleError(null); }} style={S.keepBtn}>
-                    Back
-                  </button>
-                  <button
-                    onClick={handleReschedule}
-                    disabled={rescheduling || !rescheduleDate || !rescheduleTime}
-                    style={{ ...S.confirmCancelBtn, background: brand, opacity: (!rescheduleDate || !rescheduleTime) ? 0.5 : 1 }}
-                  >
-                    {rescheduling ? 'Moving…' : 'Confirm reschedule'}
-                  </button>
-                </div>
               </div>
             )}
           </div>
@@ -690,6 +773,15 @@ export default function ClientManagePage() {
       </div>
     </div>
   );
+}
+
+function slotLabel(iso) {
+  // Wall-clock read: the slot is stored as salon local time, so slice it.
+  const d = String(iso).slice(0, 10);
+  const t = String(iso).slice(11, 16);
+  const dt = new Date(`${d}T12:00:00Z`);
+  const day = dt.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+  return `${day} · ${t}`;
 }
 
 function MetaRow({ icon, label, value }) {
@@ -844,6 +936,10 @@ const S = {
   footer: {
     textAlign: 'center', padding: '20px 16px',
     borderTop: '1px solid #F0EBE6',
+  },
+  reschedUsedNote: {
+    padding: '14px 16px', borderRadius: 12, background: '#F9F9F9',
+    border: '1px solid #E8E4DF', fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.5,
   },
   rescheduleBtn: {
     width: '100%', padding: '13px 0', borderRadius: 12,

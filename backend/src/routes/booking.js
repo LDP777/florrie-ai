@@ -3,7 +3,7 @@ import { z } from 'zod';
 import Stripe from 'stripe';
 import { supabase } from '../config.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
-import { pushNewBooking } from '../services/push-notifications.js';
+import { pushNewBooking, pushReschedule } from '../services/push-notifications.js';
 import { refreshLiveActivity } from '../services/live-activity.js';
 import { sendConsultationFormSMS } from './consultation-forms.js';
 import { validate } from '../middleware/validate.js';
@@ -495,7 +495,7 @@ router.get('/:slug/manage/:token', async (req, res) => {
     const { data: appt } = await supabase
       .from('appointments')
       .select(`
-        id, starts_at, ends_at, status, management_token,
+        id, starts_at, ends_at, status, management_token, rescheduled_at,
         payment_expires_at, policy_snapshot, client_email,
         price_cents, deposit_cents, deposit_paid, stripe_payment_method_id,
         treatments(id, name, duration_minutes, price_cents, category, requires_patch_test),
@@ -596,6 +596,11 @@ router.get('/:slug/manage/:token', async (req, res) => {
         hoursUntil: Math.max(0, Math.round(hoursUntil)),
         lateCancelFeeCents,
         cardOnFile,
+        // Reschedule controls come from the LIVE beautician policy, not the
+        // frozen snapshot, so toggling them takes effect on existing bookings.
+        reschedule_once: appt.beauticians?.booking_policy?.reschedule_once === true,
+        reschedule_between_only: appt.beauticians?.booking_policy?.reschedule_between_only === true,
+        alreadyRescheduled: !!appt.rescheduled_at,
       },
       patchTests: patchTests || [],
       needsPatchTest,
@@ -705,8 +710,8 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
       .from('appointments')
       .select(`
         id, starts_at, ends_at, status, duration_minutes, buffer_minutes, extra_padding_minutes,
-        policy_snapshot, client_email, client_id, beautician_id, treatment_id,
-        beauticians(id, booking_slug, booking_policy, business_name, first_name),
+        policy_snapshot, client_email, client_id, beautician_id, treatment_id, rescheduled_at,
+        beauticians(id, booking_slug, booking_policy, business_name, first_name, working_hours),
         treatments(name),
         clients(first_name, email)
       `)
@@ -719,6 +724,19 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
 
     if (!['confirmed', 'pending'].includes(appt.status)) {
       return res.status(400).json({ error: 'This booking cannot be rescheduled' });
+    }
+
+    // Live reschedule controls (from the current beautician policy, not the
+    // frozen snapshot).
+    const livePolicy = appt.beauticians?.booking_policy || {};
+
+    // "Only once" — once a client has moved this booking, they can't keep
+    // shuffling it. Ellie turns this on to stop repeat rescheduling.
+    if (livePolicy.reschedule_once === true && appt.rescheduled_at) {
+      return res.status(409).json({
+        error: "This booking has already been moved once. Please contact us directly if you need to change it again.",
+        code: 'reschedule_used',
+      });
     }
 
     const policy = appt.policy_snapshot || appt.beauticians?.booking_policy || {};
@@ -762,6 +780,41 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
 
     if (conflicts && conflicts.length > 0) {
       return res.status(409).json({ error: 'That time slot is not available. Please choose another time.' });
+    }
+
+    // "Only between existing appointments" — keep Ellie's days tightly packed.
+    // The new slot must butt directly against another booking that day (start
+    // where one ends, or end where one starts) so she never travels in for a
+    // single isolated client. Wall-clock reads (stored local time in the slot).
+    if (livePolicy.reschedule_between_only === true) {
+      const dayStr = String(new_starts_at).slice(0, 10);
+      const wm = (isoish) => {
+        const t = String(isoish || '').slice(11, 16);
+        const h = parseInt(t.slice(0, 2), 10); const m = parseInt(t.slice(3, 5), 10);
+        return (isNaN(h) || isNaN(m)) ? null : h * 60 + m;
+      };
+      const newStartMin = wm(new_starts_at);
+      const newEndMin = (newStartMin != null) ? newStartMin + totalMinutes : null;
+      const { data: dayAppts } = await supabase
+        .from('appointments')
+        .select('starts_at, ends_at')
+        .eq('beautician_id', appt.beautician_id)
+        .in('status', ['confirmed', 'pending', 'in_progress'])
+        .neq('id', appt.id)
+        .gte('starts_at', `${dayStr}T00:00:00`)
+        .lte('starts_at', `${dayStr}T23:59:59`);
+      const touches = (dayAppts || []).some(a => {
+        const es = wm(a.starts_at); const ee = wm(a.ends_at);
+        // Back-to-back: the new slot starts exactly when another ends, or ends
+        // exactly when another starts.
+        return (ee != null && ee === newStartMin) || (newEndMin != null && newEndMin === es);
+      });
+      if (!touches) {
+        return res.status(422).json({
+          error: "To keep the day tidy, this booking can only move to a time right before or after another appointment. Please pick one of the suggested slots.",
+          code: 'reschedule_not_adjacent',
+        });
+      }
     }
 
     // Late reschedule + the beautician requires a fresh deposit for the new slot
@@ -848,6 +901,20 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
       outcome: 'success',
     }).catch(() => {});
 
+    // iOS/web push: tell Ellie her client moved the booking themselves, deep
+    // linked to the new day. Fail-soft, never blocks the response.
+    (async () => {
+      try {
+        const who = appt.clients?.first_name || 'A client';
+        const dateStr = newStart.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+        const timeStr = String(newStart.toISOString()).slice(11, 16);
+        await pushReschedule(appt.beautician_id, who, `${dateStr} at ${timeStr}`, {
+          appointmentId: appt.id,
+          apptDate: newStart.toISOString(),
+        });
+      } catch (e) { logger.warn({ e }, 'reschedule push failed (non-fatal)'); }
+    })();
+
     // Smart gap-filling: check waitlist for the freed slot (non-blocking)
     notifyWaitlistAboutFreedSlot({
       beauticianId: appt.beautician_id,
@@ -873,6 +940,154 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
   } catch (err) {
     logger.error({ err }, 'Reschedule failed');
     res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+/**
+ * GET /api/booking/:slug/manage/:token/reschedule/slots
+ * Back-to-back reschedule slots. Used when the beautician has
+ * booking_policy.reschedule_between_only turned on: instead of a free
+ * date/time picker, the client is offered only slots that butt directly
+ * against another booking (start where one ends, or end where one starts),
+ * so days stay tightly packed and Ellie never travels in for one client.
+ *
+ * Wall-clock throughout: appointment times are stored as salon local time in
+ * the slot, so we read/build them with plain string maths, never Date tz maths.
+ */
+router.get('/:slug/manage/:token/reschedule/slots', async (req, res) => {
+  try {
+    const { data: appt } = await supabase
+      .from('appointments')
+      .select(`
+        id, starts_at, status, duration_minutes, buffer_minutes, extra_padding_minutes,
+        policy_snapshot, beautician_id,
+        beauticians(id, booking_slug, booking_policy, working_hours)
+      `)
+      .eq('management_token', req.params.token)
+      .single();
+
+    if (!appt || appt.beauticians?.booking_slug !== req.params.slug) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+    if (!['confirmed', 'pending'].includes(appt.status)) {
+      return res.status(400).json({ error: 'This booking cannot be rescheduled' });
+    }
+
+    const policy = appt.policy_snapshot || appt.beauticians?.booking_policy || {};
+    const livePolicy = appt.beauticians?.booking_policy || {};
+    const workingHours = appt.beauticians?.working_hours || null;
+    const totalMinutes = (appt.duration_minutes || 60) + (appt.buffer_minutes || 0) + (appt.extra_padding_minutes || 0);
+
+    const HORIZON_DAYS = 28;
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+    const nowMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+    const minHours = policy.min_booking_hours || 0;
+    const maxAdvanceDays = livePolicy.max_advance_days || policy.max_advance_days || 0;
+
+    const fromStr = todayStr;
+    const toDate = new Date(now.getTime() + HORIZON_DAYS * 24 * 3600 * 1000);
+    const toStr = toDate.toISOString().slice(0, 10);
+
+    // Existing live bookings (exclude the one being moved) + blocked time.
+    const [{ data: existing }, { data: exceptionRows }] = await Promise.all([
+      supabase.from('appointments')
+        .select('id, starts_at, ends_at')
+        .eq('beautician_id', appt.beautician_id)
+        .in('status', ['confirmed', 'pending', 'in_progress'])
+        .neq('id', appt.id)
+        .gte('starts_at', `${fromStr}T00:00:00`)
+        .lte('starts_at', `${toStr}T23:59:59`),
+      supabase.from('hours_exceptions')
+        .select('date, type, start_time, end_time')
+        .eq('beautician_id', appt.beautician_id)
+        .gte('date', fromStr)
+        .lte('date', toStr),
+    ]);
+
+    const wm = (isoish) => {
+      const t = String(isoish || '').slice(11, 16);
+      const h = parseInt(t.slice(0, 2), 10); const m = parseInt(t.slice(3, 5), 10);
+      return (isNaN(h) || isNaN(m)) ? null : h * 60 + m;
+    };
+    const dayOf = (isoish) => String(isoish || '').slice(0, 10);
+
+    // Group existing bookings by day.
+    const byDay = {};
+    for (const a of existing || []) {
+      const d = dayOf(a.starts_at);
+      (byDay[d] = byDay[d] || []).push({ start: wm(a.starts_at), end: wm(a.ends_at) });
+    }
+    // Blocks by day (closed all day, or specific ranges in wall minutes).
+    const blocksByDay = {};
+    const closedDays = new Set();
+    for (const r of exceptionRows || []) {
+      const isClosed = r.type ? r.type === 'closed' : true;
+      if (isClosed || !r.start_time || !r.end_time) { closedDays.add(r.date); continue; }
+      const sm = parseInt(String(r.start_time).slice(0, 2), 10) * 60 + parseInt(String(r.start_time).slice(3, 5), 10);
+      const em = parseInt(String(r.end_time).slice(0, 2), 10) * 60 + parseInt(String(r.end_time).slice(3, 5), 10);
+      (blocksByDay[r.date] = blocksByDay[r.date] || []).push([sm, em]);
+    }
+
+    const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const pad = (n) => String(n).padStart(2, '0');
+    const fmt = (mins) => `${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`;
+    const slots = [];
+    const seen = new Set();
+
+    // Only days that ALREADY have a booking can host a back-to-back slot.
+    const candidateDays = Object.keys(byDay).sort();
+    const horizonMax = maxAdvanceDays > 0
+      ? new Date(now.getTime() + maxAdvanceDays * 24 * 3600 * 1000).toISOString().slice(0, 10)
+      : null;
+
+    for (const dateStr of candidateDays) {
+      if (closedDays.has(dateStr)) continue;
+      if (dateStr < todayStr) continue;
+      if (horizonMax && dateStr > horizonMax) continue;
+
+      const dow = new Date(`${dateStr}T12:00:00Z`).getUTCDay();
+      const wh = workingHours ? workingHours[dayKeys[dow]] : { start: '09:00', end: '17:00' };
+      if (!wh || !wh.start || !wh.end) continue; // day off
+      const workStart = parseInt(wh.start.slice(0, 2), 10) * 60 + parseInt(wh.start.slice(3, 5), 10);
+      const workEnd = parseInt(wh.end.slice(0, 2), 10) * 60 + parseInt(wh.end.slice(3, 5), 10);
+
+      const dayAppts = byDay[dateStr];
+      const dayBlocks = blocksByDay[dateStr] || [];
+
+      // Candidate starts: immediately after each booking, and immediately
+      // before each booking (so the new one ends exactly as that one starts).
+      const candidates = new Set();
+      for (const a of dayAppts) {
+        if (a.end != null) candidates.add(a.end);
+        if (a.start != null) candidates.add(a.start - totalMinutes);
+      }
+
+      for (const startMin of candidates) {
+        const endMin = startMin + totalMinutes;
+        if (startMin < workStart || endMin > workEnd) continue;
+        // Future + min-notice guard (only matters for today).
+        if (dateStr === todayStr && startMin < nowMinutes + minHours * 60) continue;
+        if (dateStr < todayStr) continue;
+        // No overlap with an existing booking.
+        const clashAppt = dayAppts.some(a => a.start != null && a.end != null && startMin < a.end && endMin > a.start);
+        if (clashAppt) continue;
+        // No overlap with a blocked range.
+        const clashBlock = dayBlocks.some(([bs, be]) => startMin < be && endMin > bs);
+        if (clashBlock) continue;
+
+        const iso = `${dateStr}T${fmt(startMin)}:00`;
+        if (seen.has(iso)) continue;
+        seen.add(iso);
+        slots.push(iso);
+      }
+    }
+
+    slots.sort();
+    return res.json({ slots: slots.slice(0, 12) });
+  } catch (err) {
+    logger.error({ err }, 'Reschedule slots fetch failed');
+    return res.status(500).json({ error: 'Something went wrong' });
   }
 });
 

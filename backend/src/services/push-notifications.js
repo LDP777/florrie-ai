@@ -175,6 +175,20 @@ export async function pushNewBooking(beauticianId, clientName, treatmentName, da
   );
 }
 
+export async function pushReschedule(beauticianId, clientName, dateStr, { appointmentId = null, apptDate = null } = {}) {
+  // A client moved their own booking via the manage link. Tap -> open the
+  // calendar on the new day, with the appointment selected (same deep-link
+  // shape as a new booking). Fail-soft like every other push helper.
+  const day = apptDate ? String(apptDate).slice(0, 10) : null;
+  const url = appointmentId && day ? `/calendar/week?date=${day}&appt=${appointmentId}`
+    : appointmentId ? `/calendar/week?appt=${appointmentId}`
+    : '/calendar/week';
+  return pushTeamUpdate(beauticianId, 'booking_rescheduled',
+    `${clientName} moved their booking to ${dateStr}`,
+    { url, clientName }
+  );
+}
+
 export async function pushEscalation(beauticianId, clientName, preview) {
   const body = preview.length > 80 ? preview.slice(0, 77) + '...' : preview;
   return pushTeamUpdate(beauticianId, 'message_escalated',

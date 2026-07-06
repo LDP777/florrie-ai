@@ -471,6 +471,8 @@ export default function Settings({ onLogout }) {
         const cancelHours = policy.cancellation_notice_hours ?? 48;
         const chargePercent = policy.late_cancel_charge_percent ?? 100;
         const requireReschedDeposit = policy.require_deposit_on_late_reschedule ?? false;
+        const reschedOnce = policy.reschedule_once ?? false;
+        const reschedBetween = policy.reschedule_between_only ?? false;
 
         function savePolicy(updates) {
           saveProfile({ booking_policy: { ...policy, ...updates } });
@@ -617,6 +619,38 @@ export default function Settings({ onLogout }) {
                   </p>
                 </>
               )}
+            </div>
+
+            {/* Client reschedule controls , how much freedom clients get when
+                moving their own appointment from the manage-booking link. */}
+            <div style={styles.card}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={styles.cardTitle}>Only one reschedule</div>
+                <button
+                  onClick={() => savePolicy({ reschedule_once: !reschedOnce })}
+                  style={{ ...styles.toggle, background: reschedOnce ? 'var(--accent)' : 'var(--border)' }}
+                >
+                  <div style={{ ...styles.toggleDot, transform: reschedOnce ? 'translateX(20px)' : 'translateX(2px)' }} />
+                </button>
+              </div>
+              <p style={styles.cardDesc}>
+                Clients can move a booking once from their manage link. After that they'll be asked to contact you directly, so nobody keeps shuffling the same appointment.
+              </p>
+
+              <div style={{ height: 1, background: 'var(--border-light)', margin: '14px 0' }} />
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={styles.cardTitle}>Only offer times between existing bookings</div>
+                <button
+                  onClick={() => savePolicy({ reschedule_between_only: !reschedBetween })}
+                  style={{ ...styles.toggle, background: reschedBetween ? 'var(--accent)' : 'var(--border)' }}
+                >
+                  <div style={{ ...styles.toggleDot, transform: reschedBetween ? 'translateX(20px)' : 'translateX(2px)' }} />
+                </button>
+              </div>
+              <p style={styles.cardDesc}>
+                When a client reschedules, only show times that sit right before or after another appointment that day. Keeps your diary tight so you're never coming in for one isolated client. With this off, clients pick any free time.
+              </p>
             </div>
 
             {/* Custom client-facing cancellation note (migrated from the retired

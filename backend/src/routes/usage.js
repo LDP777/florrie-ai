@@ -133,7 +133,7 @@ router.get('/value-receipt', requireAuth, async (req, res) => {
         .or('action_type.like.gap_fill%,action_type.eq.rebook_nudge')
         .not('client_id', 'is', null),
       supabase.from('appointments')
-        .select('id, client_id, price_cents, created_at')
+        .select('id, client_id, price_cents, created_at, starts_at, clients(first_name, last_name), treatments(name)')
         .eq('beautician_id', bId)
         .gte('created_at', monthIso)
         .neq('status', 'cancelled'),
@@ -144,7 +144,12 @@ router.get('/value-receipt', requireAuth, async (req, res) => {
         .eq('deposit_paid', true),
     ]);
 
+    // Credit each appointment to at most one Florrie action, and keep an
+    // itemised trail so the breakdown screen can show exactly what was counted
+    // and why. Honest by construction: a booking only counts if it landed
+    // inside the attribution window after a real gap-fill offer or rebook nudge.
     const credited = new Set();
+    const items = [];
     let gapFillPence = 0;
     let rebookPence = 0;
     for (const action of actions || []) {
@@ -156,11 +161,25 @@ router.get('/value-receipt', requireAuth, async (req, res) => {
         const dt = new Date(appt.created_at).getTime() - t0;
         if (dt >= 0 && dt <= windowMs) {
           credited.add(appt.id);
-          if (isGap) gapFillPence += Math.round((appt.price_cents || 0) / 1);
-          else rebookPence += Math.round((appt.price_cents || 0) / 1);
+          const pence = appt.price_cents || 0;
+          if (isGap) gapFillPence += pence;
+          else rebookPence += pence;
+          const first = appt.clients?.first_name || '';
+          const lastInit = appt.clients?.last_name ? ' ' + appt.clients.last_name.charAt(0) + '.' : '';
+          items.push({
+            appointment_id: appt.id,
+            reason: isGap ? 'gap_fill' : 'rebook',
+            client: (first ? `${first}${lastInit}` : 'A client'),
+            treatment: appt.treatments?.name || 'Appointment',
+            amount_pence: pence,
+            booked_at: appt.created_at,
+            // starts_at is stored wall-clock; the client renders it with a slice.
+            appt_at: appt.starts_at || null,
+          });
         }
       }
     }
+    items.sort((a, b) => b.amount_pence - a.amount_pence);
     const depositsPence = (depositRows || []).reduce((sum, r) => sum + (r.deposit_cents || 0), 0);
     return res.json({
       month: monthIso.slice(0, 7),
@@ -170,7 +189,13 @@ router.get('/value-receipt', requireAuth, async (req, res) => {
         rebook_pence: rebookPence,
         deposits_protected_pence: depositsPence,
       },
-      counts: { credited_appointments: credited.size },
+      counts: {
+        credited_appointments: credited.size,
+        gap_fill: items.filter(i => i.reason === 'gap_fill').length,
+        rebook: items.filter(i => i.reason === 'rebook').length,
+        deposits: (depositRows || []).length,
+      },
+      items,
     });
   } catch (err) {
     logger.warn({ err }, 'value receipt failed');

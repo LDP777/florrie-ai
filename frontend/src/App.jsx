@@ -17,6 +17,7 @@ import { hapticTap } from './lib/native.js';
 // Lazy-loaded pages (code splitting , each becomes its own chunk)
 const CalendarView = lazy(() => import('./pages/CalendarView.jsx'));
 const CalendarFull = lazy(() => import('./pages/CalendarFull.jsx'));
+const ValueBreakdown = lazy(() => import('./pages/ValueBreakdown.jsx'));
 const Escalations = lazy(() => import('./pages/Escalations.jsx'));
 const ContentAutopilot = lazy(() => import('./pages/ContentAutopilot.jsx'));
 const MoneyTracker = lazy(() => import('./pages/MoneyTracker.jsx'));
@@ -366,6 +367,7 @@ export default function App() {
             <Route path="/calendar" element={<Hub />} />
             <Route path="/calendar/week" element={<Hub />} />
             <Route path="/calendar/full" element={<CalendarFull />} />
+            <Route path="/value" element={<ValueBreakdown />} />
             <Route path="/today" element={<Hub />} />
             <Route path="/escalations" element={<Escalations />} />
             <Route path="/approval-queue" element={<Navigate to="/outbox" replace />} />

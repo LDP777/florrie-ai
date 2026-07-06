@@ -229,8 +229,8 @@ export default function CalendarFull() {
       {loading && <div style={S.loading} className="cf-noprint">Loading your diary…</div>}
 
       {view === 'week'
-        ? <WeekGrid days={days} apptsOn={apptsOn} blocksOn={blocksOn} onPickDay={(d) => { setAnchor(d); }} />
-        : <MonthGrid anchor={anchor} apptsOn={apptsOn} blocksOn={blocksOn} onPickDay={(d) => { setAnchor(d); setView('week'); }} />}
+        ? <WeekGrid days={days} apptsOn={apptsOn} blocksOn={blocksOn} onPickDay={(d) => { setAnchor(d); }} onOpenAppt={(a) => navigate(`/calendar/week?date=${localDateStr(new Date(String(a.starts_at).slice(0, 10) + 'T12:00:00'))}&appt=${a.id}`)} />
+        : <MonthGrid anchor={anchor} apptsOn={apptsOn} blocksOn={blocksOn} onPickDay={(d) => navigate(`/calendar/week?date=${localDateStr(d)}&view=day`)} />}
 
       {syncOpen && <SyncPanel onClose={() => setSyncOpen(false)} />}
     </div>
@@ -238,7 +238,7 @@ export default function CalendarFull() {
 }
 
 /* ============================ WEEK GRID ============================ */
-function WeekGrid({ days, apptsOn, blocksOn = () => [], onPickDay }) {
+function WeekGrid({ days, apptsOn, blocksOn = () => [], onPickDay, onOpenAppt = () => {} }) {
   const hours = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
   const gridHeight = (END_HOUR - START_HOUR) * HOUR_HEIGHT;
   const todayStr = todayLocal();
@@ -313,9 +313,11 @@ function WeekGrid({ days, apptsOn, blocksOn = () => [], onPickDay }) {
                   const name = a.clients?.first_name || 'Booking';
                   const treat = a.treatments?.name || '';
                   return (
-                    <div
+                    <button
                       key={a.id}
-                      title={`${wallTime(a.starts_at)} ${name} , ${treat}`}
+                      type="button"
+                      onClick={() => onOpenAppt(a)}
+                      title={`${wallTime(a.starts_at)} ${name} , ${treat} , open the day`}
                       style={{
                         ...S.event,
                         top, height,
@@ -328,7 +330,7 @@ function WeekGrid({ days, apptsOn, blocksOn = () => [], onPickDay }) {
                       <div style={{ ...S.eventTime, color }}>{wallTime(a.starts_at)}</div>
                       <div style={S.eventName}>{name}</div>
                       {height > 40 && treat && <div style={S.eventTreat}>{treat}</div>}
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -544,7 +546,7 @@ const S = {
   timeLabel: { position: 'absolute', right: 6, fontSize: 10, fontWeight: 700, color: C.muted, transform: 'translateY(-6px)' },
   dayCol: { position: 'relative', borderLeft: `1px solid ${C.lineSoft}` },
   hourLine: { position: 'absolute', left: 0, right: 0, height: 1, background: C.lineSoft },
-  event: { position: 'absolute', borderRadius: 7, padding: '3px 5px', overflow: 'hidden', boxSizing: 'border-box', cursor: 'default' },
+  event: { position: 'absolute', borderRadius: 7, padding: '3px 5px', overflow: 'hidden', boxSizing: 'border-box', cursor: 'pointer', textAlign: 'left', font: 'inherit', appearance: 'none', WebkitAppearance: 'none' },
   eventTime: { fontSize: 9, fontWeight: 700 },
   eventName: { fontSize: 11, fontWeight: 700, color: C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   eventTreat: { fontSize: 9, color: C.muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },

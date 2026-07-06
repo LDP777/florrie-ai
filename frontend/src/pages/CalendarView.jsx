@@ -109,7 +109,13 @@ export default function CalendarView({ initialView } = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const { beautician, loading: bLoading } = useBeautician();
-  const [view, setView] = useState(initialView === 'week' ? 'week' : 'day');
+  const [view, setView] = useState(() => {
+    // A ?view=day deep-link (month-day tap in the full calendar) opens the day
+    // view straight away so Ellie can book into it.
+    const v = new URLSearchParams(location.search).get('view');
+    if (v === 'day') return 'day';
+    return initialView === 'week' ? 'week' : 'day';
+  });
   // Deep-link to a specific day from either navigation state (in-app pushes) or a
   // ?date=YYYY-MM-DD query param (the activity feed / "What Florrie did" links).
   const [currentDate, setCurrentDate] = useState(() => {
@@ -122,8 +128,10 @@ export default function CalendarView({ initialView } = {}) {
   // routes render Hub), so the initializer above won't re-run. Sync the day when
   // the ?date= param changes so "What Florrie did" links land on the right day.
   useEffect(() => {
-    const q = new URLSearchParams(location.search).get('date');
+    const params = new URLSearchParams(location.search);
+    const q = params.get('date');
     if (q && /^\d{4}-\d{2}-\d{2}/.test(q)) setCurrentDate(new Date(`${q.slice(0, 10)}T12:00:00`));
+    if (params.get('view') === 'day') setView('day');
   }, [location.search]);
   const [appointments, setAppointments] = useState([]);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
