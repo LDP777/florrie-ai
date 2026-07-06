@@ -941,7 +941,7 @@ router.post('/:slug/manage/:token/resend-payment', async (req, res) => {
         quantity: 1,
       }],
       payment_intent_data: {
-        application_fee_amount: Math.round(depositCents * 0.015),
+        application_fee_amount: calculatePlatformFee(depositCents),
         transfer_data: { destination: b.stripe_account_id },
         metadata: {
           appointment_id: appt.id,
