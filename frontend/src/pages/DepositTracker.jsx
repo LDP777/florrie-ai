@@ -82,6 +82,27 @@ export default function DepositTracker() {
 
   const filtered = tab === 'held' ? held : tab === 'history' ? history : deposits;
 
+  // Real deposit + cancellation terms, straight from her saved booking policy,
+  // so this card reflects what clients actually see (not a fixed placeholder).
+  const bp = beautician?.booking_policy || {};
+  const noticeHours = bp.cancellation_notice_hours ?? 48;
+  const chargePct = Math.min(bp.late_cancel_charge_percent ?? bp.no_show_charge_percent ?? 0, 100);
+  // Only claim a specific % when the deposit really is percentage-based; a
+  // fixed deposit gets a neutral line so we never quote a wrong number.
+  const depositPct = bp.deposit_type === 'percentage' ? (bp.deposit_percent ?? null) : null;
+  const policyLines = [];
+  policyLines.push(depositPct ? `A ${depositPct}% deposit secures each booking.` : 'A deposit secures each booking.');
+  if (noticeHours > 0) {
+    const notice = noticeHours % 24 === 0 ? `${noticeHours / 24} day${noticeHours / 24 === 1 ? '' : 's'}` : `${noticeHours} hours`;
+    policyLines.push(chargePct > 0
+      ? `Free to cancel or reschedule up to ${notice} before. Later than that, or a no-show, may be charged up to ${chargePct}% of the treatment.`
+      : `Free to cancel or reschedule up to ${notice} before.`);
+  } else {
+    policyLines.push('Free cancellation any time before the appointment.');
+  }
+  const hasCustomNote = !!(bp.cancellation_message && bp.cancellation_message.trim());
+
+
   // Handle deposit status changes
   const handleDepositAction = async (depositId, newStatus) => {
     try {
@@ -256,9 +277,10 @@ export default function DepositTracker() {
 
       {/* Policy reminder */}
       <div style={S.policyCard}>
-        <span style={S.policyTitle}>📌 Deposit Policy</span>
+        <span style={S.policyTitle}>📌 Your booking policy</span>
         <p style={S.policyText}>
-          Deposits are non-refundable within 24 hours of the appointment. Cancellations outside this window receive a full refund. No-shows forfeit their deposit.
+          {policyLines.join(' ')}
+          {hasCustomNote && ' Your full policy note is shown to clients on the booking page and their manage link.'}
         </p>
         <button style={S.policyLink} onClick={() => navigate('/settings?section=policy')}>Edit in Settings →</button>
       </div>
