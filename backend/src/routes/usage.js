@@ -183,7 +183,9 @@ router.get('/value-receipt', requireAuth, async (req, res) => {
     const depositsPence = (depositRows || []).reduce((sum, r) => sum + (r.deposit_cents || 0), 0);
     return res.json({
       month: monthIso.slice(0, 7),
-      total_pence: gapFillPence + rebookPence,
+      // Headline value = money Florrie's actions brought in PLUS deposits she
+      // secured on this month's bookings, per Levi's call.
+      total_pence: gapFillPence + rebookPence + depositsPence,
       parts: {
         gap_fill_pence: gapFillPence,
         rebook_pence: rebookPence,

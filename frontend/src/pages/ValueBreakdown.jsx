@@ -145,7 +145,8 @@ export default function ValueBreakdown() {
               within 48 hours of her offering an open slot (a gap fill), or within 7 days of a
               rebook nudge she sent. It's an honest estimate, not a guarantee , some of these clients
               might have booked anyway, and Florrie won't have caught every one she helped. The full
-              value of each appointment is shown; deposits are counted separately.
+              value of each appointment is shown, and the headline total also includes the deposits
+              Florrie secured on this month's bookings (listed above).
             </p>
           </div>
         </div>
