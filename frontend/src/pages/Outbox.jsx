@@ -69,11 +69,13 @@ function channelMeta(channel) {
   return { icon: 'forum', label: c ? c.charAt(0).toUpperCase() + c.slice(1) : 'Message' };
 }
 
-function firstNameOf(first, last) {
+function displayNameOf(first, last) {
+  // Show first + last so Ellie can tell apart clients who share a first name.
+  // This is a label she sees only; the client-facing message body is separate.
   const f = (first || '').trim();
-  if (f) return f;
   const l = (last || '').trim();
-  return l || 'A client';
+  if (f && l) return `${f} ${l}`;
+  return f || l || 'A client';
 }
 
 function initialOf(name) {
@@ -106,12 +108,12 @@ async function authedFetch(path, opts = {}) {
 
 // Normalise a held proactive row into the shared shape.
 function fromHold(row) {
-  const first = firstNameOf(row.clients?.first_name, row.clients?.last_name);
+  const first = displayNameOf(row.clients?.first_name, row.clients?.last_name);
   return {
     key: `hold-${row.id}`,
     kind: 'hold',
     id: row.id,
-    firstName: first,
+    displayName: first,
     regular: isRegularHold(row),
     channel: row.channel || 'whatsapp',
     typeLabel: typeLabel(row.message_type),
@@ -132,12 +134,12 @@ function fromHold(row) {
 // editable text is Florrie's suggested reply (ai_response), not the client's
 // inbound message.
 function fromEscalation(row) {
-  const first = firstNameOf(row.clients?.first_name, row.clients?.last_name);
+  const first = displayNameOf(row.clients?.first_name, row.clients?.last_name);
   return {
     key: `reply-${row.id}`,
     kind: 'reply',
     id: row.id,
-    firstName: first,
+    displayName: first,
     regular: true, // these escalations are clients Florrie knows
     channel: row.channel || 'sms',
     typeLabel: 'Reply',
@@ -474,7 +476,7 @@ function BatchCard({ batch, onSendAll, onSkipAll, onSkipOne }) {
           disabled={busy}
           style={{ ...s.approveBtn, opacity: busy ? 0.6 : 1 }}
         >
-          {busy ? 'Sending…' : `Offer it to ${live.length === 1 ? live[0].firstName : `all ${live.length}`}`}
+          {busy ? 'Sending…' : `Offer it to ${live.length === 1 ? live[0].displayName : `all ${live.length}`}`}
         </button>
         <button onClick={onSkipAll} disabled={busy} style={s.skipBtn}>Not now</button>
       </div>
@@ -483,7 +485,7 @@ function BatchCard({ batch, onSendAll, onSkipAll, onSkipOne }) {
       </button>
       {expanded && live.map(item => (
         <div key={item.id} style={s.batchRow}>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>{item.firstName}</span>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>{item.displayName}</span>
           <button
             onClick={() => { setSkipped(prev => [...prev, item.id]); onSkipOne(item.id); }}
             style={{ ...s.skipBtn, minHeight: 34, padding: '0 14px', fontSize: 12.5 }}
@@ -502,9 +504,9 @@ function BatchCard({ batch, onSendAll, onSkipAll, onSkipOne }) {
  */
 function ReviewDeck({ replies, batches, holds, onReply, onReplySkip, onBatch, onBatchSkip, onHold, onHoldSkip, onClose }) {
   const items = [
-    ...replies.map(r => ({ kind: 'reply', title: `${r.firstName} is waiting on a reply`, why: r.why, body: r.body, data: r })),
+    ...replies.map(r => ({ kind: 'reply', title: `${r.displayName} is waiting on a reply`, why: r.why, body: r.body, data: r })),
     ...batches.map(b => ({ kind: 'batch', title: `Fill the ${b.slot} gap`, why: `One yes offers it to ${b.items.length} client${b.items.length === 1 ? '' : 's'}`, body: b.items[0]?.body || '', data: b })),
-    ...holds.map(h => ({ kind: 'hold', title: `${h.firstName} · ${h.typeLabel}`, why: h.why, body: h.body, data: h })),
+    ...holds.map(h => ({ kind: 'hold', title: `${h.displayName} · ${h.typeLabel}`, why: h.why, body: h.body, data: h })),
   ];
   const [idx, setIdx] = useState(0);
   const [leaving, setLeaving] = useState(null); // 'yes' | 'no'
@@ -619,10 +621,10 @@ function ReviewCard({ item, onApprove, onSkip, onSave, skipLabel }) {
   return (
     <div style={s.card}>
       <div style={s.cardTop}>
-        <span style={s.avatar} aria-hidden>{initialOf(item.firstName)}</span>
+        <span style={s.avatar} aria-hidden>{initialOf(item.displayName)}</span>
         <div style={s.cardTopText}>
           <div style={s.nameRow}>
-            <span style={s.clientName}>{item.firstName}</span>
+            <span style={s.clientName}>{item.displayName}</span>
             {item.regular && <span style={s.regularPill}>Regular</span>}
           </div>
           <span style={s.typeLabel}>{item.typeLabel}</span>

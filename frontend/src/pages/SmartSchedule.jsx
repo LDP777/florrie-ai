@@ -487,7 +487,7 @@ export default function SmartSchedule() {
                             <div style={styles.suggestionTop}>
                               <div style={styles.suggAvatar}>{s.client.first_name[0]}</div>
                               <div style={styles.suggInfo}>
-                                <span style={styles.suggName}>{s.client.first_name}</span>
+                                <span style={styles.suggName}>{s.client.first_name} {s.client.last_name}</span>
                                 <span style={styles.suggReason}>{s.reason}</span>
                               </div>
                             </div>
@@ -574,7 +574,7 @@ export default function SmartSchedule() {
                 <div style={styles.suggestionTop}>
                   <div style={styles.suggAvatar}>{s.client.first_name[0]}</div>
                   <div style={styles.suggInfo}>
-                    <span style={styles.suggName}>{s.client.first_name}</span>
+                    <span style={styles.suggName}>{s.client.first_name} {s.client.last_name}</span>
                     <span style={styles.suggDetail}>{s.treatment.name}</span>
                   </div>
                   <span style={styles.overdueBadge}>{s.days_overdue}d overdue</span>
@@ -603,7 +603,7 @@ export default function SmartSchedule() {
                     <span style={{ color: '#E65100' }}>{s.client.first_name[0]}</span>
                   </div>
                   <div style={styles.suggInfo}>
-                    <span style={styles.suggName}>{s.client.first_name}</span>
+                    <span style={styles.suggName}>{s.client.first_name} {s.client.last_name}</span>
                     <span style={styles.suggDetail}>{s.treatment.name}</span>
                   </div>
                   <span style={{ ...styles.overdueBadge, background: '#FFF3E0', color: '#E65100' }}>{s.last_visit_days}d ago</span>

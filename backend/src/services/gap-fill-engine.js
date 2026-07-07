@@ -634,8 +634,12 @@ async function processMatch({ beauticianId, client, treatment, gap, matchType, c
   // must never read like a sent message (Ellie thought Florrie was spamming
   // when most of these were drafts waiting for her OK).
   const slotBit = `${dayLabel} ${timeLabel}`;
-  const summary = `Offered ${client.first_name} the ${slotBit} slot${treatName ? ` for a ${treatName}` : ''}`;
-  const draftSummary = `Drafted an offer for ${client.first_name}: the ${slotBit} slot (waiting for your OK)`;
+  // Full name in Ellie-facing summaries so she can tell apart clients who
+  // share a first name. The client-facing message above still greets by first
+  // name only.
+  const clientLabel = [client.first_name, client.last_name].map(v => (v || '').trim()).filter(Boolean).join(' ') || 'a client';
+  const summary = `Offered ${clientLabel} the ${slotBit} slot${treatName ? ` for a ${treatName}` : ''}`;
+  const draftSummary = `Drafted an offer for ${clientLabel}: the ${slotBit} slot (waiting for your OK)`;
 
   if (confidence >= threshold && (client.phone || client.email)) {
     // Check SMS metering
