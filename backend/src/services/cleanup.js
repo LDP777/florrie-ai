@@ -27,7 +27,10 @@ export async function cleanupStaleBookings() {
   // (b) no payment_expires_at and created more than 15 min ago
   // Also: deposit_paid can be NULL on older rows, and SQL `!= true` silently
   // drops NULLs, which left those pending bookings in the diary forever.
-  const SELECT = 'id, beautician_id, client_id, starts_at, deposit_cents, deposit_paid, payment_expires_at, google_calendar_event_id, treatments(name)';
+  // NOTE: the column is google_event_id in prod. The old select named a
+  // nonexistent google_calendar_event_id, PostgREST errored, and the error
+  // was swallowed, so this cleanup NEVER cancelled anything since launch.
+  const SELECT = 'id, beautician_id, client_id, starts_at, deposit_cents, deposit_paid, payment_expires_at, google_event_id, treatments(name)';
   const unpaid = q => q.eq('status', 'pending').gt('deposit_cents', 0).or('deposit_paid.is.null,deposit_paid.eq.false');
   const [expiredRes, agedRes] = await Promise.all([
     unpaid(supabase.from('appointments').select(SELECT)).lt('payment_expires_at', now),
@@ -74,8 +77,8 @@ export async function cleanupStaleBookings() {
       cancelled++;
 
       // Remove from Google Calendar if an event was created
-      if (appt.google_calendar_event_id) {
-        removeFromGoogleCalendar(appt.beautician_id, appt.google_calendar_event_id).catch(err =>
+      if (appt.google_event_id) {
+        removeFromGoogleCalendar(appt.beautician_id, appt.google_event_id).catch(err =>
           logger.warn({ err, appointmentId: appt.id }, 'GCal removal failed (non-fatal)')
         );
       }
@@ -101,9 +104,14 @@ export async function cleanupStaleBookings() {
       // Retention message: tell the client their slot was released and hand
       // them the rebook link, instead of leaving them thinking they booked.
       // Transactional (their own abandoned checkout), goes via the guard.
-      sendSlotReleasedMessage(appt, getBeautician).catch(err =>
-        logger.warn({ err, appointmentId: appt.id }, 'Slot-released message failed (non-fatal)')
-      );
+      // Only for FRESH expiries (last 2h): old backlog rows being swept up
+      // must not fire day-old "your slot was released" texts.
+      const expiredAtMs = appt.payment_expires_at ? new Date(appt.payment_expires_at).getTime() : 0;
+      if (expiredAtMs && Date.now() - expiredAtMs < 2 * 60 * 60 * 1000) {
+        sendSlotReleasedMessage(appt, getBeautician).catch(err =>
+          logger.warn({ err, appointmentId: appt.id }, 'Slot-released message failed (non-fatal)')
+        );
+      }
     }
   }
 
