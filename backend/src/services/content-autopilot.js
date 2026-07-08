@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { cleanReply } from '../lib/text.js';
+import { buildVoiceGuide } from './voice-profile.js';
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 
@@ -25,7 +26,7 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 export async function generateCaption(beauticianId, imageUrl, treatmentType, additionalContext) {
   const { data: beautician } = await supabase
     .from('beauticians')
-    .select('first_name, business_name, tone_model, brand_color')
+    .select('first_name, business_name, tone_model, brand_color, voice_profile')
     .eq('id', beauticianId)
     .single();
 
@@ -61,6 +62,8 @@ STYLE RULES:
 - NO excessive emojis. One or two max, only if natural.
 - British English.
 - Never use em dashes (—) or en dashes (–). Use commas, full stops, colons or line breaks instead.
+
+${buildVoiceGuide(beautician.voice_profile)}
 ${performanceContext}
 
 Return ONLY the caption text. No quotes, no explanation, no hashtag suggestions (those come separately).`,

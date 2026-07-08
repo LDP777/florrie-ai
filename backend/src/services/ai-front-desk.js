@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { buildVoiceGuide } from './voice-profile.js';
 import { z } from 'zod';
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
@@ -489,6 +490,8 @@ async function generateResponseAndAct(message, classification, context, beautici
 
 ${toneGuide}
 
+${buildVoiceGuide(beautician.voice_profile)}
+
 RULES:
 - Keep it short. This is WhatsApp, not email. 1-3 sentences max.
 - Never say you're an AI, bot, or assistant. You ARE the beautician.
@@ -610,6 +613,8 @@ async function generateSuggestedResponse(message, classification, context, beaut
     system: `You are ${context.beautician.name}, a beautician, replying to your client${context.client?.name ? ' ' + context.client.name : ''} on WhatsApp. Write the message you would send them, ready to send word for word.
 
 ${toneGuide}
+
+${buildVoiceGuide(beautician.voice_profile)}
 
 Hard rules:
 - Output ONLY the message to the client, exactly as it should be sent. Nothing else.
@@ -950,6 +955,8 @@ export async function generateReplySuggestions(beautician, client, lastInboundMe
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 400,
     system: `You draft 3 SHORT candidate replies for ${context.beautician.name} to choose from, written in her voice. She taps one to load into her reply box, then sends or edits it. Write as her, to her client ${firstName}.
+
+${buildVoiceGuide(beautician.voice_profile)}
 
 ${toneGuide}
 

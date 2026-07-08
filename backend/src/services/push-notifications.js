@@ -150,9 +150,74 @@ const ACTION_TO_AGENT = {
  * Send a push notification styled as a team update from a specific agent.
  * This is the primary notification method — all AI actions route through here.
  */
+// Settings pref keys (notification_prefs JSONB on beauticians) per push type.
+const ACTION_TO_PREF = {
+  booking_confirmed: 'booking_confirmed',
+  booking_pending: 'booking_confirmed',
+  booking_rescheduled: 'booking_confirmed',
+  booking_cancelled: 'booking_cancelled',
+  booking_auto_cancelled: 'booking_cancelled',
+  message_escalated: 'ai_escalation',
+  message_replied: 'ai_escalation',
+};
+
+// Pushes that may wake her up regardless of quiet hours.
+const URGENT_ACTIONS = new Set(['message_escalated']);
+
+/**
+ * Should this push actually fire? Enforces the per-event toggles Ellie sets
+ * in Settings (which were saved but never read at send time) and a quiet
+ * hours window (default 21:00 to 08:00 salon time) so a 2am booking stops
+ * pinging her phone at 2am. Everything suppressed here still appears in the
+ * app; this only gates the phone buzz. Fail-open: any lookup error sends.
+ */
+async function shouldPush(beauticianId, actionType) {
+  try {
+    const { data: b } = await supabase
+      .from('beauticians')
+      .select('notification_prefs, timezone')
+      .eq('id', beauticianId)
+      .maybeSingle();
+    const prefs = b?.notification_prefs || {};
+
+    // Per-event opt-out from Settings.
+    const prefKey = ACTION_TO_PREF[actionType];
+    if (prefKey && prefs[prefKey] && prefs[prefKey].push === false) {
+      return { send: false, reason: 'pref_off' };
+    }
+
+    if (URGENT_ACTIONS.has(actionType)) return { send: true };
+
+    // Quiet hours in the salon's own timezone, crossing midnight.
+    const qh = prefs.quiet_hours || {};
+    if (qh.enabled === false) return { send: true };
+    const start = qh.start || '21:00';
+    const end = qh.end || '08:00';
+    const tz = b?.timezone || 'Europe/London';
+    const hhmm = new Intl.DateTimeFormat('en-GB', {
+      timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false,
+    }).format(new Date());
+    const inWindow = start <= end
+      ? (hhmm >= start && hhmm < end)
+      : (hhmm >= start || hhmm < end);
+    if (inWindow) return { send: false, reason: 'quiet_hours' };
+
+    return { send: true };
+  } catch (err) {
+    logger.warn({ err, beauticianId, actionType }, 'shouldPush check failed, sending');
+    return { send: true };
+  }
+}
+
 export async function pushTeamUpdate(beauticianId, actionType, summary, { url, clientName } = {}) {
   const agentId = ACTION_TO_AGENT[actionType] || 'front_desk';
   const agent = AGENT_PUSH[agentId] || AGENT_PUSH.front_desk;
+
+  const verdict = await shouldPush(beauticianId, actionType);
+  if (!verdict.send) {
+    logger.info({ beauticianId, actionType, reason: verdict.reason }, 'push suppressed');
+    return { sent: 0, suppressed: verdict.reason };
+  }
 
   return sendPush(beauticianId, {
     title: `${agent.emoji} ${agent.name}`,

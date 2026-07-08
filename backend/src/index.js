@@ -28,6 +28,9 @@ import { locationScope } from './middleware/location.js';
 // Services
 import { processReminders } from './services/notifications.js';
 import { cleanupStaleBookings } from './services/cleanup.js';
+import { refreshInstagramTokens } from './services/instagram-token-refresh.js';
+import { publishScheduledPosts } from './services/content-scheduler.js';
+import { runVoiceProfileRefresh } from './services/voice-profile.js';
 import { runAutonomousCycle } from './services/autonomous-scheduler.js';
 import { autoCompletePastAppointments } from './services/auto-complete.js';
 import { runPredictiveNudges } from './services/predictive-nudge.js';
@@ -326,6 +329,35 @@ app.listen(PORT, () => {
   cleanupStaleBookings().then(r => {
     if (r?.cancelled > 0) logger.info({ cancelled: r.cancelled }, 'Startup: cancelled stale bookings');
   }).catch(() => {});
+
+  // Instagram token refresh — Business Login tokens live 60 days; a daily
+  // refresh keeps every connected account permanently fresh.
+  const IG_TOKEN_INTERVAL = 24 * 60 * 60 * 1000;
+  setInterval(() => {
+    refreshInstagramTokens()
+      .then(r => { if (r.refreshed || r.failed) logger.info({ r }, 'IG token refresh: done'); })
+      .catch(err => logger.error({ err }, 'IG token refresh: failed'));
+  }, IG_TOKEN_INTERVAL);
+  // Also run shortly after boot so a long-crashed deploy can't drift to expiry.
+  setTimeout(() => refreshInstagramTokens().catch(() => {}), 60 * 1000);
+
+  // Scheduled content posts — publish anything whose time has arrived.
+  const CONTENT_SCHED_INTERVAL = 5 * 60 * 1000;
+  setInterval(() => {
+    publishScheduledPosts()
+      .catch(err => logger.error({ err }, 'Content scheduler: failed'));
+  }, CONTENT_SCHED_INTERVAL);
+
+  // Voice profiles — weekly distil of each beautician's own writing style.
+  const VOICE_PROFILE_INTERVAL = 7 * 24 * 60 * 60 * 1000;
+  setInterval(() => {
+    runVoiceProfileRefresh()
+      .then(r => logger.info({ r }, 'Voice profile sweep: done'))
+      .catch(err => logger.error({ err }, 'Voice profile sweep: failed'));
+  }, VOICE_PROFILE_INTERVAL);
+  // Run once after boot: deploys happen more often than weekly, so in
+  // practice this keeps profiles fresh without a persistent scheduler.
+  setTimeout(() => runVoiceProfileRefresh().catch(() => {}), 5 * 60 * 1000);
 
   // Florrie autonomous scheduler , rebook nudges, gap posts, unanswered messages
   const AUTONOMOUS_INTERVAL = 2 * 60 * 60 * 1000; // every 2 hours

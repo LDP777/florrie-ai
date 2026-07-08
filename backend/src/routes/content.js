@@ -375,6 +375,50 @@ router.patch('/:id', requireAuth, async (req, res) => {
 });
 
 /**
+ * POST /api/content/:id/schedule
+ * Schedule a draft to publish itself at a chosen time. The content
+ * scheduler cron (index.js, every 5 min) does the actual publishing.
+ * Body: { scheduled_for: ISO timestamp } — or null to unschedule back to draft.
+ */
+router.post('/:id/schedule', requireAuth, async (req, res) => {
+  const { scheduled_for } = req.body;
+
+  if (scheduled_for === null) {
+    const { data, error } = await supabase
+      .from('content_posts')
+      .update({ status: 'draft', scheduled_for: null })
+      .eq('id', req.params.id)
+      .eq('beautician_id', req.beautician.id)
+      .select()
+      .single();
+    if (error) return res.status(500).json({ error: 'Something went wrong' });
+    return res.json({ post: data });
+  }
+
+  const when = new Date(scheduled_for);
+  if (isNaN(when.getTime())) {
+    return res.status(400).json({ error: 'scheduled_for must be a valid timestamp' });
+  }
+  if (when.getTime() < Date.now() - 60 * 1000) {
+    return res.status(400).json({ error: 'That time has already passed' });
+  }
+
+  const { data, error } = await supabase
+    .from('content_posts')
+    .update({ status: 'scheduled', scheduled_for: when.toISOString() })
+    .eq('id', req.params.id)
+    .eq('beautician_id', req.beautician.id)
+    .select()
+    .single();
+
+  if (error) {
+    logger.error({ err: error }, 'Failed to schedule content post');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+  res.json({ post: data });
+});
+
+/**
  * POST /api/content/:id/publish
  * One-tap approve and publish to Instagram.
  */
