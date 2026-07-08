@@ -32,6 +32,13 @@ if (import.meta.env.VITE_SENTRY_DSN) {
         if (/Script .*\/sw\.js.* load failed/i.test(message)) return null;
         if (/Maximum call stack size exceeded/i.test(message)) return null;
         if (/ResizeObserver loop|Loading chunk|Failed to fetch|NetworkError|Load failed/i.test(message)) return null;
+        // In-app browser noise (Instagram/Facebook WKWebView inject their own
+        // bridge scripts into our booking page; when those throw it is not our
+        // bug). Match on the message AND the injected function names in the
+        // stack so we never swallow a real Florrie error.
+        if (/window\.webkit\.messageHandlers|_AutofillCallbackHandler|ceCurrentVideo\.currentTime/i.test(message)) return null;
+        const frames = event?.exception?.values?.[0]?.stacktrace?.frames || [];
+        if (frames.some(f => /sendDataToNative|sendPageHideMessage|sendMessageToNative/i.test(f?.function || ''))) return null;
         return event;
       },
     });
