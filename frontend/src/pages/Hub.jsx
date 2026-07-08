@@ -539,7 +539,9 @@ function formatTime(iso) {
 function pad(n) { return String(n).padStart(2, '0'); }
 
 function nextClientName(appt) {
-  const c = appt?.client;
+  // The appointments API embeds the record as `clients` (table name);
+  // reading only `client` left every chip saying just "Client".
+  const c = appt?.clients || appt?.client;
   if (!c) return appt?.client_name || 'Client';
   const first = c.first_name?.trim();
   const last  = c.last_name?.trim();
