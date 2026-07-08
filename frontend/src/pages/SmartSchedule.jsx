@@ -27,15 +27,18 @@ const FILLABILITY = {
   low: { label: 'Tough', color: '#E57373', bg: '#FEF2F2' },
 };
 
+const DEAD_STATUSES = ['cancelled', 'cancelled_by_client', 'cancelled_by_beautician', 'no_show'];
+
 function computeSuggestions(clients, treatments) {
   const now = new Date();
   const rebook_due = [];
   const dormant_rescue = [];
 
+  const treatmentById = new Map((treatments || []).map(t => [t.id, t]));
   (clients || []).forEach(c => {
     const appts = (c.appointments || [])
-      .map(a => ({ date: new Date(a.created_at || a.starts_at), treatment: a.treatment_name, price: a.price_cents }))
-      .filter(a => !isNaN(a.date))
+      .map(a => ({ date: new Date(a.starts_at || a.created_at), treatment_id: a.treatment_id, price: a.price_cents, status: a.status }))
+      .filter(a => !isNaN(a.date) && a.date <= now && !DEAD_STATUSES.includes(a.status))
       .sort((a, b) => b.date - a.date);
 
     if (appts.length === 0) return;
@@ -51,8 +54,9 @@ function computeSuggestions(clients, treatments) {
       avgInterval = Math.round(intervals.reduce((s, v) => s + v, 0) / intervals.length) || 28;
     }
 
-    const lastTreatment = appts[0]?.treatment || 'Treatment';
-    const matchingTreatment = (treatments || []).find(t => t.name === lastTreatment) || { name: lastTreatment, duration_minutes: 45, price_cents: appts[0]?.price || 3000 };
+    const lastT = treatmentById.get(appts[0]?.treatment_id);
+    const lastTreatment = lastT?.name || 'Treatment';
+    const matchingTreatment = lastT || { name: lastTreatment, duration_minutes: 45, price_cents: appts[0]?.price || 3000 };
     const clientObj = { id: c.id, first_name: c.first_name || '', last_name: c.last_name || '' };
 
     if (daysSince >= 60) {
@@ -83,7 +87,7 @@ function computeDayStats(appts) {
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const counts = Array(7).fill(0);
   appts.forEach(a => {
-    if (!a.starts_at) return;
+    if (!a.starts_at || DEAD_STATUSES.includes(a.status)) return;
     const d = new Date(a.starts_at);
     if (!isNaN(d)) counts[d.getDay()]++;
   });
@@ -190,7 +194,8 @@ export default function SmartSchedule() {
         a.starts_at && a.starts_at.slice(0, 10) >= startStr && a.starts_at.slice(0, 10) <= endStr
       );
 
-      const computedGaps = computeGapsFromAppointments(thisWeekAppts, beautician.working_hours);
+      const treatments = await fetchRows('treatments', beautician.id);
+      const computedGaps = computeGapsFromAppointments(thisWeekAppts, beautician.working_hours, treatments);
       setGaps(computedGaps);
 
       // Coach nudge: alert about gap revenue if schedule has openings
@@ -212,7 +217,10 @@ export default function SmartSchedule() {
       const token = (await supabase?.auth.getSession())?.data?.session?.access_token;
       const [clientsResult, gapFillResult] = await Promise.all([
         supabase
-          ? supabase.from('clients').select('*, appointments(created_at, treatment_name, price_cents, starts_at)').eq('beautician_id', beautician.id)
+          // treatment_name is NOT an appointments column; selecting it made
+          // PostgREST reject the whole query, so Fill Ideas + Insights have
+          // been silently empty since this page was built.
+          ? supabase.from('clients').select('*, appointments(created_at, price_cents, starts_at, status, treatment_id)').eq('beautician_id', beautician.id)
           : Promise.resolve({ data: null }),
         token
           ? fetch(`${API_BASE}/api/features/gap-fill-suggestions`, {
@@ -222,7 +230,6 @@ export default function SmartSchedule() {
       ]);
 
       const clients = clientsResult?.data;
-      const treatments = await fetchRows('treatments', beautician.id);
       if (clients) {
         const computed = computeSuggestions(clients, treatments);
         // Merge real waitlist matches from gap-fill engine
@@ -256,9 +263,20 @@ export default function SmartSchedule() {
   }
 
   // Helper to compute gaps from real appointments and working hours
-  function computeGapsFromAppointments(appts, workingHours) {
+  function computeGapsFromAppointments(appts, workingHours, treatments) {
     const gaps = [];
     const now = new Date();
+    // Wall-clock "now" in minutes + local today string, so this-morning's
+    // gaps stop being offered at 8pm (they were listed all day).
+    const pad2 = n => String(n).padStart(2, '0');
+    const todayStr = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const durations = (treatments || []).map(t => t.duration_minutes || 60);
+    const fitInfo = mins => {
+      const fit = durations.filter(d => d <= mins).length;
+      return { fitCount: fit, fitTotal: durations.length };
+    };
+    const liveAppts = (appts || []).filter(a => !DEAD_STATUSES.includes(a.status));
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const workingDaysMap = { 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 0: 'sun', 6: 'sat' };
 
@@ -270,14 +288,14 @@ export default function SmartSchedule() {
       const dayHours = workingHours?.[dayKey];
       if (!dayHours) continue;
 
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
       const dayLabel = date.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
       const [startH, startM] = dayHours.start.split(':').map(Number);
       const [endH, endM] = dayHours.end.split(':').map(Number);
       const dayStartMins = startH * 60 + startM;
       const dayEndMins = endH * 60 + endM;
 
-      const dayAppts = appts
+      const dayAppts = liveAppts
         .filter(a => a.starts_at?.slice(0, 10) === dateStr)
         .map(a => {
           const [h, m] = a.starts_at?.slice(11, 16).split(':').map(Number) || [0, 0];
@@ -297,6 +315,7 @@ export default function SmartSchedule() {
             end: `${String(Math.floor(appt.start / 60)).padStart(2, '0')}:${String(appt.start % 60).padStart(2, '0')}`,
             duration_minutes: appt.start - currentTime,
             fillability: appt.start - currentTime >= 60 ? 'high' : 'medium',
+            ...fitInfo(appt.start - currentTime),
             suggestions: 0, // Updated after suggestions computed
           });
         }
@@ -313,12 +332,58 @@ export default function SmartSchedule() {
           end: `${String(Math.floor(dayEndMins / 60)).padStart(2, '0')}:${String(dayEndMins % 60).padStart(2, '0')}`,
           duration_minutes: dayEndMins - currentTime,
           fillability: dayEndMins - currentTime >= 90 ? 'high' : 'low',
+          ...fitInfo(dayEndMins - currentTime),
           suggestions: 0, // Updated after suggestions computed
         });
       }
     }
 
-    return gaps;
+    // Today: a gap that has already passed is not a gap. Drop finished ones,
+    // clamp in-progress ones to the next quarter hour, bin sub-15min slivers.
+    const cleaned = gaps.filter(g => {
+      if (g.date !== todayStr) return true;
+      const toMins = t => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
+      const endM = toMins(g.end);
+      if (endM <= nowMins) return false;
+      const startM = toMins(g.start);
+      if (startM < nowMins) {
+        const clamped = Math.ceil(nowMins / 15) * 15;
+        if (endM - clamped < 15) return false;
+        g.start = `${String(Math.floor(clamped / 60)).padStart(2, '0')}:${String(clamped % 60).padStart(2, '0')}`;
+        g.duration_minutes = endM - clamped;
+        const fi = fitInfo(g.duration_minutes);
+        g.fitCount = fi.fitCount; g.fitTotal = fi.fitTotal;
+      }
+      return true;
+    });
+    return cleaned;
+  }
+
+  // One tap: ask the gap-fill engine to offer this day's gap to its matched
+  // clients, THROUGH the outbound guard (so with the dial on 'ask' the offers
+  // land in the Outbox for approval, never raw sends).
+  const [fillGapState, setFillGapState] = useState({});
+  async function handleFillGap(gap) {
+    setFillGapState(prev => ({ ...prev, [gap.id]: { busy: true } }));
+    try {
+      const token = (await supabase?.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/suggestions/fill-gap`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ date: gap.date }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || 'failed');
+      let note;
+      if (d.sent > 0 && d.held > 0) note = `Offered to ${d.sent}, ${d.held} more waiting for your OK in the Outbox`;
+      else if (d.sent > 0) note = `Offered to ${d.sent} client${d.sent === 1 ? '' : 's'}`;
+      else if (d.held > 0) note = `${d.held} offer${d.held === 1 ? '' : 's'} waiting for your OK in the Outbox`;
+      else note = d.reason || 'No clients are a fit for this slot right now';
+      setFillGapState(prev => ({ ...prev, [gap.id]: { done: true, note, held: d.held > 0 } }));
+    } catch (err) {
+      logger.error('fill-gap failed:', err);
+      setFillGapState(prev => ({ ...prev, [gap.id]: { done: true, note: 'Could not send offers, try again in a moment' } }));
+    }
   }
 
   async function handleSendOffer(suggestion, context) {
@@ -456,7 +521,14 @@ export default function SmartSchedule() {
           ) : (
             <div style={styles.gapList}>
               {gaps.map(gap => {
-                const fill = FILLABILITY[gap.fillability];
+                // Plain English: say what actually fits in the gap, from her
+                // real treatment durations, not a vague Easy/Possible/Tough.
+                const fit = gap.fitTotal > 0 && gap.fitCount === gap.fitTotal
+                  ? { label: 'Any treatment fits', color: '#4CAF50', bg: '#E8F5E9' }
+                  : gap.fitCount > 0
+                  ? { label: `${gap.fitCount} treatment${gap.fitCount === 1 ? '' : 's'} fit${gap.fitCount === 1 ? 's' : ''}`, color: '#FF9800', bg: '#FFF3E0' }
+                  : { label: 'Too short to book', color: 'var(--text-muted, #B5AFA8)', bg: 'var(--bg-subtle, #F9F7F4)' };
+                const fgs = fillGapState[gap.id] || {};
                 return (
                   <div key={gap.id} style={styles.gapCard} onClick={() => setSelectedGap(selectedGap?.id === gap.id ? null : gap)}>
                     <div style={styles.gapHeader}>
@@ -466,8 +538,8 @@ export default function SmartSchedule() {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={styles.gapDuration}>{gap.duration_minutes}min</span>
-                        <span style={{ ...styles.fillBadge, background: fill.bg, color: fill.color }}>
-                          {fill.label}
+                        <span style={{ ...styles.fillBadge, background: fit.bg, color: fit.color }}>
+                          {fit.label}
                         </span>
                       </div>
                     </div>
@@ -481,6 +553,29 @@ export default function SmartSchedule() {
                     {/* Expanded suggestions */}
                     {selectedGap?.id === gap.id && (
                       <div style={styles.gapExpanded}>
+                        {/* One tap: Florrie offers this slot to matched clients,
+                            through the outbound guard (Outbox approval). */}
+                        {fgs.done ? (
+                          <div style={{ padding: '10px 12px', borderRadius: 10, background: fgs.held ? '#FDF8EE' : 'var(--bg-subtle, #F9F7F4)', fontSize: 13, color: 'var(--text-secondary, #8B6F5E)', marginBottom: 8 }}>
+                            {fgs.note}
+                            {fgs.held && (
+                              <button
+                                onClick={e => { e.stopPropagation(); navigate('/outbox'); }}
+                                style={{ ...styles.fillSecondaryBtn, marginTop: 8 }}
+                              >
+                                Review in Outbox
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <button
+                            onClick={e => { e.stopPropagation(); handleFillGap(gap); }}
+                            disabled={!!fgs.busy}
+                            style={{ ...styles.offerBtn, opacity: fgs.busy ? 0.6 : 1, marginBottom: 8 }}
+                          >
+                            {fgs.busy ? 'Finding who to offer it to...' : 'Have Florrie offer this slot'}
+                          </button>
+                        )}
                         {/* Rebook due */}
                         {suggestions.rebook_due.slice(0, gap.fillability === 'high' ? 2 : 1).map((s, i) => (
                           <div key={`rb-${i}`} style={styles.suggestionCard}>
@@ -495,16 +590,12 @@ export default function SmartSchedule() {
                               <span style={styles.suggTreatLabel}>{s.treatment.name}</span>
                               <span style={styles.suggTreatDur}>{s.treatment.duration_minutes}min · £{(s.treatment.price_cents / 100).toFixed(2)}</span>
                             </div>
-                            {messageSent[`${s.client.first_name}-${gap.id}`] ? (
-                              <span style={styles.sentBadge}>Sent ✓</span>
-                            ) : (
-                              <button
-                                onClick={e => { e.stopPropagation(); handleSendOffer(s, gap); }}
-                                style={styles.offerBtn}
-                              >
-                                Offer this slot
-                              </button>
-                            )}
+                            <button
+                              onClick={e => { e.stopPropagation(); navigate(`/inbox?client=${s.client.id}`); }}
+                              style={styles.fillSecondaryBtn}
+                            >
+                              Message her instead
+                            </button>
                           </div>
                         ))}
 
@@ -520,16 +611,12 @@ export default function SmartSchedule() {
                                 <span style={styles.suggReason}>On waitlist, wants {suggestions.waitlist_match[0].preferred_day} {suggestions.waitlist_match[0].preferred_time}</span>
                               </div>
                             </div>
-                            {messageSent[`${suggestions.waitlist_match[0].client.first_name}-${gap.id}`] ? (
-                              <span style={styles.sentBadge}>Sent ✓</span>
-                            ) : (
-                              <button
-                                onClick={e => { e.stopPropagation(); handleSendOffer(suggestions.waitlist_match[0], gap); }}
-                                style={styles.offerBtn}
-                              >
-                                Offer this slot
-                              </button>
-                            )}
+                            <button
+                              onClick={e => { e.stopPropagation(); navigate(`/inbox?client=${suggestions.waitlist_match[0].client.id}`); }}
+                              style={styles.fillSecondaryBtn}
+                            >
+                              Message her instead
+                            </button>
                           </div>
                         )}
 
@@ -581,10 +668,10 @@ export default function SmartSchedule() {
                 </div>
                 <p style={styles.suggReasonText}>{s.reason}</p>
                 <button
-                  onClick={() => handleSendOffer(s, 'sugg')}
+                  onClick={() => navigate(`/inbox?client=${s.client.id}`)}
                   style={styles.offerBtn}
                 >
-                  {messageSent[`${s.client.first_name}-sugg`] ? 'Sent ✓' : 'Send rebook nudge'}
+                  Message her
                 </button>
               </div>
             ))}
@@ -610,10 +697,10 @@ export default function SmartSchedule() {
                 </div>
                 <p style={styles.suggReasonText}>{s.reason}</p>
                 <button
-                  onClick={() => handleSendOffer(s, 'dormant')}
+                  onClick={() => navigate(`/inbox?client=${s.client.id}`)}
                   style={styles.offerBtn}
                 >
-                  {messageSent[`${s.client.first_name}-dormant`] ? 'Sent ✓' : 'Send rescue offer'}
+                  Message her
                 </button>
               </div>
             ))}
