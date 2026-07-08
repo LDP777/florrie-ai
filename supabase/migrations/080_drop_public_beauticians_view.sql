@@ -1,0 +1,21 @@
+-- 080: drop the orphaned public_beauticians view.
+--
+-- public_beauticians was a SECURITY DEFINER view over public.beauticians,
+-- created directly in the Supabase dashboard (never tracked in a migration).
+-- Because it ran as its owner (postgres), it BYPASSED beauticians RLS, and the
+-- default Data API grants gave `anon`/`authenticated` SELECT on it — i.e. anyone
+-- with the public anon key could read every beautician's profile columns,
+-- ignoring RLS. Supabase's advisor flagged it as `security_definer_view`.
+--
+-- It was unused: the public booking page reads beauticians via the backend
+-- service role (backend/src/routes/booking.js), never through this view. No
+-- code in the repo references public_beauticians. Dropped in prod 2026-07-08;
+-- recorded here so the schema history reflects the removal.
+--
+-- For reference, the safe public column set the app actually exposes (from
+-- booking.js) is: first_name, business_name, avatar_url, brand_color,
+-- brand_font, logo_url, working_hours, timezone. If a public-profile view is
+-- ever needed again, create it WITH (security_invoker = true) and expose only
+-- those columns — do not recreate a SECURITY DEFINER view.
+
+DROP VIEW IF EXISTS public.public_beauticians;
