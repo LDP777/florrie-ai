@@ -546,7 +546,7 @@ export default function SmartSchedule() {
 
                     {gap.suggestions > 0 && (
                       <span style={styles.gapSuggestHint}>
-                        {gap.suggestions} client{gap.suggestions > 1 ? 's' : ''} could fill this
+                        {gap.suggestions} idea{gap.suggestions > 1 ? 's' : ''} to fill it, tap to see
                       </span>
                     )}
 
