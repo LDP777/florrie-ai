@@ -33,7 +33,11 @@ const config: CapacitorConfig = {
   },
   ios: {
     scheme: 'Florrie',
-    contentInset: 'always',
+    // 'always' made WKWebView add the notch inset NATIVELY on top of the
+    // CSS env(safe-area-inset-top) padding (double top spacing), and let the
+    // outer scroll view park scrolled-down, leaving a dead gap at the top of
+    // Inbox/Money/Content. The CSS owns the safe area (viewport-fit=cover).
+    contentInset: 'never',
     preferredContentMode: 'mobile',
     backgroundColor: '#fef8f4',
   },
