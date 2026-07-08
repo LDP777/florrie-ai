@@ -166,6 +166,50 @@ export default function ContentAutopilot() {
       loadStreamProgress();
     }
   }, [selectedStreamId]);
+  // Plan my week: one tap, Florrie drafts the week into the Drafts tab.
+  const [planning, setPlanning] = useState(false);
+  const [planNote, setPlanNote] = useState(null);
+  async function handlePlanWeek() {
+    if (planning) return;
+    setPlanning(true);
+    setPlanNote(null);
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE}/api/content/plan-week`, {
+        method: 'POST',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || 'Could not draft the week');
+      setPlanNote(`${(d.posts || []).length} posts drafted, each with a suggested day. Approve, edit or bin them below.`);
+      setTab('drafts');
+      await loadAll();
+    } catch (err) {
+      setPlanNote(err.message);
+    } finally {
+      setPlanning(false);
+    }
+  }
+
+  async function handleApproveSchedule(post) {
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE}/api/content/${post.id}/schedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ scheduled_for: post.scheduled_for }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || 'Could not schedule');
+      setPlanNote(post.image_url
+        ? 'Scheduled. It will post itself at that time.'
+        : 'Scheduled. Add a photo before then, otherwise it drops back into Drafts instead of posting.');
+      await loadAll();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   async function loadAll() {
     setLoading(true);
     setError(null);
@@ -574,6 +618,39 @@ export default function ContentAutopilot() {
           </button>
         )}
       />
+      {/* Plan my week — the lead action (Levi, 9 Jul: planner-first) */}
+      {!composing && (
+        <div style={{
+          background: 'var(--tone-1, #FBF3EC)', borderRadius: 20, padding: '18px 18px 16px',
+          marginBottom: 14,
+        }}>
+          <h2 style={{
+            fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
+            fontSize: 20, fontWeight: 600, color: 'var(--text-primary, #241B17)', margin: '0 0 4px',
+          }}>
+            Plan my week
+          </h2>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary, #8B6F5E)', margin: '0 0 12px', lineHeight: 1.45 }}>
+            One tap and Florrie drafts a week of posts in your voice, from your real work,
+            reviews and openings. Nothing goes out until you say so.
+          </p>
+          <button
+            onClick={handlePlanWeek}
+            disabled={planning}
+            style={{
+              padding: '12px 22px', borderRadius: 12, border: 'none',
+              background: 'var(--accent, #92405E)', color: '#fff', fontSize: 14, fontWeight: 700,
+              cursor: 'pointer', fontFamily: 'inherit', opacity: planning ? 0.6 : 1,
+            }}
+          >
+            {planning ? 'Drafting your week...' : 'Draft my week'}
+          </button>
+          {planNote && (
+            <p style={{ fontSize: 12.5, color: 'var(--text-secondary, #8B6F5E)', margin: '10px 0 0' }}>{planNote}</p>
+          )}
+        </div>
+      )}
+
       {/* Stream selector pills */}
       <div style={styles.streamSelector}>
         <button
@@ -852,12 +929,26 @@ export default function ContentAutopilot() {
           {drafts.map(post => (
             <div key={post.id} style={styles.postCard}>
               {/* Type badge */}
-              <div style={{
-                ...styles.typeBadge,
-                background: post.post_type === 'last_minute_availability' ? '#FEF3C7' : '#FBF0F3',
-                color: post.post_type === 'last_minute_availability' ? '#B45309' : 'var(--accent, #C76B8A)'
-              }}>
-                {POST_TYPE_LABELS[post.post_type] || 'Post'}
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{
+                  ...styles.typeBadge,
+                  background: post.post_type === 'last_minute_availability' ? '#FEF3C7' : '#FBF0F3',
+                  color: post.post_type === 'last_minute_availability' ? '#B45309' : 'var(--accent, #C76B8A)'
+                }}>
+                  {POST_TYPE_LABELS[post.post_type] || 'Post'}
+                </div>
+                {post.scheduled_for && (
+                  <button
+                    onClick={() => handleApproveSchedule(post)}
+                    style={{
+                      padding: '4px 12px', borderRadius: 10, border: '1px solid var(--accent, #C76B8A)',
+                      background: 'transparent', color: 'var(--accent, #C76B8A)',
+                      fontSize: 11.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                    }}
+                  >
+                    Approve for {new Date(post.scheduled_for).toLocaleDateString('en-GB', { weekday: 'short' })} {new Date(post.scheduled_for).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                  </button>
+                )}
               </div>
               {/* Image */}
               {post.image_url && (

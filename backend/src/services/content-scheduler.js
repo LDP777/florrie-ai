@@ -18,7 +18,7 @@ export async function publishScheduledPosts() {
 
   const { data: due, error } = await supabase
     .from('content_posts')
-    .select('id, beautician_id, scheduled_for')
+    .select('id, beautician_id, scheduled_for, image_url')
     .eq('status', 'scheduled')
     .lte('scheduled_for', now)
     .limit(20);
@@ -34,6 +34,16 @@ export async function publishScheduledPosts() {
 
   for (const post of due) {
     try {
+      // No photo attached by post time: back to drafts rather than a failed
+      // publish (Instagram image posts need an image). She sees it waiting.
+      if (!post.image_url) {
+        await supabase.from('content_posts')
+          .update({ status: 'draft' })
+          .eq('id', post.id)
+          .eq('status', 'scheduled');
+        logger.info({ postId: post.id }, 'content scheduler: no image at post time, returned to drafts');
+        continue;
+      }
       // Atomic claim: only proceed if WE flipped it out of 'scheduled'.
       const { data: claimed } = await supabase
         .from('content_posts')

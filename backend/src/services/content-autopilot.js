@@ -314,3 +314,135 @@ export async function publishPost(beauticianId, postId) {
     return { published: false, reason: err.message };
   }
 }
+
+/**
+ * Plan my week: one tap drafts a week of posts in HER voice, from real
+ * salon data only (recent work, real reviews, real promos). Nothing is
+ * invented and nothing publishes without her approval: each draft carries a
+ * suggested day/time in scheduled_for but stays status 'draft' until she
+ * approves it (POST /api/content/:id/schedule flips it live).
+ */
+export async function planWeek(beauticianId) {
+  const { data: beautician } = await supabase
+    .from('beauticians')
+    .select('first_name, business_name, tone_model, voice_profile, booking_slug')
+    .eq('id', beauticianId)
+    .single();
+  if (!beautician) throw new Error('Beautician not found');
+
+  // Real material only.
+  const twoWeeksAgo = new Date(Date.now() - 14 * 86400000).toISOString();
+  const [apptsRes, reviewsRes, promosRes, topRes] = await Promise.all([
+    supabase.from('appointments')
+      .select('treatment_id, treatments(name)')
+      .eq('beautician_id', beauticianId)
+      .eq('status', 'completed')
+      .gte('starts_at', twoWeeksAgo.slice(0, 10))
+      .limit(100),
+    supabase.from('reviews')
+      .select('comment, rating')
+      .eq('beautician_id', beauticianId)
+      .gte('rating', 5)
+      .not('comment', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(3),
+    supabase.from('promo_codes')
+      .select('code, discount_type, discount_value, valid_until, is_active')
+      .eq('beautician_id', beauticianId)
+      .eq('is_active', true)
+      .limit(3),
+    supabase.from('content_posts')
+      .select('caption, likes')
+      .eq('beautician_id', beauticianId)
+      .eq('status', 'posted')
+      .order('likes', { ascending: false })
+      .limit(3),
+  ]);
+
+  const treatmentCounts = {};
+  for (const a of apptsRes.data || []) {
+    const n = a.treatments?.name;
+    if (n) treatmentCounts[n] = (treatmentCounts[n] || 0) + 1;
+  }
+  const topTreatments = Object.entries(treatmentCounts).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([n, c]) => `${n} (${c} recent)`);
+  const reviews = (reviewsRes.data || []).map(r => r.comment).filter(c => c && c.length > 20);
+  const now = new Date();
+  const promos = (promosRes.data || []).filter(p => !p.valid_until || new Date(p.valid_until) > now);
+  const topCaptions = (topRes.data || []).map(pst => pst.caption).filter(Boolean);
+
+  const businessName = beautician.business_name || beautician.first_name;
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 1600,
+    system: `You plan a week of Instagram posts for ${businessName}, an independent beauty professional. Respond with JSON only: an array of exactly 7 objects, each {"day": "mon|tue|wed|thu|fri|sat|sun", "post_type": "before_after|testimonial|last_minute_availability|promotion|general", "caption": "...", "hashtags": ["...", 3-6 tags]}.
+
+MIX RULES:
+- 2 or 3 before_after posts about her real recent work (treatments below).
+- 1 testimonial ONLY if a real review is provided below; quote it lightly, never invent one.
+- 1 last_minute_availability post pointing at her booking page florrie.ai/book/${beautician.booking_slug || 'book'}.
+- 1 promotion ONLY if a real promo is listed below (never invent an offer or code); otherwise another before_after or general.
+- 1 or 2 general posts: a tip, a myth-bust, or a behind-the-scenes line. Human, specific, zero filler.
+
+CAPTION RULES:
+- 1-3 short sentences, hook first, soft CTA last. British English.
+- No "transformation Tuesday", no "obsessed", no "slay", no "treat yourself", no corporate voice.
+- Never use em dashes or en dashes.
+${buildVoiceGuide(beautician.voice_profile)}
+${topCaptions.length ? `\nHer top-performing captions for rhythm reference:\n${topCaptions.map(c => `- "${c}"`).join('\n')}` : ''}`,
+    messages: [{
+      role: 'user',
+      content: `Plan this week.\nRecent work: ${topTreatments.join(', ') || 'general beauty treatments'}.\nReal reviews available: ${reviews.length ? reviews.map(r => `"${r}"`).join(' | ') : 'none'}.\nReal promos running: ${promos.length ? promos.map(pr => `${pr.code} (${pr.discount_type === 'percentage' ? pr.discount_value + '% off' : '£' + (pr.discount_value / 100).toFixed(2) + ' off'})`).join(', ') : 'none'}.`
+    }]
+  });
+
+  let plan;
+  try {
+    const text = response.content[0].text.trim().replace(/^```json?\s*|\s*```$/g, '');
+    plan = JSON.parse(text);
+    if (!Array.isArray(plan)) throw new Error('not an array');
+  } catch (err) {
+    logger.error({ err }, 'planWeek: unparseable plan');
+    throw new Error('Could not draft the week, try again');
+  }
+
+  // Suggested slot: next occurrence of each day at 18:30 (good IG time).
+  const dayIdx = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+  const created = [];
+  for (const item of plan.slice(0, 7)) {
+    const target = dayIdx[item.day] ?? 1;
+    const d = new Date();
+    let add = (target - d.getDay() + 7) % 7;
+    if (add === 0) add = 7; // never "today in the past", always the coming one
+    d.setDate(d.getDate() + add);
+    d.setHours(18, 30, 0, 0);
+
+    const validTypes = ['before_after', 'last_minute_availability', 'promotion', 'testimonial', 'general'];
+    const { data: post, error } = await supabase
+      .from('content_posts')
+      .insert({
+        beautician_id: beauticianId,
+        caption: cleanReply(String(item.caption || '').trim()),
+        hashtags: Array.isArray(item.hashtags) ? item.hashtags.slice(0, 8) : [],
+        platform: 'instagram',
+        post_type: validTypes.includes(item.post_type) ? item.post_type : 'general',
+        status: 'draft',
+        scheduled_for: d.toISOString(),
+      })
+      .select()
+      .single();
+    if (!error && post) created.push(post);
+  }
+
+  await supabase.from('ai_actions').insert({
+    beautician_id: beauticianId,
+    action_type: 'content_drafted',
+    digital_employee: 'content_creator',
+    summary: `Drafted ${created.length} posts for the week ahead`,
+    details: { post_ids: created.map(c => c.id) },
+    confidence: 1.0,
+    autonomous: false,
+    outcome: 'success',
+  });
+
+  return created;
+}

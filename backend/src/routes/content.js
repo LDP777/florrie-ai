@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
-import { createPostFromPhoto, publishPost, draftAvailabilityPost, generateCaption } from '../services/content-autopilot.js';
+import { createPostFromPhoto, publishPost, draftAvailabilityPost, generateCaption, planWeek } from '../services/content-autopilot.js';
 import logger from '../lib/logger.js';
 
 const router = Router();
@@ -42,6 +42,32 @@ router.get('/', requireAuth, async (req, res) => {
  * Upload a photo → get a draft post with caption + hashtags.
  * Body: { image_url, treatment_type?, context? }
  */
+/**
+ * POST /api/content/plan-week
+ * One tap: Florrie drafts a week of posts in her voice from real salon
+ * data. Drafts carry a suggested day (scheduled_for) but stay 'draft'
+ * until each one is approved.
+ */
+router.post('/plan-week', requireAuth, async (req, res) => {
+  try {
+    // Don't pile plans on plans: if she still has 5+ untouched drafts,
+    // nudge her to clear those first.
+    const { count } = await supabase
+      .from('content_posts')
+      .select('id', { count: 'exact', head: true })
+      .eq('beautician_id', req.beautician.id)
+      .eq('status', 'draft');
+    if ((count || 0) >= 10) {
+      return res.status(409).json({ error: 'You already have a stack of drafts. Approve or bin some first, then plan again.' });
+    }
+    const posts = await planWeek(req.beautician.id);
+    res.status(201).json({ posts });
+  } catch (err) {
+    logger.error({ err }, 'plan-week failed');
+    res.status(500).json({ error: err.message || 'Could not draft the week' });
+  }
+});
+
 router.post('/generate', requireAuth, async (req, res) => {
   const { image_url, treatment_type, context } = req.body;
 
