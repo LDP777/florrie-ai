@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useBeautician, supabase, insertRow } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
@@ -1152,7 +1153,7 @@ export default function MoneyTracker() {
               return (
                 <div
                   key={exp.id}
-                  style={S.txRow}
+                  style={{ ...S.txRow, userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
                   onTouchStart={() => startPress(exp)}
                   onTouchEnd={cancelPress}
                   onTouchMove={cancelPress}
@@ -1468,21 +1469,28 @@ export default function MoneyTracker() {
         </div>
       )}
 
-      {/* Long-press delete confirm sheet */}
-      {confirmDeleteExp && (
+      {/* Long-press delete confirm sheet. PORTALED to <body>: the page's
+          ancestors create a stacking context (backdrop filters etc.), so an
+          inline fixed sheet rendered UNDER the floating nav. Portaling +
+          zIndex above the nav (100) puts it on top; extra bottom padding
+          clears the nav pill; user-select none stops the long-press from
+          also triggering iOS text selection. */}
+      {confirmDeleteExp && createPortal(
         <div
           onClick={() => setConfirmDeleteExp(null)}
           style={{
-            position: 'fixed', inset: 0, zIndex: 1000,
+            position: 'fixed', inset: 0, zIndex: 2000,
             background: 'rgba(29,27,25,0.45)',
             display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+            userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
           }}
         >
           <div
             onClick={e => e.stopPropagation()}
             style={{
               width: '100%', maxWidth: 480, background: 'var(--bg-card, #fff)',
-              borderRadius: '18px 18px 0 0', padding: '20px 20px calc(20px + env(safe-area-inset-bottom))',
+              borderRadius: '18px 18px 0 0',
+              padding: '20px 20px calc(28px + env(safe-area-inset-bottom, 8px))',
             }}
           >
             <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 4px' }}>
@@ -1519,7 +1527,8 @@ export default function MoneyTracker() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
