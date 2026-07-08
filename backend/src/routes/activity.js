@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { computeWeekReview } from '../services/week-in-review.js';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
@@ -58,6 +59,21 @@ router.get('/feed', requireAuth, async (req, res) => {
  * Cumulative proof-of-work counts for milestone moments (first booking,
  * 100th message handled, ...). Cheap head-only counts, no rows fetched.
  */
+/**
+ * GET /api/activity/week-review
+ * The story-shaped week: same numbers the Sunday push described, rendered
+ * by the /week-review share card page.
+ */
+router.get('/week-review', requireAuth, async (req, res) => {
+  try {
+    const stats = await computeWeekReview(req.beautician.id);
+    res.json(stats);
+  } catch (err) {
+    logger.error({ err }, 'week-review stats failed');
+    res.status(500).json({ error: 'Could not build your week review' });
+  }
+});
+
 router.get('/stats', requireAuth, async (req, res) => {
   try {
     const bid = req.beautician.id;

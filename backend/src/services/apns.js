@@ -96,14 +96,19 @@ function getProviderJwt() {
  * Resolves { ok, status, reason } - or null when APNs isn't configured /
  * the connection failed. Never rejects.
  */
-export function sendApnsNotification(deviceToken, { title, body, badge, data } = {}) {
+export function sendApnsNotification(deviceToken, { title, body, badge, data, sound } = {}) {
   const jwt = getProviderJwt();
   if (!jwt) return Promise.resolve(null);
 
+  // Custom signature sounds (bloom-good.caf / bloom-needsyou.caf) only when
+  // the files are bundled in the iOS app. iOS plays SILENCE for a named
+  // sound that is missing from the bundle, so this is env-gated: set
+  // APNS_CUSTOM_SOUNDS=true after the audio files ship in a build.
+  const customOk = process.env.APNS_CUSTOM_SOUNDS === 'true';
   const payload = JSON.stringify({
     aps: {
       alert: { title: title || 'florrie.ai', body: body || '' },
-      sound: 'default',
+      sound: (customOk && sound) ? sound : 'default',
       ...(Number.isFinite(badge) ? { badge } : {}),
     },
     data: data || {},
@@ -176,7 +181,7 @@ export function sendApnsNotification(deviceToken, { title, body, badge, data } =
  * Dead tokens (410 / BadDeviceToken / Unregistered / ExpiredToken) are
  * deleted so the table self-cleans. Never throws.
  */
-export async function sendApnsToBeautician(beauticianId, { title, body, badge, data } = {}) {
+export async function sendApnsToBeautician(beauticianId, { title, body, badge, data, sound } = {}) {
   if (!isApnsConfigured()) return null;
 
   let tokens;
@@ -201,7 +206,7 @@ export async function sendApnsToBeautician(beauticianId, { title, body, badge, d
   const dead = [];
 
   for (const { token } of tokens) {
-    const result = await sendApnsNotification(token, { title, body, badge, data });
+    const result = await sendApnsNotification(token, { title, body, badge, data, sound });
     if (result?.ok) {
       sent++;
     } else if (result && (

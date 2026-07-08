@@ -1026,6 +1026,91 @@ export default function Settings({ onLogout }) {
                 saveProfile({ notification_prefs: np });
               }}
             />
+            <NotificationToggle
+              label="Daily takings"
+              desc="Your evening money summary, with the good news called out"
+              prefs={beautician.notification_prefs?.daily_summary || { email: false, push: true }}
+              onChange={v => {
+                const np = { ...(beautician.notification_prefs || {}), daily_summary: v };
+                saveProfile({ notification_prefs: np });
+              }}
+            />
+            <NotificationToggle
+              label="Milestones"
+              desc="First £1k week, fully booked days, client number 100"
+              prefs={beautician.notification_prefs?.milestones || { email: false, push: true }}
+              onChange={v => {
+                const np = { ...(beautician.notification_prefs || {}), milestones: v };
+                saveProfile({ notification_prefs: np });
+              }}
+            />
+            <NotificationToggle
+              label="Week in review"
+              desc="Sunday evening: what Florrie handled for you this week"
+              prefs={beautician.notification_prefs?.weekly_review || { email: false, push: true }}
+              onChange={v => {
+                const np = { ...(beautician.notification_prefs || {}), weekly_review: v };
+                saveProfile({ notification_prefs: np });
+              }}
+            />
+          </div>
+
+          <div style={styles.card}>
+            <h3 style={styles.cardTitle}>Quiet hours</h3>
+            <p style={styles.cardDesc}>
+              Off by default so you never miss Florrie working for you overnight.
+              Turn on to hold non-urgent pings during the hours you choose
+              (escalations always come through). Everything held still shows in the app.
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
+              <span style={{ fontSize: 14, color: 'var(--text-primary)' }}>Hold pushes overnight</span>
+              <button
+                onClick={() => {
+                  const qh = beautician.notification_prefs?.quiet_hours || {};
+                  const np = { ...(beautician.notification_prefs || {}), quiet_hours: { ...qh, enabled: qh.enabled !== true } };
+                  saveProfile({ notification_prefs: np });
+                }}
+                style={{
+                  width: 48, height: 28, borderRadius: 14, border: 'none', cursor: 'pointer',
+                  background: beautician.notification_prefs?.quiet_hours?.enabled === true ? 'var(--accent-rose, #C76B8A)' : '#E5E0DB',
+                  position: 'relative', transition: 'background 0.15s ease',
+                }}
+                aria-label="Toggle quiet hours"
+              >
+                <span style={{
+                  position: 'absolute', top: 3,
+                  left: beautician.notification_prefs?.quiet_hours?.enabled === true ? 23 : 3,
+                  width: 22, height: 22, borderRadius: 11, background: '#fff',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.15s ease',
+                }} />
+              </button>
+            </div>
+            {beautician.notification_prefs?.quiet_hours?.enabled === true && (
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', paddingTop: 4 }}>
+                <label style={{ fontSize: 13, color: 'var(--text-secondary)' }}>From</label>
+                <input
+                  type="time"
+                  value={beautician.notification_prefs?.quiet_hours?.start || '21:00'}
+                  onChange={e => {
+                    const qh = beautician.notification_prefs?.quiet_hours || {};
+                    const np = { ...(beautician.notification_prefs || {}), quiet_hours: { ...qh, enabled: true, start: e.target.value } };
+                    saveProfile({ notification_prefs: np });
+                  }}
+                  style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border, #EDE9E4)', fontFamily: 'inherit', fontSize: 13 }}
+                />
+                <label style={{ fontSize: 13, color: 'var(--text-secondary)' }}>to</label>
+                <input
+                  type="time"
+                  value={beautician.notification_prefs?.quiet_hours?.end || '08:00'}
+                  onChange={e => {
+                    const qh = beautician.notification_prefs?.quiet_hours || {};
+                    const np = { ...(beautician.notification_prefs || {}), quiet_hours: { ...qh, enabled: true, end: e.target.value } };
+                    saveProfile({ notification_prefs: np });
+                  }}
+                  style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border, #EDE9E4)', fontFamily: 'inherit', fontSize: 13 }}
+                />
+              </div>
+            )}
           </div>
 
           <div style={styles.card}>

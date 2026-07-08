@@ -143,7 +143,9 @@ async function incrementMonthlyUsage(beauticianId, channel) {
     p_overage_pence: OVERAGE_PENCE,
   });
   if (!error && data) {
-    return Array.isArray(data) ? data[0] : data;
+    const row = Array.isArray(data) ? data[0] : data;
+    if (channel === 'sms') warnIfSmsHeavy(beauticianId, row);
+    return row;
   }
   if (error) {
     logger.warn({ err: error, beauticianId }, 'increment_message_usage RPC unavailable; using non-atomic fallback');
@@ -176,6 +178,22 @@ async function incrementMonthlyUsage(beauticianId, channel) {
  * Record a sent WhatsApp message. Call AFTER a successful send.
  * Returns the updated usage row (or null on error).
  */
+/**
+ * Margin guardrail: SMS costs ~3x a WhatsApp utility template, so a tenant
+ * whose mix drifts past 30% SMS (with real volume) erodes the 90% target.
+ * Logged as a warning for ops visibility; the margin SQL in
+ * docs/sql/margin_per_tenant.sql gives the full per-tenant picture.
+ */
+function warnIfSmsHeavy(beauticianId, usage) {
+  try {
+    const sms = usage?.sms_sent || 0;
+    const total = sms + (usage?.whatsapp_sent || 0);
+    if (total >= 20 && sms / total > 0.3) {
+      logger.warn({ beauticianId, sms, total, share: Math.round((sms / total) * 100) }, 'margin guardrail: SMS share above 30% this month');
+    }
+  } catch { /* never let a guardrail break metering */ }
+}
+
 export async function trackWhatsAppMessage(beauticianId) {
   try {
     const updated = await incrementMonthlyUsage(beauticianId, 'whatsapp');

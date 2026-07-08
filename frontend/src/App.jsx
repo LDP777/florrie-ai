@@ -63,6 +63,7 @@ const WaitlistPro = lazy(() => import('./pages/WaitlistPro.jsx'));
 const ClientTimeline = lazy(() => import('./pages/ClientTimeline.jsx'));
 const StaffRota = lazy(() => import('./pages/StaffRota.jsx'));
 const DepositTracker = lazy(() => import('./pages/DepositTracker.jsx'));
+const WeekReview = lazy(() => import('./pages/WeekReview.jsx'));
 const AddOns = lazy(() => import('./pages/AddOns.jsx'));
 const CancellationLog = lazy(() => import('./pages/CancellationLog.jsx'));
 const ClientTags = lazy(() => import('./pages/ClientTags.jsx'));
@@ -415,6 +416,7 @@ export default function App() {
             <Route path="/client-timeline" element={<ClientTimeline />} />
             <Route path="/rota" element={<PlanGate feature="staff_rota"><StaffRota /></PlanGate>} />
             <Route path="/deposits" element={<DepositTracker />} />
+            <Route path="/week-review" element={<WeekReview />} />
             <Route path="/addons" element={<AddOns />} />
             <Route path="/cancellations" element={<CancellationLog />} />
             <Route path="/tags" element={<ClientTags />} />

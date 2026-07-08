@@ -34,7 +34,7 @@ if (VAPID_PUBLIC && VAPID_PRIVATE) {
  * APNs (iOS app device tokens). Each leg is fail-soft: one channel being
  * down or unconfigured never blocks the other, and neither ever throws.
  */
-export async function sendPush(beauticianId, { title, body, icon, url, tag, data }) {
+export async function sendPush(beauticianId, { title, body, icon, url, tag, data, sound }) {
   let webResult = null;
   try {
     webResult = await sendWebPush(beauticianId, { title, body, icon, url, tag, data });
@@ -48,6 +48,7 @@ export async function sendPush(beauticianId, { title, body, icon, url, tag, data
       title: title || 'florrie.ai',
       body,
       data: { ...(data || {}), url: url || '/' },
+      sound,
     });
   } catch (err) {
     logger.warn({ err, beauticianId }, 'APNs fan-out failed');
@@ -128,6 +129,9 @@ const ACTION_TO_AGENT = {
   message_escalated: 'front_desk',
   booking_confirmed: 'front_desk',
   booking_pending: 'front_desk',
+  daily_money_summary: 'bookkeeper',
+  milestone: 'business_coach',
+  weekly_review: 'business_coach',
   booking_rescheduled: 'front_desk',
   booking_cancelled: 'front_desk',
   booking_auto_cancelled: 'front_desk',
@@ -152,6 +156,9 @@ const ACTION_TO_AGENT = {
  */
 // Settings pref keys (notification_prefs JSONB on beauticians) per push type.
 const ACTION_TO_PREF = {
+  daily_money_summary: 'daily_summary',
+  milestone: 'milestones',
+  weekly_review: 'weekly_review',
   booking_confirmed: 'booking_confirmed',
   booking_pending: 'booking_confirmed',
   booking_rescheduled: 'booking_confirmed',
@@ -163,6 +170,18 @@ const ACTION_TO_PREF = {
 
 // Pushes that may wake her up regardless of quiet hours.
 const URGENT_ACTIONS = new Set(['message_escalated']);
+
+// The signature sound language: she learns to feel the difference in her
+// pocket without looking. Good news = soft two-note bloom; needs-you = a
+// gentler single note. Files must be bundled in the iOS target (see
+// docs/NOTIFICATION_SOUNDS.md); env-gated in apns.js until they are.
+const GOOD_NEWS = new Set(['booking_confirmed', 'booking_rescheduled', 'gap_post', 'review_request', 'daily_money_summary', 'milestone', 'weekly_review', 'value_coaching', 'income_logged']);
+const NEEDS_YOU = new Set(['message_escalated', 'booking_pending', 'booking_cancelled', 'booking_auto_cancelled', 'channel_failover']);
+function soundFor(actionType) {
+  if (GOOD_NEWS.has(actionType)) return 'bloom-good.caf';
+  if (NEEDS_YOU.has(actionType)) return 'bloom-needsyou.caf';
+  return undefined; // default system sound
+}
 
 /**
  * Should this push actually fire? Enforces the per-event toggles Ellie sets
@@ -227,6 +246,7 @@ export async function pushTeamUpdate(beauticianId, actionType, summary, { url, c
     url: url || '/',
     tag: `team-${agentId}-${Date.now()}`,
     data: { agentId, actionType, clientName },
+    sound: soundFor(actionType),
   });
 }
 

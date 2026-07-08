@@ -29,6 +29,8 @@ import { locationScope } from './middleware/location.js';
 import { processReminders } from './services/notifications.js';
 import { cleanupStaleBookings } from './services/cleanup.js';
 import { refreshInstagramTokens } from './services/instagram-token-refresh.js';
+import { runMoneyMoments } from './services/money-moments.js';
+import { runWeekInReview } from './services/week-in-review.js';
 import { publishScheduledPosts } from './services/content-scheduler.js';
 import { runVoiceProfileRefresh } from './services/voice-profile.js';
 import { runAutonomousCycle } from './services/autonomous-scheduler.js';
@@ -347,6 +349,18 @@ app.listen(PORT, () => {
     publishScheduledPosts()
       .catch(err => logger.error({ err }, 'Content scheduler: failed'));
   }, CONTENT_SCHED_INTERVAL);
+
+  // Money moments + week in review — hourly tick; each fires in the
+  // beautician's own local evening window and dedupes itself.
+  const MOMENTS_INTERVAL = 60 * 60 * 1000;
+  setInterval(() => {
+    runMoneyMoments().catch(err => logger.error({ err }, 'Money moments: failed'));
+    runWeekInReview().catch(err => logger.error({ err }, 'Week in review: failed'));
+  }, MOMENTS_INTERVAL);
+  setTimeout(() => {
+    runMoneyMoments().catch(() => {});
+    runWeekInReview().catch(() => {});
+  }, 2 * 60 * 1000);
 
   // Voice profiles — weekly distil of each beautician's own writing style.
   const VOICE_PROFILE_INTERVAL = 7 * 24 * 60 * 60 * 1000;
