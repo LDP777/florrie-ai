@@ -33,7 +33,7 @@ export async function computeWeekReview(beauticianId) {
   const fromIso = from.toISOString();
   const toIso = to.toISOString();
 
-  const [msgRes, actionsRes, txRes, bookingsRes] = await Promise.all([
+  const [msgRes, actionsRes, apptsRes, txRes, bookingsRes] = await Promise.all([
     supabase.from('messages')
       .select('id', { count: 'exact', head: true })
       .eq('beautician_id', beauticianId)
@@ -41,10 +41,15 @@ export async function computeWeekReview(beauticianId) {
       .eq('ai_handled', true)
       .gte('created_at', fromIso).lt('created_at', toIso),
     supabase.from('ai_actions')
-      .select('action_type')
+      .select('action_type, client_id, created_at')
       .eq('beautician_id', beauticianId)
       .gte('created_at', fromIso).lt('created_at', toIso)
       .limit(2000),
+    supabase.from('appointments')
+      .select('id, client_id, created_at')
+      .eq('beautician_id', beauticianId)
+      .gte('created_at', fromIso).lt('created_at', toIso)
+      .neq('status', 'cancelled'),
     supabase.from('transactions')
       .select('amount_cents')
       .eq('beautician_id', beauticianId)
@@ -58,14 +63,42 @@ export async function computeWeekReview(beauticianId) {
 
   const messagesAnswered = msgRes.count || 0;
   const actions = actionsRes.data || [];
-  const gapsFilled = actions.filter(a => String(a.action_type).startsWith('gap_fill')).length;
-  const broughtBack = actions.filter(a => ['rebook_nudge', 'comeback', 'gap_fill_dormant_rescue'].includes(a.action_type)).length;
-  const totalHandled = actions.length + messagesAnswered;
+  const appts = apptsRes.data || [];
+
+  // Gaps filled / clients brought back use the SAME attribution as the value
+  // receipt (usage.js): a booking only counts if it landed within the window
+  // after a real offer to that client, one credit per booking. Raw action
+  // counts overstate wildly (every engine log line is an action).
+  const credited = new Set();
+  let gapsFilled = 0;
+  let broughtBack = 0;
+  for (const action of actions) {
+    const type = String(action.action_type || '');
+    const isGap = type.startsWith('gap_fill');
+    const isRebook = type === 'rebook_nudge' || type === 'comeback';
+    if ((!isGap && !isRebook) || !action.client_id) continue;
+    const windowMs = (isGap ? 48 : 168) * 3600 * 1000;
+    const t0 = new Date(action.created_at).getTime();
+    for (const appt of appts) {
+      if (appt.client_id !== action.client_id || credited.has(appt.id)) continue;
+      const dt = new Date(appt.created_at).getTime() - t0;
+      if (dt >= 0 && dt <= windowMs) {
+        credited.add(appt.id);
+        if (isGap) gapsFilled++;
+        else broughtBack++;
+      }
+    }
+  }
+
+  // "Handled" = real front-desk work, not engine diagnostics.
+  const REAL_WORK = new Set(['message_replied', 'booking_created', 'booking_confirmed', 'booking_auto_cancelled', 'rebook_nudge', 'comeback', 'review_request', 'aftercare_sent', 'content_posted']);
+  const realActions = actions.filter(a => REAL_WORK.has(a.action_type) || String(a.action_type).startsWith('gap_fill')).length;
+  const totalHandled = realActions + messagesAnswered;
   const takingsPence = (txRes.data || []).reduce((s, t) => s + (t.amount_cents || 0), 0);
   const bookingsTaken = bookingsRes.count || 0;
 
-  // Honest time estimate: ~3 min per handled message, ~5 min per admin action.
-  const minutesSaved = messagesAnswered * 3 + actions.length * 5;
+  // Honest time estimate: ~3 min per handled message, ~5 min per real action.
+  const minutesSaved = messagesAnswered * 3 + realActions * 5;
   const hoursSaved = Math.max(1, Math.round(minutesSaved / 60));
 
   return {
