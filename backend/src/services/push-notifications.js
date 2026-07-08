@@ -166,10 +166,11 @@ const URGENT_ACTIONS = new Set(['message_escalated']);
 
 /**
  * Should this push actually fire? Enforces the per-event toggles Ellie sets
- * in Settings (which were saved but never read at send time) and a quiet
- * hours window (default 21:00 to 08:00 salon time) so a 2am booking stops
- * pinging her phone at 2am. Everything suppressed here still appears in the
- * app; this only gates the phone buzz. Fail-open: any lookup error sends.
+ * in Settings (which were saved but never read at send time), plus an
+ * OPT-IN quiet hours window. Quiet hours default OFF (Levi, 9 Jul): a 2am
+ * booking ping is Florrie proving she works while the beautician sleeps,
+ * so nothing is suppressed unless she explicitly turns quiet hours on in
+ * her prefs. Everything suppressed still appears in the app. Fail-open.
  */
 async function shouldPush(beauticianId, actionType) {
   try {
@@ -188,9 +189,10 @@ async function shouldPush(beauticianId, actionType) {
 
     if (URGENT_ACTIONS.has(actionType)) return { send: true };
 
-    // Quiet hours in the salon's own timezone, crossing midnight.
+    // Quiet hours: OPT-IN only. No quiet_hours pref, or enabled !== true,
+    // means every push lands, whatever the hour.
     const qh = prefs.quiet_hours || {};
-    if (qh.enabled === false) return { send: true };
+    if (qh.enabled !== true) return { send: true };
     const start = qh.start || '21:00';
     const end = qh.end || '08:00';
     const tz = b?.timezone || 'Europe/London';
