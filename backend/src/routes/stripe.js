@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
+import { pushBookingConfirmed } from '../services/push-notifications.js';
 import { cleanupStripeEvents } from '../services/stripe-cleanup.js';
 import { calculatePlatformFee, getFeeDescription } from '../lib/platform-fees.js';
 import { chargePolicyFee } from '../services/policy-fees.js';
@@ -796,6 +797,34 @@ router.post('/webhook', async (req, res) => {
           notifyBookingConfirmed(appointmentId).catch(err =>
             logger.warn({ err }, 'Post-payment confirmation notification failed (non-fatal)')
           );
+
+          // Tell the beautician the money landed. The push at booking time
+          // said "deposit not paid yet"; this is the confirming second beat.
+          (async () => {
+            try {
+              const { data: appt } = await supabase
+                .from('appointments')
+                .select('id, starts_at, clients(first_name), treatments(name)')
+                .eq('id', appointmentId)
+                .maybeSingle();
+              if (!appt) return;
+              // Wall-time convention: read the display time off the string.
+              const day = String(appt.starts_at || '').slice(0, 10);
+              const time = String(appt.starts_at || '').slice(11, 16);
+              const dateLabel = day
+                ? `${new Date(`${day}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} at ${time}`
+                : 'their appointment';
+              await pushBookingConfirmed(
+                beauticianId,
+                appt.clients?.first_name || 'A client',
+                appt.treatments?.name || 'their treatment',
+                dateLabel,
+                { appointmentId, apptDate: appt.starts_at }
+              );
+            } catch (err) {
+              logger.warn({ err }, 'Deposit-paid push failed (non-fatal)');
+            }
+          })();
         }
 
         // Course enrollment deposit payment

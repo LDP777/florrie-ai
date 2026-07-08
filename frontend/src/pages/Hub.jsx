@@ -355,10 +355,20 @@ function TodaySummary({ beautician, onNav }) {
         // They silently drag "potential" down, so flag them rather than hide it.
         const needsPrice = live.filter(a => apptPrice(a) === 0).length;
 
+        // starts_at stores salon WALL time inside the UTC slot, so compare and
+        // sort on the raw string (Date-parsing shifts +1h in BST).
+        const hhmm = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+        const wallNow = `${start}T${hhmm}`;
+        const byTime = (a, b) => String(a.starts_at).localeCompare(String(b.starts_at));
         const upcoming = today
-          .filter(a => new Date(a.starts_at) > now)
-          .sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
+          .filter(a => String(a.starts_at).slice(0, 16) > wallNow)
+          .sort(byTime);
         const next = upcoming[0] || null;
+
+        // The day's client list, in time order, for the strip under the stats.
+        // Ellie: "the Today page doesn't actually show who is in that day."
+        // Real bookings only (no unpaid pendings cluttering the day).
+        const dayClients = [...today].sort(byTime);
 
         // Messages waiting: derive from /api/agents/counts if possible.
         let messagesWaiting = 0;
@@ -377,6 +387,8 @@ function TodaySummary({ beautician, onNav }) {
           next,
           messagesWaiting,
           totalToday: today.length,
+          dayClients,
+          todayIso: start,
         });
       } catch {
         if (!cancelled) setError(true);
@@ -421,6 +433,29 @@ function TodaySummary({ beautician, onNav }) {
         <div style={TS.divider} />
         <Stat label="Next" value={nextLabel} sub={nextSub} wide />
       </div>
+
+      {/* Who's in today — the day at a glance, in time order. Tap = open on
+          the calendar. Completed ones dim with a tick. */}
+      {(data.dayClients || []).length > 0 && (
+        <div style={TS.clientStrip} aria-label="Today's clients">
+          {data.dayClients.map(a => {
+            const done = a.status === 'completed';
+            return (
+              <button
+                key={a.id}
+                onClick={() => onNav(`/calendar/week?date=${data.todayIso}&appt=${a.id}`)}
+                style={{ ...TS.clientChip, ...(done ? TS.clientChipDone : {}) }}
+              >
+                <span style={TS.clientChipTime}>{done ? '✓' : formatTime(a.starts_at)}</span>
+                <span style={TS.clientChipName}>{nextClientName(a)}</span>
+                {(a.treatments?.name || a.treatment_name) && (
+                  <span style={TS.clientChipTreat}>{a.treatments?.name || a.treatment_name}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {data.needsPrice > 0 && (
         <button onClick={() => onNav('/calendar')} style={TS.priceFlag} aria-label={`${data.needsPrice} bookings need a price`}>
@@ -495,10 +530,13 @@ function formatGbp(pence) {
 }
 
 function formatTime(iso) {
-  try {
-    return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  } catch { return ''; }
+  // starts_at stores salon WALL time inside the UTC slot, so read it straight
+  // off the string. Intl-converting shifted every displayed time +1h in BST.
+  const t = String(iso || '').slice(11, 16);
+  return /^\d\d:\d\d$/.test(t) ? t : '';
 }
+
+function pad(n) { return String(n).padStart(2, '0'); }
 
 function nextClientName(appt) {
   const c = appt?.client;
@@ -622,6 +660,57 @@ const TS = {
     width: 1,
     background: 'rgba(255,255,255,0.18)',
     alignSelf: 'stretch',
+  },
+  clientStrip: {
+    display: 'flex',
+    gap: 8,
+    overflowX: 'auto',
+    WebkitOverflowScrolling: 'touch',
+    scrollbarWidth: 'none',
+    margin: '2px -18px 12px',
+    padding: '0 18px',
+  },
+  clientChip: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: 1,
+    flexShrink: 0,
+    maxWidth: 150,
+    padding: '8px 12px',
+    borderRadius: 14,
+    border: '1px solid rgba(255,255,255,0.22)',
+    background: 'rgba(255,255,255,0.12)',
+    color: '#fff',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    textAlign: 'left',
+  },
+  clientChipDone: {
+    opacity: 0.55,
+  },
+  clientChipTime: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: 'rgba(255,255,255,0.75)',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  clientChipName: {
+    fontSize: 13,
+    fontWeight: 700,
+    color: '#fff',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    maxWidth: 126,
+  },
+  clientChipTreat: {
+    fontSize: 10.5,
+    color: 'rgba(255,255,255,0.7)',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    maxWidth: 126,
   },
   stat: {
     display: 'flex',

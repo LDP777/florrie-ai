@@ -110,6 +110,11 @@ export default function BookingPage() {
   const [beautician, setBeautician] = useState(null);
   const [treatments, setTreatments] = useState([]);
   const [slots, setSlots] = useState([]);
+  // Availability fetch failed (rate limit / network): fail CLOSED. Showing
+  // every slot as free when we could not load the booked ones is how times
+  // "move around" between refreshes and how double-bookings happen.
+  const [availError, setAvailError] = useState(false);
+  const [availRetryNonce, setAvailRetryNonce] = useState(0);
   // Calendar (Step 1) state. calMonth = first-of-month Date for the visible month.
   // monthAppointments/monthClosures hold the availability-range payload for that month.
   const [calMonth, setCalMonth] = useState(null);
@@ -124,6 +129,10 @@ export default function BookingPage() {
   const [calLoading, setCalLoading] = useState(false);
   // User selections, multi-treatment support
   const [selectedTreatments, setSelectedTreatments] = useState([]);
+  // Which treatment's description is expanded (via the little info button).
+  // Descriptions used to render inline on every card, which made the list
+  // huge and uneven; now they sit behind an "i" tap.
+  const [descOpenId, setDescOpenId] = useState(null);
   const selectedTreatment = selectedTreatments[0] || null; // primary treatment for backwards compat
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedSlot, setSelectedSlot] = useState(null);
@@ -466,15 +475,31 @@ export default function BookingPage() {
       let appts = [];
       let dayBlocks = [];
       let dayClosed = false;
-      try {
-        const avRes = await fetch(`${API_BASE}/api/booking/${slug}/availability?date=${selectedDate}`);
-        if (avRes.ok) {
-          const av = await avRes.json();
-          appts = av.appointments || [];
-          dayBlocks = av.blocks || [];
-          dayClosed = av.closed === true;
+      setAvailError(false);
+      // On failure (rate limit, flaky mobile signal) retry once, then fail
+      // CLOSED: show a "try again" note instead of pretending every time is
+      // free. The old catch fell through with appts=[] so a failed fetch
+      // offered slots that were actually booked, and the list visibly jumped
+      // between "everything free" and reality on each refresh.
+      let av = null;
+      for (let attempt = 0; attempt < 2 && !av; attempt++) {
+        try {
+          const avRes = await fetch(`${API_BASE}/api/booking/${slug}/availability?date=${selectedDate}`);
+          if (avRes.ok) av = await avRes.json();
+          else if (attempt === 0) await new Promise(r => setTimeout(r, 1200));
+        } catch {
+          if (attempt === 0) await new Promise(r => setTimeout(r, 1200));
         }
-      } catch { appts = []; }
+      }
+      if (!av) {
+        setSlots([]);
+        setSelectedSlot(null);
+        setAvailError(true);
+        return;
+      }
+      appts = av.appointments || [];
+      dayBlocks = av.blocks || [];
+      dayClosed = av.closed === true;
       if (dayClosed) {
         setSlots([]);
         setSelectedSlot(null);
@@ -509,7 +534,7 @@ export default function BookingPage() {
       setSelectedSlot(null);
     }
     loadSlots();
-  }, [selectedDate, selectedTreatments, beautician, combinedDuration]);
+  }, [selectedDate, selectedTreatments, beautician, combinedDuration, availRetryNonce]);
   // --- Calendar helpers (Step 1 month grid) ---------------------------------
   // Build a YYYY-MM-DD from LOCAL date parts (never toISOString, which can shift
   // the day under BST).
@@ -549,14 +574,18 @@ export default function BookingPage() {
     (async () => {
       try {
         const res = await fetch(`${API_BASE}/api/booking/${slug}/availability-range?from=${from}&to=${to}`);
-        if (!res.ok) { if (!cancelled) { setMonthAppointments([]); setMonthClosures([]); } return; }
+        // On failure KEEP whatever we already have rather than clearing to
+        // "everything free". Clearing made day states flicker between free
+        // and booked while someone was picking (rate limits, weak signal),
+        // which read as "the dates keep moving around".
+        if (!res.ok) return;
         const data = await res.json();
         if (cancelled) return;
         setMonthAppointments(data.appointments || []);
         setMonthClosures(data.closures || []);
         setMonthBlocks(data.blocks || []);
       } catch {
-        if (!cancelled) { setMonthAppointments([]); setMonthClosures([]); }
+        /* keep previous month data */
       } finally {
         if (!cancelled) setCalLoading(false);
       }
@@ -682,6 +711,11 @@ export default function BookingPage() {
       });
       const data = await res.json();
       if (!res.ok) {
+        // Rate limited mid-booking: nothing is wrong with their booking, they
+        // just need a moment. Never surface a scary technical error here.
+        if (res.status === 429) {
+          throw new Error('Lots of people are booking right now. Wait a minute and tap confirm again, your details are saved.');
+        }
         const detail = data.details?.length ? ` (${data.details.join(', ')})` : '';
         throw new Error((data.error || 'Booking failed') + detail);
       }
@@ -1040,8 +1074,31 @@ export default function BookingPage() {
                     <div style={styles.treatmentInfo}>
                       <span style={styles.treatmentName}>
                         {isSelected ? '✓ ' : ''}{t.name}
+                        {t.description && (
+                          <span
+                            role="button"
+                            aria-label={descOpenId === t.id ? 'Hide description' : 'Show description'}
+                            aria-expanded={descOpenId === t.id}
+                            onClick={e => {
+                              e.stopPropagation();
+                              setDescOpenId(prev => (prev === t.id ? null : t.id));
+                            }}
+                            style={{
+                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                              width: 20, height: 20, marginLeft: 6, borderRadius: 10, verticalAlign: 'middle',
+                              border: `1.2px solid ${descOpenId === t.id ? brand : '#CFC8C1'}`,
+                              color: descOpenId === t.id ? brand : 'var(--text-muted)',
+                              fontSize: 11, fontWeight: 700, fontStyle: 'italic', fontFamily: 'Georgia, serif',
+                              lineHeight: 1, cursor: 'pointer', userSelect: 'none',
+                            }}
+                          >
+                            i
+                          </span>
+                        )}
                       </span>
-                      {t.description && <span style={styles.treatmentDesc}>{t.description}</span>}
+                      {t.description && descOpenId === t.id && (
+                        <span style={styles.treatmentDesc}>{t.description}</span>
+                      )}
                       <span style={styles.treatmentDuration}>{t.duration_minutes} min</span>
                     </div>
                     <span style={{ ...styles.treatmentPrice, color: brand }}>
@@ -1286,7 +1343,20 @@ export default function BookingPage() {
                 </span>
               </div>
             </div>
-            {selectedDate && (
+            {selectedDate && availError && (
+              <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                <p style={{ ...styles.noSlots, padding: 0, marginBottom: 10 }}>
+                  Having trouble loading times for this day. Nothing is lost, just try again in a moment.
+                </p>
+                <button
+                  onClick={() => setAvailRetryNonce(n => n + 1)}
+                  style={{ padding: '10px 22px', borderRadius: 10, border: `1.5px solid ${brand}`, background: 'var(--bg-card)', color: brand, fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+            {selectedDate && !availError && (
               <div style={styles.slotGrid}>
                 {slots.length === 0 ? (
                   <p style={styles.noSlots}>No available slots on this day, try another date</p>

@@ -111,6 +111,50 @@ export default function MoneyTracker() {
     tax_deductible: true
   });
 
+  // Long-press an expense row to delete it (Ellie: duplicate receipt scans
+  // need clearing out). Press-and-hold ~550ms opens a confirm sheet; any
+  // scroll or early release cancels.
+  const [confirmDeleteExp, setConfirmDeleteExp] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const pressTimer = useRef(null);
+  function startPress(exp) {
+    clearTimeout(pressTimer.current);
+    pressTimer.current = setTimeout(() => {
+      hapticTap();
+      setConfirmDeleteExp(exp);
+    }, 550);
+  }
+  function cancelPress() {
+    clearTimeout(pressTimer.current);
+  }
+  async function handleDeleteExpense() {
+    const exp = confirmDeleteExp;
+    if (!exp || deleting) return;
+    setDeleting(true);
+    try {
+      // .select() so a silent RLS no-op can't masquerade as a delete.
+      const { data, error: delErr } = await supabase
+        .from('expenses')
+        .delete()
+        .eq('id', exp.id)
+        .eq('beautician_id', beautician.id)
+        .select('id');
+      if (delErr || !data?.length) {
+        logger.error({ err: delErr }, 'Expense delete failed');
+        setError('Could not delete that expense, try again.');
+      } else {
+        hapticSuccess();
+        setExpenses(prev => prev.filter(e => e.id !== exp.id));
+      }
+    } catch (err) {
+      logger.error({ err }, 'Expense delete threw');
+      setError('Could not delete that expense, try again.');
+    } finally {
+      setDeleting(false);
+      setConfirmDeleteExp(null);
+    }
+  }
+
   useEffect(() => {
     if (beautician) loadData();
   }, [beautician]);
@@ -509,6 +553,60 @@ export default function MoneyTracker() {
 
   const pulse = useMemo(() => !loading ? computePulse() : null, [loading, expenses, transactions]);
 
+  // The Today / This Week / This Month pills. These previously set state that
+  // nothing read, so the hero number never changed. Everything below the
+  // pills (hero, quick stats, bento breakdown) now follows the selection,
+  // each compared against the equivalent previous period.
+  const periodStats = useMemo(() => {
+    if (loading) return null;
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    let cur, prev, compareLabel;
+    if (period === 'today') {
+      cur = startOfToday;
+      prev = new Date(startOfToday.getTime() - 86400000);
+      compareLabel = 'yesterday';
+    } else if (period === 'month') {
+      cur = new Date(now.getFullYear(), now.getMonth(), 1);
+      prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      compareLabel = 'last month';
+    } else {
+      cur = startOfWeek(now);
+      prev = new Date(cur);
+      prev.setDate(prev.getDate() - 7);
+      compareLabel = 'last week';
+    }
+    const txBetween = (a, b) => transactions.filter(t => {
+      const d = new Date(t.created_at);
+      return d >= a && (!b || d < b);
+    });
+    const expBetween = (a, b) => expenses.filter(e => {
+      const d = new Date(e.date);
+      return d >= a && (!b || d < b);
+    });
+    const sumTx = rows => rows.reduce((s, t) => s + (t.amount_cents || 0), 0);
+    const sumExp = rows => rows.reduce((s, e) => s + (e.amount_cents || 0), 0);
+
+    const curTx = txBetween(cur, null);
+    const income = sumTx(curTx);
+    const prevIncome = sumTx(txBetween(prev, cur));
+    const expensesSum = sumExp(expBetween(cur, null));
+    const completed = curTx.filter(t => t.type === 'payment').length;
+    const changePct = prevIncome > 0 ? Math.round(((income - prevIncome) / prevIncome) * 100) : null;
+    return {
+      income,
+      expenses: expensesSum,
+      profit: income - expensesSum,
+      completed,
+      changePct,
+      compareLabel,
+      curStart: cur,
+      treatments: curTx.filter(t => ['service', 'payment', 'payment_link', 'deposit', 'no_show_fee', 'late_cancel_fee'].includes(t.type)).reduce((s, t) => s + (t.amount_cents || 0), 0),
+      products: curTx.filter(t => t.type === 'product_sale').reduce((s, t) => s + (t.amount_cents || 0), 0),
+      tips: curTx.filter(t => t.type === 'tip').reduce((s, t) => s + (t.amount_cents || 0), 0),
+    };
+  }, [loading, period, transactions, expenses]);
+
   const dailyRevenue = useMemo(() => {
     const days = [];
     const now = new Date();
@@ -527,17 +625,15 @@ export default function MoneyTracker() {
 
   const maxDayRevenue = useMemo(() => Math.max(...dailyRevenue.map(d => d.total), 1), [dailyRevenue]);
 
-  // Breakdown by real transaction types
+  // Breakdown by real transaction types, following the selected period.
   const breakdown = useMemo(() => {
-    if (!pulse) return { treatments: 0, products: 0, tips: 0 };
-    const weekStart = startOfWeek(new Date());
-    const weekTx = transactions.filter(t => new Date(t.created_at) >= weekStart);
+    if (!periodStats) return { treatments: 0, products: 0, tips: 0 };
     return {
-      treatments: weekTx.filter(t => ['service', 'payment', 'payment_link', 'deposit', 'no_show_fee', 'late_cancel_fee'].includes(t.type)).reduce((s, t) => s + (t.amount_cents || 0), 0),
-      products: weekTx.filter(t => t.type === 'product_sale').reduce((s, t) => s + (t.amount_cents || 0), 0),
-      tips: weekTx.filter(t => t.type === 'tip').reduce((s, t) => s + (t.amount_cents || 0), 0),
+      treatments: periodStats.treatments,
+      products: periodStats.products,
+      tips: periodStats.tips,
     };
-  }, [pulse, transactions]);
+  }, [periodStats]);
 
   const recentTx = useMemo(() => transactions.slice(0, 5), [transactions]);
 
@@ -556,8 +652,8 @@ export default function MoneyTracker() {
   if (bLoading || loading) return <PageLoader />;
   if (error) return <ErrorCard message={error} onDismiss={() => setError(null)} />;
 
-  const changeArrow = pulse?.incomeChange != null ? (pulse.incomeChange >= 0 ? '↑' : '↓') : '';
-  const changeColor = pulse?.incomeChange >= 0 ? 'var(--success)' : 'var(--danger)';
+  const changePct = periodStats?.changePct;
+  const changeArrow = changePct != null ? (changePct >= 0 ? '↑' : '↓') : '';
 
   return (
     <div style={S.page}>
@@ -653,16 +749,18 @@ export default function MoneyTracker() {
                 <div style={{ position: 'relative', zIndex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                     <MIcon name="payments" fill size={16} style={{ color: 'rgba(255,255,255,0.8)' }} />
-                    <span style={S.heroLabel}>Total Revenue</span>
+                    <span style={S.heroLabel}>
+                      {period === 'today' ? 'Revenue Today' : period === 'month' ? 'Revenue This Month' : 'Revenue This Week'}
+                    </span>
                   </div>
-                  <h2 style={S.heroValue}>{fmt(pulse.thisWeek.income)}</h2>
-                  {pulse.incomeChange != null && (
+                  <h2 style={S.heroValue}>{fmt(periodStats?.income || 0)}</h2>
+                  {changePct != null && (
                     <span style={{
                       ...S.changeBadge,
-                      background: pulse.incomeChange >= 0 ? 'rgba(91,169,123,0.2)' : 'rgba(186,26,26,0.2)',
-                      color: pulse.incomeChange >= 0 ? '#8EE0AE' : '#F08080',
+                      background: changePct >= 0 ? 'rgba(91,169,123,0.2)' : 'rgba(186,26,26,0.2)',
+                      color: changePct >= 0 ? '#8EE0AE' : '#F08080',
                     }}>
-                      {changeArrow} {Math.abs(pulse.incomeChange)}% vs last week
+                      {changeArrow} {Math.abs(changePct)}% vs {periodStats.compareLabel}
                     </span>
                   )}
                 </div>
@@ -790,20 +888,20 @@ export default function MoneyTracker() {
               {/* ─── Quick Stats ─── */}
               <section style={S.quickStats}>
                 <div style={S.qStat}>
-                  <span style={S.qStatValue}>{pulse.thisWeek.appointments}</span>
+                  <span style={S.qStatValue}>{periodStats?.completed ?? 0}</span>
                   <span style={S.qStatLabel}>Completed</span>
                 </div>
                 <div style={{ width: 1, height: 28, background: 'rgba(146, 64, 94, 0.1)' }} />
                 <div style={S.qStat}>
-                  <span style={S.qStatValue}>{fmt(pulse.thisWeek.expenses)}</span>
+                  <span style={S.qStatValue}>{fmt(periodStats?.expenses || 0)}</span>
                   <span style={S.qStatLabel}>Expenses</span>
                 </div>
                 <div style={{ width: 1, height: 28, background: 'rgba(146, 64, 94, 0.1)' }} />
                 <div style={S.qStat}>
                   <span style={{
                     ...S.qStatValue,
-                    color: pulse.thisWeek.profit >= 0 ? 'var(--success)' : 'var(--danger)',
-                  }}>{fmt(pulse.thisWeek.profit)}</span>
+                    color: (periodStats?.profit ?? 0) >= 0 ? 'var(--success)' : 'var(--danger)',
+                  }}>{fmt(periodStats?.profit || 0)}</span>
                   <span style={S.qStatLabel}>Profit</span>
                 </div>
               </section>
@@ -1044,10 +1142,25 @@ export default function MoneyTracker() {
             {expenses.length === 0 && (
               <EmptyState message="No expenses logged. Tap + Add Expense to start tracking." icon="🧾" />
             )}
+            {expenses.length > 0 && (
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 2px', textAlign: 'center' }}>
+                Press and hold an expense to delete it
+              </p>
+            )}
             {expenses.map(exp => {
               const catMeta = getCategoryMeta(exp.category);
               return (
-                <div key={exp.id} style={S.txRow}>
+                <div
+                  key={exp.id}
+                  style={S.txRow}
+                  onTouchStart={() => startPress(exp)}
+                  onTouchEnd={cancelPress}
+                  onTouchMove={cancelPress}
+                  onMouseDown={() => startPress(exp)}
+                  onMouseUp={cancelPress}
+                  onMouseLeave={cancelPress}
+                  onContextMenu={e => { e.preventDefault(); cancelPress(); setConfirmDeleteExp(exp); }}
+                >
                   <div style={{ ...S.catBubble, background: catMeta.color }}>
                     <span style={{ fontSize: 16 }}>{catMeta.icon}</span>
                   </div>
@@ -1352,6 +1465,60 @@ export default function MoneyTracker() {
               </>
             );
           })()}
+        </div>
+      )}
+
+      {/* Long-press delete confirm sheet */}
+      {confirmDeleteExp && (
+        <div
+          onClick={() => setConfirmDeleteExp(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(29,27,25,0.45)',
+            display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 480, background: 'var(--bg-card, #fff)',
+              borderRadius: '18px 18px 0 0', padding: '20px 20px calc(20px + env(safe-area-inset-bottom))',
+            }}
+          >
+            <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 4px' }}>
+              Delete this expense?
+            </p>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 16px' }}>
+              {confirmDeleteExp.vendor || getCategoryMeta(confirmDeleteExp.category).label}
+              {' · '}-{fmt(confirmDeleteExp.amount_cents)}
+              {' · '}{new Date(confirmDeleteExp.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={handleDeleteExpense}
+                disabled={deleting}
+                style={{
+                  flex: 1, padding: '13px 0', borderRadius: 12, border: 'none',
+                  background: 'var(--danger, #BA1A1A)', color: '#fff',
+                  fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                  opacity: deleting ? 0.6 : 1,
+                }}
+              >
+                {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+              <button
+                onClick={() => setConfirmDeleteExp(null)}
+                style={{
+                  flex: 1, padding: '13px 0', borderRadius: 12,
+                  border: '1.5px solid var(--border, #EDE9E4)', background: 'var(--bg-card, #fff)',
+                  color: 'var(--text-primary)', fontSize: 14, fontWeight: 600,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                Keep it
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

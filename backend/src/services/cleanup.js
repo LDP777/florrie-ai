@@ -6,31 +6,56 @@
  */
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
+import { guardedSend } from '../lib/outbound-guard.js';
+import { sendOnChannel } from './messaging.js';
 
 /**
  * Find appointments that are 'pending' (waiting for deposit payment)
  * and have passed their payment_expires_at timestamp (or were created
  * more than 15 minutes ago if no expiry was set). Cancel them to free
- * the time slot for other clients.
+ * the time slot for other clients, and send the client a friendly
+ * "your slot was released, rebook here" message so an abandoned payment
+ * screen doesn't silently lose the booking.
  */
 export async function cleanupStaleBookings() {
   const now = new Date().toISOString();
   // Fallback cutoff for appointments without payment_expires_at
   const fallbackCutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
 
-  // Find pending appointments where:
-  // (a) payment_expires_at is set and has passed, OR
+  // Two separate simple queries instead of one .or():
+  // (a) payment_expires_at set and passed
   // (b) no payment_expires_at and created more than 15 min ago
-  const { data: stale, error } = await supabase
-    .from('appointments')
-    .select('id, beautician_id, client_id, deposit_cents, deposit_paid, payment_expires_at, google_calendar_event_id')
-    .eq('status', 'pending')
-    .gt('deposit_cents', 0)
-    .neq('deposit_paid', true)
-    .or(`payment_expires_at.lt.${now},and(payment_expires_at.is.null,created_at.lt.${fallbackCutoff})`);
+  // Also: deposit_paid can be NULL on older rows, and SQL `!= true` silently
+  // drops NULLs, which left those pending bookings in the diary forever.
+  const SELECT = 'id, beautician_id, client_id, starts_at, deposit_cents, deposit_paid, payment_expires_at, google_calendar_event_id, treatments(name)';
+  const unpaid = q => q.eq('status', 'pending').gt('deposit_cents', 0).or('deposit_paid.is.null,deposit_paid.eq.false');
+  const [expiredRes, agedRes] = await Promise.all([
+    unpaid(supabase.from('appointments').select(SELECT)).lt('payment_expires_at', now),
+    unpaid(supabase.from('appointments').select(SELECT)).is('payment_expires_at', null).lt('created_at', fallbackCutoff),
+  ]);
 
-  if (error || !stale?.length) {
+  if (expiredRes.error) logger.warn({ err: expiredRes.error }, 'Cleanup: expired query failed');
+  if (agedRes.error) logger.warn({ err: agedRes.error }, 'Cleanup: aged query failed');
+
+  const seen = new Set();
+  const stale = [...(expiredRes.data || []), ...(agedRes.data || [])].filter(a => {
+    if (seen.has(a.id)) return false;
+    seen.add(a.id);
+    return true;
+  });
+
+  if (!stale.length) {
     return { cancelled: 0 };
+  }
+
+  // Beautician rows (slug, business name, channel creds) cached per run.
+  const beauticianCache = new Map();
+  async function getBeautician(id) {
+    if (!beauticianCache.has(id)) {
+      const { data } = await supabase.from('beauticians').select('*').eq('id', id).maybeSingle();
+      beauticianCache.set(id, data || null);
+    }
+    return beauticianCache.get(id);
   }
 
   let cancelled = 0;
@@ -72,10 +97,62 @@ export async function cleanupStaleBookings() {
         autonomous: true,
         outcome: 'success',
       }); // non-fatal, ignore _logErr
+
+      // Retention message: tell the client their slot was released and hand
+      // them the rebook link, instead of leaving them thinking they booked.
+      // Transactional (their own abandoned checkout), goes via the guard.
+      sendSlotReleasedMessage(appt, getBeautician).catch(err =>
+        logger.warn({ err, appointmentId: appt.id }, 'Slot-released message failed (non-fatal)')
+      );
     }
   }
 
   return { cancelled, checked: stale.length };
+}
+
+/**
+ * "Your slot was released" note to the client after an unpaid booking
+ * expires. WhatsApp first, then SMS, then email, whatever is on file.
+ */
+async function sendSlotReleasedMessage(appt, getBeautician) {
+  if (!appt.client_id) return;
+  const beautician = await getBeautician(appt.beautician_id);
+  if (!beautician) return;
+
+  const { data: client } = await supabase
+    .from('clients')
+    .select('id, first_name, phone, email, whatsapp_id')
+    .eq('id', appt.client_id)
+    .maybeSingle();
+  if (!client) return;
+
+  const channel = (client.whatsapp_id || client.phone) ? 'whatsapp'
+    : client.phone ? 'sms'
+    : client.email ? 'email'
+    : null;
+  if (!channel) return;
+
+  // Wall-time convention: date and time read straight off the string.
+  const day = String(appt.starts_at || '').slice(0, 10);
+  const time = String(appt.starts_at || '').slice(11, 16);
+  const dayLabel = day ? new Date(`${day}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }) : 'your chosen day';
+  const treatment = appt.treatments?.name || 'appointment';
+  const slug = beautician.booking_slug;
+  const rebookLine = slug ? ` You can rebook in seconds here: https://florrie.ai/book/${slug}` : '';
+  const body = `Hi ${client.first_name || 'there'}, your ${treatment} booking for ${dayLabel}${time ? ` at ${time}` : ''} didn't complete because the deposit wasn't paid, so the slot has been released.${rebookLine}`;
+
+  await guardedSend({
+    beauticianId: appt.beautician_id,
+    clientId: client.id,
+    messageType: 'payment_link',
+    channel,
+    client,
+    body,
+    send: async () => {
+      const result = await sendOnChannel({ beautician, clientId: client.id, channel, body });
+      return !!result?.ok;
+    },
+  });
 }
 
 /**

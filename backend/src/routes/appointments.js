@@ -57,6 +57,63 @@ router.get('/', requireAuth, async (req, res) => {
 });
 
 /**
+ * GET /api/appointments/deposits
+ * Every appointment that carries a deposit, with a DERIVED display status.
+ *
+ * The Deposit Tracker used to read the appointments table directly from the
+ * browser and bucket rows by deposit_status values that the payment engine
+ * never writes ('held'/'applied'/'forfeited' — real values are pending/paid/
+ * refunded), so the page showed £0.00 forever. Served here instead (service
+ * role, no RLS surprises) with the status derived from what actually
+ * happened to the money:
+ *   awaiting   deposit requested, client has not paid yet
+ *   held       paid, appointment still upcoming
+ *   applied    paid, appointment completed (deposit went toward the bill)
+ *   forfeited  paid, appointment cancelled / no-show (deposit kept)
+ *   refunded   deposit refunded via Stripe
+ */
+router.get('/deposits', requireAuth, async (req, res) => {
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('id, starts_at, created_at, status, deposit_cents, deposit_paid, deposit_status, payment_method, client_notes, clients(first_name, last_name), treatments(name)')
+    .eq('beautician_id', req.beautician.id)
+    .gt('deposit_cents', 0)
+    .order('created_at', { ascending: false })
+    .limit(300);
+
+  if (handleQueryError(error, res, 'fetch deposits')) return;
+
+  const DEAD = ['cancelled', 'cancelled_by_client', 'cancelled_by_beautician', 'no_show'];
+  const rows = (data || []).map(a => {
+    let display;
+    if (a.deposit_status === 'refunded') display = 'refunded';
+    else if (a.deposit_paid) {
+      if (a.status === 'completed') display = 'applied';
+      else if (DEAD.includes(a.status)) display = 'forfeited';
+      else display = 'held';
+    } else {
+      // Deposit requested but never paid. Expired pending bookings get
+      // auto-cancelled, so only live ones show as awaiting.
+      display = DEAD.includes(a.status) ? 'lapsed' : 'awaiting';
+    }
+    const name = [a.clients?.first_name, a.clients?.last_name].filter(Boolean).join(' ') || 'Client';
+    return {
+      id: a.id,
+      client: name,
+      treatment: a.treatments?.name || '',
+      amount: a.deposit_cents || 0,
+      takenDate: (a.created_at || '').slice(0, 10),
+      appointmentDate: (a.starts_at || '').slice(0, 10) || null,
+      appointmentTime: (a.starts_at || '').slice(11, 16) || null,
+      method: a.payment_method || 'card',
+      status: display,
+    };
+  });
+
+  res.json({ deposits: rows });
+});
+
+/**
  * POST /api/appointments
  * Create a new appointment (manual or AI-booked).
  */

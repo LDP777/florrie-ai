@@ -127,6 +127,7 @@ const ACTION_TO_AGENT = {
   message_replied: 'front_desk',
   message_escalated: 'front_desk',
   booking_confirmed: 'front_desk',
+  booking_pending: 'front_desk',
   booking_rescheduled: 'front_desk',
   booking_cancelled: 'front_desk',
   booking_auto_cancelled: 'front_desk',
@@ -162,15 +163,39 @@ export async function pushTeamUpdate(beauticianId, actionType, summary, { url, c
   });
 }
 
-export async function pushNewBooking(beauticianId, clientName, treatmentName, dateStr, { appointmentId = null, apptDate = null } = {}) {
+export async function pushNewBooking(beauticianId, clientName, treatmentName, dateStr, { appointmentId = null, apptDate = null, pending = false } = {}) {
   // Tap the notification -> open the calendar on the appointment's day, with
   // that appointment selected. Falls back gracefully if the id/date is missing.
+  //
+  // pending = deposit not paid yet. Ellie was getting the exact same wording
+  // for a paid booking and one still sitting at the payment screen, so she
+  // could not tell them apart. Pending gets its own copy; the confirmed push
+  // fires from the Stripe webhook when the money actually lands.
+  const day = apptDate ? String(apptDate).slice(0, 10) : null;
+  const url = appointmentId && day ? `/calendar/week?date=${day}&appt=${appointmentId}`
+    : appointmentId ? `/calendar/week?appt=${appointmentId}`
+    : '/calendar/week';
+  if (pending) {
+    return pushTeamUpdate(beauticianId, 'booking_pending',
+      `${clientName} is booking ${treatmentName} for ${dateStr}, deposit not paid yet`,
+      { url, clientName }
+    );
+  }
+  return pushTeamUpdate(beauticianId, 'booking_confirmed',
+    `${clientName} booked ${treatmentName} for ${dateStr}`,
+    { url, clientName }
+  );
+}
+
+export async function pushBookingConfirmed(beauticianId, clientName, treatmentName, dateStr, { appointmentId = null, apptDate = null } = {}) {
+  // Deposit landed: the pending booking is now real. Fired from the Stripe
+  // webhook so Ellie gets a clear second beat that the money is in.
   const day = apptDate ? String(apptDate).slice(0, 10) : null;
   const url = appointmentId && day ? `/calendar/week?date=${day}&appt=${appointmentId}`
     : appointmentId ? `/calendar/week?appt=${appointmentId}`
     : '/calendar/week';
   return pushTeamUpdate(beauticianId, 'booking_confirmed',
-    `${clientName} booked ${treatmentName} for ${dateStr}`,
+    `Deposit paid, ${clientName}'s ${treatmentName} on ${dateStr} is confirmed`,
     { url, clientName }
   );
 }

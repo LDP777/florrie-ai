@@ -2422,7 +2422,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   // Push notification — beautician gets a team-style alert
   const timeStr = startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   const dateStr = startsDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-  pushNewBooking(beautician.id, firstName, treatmentNames, `${dateStr} at ${timeStr}`, { appointmentId: appointment.id, apptDate: appointment.starts_at }).catch(() => {});
+  pushNewBooking(beautician.id, firstName, treatmentNames, `${dateStr} at ${timeStr}`, { appointmentId: appointment.id, apptDate: appointment.starts_at, pending: appointment.status === 'pending' }).catch(() => {});
   refreshLiveActivity(beautician.id).catch(() => {});
 
   // If deposit required but Stripe isn't configured, return booking with deposit_pending flag
