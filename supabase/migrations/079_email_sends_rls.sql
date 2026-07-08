@@ -28,3 +28,12 @@ REVOKE ALL ON public.email_sends FROM anon, authenticated;
 --   CREATE POLICY email_sends_owner_read ON public.email_sends
 --     FOR SELECT TO authenticated
 --     USING (beautician_id IN (SELECT id FROM beauticians WHERE auth_id = auth.uid()));
+
+-- Same treatment for the other two server-only tables the RLS linter flags.
+-- Both are accessed exclusively by the backend via the service role; the
+-- frontend reaches them only through the backend API (outbound approval/outbox,
+-- Live Activity push), never with anon/authenticated directly.
+ALTER TABLE public.outbound_sends       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.live_activity_tokens ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.outbound_sends       FROM anon, authenticated;
+REVOKE ALL ON public.live_activity_tokens FROM anon, authenticated;
