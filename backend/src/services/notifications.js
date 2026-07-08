@@ -1156,26 +1156,111 @@ export async function processReminders() {
  * live in guardedSend and must wrap this, never the other way round.
  */
 export async function sendOnPreferredChannel({ client, body, beautician, messageType = 'general' }) {
-  const channel = client?.preferred_channel || 'sms';
-  try {
-    if (channel === 'instagram' && client?.instagram_id) {
-      const sent = await sendInstagramDM({
-        recipientId: client.instagram_id,
-        text: body,
-        pageToken: beautician?.instagram_page_token,
-      });
-      return { ok: !!sent, channel: 'instagram' };
+  // Ordered CASCADE, not a single pick. The old version tried exactly one
+  // channel: if the client preferred WhatsApp and the send failed (dead
+  // token, deregistered number, Meta hiccup) the message silently died even
+  // when the client had a perfectly good phone number for SMS. Order is
+  // preferred channel first, then cheapest to priciest: Instagram (free,
+  // only inside its 24h reply window), WhatsApp (~2p), SMS (~4.5p) last.
+  const order = [];
+  const push = c => { if (c && !order.includes(c)) order.push(c); };
+  push(client?.preferred_channel);
+  push('instagram');
+  push('whatsapp');
+  push('sms');
+
+  const attempts = [];
+
+  for (const channel of order) {
+    try {
+      if (channel === 'instagram') {
+        if (!client?.instagram_id || !beautician?.instagram_page_token) {
+          attempts.push({ channel, skipped: 'not_connected' });
+          continue;
+        }
+        // Instagram only allows replies within 24h of the client's last
+        // inbound message. Outside that window, skip rather than 400.
+        const { data: lastIn } = await supabase
+          .from('messages')
+          .select('created_at')
+          .eq('client_id', client.id)
+          .eq('channel', 'instagram')
+          .eq('direction', 'inbound')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const windowOpen = lastIn?.created_at &&
+          (Date.now() - new Date(lastIn.created_at).getTime()) < 24 * 60 * 60 * 1000;
+        if (!windowOpen) {
+          attempts.push({ channel, skipped: 'outside_24h_window' });
+          continue;
+        }
+        const sent = await sendInstagramDM({
+          recipientId: client.instagram_id,
+          text: body,
+          pageToken: beautician.instagram_page_token,
+        });
+        attempts.push({ channel, ok: !!sent });
+        if (sent) return { ok: true, channel, attempts };
+        continue;
+      }
+
+      if (channel === 'whatsapp') {
+        if (!beautician?.whatsapp_phone_id || !client?.whatsapp_id) {
+          attempts.push({ channel, skipped: 'not_connected' });
+          continue;
+        }
+        const sent = await sendWhatsAppText({ to: client.whatsapp_id, body, beauticianId: beautician.id });
+        attempts.push({ channel, ok: !!sent });
+        if (sent) return { ok: true, channel, attempts };
+        // WhatsApp failed for a reachable client: surface it instead of
+        // failing silently, then fall through to SMS.
+        logChannelFailover(beautician?.id, client, 'whatsapp', messageType).catch(() => {});
+        continue;
+      }
+
+      if (channel === 'sms') {
+        if (!client?.phone) {
+          attempts.push({ channel, skipped: 'no_phone' });
+          continue;
+        }
+        const sent = await sendSMS({ to: client.phone, body, beauticianId: beautician?.id, messageType });
+        attempts.push({ channel, ok: !!sent });
+        if (sent) return { ok: true, channel, attempts };
+        continue;
+      }
+
+      attempts.push({ channel, skipped: 'unknown_channel' });
+    } catch (err) {
+      logger.error({ err, channel, clientId: client?.id }, 'sendOnPreferredChannel: channel attempt threw');
+      attempts.push({ channel, ok: false, error: true });
     }
-    if (channel === 'whatsapp' && beautician?.whatsapp_phone_id && client?.whatsapp_id) {
-      const sent = await sendWhatsAppText({ to: client.whatsapp_id, body, beauticianId: beautician.id });
-      return { ok: !!sent, channel: 'whatsapp' };
-    }
-    if (client?.phone) {
-      const sent = await sendSMS({ to: client.phone, body, beauticianId: beautician?.id, messageType });
-      return { ok: !!sent, channel: 'sms' };
-    }
-  } catch (err) {
-    logger.error({ err, channel }, 'sendOnPreferredChannel failed');
   }
-  return { ok: false, channel };
+
+  logger.warn({ clientId: client?.id, attempts }, 'sendOnPreferredChannel: all channels exhausted');
+  return { ok: false, channel: order[0] || 'sms', attempts };
+}
+
+/**
+ * A reachable client's WhatsApp send failed and we fell back. Log it as an
+ * ai_action so the failure is visible in the activity feed rather than
+ * buried in server logs. No schema changes: ai_actions already exists.
+ */
+async function logChannelFailover(beauticianId, client, failedChannel, messageType) {
+  if (!beauticianId) return;
+  try {
+    await supabase.from('ai_actions').insert({
+      beautician_id: beauticianId,
+      action_type: 'channel_failover',
+      digital_employee: 'front_desk',
+      summary: `${failedChannel} send failed for ${client?.first_name || 'a client'}, fell back to the next channel`,
+      details: { client_id: client?.id, failed_channel: failedChannel, message_type: messageType },
+      client_id: client?.id || null,
+      confidence: 1.0,
+      autonomous: true,
+      outcome: 'success',
+    });
+  } catch (err) {
+    logger.warn({ err }, 'channel failover log failed (non-fatal)');
+  }
 }

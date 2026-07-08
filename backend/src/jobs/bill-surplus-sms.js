@@ -16,22 +16,19 @@
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { billSurplusSMS } from '../services/sms-metering.js';
 import logger from '../lib/logger.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: join(__dirname, '../../.env') });
 
 async function run() {
-  logger.info('Surplus SMS billing starting');
-  try {
-    const result = await billSurplusSMS();
-    logger.info({ result }, 'Surplus SMS billing done');
-    process.exit(0);
-  } catch (err) {
-    logger.error({ err }, 'Surplus SMS billing failed');
-    process.exit(1);
-  }
+  // RETIRED 2026-07-08. Billing single-sources from the MONTHLY combined
+  // meter (services/whatsapp-metering.js billMonthlySurplus, daily cron in
+  // index.js). Running this weekly biller as well created a second Stripe
+  // invoice item for the same SMS. The job exits cleanly so the Railway
+  // cron keeps passing until it is deleted from the dashboard.
+  logger.info('bill-surplus-sms: RETIRED no-op — monthly combined meter bills surplus now. Delete this Railway cron.');
+  process.exit(0);
 }
 
 run();

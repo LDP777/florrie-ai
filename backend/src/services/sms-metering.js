@@ -1,10 +1,18 @@
 /**
  * SMS Metering Service
- * Tracks SMS usage and charges for surplus messages above the 30/week free limit.
+ *
+ * HISTORY: this was the original weekly billing system (30 free SMS/week,
+ * 7p surplus billed Mondays). Billing moved to the MONTHLY combined meter in
+ * services/whatsapp-metering.js (120/month across SMS + WhatsApp). Running
+ * both billers double-charged the same messages, so the weekly biller is
+ * RETIRED: trackSMSUsage still writes weekly rows for display stats, and
+ * shouldAutoSend throttles against the monthly meter. billSurplusSMS must
+ * not be scheduled anywhere.
  */
 
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
+import { getMonthStart } from './whatsapp-metering.js';
 
 const FREE_SMS_LIMIT = 30;
 const SURPLUS_RATE_PENCE = 7; // 7p per surplus message (flat rate, all channels)
@@ -179,18 +187,21 @@ export async function trackSMSUsage(beauticianId) {
  */
 export async function shouldAutoSend(beauticianId, messageType) {
   try {
-    const weekStart = getWeekStart();
-
-    // Get current usage
+    // Read the MONTHLY combined meter (message_usage) — the meter we actually
+    // bill from — not the legacy weekly sms_usage row. The weekly row is
+    // display-only stats now; throttling and billing share one source of
+    // truth so the AI backs off exactly when real overage approaches.
+    const month = getMonthStart();
     const { data: usage } = await supabase
-      .from('sms_usage')
-      .select('messages_sent')
+      .from('message_usage')
+      .select('sms_sent, whatsapp_sent, free_limit')
       .eq('beautician_id', beauticianId)
-      .eq('week_start', weekStart)
+      .eq('month', month)
       .maybeSingle();
 
-    const sent = usage?.messages_sent || 0;
-    const freeRemaining = Math.max(0, FREE_SMS_LIMIT - sent);
+    const sent = (usage?.sms_sent || 0) + (usage?.whatsapp_sent || 0);
+    const freeLimit = usage?.free_limit || 120;
+    const freeRemaining = Math.max(0, freeLimit - sent);
 
     // Get priority rules
     const { data: b } = await supabase

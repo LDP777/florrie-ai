@@ -244,15 +244,20 @@ export async function publishPost(beauticianId, postId) {
     // Step 1: Create media container
     const fullCaption = [post.caption, '', post.hashtags?.join(' ')].filter(Boolean).join('\n');
 
+    // graph.instagram.com, NOT graph.facebook.com: accounts connect via
+    // Instagram Business Login (June 2026 rewrite) whose user tokens only
+    // work on the instagram.com graph host, same as sendInstagramDM.
     const containerRes = await fetch(
-      `https://graph.facebook.com/v21.0/${beautician.instagram_page_id}/media`,
+      `https://graph.instagram.com/v21.0/${beautician.instagram_page_id}/media`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${beautician.instagram_page_token}`,
+        },
         body: JSON.stringify({
           image_url: post.image_url,
-          caption: fullCaption,
-          access_token: beautician.instagram_page_token
+          caption: fullCaption
         })
       }
     );
@@ -262,13 +267,15 @@ export async function publishPost(beauticianId, postId) {
 
     // Step 2: Publish
     const publishRes = await fetch(
-      `https://graph.facebook.com/v21.0/${beautician.instagram_page_id}/media_publish`,
+      `https://graph.instagram.com/v21.0/${beautician.instagram_page_id}/media_publish`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${beautician.instagram_page_token}`,
+        },
         body: JSON.stringify({
-          creation_id: container.id,
-          access_token: beautician.instagram_page_token
+          creation_id: container.id
         })
       }
     );
