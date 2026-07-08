@@ -162,13 +162,18 @@ export async function runWeekInReview() {
       const stats = await computeWeekReview(b.id);
       const copy = buildPushCopy(stats);
 
-      await supabase.from('florrie_decisions').insert({
+      const { error: markErr } = await supabase.from('florrie_decisions').insert({
         beautician_id: b.id,
         suggestion_type: 'week_in_review',
-        suggestion_payload: { week, ...stats },
-        response: copy ? 'sent' : 'skipped_quiet_week',
+        suggestion_payload: { week, ...stats, skipped: !copy },
+        // must satisfy the response CHECK (yes/no/tweak/dismissed)
+        response: copy ? 'yes' : 'no',
         acted_on: !!copy,
       });
+      if (markErr) {
+        logger.error({ err: markErr, beauticianId: b.id }, 'week in review: dedupe insert FAILED, skipping push to avoid repeats');
+        continue;
+      }
 
       if (copy) {
         await pushTeamUpdate(b.id, 'weekly_review', copy, { url: '/week-review' });

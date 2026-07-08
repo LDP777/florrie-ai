@@ -43,13 +43,17 @@ async function alreadyFired(beauticianId, key) {
 }
 
 async function markFired(beauticianId, key, extra = {}) {
-  await supabase.from('florrie_decisions').insert({
+  // response must satisfy the CHECK on florrie_decisions
+  // (yes/no/tweak/dismissed). 'sent' violated it, the insert failed
+  // silently, and milestones re-fired every tick. Never again: log failures.
+  const { error } = await supabase.from('florrie_decisions').insert({
     beautician_id: beauticianId,
     suggestion_type: 'money_moment',
     suggestion_payload: { key, ...extra },
-    response: 'sent',
+    response: 'yes',
     acted_on: true,
   });
+  if (error) logger.error({ err: error, beauticianId, key }, 'money moments: dedupe insert FAILED, this moment will repeat');
 }
 
 /** Sum of takings (pence) between two ISO instants. */
@@ -107,8 +111,8 @@ async function maybeSendDailySummary(b) {
     body = `${pounds} in the till today`;
   }
 
-  await pushTeamUpdate(b.id, 'daily_money_summary', body, { url: '/money' });
   await markFired(b.id, key, { pence: todayPence });
+  await pushTeamUpdate(b.id, 'daily_money_summary', body, { url: '/money' });
   return true;
 }
 
@@ -119,6 +123,17 @@ async function maybeSendMilestones(b) {
   const { dateStr } = localParts(b.timezone);
   let fired = 0;
 
+  // First run for this beautician: swallow everything already achieved,
+  // silently. Milestones are only news when they happen AFTER Florrie
+  // started watching.
+  const { data: anyRow } = await supabase
+    .from('florrie_decisions')
+    .select('id')
+    .eq('beautician_id', b.id)
+    .eq('suggestion_type', 'money_moment')
+    .limit(1);
+  const isBaselineRun = !anyRow?.length;
+
   // 1) First £1k week (Monday-to-now takings).
   const now = new Date();
   const dow = (now.getUTCDay() + 6) % 7; // Monday=0
@@ -126,9 +141,11 @@ async function maybeSendMilestones(b) {
   const weekStartIso = new Date(Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate())).toISOString();
   const weekPence = await takingsBetween(b.id, weekStartIso, now.toISOString());
   if (weekPence >= 100000 && !(await alreadyFired(b.id, 'first_1k_week'))) {
-    await pushTeamUpdate(b.id, 'milestone', `£${Math.floor(weekPence / 100)} this week. Your first £1,000 week 🌸`, { url: '/money' });
-    await markFired(b.id, 'first_1k_week', { pence: weekPence });
-    fired++;
+    if (!isBaselineRun) {
+      await pushTeamUpdate(b.id, 'milestone', `£${Math.floor(weekPence / 100)} this week. Your first £1,000 week 🌸`, { url: '/money' });
+      fired++;
+    }
+    await markFired(b.id, 'first_1k_week', { pence: weekPence, baseline: isBaselineRun });
   }
 
   // 2) Client count milestones (100, 250, 500, 1000).
@@ -138,6 +155,11 @@ async function maybeSendMilestones(b) {
     .eq('beautician_id', b.id);
   for (const n of [100, 250, 500, 1000]) {
     if ((clientCount || 0) >= n && !(await alreadyFired(b.id, `clients_${n}`))) {
+      if (isBaselineRun) {
+        // history, not news: record without pushing, and keep sweeping
+        await markFired(b.id, `clients_${n}`, { count: clientCount, baseline: true });
+        continue;
+      }
       await pushTeamUpdate(b.id, 'milestone', `Client number ${n} just joined your books`, { url: '/clients' });
       await markFired(b.id, `clients_${n}`, { count: clientCount });
       fired++;
@@ -162,9 +184,11 @@ async function maybeSendMilestones(b) {
     const bookedMins = (appts || []).reduce((s, a) => s + (a.duration_minutes || 0), 0);
     const key = `fully_booked:${dateStr}`;
     if (workMins > 0 && (appts || []).length >= 4 && bookedMins / workMins >= 0.9 && !(await alreadyFired(b.id, key))) {
-      await pushTeamUpdate(b.id, 'milestone', `Fully booked today. Not a gap in sight`, { url: '/calendar/week' });
-      await markFired(b.id, key, { bookedMins, workMins });
-      fired++;
+      if (!isBaselineRun) {
+        await pushTeamUpdate(b.id, 'milestone', `Fully booked today. Not a gap in sight`, { url: '/calendar/week' });
+        fired++;
+      }
+      await markFired(b.id, key, { bookedMins, workMins, baseline: isBaselineRun });
     }
   }
 
