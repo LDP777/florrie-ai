@@ -34,15 +34,30 @@ import { getTaxYear } from '../lib/time-utils.js';
 
 const WINDOW_MS = 48 * 60 * 60 * 1000;
 
+// Current time as Europe/London WALL-CLOCK, formatted in the UTC slot
+// ('YYYY-MM-DDTHH:MM:SS.000Z') to match how appointment starts_at/ends_at are
+// stored (salon wall time placed in the UTC slot). In GMT this equals real UTC;
+// in British Summer Time it is +1h - which is the whole point: comparing wall
+// ends_at against real UTC made everything auto-complete an hour late in summer.
+function londonWallISO(date = new Date()) {
+  const p = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).formatToParts(date).reduce((acc, x) => (acc[x.type] = x.value, acc), {});
+  const hh = p.hour === '24' ? '00' : p.hour; // en-GB renders midnight as 24
+  return `${p.year}-${p.month}-${p.day}T${hh}:${p.minute}:${p.second}.000Z`;
+}
+
 export async function autoCompletePastAppointments() {
-  const nowIso = new Date().toISOString();
-  const windowStart = new Date(Date.now() - WINDOW_MS).toISOString();
+  const nowWall = londonWallISO();                                     // wall-clock now (UTC-slot form)
+  const windowStart = londonWallISO(new Date(Date.now() - WINDOW_MS)); // wall-clock 48h ago
+  const completedAt = new Date().toISOString();                        // real timestamp for the record
 
   const { data: appts, error } = await supabase
     .from('appointments')
     .select('id, beautician_id, client_id, treatment_id, price_cents, deposit_cents, deposit_paid, starts_at, treatments(name), clients(first_name)')
     .eq('status', 'confirmed')
-    .lt('ends_at', nowIso)
+    .lt('ends_at', nowWall)
     .gte('ends_at', windowStart);
 
   if (error) {
@@ -57,7 +72,7 @@ export async function autoCompletePastAppointments() {
     // complete / no-show already moved it between fetch and write.
     const { data: updated, error: upErr } = await supabase
       .from('appointments')
-      .update({ status: 'completed', completed_at: nowIso })
+      .update({ status: 'completed', completed_at: completedAt })
       .eq('id', appt.id)
       .eq('status', 'confirmed')
       .select('id')
