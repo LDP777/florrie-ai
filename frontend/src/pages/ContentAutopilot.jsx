@@ -882,7 +882,7 @@ export default function ContentAutopilot() {
               <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary, #241B17)' }}>{beautician?.booking_slug || beautician?.business_name || 'your_salon'}</span>
               <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-secondary, #8B6F5E)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>live preview</span>
             </div>
-            <div style={{ aspectRatio: composeMediaKind === 'story' ? '9 / 16' : '1', maxHeight: composeMediaKind === 'story' ? 340 : 999, background: composeImagePreview ? '#efe7df' : 'rgba(146,64,94,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ ...(composeImagePreview ? { aspectRatio: composeMediaKind === 'story' ? '9 / 16' : '1', maxHeight: composeMediaKind === 'story' ? 380 : 460 } : { height: 190 }), background: composeImagePreview ? '#efe7df' : 'rgba(146,64,94,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {composeImagePreview
                 ? <img src={composeImagePreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                 : <span style={{ fontSize: 12, color: 'var(--text-secondary, #8B6F5E)' }}>Add a photo to see it here</span>}
