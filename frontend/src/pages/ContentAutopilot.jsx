@@ -671,6 +671,36 @@ export default function ContentAutopilot() {
         </div>
       )}
 
+      {/* Feed grid preview — see your Instagram feed before it goes out (hero) */}
+      {!composing && (scheduled.length + posted.length + drafts.length) > 0 && (
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--accent, #92405E)' }}>Your grid preview</span>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary, #8B6F5E)' }}>{scheduled.length} scheduled · {posted.length} live</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, borderRadius: 14, overflow: 'hidden' }}>
+            {[...scheduled, ...drafts.filter(d => d.image_url), ...posted].slice(0, 12).map(post => {
+              const badge = post.status === 'scheduled'
+                ? (post.scheduled_for ? new Date(post.scheduled_for).toLocaleDateString('en-GB', { weekday: 'short' }) : 'Soon')
+                : post.status === 'draft' ? 'Draft' : null;
+              return (
+                <button
+                  key={post.id}
+                  onClick={() => { setEditingId(post.id); setEditCaption(post.caption || ''); setTab(post.status === 'posted' ? 'posted' : 'drafts'); }}
+                  style={{ position: 'relative', aspectRatio: '1', border: 'none', padding: 0, cursor: 'pointer', overflow: 'hidden', background: post.image_url ? '#efe7df' : 'rgba(146,64,94,0.05)', WebkitTapHighlightColor: 'transparent' }}
+                >
+                  {post.image_url
+                    ? <img src={post.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    : <span style={{ display: 'flex', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', fontSize: 10.5, lineHeight: 1.35, color: 'var(--text-secondary, #8B6F5E)', padding: 7, textAlign: 'center', overflow: 'hidden', fontFamily: 'inherit' }}>{(post.caption || 'Untitled').slice(0, 52)}</span>}
+                  {badge && <span style={{ position: 'absolute', left: 5, bottom: 5, fontSize: 9, fontWeight: 700, color: '#fff', background: 'rgba(146,64,94,0.92)', padding: '1px 6px', borderRadius: 999, letterSpacing: '0.02em' }}>{badge}</span>}
+                </button>
+              );
+            })}
+          </div>
+          <p style={{ fontSize: 11.5, color: 'var(--text-secondary, #8B6F5E)', margin: '8px 0 0' }}>How your feed will look. Tap a tile to edit or reschedule.</p>
+        </div>
+      )}
+
       {/* Stream selector pills */}
       <div style={styles.streamSelector}>
         <button
