@@ -821,8 +821,8 @@ export default function ContentAutopilot() {
             onClick={() => { setTab(t); setComposing(false); }}
             style={{
               ...styles.tab,
-              borderBottomColor: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--accent, #C76B8A)' : 'transparent',
-              color: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #7a7470)'
+              background: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--accent, #92405E)' : 'transparent',
+              color: (tab === t || (tab === 'compose' && t === 'drafts')) ? '#fff' : 'var(--text-secondary, #8B6F5E)',
             }}
           >
             {t === 'ideas' ? 'Ideas' : t === 'drafts' ? `Drafts${drafts.length ? ` (${drafts.length})` : ''}` : t === 'posted' ? 'Posted' : t === 'calendar' ? 'Calendar' : 'Gallery'}
@@ -1401,21 +1401,27 @@ const styles = {
   },
   tabs: {
     display: 'flex',
-    gap: 24,
-    borderBottom: '1px solid var(--border, var(--border, #EDE9E4))',
-    marginBottom: 16
+    gap: 4,
+    background: 'var(--bg-card, #fff)',
+    border: '1px solid rgba(146,64,94,0.12)',
+    borderRadius: 999,
+    padding: 3,
+    marginBottom: 16,
+    overflowX: 'auto',
   },
   tab: {
-    minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    padding: '10px 0',
-    background: 'none',
+    flex: '1 0 auto', minHeight: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    padding: '8px 14px',
+    background: 'transparent',
     border: 'none',
-    borderBottom: '2px solid transparent',
-    fontSize: 14,
+    borderRadius: 999,
+    fontSize: 12.5,
     fontWeight: 600,
+    whiteSpace: 'nowrap',
     cursor: 'pointer',
     fontFamily: 'inherit',
-    transition: 'all 0.2s'
+    transition: 'background 0.15s ease, color 0.15s ease',
+    WebkitTapHighlightColor: 'transparent',
   },
   // Ideas
   ideaIntro: { fontSize: 13, color: 'var(--text-secondary, #7A756F)', marginBottom: 16, lineHeight: 1.5 },
