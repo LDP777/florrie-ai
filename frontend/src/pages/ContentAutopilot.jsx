@@ -676,10 +676,10 @@ export default function ContentAutopilot() {
         <div style={{ marginBottom: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--accent, #92405E)' }}>Your grid preview</span>
-            <span style={{ fontSize: 12, color: 'var(--text-secondary, #8B6F5E)' }}>{scheduled.length} scheduled · {posted.length} live</span>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary, #8B6F5E)' }}>{scheduled.length} scheduled · {drafts.length} drafts</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, borderRadius: 14, overflow: 'hidden' }}>
-            {[...scheduled, ...drafts.filter(d => d.image_url), ...posted].slice(0, 12).map(post => {
+            {[...scheduled, ...drafts, ...posted].slice(0, 12).map(post => {
               const badge = post.status === 'scheduled'
                 ? (post.scheduled_for ? new Date(post.scheduled_for).toLocaleDateString('en-GB', { weekday: 'short' }) : 'Soon')
                 : post.status === 'draft' ? 'Draft' : null;
