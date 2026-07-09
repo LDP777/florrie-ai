@@ -873,6 +873,33 @@ export default function ContentAutopilot() {
       {/* ═══ COMPOSE VIEW ═══ */}
       {tab === 'compose' && composing && (
         <div style={styles.composeArea}>
+          {/* Live Instagram-style preview — updates as she builds the post */}
+          <div style={{ background: '#fff', border: '1px solid rgba(146,64,94,0.12)', borderRadius: 16, overflow: 'hidden', marginBottom: 14, boxShadow: '0 1px 2px rgba(92,40,46,0.06)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px' }}>
+              <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--accent, #92405E)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, overflow: 'hidden', flexShrink: 0 }}>
+                {beautician?.logo_url ? <img src={beautician.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (beautician?.first_name?.[0] || beautician?.business_name?.[0] || 'F').toUpperCase()}
+              </div>
+              <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary, #241B17)' }}>{beautician?.booking_slug || beautician?.business_name || 'your_salon'}</span>
+              <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-secondary, #8B6F5E)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>live preview</span>
+            </div>
+            <div style={{ aspectRatio: composeMediaKind === 'story' ? '9 / 16' : '1', maxHeight: composeMediaKind === 'story' ? 340 : 999, background: composeImagePreview ? '#efe7df' : 'rgba(146,64,94,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {composeImagePreview
+                ? <img src={composeImagePreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                : <span style={{ fontSize: 12, color: 'var(--text-secondary, #8B6F5E)' }}>Add a photo to see it here</span>}
+            </div>
+            <div style={{ padding: '8px 12px 12px' }}>
+              <div style={{ display: 'flex', gap: 14, color: 'var(--text-primary, #241B17)', marginBottom: 6 }}>
+                <span className="material-symbols-outlined" style={{ fontSize: 21 }}>favorite</span>
+                <span className="material-symbols-outlined" style={{ fontSize: 21 }}>mode_comment</span>
+                <span className="material-symbols-outlined" style={{ fontSize: 21 }}>send</span>
+              </div>
+              <div style={{ fontSize: 12.5, color: 'var(--text-primary, #241B17)', lineHeight: 1.45 }}>
+                <span style={{ fontWeight: 600 }}>{beautician?.booking_slug || 'your_salon'}</span>{' '}
+                <span style={{ color: composeCaption ? 'inherit' : 'var(--text-muted, #B5AFA8)' }}>{composeCaption || 'Your caption will appear here as you write.'}</span>
+                {composeHashtags && <span style={{ color: '#3d6ea3' }}> {composeHashtags}</span>}
+              </div>
+            </div>
+          </div>
           <div style={styles.composeTypeRow}>
             {Object.entries(POST_TYPE_LABELS).map(([type, label]) => (
               <button
