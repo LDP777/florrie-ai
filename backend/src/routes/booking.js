@@ -3,7 +3,7 @@ import { z } from 'zod';
 import Stripe from 'stripe';
 import { supabase } from '../config.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
-import { pushNewBooking, pushReschedule } from '../services/push-notifications.js';
+import { pushNewBooking, pushBookingConfirmed, pushReschedule } from '../services/push-notifications.js';
 import { refreshLiveActivity } from '../services/live-activity.js';
 import { sendConsultationFormSMS } from './consultation-forms.js';
 import { validate } from '../middleware/validate.js';
@@ -91,6 +91,22 @@ router.get('/confirm/:sessionId', async (req, res) => {
             logger.warn({ err, appointmentId }, 'confirm-redirect: notification failed (non-fatal)')
           );
           logger.info({ appointmentId, sessionId }, 'Booking confirmed via success-redirect (webhook fallback)');
+          // Push the beautician the "booked - deposit paid" confirmation too. The
+          // Stripe webhook also does this, but the deposit_paid guard above means
+          // only ONE path (whichever confirmed first) fires, so no duplicate.
+          (async () => {
+            try {
+              const { data: ca } = await supabase
+                .from('appointments')
+                .select('beautician_id, starts_at, clients(first_name), treatments(name)')
+                .eq('id', appointmentId).maybeSingle();
+              if (!ca) return;
+              const cday = String(ca.starts_at || '').slice(0, 10);
+              const ctime = String(ca.starts_at || '').slice(11, 16);
+              const clabel = cday ? `${new Date(`${cday}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} at ${ctime}` : 'their appointment';
+              await pushBookingConfirmed(ca.beautician_id, ca.clients?.first_name || 'A client', ca.treatments?.name || 'their treatment', clabel, { appointmentId, apptDate: ca.starts_at });
+            } catch (e) { logger.warn({ err: e, appointmentId }, 'confirm-redirect: beautician push failed (non-fatal)'); }
+          })();
         }
       }
     }
@@ -2422,7 +2438,13 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   // Push notification — beautician gets a team-style alert
   const timeStr = startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
   const dateStr = startsDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-  pushNewBooking(beautician.id, firstName, treatmentNames, `${dateStr} at ${timeStr}`, { appointmentId: appointment.id, apptDate: appointment.starts_at, pending: appointment.status === 'pending' }).catch(() => {});
+  // Only alert on a REAL booking. A deposit booking starts as 'pending'; it must
+  // NOT fire a "waiting on a deposit" push up front (that was the noise). Ellie
+  // now hears about a deposit booking only when the deposit lands (confirmed push
+  // in the Stripe paths) or when it is abandoned (cleanup releases the slot).
+  if (appointment.status !== 'pending') {
+    pushNewBooking(beautician.id, firstName, treatmentNames, `${dateStr} at ${timeStr}`, { appointmentId: appointment.id, apptDate: appointment.starts_at, pending: false }).catch(() => {});
+  }
   refreshLiveActivity(beautician.id).catch(() => {});
 
   // If deposit required but Stripe isn't configured, return booking with deposit_pending flag

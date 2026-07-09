@@ -235,7 +235,7 @@ async function shouldPush(beauticianId, actionType) {
 // changes are different moments and must never share a headline.
 const ACTION_TITLES = {
   booking_confirmed: '🌸 New booking',
-  booking_pending: '⏳ Waiting on a deposit',
+  booking_pending: '⌛ Deposit not completed',
   booking_rescheduled: '🔁 Booking moved',
   booking_cancelled: 'Booking cancelled',
   booking_auto_cancelled: 'Slot released',

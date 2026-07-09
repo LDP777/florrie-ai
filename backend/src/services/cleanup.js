@@ -8,6 +8,7 @@ import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 import { guardedSend } from '../lib/outbound-guard.js';
 import { sendOnChannel } from './messaging.js';
+import { pushTeamUpdate } from './push-notifications.js';
 
 /**
  * Find appointments that are 'pending' (waiting for deposit payment)
@@ -30,7 +31,7 @@ export async function cleanupStaleBookings() {
   // NOTE: the column is google_event_id in prod. The old select named a
   // nonexistent google_calendar_event_id, PostgREST errored, and the error
   // was swallowed, so this cleanup NEVER cancelled anything since launch.
-  const SELECT = 'id, beautician_id, client_id, starts_at, deposit_cents, deposit_paid, payment_expires_at, google_event_id, treatments(name)';
+  const SELECT = 'id, beautician_id, client_id, starts_at, deposit_cents, deposit_paid, payment_expires_at, google_event_id, treatments(name), clients(first_name)';
   const unpaid = q => q.eq('status', 'pending').gt('deposit_cents', 0).or('deposit_paid.is.null,deposit_paid.eq.false');
   const [expiredRes, agedRes] = await Promise.all([
     unpaid(supabase.from('appointments').select(SELECT)).lt('payment_expires_at', now),
@@ -111,6 +112,19 @@ export async function cleanupStaleBookings() {
         sendSlotReleasedMessage(appt, getBeautician).catch(err =>
           logger.warn({ err, appointmentId: appt.id }, 'Slot-released message failed (non-fatal)')
         );
+        // The ONE "deposit not completed" alert to the beautician - only when a
+        // booking is actually abandoned, never up front. So she can nudge them.
+        (async () => {
+          try {
+            const day = String(appt.starts_at || '').slice(0, 10);
+            const time = String(appt.starts_at || '').slice(11, 16);
+            const dateLabel = day ? `${new Date(`${day}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} at ${time}` : 'their slot';
+            const name = appt.clients?.first_name || 'Someone';
+            await pushTeamUpdate(appt.beautician_id, 'booking_pending',
+              `${name} started booking ${appt.treatments?.name || 'an appointment'} for ${dateLabel} but didn't pay the deposit, so the slot has been released.`,
+              { url: '/calendar/week' });
+          } catch (e) { logger.warn({ err: e, appointmentId: appt.id }, 'abandon push failed (non-fatal)'); }
+        })();
       }
     }
   }
