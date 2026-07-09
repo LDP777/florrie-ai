@@ -230,6 +230,21 @@ async function shouldPush(beauticianId, actionType) {
   }
 }
 
+// Booking events must be tellable apart at a glance, from the TITLE alone
+// (Levi, 9 Jul): booked-and-paid, attempt-awaiting-deposit, and self-serve
+// changes are different moments and must never share a headline.
+const ACTION_TITLES = {
+  booking_confirmed: '🌸 New booking',
+  booking_pending: '⏳ Waiting on a deposit',
+  booking_rescheduled: '🔁 Booking moved',
+  booking_cancelled: 'Booking cancelled',
+  booking_auto_cancelled: 'Slot released',
+  message_escalated: '💬 Needs you',
+  daily_money_summary: '💷 Today\u2019s takings',
+  milestone: '🌸 Milestone',
+  weekly_review: '🌸 Your week with Florrie',
+};
+
 export async function pushTeamUpdate(beauticianId, actionType, summary, { url, clientName } = {}) {
   const agentId = ACTION_TO_AGENT[actionType] || 'front_desk';
   const agent = AGENT_PUSH[agentId] || AGENT_PUSH.front_desk;
@@ -241,7 +256,7 @@ export async function pushTeamUpdate(beauticianId, actionType, summary, { url, c
   }
 
   return sendPush(beauticianId, {
-    title: `${agent.emoji} ${agent.name}`,
+    title: ACTION_TITLES[actionType] || `${agent.emoji} ${agent.name}`,
     body: summary,
     url: url || '/',
     tag: `team-${agentId}-${Date.now()}`,
@@ -263,13 +278,14 @@ export async function pushNewBooking(beauticianId, clientName, treatmentName, da
     : appointmentId ? `/calendar/week?appt=${appointmentId}`
     : '/calendar/week';
   if (pending) {
+    // NOT a booking yet, and must never read like one.
     return pushTeamUpdate(beauticianId, 'booking_pending',
-      `${clientName} is booking ${treatmentName} for ${dateStr}, deposit not paid yet`,
+      `${clientName} is trying to book ${treatmentName} for ${dateStr}. Not confirmed until the deposit is paid.`,
       { url, clientName }
     );
   }
   return pushTeamUpdate(beauticianId, 'booking_confirmed',
-    `${clientName} booked ${treatmentName} for ${dateStr}`,
+    `${clientName} booked in: ${treatmentName}, ${dateStr}`,
     { url, clientName }
   );
 }
@@ -282,7 +298,7 @@ export async function pushBookingConfirmed(beauticianId, clientName, treatmentNa
     : appointmentId ? `/calendar/week?appt=${appointmentId}`
     : '/calendar/week';
   return pushTeamUpdate(beauticianId, 'booking_confirmed',
-    `Deposit paid, ${clientName}'s ${treatmentName} on ${dateStr} is confirmed`,
+    `${clientName} booked in: ${treatmentName}, ${dateStr}. Deposit paid.`,
     { url, clientName }
   );
 }
@@ -296,7 +312,7 @@ export async function pushReschedule(beauticianId, clientName, dateStr, { appoin
     : appointmentId ? `/calendar/week?appt=${appointmentId}`
     : '/calendar/week';
   return pushTeamUpdate(beauticianId, 'booking_rescheduled',
-    `${clientName} moved their booking to ${dateStr}`,
+    `${clientName} moved her own booking to ${dateStr} using her manage link`,
     { url, clientName }
   );
 }

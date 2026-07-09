@@ -111,6 +111,10 @@ export function sendApnsNotification(deviceToken, { title, body, badge, data, so
       sound: (customOk && sound) ? sound : 'default',
       ...(Number.isFinite(badge) ? { badge } : {}),
     },
+    // Custom keys at TOP level: Capacitor exposes the raw userInfo as
+    // notification.data, so a nested {data:{url}} was never seen by the
+    // tap handler and iOS taps opened the app but not the appointment.
+    ...(data || {}),
     data: data || {},
   });
 

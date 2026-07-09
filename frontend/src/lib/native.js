@@ -82,8 +82,9 @@ export async function registerNativePush() {
       // Handle notification tap
       PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
         logger.info('Push action:', action);
-        const url = action.notification?.data?.url;
-        if (url) {
+        const d = action.notification?.data || {};
+        const url = d.url || d.data?.url;
+        if (url && String(url).startsWith('/')) {
           window.location.href = url;
         }
       });
