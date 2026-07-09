@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
 
@@ -51,6 +51,21 @@ export default function ClientManagePage() {
   useEffect(() => {
     load();
   }, [slug, token]);
+
+  // Deep link from the booking confirmation ("Book my patch test") opens the
+  // slot picker straight away and scrolls to it, so it's one tap not three.
+  const deepLinkedPatch = useRef(false);
+  useEffect(() => {
+    if (deepLinkedPatch.current || !data) return;
+    const wantsPatch = new URLSearchParams(window.location.search).get('book') === 'patch';
+    if (wantsPatch && data.needsPatchTest) {
+      deepLinkedPatch.current = true;
+      loadPatchTestSlots();
+      setTimeout(() => {
+        document.getElementById('patch-test-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 350);
+    }
+  }, [data]);
 
   async function load() {
     setLoading(true);
@@ -401,7 +416,7 @@ export default function ClientManagePage() {
 
         {/* Patch tests section - shown when treatment requires it OR existing patch test records exist */}
         {(needsPatchTest || (patchTests && patchTests.length > 0)) && (
-          <div style={S.card}>
+          <div id="patch-test-section" style={S.card}>
             <p style={S.sectionLabel}>Patch tests</p>
 
             {/* No existing patch test row but treatment requires one */}

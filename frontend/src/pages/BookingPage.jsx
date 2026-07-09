@@ -869,9 +869,9 @@ export default function BookingPage() {
             <div style={{ marginTop: 16, padding: '14px 16px', borderRadius: 12, background: brandLight, border: `1.5px solid ${brandMedium}`, textAlign: 'left' }}>
               <p style={{ fontSize: 14, fontWeight: 700, color: brand, margin: '0 0 4px' }}>One more step: your patch test 🩹</p>
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
-                If you've not had a patch test with {bizName} in the last 6 months, you'll need a quick one at least 24 hours before your appointment. It only takes a few minutes.
+                This treatment needs a quick patch test at least 24 hours before your appointment. It only takes a few minutes, tap below to pick a time.
               </p>
-              <a href={success.manageUrl} style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: '12px 0', borderRadius: 10, textAlign: 'center', background: brand, color: '#fff', fontWeight: 600, fontSize: 14, textDecoration: 'none' }}>
+              <a href={`${success.manageUrl}?book=patch`} style={{ display: 'block', width: '100%', boxSizing: 'border-box', padding: '12px 0', borderRadius: 10, textAlign: 'center', background: brand, color: '#fff', fontWeight: 600, fontSize: 14, textDecoration: 'none' }}>
                 Book my patch test →
               </a>
             </div>
@@ -1265,6 +1265,11 @@ export default function BookingPage() {
         {step === 1 && (
           <div>
             <h2 style={styles.stepTitle}>Pick a date and time</h2>
+            {needsPatchTest && (
+              <div style={{ margin: '0 0 12px', padding: '11px 13px', borderRadius: 12, background: brandLight, border: `1px solid ${brandMedium}`, fontSize: 12.5, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+                <strong style={{ color: brand }}>Heads up:</strong> new clients need a quick patch test at least 24 hours before this treatment. Pick a time from tomorrow onwards and we'll set the patch test up right after you book.
+              </div>
+            )}
             {fieldErrors.date && (
               <div style={styles.inlineError}>{fieldErrors.date}</div>
             )}
@@ -1400,6 +1405,12 @@ export default function BookingPage() {
         {step === 2 && (
           <div>
             <h2 style={styles.stepTitle}>Your details</h2>
+            {needsPatchTest && !recognisedClient?.found && selectedSlot &&
+              ((new Date(selectedSlot.starts_at).getTime() - Date.now()) / 3600000) < 24 && (
+              <div style={{ margin: '0 0 12px', padding: '11px 13px', borderRadius: 12, background: '#FEF3C7', border: '1px solid #F5D67E', fontSize: 12.5, lineHeight: 1.5, color: '#8A5A00' }}>
+                That time is under 24 hours away. As a new client you'll need a quick patch test first, so please <button type="button" onClick={() => setStep(1)} style={{ background: 'none', border: 'none', padding: 0, color: '#8A5A00', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5 }}>pick a time from tomorrow onwards</button>.
+              </div>
+            )}
             <div style={styles.form}>
               <div>
                 <input

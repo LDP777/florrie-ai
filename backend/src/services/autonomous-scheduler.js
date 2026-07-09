@@ -489,9 +489,13 @@ async function checkPreAppointmentRequirements(beauticianId) {
       // (expiry reminder), so a client with a valid test is never wrongly nudged.
       const hasValid = (pts || []).some(p =>
         (p.status === 'passed' || p.result === 'pass') && p.test_date && new Date(p.test_date) > sixMonthsAgo);
-      const hasPending = (pts || []).some(p => p.status === 'pending' || p.confirmed_at);
-      if (!hasValid && !hasPending) {
-        const link = appt.management_token ? `${FRONTEND}/book/${b.booking_slug}/manage/${appt.management_token}` : null;
+      // A bare 'pending' row is created the instant they book the treatment,
+      // BEFORE they book the actual patch-test slot. Only a booked slot
+      // (confirmed_at) or a valid passed test means they're sorted; a pending
+      // row on its own is exactly the client we need to chase to book one.
+      const hasBookedSlot = (pts || []).some(p => p.confirmed_at);
+      if (!hasValid && !hasBookedSlot) {
+        const link = appt.management_token ? `${FRONTEND}/book/${b.booking_slug}/manage/${appt.management_token}?book=patch` : null;
         parts.push(`you'll need a quick patch test beforehand${link ? `, you can book one here: ${link}` : ''}`);
       }
     }
