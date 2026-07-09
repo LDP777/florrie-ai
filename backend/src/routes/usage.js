@@ -38,10 +38,22 @@ router.get('/messages', requireAuth, async (req, res) => {
       .eq('month', monthKey)
       .maybeSingle();
 
+    // Instagram DMs cost nothing and are never billed, but they are real
+    // work Florrie did: show them alongside the meter, clearly free.
+    const { count: igCount } = await supabase
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('beautician_id', req.beautician.id)
+      .eq('channel', 'instagram')
+      .eq('direction', 'outbound')
+      .gte('created_at', start.toISOString())
+      .lt('created_at', end.toISOString());
+
     if (usageRow) {
       return res.json({
         used: (usageRow.sms_sent || 0) + (usageRow.whatsapp_sent || 0),
         limit: usageRow.free_limit || DEFAULT_LIMIT,
+        instagram_free: igCount || 0,
         month_start: start.toISOString(),
         month_end: end.toISOString(),
       });

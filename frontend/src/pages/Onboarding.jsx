@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { track } from '../lib/analytics.js';
 import { useBeautician, updateRow, insertRow } from '../lib/supabase.js'
 import { PLAN } from '../lib/subscription.js';
 import { registerPush, getPushStatus } from '../lib/push.js';
@@ -84,6 +85,13 @@ export default function Onboarding({ onComplete }) {
   const [billingError, setBillingError] = useState(null);
   const totalSteps = 6;
   const progress = (step / totalSteps) * 100;
+
+  // Funnel telemetry: one event per step reached (advance or skip), so the
+  // signup funnel is measurable and stalls are visible in PostHog. Deliberate
+  // events only, no autocapture.
+  useEffect(() => {
+    try { track('onboarding_step_viewed', { step, total_steps: totalSteps }); } catch { /* never block signup */ }
+  }, [step]);
   if (bLoading) {
     return <p style={styles.loadingText}>Setting up your account...</p>;
   }
@@ -186,6 +194,7 @@ export default function Onboarding({ onComplete }) {
         setSaving(false);
         return;
       }
+      try { track('onboarding_completed', { total_steps: totalSteps }); } catch { /* noop */ }
       await updateRow('beauticians', beautician.id, {
         booking_slug: cleanSlug,
         onboarding_completed_at: new Date().toISOString()
@@ -353,6 +362,7 @@ export default function Onboarding({ onComplete }) {
     }
   }
   function skipStep() {
+    try { track('onboarding_step_skipped', { step }); } catch { /* noop */ }
     setError(null);
     if (step < totalSteps) {
       setStep(step + 1);

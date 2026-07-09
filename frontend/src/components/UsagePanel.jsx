@@ -28,6 +28,8 @@ export default function UsagePanel() {
   const [limit, setLimit] = useState(120);
   const [error, setError] = useState(false);
 
+  const [igFree, setIgFree] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -45,6 +47,7 @@ export default function UsagePanel() {
         if (cancelled) return;
         setUsed(typeof json.used === 'number' ? json.used : 0);
         setLimit(typeof json.limit === 'number' && json.limit > 0 ? json.limit : 120);
+        setIgFree(typeof json.instagram_free === 'number' ? json.instagram_free : 0);
       } catch {
         if (!cancelled) setError(true);
       }
@@ -76,7 +79,7 @@ export default function UsagePanel() {
       <span className="material-symbols-outlined" style={S.icon}>auto_awesome_motion</span>
       <span style={S.label}>
         <strong style={S.count}>{safeUsed}</strong>
-        <span style={S.muted}> of {limit} messages this month</span>
+        <span style={S.muted}> of {limit} messages this month{igFree > 0 ? ` · ${igFree} Instagram, free` : ''}</span>
       </span>
       <span style={{ ...S.bar, background: trackColor }}>
         <span style={{ ...S.fill, width: `${pct}%`, background: fillColor }} />
