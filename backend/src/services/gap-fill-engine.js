@@ -199,6 +199,15 @@ export async function checkGapFillOpportunities(beauticianId, threshold) {
  * GET endpoint helper, returns gap-fill suggestions for the frontend
  * without sending anything. Read-only analysis.
  */
+// Identity key so a client with DUPLICATE records (same person, two rows) is
+// never offered the same slot twice. Prefer phone; fall back to name.
+function identityKey(c) {
+  if (!c) return '';
+  const phone = String(c.phone || '').replace(/[^0-9]/g, '');
+  if (phone.length >= 7) return 'p:' + phone.slice(-9);
+  return 'n:' + `${c.first_name || ''}|${c.last_name || ''}`.trim().toLowerCase();
+}
+
 export async function getGapFillSuggestions(beauticianId) {
   const suggestions = [];
 
@@ -239,7 +248,8 @@ export async function getGapFillSuggestions(beauticianId) {
       const gapSuggestions = [];
 
       for (const waiter of waitlistPool) {
-        if (seen.has(waiter.client_id)) continue;
+        const widk = identityKey(waiter.client);
+        if (seen.has(waiter.client_id) || seen.has(widk)) continue;
         if (recentlyContacted.has(waiter.client_id)) continue;
         if (!fitsGap(waiter.treatment_duration, gap.duration_minutes)) continue;
         if (!matchesPreferences(waiter, gap)) continue;
@@ -251,11 +261,11 @@ export async function getGapFillSuggestions(beauticianId) {
           reason: `On waitlist for ${waiter.treatment.name}`,
           confidence: 0.95,
         });
-        seen.add(waiter.client_id);
+        seen.add(waiter.client_id); seen.add(widk);
       }
 
       for (const client of rebookPool) {
-        if (seen.has(client.id)) continue;
+        const idk = identityKey(client); if (seen.has(client.id) || seen.has(idk)) continue;
         if (recentlyContacted.has(client.id)) continue;
         if (!fitsGap(client.treatment_duration, gap.duration_minutes)) continue;
 
@@ -266,11 +276,11 @@ export async function getGapFillSuggestions(beauticianId) {
           reason: `${client.treatment_name} overdue by ${client.days_overdue} days`,
           confidence: 0.85,
         });
-        seen.add(client.id);
+        seen.add(client.id); seen.add(idk);
       }
 
       for (const client of dormantPool) {
-        if (seen.has(client.id)) continue;
+        const idk = identityKey(client); if (seen.has(client.id) || seen.has(idk)) continue;
         if (recentlyContacted.has(client.id)) continue;
 
         gapSuggestions.push({
@@ -280,7 +290,7 @@ export async function getGapFillSuggestions(beauticianId) {
           reason: `Hasn't visited in ${client.days_absent} days`,
           confidence: 0.75,
         });
-        seen.add(client.id);
+        seen.add(client.id); seen.add(idk);
       }
 
       if (gapSuggestions.length > 0) {
