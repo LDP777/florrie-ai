@@ -1506,11 +1506,7 @@ export default function BookingPage() {
                 ? `Required for ${selectedTreatment?.name}. This information helps your beautician prepare and is kept for insurance records.`
                 : 'A few quick questions for your first visit. It helps your beautician look after you properly and is kept for insurance records.'}
             </p>
-            {[...new Set(consultationForms.map(f => f.consent_text).filter(Boolean))].map((txt, i) => (
-              <p key={i} style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.5, padding: '10px 12px', background: 'var(--bg-subtle, #FDFCFB)', borderRadius: 8, border: '1px solid var(--border-light)' }}>
-                {txt}
-              </p>
-            ))}
+            {/* Consent paragraph moved to just before the signature (below), matching what the form editor promises. */}
             <div style={styles.formFields}>
               {consultationQuestions.map((q, qi) => (
                 <div key={q.key} style={{ marginBottom: 14 }}>
@@ -1601,6 +1597,9 @@ export default function BookingPage() {
                   {/* Signature: typing your full name acts as the e-signature */}
                   {q.type === 'signature' && (
                     <div>
+                      {[...new Set(consultationForms.map(cf => cf.consent_text).filter(Boolean))].map((txt, ci) => (
+                        <p key={`consent-${ci}`} style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5, padding: '10px 12px', background: 'var(--bg-subtle, #FDFCFB)', borderRadius: 8, border: '1px solid var(--border-light)' }}>{txt}</p>
+                      ))}
                       <input
                         type="text"
                         value={consultationAnswers[q.key] || ''}
@@ -1624,6 +1623,9 @@ export default function BookingPage() {
                 </div>
               ))}
             </div>
+            {!consultationQuestions.some(q => q.type === 'signature') && [...new Set(consultationForms.map(cf => cf.consent_text).filter(Boolean))].map((txt, ci) => (
+              <p key={`consent-fb-${ci}`} style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5, padding: '10px 12px', background: 'var(--bg-subtle, #FDFCFB)', borderRadius: 8, border: '1px solid var(--border-light)' }}>{txt}</p>
+            ))}
             <div style={styles.buttonRow}>
               <button onClick={() => setStep(2)} style={styles.backBtn}>← Back</button>
               <button onClick={() => setStep(3)} style={{ ...styles.primaryBtn, background: brand }}>
