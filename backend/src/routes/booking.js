@@ -420,13 +420,18 @@ router.post('/:slug/lookup-client', async (req, res) => {
     }
 
     if (!client && phone) {
-      const { data } = await supabase
-        .from('clients')
-        .select(selectCols)
-        .eq('beautician_id', b.id)
-        .eq('phone', phone.trim())
-        .maybeSingle();
-      client = data;
+      // Match on the last 9 digits so +44 / 0 / spaced formats all resolve to
+      // the SAME client (07... == +447...). Same convention as rebook + imports.
+      const pd = String(phone).replace(/\D/g, '');
+      if (pd.length >= 7) {
+        const { data } = await supabase
+          .from('clients')
+          .select(selectCols)
+          .eq('beautician_id', b.id)
+          .ilike('phone', `%${pd.slice(-9)}`)
+          .limit(1);
+        client = data?.[0] || null;
+      }
     }
 
     if (!client) return res.json({ found: false });
@@ -1765,13 +1770,15 @@ router.post('/:slug/check-member', async (req, res) => {
 
   if (!beautician) return res.json({ is_member: false });
 
-  // Find client by phone
-  const { data: client } = await supabase
+  // Find client by phone (last-9 match: +44 / 0 / spaced all resolve the same)
+  const mpd = String(phone || '').replace(/\D/g, '');
+  const { data: memberRows } = mpd.length >= 7 ? await supabase
     .from('clients')
     .select('id, first_name')
     .eq('beautician_id', beautician.id)
-    .eq('phone', phone.trim())
-    .maybeSingle();
+    .ilike('phone', `%${mpd.slice(-9)}`)
+    .limit(1) : { data: [] };
+  const client = memberRows?.[0] || null;
 
   if (!client) return res.json({ is_member: false });
 
@@ -1819,13 +1826,15 @@ router.post('/:slug/check-packages', async (req, res) => {
 
   if (!beautician) return res.json({ packages: [] });
 
-  // Find client by phone
-  const { data: client } = await supabase
+  // Find client by phone (last-9 match: +44 / 0 / spaced all resolve the same)
+  const ppd = String(phone || '').replace(/\D/g, '');
+  const { data: pkgClientRows } = ppd.length >= 7 ? await supabase
     .from('clients')
     .select('id')
     .eq('beautician_id', beautician.id)
-    .eq('phone', phone.trim())
-    .maybeSingle();
+    .ilike('phone', `%${ppd.slice(-9)}`)
+    .limit(1) : { data: [] };
+  const client = pkgClientRows?.[0] || null;
 
   if (!client) return res.json({ packages: [] });
 
@@ -2094,13 +2103,19 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   }
 
   if (!existingClient && client_phone) {
-    const { data } = await supabase
-      .from('clients')
-      .select('id, stripe_customer_id')
-      .eq('beautician_id', beautician.id)
-      .eq('phone', client_phone)
-      .maybeSingle();
-    existingClient = data;
+    // Last-9 match so a returning client typing 07... when we stored +447...
+    // (or vice versa) is still recognised: no duplicate record, and no being
+    // re-asked for a patch test / consultation form they already did.
+    const cpd = String(client_phone).replace(/\D/g, '');
+    if (cpd.length >= 7) {
+      const { data } = await supabase
+        .from('clients')
+        .select('id, stripe_customer_id')
+        .eq('beautician_id', beautician.id)
+        .ilike('phone', `%${cpd.slice(-9)}`)
+        .limit(1);
+      existingClient = data?.[0] || null;
+    }
   }
 
   if (existingClient) {
