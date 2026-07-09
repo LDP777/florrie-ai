@@ -893,6 +893,35 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
   const [noShowCharging, setNoShowCharging] = useState(false);
   const [paymentLinkUrl, setPaymentLinkUrl] = useState(null);
   const [linkLoading, setLinkLoading] = useState(false);
+  const [manageLink, setManageLink] = useState(null);
+  const [manageBusy, setManageBusy] = useState(false);
+  const [manageSent, setManageSent] = useState(false);
+  const [manageCopied, setManageCopied] = useState(false);
+
+  async function handleGetManageLink() {
+    setManageBusy(true); setManageSent(false);
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}/manage-link`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.url) {
+        setManageLink(data.url);
+        try { await navigator.clipboard?.writeText?.(data.url); setManageCopied(true); setTimeout(() => setManageCopied(false), 2000); } catch { /* clipboard blocked; the box below is tap-to-copy */ }
+      } else { alert(data.error || 'Could not get the booking link'); }
+    } catch { alert('Could not get the booking link'); }
+    finally { setManageBusy(false); }
+  }
+
+  async function handleSendManageLink() {
+    setManageBusy(true);
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}/send-manage-link`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) { setManageSent(true); setTimeout(() => setManageSent(false), 3000); }
+      else { const d = await res.json().catch(() => ({})); alert(d.error || 'Could not send the link'); }
+    } catch { alert('Could not send the link'); }
+    finally { setManageBusy(false); }
+  }
   const [chargingBalance, setChargingBalance] = useState(false);
   const [noteSaved, setNoteSaved] = useState(false);
   const [rebookSaving, setRebookSaving] = useState(false);
@@ -1401,6 +1430,26 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               </div>
             </div>
           )}
+          {/* Client booking-management link: copy to paste anywhere, or text it */}
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${COLORS.outlineVariant}55` }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.stone400, marginBottom: 8 }}>Booking link for the client</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button onClick={handleGetManageLink} disabled={manageBusy}
+                style={{ flex: 1, minWidth: 150, minHeight: 44, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.primary, fontSize: 13, fontWeight: 600, cursor: manageBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                {manageCopied ? '\u2713 Copied' : (manageBusy ? '\u2026' : 'Copy booking link')}
+              </button>
+              <button onClick={handleSendManageLink} disabled={manageBusy}
+                style={{ flex: 1, minWidth: 150, minHeight: 44, padding: '10px 12px', borderRadius: 10, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 13, fontWeight: 600, cursor: manageBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                {manageSent ? '\u2713 Sent to client' : (manageBusy ? '\u2026' : 'Text link to client')}
+              </button>
+            </div>
+            {manageLink && (
+              <input readOnly value={manageLink}
+                onClick={e => { e.target.select(); navigator.clipboard?.writeText?.(manageLink); setManageCopied(true); setTimeout(() => setManageCopied(false), 2000); }}
+                style={{ width: '100%', marginTop: 8, padding: '8px', borderRadius: 6, border: `1px solid ${COLORS.outlineVariant}`, fontSize: 12, boxSizing: 'border-box', fontFamily: 'inherit', background: 'var(--bg-card)' }} />
+            )}
+            <p style={{ fontSize: 11, color: COLORS.stone400, margin: '6px 0 0' }}>The link they use to view, reschedule or cancel. Copy it to paste into WhatsApp, or text it to them if theirs expired.</p>
+          </div>
           {/* Payment link result */}
           {paymentLinkUrl && (
             <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: 'var(--success-bg)', border: '1px solid #C6F6D5' }}>

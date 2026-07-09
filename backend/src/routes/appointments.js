@@ -884,4 +884,47 @@ function generateSlots(date, startTime, endTime, durationMinutes, existingAppoin
   return slots;
 }
 
+/**
+ * GET /api/appointments/:id/manage-link
+ * The client's booking-management link, for Ellie to copy/paste or re-send if
+ * a client's original link went astray. management_token is a permanent UUID.
+ */
+router.get('/:id/manage-link', requireAuth, async (req, res) => {
+  const { data: appt } = await supabase
+    .from('appointments')
+    .select('management_token, beauticians(booking_slug)')
+    .eq('id', req.params.id)
+    .eq('beautician_id', req.beautician.id)
+    .maybeSingle();
+  if (!appt) return res.status(404).json({ error: 'Appointment not found' });
+  const slug = appt.beauticians?.booking_slug;
+  const base = process.env.FRONTEND_URL;
+  if (!appt.management_token || !slug || !base) {
+    return res.status(409).json({ error: 'Booking link is not available for this appointment yet' });
+  }
+  res.json({ url: `${base}/book/${slug}/manage/${appt.management_token}` });
+});
+
+/**
+ * POST /api/appointments/:id/send-manage-link
+ * Re-send the booking confirmation (which carries the manage link in the email
+ * and SMS) to the client. Respects the beautician's message settings.
+ */
+router.post('/:id/send-manage-link', requireAuth, async (req, res) => {
+  const { data: appt } = await supabase
+    .from('appointments')
+    .select('id')
+    .eq('id', req.params.id)
+    .eq('beautician_id', req.beautician.id)
+    .maybeSingle();
+  if (!appt) return res.status(404).json({ error: 'Appointment not found' });
+  try {
+    await notifyBookingConfirmed(appt.id);
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err, id: appt.id }, 'send-manage-link failed');
+    res.status(500).json({ error: 'Could not send the link' });
+  }
+});
+
 export default router;
