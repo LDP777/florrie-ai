@@ -90,6 +90,8 @@ const DEFAULT_HASHTAGS = {
 export default function ContentAutopilot() {
   const { beautician, loading: bLoading } = useBeautician();
   const [drafts, setDrafts] = useState([]);
+  const [scheduled, setScheduled] = useState([]);
+  const [deckIndex, setDeckIndex] = useState(null); // null = list view, number = review-one-by-one
   const [posted, setPosted] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -117,6 +119,7 @@ export default function ContentAutopilot() {
   const [composing, setComposing] = useState(false);
   const [composeType, setComposeType] = useState('before_after');
   const [composeCaption, setComposeCaption] = useState('');
+  const [composeMediaKind, setComposeMediaKind] = useState('feed');
   const [composeHashtags, setComposeHashtags] = useState('');
   const [composeImageFile, setComposeImageFile] = useState(null);
   const [composeImagePreview, setComposeImagePreview] = useState(null);
@@ -191,6 +194,21 @@ export default function ContentAutopilot() {
     }
   }
 
+  async function handleUnschedule(postId) {
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE}/api/content/${postId}/schedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ scheduled_for: null }),
+      });
+      if (!res.ok) throw new Error('Could not unschedule');
+      await loadAll();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   async function handleApproveSchedule(post) {
     try {
       const token = getToken();
@@ -225,6 +243,7 @@ export default function ContentAutopilot() {
       const allPosts = data.posts || [];
       setDrafts(allPosts.filter(p => p.status === 'draft').sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
       setPosted(allPosts.filter(p => p.status === 'posted').sort((a, b) => new Date(b.posted_at) - new Date(a.posted_at)));
+      setScheduled(allPosts.filter(p => p.status === 'scheduled').sort((a, b) => new Date(a.scheduled_for || 0) - new Date(b.scheduled_for || 0)));
     } catch (err) {
       logger.error('Load content error:', err);
       setError(err.message || 'Failed to load content');
@@ -409,7 +428,7 @@ export default function ContentAutopilot() {
   }
   function getPostsForDate(date) {
     const dateStr = localDateStr(date);
-    return (selectedStreamId ? drafts.concat(posted) : drafts.concat(posted)).filter(post => {
+    return drafts.concat(scheduled).concat(posted).filter(post => {
       const postDate = (post.scheduled_for || post.posted_at || post.created_at).split('T')[0];
       return postDate === dateStr;
     });
@@ -532,6 +551,7 @@ export default function ContentAutopilot() {
         image_url: imageUrl,
         platform: 'instagram',
         post_type: composeType,
+        media_kind: composeMediaKind,
         status: 'draft',
       });
       setDrafts(prev => [post, ...prev]);
@@ -860,6 +880,25 @@ export default function ContentAutopilot() {
               style={{ display: 'none' }}
             />
           </div>
+          {/* Feed vs Story */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            {[['feed', 'Feed post'], ['story', 'Story (24h)']].map(([k, label]) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setComposeMediaKind(k)}
+                style={{
+                  padding: '7px 14px', borderRadius: 10, fontSize: 12.5, fontWeight: 700,
+                  border: `1.5px solid ${composeMediaKind === k ? 'var(--accent, #C76B8A)' : 'var(--border-light, #EDE9E4)'}`,
+                  background: composeMediaKind === k ? 'var(--accent-bg, #FBF0F3)' : 'transparent',
+                  color: composeMediaKind === k ? 'var(--accent, #C76B8A)' : 'var(--text-secondary, #7A756F)',
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           {/* Caption */}
           <textarea
             value={composeCaption}
@@ -919,6 +958,38 @@ export default function ContentAutopilot() {
       {/* ═══ DRAFTS TAB ═══ */}
       {tab === 'drafts' && !composing && (
         <div style={styles.postList}>
+          {scheduled.length > 0 && (
+            <div style={{ background: 'var(--tone-2, #F7EDE4)', borderRadius: 16, padding: '12px 14px', marginBottom: 4 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text-secondary, #8B6F5E)', margin: '0 0 8px', textTransform: 'uppercase' }}>
+                Scheduled, posting themselves
+              </p>
+              {scheduled.map(sp => (
+                <div key={sp.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderTop: '1px solid rgba(146,64,94,0.08)' }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#3B82F6', whiteSpace: 'nowrap' }}>
+                    {sp.scheduled_for ? `${new Date(sp.scheduled_for).toLocaleDateString('en-GB', { weekday: 'short' })} ${new Date(sp.scheduled_for).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : 'Soon'}
+                  </span>
+                  <span style={{ fontSize: 12.5, color: 'var(--text-primary, #241B17)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                    {sp.caption}
+                  </span>
+                  {!sp.image_url && <span style={{ fontSize: 10.5, color: '#B45309', whiteSpace: 'nowrap' }}>needs photo</span>}
+                  <button
+                    onClick={() => handleUnschedule(sp.id)}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-muted, #B5AFA8)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: '2px 4px' }}
+                  >
+                    Undo
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {drafts.length > 1 && deckIndex === null && (
+            <button
+              onClick={() => setDeckIndex(0)}
+              style={{ padding: '11px 0', borderRadius: 12, border: '1.5px solid var(--accent, #C76B8A)', background: 'transparent', color: 'var(--accent, #C76B8A)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              Review one by one ({drafts.length})
+            </button>
+          )}
           {drafts.length === 0 && !loading && (
             <EmptyState
               icon="📸"
@@ -926,7 +997,19 @@ export default function ContentAutopilot() {
               subtitle="Head to Ideas to pick a template, or tap + New Post to start from scratch."
             />
           )}
-          {drafts.map(post => (
+          {deckIndex !== null && drafts.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 2px 0' }}>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary, #8B6F5E)' }}>
+                {Math.min(deckIndex + 1, drafts.length)} of {drafts.length}
+              </span>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setDeckIndex(i => Math.max(0, i - 1))} disabled={deckIndex === 0} style={{ background: 'none', border: 'none', color: deckIndex === 0 ? 'var(--text-muted, #B5AFA8)' : 'var(--accent, #C76B8A)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>‹ Back</button>
+                <button onClick={() => setDeckIndex(i => (i + 1 < drafts.length ? i + 1 : i))} disabled={deckIndex + 1 >= drafts.length} style={{ background: 'none', border: 'none', color: deckIndex + 1 >= drafts.length ? 'var(--text-muted, #B5AFA8)' : 'var(--accent, #C76B8A)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Skip ›</button>
+                <button onClick={() => setDeckIndex(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted, #B5AFA8)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>List</button>
+              </div>
+            </div>
+          )}
+          {(deckIndex === null ? drafts : drafts.slice(Math.min(deckIndex, Math.max(0, drafts.length - 1)), Math.min(deckIndex, Math.max(0, drafts.length - 1)) + 1)).map(post => (
             <div key={post.id} style={styles.postCard}>
               {/* Type badge */}
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1059,6 +1142,11 @@ export default function ContentAutopilot() {
               {calendarDate.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
             </span>
             <button onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1))} style={styles.calendarNav}>→</button>
+          </div>
+          <div style={{ display: 'flex', gap: 14, justifyContent: 'center', margin: '2px 0 10px', fontSize: 11, color: 'var(--text-secondary, #8B6F5E)' }}>
+            <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 4, background: '#D1D5DB', marginRight: 4 }} />draft</span>
+            <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 4, background: '#60A5FA', marginRight: 4 }} />scheduled</span>
+            <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 4, background: '#34D399', marginRight: 4 }} />posted</span>
           </div>
           <div style={styles.calendarGrid}>
             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
@@ -1253,8 +1341,8 @@ const DEV_DRAFTS = [
 const styles = {
   page: {
     minHeight: '100vh',
-    background: 'var(--bg, var(--bg, #FAF8F5))',
-    fontFamily: '"DM Sans", -apple-system, sans-serif',
+    background: 'transparent',
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', 'DM Sans', sans-serif)",
     padding: '0 16px var(--scroll-pad-bottom)',
     maxWidth: 480,
     margin: '0 auto',
@@ -1401,10 +1489,9 @@ const styles = {
   // Posts
   postList: { display: 'flex', flexDirection: 'column', gap: 14 },
   postCard: {
-    background: 'var(--bg-card, #FFFFFF)',
-    borderRadius: 14,
+    background: 'var(--tone-1, #FBF3EC)',
+    borderRadius: 20,
     padding: 16,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
   },
   typeBadge: {
     display: 'inline-block',

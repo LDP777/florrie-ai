@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { track } from '../lib/analytics.js';
-import { useBeautician, updateRow, insertRow } from '../lib/supabase.js'
+import { useBeautician, updateRow, insertRow, supabase } from '../lib/supabase.js'
 import { PLAN } from '../lib/subscription.js';
 import { registerPush, getPushStatus } from '../lib/push.js';
 import logger from '../lib/logger.js';
@@ -361,6 +361,28 @@ export default function Onboarding({ onComplete }) {
       setSmsSaving(false);
     }
   }
+  // Instagram-first channel connect (Levi, 9 Jul): DMs are where brow
+  // clients already live and the OAuth flow has zero telecom pain. Honest
+  // states: not-configured shows a plain "soon" note, never a dead end.
+  const [igNote, setIgNote] = useState(null);
+  async function connectInstagram() {
+    try {
+      try { track('onboarding_instagram_connect_tapped', { step }); } catch { /* noop */ }
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${API}/api/instagram/connect`, {
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && d.url) {
+        window.location.href = d.url;
+        return;
+      }
+      setIgNote('Instagram connect is switching on very soon. You can finish setup now and connect from Settings when it is ready.');
+    } catch {
+      setIgNote('Could not reach Instagram just now. Finish setup and connect from Settings any time.');
+    }
+  }
+
   function skipStep() {
     try { track('onboarding_step_skipped', { step }); } catch { /* noop */ }
     setError(null);
@@ -710,6 +732,24 @@ export default function Onboarding({ onComplete }) {
           <p style={styles.stepDesc}>
             Your booking page is live. Share this link and clients can book you in seconds.
           </p>
+          <div style={{ background: 'var(--tone-1, #FBF3EC)', borderRadius: 16, padding: '14px 16px', margin: '0 0 14px', textAlign: 'left' }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary, #241B17)', margin: '0 0 4px' }}>
+              Connect Instagram (recommended)
+            </p>
+            <p style={{ fontSize: 12.5, color: 'var(--text-secondary, #8B6F5E)', margin: '0 0 10px', lineHeight: 1.45 }}>
+              Most booking chats start in your DMs. Connect and Florrie answers them,
+              takes bookings, and posts for you. WhatsApp can come later, no phone
+              number wrangling needed today.
+            </p>
+            <button
+              type="button"
+              onClick={connectInstagram}
+              style={{ padding: '10px 18px', borderRadius: 10, border: 'none', background: 'var(--accent, #92405E)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              Connect Instagram
+            </button>
+            {igNote && <p style={{ fontSize: 12, color: 'var(--text-secondary, #8B6F5E)', margin: '8px 0 0' }}>{igNote}</p>}
+          </div>
           {(() => {
             const bookingSlug = (slug || '').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
             const bookingUrl = `https://florrie.ai/book/${bookingSlug}`;

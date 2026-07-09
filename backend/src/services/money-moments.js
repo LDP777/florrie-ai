@@ -163,7 +163,7 @@ async function maybeSendMilestones(b) {
         await markFired(b.id, 'first_1k_week', { pence: historicBest, baseline: true });
       }
     } else if (weekPence >= 100000) {
-      await pushTeamUpdate(b.id, 'milestone', `£${Math.floor(weekPence / 100)} this week. Your first £1,000 week 🌸`, { url: '/money' });
+      await pushTeamUpdate(b.id, 'milestone', `£${Math.floor(weekPence / 100)} this week. Your first £1,000 week 🌸`, { url: '/milestones' });
       await markFired(b.id, 'first_1k_week', { pence: weekPence });
       fired++;
     }
@@ -181,7 +181,7 @@ async function maybeSendMilestones(b) {
         await markFired(b.id, `clients_${n}`, { count: clientCount, baseline: true });
         continue;
       }
-      await pushTeamUpdate(b.id, 'milestone', `Client number ${n} just joined your books`, { url: '/clients' });
+      await pushTeamUpdate(b.id, 'milestone', `Client number ${n} just joined your books`, { url: '/milestones' });
       await markFired(b.id, `clients_${n}`, { count: clientCount });
       fired++;
       break; // one milestone push max per tick
@@ -206,7 +206,7 @@ async function maybeSendMilestones(b) {
     const key = `fully_booked:${dateStr}`;
     if (workMins > 0 && (appts || []).length >= 4 && bookedMins / workMins >= 0.9 && !(await alreadyFired(b.id, key))) {
       if (!isBaselineRun) {
-        await pushTeamUpdate(b.id, 'milestone', `Fully booked today. Not a gap in sight`, { url: '/calendar/week' });
+        await pushTeamUpdate(b.id, 'milestone', `Fully booked today. Not a gap in sight`, { url: '/milestones' });
         fired++;
       }
       await markFired(b.id, key, { bookedMins, workMins, baseline: isBaselineRun });

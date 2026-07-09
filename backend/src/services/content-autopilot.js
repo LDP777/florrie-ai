@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { cleanReply } from '../lib/text.js';
 import { buildVoiceGuide } from './voice-profile.js';
+import { ensureNoSlop } from '../lib/anti-slop.js';
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 
@@ -73,7 +74,7 @@ Return ONLY the caption text. No quotes, no explanation, no hashtag suggestions 
     }]
   });
 
-  const caption = cleanReply(response.content[0].text.trim());
+  const caption = await ensureNoSlop(response.content[0].text, { neverSay: beautician.voice_profile?.never_say });
 
   // Generate hashtags separately
   const hashtags = await generateHashtags(treatmentType, businessName);
@@ -110,7 +111,7 @@ Return hashtags only, space-separated, no explanation.`,
 export async function draftAvailabilityPost(beauticianId, gapDate, gapTime, treatmentSuggestions) {
   const { data: beautician } = await supabase
     .from('beauticians')
-    .select('first_name, business_name, tone_model, booking_slug')
+    .select('first_name, business_name, tone_model, booking_slug, voice_profile')
     .eq('id', beauticianId)
     .single();
 
@@ -138,7 +139,7 @@ ${bookingLink ? `Include booking link: ${bookingLink}` : 'Tell them to DM to boo
     }]
   });
 
-  const caption = cleanReply(response.content[0].text.trim());
+  const caption = await ensureNoSlop(response.content[0].text, { neverSay: beautician.voice_profile?.never_say });
 
   // Store as draft
   const { data: post } = await supabase
@@ -227,6 +228,7 @@ export async function publishPost(beauticianId, postId) {
 
   if (!post) throw new Error('Post not found');
 
+  const isStory = post.media_kind === 'story';
   const { data: beautician } = await supabase
     .from('beauticians')
     .select('instagram_page_id, instagram_page_token')
@@ -260,7 +262,9 @@ export async function publishPost(beauticianId, postId) {
         },
         body: JSON.stringify({
           image_url: post.image_url,
-          caption: fullCaption
+          // Stories: same two-step flow with media_type STORIES; captions
+          // are not rendered on stories so they are omitted.
+          ...(isStory ? { media_type: 'STORIES' } : { caption: fullCaption })
         })
       }
     );
@@ -421,7 +425,7 @@ ${topCaptions.length ? `\nHer top-performing captions for rhythm reference:\n${t
       .from('content_posts')
       .insert({
         beautician_id: beauticianId,
-        caption: cleanReply(String(item.caption || '').trim()),
+        caption: await ensureNoSlop(item.caption, { neverSay: beautician.voice_profile?.never_say }),
         hashtags: Array.isArray(item.hashtags) ? item.hashtags.slice(0, 8) : [],
         platform: 'instagram',
         post_type: validTypes.includes(item.post_type) ? item.post_type : 'general',

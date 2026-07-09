@@ -74,6 +74,37 @@ router.get('/week-review', requireAuth, async (req, res) => {
   }
 });
 
+/**
+ * GET /api/activity/milestones
+ * Real, non-baseline milestone moments for the share-card page: things that
+ * actually happened while Florrie was watching, newest first.
+ */
+router.get('/milestones', requireAuth, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('florrie_decisions')
+      .select('suggestion_payload, created_at')
+      .eq('beautician_id', req.beautician.id)
+      .eq('suggestion_type', 'money_moment')
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    const rows = (data || [])
+      .filter(r => {
+        const key = r.suggestion_payload?.key || '';
+        if (r.suggestion_payload?.baseline) return false;
+        if (key.startsWith('daily:')) return false;
+        return key.length > 0;
+      })
+      .slice(0, 20)
+      .map(r => ({ key: r.suggestion_payload.key, payload: r.suggestion_payload, at: r.created_at }));
+    res.json({ milestones: rows });
+  } catch (err) {
+    logger.error({ err }, 'milestones fetch failed');
+    res.status(500).json({ error: 'Could not load milestones' });
+  }
+});
+
 router.get('/stats', requireAuth, async (req, res) => {
   try {
     const bid = req.beautician.id;
