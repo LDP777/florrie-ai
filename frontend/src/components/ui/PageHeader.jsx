@@ -22,7 +22,7 @@ const S = {
   // 44px pill) so the title and the right-side action are never underneath
   // them - the action slot used to sit exactly under the More pill, which
   // made buttons like "+ New Post" untappable.
-  wrap: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, paddingTop: 'calc(env(safe-area-inset-top, 0px) + 60px)', paddingBottom: 16 },
+  wrap: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, paddingTop: 60, paddingBottom: 16 },
   text: { display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 },
   title: {
     fontSize: 26, fontWeight: 600, fontStyle: 'italic',

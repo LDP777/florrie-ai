@@ -792,6 +792,9 @@ const styles = {
     overflowY: 'auto',
     overflowX: 'hidden',
     WebkitOverflowScrolling: 'touch',
+    // The shell owns the notch: with ios contentInset 'never', pages start
+    // at y=0 and custom headers (Hub greeting) sat under the front camera.
+    paddingTop: 'env(safe-area-inset-top, 0px)',
     paddingBottom: 'calc(env(safe-area-inset-bottom, 8px) + 80px)',
   },
 
