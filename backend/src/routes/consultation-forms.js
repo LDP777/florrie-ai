@@ -175,7 +175,12 @@ router.patch('/:id', requireAuth, async (req, res) => {
         .eq('form_id', id);
 
       if (fields.length > 0) {
-        const fieldRows = fields.map((f, i) => ({
+        const seenF = new Set();
+        const uniqueFields = fields.filter(f => {
+          const k = `${f.type}|${f.label}|${JSON.stringify(f.options || [])}`;
+          if (seenF.has(k)) return false; seenF.add(k); return true;
+        });
+        const fieldRows = uniqueFields.map((f, i) => ({
           form_id: id,
           type: f.type,
           label: f.label,

@@ -182,7 +182,7 @@ export default function BookingPage() {
   const needsPatchTest = selectedTreatments.some(t => t.requires_patch_test);
   // The questions to render, dynamic form fields if available, else defaults
   // Filter out the patch_test question for treatments that don't require it (wax, microblading, etc.)
-  const consultationQuestions = consultationForms.some(f => f.consultation_form_fields?.length)
+  const consultationQuestionsRaw = consultationForms.some(f => f.consultation_form_fields?.length)
     ? consultationForms.flatMap(cf => (cf.consultation_form_fields || []).map(f => ({
         key: f.id,
         label: f.label,
@@ -192,6 +192,18 @@ export default function BookingPage() {
         section: consultationForms.length > 1 ? cf.name : null,
       })))
     : DEFAULT_CONSULTATION_QUESTIONS.filter(q => q.key !== 'patch_test' || needsPatchTest);
+  // Guard: a form saved before the builder switched to replace-on-save can hold
+  // two copies of every field. Collapse exact-duplicate questions so a client
+  // never sees "Full name" (or any field) twice.
+  const consultationQuestions = (() => {
+    const seen = new Set();
+    return consultationQuestionsRaw.filter(q => {
+      const k = `${q.section || ''}|${q.type}|${q.label}|${JSON.stringify(q.options || [])}`;
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  })();
   // Compute deposit amount (percentage overrides flat)
   function getDepositCents(treatment) {
     if (!treatment) return 0;
