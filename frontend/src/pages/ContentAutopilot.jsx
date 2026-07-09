@@ -916,27 +916,22 @@ export default function ContentAutopilot() {
               </button>
             ))}
           </div>
-          {/* Photo */}
-          <div
-            style={styles.photoArea}
+          {/* Photo control (the live preview above shows the image) */}
+          <button
+            type="button"
             onClick={() => fileRef.current?.click()}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '11px 14px', marginBottom: 10, borderRadius: 12, border: `1.5px dashed ${composeImagePreview ? 'var(--accent, #92405E)' : 'var(--border-light, #EDE9E4)'}`, background: composeImagePreview ? 'rgba(146,64,94,0.05)' : 'transparent', color: composeImagePreview ? 'var(--accent, #92405E)' : 'var(--text-secondary, #8B6F5E)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
           >
-            {composeImagePreview ? (
-              <img src={composeImagePreview} alt="" style={styles.previewImg} />
-            ) : (
-              <div style={styles.photoPlaceholder}>
-                <span style={{ fontSize: 28 }}>📸</span>
-                <span style={{ fontSize: 12, color: 'var(--text-muted, #7a7470)' }}>Add photo (optional)</span>
-              </div>
-            )}
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              onChange={handleImageSelect}
-              style={{ display: 'none' }}
-            />
-          </div>
+            <span className="material-symbols-outlined" style={{ fontSize: 19 }}>{composeImagePreview ? 'check_circle' : 'add_a_photo'}</span>
+            {composeImagePreview ? 'Photo added, tap to change' : 'Add a photo'}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageSelect}
+            style={{ display: 'none' }}
+          />
           {/* Feed vs Story */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
             {[['feed', 'Feed post'], ['story', 'Story (24h)']].map(([k, label]) => (
@@ -946,9 +941,9 @@ export default function ContentAutopilot() {
                 onClick={() => setComposeMediaKind(k)}
                 style={{
                   padding: '7px 14px', borderRadius: 10, fontSize: 12.5, fontWeight: 700,
-                  border: `1.5px solid ${composeMediaKind === k ? 'var(--accent, #C76B8A)' : 'var(--border-light, #EDE9E4)'}`,
-                  background: composeMediaKind === k ? 'var(--accent-bg, #FBF0F3)' : 'transparent',
-                  color: composeMediaKind === k ? 'var(--accent, #C76B8A)' : 'var(--text-secondary, #7A756F)',
+                  border: `1.5px solid ${composeMediaKind === k ? 'var(--accent, #92405E)' : 'var(--border-light, #EDE9E4)'}`,
+                  background: composeMediaKind === k ? 'rgba(146,64,94,0.07)' : 'transparent',
+                  color: composeMediaKind === k ? 'var(--accent, #92405E)' : 'var(--text-secondary, #8B6F5E)',
                   cursor: 'pointer', fontFamily: 'inherit',
                 }}
               >
