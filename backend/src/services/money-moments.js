@@ -140,12 +140,33 @@ async function maybeSendMilestones(b) {
   const weekStart = new Date(now.getTime() - dow * DAY_MS);
   const weekStartIso = new Date(Date.UTC(weekStart.getUTCFullYear(), weekStart.getUTCMonth(), weekStart.getUTCDate())).toISOString();
   const weekPence = await takingsBetween(b.id, weekStartIso, now.toISOString());
-  if (weekPence >= 100000 && !(await alreadyFired(b.id, 'first_1k_week'))) {
-    if (!isBaselineRun) {
+  if (!(await alreadyFired(b.id, 'first_1k_week'))) {
+    if (isBaselineRun) {
+      // "First" must mean first EVER: if any historic week already cleared
+      // £1k, swallow the milestone at baseline so we never claim a first
+      // that is not one.
+      const { data: allTx } = await supabase
+        .from('transactions')
+        .select('created_at, amount_cents')
+        .eq('beautician_id', b.id)
+        .limit(5000);
+      const weekTotals = {};
+      for (const t of allTx || []) {
+        const d = new Date(t.created_at);
+        if (isNaN(d)) continue;
+        const monday = new Date(d.getTime() - (((d.getUTCDay() + 6) % 7) * DAY_MS));
+        const wk = monday.toISOString().slice(0, 10);
+        weekTotals[wk] = (weekTotals[wk] || 0) + (t.amount_cents || 0);
+      }
+      const historicBest = Math.max(0, ...Object.values(weekTotals));
+      if (historicBest >= 100000) {
+        await markFired(b.id, 'first_1k_week', { pence: historicBest, baseline: true });
+      }
+    } else if (weekPence >= 100000) {
       await pushTeamUpdate(b.id, 'milestone', `£${Math.floor(weekPence / 100)} this week. Your first £1,000 week 🌸`, { url: '/money' });
+      await markFired(b.id, 'first_1k_week', { pence: weekPence });
       fired++;
     }
-    await markFired(b.id, 'first_1k_week', { pence: weekPence, baseline: isBaselineRun });
   }
 
   // 2) Client count milestones (100, 250, 500, 1000).
