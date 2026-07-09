@@ -172,10 +172,12 @@ export default function ContentAutopilot() {
   // Plan my week: one tap, Florrie drafts the week into the Drafts tab.
   const [planning, setPlanning] = useState(false);
   const [planNote, setPlanNote] = useState(null);
+  const [planBlocked, setPlanBlocked] = useState(false);
   async function handlePlanWeek() {
     if (planning) return;
     setPlanning(true);
     setPlanNote(null);
+    setPlanBlocked(false);
     try {
       const token = getToken();
       const res = await fetch(`${API_BASE}/api/content/plan-week`, {
@@ -183,7 +185,7 @@ export default function ContentAutopilot() {
         headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       });
       const d = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(d.error || 'Could not draft the week');
+      if (!res.ok) { setPlanBlocked(res.status === 409); throw new Error(d.error || 'Could not draft the week'); }
       setPlanNote(`${(d.posts || []).length} posts drafted, each with a suggested day. Approve, edit or bin them below.`);
       setTab('drafts');
       await loadAll();
@@ -667,6 +669,14 @@ export default function ContentAutopilot() {
           </button>
           {planNote && (
             <p style={{ fontSize: 12.5, color: 'var(--text-secondary, #8B6F5E)', margin: '10px 0 0' }}>{planNote}</p>
+          )}
+          {planBlocked && (
+            <button
+              onClick={() => { setTab('drafts'); setPlanNote(null); setPlanBlocked(false); }}
+              style={{ marginTop: 8, padding: '8px 16px', borderRadius: 10, border: '1.5px solid var(--accent, #92405E)', background: 'transparent', color: 'var(--accent, #92405E)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              Review my drafts
+            </button>
           )}
         </div>
       )}
