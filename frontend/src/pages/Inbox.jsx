@@ -1153,55 +1153,66 @@ function DraftBubble({ draft, onDone, onSent }) {
   );
 }
 
-function Bubble({ msg }) {
+function DateDivider({ iso }) {
+  const d = new Date(iso);
+  const dd = new Date(d); dd.setHours(0, 0, 0, 0);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const yest = new Date(today); yest.setDate(yest.getDate() - 1);
+  const label = dd.getTime() === today.getTime() ? 'Today'
+    : dd.getTime() === yest.getTime() ? 'Yesterday'
+    : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  return <div style={S.dateDivider}><span style={S.dateChip}>{label}</span></div>;
+}
+
+function Bubble({ msg, onRetry }) {
   const out = msg.direction === 'outbound';
-  // Label outbound bubbles so the owner can tell what Florrie sent and why.
   const type = msg.message_type;
-  let tag = null;
-  if (out && type === 'auto_reply') tag = '\u{1F337} Florrie \u00B7 replied';
-  else if (out && type === 'proactive') tag = '\u{1F337} Florrie \u00B7 reached out';
-  else if (out && msg.ai_generated) tag = '\u{1F337} Florrie';
+  const failed = msg.status === 'failed';
 
-  // Florrie's own sends read QUIET (tonal); only what Ellie typed herself is
-  // maroon. Walls of automated reminders stop shouting at her.
+  // Colour + a small mark carry who-said-what: client left (peach), Ellie right
+  // (maroon), Florrie right (quiet tonal). No loud per-bubble stamp any more.
   const florrieSent = out && (type === 'auto_reply' || type === 'proactive' || msg.ai_generated);
-  const bubbleBg = !out ? '#fff4ee' : florrieSent ? 'var(--tone-2, #f6e7dd)' : 'var(--accent, #92405e)';
-  const bubbleFg = out && !florrieSent ? '#fff' : 'var(--text-primary, #1d1b19)';
-  const metaFg = out && !florrieSent ? 'rgba(255,255,255,0.78)' : '#9B8A8E';
+  const bubbleBg = failed ? '#fdeceb' : !out ? '#fff4ee' : florrieSent ? 'var(--tone-2, #f6e7dd)' : 'var(--accent, #92405e)';
+  const bubbleFg = failed ? '#9a2a22' : out && !florrieSent ? '#fff' : 'var(--text-primary, #1d1b19)';
+  const metaFg = failed ? '#c0665e' : out && !florrieSent ? 'rgba(255,255,255,0.78)' : '#9B8A8E';
 
-  // A media message with no text still deserves words, not an empty pill.
   const mediaStub = !msg.body && !msg.image_url
     ? (msg.media_type === 'audio' ? '\u{1F3A4} Voice note'
-      : msg.media_type === 'video' ? '\u{1F39E}\uFE0F Video'
+      : msg.media_type === 'video' ? '\u{1F39E}️ Video'
       : msg.media_type ? '\u{1F4CE} Attachment'
-      : 'Message without text')
+      : 'No text')
     : null;
 
   return (
     <div style={{ ...S.bubbleRow, justifyContent: out ? 'flex-end' : 'flex-start' }}>
       <div style={{ ...S.bubbleStack, alignItems: out ? 'flex-end' : 'flex-start' }}>
-        {tag && <span style={S.bubbleTag}>{tag}</span>}
         <div
           style={{
             ...S.bubble,
             background: bubbleBg,
             color: bubbleFg,
-            borderColor: out && !florrieSent ? 'var(--accent, #92405e)' : 'rgba(146,64,94,0.10)',
-            borderBottomLeftRadius: out ? 20 : 6,
-            borderBottomRightRadius: out ? 6 : 20,
+            borderColor: failed ? 'rgba(190,60,50,0.35)' : out && !florrieSent ? 'var(--accent, #92405e)' : 'rgba(146,64,94,0.10)',
+            borderBottomLeftRadius: out ? 18 : 5,
+            borderBottomRightRadius: out ? 5 : 18,
           }}
         >
           {msg.image_url && (
-            <img src={msg.image_url} alt="" style={{ maxWidth: '100%', borderRadius: 10, marginBottom: msg.body ? 6 : 0 }} />
+            <img src={msg.image_url} alt="" style={{ maxWidth: '100%', borderRadius: 10, marginBottom: msg.body ? 6 : 0, display: 'block' }} />
           )}
           {msg.body && <div style={S.bubbleText}>{msg.body}</div>}
-          {mediaStub && <div style={{ ...S.bubbleText, fontStyle: 'italic', opacity: 0.75 }}>{mediaStub}</div>}
+          {mediaStub && <div style={{ ...S.bubbleText, fontStyle: 'italic', opacity: 0.7 }}>{mediaStub}</div>}
           <div style={{ ...S.bubbleMeta, color: metaFg }}>
-            <ChannelMark channel={msg.channel} size={14} />
+            {florrieSent && !failed && <span aria-hidden>{'\u{1F337}'}</span>}
+            <ChannelMark channel={msg.channel} size={13} />
             <span>{formatBubbleTime(msg.created_at)}</span>
-            {msg.status === 'sending' && <span>· sending</span>}
+            {msg.status === 'sending' && <span>{'·'} sending</span>}
           </div>
         </div>
+        {failed && (
+          <button type="button" onClick={() => onRetry?.(msg.body)} style={S.failedNote}>
+            {'⚠'} Not delivered {'·'} Retry
+          </button>
+        )}
       </div>
     </div>
   );

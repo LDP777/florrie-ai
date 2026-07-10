@@ -134,12 +134,26 @@ export async function sendOnChannel({ beautician, clientId, channel, body }) {
   }
 
   if (!result.ok) {
+    // Persist the outbound anyway so Ellie's message is never lost from the
+    // thread just because delivery hiccuped (WhatsApp window closed, SMS down).
+    // Marked 'failed' so the UI can flag it and offer a retry.
+    let failMessage = null;
+    try {
+      const { data: fr } = await supabase
+        .from('messages')
+        .insert({ beautician_id: beautician.id, client_id: client.id, direction: 'outbound', channel, content: trimmed, send_status: 'failed' })
+        .select('id, beautician_id, client_id, channel, direction, content, created_at, ai_handled, media_url, media_type, external_message_id, whatsapp_message_id, delivered_at, read_at, send_status')
+        .single();
+      failMessage = shapeMessage(fr);
+    } catch (e) { logger.warn({ err: e }, 'failed-send persist failed'); }
     return {
       ok: false,
       status: result.outside_window ? 409 : 400,
       error: result.error || 'Send failed',
       meta_code: result.meta_code,
       outside_window: outsideWindow,
+      delivery_failure: true,
+      message: failMessage,
     };
   }
 
@@ -157,7 +171,7 @@ export async function sendOnChannel({ beautician, clientId, channel, body }) {
   const { data: row, error: insertErr } = await supabase
     .from('messages')
     .insert(insert)
-    .select('id, beautician_id, client_id, channel, direction, content, created_at, ai_handled, media_url, media_type, external_message_id, whatsapp_message_id, delivered_at, read_at')
+    .select('id, beautician_id, client_id, channel, direction, content, created_at, ai_handled, media_url, media_type, external_message_id, whatsapp_message_id, delivered_at, read_at, send_status')
     .single();
 
   if (insertErr) {
@@ -196,7 +210,7 @@ export function shapeMessage(row) {
     direction: row.direction,
     body: row.content,
     created_at: row.created_at,
-    status: row.read_at ? 'read' : row.delivered_at ? 'delivered' : 'sent',
+    status: row.send_status === 'failed' ? 'failed' : row.read_at ? 'read' : row.delivered_at ? 'delivered' : 'sent',
     ai_generated: !!row.ai_handled,
     image_url: row.media_type === 'image' ? row.media_url : null,
     media_type: row.media_type || null,

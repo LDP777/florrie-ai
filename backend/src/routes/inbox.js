@@ -277,7 +277,7 @@ router.get('/thread/:client_id', requireAuth, async (req, res) => {
           ai_handled, media_url, media_type,
           external_message_id, whatsapp_message_id,
           escalated, escalated_reason, resolved, digital_employee, ai_intent,
-          delivered_at, read_at
+          delivered_at, read_at, send_status
         `)
         .eq('beautician_id', req.beautician.id)
         .eq('client_id', clientId)
@@ -392,6 +392,18 @@ router.post('/send', requireAuth, async (req, res) => {
   });
 
   if (!result.ok) {
+    // Delivery failed but the message was still saved to the thread: return it
+    // (200) with delivered:false so the UI keeps the bubble and flags it, rather
+    // than the message vanishing.
+    if (result.delivery_failure && result.message) {
+      return res.status(200).json({
+        ok: false,
+        delivered: false,
+        message: result.message,
+        error: result.error,
+        outside_window: result.outside_window || undefined,
+      });
+    }
     return res.status(result.status || 400).json({
       error: result.error,
       meta_code: result.meta_code,
