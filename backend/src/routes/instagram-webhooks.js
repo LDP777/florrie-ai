@@ -61,7 +61,7 @@ router.get('/', (req, res) => {
  */
 router.post('/', async (req, res) => {
   // Visible-in-Railway receipt log: confirms Meta is actually delivering DMs.
-  logger.info({ object: req.body?.object, entries: req.body?.entry?.length || 0, hasSig: !!req.headers['x-hub-signature-256'] }, 'Instagram webhook received');
+  logger.info({ object: req.body?.object, entries: req.body?.entry?.length || 0, entryIds: (req.body?.entry || []).map(e => e.id), hasSig: !!req.headers['x-hub-signature-256'] }, 'Instagram webhook received');
 
   // Verify HMAC-SHA256 signature. A Meta app shares one app secret across its
   // products, so fall back to META_APP_SECRET (which is what is configured) when
@@ -144,19 +144,12 @@ async function handleInstagramMessage(event, pageId) {
     .single();
 
   if (!beautician) {
-    // Fallback: try first beautician (single-tenant MVP)
-    const { data: fallback } = await supabase
-      .from('beauticians')
-      .select('*')
-      .limit(1)
-      .single();
-
-    if (!fallback) {
-      logger.warn({ pageId }, 'No beautician found for Instagram page');
-      return;
-    }
-
-    return processInstagramDM(fallback, senderId, messageText, messageId);
+    // NO fallback. Never attribute a DM to a random tenant: the old
+    // ".limit(1).single()" hack could hand one salon's Instagram DMs to a
+    // different salon. Log the pageId so a mis-stored instagram_page_id can be
+    // corrected, and drop.
+    logger.warn({ pageId, senderId }, 'Instagram DM: no beautician matches this instagram_page_id (entry.id); dropping. Set beauticians.instagram_page_id to this pageId to route it.');
+    return;
   }
 
   await processInstagramDM(beautician, senderId, messageText, messageId);
