@@ -82,6 +82,8 @@ export default function PatchTests() {
     auto_remind: true,
     remind_days_before: 7,
     block_booking_without_test: false,
+    duration_minutes: 10,
+    price_pounds: 0,
   });
   const [settingsSaved, setSettingsSaved] = useState(false);
 
@@ -94,6 +96,8 @@ export default function PatchTests() {
       auto_remind: beautician.patch_test_auto_remind ?? s.auto_remind,
       remind_days_before: beautician.patch_test_remind_days_before ?? s.remind_days_before,
       block_booking_without_test: beautician.patch_test_block_booking ?? s.block_booking_without_test,
+      duration_minutes: beautician.patch_test_duration_minutes ?? s.duration_minutes,
+      price_pounds: beautician.patch_test_price_cents != null ? beautician.patch_test_price_cents / 100 : s.price_pounds,
     }));
   }, [beautician]);
 
@@ -569,6 +573,54 @@ export default function PatchTests() {
                 style={{ ...styles.toggle, background: settings.block_booking_without_test ? 'var(--accent)' : 'var(--border)', cursor: 'pointer' }}
               >
                 <div style={{ ...styles.toggleDot, transform: settings.block_booking_without_test ? 'translateX(20px)' : 'translateX(2px)' }} />
+              </div>
+            </div>
+          </div>
+
+          <div style={styles.settingsCard}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h3 style={{ ...styles.settingsSectionTitle, margin: 0 }}>The patch test appointment</h3>
+              {settingsSaved && <span style={{ fontSize: 11, color: 'var(--success)', fontWeight: 600 }}>Saved ✓</span>}
+            </div>
+            <div style={styles.settingsRow}>
+              <div>
+                <span style={styles.settingsLabel}>How long is a patch test?</span>
+                <span style={styles.settingsHint}>The length of the slot Florrie books for the client</span>
+              </div>
+              <select
+                value={settings.duration_minutes}
+                onChange={e => {
+                  const mins = parseInt(e.target.value);
+                  setSettings(p => ({ ...p, duration_minutes: mins }));
+                  saveReminderSettings({ patch_test_duration_minutes: mins });
+                }}
+                style={styles.settingsSelect}
+              >
+                <option value={5}>5 min</option>
+                <option value={10}>10 min</option>
+                <option value={15}>15 min</option>
+                <option value={20}>20 min</option>
+                <option value={30}>30 min</option>
+              </select>
+            </div>
+            <div style={{ ...styles.settingsRow, borderBottom: 'none' }}>
+              <div>
+                <span style={styles.settingsLabel}>Patch test price</span>
+                <span style={styles.settingsHint}>Leave at 0 for free. Recorded on the appointment, not charged automatically.</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>£</span>
+                <input
+                  type="number" min="0" step="0.50"
+                  value={settings.price_pounds}
+                  onChange={e => setSettings(p => ({ ...p, price_pounds: e.target.value }))}
+                  onBlur={e => {
+                    const pounds = Math.max(0, parseFloat(e.target.value) || 0);
+                    setSettings(p => ({ ...p, price_pounds: pounds }));
+                    saveReminderSettings({ patch_test_price_cents: Math.round(pounds * 100) });
+                  }}
+                  style={{ ...styles.settingsSelect, width: 80, textAlign: 'right' }}
+                />
               </div>
             </div>
           </div>

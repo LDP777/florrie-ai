@@ -1223,7 +1223,7 @@ router.get('/:slug/manage/:token/patch-test/slots', async (req, res) => {
       .from('appointments')
       .select(`
         id, starts_at, client_id, client_email, client_name, client_phone,
-        beauticians(id, booking_slug, working_hours, timezone)
+        beauticians(id, booking_slug, working_hours, timezone, patch_test_duration_minutes, patch_test_price_cents)
       `)
       .eq('management_token', req.params.token)
       .single();
@@ -1243,6 +1243,7 @@ router.get('/:slug/manage/:token/patch-test/slots', async (req, res) => {
     const beautician = appt.beauticians;
     const beauticianId = beautician.id;
     const timezone = beautician.timezone || 'Europe/London';
+    const ptDuration = beautician.patch_test_duration_minutes || 10;
 
     // Get working hours; fallback to 9:00–17:00
     const workingHours = beautician.working_hours || {
@@ -1282,7 +1283,7 @@ router.get('/:slug/manage/:token/patch-test/slots', async (req, res) => {
 
     // Generate slots up to deadline
     while (slotTime < deadline) {
-      const slotEnd = new Date(slotTime.getTime() + 10 * 60 * 1000);
+      const slotEnd = new Date(slotTime.getTime() + ptDuration * 60 * 1000);
 
       // Check working hours for this day
       const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -1353,7 +1354,7 @@ router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
       .from('appointments')
       .select(`
         id, starts_at, client_id, client_email, client_name, client_phone,
-        beauticians(id, booking_slug, working_hours, timezone)
+        beauticians(id, booking_slug, working_hours, timezone, patch_test_duration_minutes, patch_test_price_cents)
       `)
       .eq('management_token', req.params.token)
       .single();
@@ -1376,6 +1377,8 @@ router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
     }
 
     const beautician = appt.beauticians;
+    const ptDuration = beautician.patch_test_duration_minutes || 10;
+    const ptPrice = beautician.patch_test_price_cents || 0;
     const workingHours = beautician.working_hours || {};
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const dayName = dayNames[slotTime.getDay()];
@@ -1393,7 +1396,7 @@ router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
     }
 
     // Check for conflicts
-    const slotEnd = new Date(slotTime.getTime() + 10 * 60 * 1000);
+    const slotEnd = new Date(slotTime.getTime() + ptDuration * 60 * 1000);
     const { data: conflicts } = await supabase
       .from('appointments')
       .select('id')
@@ -1418,11 +1421,11 @@ router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
         treatment_id: null,
         starts_at: slotTime.toISOString(),
         ends_at: slotEnd.toISOString(),
-        duration_minutes: 10,
+        duration_minutes: ptDuration,
         status: 'confirmed',
         notes: 'Patch test (auto-booked)',
         booked_via: 'booking_page',
-        price_cents: 0,
+        price_cents: ptPrice,
       })
       .select('id, starts_at, ends_at')
       .single();
