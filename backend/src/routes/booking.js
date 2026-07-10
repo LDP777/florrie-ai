@@ -1288,7 +1288,7 @@ router.get('/:slug/manage/:token/patch-test/slots', async (req, res) => {
       // Check working hours for this day
       const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const dayName = dayNames[slotTime.getDay()];
-      const dayHours = workingHours[dayName];
+      const dayHours = workingHours[dayName] || workingHours[dayName.toLowerCase()];
 
       if (dayHours) {
         const [startHour, startMin] = dayHours.start.split(':').map(Number);
@@ -1382,7 +1382,7 @@ router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
     const workingHours = beautician.working_hours || {};
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const dayName = dayNames[slotTime.getDay()];
-    const dayHours = workingHours[dayName] || { start: '09:00', end: '17:00' };
+    const dayHours = workingHours[dayName] || workingHours[dayName.toLowerCase()] || { start: '09:00', end: '17:00' };
 
     const [startHour, startMin] = dayHours.start.split(':').map(Number);
     const [endHour, endMin] = dayHours.end.split(':').map(Number);
