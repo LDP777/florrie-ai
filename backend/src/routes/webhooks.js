@@ -245,10 +245,36 @@ router.post('/whatsapp', async (req, res) => {
       } catch (transcriptErr) {
         logger.warn({ err: transcriptErr, mediaId: message.audio?.id }, 'Voice note transcription failed');
       }
-      if (!messageContent) messageContent = '[Voice note — transcription unavailable]';
+      if (!messageContent) messageContent = '[Voice note, transcription unavailable]';
     } else if (message.type === 'image') {
       mediaType = 'image';
-      messageContent = message.image?.caption || '[Image]';
+      messageContent = message.image?.caption || '[Photo]';
+    } else if (message.type === 'interactive') {
+      const i = message.interactive || {};
+      messageContent = i.button_reply?.title || i.list_reply?.title || i.list_reply?.description || '[Reply]';
+    } else if (message.type === 'button') {
+      messageContent = message.button?.text || message.button?.payload || '[Reply]';
+    } else if (message.type === 'reaction') {
+      messageContent = message.reaction?.emoji ? `Reacted ${message.reaction.emoji}` : '[Reaction]';
+    } else if (message.type === 'video') {
+      mediaType = 'video';
+      messageContent = message.video?.caption || '[Video]';
+    } else if (message.type === 'document') {
+      mediaType = 'document';
+      messageContent = message.document?.caption || message.document?.filename || '[Document]';
+    } else if (message.type === 'sticker') {
+      mediaType = 'sticker';
+      messageContent = '[Sticker]';
+    } else if (message.type === 'location') {
+      messageContent = '[Location shared]';
+    } else if (message.type === 'contacts') {
+      messageContent = '[Contact shared]';
+    }
+
+    // Never store a blank inbound - the thread must always show something, so a
+    // client's reply (a button tap, a reaction, any type) is never lost.
+    if (!messageContent || !String(messageContent).trim()) {
+      messageContent = message.text?.body || '[Message]';
     }
 
     // Store the inbound message
