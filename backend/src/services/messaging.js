@@ -68,6 +68,41 @@ async function sendWhatsAppText({ beautician, recipientPhone, body }) {
 }
 
 /**
+ * Send a free-form Instagram DM reply from a beautician's connected
+ * Instagram account to a client, via the Instagram Login flow
+ * (graph.instagram.com with the beautician's own long-lived token).
+ * Mirrors sendInstagramReply in routes/instagram-webhooks.js. Only works
+ * inside Instagram's messaging window.
+ *
+ * Returns { ok, message_id, error }.
+ */
+async function sendInstagramText({ token, recipientId, body }) {
+  if (!token) return { ok: false, error: 'Instagram not connected' };
+  if (!recipientId) return { ok: false, error: 'Client has no Instagram on file' };
+
+  try {
+    const res = await fetch('https://graph.instagram.com/v21.0/me/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        recipient: { id: recipientId },
+        message: { text: body },
+        access_token: token,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = data?.error;
+      return { ok: false, error: err?.error_user_msg || err?.message || 'Instagram rejected the send' };
+    }
+    return { ok: true, message_id: data?.message_id || null };
+  } catch (err) {
+    logger.error({ err }, 'sendInstagramText threw');
+    return { ok: false, error: 'Instagram send failed' };
+  }
+}
+
+/**
  * Single entry point used by the unified Inbox. Validates the client
  * belongs to the beautician, routes to the right transport, and writes a
  * row into the messages table on success. Returns the inserted message
@@ -76,8 +111,8 @@ async function sendWhatsAppText({ beautician, recipientPhone, body }) {
 export async function sendOnChannel({ beautician, clientId, channel, body }) {
   if (!beautician?.id) return { ok: false, status: 401, error: 'Missing beautician' };
   if (!clientId) return { ok: false, status: 400, error: 'client_id required' };
-  if (!['whatsapp', 'sms', 'email'].includes(channel)) {
-    return { ok: false, status: 400, error: 'channel must be whatsapp, sms, or email' };
+  if (!['whatsapp', 'sms', 'email', 'instagram'].includes(channel)) {
+    return { ok: false, status: 400, error: 'channel must be whatsapp, sms, email, or instagram' };
   }
   const trimmed = String(body || '').trim();
   if (!trimmed) return { ok: false, status: 400, error: 'Message body required' };
@@ -85,7 +120,7 @@ export async function sendOnChannel({ beautician, clientId, channel, body }) {
   // Pull the client and confirm tenancy in one shot.
   const { data: client, error: clientErr } = await supabase
     .from('clients')
-    .select('id, first_name, last_name, phone, email, whatsapp_id')
+    .select('id, first_name, last_name, phone, email, whatsapp_id, instagram_id')
     .eq('id', clientId)
     .eq('beautician_id', beautician.id)
     .maybeSingle();
@@ -131,6 +166,23 @@ export async function sendOnChannel({ beautician, clientId, channel, body }) {
     });
     result = email ? { ok: true, message_id: email?.id || null } : { ok: false, error: 'Email send failed' };
     extId = result.message_id;
+  } else if (channel === 'instagram') {
+    if (!client.instagram_id) {
+      return { ok: false, status: 400, error: 'Client has no Instagram on file' };
+    }
+    // beautician passed by the caller may not carry the page token; fetch it.
+    let igToken = beautician.instagram_page_token;
+    if (!igToken) {
+      const { data: b } = await supabase
+        .from('beauticians')
+        .select('instagram_page_token')
+        .eq('id', beautician.id)
+        .single();
+      igToken = b?.instagram_page_token || null;
+    }
+    const ig = await sendInstagramText({ token: igToken, recipientId: client.instagram_id, body: trimmed });
+    result = ig;
+    extId = ig.message_id;
   }
 
   if (!result.ok) {

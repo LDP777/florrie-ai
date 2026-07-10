@@ -799,7 +799,8 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
   const lastInboundAge = lastInbound ? Date.now() - new Date(lastInbound.created_at).getTime() : Infinity;
   const showWaWindowHint = channel === 'whatsapp' && lastInboundAge > 24 * 60 * 60 * 1000;
 
-  const channels = ['whatsapp', 'sms', 'email'].filter(c => {
+  const channels = ['instagram', 'whatsapp', 'sms', 'email'].filter(c => {
+    if (c === 'instagram') return !!client?.has_instagram;
     if (c === 'whatsapp') return !!client?.has_whatsapp;
     if (c === 'sms') return !!client?.has_phone;
     if (c === 'email') return !!client?.has_email;

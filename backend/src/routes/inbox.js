@@ -255,7 +255,7 @@ router.get('/thread/:client_id', requireAuth, async (req, res) => {
     // Verify the client belongs to this beautician first. Cheap query.
     const { data: client, error: cErr } = await supabase
       .from('clients')
-      .select('id, first_name, last_name, phone, email, whatsapp_id, messaging_autonomy')
+      .select('id, first_name, last_name, phone, email, whatsapp_id, instagram_id, messaging_autonomy')
       .eq('id', clientId)
       .eq('beautician_id', req.beautician.id)
       .maybeSingle();
@@ -356,6 +356,7 @@ router.get('/thread/:client_id', requireAuth, async (req, res) => {
         has_phone: !!client.phone,
         has_email: !!client.email,
         has_whatsapp: !!(client.whatsapp_id || client.phone),
+        has_instagram: !!client.instagram_id,
         messaging_autonomy: client.messaging_autonomy || null,
       },
       meta: {
