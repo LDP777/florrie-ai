@@ -365,3 +365,22 @@ export async function pushGapFilled(beauticianId, clientName, time) {
     { url: '/calendar', clientName }
   );
 }
+
+// Non-invasive: at most one "messages waiting" push per beautician+channel per
+// 15 minutes, so a burst of client messages yields ONE calm notification.
+const _msgWaitingThrottle = new Map(); // `${beauticianId}:${channel}` -> lastMs
+export async function pushMessagesWaiting(beauticianId, channel) {
+  if (!beauticianId) return null;
+  const label = channel === 'instagram' ? 'Instagram' : channel === 'whatsapp' ? 'WhatsApp' : 'New';
+  const key = `${beauticianId}:${channel}`;
+  const now = Date.now();
+  if (now - (_msgWaitingThrottle.get(key) || 0) < 15 * 60 * 1000) return { skipped: 'throttled' };
+  _msgWaitingThrottle.set(key, now);
+  return sendPush(beauticianId, {
+    title: 'Florrie',
+    body: `You have ${label} messages waiting for you`,
+    url: '/inbox',
+    tag: `messages-waiting-${channel}`,
+    data: { kind: 'messages_waiting', channel },
+  });
+}

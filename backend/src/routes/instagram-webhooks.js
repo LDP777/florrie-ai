@@ -19,6 +19,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { supabase } from '../config.js';
 import { processInboundMessage } from '../services/ai-front-desk.js';
+import { pushMessagesWaiting } from '../services/push-notifications.js';
 import logger from '../lib/logger.js';
 
 const router = Router();
@@ -271,6 +272,10 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
     })
     .select()
     .single();
+
+  // Non-invasive nudge: "You have Instagram messages waiting for you"
+  // (throttled to at most one per 15 min inside the helper). Fire-and-forget.
+  pushMessagesWaiting(beautician.id, 'instagram').catch(() => {});
 
   if (dmMode === 'off') {
     logger.info({ senderId, mode: 'off' }, 'Instagram DM stored, no reply (mode=off)');

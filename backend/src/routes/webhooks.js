@@ -2,6 +2,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { supabase } from '../config.js';
 import { processInboundMessage } from '../services/ai-front-desk.js';
+import { pushMessagesWaiting } from '../services/push-notifications.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
 import { getAppSecret, getWhatsAppVerifyToken } from '../lib/env.js';
@@ -294,6 +295,10 @@ router.post('/whatsapp', async (req, res) => {
       })
       .select()
       .single();
+
+    // Non-invasive nudge: "You have WhatsApp messages waiting for you"
+    // (throttled to at most one per 15 min inside the helper). Fire-and-forget.
+    pushMessagesWaiting(beautician.id, 'whatsapp').catch(() => {});
 
     // Pass to AI Front Desk for intent classification + autonomous response
     if (beautician.auto_reply_enabled && messageContent && message.type === 'text') {
