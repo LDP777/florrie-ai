@@ -1222,7 +1222,7 @@ router.get('/:slug/manage/:token/patch-test/slots', async (req, res) => {
     const { data: appt } = await supabase
       .from('appointments')
       .select(`
-        id, starts_at, client_id, client_email, client_name, client_phone,
+        id, starts_at, client_id, client_email,
         beauticians(id, booking_slug, working_hours, timezone, patch_test_duration_minutes, patch_test_price_cents)
       `)
       .eq('management_token', req.params.token)
@@ -1353,7 +1353,7 @@ router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
     const { data: appt } = await supabase
       .from('appointments')
       .select(`
-        id, starts_at, client_id, client_email, client_name, client_phone,
+        id, starts_at, client_id, client_email,
         beauticians(id, booking_slug, working_hours, timezone, patch_test_duration_minutes, patch_test_price_cents)
       `)
       .eq('management_token', req.params.token)
