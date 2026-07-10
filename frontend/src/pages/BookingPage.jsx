@@ -1975,7 +1975,7 @@ export default function BookingPage() {
             )}
             {beautician?.booking_policy?.cancellation_message && (
               <p style={{
-                fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55, fontStyle: 'italic',
+                fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55, fontStyle: 'italic', whiteSpace: 'pre-line',
                 margin: '0 0 16px', padding: '10px 14px', borderRadius: 10,
                 background: 'var(--bg-subtle, #FDFCFB)', border: '1px solid var(--border-light)',
               }}>

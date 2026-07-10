@@ -407,7 +407,7 @@ export default function ClientManagePage() {
                 : 'Your appointment is very soon.'}
             </p>
             {policy.cancellation_message && (
-              <p style={{ ...S.policyText, fontStyle: 'italic', marginTop: 8 }}>
+              <p style={{ ...S.policyText, fontStyle: 'italic', marginTop: 8, whiteSpace: 'pre-line' }}>
                 {policy.cancellation_message}
               </p>
             )}
