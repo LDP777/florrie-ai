@@ -81,13 +81,18 @@ async function sendInstagramText({ token, recipientId, body }) {
   if (!recipientId) return { ok: false, error: 'Client has no Instagram on file' };
 
   try {
+    // Match the auth form that is already proven in production for Florrie's
+    // auto-replies (sendInstagramReply): bearer token in the header, no token
+    // in the body. Keeps the manual-reply path identical to the working one.
     const res = await fetch('https://graph.instagram.com/v21.0/me/messages', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
         recipient: { id: recipientId },
         message: { text: body },
-        access_token: token,
       }),
     });
     const data = await res.json().catch(() => ({}));
