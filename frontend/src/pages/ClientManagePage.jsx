@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
 
@@ -40,6 +40,7 @@ export default function ClientManagePage() {
 
   // Patch test booking state
   const [patchTestSlots, setPatchTestSlots] = useState(null);
+  const [patchTestDuration, setPatchTestDuration] = useState(10);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [slotsError, setSlotsError] = useState(null);
   const [confirmingSlot, setConfirmingSlot] = useState(false);
@@ -179,6 +180,7 @@ export default function ClientManagePage() {
       }
       const result = await res.json();
       setPatchTestSlots(result.slots);
+      if (result.duration_minutes) setPatchTestDuration(result.duration_minutes);
       setShowSlotPicker(true);
     } catch (err) {
       setSlotsError(err.message);
@@ -429,7 +431,7 @@ export default function ClientManagePage() {
                       Patch test required
                     </p>
                     <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>
-                      Before your {appointment.treatment?.name} on {apptDate.toLocaleDateString('en-GB', { timeZone: 'UTC' })} - must be done at least 48 hours before
+                      Before your {appointment.treatment?.name} on {apptDate.toLocaleDateString('en-GB', { timeZone: 'UTC' })} - must be done at least 24 hours before
                     </p>
                   </div>
                 </div>
@@ -445,36 +447,16 @@ export default function ClientManagePage() {
                     {slotsError && <p style={{ fontSize: 13, color: 'var(--danger)', marginTop: 8 }}>{slotsError}</p>}
                   </>
                 ) : (
-                  <div style={S.slotPickerCard}>
-                    <p style={{ fontSize: 13, fontWeight: 600, margin: '0 0 12px', color: '#1a1a1a' }}>
-                      Choose a time for your 10-min patch test
-                    </p>
-                    {patchTestSlots && patchTestSlots.length > 0 ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-                        {patchTestSlots.map((slot, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => confirmPatchTestSlot(slot)}
-                            disabled={confirmingSlot}
-                            style={{
-                              padding: '12px 14px', borderRadius: 10, border: '1.5px solid #E8E4DF',
-                              background: 'var(--bg-card)', fontSize: 13, fontWeight: 600, color: '#2D1B1B',
-                              cursor: confirmingSlot ? 'not-allowed' : 'pointer',
-                              opacity: confirmingSlot ? 0.5 : 1, textAlign: 'left',
-                              fontFamily: 'inherit', transition: 'all 0.2s',
-                            }}
-                            onMouseEnter={(e) => e.target.style.borderColor = brand}
-                            onMouseLeave={(e) => e.target.style.borderColor = '#E8E4DF'}
-                          >
-                            {new Date(slot).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })} · {new Date(slot).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>No available slots - contact your beautician directly</p>
-                    )}
-                    <button onClick={() => { setShowSlotPicker(false); setSlotsError(null); }} style={S.keepBtn}>Back</button>
-                  </div>
+                  <PatchTestPicker
+                    slots={patchTestSlots}
+                    duration={patchTestDuration}
+                    onPick={confirmPatchTestSlot}
+                    confirming={confirmingSlot}
+                    error={slotsError}
+                    onBack={() => { setShowSlotPicker(false); setSlotsError(null); }}
+                    brand={brand}
+                    brandLight={brandLight}
+                  />
                 )}
               </div>
             )}
@@ -538,48 +520,16 @@ export default function ClientManagePage() {
                         )}
                       </div>
                     ) : (
-                      <div style={S.slotPickerCard}>
-                        <p style={{ fontSize: 13, fontWeight: 600, margin: '0 0 12px', color: '#1a1a1a' }}>
-                          Choose a time for your 10-min patch test
-                        </p>
-                        {patchTestSlots && patchTestSlots.length > 0 ? (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
-                            {patchTestSlots.map((slot, idx) => (
-                              <button
-                                key={idx}
-                                onClick={() => confirmPatchTestSlot(slot)}
-                                disabled={confirmingSlot}
-                                style={{
-                                  padding: '12px 14px',
-                                  borderRadius: 10,
-                                  border: '1.5px solid #E8E4DF',
-                                  background: 'var(--bg-card)',
-                                  fontSize: 13,
-                                  fontWeight: 600,
-                                  color: '#2D1B1B',
-                                  cursor: confirmingSlot ? 'not-allowed' : 'pointer',
-                                  opacity: confirmingSlot ? 0.5 : 1,
-                                  textAlign: 'left',
-                                  fontFamily: 'inherit',
-                                  transition: 'all 0.2s',
-                                }}
-                                onMouseEnter={(e) => e.target.style.borderColor = brand}
-                                onMouseLeave={(e) => e.target.style.borderColor = '#E8E4DF'}
-                              >
-                                {new Date(slot).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })} · {new Date(slot).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
-                              </button>
-                            ))}
-                          </div>
-                        ) : (
-                          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>No slots available</p>
-                        )}
-                        <button
-                          onClick={() => { setShowSlotPicker(false); setSlotsError(null); }}
-                          style={S.keepBtn}
-                        >
-                          Back
-                        </button>
-                      </div>
+                      <PatchTestPicker
+                        slots={patchTestSlots}
+                        duration={patchTestDuration}
+                        onPick={confirmPatchTestSlot}
+                        confirming={confirmingSlot}
+                        error={slotsError}
+                        onBack={() => { setShowSlotPicker(false); setSlotsError(null); }}
+                        brand={brand}
+                        brandLight={brandLight}
+                      />
                     )}
                   </div>
                 );
@@ -805,6 +755,144 @@ function MetaRow({ icon, label, value }) {
       <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>{icon}</span>
       <span style={S.metaLabel}>{label}</span>
       <span style={S.metaValue}>{value}</span>
+    </div>
+  );
+}
+
+/**
+ * A proper calendar for booking a patch test: pick a day, then a time, exactly
+ * like the main booking page. Slots arrive as SALON WALL TIME in the UTC slot,
+ * so we read the date/time straight off the string (slice) and never let the
+ * browser timezone shift them.
+ */
+function PatchTestPicker({ slots, duration, onPick, confirming, error, onBack, brand, brandLight }) {
+  const byDay = useMemo(() => {
+    const m = new Map();
+    for (const s of slots || []) {
+      const k = s.slice(0, 10);
+      if (!m.has(k)) m.set(k, []);
+      m.get(k).push(s);
+    }
+    return m;
+  }, [slots]);
+
+  const dayKeys = useMemo(() => [...byDay.keys()].sort(), [byDay]);
+  const months = useMemo(() => [...new Set(dayKeys.map(k => k.slice(0, 7)))].sort(), [dayKeys]);
+
+  const [selectedDay, setSelectedDay] = useState(null);
+  const [month, setMonth] = useState(null);
+
+  useEffect(() => {
+    if (dayKeys.length && !selectedDay) {
+      setSelectedDay(dayKeys[0]);
+      setMonth(dayKeys[0].slice(0, 7));
+    }
+  }, [dayKeys, selectedDay]);
+
+  if (!dayKeys.length) {
+    return (
+      <div style={S.slotPickerCard}>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12 }}>
+          No patch test times are free before your appointment. Message me and we will sort one out.
+        </p>
+        <button onClick={onBack} style={S.keepBtn}>Back</button>
+      </div>
+    );
+  }
+
+  const shown = month || dayKeys[0].slice(0, 7);
+  const [yy, mm] = shown.split('-').map(Number);
+  const firstOfMonth = new Date(Date.UTC(yy, mm - 1, 1));
+  const daysInMonth = new Date(Date.UTC(yy, mm, 0)).getUTCDate();
+  const lead = (firstOfMonth.getUTCDay() + 6) % 7; // Monday-first grid
+  const monthLabel = firstOfMonth.toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const mIdx = months.indexOf(shown);
+  const times = selectedDay ? (byDay.get(selectedDay) || []) : [];
+
+  const navBtn = (on) => ({
+    width: 30, height: 30, borderRadius: 8, border: 'none', background: 'transparent',
+    color: on ? brand : '#D8D2CC', fontSize: 18, cursor: on ? 'pointer' : 'default', fontFamily: 'inherit',
+  });
+
+  return (
+    <div style={S.slotPickerCard}>
+      <p style={{ fontSize: 13, fontWeight: 600, margin: '0 0 10px', color: '#1a1a1a' }}>
+        Pick a day and time for your {duration}-min patch test
+      </p>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <button type="button" disabled={mIdx <= 0} onClick={() => setMonth(months[mIdx - 1])} style={navBtn(mIdx > 0)} aria-label="Previous month">{'\u2039'}</button>
+        <span style={{ fontSize: 14, fontWeight: 700, color: '#2D1B1B' }}>{monthLabel}</span>
+        <button type="button" disabled={mIdx >= months.length - 1} onClick={() => setMonth(months[mIdx + 1])} style={navBtn(mIdx < months.length - 1)} aria-label="Next month">{'\u203A'}</button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 4 }}>
+        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
+          <span key={d} style={{ textAlign: 'center', fontSize: 10, fontWeight: 700, color: '#9C9690' }}>{d}</span>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 12 }}>
+        {Array.from({ length: lead }).map((_, i) => <span key={`blank${i}`} />)}
+        {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(d => {
+          const key = `${shown}-${String(d).padStart(2, '0')}`;
+          const has = byDay.has(key);
+          const sel = key === selectedDay;
+          return (
+            <button
+              key={key}
+              type="button"
+              disabled={!has}
+              onClick={() => setSelectedDay(key)}
+              style={{
+                aspectRatio: '1', borderRadius: 10, fontFamily: 'inherit', fontSize: 13,
+                border: sel ? `1.5px solid ${brand}` : '1.5px solid transparent',
+                background: sel ? brand : has ? brandLight : 'transparent',
+                color: sel ? '#fff' : has ? '#2D1B1B' : '#D8D2CC',
+                fontWeight: has ? 700 : 500,
+                cursor: has ? 'pointer' : 'default',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              {d}
+            </button>
+          );
+        })}
+      </div>
+
+      {selectedDay && (
+        <>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 8px' }}>
+            {new Date(`${selectedDay}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })}
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 8, marginBottom: 12 }}>
+            {times.map(s => (
+              <button
+                key={s}
+                type="button"
+                disabled={confirming}
+                onClick={() => onPick(s)}
+                style={{
+                  padding: '10px 6px', borderRadius: 10, border: '1.5px solid #E8E4DF',
+                  background: 'var(--bg-card)', fontSize: 13, fontWeight: 700, color: '#2D1B1B',
+                  cursor: confirming ? 'not-allowed' : 'pointer', opacity: confirming ? 0.5 : 1,
+                  fontFamily: 'inherit',
+                }}
+              >
+                {s.slice(11, 16)}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {confirming && (
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 8px' }}>Booking your patch test...</p>
+      )}
+      {error && (
+        <p style={{ fontSize: 13, color: 'var(--danger)', margin: '0 0 8px' }}>{error}</p>
+      )}
+      <button onClick={onBack} style={S.keepBtn}>Back</button>
     </div>
   );
 }

@@ -1217,6 +1217,34 @@ router.post('/:slug/manage/:token/resend-payment', async (req, res) => {
  * Must be at least 24 hours before the main appointment, within working hours.
  * Checks for conflicts with existing appointments.
  */
+/**
+ * PATCH TEST TIME HANDLING
+ * appointments.starts_at / ends_at store SALON WALL TIME inside the UTC slot
+ * (an 11:00 salon booking is saved as ...T11:00:00Z). So every comparison here
+ * happens in that same "wall frame": a Date whose UTC fields ARE the wall clock.
+ * Mixing a real UTC `now` into this frame is what made patch-test slots ignore
+ * the real diary and drift by an hour in BST.
+ */
+const PATCH_TEST_LEAD_HOURS = 24; // must match the booking gate + the client copy
+const WALL_DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+/** "Now", rendered in the salon's wall clock, in the wall frame. */
+function nowInSalonWall(timezone = 'Europe/London') {
+  const p = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).formatToParts(new Date()).reduce((a, x) => (a[x.type] = x.value, a), {});
+  return new Date(`${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}Z`);
+}
+
+/** Working hours for the day a wall-frame Date falls on. null = salon closed. */
+function wallDayHours(workingHours, wallDate) {
+  const k = WALL_DAYS[wallDate.getUTCDay()];
+  const h = workingHours?.[k] || workingHours?.[k[0].toUpperCase() + k.slice(1)];
+  return h && h.start && h.end ? h : null;
+}
+
+
 router.get('/:slug/manage/:token/patch-test/slots', async (req, res) => {
   try {
     const { data: appt } = await supabase
@@ -1232,102 +1260,84 @@ router.get('/:slug/manage/:token/patch-test/slots', async (req, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const mainApptStart = new Date(appt.starts_at);
-    const deadline = new Date(mainApptStart.getTime() - 24 * 60 * 60 * 1000);
-    const now = new Date();
-
-    if (deadline <= now) {
-      return res.status(400).json({ error: 'Too late to book patch test — must be 24+ hours before appointment' });
-    }
-
     const beautician = appt.beauticians;
     const beauticianId = beautician.id;
     const timezone = beautician.timezone || 'Europe/London';
     const ptDuration = beautician.patch_test_duration_minutes || 10;
 
-    // Get working hours; fallback to 9:00–17:00
+    // Everything below is in the WALL frame (see notes above the route).
+    const apptStart = new Date(appt.starts_at);
+    const deadline = new Date(apptStart.getTime() - PATCH_TEST_LEAD_HOURS * 60 * 60 * 1000);
+    const nowWall = nowInSalonWall(timezone);
+
+    if (deadline <= nowWall) {
+      return res.status(400).json({
+        error: `Too late to book a patch test, it must be at least ${PATCH_TEST_LEAD_HOURS} hours before your appointment.`,
+      });
+    }
+
     const workingHours = beautician.working_hours || {
-      'Mon': { start: '09:00', end: '17:00' },
-      'Tue': { start: '09:00', end: '17:00' },
-      'Wed': { start: '09:00', end: '17:00' },
-      'Thu': { start: '09:00', end: '17:00' },
-      'Fri': { start: '09:00', end: '17:00' },
-      'Sat': { start: '09:00', end: '17:00' },
+      mon: { start: '09:00', end: '17:00' }, tue: { start: '09:00', end: '17:00' },
+      wed: { start: '09:00', end: '17:00' }, thu: { start: '09:00', end: '17:00' },
+      fri: { start: '09:00', end: '17:00' }, sat: { start: '09:00', end: '17:00' },
     };
 
-    // Get existing appointments in next 14 days to find conflicts
-    const searchEnd = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+    // The real diary, in the same wall frame, so slots never clash with a booking.
+    const scanEnd = new Date(Math.min(
+      deadline.getTime(),
+      nowWall.getTime() + 28 * 24 * 60 * 60 * 1000,
+    ));
     const { data: existing } = await supabase
       .from('appointments')
-      .select('id, starts_at, ends_at')
+      .select('starts_at, ends_at')
       .eq('beautician_id', beauticianId)
       .in('status', ['confirmed', 'pending', 'in_progress'])
-      .gte('starts_at', now.toISOString())
-      .lte('ends_at', searchEnd.toISOString())
+      .gte('starts_at', nowWall.toISOString())
+      .lte('starts_at', scanEnd.toISOString())
       .order('starts_at', { ascending: true });
-
-    const existingSlots = (existing || []).map(a => ({
-      start: new Date(a.starts_at),
-      end: new Date(a.ends_at),
+    const busy = (existing || []).map(a2 => ({
+      start: new Date(a2.starts_at),
+      end: new Date(a2.ends_at),
     }));
 
-    // Generate candidate 10-minute slots
-    const candidates = [];
-    let slotTime = new Date(now);
+    // Every genuinely free slot between now and the deadline, so the client can
+    // pick from a real calendar (any open day, any open time) exactly like the
+    // main booking page, instead of a handful of consecutive quarter-hours.
+    const cursor = new Date(nowWall.getTime() + 60 * 60 * 1000); // 1h notice
+    cursor.setUTCSeconds(0, 0);
+    const cm = cursor.getUTCMinutes();
+    if (cm % 15 !== 0) cursor.setUTCMinutes(Math.ceil(cm / 15) * 15, 0, 0);
 
-    // Round up to next 15-min interval
-    const mins = slotTime.getMinutes();
-    if (mins % 15 !== 0) {
-      slotTime.setMinutes(Math.ceil(mins / 15) * 15, 0, 0);
-    }
+    const slots = [];
+    const MAX_SLOTS = 800;
+    while (cursor < deadline && slots.length < MAX_SLOTS) {
+      const slotEnd = new Date(cursor.getTime() + ptDuration * 60 * 1000);
+      const dh = wallDayHours(workingHours, cursor);
+      if (dh) {
+        const [sh, sm] = dh.start.split(':').map(Number);
+        const [eh, em] = dh.end.split(':').map(Number);
+        const dayOpen = new Date(cursor); dayOpen.setUTCHours(sh, sm, 0, 0);
+        const dayShut = new Date(cursor); dayShut.setUTCHours(eh, em, 0, 0);
 
-    // Generate slots up to deadline
-    while (slotTime < deadline) {
-      const slotEnd = new Date(slotTime.getTime() + ptDuration * 60 * 1000);
-
-      // Check working hours for this day
-      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const dayName = dayNames[slotTime.getDay()];
-      const dayHours = workingHours[dayName] || workingHours[dayName.toLowerCase()];
-
-      if (dayHours) {
-        const [startHour, startMin] = dayHours.start.split(':').map(Number);
-        const [endHour, endMin] = dayHours.end.split(':').map(Number);
-        const dayStart = new Date(slotTime);
-        dayStart.setHours(startHour, startMin, 0, 0);
-        const dayEnd = new Date(slotTime);
-        dayEnd.setHours(endHour, endMin, 0, 0);
-
-        // Slot must be within working hours
-        if (slotTime >= dayStart && slotEnd <= dayEnd) {
-          // Check for conflicts
-          let hasConflict = false;
-          for (const existing of existingSlots) {
-            if (slotTime < existing.end && slotEnd > existing.start) {
-              hasConflict = true;
-              break;
-            }
-          }
-
-          if (!hasConflict) {
-            candidates.push(slotTime.toISOString());
-            if (candidates.length >= 4) break; // Get 3-4 slots
-          }
+        if (cursor >= dayOpen && slotEnd <= dayShut) {
+          const clash = busy.some(b2 => cursor < b2.end && slotEnd > b2.start);
+          if (!clash) slots.push(cursor.toISOString());
         }
       }
-
-      slotTime = new Date(slotTime.getTime() + 15 * 60 * 1000); // Next 15-min slot
+      cursor.setUTCMinutes(cursor.getUTCMinutes() + 15);
     }
 
-    if (candidates.length === 0) {
-      return res.status(400).json({ error: 'No available slots for patch test' });
+    if (slots.length === 0) {
+      return res.status(400).json({ error: 'No available patch test slots before your appointment. Message me and we will sort one out.' });
     }
 
     res.json({
       success: true,
-      slots: candidates,
-      suggested: candidates[0],
+      slots,
+      suggested: slots[0],
       deadline: deadline.toISOString(),
+      lead_hours: PATCH_TEST_LEAD_HOURS,
+      duration_minutes: ptDuration,
     });
   } catch (err) {
     logger.error({ err }, 'Patch test slots fetch failed');
@@ -1363,40 +1373,36 @@ router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const mainApptStart = new Date(appt.starts_at);
-    const deadline = new Date(mainApptStart.getTime() - 24 * 60 * 60 * 1000);
-    const now = new Date();
-
-    // Validate slot timing
-    if (slotTime >= deadline) {
-      return res.status(400).json({ error: 'Slot must be at least 24 hours before main appointment' });
-    }
-
-    if (slotTime < now) {
-      return res.status(400).json({ error: 'Slot must be in the future' });
-    }
-
     const beautician = appt.beauticians;
     const ptDuration = beautician.patch_test_duration_minutes || 10;
     const ptPrice = beautician.patch_test_price_cents || 0;
-    const workingHours = beautician.working_hours || {};
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const dayName = dayNames[slotTime.getDay()];
-    const dayHours = workingHours[dayName] || workingHours[dayName.toLowerCase()] || { start: '09:00', end: '17:00' };
+    const timezone = beautician.timezone || 'Europe/London';
 
-    const [startHour, startMin] = dayHours.start.split(':').map(Number);
-    const [endHour, endMin] = dayHours.end.split(':').map(Number);
-    const dayStart = new Date(slotTime);
-    dayStart.setHours(startHour, startMin, 0, 0);
-    const dayEnd = new Date(slotTime);
-    dayEnd.setHours(endHour, endMin, 0, 0);
+    // Same WALL frame as the slot generator, so a slot the client was offered
+    // always validates here (this mismatch is what stopped patch tests booking).
+    const apptStart = new Date(appt.starts_at);
+    const deadline = new Date(apptStart.getTime() - PATCH_TEST_LEAD_HOURS * 60 * 60 * 1000);
+    const nowWall = nowInSalonWall(timezone);
+    const slotEnd = new Date(slotTime.getTime() + ptDuration * 60 * 1000);
 
-    if (slotTime < dayStart || slotTime >= dayEnd) {
-      return res.status(400).json({ error: 'Slot is outside working hours' });
+    if (slotTime >= deadline) {
+      return res.status(400).json({ error: `That time is too close to your appointment. A patch test must be at least ${PATCH_TEST_LEAD_HOURS} hours before.` });
+    }
+    if (slotTime < nowWall) {
+      return res.status(400).json({ error: 'That time has already passed, please pick another.' });
     }
 
-    // Check for conflicts
-    const slotEnd = new Date(slotTime.getTime() + ptDuration * 60 * 1000);
+    const workingHours = beautician.working_hours || {};
+    const dayHours = wallDayHours(workingHours, slotTime) || { start: '09:00', end: '17:00' };
+    const [startHour, startMin] = dayHours.start.split(':').map(Number);
+    const [endHour, endMin] = dayHours.end.split(':').map(Number);
+    const dayStart = new Date(slotTime); dayStart.setUTCHours(startHour, startMin, 0, 0);
+    const dayEnd = new Date(slotTime); dayEnd.setUTCHours(endHour, endMin, 0, 0);
+
+    if (slotTime < dayStart || slotEnd > dayEnd) {
+      return res.status(400).json({ error: 'That time is outside opening hours, please pick another.' });
+    }
+
     const { data: conflicts } = await supabase
       .from('appointments')
       .select('id')
