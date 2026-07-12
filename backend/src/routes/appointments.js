@@ -552,9 +552,17 @@ router.patch('/:id', requireAuth, async (req, res) => {
  * is what this is for, have no payment and are hard-removed.
  */
 router.delete('/:id', requireAuth, async (req, res) => {
+  // A booking with money on it used to be UNDELETABLE: hard 409, "cancel it
+  // instead", no way through. That left Ellie stuck with bookings she could
+  // not clear off her calendar. It is her diary, so she can always delete.
+  // We warn her first (409 + requires_confirmation), and when she confirms
+  // (?force=true) we delete the booking but KEEP the money record, unlinked,
+  // so her takings and Stripe history stay intact.
+  const force = req.query.force === 'true' || req.body?.force === true;
+
   const { data: appt, error: fetchErr } = await supabase
     .from('appointments')
-    .select('id, deposit_paid, policy_fee_charged_at, status')
+    .select('id, deposit_paid, deposit_cents, policy_fee_charged_at, status, starts_at')
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id)
     .single();
@@ -563,41 +571,68 @@ router.delete('/:id', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Appointment not found' });
   }
 
-  const hasMoney = appt.deposit_paid === true || !!appt.policy_fee_charged_at;
-  if (hasMoney) {
-    return res.status(409).json({
-      error: 'This booking has a payment attached. Cancel it instead so the payment is handled correctly.',
-      code: 'has_payment',
-    });
-  }
-
-  // Don't silently drop a real card payment record: block + tell her to cancel.
   const { data: paidTx } = await supabase
     .from('transactions')
     .select('id')
     .eq('appointment_id', appt.id)
     .or('stripe_payment_intent_id.not.is.null,stripe_charge_id.not.is.null')
     .limit(1);
-  if (paidTx && paidTx.length) {
+  const hasCardPayment = !!(paidTx && paidTx.length);
+  const hasMoney = appt.deposit_paid === true || !!appt.policy_fee_charged_at || hasCardPayment;
+
+  if (hasMoney && !force) {
+    const bits = [];
+    if (appt.deposit_paid && appt.deposit_cents > 0) bits.push(`a £${(appt.deposit_cents / 100).toFixed(2)} deposit`);
+    else if (appt.deposit_paid) bits.push('a paid deposit');
+    if (appt.policy_fee_charged_at) bits.push('a charged policy fee');
+    if (hasCardPayment && !bits.length) bits.push('a card payment');
+    const what = bits.join(' and ');
+
     return res.status(409).json({
-      error: 'This booking has a card payment attached. Cancel it instead so the payment is handled correctly.',
       code: 'has_payment',
+      requires_confirmation: true,
+      error: `This booking has ${what} on it.`,
+      warning: `This booking has ${what} on it. Deleting it will NOT refund the client, and it will not tell them the appointment is gone. The payment stays in your takings. If you want the client told and the deposit handled by your policy, cancel it instead. Delete anyway?`,
     });
   }
 
   // Several tables reference appointments(id) with NO ON DELETE rule, so a
   // booking that has been completed (assumed-takings row), had a consultation
   // form, earned loyalty, etc. would fail to delete with a foreign-key error
-  // (the old "Something went wrong"). Clear those dependents first: the booking's
-  // own assumed-takings transactions are removed with it; the rest are preserved
-  // but unlinked so audit/consent/loyalty history survives.
-  await supabase.from('transactions').delete().eq('appointment_id', appt.id);
+  // (the old "Something went wrong"). Clear those dependents first.
+  //
+  // Real card payments are UNLINKED, never deleted: the money genuinely moved,
+  // so it has to survive in her books. Only the assumed-takings rows (no Stripe
+  // id) go with the booking.
+  await supabase
+    .from('transactions')
+    .delete()
+    .eq('appointment_id', appt.id)
+    .is('stripe_payment_intent_id', null)
+    .is('stripe_charge_id', null);
+  await supabase.from('transactions').update({ appointment_id: null }).eq('appointment_id', appt.id);
+
+  // A patch test booked against this appointment goes back to "not booked yet",
+  // so the client can pick a new time instead of being silently left without one.
+  try {
+    await supabase
+      .from('patch_tests')
+      .update({ appointment_id: null, confirmed_at: null, suggested_slot: null })
+      .eq('appointment_id', appt.id);
+  } catch (e) {
+    logger.warn({ err: e }, 'Could not release patch test on appointment delete');
+  }
+
   for (const tbl of ['consultations', 'form_submissions', 'loyalty_points', 'ai_actions', 'reviews']) {
     try {
       await supabase.from(tbl).update({ appointment_id: null }).eq('appointment_id', appt.id);
     } catch (e) {
       logger.warn({ err: e, table: tbl }, 'Could not unlink dependent on appointment delete');
     }
+  }
+
+  if (hasMoney) {
+    logger.warn({ id: appt.id, beauticianId: req.beautician.id, hasCardPayment }, 'Appointment with payment force-deleted');
   }
 
   const { error } = await supabase

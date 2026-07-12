@@ -171,14 +171,19 @@ export default function CalendarView({ initialView } = {}) {
     if (!confirm(`Delete ${who}? This can't be undone.`)) return;
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/appointments/${appt.id}`, {
+      const del = (force) => fetch(`${API_BASE}/api/appointments/${appt.id}${force ? '?force=true' : ''}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
+      let res = await del(false);
       if (res.status === 409) {
         const data = await res.json().catch(() => ({}));
-        alert(data.error || "This booking has a payment attached, so it can't be deleted. Cancel it instead.");
-        return;
+        if (!data.requires_confirmation) {
+          alert(data.error || "Could not delete this booking.");
+          return;
+        }
+        if (!confirm(data.warning)) return;
+        res = await del(true);
       }
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -1043,14 +1048,22 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     setDeleting(true);
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}`, {
+      const del = (force) => fetch(`${API_BASE}/api/appointments/${appointment.id}${force ? '?force=true' : ''}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
+
+      let res = await del(false);
       if (res.status === 409) {
+        // Money on the booking. It is her diary: warn properly, then let her
+        // through if she still wants it gone (it used to be a dead end).
         const data = await res.json().catch(() => ({}));
-        alert(data.error || 'This booking has a deposit or fee attached, so it can\'t be deleted. Cancel it instead.');
-        return;
+        if (!data.requires_confirmation) {
+          alert(data.error || 'Could not delete this booking.');
+          return;
+        }
+        if (!confirm(data.warning)) return;
+        res = await del(true);
       }
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
