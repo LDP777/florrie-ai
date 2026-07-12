@@ -129,6 +129,7 @@ const ACTION_TO_AGENT = {
   message_escalated: 'front_desk',
   booking_confirmed: 'front_desk',
   booking_pending: 'front_desk',
+  patch_test_booked: 'front_desk',
   daily_money_summary: 'bookkeeper',
   milestone: 'business_coach',
   weekly_review: 'business_coach',
@@ -162,6 +163,7 @@ const ACTION_TO_PREF = {
   booking_confirmed: 'booking_confirmed',
   booking_pending: 'booking_confirmed',
   booking_rescheduled: 'booking_confirmed',
+  patch_test_booked: 'booking_confirmed',
   booking_cancelled: 'booking_cancelled',
   booking_auto_cancelled: 'booking_cancelled',
   message_escalated: 'ai_escalation',
@@ -175,7 +177,7 @@ const URGENT_ACTIONS = new Set(['message_escalated']);
 // pocket without looking. Good news = soft two-note bloom; needs-you = a
 // gentler single note. Files must be bundled in the iOS target (see
 // docs/NOTIFICATION_SOUNDS.md); env-gated in apns.js until they are.
-const GOOD_NEWS = new Set(['booking_confirmed', 'booking_rescheduled', 'gap_post', 'review_request', 'daily_money_summary', 'milestone', 'weekly_review', 'value_coaching', 'income_logged']);
+const GOOD_NEWS = new Set(['booking_confirmed', 'booking_rescheduled', 'patch_test_booked', 'gap_post', 'review_request', 'daily_money_summary', 'milestone', 'weekly_review', 'value_coaching', 'income_logged']);
 const NEEDS_YOU = new Set(['message_escalated', 'booking_pending', 'booking_cancelled', 'booking_auto_cancelled', 'channel_failover']);
 function soundFor(actionType) {
   if (GOOD_NEWS.has(actionType)) return 'bloom-good.caf';
@@ -237,6 +239,7 @@ const ACTION_TITLES = {
   booking_confirmed: '🌸 New booking',
   booking_pending: '⌛ Deposit not completed',
   booking_rescheduled: '🔁 Booking moved',
+  patch_test_booked: '🩺 Patch test booked',
   booking_cancelled: 'Booking cancelled',
   booking_auto_cancelled: 'Slot released',
   message_escalated: '💬 Needs you',
@@ -313,6 +316,19 @@ export async function pushReschedule(beauticianId, clientName, dateStr, { appoin
     : '/calendar/week';
   return pushTeamUpdate(beauticianId, 'booking_rescheduled',
     `${clientName} moved her own booking to ${dateStr} using her manage link`,
+    { url, clientName }
+  );
+}
+
+export async function pushPatchTestBooked(beauticianId, clientName, dateStr, { appointmentId = null, apptDate = null } = {}) {
+  // A client picked her own patch test slot off the manage link. Ellie needs to
+  // know it landed in her diary, not find out on the day.
+  const day = apptDate ? String(apptDate).slice(0, 10) : null;
+  const url = appointmentId && day ? `/calendar/week?date=${day}&appt=${appointmentId}`
+    : appointmentId ? `/calendar/week?appt=${appointmentId}`
+    : '/calendar/week';
+  return pushTeamUpdate(beauticianId, 'patch_test_booked',
+    `${clientName} booked a patch test for ${dateStr}`,
     { url, clientName }
   );
 }

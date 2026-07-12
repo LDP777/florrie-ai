@@ -3,7 +3,7 @@ import { z } from 'zod';
 import Stripe from 'stripe';
 import { supabase } from '../config.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
-import { pushNewBooking, pushBookingConfirmed, pushReschedule } from '../services/push-notifications.js';
+import { pushNewBooking, pushBookingConfirmed, pushReschedule, pushPatchTestBooked } from '../services/push-notifications.js';
 import { refreshLiveActivity } from '../services/live-activity.js';
 import { sendConsultationFormSMS } from './consultation-forms.js';
 import { validate } from '../middleware/validate.js';
@@ -1364,6 +1364,7 @@ router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
       .from('appointments')
       .select(`
         id, starts_at, client_id, client_email,
+        clients(first_name),
         beauticians(id, booking_slug, working_hours, timezone, patch_test_duration_minutes, patch_test_price_cents)
       `)
       .eq('management_token', req.params.token)
@@ -1478,6 +1479,17 @@ router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
         });
       if (patchErr) logger.error({ err: patchErr }, 'Patch test insert failed (non-fatal)');
     }
+
+    // Tell Ellie it landed. Fire and forget: a push problem must never fail
+    // a patch test the client has already booked.
+    const ptDay = new Date(patchTestAppt.starts_at);
+    const whenLabel = `${ptDay.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })} at ${String(patchTestAppt.starts_at).slice(11, 16)}`;
+    pushPatchTestBooked(
+      beautician.id,
+      appt.clients?.first_name || 'A client',
+      whenLabel,
+      { appointmentId: patchTestAppt.id, apptDate: patchTestAppt.starts_at },
+    ).catch(() => {});
 
     res.json({
       success: true,
