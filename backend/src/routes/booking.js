@@ -1429,7 +1429,9 @@ router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
         ends_at: slotEnd.toISOString(),
         duration_minutes: ptDuration,
         status: 'confirmed',
-        notes: 'Patch test (auto-booked)',
+        // NOT `notes`: appointments has no such column, so the insert errored
+        // every time and no patch test could ever be booked.
+        beautician_notes: 'Patch test (auto-booked)',
         booked_via: 'booking_page',
         price_cents: ptPrice,
       })

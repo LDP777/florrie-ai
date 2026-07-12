@@ -130,7 +130,7 @@ router.get('/appointments', requireAuth, async (req, res) => {
       starts_at: apt.starts_at,
       ends_at: apt.ends_at,
       status: apt.status,
-      notes: apt.notes,
+      notes: apt.beautician_notes,
       created_at: apt.created_at,
       updated_at: apt.updated_at
     }));
