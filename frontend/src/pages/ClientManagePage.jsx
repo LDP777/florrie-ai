@@ -41,6 +41,7 @@ export default function ClientManagePage() {
   // Patch test booking state
   const [patchTestSlots, setPatchTestSlots] = useState(null);
   const [patchTestDuration, setPatchTestDuration] = useState(10);
+  const [patchTestBooked, setPatchTestBooked] = useState(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [slotsError, setSlotsError] = useState(null);
   const [confirmingSlot, setConfirmingSlot] = useState(false);
@@ -201,11 +202,12 @@ export default function ClientManagePage() {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || 'Confirmation failed');
       }
+      setPatchTestBooked(slot);
       await load();
       setShowSlotPicker(false);
       setPatchTestSlots(null);
     } catch (err) {
-      setSlotsError(err.message);
+      setSlotsError(err.message || 'That time just went. Pick another one.');
     } finally {
       setConfirmingSlot(false);
     }
@@ -420,6 +422,20 @@ export default function ClientManagePage() {
         {(needsPatchTest || (patchTests && patchTests.length > 0)) && (
           <div id="patch-test-section" style={S.card}>
             <p style={S.sectionLabel}>Patch tests</p>
+
+            {patchTestBooked && (
+              <div style={{
+                background: brandLight, border: `1.5px solid ${brand}`, borderRadius: 12,
+                padding: '12px 14px', marginBottom: 12,
+              }}>
+                <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 700, color: brand }}>
+                  Patch test booked
+                </p>
+                <p style={{ margin: 0, fontSize: 13, color: '#2D1B1B' }}>
+                  {new Date(`${patchTestBooked.slice(0, 10)}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })} at {patchTestBooked.slice(11, 16)}. It takes about {patchTestDuration} minutes. See you then.
+                </p>
+              </div>
+            )}
 
             {/* No existing patch test row but treatment requires one */}
             {needsPatchTest && (
@@ -780,7 +796,11 @@ function PatchTestPicker({ slots, duration, onPick, confirming, error, onBack, b
   const months = useMemo(() => [...new Set(dayKeys.map(k => k.slice(0, 7)))].sort(), [dayKeys]);
 
   const [selectedDay, setSelectedDay] = useState(null);
+  const [selectedTime, setSelectedTime] = useState(null);
   const [month, setMonth] = useState(null);
+
+  const longDay = (key) => new Date(`${key}T00:00:00Z`)
+    .toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
 
   useEffect(() => {
     if (dayKeys.length && !selectedDay) {
@@ -843,7 +863,7 @@ function PatchTestPicker({ slots, duration, onPick, confirming, error, onBack, b
               key={key}
               type="button"
               disabled={!has}
-              onClick={() => setSelectedDay(key)}
+              onClick={() => { setSelectedDay(key); setSelectedTime(null); }}
               style={{
                 aspectRatio: '1', borderRadius: 10, fontFamily: 'inherit', fontSize: 13,
                 border: sel ? `1.5px solid ${brand}` : '1.5px solid transparent',
@@ -863,36 +883,69 @@ function PatchTestPicker({ slots, duration, onPick, confirming, error, onBack, b
       {selectedDay && (
         <>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 8px' }}>
-            {new Date(`${selectedDay}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })}
+            {longDay(selectedDay)}
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 8, marginBottom: 12 }}>
-            {times.map(s => (
-              <button
-                key={s}
-                type="button"
-                disabled={confirming}
-                onClick={() => onPick(s)}
-                style={{
-                  padding: '10px 6px', borderRadius: 10, border: '1.5px solid #E8E4DF',
-                  background: 'var(--bg-card)', fontSize: 13, fontWeight: 700, color: '#2D1B1B',
-                  cursor: confirming ? 'not-allowed' : 'pointer', opacity: confirming ? 0.5 : 1,
-                  fontFamily: 'inherit',
-                }}
-              >
-                {s.slice(11, 16)}
-              </button>
-            ))}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 8, marginBottom: 14 }}>
+            {times.map(t => {
+              const on = t === selectedTime;
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  disabled={confirming}
+                  onClick={() => setSelectedTime(t)}
+                  style={{
+                    padding: '11px 6px', borderRadius: 10,
+                    border: on ? `1.5px solid ${brand}` : '1.5px solid #E8E4DF',
+                    background: on ? brand : 'var(--bg-card)',
+                    color: on ? '#fff' : '#2D1B1B',
+                    fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
+                    cursor: confirming ? 'not-allowed' : 'pointer',
+                    opacity: confirming && !on ? 0.5 : 1,
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {t.slice(11, 16)}
+                </button>
+              );
+            })}
           </div>
         </>
       )}
 
-      {confirming && (
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 8px' }}>Booking your patch test...</p>
-      )}
       {error && (
-        <p style={{ fontSize: 13, color: 'var(--danger)', margin: '0 0 8px' }}>{error}</p>
+        <p style={{ fontSize: 13, color: 'var(--danger)', margin: '0 0 10px', fontWeight: 600 }}>{error}</p>
       )}
-      <button onClick={onBack} style={S.keepBtn}>Back</button>
+
+      {selectedTime ? (
+        <>
+          <div style={{
+            background: brandLight, borderRadius: 10, padding: '10px 12px', marginBottom: 10,
+            fontSize: 13, color: '#2D1B1B', fontWeight: 600, textAlign: 'center',
+          }}>
+            {longDay(selectedTime.slice(0, 10))} at {selectedTime.slice(11, 16)}
+          </div>
+          <button
+            type="button"
+            disabled={confirming}
+            onClick={() => onPick(selectedTime)}
+            style={{
+              width: '100%', padding: '14px', borderRadius: 12, border: 'none',
+              background: brand, color: '#fff', fontSize: 15, fontWeight: 700,
+              fontFamily: 'inherit', cursor: confirming ? 'wait' : 'pointer',
+              opacity: confirming ? 0.75 : 1, marginBottom: 8,
+            }}
+          >
+            {confirming ? 'Booking your patch test...' : 'Confirm my patch test'}
+          </button>
+        </>
+      ) : (
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center', margin: '0 0 10px' }}>
+          Tap a time to choose it, then confirm.
+        </p>
+      )}
+
+      <button onClick={onBack} disabled={confirming} style={S.keepBtn}>Back</button>
     </div>
   );
 }
