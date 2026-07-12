@@ -907,8 +907,8 @@ router.get('/:id/manage-link', requireAuth, async (req, res) => {
 
 /**
  * POST /api/appointments/:id/send-manage-link
- * Re-send the booking confirmation (which carries the manage link in the email
- * and SMS) to the client. Respects the beautician's message settings.
+ * Text the client their booking-management link. If they still owe a patch
+ * test, the link opens straight on the patch-test slot picker.
  */
 router.post('/:id/send-manage-link', requireAuth, async (req, res) => {
   // This used to call notifyBookingConfirmed, which on WhatsApp sends the
