@@ -438,7 +438,7 @@ async function sendWhatsAppTemplateViaTwilio({ to, templateName, templateParams,
  * beauticianId is required — used to look up per-beautician provider config
  * (wa_provider: meta | twilio), phone_number_id / twilio_wa_sender, and quota.
  */
-export async function sendWhatsApp({ to, templateName, templateParams, beauticianId, clientId = null, skipThreadLog = false }) {
+export async function sendWhatsApp({ to, templateName, templateParams, beauticianId, clientId = null, skipThreadLog = false, transactional = false }) {
   // Resolve provider + sender config from the beautician record. Twilio
   // tenants don't need the Meta token at all, so this runs before the
   // WA_TOKEN gate.
@@ -472,7 +472,14 @@ export async function sendWhatsApp({ to, templateName, templateParams, beauticia
 
   // PECR: marketing-class templates respect opt-outs and quiet hours.
   // Provider-agnostic — guards BOTH the Meta and Twilio paths.
-  if (isMarketingTemplate(templateName)) {
+  //
+  // `transactional` opts a send OUT of this gate. PECR reg 22 restricts direct
+  // MARKETING only; a service message about the client's own booking (their
+  // manage link, their patch test) is not marketing and must not be held back
+  // by marketing quiet hours. This matters: generic_message_v2 is the only
+  // template with a free-text body, so a service message that needs to carry a
+  // URL has to use it, and was being silently binned after 21:00.
+  if (!transactional && isMarketingTemplate(templateName)) {
     const gate = await canSendMarketing(beauticianId, to);
     if (!gate.allowed) {
       logger.info({ templateName, reason: gate.reason, beauticianId }, 'Marketing WhatsApp blocked by PECR guard');

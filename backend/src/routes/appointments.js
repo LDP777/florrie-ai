@@ -970,6 +970,10 @@ router.post('/:id/send-manage-link', requireAuth, async (req, res) => {
         templateParams: [client.first_name, body],
         beauticianId: req.beautician.id,
         clientId: appt.client_id,
+        // Her own booking link is a service message, not marketing. Without
+        // this it was blocked by the PECR quiet-hours gate after 21:00 and
+        // fell back to SMS, so nothing arrived.
+        transactional: true,
       });
       if (wa) sentOn = 'whatsapp';
     }
