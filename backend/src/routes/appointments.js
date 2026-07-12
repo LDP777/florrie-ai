@@ -892,7 +892,7 @@ function generateSlots(date, startTime, endTime, durationMinutes, existingAppoin
 router.get('/:id/manage-link', requireAuth, async (req, res) => {
   const { data: appt } = await supabase
     .from('appointments')
-    .select('management_token, beauticians(booking_slug)')
+    .select('management_token, client_id, beauticians(booking_slug)')
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id)
     .maybeSingle();
@@ -902,8 +902,28 @@ router.get('/:id/manage-link', requireAuth, async (req, res) => {
   if (!appt.management_token || !slug || !base) {
     return res.status(409).json({ error: 'Booking link is not available for this appointment yet' });
   }
-  res.json({ url: `${base}/book/${slug}/manage/${appt.management_token}` });
+  // If they still owe a patch test, hand back the deep link so the page opens
+  // straight on the picker, and tell the app so it can say so.
+  const needsPatchTest = await clientNeedsPatchTest(req.beautician.id, appt.client_id);
+  const url = `${base}/book/${slug}/manage/${appt.management_token}`;
+  res.json({
+    url: needsPatchTest ? `${url}?book=patch` : url,
+    needs_patch_test: needsPatchTest,
+  });
 });
+
+/** Does this client still have an unbooked patch test on file? */
+async function clientNeedsPatchTest(beauticianId, clientId) {
+  if (!clientId) return false;
+  const { data } = await supabase
+    .from('patch_tests')
+    .select('id')
+    .eq('client_id', clientId)
+    .eq('beautician_id', beauticianId)
+    .is('confirmed_at', null)
+    .limit(1);
+  return (data || []).length > 0;
+}
 
 /**
  * POST /api/appointments/:id/send-manage-link
@@ -940,22 +960,17 @@ router.post('/:id/send-manage-link', requireAuth, async (req, res) => {
     return res.status(422).json({ error: 'No phone number on file for this client.' });
   }
 
-  // If they still owe a patch test, deep-link straight to the picker.
-  const { data: pt } = await supabase
-    .from('patch_tests')
-    .select('id')
-    .eq('client_id', appt.client_id)
-    .eq('beautician_id', req.beautician.id)
-    .is('confirmed_at', null)
-    .limit(1);
-  const needsPatchTest = (pt || []).length > 0;
+  const needsPatchTest = await clientNeedsPatchTest(req.beautician.id, appt.client_id);
 
   const base = `${process.env.FRONTEND_URL}/book/${biz.booking_slug}/manage/${appt.management_token}`;
   const url = needsPatchTest ? `${base}?book=patch` : base;
   const bizName = biz.business_name || biz.first_name;
+  // Lead with the thing they actually have to do. Burying the patch test behind
+  // "manage your booking" is how it gets ignored and the appointment falls over
+  // on the day.
   const body = needsPatchTest
-    ? `Here's your booking with ${bizName}. You can book your patch test, or reschedule, here: ${url}`
-    : `Here's your booking with ${bizName}. You can reschedule, cancel or manage it here: ${url}`;
+    ? `You still need to book your patch test before your appointment with ${bizName}. It only takes a few minutes, and it has to be done at least 24 hours beforehand or the appointment cannot go ahead. Pick a time here: ${url} (you can also reschedule or cancel on the same page).`
+    : `Here's your booking with ${bizName}. You can view, reschedule or cancel it here: ${url}`;
 
   try {
     const channel = prefs.channel || 'whatsapp';

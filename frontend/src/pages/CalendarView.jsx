@@ -919,9 +919,25 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
   const [paymentLinkUrl, setPaymentLinkUrl] = useState(null);
   const [linkLoading, setLinkLoading] = useState(false);
   const [manageLink, setManageLink] = useState(null);
+  // Does this client still owe a patch test? Drives the whole card's wording.
+  const [needsPatchTest, setNeedsPatchTest] = useState(false);
   const [manageBusy, setManageBusy] = useState(false);
   const [manageSent, setManageSent] = useState(false);
   const [manageCopied, setManageCopied] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+        const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}/manage-link`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        const d = await res.json();
+        if (!cancelled) setNeedsPatchTest(!!d.needs_patch_test);
+      } catch { /* the card just stays generic */ }
+    })();
+    return () => { cancelled = true; };
+  }, [appointment.id]);
 
   async function handleGetManageLink() {
     setManageBusy(true); setManageSent(false);
@@ -1464,15 +1480,31 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
           )}
           {/* Client booking-management link: copy to paste anywhere, or text it */}
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${COLORS.outlineVariant}55` }}>
-            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.stone400, marginBottom: 8 }}>Booking link for the client</div>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.stone400, marginBottom: 8 }}>
+              {needsPatchTest ? 'Patch test + booking link' : 'Booking link for the client'}
+            </div>
+            {needsPatchTest && (
+              <div style={{
+                display: 'flex', gap: 8, alignItems: 'flex-start',
+                background: '#FDF3E7', border: '1px solid #E9D3B4', borderRadius: 10,
+                padding: '9px 11px', marginBottom: 9,
+              }}>
+                <span style={{ fontSize: 15, lineHeight: 1.2 }}>🩺</span>
+                <p style={{ margin: 0, fontSize: 12, lineHeight: 1.45, color: '#6B4E2E' }}>
+                  <strong>This client still needs a patch test.</strong> Sending this link opens straight
+                  on the patch test picker, so they can book it themselves. It has to be at least 24 hours
+                  before their appointment.
+                </p>
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button onClick={handleGetManageLink} disabled={manageBusy}
                 style={{ flex: 1, minWidth: 150, minHeight: 44, padding: '10px 12px', borderRadius: 10, border: `1.5px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.primary, fontSize: 13, fontWeight: 600, cursor: manageBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
-                {manageCopied ? '\u2713 Copied' : (manageBusy ? '\u2026' : 'Copy booking link')}
+                {manageCopied ? '\u2713 Copied' : (manageBusy ? '\u2026' : (needsPatchTest ? 'Copy patch test link' : 'Copy booking link'))}
               </button>
               <button onClick={handleSendManageLink} disabled={manageBusy}
                 style={{ flex: 1, minWidth: 150, minHeight: 44, padding: '10px 12px', borderRadius: 10, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 13, fontWeight: 600, cursor: manageBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
-                {manageSent ? `\u2713 ${manageSent}` : (manageBusy ? '\u2026' : 'Text link to client')}
+                {manageSent ? `\u2713 ${manageSent}` : (manageBusy ? '\u2026' : (needsPatchTest ? 'Send patch test link' : 'Text link to client'))}
               </button>
             </div>
             {manageLink && (
@@ -1480,7 +1512,11 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 onClick={e => { e.target.select(); navigator.clipboard?.writeText?.(manageLink); setManageCopied(true); setTimeout(() => setManageCopied(false), 2000); }}
                 style={{ width: '100%', marginTop: 8, padding: '8px', borderRadius: 6, border: `1px solid ${COLORS.outlineVariant}`, fontSize: 12, boxSizing: 'border-box', fontFamily: 'inherit', background: 'var(--bg-card)' }} />
             )}
-            <p style={{ fontSize: 11, color: COLORS.stone400, margin: '6px 0 0' }}>The link they use to view, reschedule or cancel. Copy it to paste into WhatsApp, or text it to them if theirs expired.</p>
+            <p style={{ fontSize: 11, color: COLORS.stone400, margin: '6px 0 0' }}>
+              {needsPatchTest
+                ? 'The message tells them they need a patch test and takes them straight to the times you have free. They can also reschedule or cancel on the same page.'
+                : 'The link they use to view, reschedule or cancel. Copy it to paste into WhatsApp, or send it to them.'}
+            </p>
           </div>
           {/* Payment link result */}
           {paymentLinkUrl && (

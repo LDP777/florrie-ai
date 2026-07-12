@@ -260,6 +260,36 @@ export default function ClientManagePage() {
       </div>
 
       <div style={S.content}>
+        {/* The one thing they MUST do. It sat far below the fold in a section
+            called "Patch tests", so it read as small print and got ignored. */}
+        {needsPatchTest && !patchTestBooked && !isCancelled && !isPast && (
+          <button
+            type="button"
+            onClick={() => {
+              if (!showSlotPicker) loadPatchTestSlots();
+              document.getElementById('patch-test-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
+            style={{
+              width: '100%', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
+              display: 'flex', gap: 12, alignItems: 'flex-start',
+              padding: '14px 16px', borderRadius: 14, marginBottom: 16,
+              background: brandLight, border: `1.5px solid ${brand}`,
+            }}
+          >
+            <span style={{ fontSize: 20, lineHeight: 1.1 }}>🩺</span>
+            <span style={{ flex: 1 }}>
+              <span style={{ display: 'block', fontSize: 15, fontWeight: 700, color: brand, marginBottom: 3 }}>
+                Book your patch test
+              </span>
+              <span style={{ display: 'block', fontSize: 13, lineHeight: 1.5, color: '#2D1B1B' }}>
+                You need one before this appointment, at least 24 hours before, or it cannot go ahead.
+                It only takes {patchTestDuration} minutes. Tap to pick a time.
+              </span>
+            </span>
+            <span style={{ fontSize: 18, color: brand, alignSelf: 'center' }}>{'\u203A'}</span>
+          </button>
+        )}
+
         {/* Cancellation result banner */}
         {cancelResult && (
           <div style={{
