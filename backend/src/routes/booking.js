@@ -1850,9 +1850,14 @@ router.post('/:slug/check-member', async (req, res) => {
 
   if (!client) return res.json({ is_member: false });
 
-  // Check for active membership
+  // The two tables are confusingly named:
+  //   client_memberships      = the PLANS   (name, price_cents, benefits)
+  //   membership_subscriptions = the ENROLMENTS (client_id, membership_id, status)
+  // This route had them the wrong way round, and then read a `membership_plans`
+  // table that does not exist at all. Both queries errored, so `is_member` was
+  // ALWAYS false: no client has ever been recognised as a member here.
   const { data: membership } = await supabase
-    .from('client_memberships')
+    .from('membership_subscriptions')
     .select('id, membership_id, status')
     .eq('beautician_id', beautician.id)
     .eq('client_id', client.id)
@@ -1861,9 +1866,8 @@ router.post('/:slug/check-member', async (req, res) => {
 
   if (!membership) return res.json({ is_member: false });
 
-  // Get plan name
   const { data: plan } = await supabase
-    .from('membership_plans')
+    .from('client_memberships')
     .select('name')
     .eq('id', membership.membership_id)
     .maybeSingle();

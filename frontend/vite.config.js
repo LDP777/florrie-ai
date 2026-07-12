@@ -37,8 +37,8 @@ export default defineConfig({
           sentry: ['@sentry/react'],
           // PostHog ~70 KB
           posthog: ['posthog-js'],
-          // xlsx parser ~120 KB, only loads on the migration page
-          xlsx: ['xlsx'],
+          // spreadsheet parser, only loads on the migration page
+          xlsx: ['exceljs'],
           // React + React-DOM + react-router-dom into a stable vendor chunk
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           // Supabase JS client ~80 KB

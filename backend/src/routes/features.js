@@ -834,7 +834,7 @@ router.delete('/client-memberships/:id', requireAuth, async (req, res) => {
 router.get('/membership-subscriptions', requireAuth, async (req, res) => {
   const { data, error } = await supabase
     .from('membership_subscriptions')
-    .select('*, clients(first_name, last_name, email), client_memberships(membership_id)')
+    .select('*, clients(first_name, last_name, email), client_memberships(name, price_cents)')
     .eq('beautician_id', req.beautician.id)
     .order('created_at', { ascending: false });
 
@@ -863,7 +863,7 @@ router.post('/membership-subscriptions', requireAuth, async (req, res) => {
       subscription_status: subscription_status || 'active',
       next_billing_date: next_billing_date || null
     })
-    .select('*, clients(first_name, last_name, email), client_memberships(membership_id)')
+    .select('*, clients(first_name, last_name, email), client_memberships(name, price_cents)')
     .single();
 
   if (error) {
@@ -888,7 +888,7 @@ router.patch('/membership-subscriptions/:id', requireAuth, async (req, res) => {
     .update(updates)
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id)
-    .select('*, clients(first_name, last_name, email), client_memberships(membership_id)')
+    .select('*, clients(first_name, last_name, email), client_memberships(name, price_cents)')
     .single();
 
   if (error) {

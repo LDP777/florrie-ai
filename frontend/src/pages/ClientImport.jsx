@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { useBeautician } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 
@@ -52,19 +52,52 @@ function readFile(file, asArrayBuffer) {
 }
 
 /**
- * Convert an XLSX arrayBuffer to CSV text. Picks the first sheet that has rows.
+ * One cell, as plain text. ExcelJS hands back rich text, formula results,
+ * hyperlinks and Dates as objects, so flatten them all to something a CSV
+ * parser can read.
  */
-function xlsxToCsv(arrayBuffer) {
-  const wb = XLSX.read(arrayBuffer, { type: 'array' });
-  // First sheet with any rows wins.
-  let sheetName = wb.SheetNames[0];
-  for (const name of wb.SheetNames) {
-    const sheet = wb.Sheets[name];
-    const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1:A1');
-    if (range.e.r > 0) { sheetName = name; break; }
+function cellText(cell) {
+  const v = cell?.value;
+  if (v === null || v === undefined) return '';
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  if (typeof v === 'object') {
+    if (Array.isArray(v.richText)) return v.richText.map(r => r.text).join('');
+    if (v.text !== undefined) return String(v.text);            // hyperlink
+    if (v.result !== undefined) return String(v.result);         // formula
+    if (v.error) return '';
+    return '';
   }
-  const sheet = wb.Sheets[sheetName];
-  return XLSX.utils.sheet_to_csv(sheet, { blankrows: false });
+  return String(v);
+}
+
+function csvEscape(s) {
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/**
+ * Convert an XLSX arrayBuffer to CSV text. Picks the first sheet that has rows.
+ *
+ * Was SheetJS (xlsx@0.18.5), which carries 12 high-severity advisories with no
+ * fixed version published to npm. ExcelJS does the same job here: we only ever
+ * read an uploaded sheet and hand the rows to the existing CSV parser.
+ */
+async function xlsxToCsv(arrayBuffer) {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(arrayBuffer);
+
+  // First sheet with more than a header row wins, same rule as before.
+  const sheet = wb.worksheets.find(w => (w.actualRowCount || w.rowCount || 0) > 1)
+    || wb.worksheets[0];
+  if (!sheet) return '';
+
+  const width = sheet.actualColumnCount || sheet.columnCount || 0;
+  const lines = [];
+  sheet.eachRow({ includeEmpty: false }, (row) => {
+    const cells = [];
+    for (let c = 1; c <= width; c++) cells.push(cellText(row.getCell(c)));
+    if (cells.some(v => v !== '')) lines.push(cells.map(csvEscape).join(','));
+  });
+  return lines.join('\n');
 }
 
 export default function ClientImport() {
@@ -102,7 +135,7 @@ export default function ClientImport() {
       let text;
       if (isXlsx) {
         const buf = await readFile(file, true);
-        text = xlsxToCsv(buf);
+        text = await xlsxToCsv(buf);
         if (!text || text.trim().split('\n').length < 2) {
           setError('That spreadsheet looks empty. Try the file with your client list.');
           setStep('platform');
@@ -736,7 +769,7 @@ function TimelyAppointmentsImport() {
       const lower = file.name.toLowerCase();
       if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) {
         const buf = await readFile(file, true);
-        text = xlsxToCsv(buf);
+        text = await xlsxToCsv(buf);
       } else {
         text = await readFile(file, false);
       }
