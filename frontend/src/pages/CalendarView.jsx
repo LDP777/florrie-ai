@@ -942,8 +942,15 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
       const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}/send-manage-link`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
-      if (res.ok) { setManageSent(true); setTimeout(() => setManageSent(false), 3000); }
-      else { const d = await res.json().catch(() => ({})); alert(d.error || 'Could not send the link'); }
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) {
+        // Say what actually happened, on which channel. A silent tick told her
+        // nothing about whether it really left.
+        setManageSent(d.channel === 'sms' ? 'Sent by text' : 'Sent on WhatsApp');
+        setTimeout(() => setManageSent(false), 3000);
+      } else {
+        alert(d.error || 'Could not send the link');
+      }
     } catch { alert('Could not send the link'); }
     finally { setManageBusy(false); }
   }
@@ -1465,7 +1472,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               </button>
               <button onClick={handleSendManageLink} disabled={manageBusy}
                 style={{ flex: 1, minWidth: 150, minHeight: 44, padding: '10px 12px', borderRadius: 10, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 13, fontWeight: 600, cursor: manageBusy ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
-                {manageSent ? '\u2713 Sent to client' : (manageBusy ? '\u2026' : 'Text link to client')}
+                {manageSent ? `\u2713 ${manageSent}` : (manageBusy ? '\u2026' : 'Text link to client')}
               </button>
             </div>
             {manageLink && (

@@ -12,7 +12,7 @@ import logger from '../lib/logger.js';
 import { parsePagination, buildPaginationMeta, handleQueryError } from '../lib/queries.js';
 import { completeDaySchema, manualAppointmentSchema } from '../lib/schemas.js';
 import { getTaxYear } from '../lib/time-utils.js';
-import { notifyBookingConfirmed } from '../services/notifications.js';
+import { notifyBookingConfirmed, sendWhatsApp, sendSMS } from '../services/notifications.js';
 
 const router = Router();
 
@@ -911,16 +911,86 @@ router.get('/:id/manage-link', requireAuth, async (req, res) => {
  * and SMS) to the client. Respects the beautician's message settings.
  */
 router.post('/:id/send-manage-link', requireAuth, async (req, res) => {
+  // This used to call notifyBookingConfirmed, which on WhatsApp sends the
+  // booking_confirmation_v2 template with params [name, date, time]. The manage
+  // URL is NOT one of those params, so the client got a confirmation with no
+  // link and no way to reach the patch-test picker (and it read as if she had
+  // just rebooked them). Send the link itself, on a template that carries text.
   const { data: appt } = await supabase
     .from('appointments')
-    .select('id')
+    .select(`
+      id, management_token, starts_at, client_id,
+      clients(first_name, phone, email),
+      beauticians(business_name, first_name, booking_slug, client_reminder_prefs)
+    `)
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id)
     .maybeSingle();
   if (!appt) return res.status(404).json({ error: 'Appointment not found' });
+
+  const client = appt.clients;
+  const biz = appt.beauticians;
+  const prefs = biz?.client_reminder_prefs || {};
+  if (prefs.paused) return res.status(409).json({ error: 'Messages are paused. Turn the pause off in Settings to send this.' });
+
+  if (!appt.management_token || !biz?.booking_slug || !process.env.FRONTEND_URL) {
+    return res.status(422).json({ error: 'This booking has no manage link yet.' });
+  }
+  if (!client?.phone) {
+    return res.status(422).json({ error: 'No phone number on file for this client.' });
+  }
+
+  // If they still owe a patch test, deep-link straight to the picker.
+  const { data: pt } = await supabase
+    .from('patch_tests')
+    .select('id')
+    .eq('client_id', appt.client_id)
+    .eq('beautician_id', req.beautician.id)
+    .is('confirmed_at', null)
+    .limit(1);
+  const needsPatchTest = (pt || []).length > 0;
+
+  const base = `${process.env.FRONTEND_URL}/book/${biz.booking_slug}/manage/${appt.management_token}`;
+  const url = needsPatchTest ? `${base}?book=patch` : base;
+  const bizName = biz.business_name || biz.first_name;
+  const body = needsPatchTest
+    ? `Here's your booking with ${bizName}. You can book your patch test, or reschedule, here: ${url}`
+    : `Here's your booking with ${bizName}. You can reschedule, cancel or manage it here: ${url}`;
+
   try {
-    await notifyBookingConfirmed(appt.id);
-    res.json({ ok: true });
+    const channel = prefs.channel || 'whatsapp';
+    let sentOn = null;
+
+    if (channel === 'whatsapp') {
+      // generic_message_v2 takes [first_name, message], so the link travels in
+      // the body. booking_confirmation_v2 has nowhere to put it.
+      const wa = await sendWhatsApp({
+        to: client.phone,
+        templateName: 'generic_message_v2',
+        templateParams: [client.first_name, body],
+        beauticianId: req.beautician.id,
+        clientId: appt.client_id,
+      });
+      if (wa) sentOn = 'whatsapp';
+    }
+
+    if (!sentOn) {
+      const sms = await sendSMS({
+        to: client.phone,
+        body,
+        beauticianId: req.beautician.id,
+        messageType: 'booking_confirmation',
+      });
+      if (sms) sentOn = 'sms';
+    }
+
+    if (!sentOn) {
+      logger.warn({ id: appt.id }, 'send-manage-link: no channel delivered');
+      return res.status(502).json({ error: 'Could not deliver the link. Check your WhatsApp connection in Settings.' });
+    }
+
+    logger.info({ id: appt.id, sentOn, needsPatchTest }, 'Manage link sent');
+    res.json({ ok: true, channel: sentOn, patch_test_link: needsPatchTest });
   } catch (err) {
     logger.error({ err, id: appt.id }, 'send-manage-link failed');
     res.status(500).json({ error: 'Could not send the link' });
