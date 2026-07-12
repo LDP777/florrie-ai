@@ -7,6 +7,16 @@ import logger from '../lib/logger.js';
 import { hapticTap, hapticSuccess } from '../lib/native.js';
 import { treatmentColor, tint } from '../lib/treatmentColors.js';
 import { parseDateOnly } from '../lib/dates.js';
+
+// A patch test has no treatment_id (it is not one of her treatments), so
+// `treatments.name` is null and the appointment rendered as a blank row in the
+// diary. Fall back to the note we stamp on it at booking.
+function apptLabel(a) {
+  if (a?.treatments?.name) return a.treatments.name;
+  if (a?.beautician_notes && /patch test/i.test(a.beautician_notes)) return 'Patch test';
+  return '';
+}
+
 /**
  * CalendarView - Day and Week view of appointments.
  * Wired to Supabase with client/treatment joins.
@@ -156,7 +166,7 @@ export default function CalendarView({ initialView } = {}) {
   const longPressFired = useRef(false);
   async function deleteAppointmentFromAgenda(appt) {
     const who = appt.clients?.first_name
-      ? `${appt.clients.first_name}'s ${appt.treatments?.name || 'appointment'}`
+      ? `${appt.clients.first_name}'s ${apptLabel(appt) || 'appointment'}`
       : 'this appointment';
     if (!confirm(`Delete ${who}? This can't be undone.`)) return;
     try {
@@ -601,7 +611,7 @@ export default function CalendarView({ initialView } = {}) {
                       <div style={styles.appointmentCardTextBlock}>
                         <div style={{ ...styles.appointmentCardClientName, ...(compact ? { fontSize: 12 } : {}), ...(dead ? { textDecoration: 'line-through' } : {}) }}>{appt.clients?.first_name} {appt.clients?.last_name || ''}</div>
                         {showTreatment && (
-                          <div style={styles.appointmentCardTreatment}>{appt.treatments?.name}</div>
+                          <div style={styles.appointmentCardTreatment}>{apptLabel(appt)}</div>
                         )}
                       </div>
                     </div>
@@ -633,26 +643,41 @@ export default function CalendarView({ initialView } = {}) {
                 }
                 const label = isClosed ? 'CLOSED ALL DAY'
                   : `🚫 ${(block.reason || block.note || 'BLOCKED').toUpperCase()}`;
+                // The block used to be one big full-width button at zIndex 3, so it
+                // sat ON TOP of any appointment inside it and ate the taps: you
+                // could not open a booking that fell in a blocked hour. It is now
+                // a see-through backdrop (no pointer events, behind the cards) and
+                // only the little label chip is tappable.
                 return (
-                  <button
+                  <div
                     key={block.id}
-                    onClick={() => setSelectedBlock(block)}
                     style={{
                       position: 'absolute', left: 0, right: 0,
                       top: Math.max(0, top),
                       height: Math.max(height, 36),
                       background: 'repeating-linear-gradient(45deg, rgba(146,64,94,0.07) 0px, rgba(146,64,94,0.07) 5px, rgba(146,64,94,0.02) 5px, rgba(146,64,94,0.02) 10px)',
-                      border: 'none',
                       borderLeft: '3px solid rgba(146,64,94,0.5)',
                       borderRadius: 4,
-                      display: 'flex', alignItems: 'center', paddingLeft: 10,
-                      cursor: 'pointer', zIndex: 3,
+                      zIndex: 1,
+                      pointerEvents: 'none',
                     }}
                   >
-                    <span style={{ fontSize: 11, fontWeight: 700, color: COLORS.primary, letterSpacing: '0.04em' }}>
+                    <button
+                      onClick={() => setSelectedBlock(block)}
+                      style={{
+                        pointerEvents: 'auto',
+                        position: 'absolute', top: 4, left: 8,
+                        background: 'rgba(255,255,255,0.9)',
+                        border: 'none', borderRadius: 6,
+                        padding: '3px 7px',
+                        fontSize: 11, fontWeight: 700, color: COLORS.primary,
+                        letterSpacing: '0.04em', cursor: 'pointer',
+                        fontFamily: 'inherit',
+                      }}
+                    >
                       {label}
-                    </span>
-                  </button>
+                    </button>
+                  </div>
                 );
               })
             }
@@ -781,7 +806,7 @@ export default function CalendarView({ initialView } = {}) {
                           <span style={{ ...styles.weekRowDot, background: dotColor }} />
                           <span style={styles.weekRowBody}>
                             <span style={{ ...styles.weekRowName, textDecoration: dead ? 'line-through' : 'none' }}>{clientLabel}</span>
-                            {appt.treatments?.name && <span style={styles.weekRowTreatment}>{appt.treatments.name}</span>}
+                            {apptLabel(appt) && <span style={styles.weekRowTreatment}>{apptLabel(appt)}</span>}
                           </span>
                           {price > 0 && <span style={styles.weekRowPrice}>£{(price / 100).toFixed(0)}</span>}
                           {appt.ai_booked && <span style={styles.aiTag}>AI</span>}
@@ -1270,7 +1295,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
       {mode === 'detail' && (
         <>
           <div style={styles.detailGrid}>
-            <div style={styles.detailRow}><span style={styles.detailLabel}>Treatment</span><span style={styles.detailValue}>{appointment.treatments?.name}</span></div>
+            <div style={styles.detailRow}><span style={styles.detailLabel}>Treatment</span><span style={styles.detailValue}>{apptLabel(appointment)}</span></div>
             <div style={styles.detailRow}>
               <span style={styles.detailLabel}>Time</span>
               {timeEditing ? (

@@ -220,6 +220,8 @@ async function sendInstagramReply(recipientId, text, token) {
   }
 }
 
+const PLACEHOLDER_NAME = 'Instagram User';
+
 /**
  * Find or create client, store message, and pass to AI Front Desk.
  */
@@ -253,7 +255,23 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
 
     client = newClient;
     if (newClient) {
-      logger.info({ beauticianId: beautician.id, instagramId: senderId }, 'Created new client from Instagram DM');
+      logger.info({ beauticianId: beautician.id, instagramId: senderId, named: !!name }, 'Created new client from Instagram DM');
+    }
+  } else if (client.first_name === PLACEHOLDER_NAME) {
+    // Self-heal. Everyone who DM'd before the lookup worked is stuck as
+    // "Instagram User"; retry on their next message and keep the real name.
+    const name = await fetchInstagramProfile(senderId, beautician.instagram_page_token);
+    if (name && name !== PLACEHOLDER_NAME) {
+      const { data: renamed } = await supabase
+        .from('clients')
+        .update({ first_name: name })
+        .eq('id', client.id)
+        .select()
+        .single();
+      if (renamed) {
+        client = renamed;
+        logger.info({ clientId: client.id, instagramId: senderId }, 'Backfilled Instagram client name');
+      }
     }
   }
 
@@ -351,18 +369,38 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
  * Fetch an Instagram sender's profile name via the Instagram Graph API,
  * using the beautician's own long-lived Instagram token.
  */
+/**
+ * Ask Instagram who this sender actually is. Returns a display name, or null.
+ *
+ * This was failing silently for every DM (every client landed as "Instagram
+ * User"), because a non-ok response was swallowed with no log. It now logs the
+ * Graph error so we can see WHY, and falls back to @username when Instagram
+ * gives us a handle but no display name.
+ */
 async function fetchInstagramProfile(userId, token) {
   const igToken = token || process.env.INSTAGRAM_PAGE_TOKEN;
-  if (!igToken) return null;
+  if (!igToken) {
+    logger.warn({ userId }, 'IG profile lookup skipped: no page token');
+    return null;
+  }
 
   try {
     const res = await fetch(
-      `https://graph.instagram.com/v21.0/${userId}?fields=name,username&access_token=${encodeURIComponent(igToken)}`
+      `https://graph.instagram.com/v21.0/${userId}?fields=name,username`,
+      { headers: { Authorization: `Bearer ${igToken}` } }
     );
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.name || data.username || null;
-  } catch {
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      logger.warn({ userId, status: res.status, igError: data?.error }, 'IG profile lookup failed');
+      return null;
+    }
+
+    const name = data.name || (data.username ? `@${data.username}` : null);
+    if (!name) logger.warn({ userId, data }, 'IG profile lookup returned no name');
+    return name;
+  } catch (err) {
+    logger.warn({ err, userId }, 'IG profile lookup network error');
     return null;
   }
 }

@@ -311,7 +311,7 @@ function WeekGrid({ days, apptsOn, blocksOn = () => [], onPickDay, onOpenAppt = 
                   const color = treatmentColor(a.treatments);
                   const widthPct = 100 / cols;
                   const name = a.clients?.first_name || 'Booking';
-                  const treat = a.treatments?.name || '';
+                  const treat = a.treatments?.name || (a.beautician_notes && /patch test/i.test(a.beautician_notes) ? 'Patch test' : '');
                   return (
                     <button
                       key={a.id}

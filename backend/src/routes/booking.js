@@ -1238,6 +1238,40 @@ function nowInSalonWall(timezone = 'Europe/London') {
 }
 
 /** Working hours for the day a wall-frame Date falls on. null = salon closed. */
+/**
+ * Ellie's personal blocks live in hours_exceptions (a date plus an optional
+ * start/end wall time; no range = the whole day is closed). The public picker
+ * respected them but the patch-test slot generator did not, so a client could
+ * book a patch test straight over a block. Load them once, in the wall frame.
+ */
+async function loadBlocks(beauticianId, fromWall, toWall) {
+  const { data: rows } = await supabase
+    .from('hours_exceptions')
+    .select('date, type, start_time, end_time')
+    .eq('beautician_id', beauticianId)
+    .gte('date', fromWall.toISOString().slice(0, 10))
+    .lte('date', toWall.toISOString().slice(0, 10));
+
+  const closedDays = new Set();
+  const intervals = [];
+  for (const r of rows || []) {
+    if (r.type !== 'closed' && r.start_time && r.end_time) {
+      intervals.push({
+        start: new Date(`${r.date}T${String(r.start_time).slice(0, 5)}:00Z`),
+        end: new Date(`${r.date}T${String(r.end_time).slice(0, 5)}:00Z`),
+      });
+    } else {
+      closedDays.add(r.date); // whole day off
+    }
+  }
+  return { closedDays, intervals };
+}
+
+function hitsBlock(slotStart, slotEnd, blocks) {
+  if (blocks.closedDays.has(slotStart.toISOString().slice(0, 10))) return true;
+  return blocks.intervals.some(b => slotStart < b.end && slotEnd > b.start);
+}
+
 function wallDayHours(workingHours, wallDate) {
   const k = WALL_DAYS[wallDate.getUTCDay()];
   const h = workingHours?.[k] || workingHours?.[k[0].toUpperCase() + k.slice(1)];
@@ -1300,6 +1334,9 @@ router.get('/:slug/manage/:token/patch-test/slots', async (req, res) => {
       end: new Date(a2.ends_at),
     }));
 
+    // Her personal blocks and days off count as busy too.
+    const blocks = await loadBlocks(beauticianId, nowWall, deadline);
+
     // Every genuinely free slot between now and the deadline, so the client can
     // pick from a real calendar (any open day, any open time) exactly like the
     // main booking page, instead of a handful of consecutive quarter-hours.
@@ -1320,7 +1357,8 @@ router.get('/:slug/manage/:token/patch-test/slots', async (req, res) => {
         const dayShut = new Date(cursor); dayShut.setUTCHours(eh, em, 0, 0);
 
         if (cursor >= dayOpen && slotEnd <= dayShut) {
-          const clash = busy.some(b2 => cursor < b2.end && slotEnd > b2.start);
+          const clash = busy.some(b2 => cursor < b2.end && slotEnd > b2.start)
+            || hitsBlock(cursor, slotEnd, blocks);
           if (!clash) slots.push(cursor.toISOString());
         }
       }
@@ -1414,6 +1452,13 @@ router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
 
     if (conflicts && conflicts.length > 0) {
       return res.status(409).json({ error: 'This slot is no longer available' });
+    }
+
+    // Re-check her blocks server side: the slot list could be stale, and a
+    // client could post any time they like.
+    const confirmBlocks = await loadBlocks(beautician.id, slotTime, slotEnd);
+    if (hitsBlock(slotTime, slotEnd, confirmBlocks)) {
+      return res.status(409).json({ error: 'That time is not free any more, please pick another.' });
     }
 
     // Create patch test appointment
