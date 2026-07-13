@@ -21,6 +21,7 @@
  *   onSuccess   - called after successful payment
  */
 import { useState, useEffect, useRef } from 'react';
+import { PLAN, TEAM_ADDON } from '../lib/subscription.js';
 
 const STRIPE_PK = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
 const API = import.meta.env.VITE_API_URL || '';
@@ -44,10 +45,10 @@ const PLAN_LABELS = {
 };
 
 const PRICE_LABELS = {
-  florrie_monthly: '£29/month',
-  florrie_annual: '£290/year',
-  florrie_team_monthly: '£44/month',
-  florrie_team_annual: '£440/year',
+  florrie_monthly: `£${PLAN.monthlyPence / 100}/month`,
+  florrie_annual: `£${PLAN.annualPence / 100}/year`,
+  florrie_team_monthly: `£${(PLAN.monthlyPence + TEAM_ADDON.seatMonthlyPence) / 100}/month`,
+  florrie_team_annual: `£${(PLAN.annualPence + TEAM_ADDON.seatAnnualPence) / 100}/year`,
 };
 
 export default function CheckoutModal({ plan, interval, authToken, onClose, onSuccess }) {
