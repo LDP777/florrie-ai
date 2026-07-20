@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider } from './lib/theme.jsx';
 import * as Sentry from '@sentry/react';
 import { initAnalytics } from './lib/analytics.js';
+import logger from './lib/logger.js';
 import App from './App.jsx';
 import './index.css';
 
@@ -11,7 +12,7 @@ import './index.css';
 try {
   initAnalytics();
 } catch (err) {
-  console.error('[florrie] initAnalytics failed at startup:', err);
+  logger.error('initAnalytics failed at startup', err);
 }
 
 if (import.meta.env.VITE_SENTRY_DSN) {
@@ -43,7 +44,7 @@ if (import.meta.env.VITE_SENTRY_DSN) {
       },
     });
   } catch (err) {
-    console.error('[florrie] Sentry init failed at startup:', err);
+    logger.error('Sentry init failed at startup', err);
   }
 }
 
@@ -97,4 +98,4 @@ try {
   }
 }
 
-if (typeof window !== 'undefined') { window.__FLORRIE_BUILD__ = '20260630-rehash-1'; console.info('florrie build marker', window.__FLORRIE_BUILD__); }
+if (typeof window !== 'undefined') { window.__FLORRIE_BUILD__ = '20260630-rehash-1'; }
