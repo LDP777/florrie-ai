@@ -704,7 +704,7 @@ router.post('/:id/charge-balance', requireAuth, async (req, res) => {
   const messages = {
     nothing_due: 'There is no balance left to charge.',
     already_charged: 'The balance has already been charged.',
-    no_card_on_file: 'No saved card on file for this client.',
+    no_card_on_file: 'No saved card on file for this client. Cards are only saved when deposits (card required at booking) are turned on in Settings. For a client with no card, send them a payment link instead.',
     stripe_not_onboarded: 'Connect your Stripe payouts first to charge cards.',
     stripe_not_configured: 'Card payments are not set up.',
     card_declined: "The client's card was declined.",

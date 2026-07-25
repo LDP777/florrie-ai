@@ -922,6 +922,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [noShowCharging, setNoShowCharging] = useState(false);
+  const [noShowFeeInfo, setNoShowFeeInfo] = useState(null); // { can_charge, amount_cents, reason }
   const [paymentLinkUrl, setPaymentLinkUrl] = useState(null);
   const [linkLoading, setLinkLoading] = useState(false);
   const [manageLink, setManageLink] = useState(null);
@@ -1154,9 +1155,12 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      // If backend says we can charge, show the option
-      if (data.no_show_fee?.can_charge) {
+      // One-tap: show the fee prompt. If she can't charge (usually no card on
+      // file because deposits are off) we still surface WHY, so it isn't silent.
+      setNoShowFeeInfo(data.no_show_fee || null);
+      if (data.no_show_fee && (data.no_show_fee.can_charge || data.no_show_fee.reason === 'no_card')) {
         setNoShowCharging(true);
+        return; // keep the sheet open so she can act on the prompt
       }
       onUpdate();
     } catch (err) {
@@ -1557,20 +1561,37 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               {deleting ? 'Deleting…' : 'Delete appointment'}
             </button>
           </div>
-          {/* No-show fee charge prompt */}
+          {/* No-show fee: one-tap charge, or a clear reason she can't. */}
           {noShowCharging && (
-            <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: 'var(--danger-bg)', border: '1px solid var(--danger-bg)' }}>
-              <p style={{ fontSize: 13, color: 'var(--danger-text)', margin: '0 0 8px' }}>Client has a saved card. Charge no-show fee?</p>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={handleChargeNoShow} disabled={saving}
-                  style={{ flex: 1, padding: '8px', borderRadius: 8, border: 'none', background: 'var(--danger)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  {saving ? 'Charging...' : `Charge £${((appointment.deposit_cents || appointment.price_cents) / 100).toFixed(2)}`}
-                </button>
-                <button onClick={() => setNoShowCharging(false)}
-                  style={{ flex: 1, padding: '8px', borderRadius: 8, border: '1px solid var(--border-light)', background: 'var(--bg-card)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  Skip
-                </button>
-              </div>
+            <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: 'var(--danger-bg)', border: '1px solid var(--danger)' }}>
+              {noShowFeeInfo?.can_charge ? (
+                <>
+                  <p style={{ fontSize: 13, color: 'var(--danger-text)', margin: '0 0 8px' }}>Charge {appointment.clients?.first_name || 'this client'} a no-show fee?</p>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={handleChargeNoShow} disabled={saving}
+                      style={{ flex: 1, padding: '8px', borderRadius: 8, border: 'none', background: 'var(--danger)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      {saving ? 'Charging...' : `Charge £${((noShowFeeInfo.amount_cents || 0) / 100).toFixed(2)}`}
+                    </button>
+                    <button onClick={() => setNoShowCharging(false)}
+                      style={{ flex: 1, padding: '8px', borderRadius: 8, border: '1px solid var(--border-light)', background: 'var(--bg-card)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      Not this time
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p style={{ fontSize: 13, color: 'var(--danger-text)', margin: '0 0 4px', fontWeight: 600 }}>Can't charge a no-show fee</p>
+                  <p style={{ fontSize: 12, color: 'var(--danger-text)', margin: '0 0 8px', lineHeight: 1.45 }}>
+                    {noShowFeeInfo?.reason === 'no_card'
+                      ? 'There\u2019s no card saved for this client, so there\u2019s nothing to charge. To protect yourself against no-shows, turn on deposits (card required at booking) in Settings.'
+                      : 'Your cancellation policy has no no-show fee set, so there\u2019s nothing to charge. You can set one in Settings > Policy.'}
+                  </p>
+                  <button onClick={() => setNoShowCharging(false)}
+                    style={{ width: '100%', padding: '8px', borderRadius: 8, border: '1px solid var(--border-light)', background: 'var(--bg-card)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    Got it
+                  </button>
+                </>
+              )}
             </div>
           )}
           {/* Client booking-management link: copy to paste anywhere, or text it */}

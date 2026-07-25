@@ -3,7 +3,7 @@ import { z } from 'zod';
 import Stripe from 'stripe';
 import { supabase } from '../config.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
-import { pushNewBooking, pushBookingConfirmed, pushReschedule, pushPatchTestBooked } from '../services/push-notifications.js';
+import { pushNewBooking, pushBookingConfirmed, pushReschedule, pushPatchTestBooked, pushClientCancelled } from '../services/push-notifications.js';
 import { refreshLiveActivity } from '../services/live-activity.js';
 import { sendConsultationFormSMS } from './consultation-forms.js';
 import { validate } from '../middleware/validate.js';
@@ -648,7 +648,7 @@ router.post('/:slug/manage/:token/cancel', async (req, res) => {
   try {
     const { data: appt } = await supabase
       .from('appointments')
-      .select('id, starts_at, status, policy_snapshot, client_id, price_cents, deposit_cents, deposit_paid, stripe_payment_method_id, clients(stripe_customer_id), beauticians(booking_policy, booking_slug)')
+      .select('id, starts_at, status, policy_snapshot, client_id, price_cents, deposit_cents, deposit_paid, stripe_payment_method_id, clients(first_name, stripe_customer_id), beauticians(booking_policy, booking_slug)')
       .eq('management_token', req.params.token)
       .single();
 
@@ -683,11 +683,20 @@ router.post('/:slug/manage/:token/cancel', async (req, res) => {
 
     // Auto-charge the late cancellation fee to the saved card (fire-and-forget;
     // chargePolicyFee is idempotent and only charges when the policy has a fee).
+    // A CLIENT cancel happens while Ellie may be asleep, so auto is right here
+    // (unlike a no-show she marks herself, which is one-tap).
     if (isLateCancel && feeCents > 0) {
       chargePolicyFee(appt.id, 'late_cancel').catch(err =>
         logger.error({ err, appointmentId: appt.id }, 'late_cancel policy fee charge failed (non-fatal)')
       );
     }
+
+    // Tell Ellie a client cancelled - she was not being notified at all.
+    const cancelDateStr = appt.starts_at
+      ? new Date(`${String(appt.starts_at).slice(0, 19)}Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+      : 'upcoming';
+    pushClientCancelled(appt.beautician_id, appt.clients?.first_name || 'A client', cancelDateStr, { lateCancel: isLateCancel, feeCents: isLateCancel ? feeCents : 0 })
+      .catch(err => logger.error({ err, appointmentId: appt.id }, 'client-cancel push failed'));
 
     const willCharge = isLateCancel && feeCents > 0 && cardOnFile;
     res.json({
@@ -1753,26 +1762,30 @@ router.patch('/appointments/:id/status', requireAuth, validate(statusTransitionS
         .is('payment_method', null);
       if (revErr) logger.error({ err: revErr, appointmentId: id }, 'no_show takings reversal failed');
 
-      // Auto-charge the no-show fee to the saved card when the policy has one
-      // configured (fire-and-forget; idempotent, no-op without a fee or card).
-      chargePolicyFee(id, 'no_show').catch(err =>
-        logger.error({ err, appointmentId: id }, 'no_show policy fee charge failed (non-fatal)')
-      );
+      // One-tap model (not auto): we do NOT charge here. We tell the app the fee
+      // amount and whether a card is on file, and Ellie taps 'Charge' herself.
     }
 
-    // If marked no-show and client has saved card, tell frontend it can charge a fee
-    const canChargeNoShow = newStatus === 'no_show' && updated.clients?.stripe_customer_id;
+    // Fee preview for the no-show prompt. Always returned on a no-show so Ellie
+    // sees the amount, and, when she can't charge, WHY (no card on file - which
+    // for her means deposits/card-capture is currently off).
+    let noShowFee = null;
+    if (newStatus === 'no_show') {
+      const policy = updated.policy_snapshot || req.beautician?.booking_policy || {};
+      let feeCents = 0;
+      try {
+        ({ feeCents } = computePolicyFee(updated, policy, 'no_show'));
+      } catch { feeCents = updated.deposit_cents || 0; }
+      const hasCard = !!updated.clients?.stripe_customer_id;
+      noShowFee = feeCents > 0 && hasCard
+        ? { can_charge: true, amount_cents: feeCents }
+        : { can_charge: false, amount_cents: feeCents, reason: !hasCard ? 'no_card' : 'no_fee' };
+    }
 
     res.json({
       message: `Appointment status updated to '${newStatus}'`,
       appointment: updated,
-      ...(canChargeNoShow && {
-        no_show_fee: {
-          can_charge: true,
-          suggested_amount_cents: updated.deposit_cents || updated.price_cents,
-          hint: 'Client has a saved card. You can charge a no-show fee from the appointment details.',
-        },
-      }),
+      ...(noShowFee && { no_show_fee: noShowFee }),
     });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });

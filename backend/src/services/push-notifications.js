@@ -333,6 +333,17 @@ export async function pushPatchTestBooked(beauticianId, clientName, dateStr, { a
   );
 }
 
+export async function pushClientCancelled(beauticianId, clientName, dateStr, { lateCancel = false, feeCents = 0 } = {}) {
+  // A client cancelled via their manage link. Ellie was not being told at all.
+  const tail = lateCancel
+    ? (feeCents > 0 ? ` This was inside your notice window, so a \u00a3${(feeCents / 100).toFixed(2)} fee applies.` : ' This was inside your notice window.')
+    : '';
+  return pushTeamUpdate(beauticianId, 'booking_cancelled',
+    `${clientName} cancelled their ${dateStr} appointment.${tail}`,
+    { url: '/calendar/week', clientName }
+  );
+}
+
 export async function pushEscalation(beauticianId, clientName, preview) {
   const body = preview.length > 80 ? preview.slice(0, 77) + '...' : preview;
   return pushTeamUpdate(beauticianId, 'message_escalated',
