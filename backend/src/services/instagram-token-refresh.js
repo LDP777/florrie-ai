@@ -11,6 +11,7 @@
  */
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
+import { fetchInstagramProfile } from '../routes/instagram-webhooks.js';
 
 export async function refreshInstagramTokens() {
   const { data: rows, error } = await supabase
@@ -56,5 +57,42 @@ export async function refreshInstagramTokens() {
     }
   }
 
+  // While we have each beautician's fresh token, fix any client still stuck on
+  // the "Instagram User" placeholder (their name lookup failed when they first
+  // messaged). Cheap, self-correcting, no manual DB work.
+  await backfillInstagramNames(rows || []);
+
   return { refreshed, failed, total: (rows || []).length };
+}
+
+/**
+ * Re-resolve real names for IG clients still named "Instagram User".
+ * Runs daily off the token-refresh job. Fail-soft, capped per run.
+ */
+export async function backfillInstagramNames(beauticians) {
+  let fixed = 0;
+  for (const b of beauticians) {
+    if (!b.instagram_page_token) continue;
+    const { data: stuck } = await supabase
+      .from('clients')
+      .select('id, instagram_id')
+      .eq('beautician_id', b.id)
+      .eq('first_name', 'Instagram User')
+      .not('instagram_id', 'is', null)
+      .limit(50);
+
+    for (const c of stuck || []) {
+      try {
+        const name = await fetchInstagramProfile(c.instagram_id, b.instagram_page_token);
+        if (name && name !== 'Instagram User') {
+          await supabase.from('clients').update({ first_name: name }).eq('id', c.id);
+          fixed++;
+        }
+      } catch (err) {
+        logger.warn({ err, clientId: c.id }, 'IG name backfill: one client failed');
+      }
+    }
+  }
+  if (fixed) logger.info({ fixed }, 'IG name backfill: renamed placeholder clients');
+  return { fixed };
 }

@@ -377,32 +377,40 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
  * Graph error so we can see WHY, and falls back to @username when Instagram
  * gives us a handle but no display name.
  */
-async function fetchInstagramProfile(userId, token) {
+export async function fetchInstagramProfile(userId, token) {
   const igToken = token || process.env.INSTAGRAM_PAGE_TOKEN;
   if (!igToken) {
     logger.warn({ userId }, 'IG profile lookup skipped: no page token');
     return null;
   }
 
-  try {
-    const res = await fetch(
-      `https://graph.instagram.com/v21.0/${userId}?fields=name,username`,
-      { headers: { Authorization: `Bearer ${igToken}` } }
-    );
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      logger.warn({ userId, status: res.status, igError: data?.error }, 'IG profile lookup failed');
-      return null;
+  // Try richest -> simplest. Requesting `username` for a sender on a personal
+  // Instagram account makes the WHOLE call 400 (username is only exposed for
+  // pro accounts / with advanced access), which is why every DM was landing as
+  // "Instagram User". `name` is available for any sender who messaged you, so
+  // fall back to it alone.
+  const attempts = ['name,username', 'name', 'username'];
+  let lastErr = null;
+  for (const fields of attempts) {
+    try {
+      const res = await fetch(
+        `https://graph.instagram.com/v21.0/${userId}?fields=${fields}`,
+        { headers: { Authorization: `Bearer ${igToken}` } }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        lastErr = data?.error || { status: res.status };
+        continue; // drop a field and retry
+      }
+      const name = data.name || (data.username ? `@${data.username}` : null);
+      if (name) return name;
+      lastErr = { reason: 'no name/username in response', data };
+    } catch (err) {
+      lastErr = { message: String(err) };
     }
-
-    const name = data.name || (data.username ? `@${data.username}` : null);
-    if (!name) logger.warn({ userId, data }, 'IG profile lookup returned no name');
-    return name;
-  } catch (err) {
-    logger.warn({ err, userId }, 'IG profile lookup network error');
-    return null;
   }
+  logger.warn({ userId, lastErr }, 'IG profile lookup failed after all field attempts');
+  return null;
 }
 
 export default router;
