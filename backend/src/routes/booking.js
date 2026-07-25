@@ -2167,7 +2167,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   if (client_email) {
     const { data } = await supabase
       .from('clients')
-      .select('id, stripe_customer_id')
+      .select('id, stripe_customer_id, blocked_at')
       .eq('beautician_id', beautician.id)
       .ilike('email', client_email.trim())
       .maybeSingle();
@@ -2182,12 +2182,18 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     if (cpd.length >= 7) {
       const { data } = await supabase
         .from('clients')
-        .select('id, stripe_customer_id')
+        .select('id, stripe_customer_id, blocked_at')
         .eq('beautician_id', beautician.id)
         .ilike('phone', `%${cpd.slice(-9)}`)
         .limit(1);
       existingClient = data?.[0] || null;
     }
+  }
+
+  // A client Ellie has blocked cannot book online. Kept deliberately vague so
+  // it does not invite an argument; she can still add them by hand if she wants.
+  if (existingClient?.blocked_at) {
+    return res.status(403).json({ error: 'Online booking is not available for this account. Please contact us directly.' });
   }
 
   if (existingClient) {

@@ -147,6 +147,28 @@ router.patch('/:id', requireAuth, validate(updateClientSchema), async (req, res)
 });
 
 /**
+ * POST /api/clients/:id/block  { blocked: true|false }
+ * Block or unblock a client. A blocked client cannot book online (booking.js
+ * rejects them on the phone/email match); Ellie can still add them manually.
+ */
+router.post('/:id/block', requireAuth, async (req, res) => {
+  const blocked = req.body?.blocked !== false; // default to blocking
+  const { data, error } = await supabase
+    .from('clients')
+    .update({ blocked_at: blocked ? new Date().toISOString() : null })
+    .eq('id', req.params.id)
+    .eq('beautician_id', req.beautician.id)
+    .select('id, first_name, blocked_at')
+    .single();
+
+  if (error) {
+    logger.error({ err: error }, 'Failed to (un)block client');
+    return res.status(500).json({ error: 'Could not update this client. If blocking has just been added, the database may need a moment.' });
+  }
+  res.json({ client: data, blocked: !!data.blocked_at });
+});
+
+/**
  * POST /api/clients/import
  * Bulk import clients from CSV (Fresha/Timely format).
  */

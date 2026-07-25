@@ -652,6 +652,29 @@ function ClientDetailPanel({ detail, onClose, onNavigate }) {
   const client = detail.client;
   const appointments = detail.appointments || [];
   const messages = detail.messages || [];
+  // Block / unblock a problem client (they can no longer book online).
+  const [blocked, setBlocked] = useState(!!client?.blocked_at);
+  const [blocking, setBlocking] = useState(false);
+  async function toggleBlock() {
+    const next = !blocked;
+    if (next && !confirm(`Block ${client.first_name || 'this client'}? They will not be able to book online. You can still add them yourself, and you can unblock them any time.`)) return;
+    setBlocking(true);
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/clients/${client.id}/block`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ blocked: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not update this client');
+      setBlocked(!!data.blocked);
+    } catch (err) {
+      alert(err.message || 'Could not update this client');
+    } finally {
+      setBlocking(false);
+    }
+  }
 
   // Day 5: full thread loaded lazily when the Messages tab opens.
   const [thread, setThread] = useState(null); // { messages, default_channel }
@@ -802,6 +825,11 @@ function ClientDetailPanel({ detail, onClose, onNavigate }) {
             <span>Send Offer</span>
           </button>
         </div>
+        {blocked && (
+          <div style={{ background: 'var(--danger-bg, #FDECEC)', border: '1px solid var(--danger)', borderRadius: 10, padding: '9px 12px', margin: '0 0 12px', fontSize: 13, color: 'var(--danger)', fontWeight: 600, textAlign: 'center' }}>
+            Blocked — this client can't book online.
+          </div>
+        )}
 
         {/* Detail tabs */}
         <div style={styles.detailTabs}>
@@ -903,6 +931,17 @@ function ClientDetailPanel({ detail, onClose, onNavigate }) {
                 </div>
               </div>
             )}
+
+            {/* Block / unblock. Kept quiet at the bottom of the profile. */}
+            <div style={{ marginTop: 20, textAlign: 'center' }}>
+              <button
+                onClick={toggleBlock}
+                disabled={blocking}
+                style={{ background: 'none', border: 'none', color: blocked ? 'var(--primary)' : 'var(--danger)', fontSize: 13, fontWeight: 600, cursor: blocking ? 'wait' : 'pointer', fontFamily: 'inherit', padding: '6px 10px' }}
+              >
+                {blocking ? '…' : blocked ? 'Unblock this client' : 'Block this client'}
+              </button>
+            </div>
           </>
         )}
 
