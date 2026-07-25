@@ -86,6 +86,65 @@ router.get('/confirm/:sessionId', async (req, res) => {
               stripe_payment_intent_id: session.payment_intent || null,
             })
             .eq('id', appointmentId);
+          // The Stripe webhook has never fired in production (stripe_events is
+          // empty), so this redirect is the ONLY path that completes a booking.
+          // It therefore has to do the webhook's other two jobs as well, or they
+          // simply never happen:
+          //
+          //  1. LOG THE DEPOSIT as a transaction. Without this every deposit the
+          //     client actually paid is missing from Ellie's Money tab.
+          //  2. PIN THE SAVED CARD onto the appointment. Checkout runs with
+          //     setup_future_usage 'off_session', so Stripe attaches the card to
+          //     the customer either way, but pinning the exact payment method is
+          //     what makes a later no-show / balance charge direct and reliable.
+          (async () => {
+            try {
+              const { data: full } = await supabase
+                .from('appointments')
+                .select('beautician_id, client_id, deposit_cents, payment_type')
+                .eq('id', appointmentId).maybeSingle();
+              if (!full) return;
+
+              // 1. deposit transaction (guarded so a retry cannot double-log)
+              const { data: already } = await supabase
+                .from('transactions')
+                .select('id')
+                .eq('appointment_id', appointmentId)
+                .in('type', ['deposit', 'full_payment'])
+                .limit(1);
+              if (!already?.length) {
+                await supabase.from('transactions').insert({
+                  beautician_id: full.beautician_id,
+                  appointment_id: appointmentId,
+                  client_id: full.client_id || null,
+                  amount_cents: session.amount_total ?? full.deposit_cents ?? 0,
+                  type: full.payment_type === 'full' ? 'full_payment' : 'deposit',
+                  status: 'completed',
+                  stripe_payment_intent_id: session.payment_intent || null,
+                  payment_method: 'card',
+                });
+              }
+
+              // 2. remember the card for later off-session charges
+              if (session.customer && full.client_id) {
+                await supabase.from('clients')
+                  .update({ stripe_customer_id: session.customer })
+                  .eq('id', full.client_id);
+              }
+              if (session.payment_intent) {
+                const pi = await stripe.paymentIntents.retrieve(session.payment_intent);
+                const pmId = typeof pi.payment_method === 'string' ? pi.payment_method : pi.payment_method?.id;
+                if (pmId) {
+                  await supabase.from('appointments')
+                    .update({ stripe_payment_method_id: pmId })
+                    .eq('id', appointmentId);
+                }
+              }
+            } catch (e) {
+              logger.warn({ err: e, appointmentId }, 'confirm-redirect: deposit log / card pin failed (non-fatal)');
+            }
+          })();
+
           const { notifyBookingConfirmed } = await import('../services/notifications.js');
           notifyBookingConfirmed(appointmentId).catch(err =>
             logger.warn({ err, appointmentId }, 'confirm-redirect: notification failed (non-fatal)')
