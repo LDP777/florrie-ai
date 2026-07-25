@@ -1962,17 +1962,32 @@ export default function BookingPage() {
                 Keep me posted about offers and last-minute openings (optional, reply STOP anytime)
               </span>
             </label>
-            {(beautician?.booking_policy?.late_cancel_charge_percent > 0 || beautician?.booking_policy?.no_show_charge_percent > 0) && (
-              <p style={{
-                fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55,
-                margin: '0 0 16px', padding: '10px 14px', borderRadius: 10,
-                background: 'var(--bg-subtle, #FDFCFB)', border: '1px solid var(--border-light)',
-              }}>
-                Cancellation policy: free to cancel or move your appointment up to {beautician.booking_policy.cancellation_notice_hours || 48} hours
-                before. Cancelling later than that, or not showing up, may mean a fee of up to {Math.min(beautician.booking_policy.late_cancel_charge_percent || beautician.booking_policy.no_show_charge_percent || 0, 100)}% of
-                the treatment price charged to your card. By booking you agree to this.
-              </p>
-            )}
+            {(() => {
+              // Late cancel and no-show are SEPARATE charges and must be stated
+              // separately. Lumping them into one percentage told a client that
+              // cancelling late costs the same as never turning up, which for a
+              // salon that only keeps the deposit on a cancel is simply untrue,
+              // and an inaccurate notice is exactly what loses a card dispute.
+              const bp = beautician?.booking_policy || {};
+              const notice = bp.cancellation_notice_hours || 48;
+              const lateP = Math.min(Number(bp.late_cancel_charge_percent) || 0, 100);
+              const noShowP = Math.min(Number(bp.no_show_charge_percent) || 0, 100);
+              if (lateP <= 0 && noShowP <= 0) return null;
+              return (
+                <p style={{
+                  fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55,
+                  margin: '0 0 16px', padding: '10px 14px', borderRadius: 10,
+                  background: 'var(--bg-subtle, #FDFCFB)', border: '1px solid var(--border-light)',
+                }}>
+                  Cancellation policy: free to cancel or move your appointment up to {notice} hours before.
+                  {lateP > 0
+                    ? ` Cancelling later than that may mean a fee of up to ${lateP}% of the treatment price charged to your card.`
+                    : ' Cancelling later than that means your deposit is not refunded.'}
+                  {noShowP > 0 && ` If you do not turn up at all, the full ${noShowP}% of the treatment price may be charged to your card.`}
+                  {' '}By booking you agree to this.
+                </p>
+              );
+            })()}
             {beautician?.booking_policy?.cancellation_message && (
               <p style={{
                 fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55, fontStyle: 'italic', whiteSpace: 'pre-line',

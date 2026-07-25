@@ -425,6 +425,12 @@ export default function ClientManagePage() {
                     <strong>{policy.late_cancel_charge_percent}%</strong> of the treatment price.
                   </p>
                 )}
+                {policy.no_show_charge_percent > 0 && (
+                  <p style={S.policyText}>
+                    If you do not turn up, <strong>{policy.no_show_charge_percent}%</strong> of the
+                    treatment price may be charged to your card.
+                  </p>
+                )}
                 {policy.withinCancellationWindow && (
                   <div style={S.warningBanner}>
                     ⚠️ You are within the {policy.cancellation_notice_hours}-hour notice period.
