@@ -518,6 +518,111 @@ router.post('/refund', requireAuth, requireStripe, async (req, res) => {
 // ═══════════════════════════════════════════════
 
 /**
+ * POST /api/stripe/save-card-link  { appointment_id }
+ *
+ * A link Ellie sends a client to put a card on file WITHOUT charging them.
+ *
+ * The card that makes no-show protection work is normally captured when a client
+ * pays a deposit through the booking page. That leaves out every booking Ellie
+ * adds herself and every client imported from her old system, which is most of
+ * her diary. Stripe Checkout in `setup` mode collects and stores a card without
+ * taking a penny, which is exactly the missing piece.
+ */
+router.post('/save-card-link', requireAuth, requireStripe, async (req, res) => {
+  const { appointment_id } = req.body || {};
+  if (!appointment_id) return res.status(400).json({ error: 'appointment_id is required' });
+
+  if (!req.beautician.stripe_account_id || !req.beautician.stripe_onboarding_complete) {
+    return res.status(400).json({ error: 'Finish your Stripe setup first.' });
+  }
+
+  try {
+    const { data: appt } = await supabase
+      .from('appointments')
+      .select('id, client_id, clients(id, first_name, last_name, email, phone, stripe_customer_id)')
+      .eq('id', appointment_id)
+      .eq('beautician_id', req.beautician.id)
+      .maybeSingle();
+    if (!appt) return res.status(404).json({ error: 'Appointment not found' });
+
+    const client = appt.clients;
+    if (!client) return res.status(400).json({ error: 'This booking has no client attached.' });
+
+    // Reuse their Stripe customer, or make one so the card has somewhere to live.
+    let customerId = client.stripe_customer_id;
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        name: `${client.first_name || ''} ${client.last_name || ''}`.trim() || undefined,
+        email: client.email || undefined,
+        phone: client.phone || undefined,
+        metadata: { client_id: client.id, beautician_id: req.beautician.id },
+      });
+      customerId = customer.id;
+      await supabase.from('clients').update({ stripe_customer_id: customerId }).eq('id', client.id);
+    }
+
+    const apiBase = `${req.headers['x-forwarded-proto'] || 'https'}://${req.get('host')}`;
+    const session = await stripe.checkout.sessions.create({
+      mode: 'setup',
+      customer: customerId,
+      payment_method_types: ['card'],
+      // Land back on our own endpoint so the card is pinned to the appointment
+      // even though the Stripe webhook is not delivering yet.
+      success_url: `${apiBase}/api/stripe/card-saved/{CHECKOUT_SESSION_ID}?apt=${appointment_id}`,
+      cancel_url: `${FRONTEND_URL}/card/cancelled`,
+      metadata: {
+        appointment_id,
+        client_id: client.id,
+        beautician_id: req.beautician.id,
+        type: 'save_card',
+      },
+    });
+
+    res.json({ url: session.url, client_first_name: client.first_name || null });
+  } catch (err) {
+    logger.error({ err, appointment_id }, 'save-card-link failed');
+    res.status(500).json({ error: 'Could not create the card link' });
+  }
+});
+
+/**
+ * GET /api/stripe/card-saved/:sessionId?apt=...
+ * Where the client lands after saving a card. Pins the payment method to the
+ * appointment (and their client record) so a later charge is direct.
+ * Public: the session id is the proof, exactly like the booking confirm redirect.
+ */
+router.get('/card-saved/:sessionId', async (req, res) => {
+  const done = `${FRONTEND_URL}/card/saved`;
+  try {
+    if (stripe && req.params.sessionId) {
+      const session = await stripe.checkout.sessions.retrieve(req.params.sessionId);
+      const appointmentId = req.query.apt || session?.metadata?.appointment_id;
+      const setupIntentId = session?.setup_intent;
+      if (setupIntentId) {
+        const si = await stripe.setupIntents.retrieve(
+          typeof setupIntentId === 'string' ? setupIntentId : setupIntentId.id
+        );
+        const pmId = typeof si.payment_method === 'string' ? si.payment_method : si.payment_method?.id;
+        if (pmId && appointmentId) {
+          await supabase.from('appointments')
+            .update({ stripe_payment_method_id: pmId })
+            .eq('id', appointmentId);
+          logger.info({ appointmentId, pmId }, 'Card saved on file via setup link');
+        }
+        if (session.customer && session.metadata?.client_id) {
+          await supabase.from('clients')
+            .update({ stripe_customer_id: session.customer })
+            .eq('id', session.metadata.client_id);
+        }
+      }
+    }
+  } catch (err) {
+    logger.error({ err, sessionId: req.params.sessionId }, 'card-saved redirect failed');
+  }
+  return res.redirect(302, done);
+});
+
+/**
  * POST /api/stripe/payment-link
  * Creates a one-time payment link the beautician can send to a client.
  * Use cases: manual deposit collection, outstanding balance, no-show fee when no card on file.

@@ -101,6 +101,7 @@ const DataDeletionPage = lazy(() => import('./pages/DataDeletionPage.jsx'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy.jsx'));
 const Support = lazy(() => import('./pages/Support.jsx'));
 const NotFound = lazy(() => import('./pages/NotFound.jsx'));
+const StatusPage = lazy(() => import('./pages/StatusPage.jsx'));
 const UpdatePassword = lazy(() => import('./pages/UpdatePassword.jsx'));
 
 function PageLoader() {
@@ -457,6 +458,13 @@ export default function App() {
             <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/data-deletion" element={<DataDeletionPage />} />
             <Route path="/help/data-deletion" element={<DataDeletionPage />} />
+            {/* Stripe redirect landings. These were handed to Stripe as return
+                URLs but had no route, so a client who had just entered their
+                card details was dropped on a Not Found page. */}
+            <Route path="/card/saved" element={<StatusPage kind="card_saved" />} />
+            <Route path="/card/cancelled" element={<StatusPage kind="card_cancelled" />} />
+            <Route path="/pay/success" element={<StatusPage kind="pay_success" />} />
+            <Route path="/pay/cancelled" element={<StatusPage kind="pay_cancelled" />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>

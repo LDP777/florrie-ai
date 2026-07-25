@@ -1005,6 +1005,31 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     })();
     return () => { off = true; };
   }, [appointment.id]);
+  // No card on file: get a link the client can use to add one WITHOUT being
+  // charged. This is what makes no-show protection possible on the bookings
+  // Ellie adds herself, which never went through the online deposit.
+  const [cardLinkBusy, setCardLinkBusy] = useState(false);
+  const [cardLink, setCardLink] = useState(null);
+  async function handleGetCardLink() {
+    setCardLinkBusy(true);
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/stripe/save-card-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ appointment_id: appointment.id }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || 'Could not create the card link');
+      setCardLink(d.url);
+      try { await navigator.clipboard?.writeText?.(d.url); } catch { /* they can still copy it */ }
+      hapticSuccess();
+    } catch (err) {
+      alert(err.message || 'Could not create the card link');
+    } finally {
+      setCardLinkBusy(false);
+    }
+  }
   async function handleChargeCard() {
     const pounds = parseFloat(String(chargeAmount).replace(/[£,\s]/g, ''));
     if (isNaN(pounds) || pounds <= 0) { alert('Enter an amount to charge.'); return; }
@@ -1642,10 +1667,21 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 </div>
               )}
               {cardInfo && !cardInfo.hasCard && cardInfo.reason === 'no_card_on_file' && (
-                <p style={{ fontSize: 11, color: COLORS.stone400, margin: 0, lineHeight: 1.45 }}>
-                  No saved card for this client. Cards are saved when they pay a deposit online,
-                  so for a booking you added yourself, use Send payment link.
-                </p>
+                <div style={{ border: `1px dashed ${COLORS.outlineVariant}`, borderRadius: 10, padding: '10px 12px' }}>
+                  <p style={{ fontSize: 12, color: COLORS.stone400, margin: '0 0 8px', lineHeight: 1.45 }}>
+                    No card on file for this client, so there's nothing to charge if they don't turn up.
+                    Send them a link to add one. It saves the card, it doesn't take any money.
+                  </p>
+                  <button onClick={() => { hapticTap(); handleGetCardLink(); }} disabled={cardLinkBusy}
+                    style={{ width: '100%', minHeight: 40, padding: '9px 12px', borderRadius: 9, border: `1.5px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.primary, fontSize: 13, fontWeight: 600, cursor: cardLinkBusy ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
+                    {cardLinkBusy ? '\u2026' : (cardLink ? '\u2713 Link copied, paste it to them' : 'Get a card-on-file link')}
+                  </button>
+                  {cardLink && (
+                    <input readOnly value={cardLink}
+                      onClick={e => { e.target.select(); navigator.clipboard?.writeText?.(cardLink); }}
+                      style={{ width: '100%', marginTop: 8, padding: '8px', borderRadius: 6, border: `1px solid ${COLORS.outlineVariant}`, fontSize: 11, boxSizing: 'border-box', fontFamily: 'inherit', background: 'var(--bg-card)' }} />
+                  )}
+                </div>
               )}
               <button onClick={() => setMode('completing')}
                 style={{ background: 'none', border: 'none', color: 'var(--text-muted, #9E9790)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '2px 0' }}>
