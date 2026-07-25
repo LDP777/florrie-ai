@@ -6,7 +6,7 @@ import { updateClientIntelligence } from '../services/client-intelligence.js';
 import { triggerSequence } from '../services/email-sequences.js';
 import { scheduleReviewRequest } from '../services/review-requests.js';
 import { awardLoyaltyPoints } from '../services/loyalty.js';
-import { chargePolicyFee, chargeRemainingBalance } from '../services/policy-fees.js';
+import { chargePolicyFee, chargeRemainingBalance, chargeCardAmount, getCardOnFile } from '../services/policy-fees.js';
 import { logAssumedTakings } from '../lib/takings.js';
 import logger from '../lib/logger.js';
 import { parsePagination, buildPaginationMeta, handleQueryError } from '../lib/queries.js';
@@ -711,6 +711,52 @@ router.post('/:id/charge-balance', requireAuth, async (req, res) => {
     authentication_required: "The client's card needs extra authentication, send them a payment link instead.",
   };
   return res.status(400).json({ error: messages[result.reason] || 'Could not charge the balance', reason: result.reason });
+});
+
+/**
+ * GET /api/appointments/:id/card
+ * Is there a card we can charge for this client, and which one? Lets the app
+ * tell Ellie BEFORE she tries, instead of surfacing it as an error.
+ */
+router.get('/:id/card', requireAuth, async (req, res) => {
+  const { data: appt } = await supabase
+    .from('appointments')
+    .select('id')
+    .eq('id', req.params.id)
+    .eq('beautician_id', req.beautician.id)
+    .maybeSingle();
+  if (!appt) return res.status(404).json({ error: 'Appointment not found' });
+  res.json(await getCardOnFile(req.params.id));
+});
+
+/**
+ * POST /api/appointments/:id/charge-card  { amount_cents, reason }
+ * Charge an amount Ellie types to the client's saved card. She confirms every
+ * charge herself; nothing here happens automatically.
+ */
+router.post('/:id/charge-card', requireAuth, async (req, res) => {
+  const { data: appt } = await supabase
+    .from('appointments')
+    .select('id')
+    .eq('id', req.params.id)
+    .eq('beautician_id', req.beautician.id)
+    .maybeSingle();
+  if (!appt) return res.status(404).json({ error: 'Appointment not found' });
+
+  const result = await chargeCardAmount(req.params.id, req.body?.amount_cents, req.body?.reason);
+  if (result.charged) {
+    return res.json({ success: true, amountCents: result.amountCents, paymentIntentId: result.paymentIntentId });
+  }
+  const messages = {
+    amount_too_small: 'The smallest charge is 30p.',
+    amount_too_large: 'That amount looks too high. The most you can charge in one go is £1000.',
+    no_card_on_file: 'No saved card for this client. Cards are saved when a client pays a deposit online, so for a booking you added yourself, send them a payment link instead.',
+    stripe_not_onboarded: 'Finish your Stripe setup before charging cards.',
+    stripe_not_configured: 'Card payments are not set up.',
+    card_declined: "The card was declined. Send them a payment link instead.",
+    authentication_required: 'That card needs the client to approve the payment. Send them a payment link instead.',
+  };
+  return res.status(400).json({ error: messages[result.reason] || 'Could not charge the card', reason: result.reason });
 });
 
 /**

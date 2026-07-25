@@ -985,6 +985,52 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     finally { setManageBusy(false); }
   }
   const [chargingBalance, setChargingBalance] = useState(false);
+  // Charge any amount to the client's saved card. Ellie types the amount and
+  // confirms; nothing is ever taken automatically.
+  const [cardInfo, setCardInfo] = useState(null);      // { hasCard, brand, last4, reason }
+  const [chargeOpen, setChargeOpen] = useState(false);
+  const [chargeAmount, setChargeAmount] = useState('');
+  const [chargeReason, setChargeReason] = useState('');
+  const [chargingCard, setChargingCard] = useState(false);
+  useEffect(() => {
+    let off = false;
+    (async () => {
+      try {
+        const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+        const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}/card`, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) return;
+        const d = await res.json();
+        if (!off) setCardInfo(d);
+      } catch { /* leave it unknown */ }
+    })();
+    return () => { off = true; };
+  }, [appointment.id]);
+  async function handleChargeCard() {
+    const pounds = parseFloat(String(chargeAmount).replace(/[£,\s]/g, ''));
+    if (isNaN(pounds) || pounds <= 0) { alert('Enter an amount to charge.'); return; }
+    const cents = Math.round(pounds * 100);
+    const who = appointment.clients?.first_name || 'this client';
+    if (!confirm(`Charge £${pounds.toFixed(2)} to ${who}'s saved card${cardInfo?.last4 ? ` ending ${cardInfo.last4}` : ''}?\n\nThis takes the money straight away.`)) return;
+    setChargingCard(true);
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}/charge-card`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ amount_cents: cents, reason: chargeReason || 'Charge' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not charge the card');
+      hapticSuccess();
+      alert(`Charged £${((data.amountCents || cents) / 100).toFixed(2)}.`);
+      setChargeOpen(false); setChargeAmount(''); setChargeReason('');
+      onUpdate && onUpdate();
+    } catch (err) {
+      alert(err.message || 'Could not charge the card');
+    } finally {
+      setChargingCard(false);
+    }
+  }
   const [noteSaved, setNoteSaved] = useState(false);
   const [rebookSaving, setRebookSaving] = useState(false);
   const [rebookSent, setRebookSent] = useState(false);
@@ -1552,6 +1598,54 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                   <span className="material-symbols-outlined" style={{ fontSize: 16 }}>credit_card</span>
                   {chargingBalance ? 'Charging...' : `Charge £${(((appointment.price_cents || 0) - (appointment.deposit_paid ? (appointment.deposit_cents || 0) : 0)) / 100).toFixed(2)} balance to card`}
                 </button>
+              )}
+              {/* Charge any amount to the saved card. Shows the card so she knows
+                  it will work, or says plainly why it won't. */}
+              {cardInfo?.hasCard && !chargeOpen && (
+                <button onClick={() => { hapticTap(); setChargeOpen(true); }}
+                  style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--bg-input, #FAFAFA)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>payments</span>
+                  Charge their card{cardInfo.last4 ? ` \u00b7\u00b7\u00b7\u00b7 ${cardInfo.last4}` : ''}
+                </button>
+              )}
+              {chargeOpen && (
+                <div style={{ border: `1.5px solid ${COLORS.outlineVariant}`, borderRadius: 12, padding: 12, background: 'var(--bg-card)' }}>
+                  <p style={{ margin: '0 0 8px', fontSize: 12, color: COLORS.stone400 }}>
+                    Charging {appointment.clients?.first_name || 'this client'}'s saved card
+                    {cardInfo?.brand ? ` (${cardInfo.brand}${cardInfo.last4 ? ` \u00b7\u00b7\u00b7\u00b7 ${cardInfo.last4}` : ''})` : ''}.
+                  </p>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                    <input
+                      type="number" inputMode="decimal" step="0.01" min="0"
+                      value={chargeAmount}
+                      onChange={e => setChargeAmount(e.target.value)}
+                      placeholder="Amount, e.g. 15.00"
+                      style={{ flex: 1, minWidth: 0, padding: '10px', borderRadius: 8, border: `1px solid ${COLORS.outlineVariant}`, fontFamily: 'inherit', fontSize: 14 }}
+                    />
+                  </div>
+                  <input
+                    value={chargeReason}
+                    onChange={e => setChargeReason(e.target.value)}
+                    placeholder="What's it for? (shows on her receipt)"
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '10px', borderRadius: 8, border: `1px solid ${COLORS.outlineVariant}`, fontFamily: 'inherit', fontSize: 13, marginBottom: 10 }}
+                  />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={handleChargeCard} disabled={chargingCard}
+                      style={{ flex: 1, padding: '10px', borderRadius: 8, border: 'none', background: COLORS.primary, color: '#fff', fontSize: 13, fontWeight: 700, cursor: chargingCard ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
+                      {chargingCard ? 'Charging...' : 'Take payment'}
+                    </button>
+                    <button onClick={() => { setChargeOpen(false); setChargeAmount(''); setChargeReason(''); }} disabled={chargingCard}
+                      style={{ flex: 1, padding: '10px', borderRadius: 8, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+              {cardInfo && !cardInfo.hasCard && cardInfo.reason === 'no_card_on_file' && (
+                <p style={{ fontSize: 11, color: COLORS.stone400, margin: 0, lineHeight: 1.45 }}>
+                  No saved card for this client. Cards are saved when they pay a deposit online,
+                  so for a booking you added yourself, use Send payment link.
+                </p>
               )}
               <button onClick={() => setMode('completing')}
                 style={{ background: 'none', border: 'none', color: 'var(--text-muted, #9E9790)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '2px 0' }}>

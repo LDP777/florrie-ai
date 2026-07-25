@@ -481,3 +481,133 @@ export async function chargeRemainingBalance(appointmentId) {
     return { charged: false, reason: 'error' };
   }
 }
+
+/**
+ * Charge an arbitrary amount to a client's saved card, on Ellie's say-so.
+ *
+ * This is the general "take payment from their card" capability, as opposed to
+ * the specific policy-fee and remaining-balance paths. She types the amount and
+ * a reason, and confirms it herself; nothing here ever fires automatically.
+ *
+ * NOT idempotent across calls by design: she may legitimately charge the same
+ * client twice (two treatments, a top-up). The confirm step in the UI is the
+ * guard, and every charge is logged as its own transaction so her books and
+ * Stripe agree.
+ *
+ * Returns { charged:true, amountCents, paymentIntentId } or { charged:false, reason }.
+ * Never throws.
+ */
+export async function chargeCardAmount(appointmentId, amountCents, reason = '') {
+  try {
+    const amount = Math.round(Number(amountCents) || 0);
+    if (!amount || amount < 30) return { charged: false, reason: 'amount_too_small' };
+    // Guard rail: a mistyped amount should not empty someone's account.
+    if (amount > 100000) return { charged: false, reason: 'amount_too_large' };
+
+    const { data: appt } = await supabase
+      .from('appointments')
+      .select(`
+        id, beautician_id, client_id, stripe_payment_method_id,
+        clients(id, first_name, last_name, stripe_customer_id),
+        beauticians(id, business_name, first_name, stripe_account_id, stripe_onboarding_complete)
+      `)
+      .eq('id', appointmentId)
+      .maybeSingle();
+
+    if (!appt) return { charged: false, reason: 'not_found' };
+    if (!stripe) return { charged: false, reason: 'stripe_not_configured' };
+
+    const b = appt.beauticians;
+    if (!b?.stripe_account_id || !b?.stripe_onboarding_complete) {
+      return { charged: false, reason: 'stripe_not_onboarded' };
+    }
+
+    const clientName = `${appt.clients?.first_name || 'the client'} ${appt.clients?.last_name || ''}`.trim();
+    const customerId = appt.clients?.stripe_customer_id;
+    let paymentMethodId = appt.stripe_payment_method_id || null;
+    if (customerId && !paymentMethodId) {
+      // The card Stripe saved at checkout (setup_future_usage 'off_session').
+      const methods = await stripe.paymentMethods.list({ customer: customerId, type: 'card' });
+      paymentMethodId = methods.data?.[0]?.id || null;
+    }
+    if (!customerId || !paymentMethodId) return { charged: false, reason: 'no_card_on_file' };
+
+    const platformFee = calculatePlatformFee(amount);
+    let paymentIntent;
+    try {
+      paymentIntent = await stripe.paymentIntents.create({
+        amount,
+        currency: 'gbp',
+        customer: customerId,
+        payment_method: paymentMethodId,
+        confirm: true,
+        off_session: true,
+        application_fee_amount: platformFee,
+        transfer_data: { destination: b.stripe_account_id },
+        description: reason ? `${reason}, ${clientName}` : `Charge, ${clientName}`,
+        metadata: {
+          appointment_id: appt.id,
+          beautician_id: appt.beautician_id,
+          client_id: appt.client_id || '',
+          type: 'manual_charge',
+          reason: reason || '',
+          platform_fee_cents: platformFee,
+        },
+      });
+    } catch (err) {
+      const declined = err?.code === 'authentication_required' || err?.type === 'StripeCardError';
+      if (!declined) logger.error({ err, appointmentId }, 'manual card charge failed');
+      return { charged: false, reason: declined ? (err.code || 'card_declined') : 'stripe_error' };
+    }
+
+    const ok = paymentIntent.status === 'succeeded' || paymentIntent.status === 'processing';
+    if (!ok) return { charged: false, reason: paymentIntent.status };
+
+    await supabase.from('transactions').insert({
+      beautician_id: appt.beautician_id,
+      appointment_id: appt.id,
+      client_id: appt.client_id || null,
+      amount_cents: amount,
+      type: 'payment',
+      status: 'completed',
+      stripe_payment_intent_id: paymentIntent.id,
+      payment_method: 'card',
+      description: reason || null,
+    });
+
+    logger.info({ appointmentId, amount, reason, paymentIntentId: paymentIntent.id }, 'Manual card charge taken');
+    return { charged: true, amountCents: amount, paymentIntentId: paymentIntent.id };
+  } catch (err) {
+    logger.error({ err, appointmentId }, 'chargeCardAmount unexpected failure');
+    return { charged: false, reason: 'unexpected_error' };
+  }
+}
+
+/**
+ * Can this appointment's client be charged right now? Powers the UI so Ellie
+ * knows BEFORE she tries, instead of finding out from an error.
+ */
+export async function getCardOnFile(appointmentId) {
+  try {
+    const { data: appt } = await supabase
+      .from('appointments')
+      .select('id, stripe_payment_method_id, clients(stripe_customer_id), beauticians(stripe_account_id, stripe_onboarding_complete)')
+      .eq('id', appointmentId)
+      .maybeSingle();
+    if (!appt || !stripe) return { hasCard: false, reason: 'stripe_not_configured' };
+    const b = appt.beauticians;
+    if (!b?.stripe_account_id || !b?.stripe_onboarding_complete) return { hasCard: false, reason: 'stripe_not_onboarded' };
+
+    if (appt.stripe_payment_method_id) return { hasCard: true };
+    const customerId = appt.clients?.stripe_customer_id;
+    if (!customerId) return { hasCard: false, reason: 'no_card_on_file' };
+
+    const methods = await stripe.paymentMethods.list({ customer: customerId, type: 'card' });
+    const card = methods.data?.[0];
+    if (!card) return { hasCard: false, reason: 'no_card_on_file' };
+    return { hasCard: true, brand: card.card?.brand || null, last4: card.card?.last4 || null };
+  } catch (err) {
+    logger.warn({ err, appointmentId }, 'getCardOnFile failed');
+    return { hasCard: false, reason: 'lookup_failed' };
+  }
+}
