@@ -406,7 +406,7 @@ router.post('/manual', requireAuth, validate(manualAppointmentSchema), async (re
 router.patch('/:id', requireAuth, async (req, res) => {
   const allowedFields = [
     'status', 'starts_at', 'ends_at', 'beautician_notes',
-    'no_show_fee_charged'
+    'no_show_fee_charged', 'treatment_id'
   ];
 
   const VALID_TRANSITIONS = {
@@ -484,6 +484,40 @@ router.patch('/:id', requireAuth, async (req, res) => {
         const pad = (n) => String(n).padStart(2, '0');
         updates.ends_at = `${endDate.getUTCFullYear()}-${pad(endDate.getUTCMonth() + 1)}-${pad(endDate.getUTCDate())}T${pad(endDate.getUTCHours())}:${pad(endDate.getUTCMinutes())}:00`;
       }
+    }
+  }
+
+  // Changing the treatment (e.g. a full lamination swapped for a maintenance)
+  // must pull the new length + price across, and re-end the appointment from
+  // its start. Previously there was nowhere to change a booking's treatment at
+  // all - only its time.
+  if (req.body.treatment_id) {
+    const { data: newTreat } = await supabase
+      .from('treatments')
+      .select('duration_minutes, price_cents')
+      .eq('id', req.body.treatment_id)
+      .eq('beautician_id', req.beautician.id)
+      .maybeSingle();
+    if (!newTreat) {
+      return res.status(400).json({ error: 'That treatment was not found.' });
+    }
+    updates.duration_minutes = newTreat.duration_minutes;
+    updates.price_cents = newTreat.price_cents;
+
+    // Re-end from the (new or existing) start using the new length.
+    const startStr = updates.starts_at
+      || (await supabase.from('appointments').select('starts_at').eq('id', req.params.id).single()).data?.starts_at;
+    const sm = String(startStr || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if (sm) {
+      const [, yy2, mo2, dd2, hh2, mi2] = sm;
+      const { data: pad0 } = await supabase
+        .from('appointments')
+        .select('buffer_minutes, extra_padding_minutes')
+        .eq('id', req.params.id).single();
+      const total = (newTreat.duration_minutes || 0) + (pad0?.buffer_minutes || 0) + (pad0?.extra_padding_minutes || 0);
+      const endDate = new Date(Date.UTC(Number(yy2), Number(mo2) - 1, Number(dd2), Number(hh2), Number(mi2) + total));
+      const p2 = (n) => String(n).padStart(2, '0');
+      updates.ends_at = `${endDate.getUTCFullYear()}-${p2(endDate.getUTCMonth() + 1)}-${p2(endDate.getUTCDate())}T${p2(endDate.getUTCHours())}:${p2(endDate.getUTCMinutes())}:00`;
     }
   }
 

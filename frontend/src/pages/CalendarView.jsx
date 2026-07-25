@@ -984,6 +984,43 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
   const [priceEditing, setPriceEditing] = useState(false);
   const [priceInput, setPriceInput] = useState('');
   const [priceSaving, setPriceSaving] = useState(false);
+  // Change the treatment on a booking (e.g. lamination -> maintenance). Length
+  // + price follow the new treatment; there was no way to do this before.
+  const [treatEditing, setTreatEditing] = useState(false);
+  const [treatList, setTreatList] = useState([]);
+  const [treatSaving, setTreatSaving] = useState(false);
+  async function openTreatEdit() {
+    setTreatEditing(true);
+    if (treatList.length === 0) {
+      const { data } = await supabase
+        .from('treatments')
+        .select('id, name, duration_minutes, price_cents, is_active, hidden')
+        .eq('beautician_id', beautician.id)
+        .order('sort_order', { ascending: true });
+      setTreatList((data || []).filter(t => t.is_active !== false && !t.hidden));
+    }
+  }
+  async function handleChangeTreatment(treatmentId) {
+    setTreatSaving(true);
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ treatment_id: treatmentId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 409) { alert('That change clashes with another booking. Move the time first.'); return; }
+      if (!res.ok) throw new Error(data.error || 'Could not change the treatment');
+      hapticSuccess();
+      setTreatEditing(false);
+      onUpdate();
+    } catch (err) {
+      alert(err.message || 'Could not change the treatment');
+    } finally {
+      setTreatSaving(false);
+    }
+  }
   // Editing / rescheduling the appointment time. The datetime-local value is
   // the stored wall-clock (no timezone shift), so what she sees is what saves.
   const [timeEditing, setTimeEditing] = useState(false);
@@ -1332,7 +1369,32 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
       {mode === 'detail' && (
         <>
           <div style={styles.detailGrid}>
-            <div style={styles.detailRow}><span style={styles.detailLabel}>Treatment</span><span style={styles.detailValue}>{apptLabel(appointment)}</span></div>
+            <div style={styles.detailRow}>
+              <span style={styles.detailLabel}>Treatment</span>
+              {treatEditing ? (
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, maxWidth: '70%' }}>
+                  <select
+                    defaultValue={appointment.treatment_id || ''}
+                    onChange={e => e.target.value && handleChangeTreatment(e.target.value)}
+                    disabled={treatSaving}
+                    style={{ padding: '8px 10px', borderRadius: 8, border: `1px solid ${COLORS.outlineVariant}`, fontFamily: 'inherit', fontSize: 13, background: 'var(--bg-card)', maxWidth: '100%' }}
+                  >
+                    <option value="" disabled>Choose a treatment...</option>
+                    {treatList.map(t => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}{t.price_cents ? ` \u00b7 \u00a3${(t.price_cents / 100).toFixed(0)}` : ''}{t.duration_minutes ? ` \u00b7 ${t.duration_minutes}m` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <button onClick={() => setTreatEditing(false)} style={{ background: 'none', border: 'none', color: COLORS.stone400, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Cancel</button>
+                </span>
+              ) : (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={styles.detailValue}>{apptLabel(appointment)}</span>
+                  <button onClick={openTreatEdit} style={{ background: 'none', border: `1px dashed ${COLORS.outlineVariant}`, borderRadius: 8, padding: '3px 8px', color: COLORS.primary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Change</button>
+                </span>
+              )}
+            </div>
             <div style={styles.detailRow}>
               <span style={styles.detailLabel}>Time</span>
               {timeEditing ? (
