@@ -733,6 +733,13 @@ export default function CalendarView({ initialView } = {}) {
                 </div>
               ));
             })()}
+            {loading && (
+              <div style={{ position: 'absolute', top: (8 - START_HOUR) * HOUR_HEIGHT + 60, left: 0, right: 0, textAlign: 'center' }}>
+                <div style={{ width: 26, height: 26, margin: '0 auto 10px', border: `3px solid ${COLORS.outlineVariant}`, borderTopColor: COLORS.primary, borderRadius: '50%', animation: 'floSpin 0.8s linear infinite' }} />
+                <p style={{ fontSize: 13, color: COLORS.stone400 }}>Loading…</p>
+                <style>{'@keyframes floSpin{to{transform:rotate(360deg)}}'}</style>
+              </div>
+            )}
             {!loading && getAppointmentsForDate(currentDate).length === 0 && (
               <div style={{ position: 'absolute', top: (8 - START_HOUR) * HOUR_HEIGHT + 80, left: 0, right: 0, textAlign: 'center' }}>
                 <p style={{ fontSize: 13, color: COLORS.stone400 }}>No appointments</p>
