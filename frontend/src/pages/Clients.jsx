@@ -877,19 +877,30 @@ function ClientDetailPanel({ detail, onClose, onNavigate }) {
               </span>
             </div>
 
-            {/* Recent messages preview */}
+            {/* Recent messages preview. Full text (was truncated to 80 chars),
+                scrolls when long, and tap 'See all' to open the whole thread. */}
             {messages.length > 0 && (
               <div style={styles.historySection}>
-                <h4 style={styles.sectionLabel}>Recent messages</h4>
-                {messages.slice(0, 3).map(msg => (
-                  <div key={msg.id} style={styles.msgBubble}>
-                    <span style={styles.msgDir}>{msg.direction === 'inbound' ? '← In' : '→ Out'}</span>
-                    <span style={styles.msgText}>{msg.content?.substring(0, 80)}</span>
-                    <span style={styles.msgTime}>
-                      {new Date(msg.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
-                    </span>
-                  </div>
-                ))}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <h4 style={styles.sectionLabel}>Recent messages</h4>
+                  <button
+                    onClick={() => setDetailTab('messages')}
+                    style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}
+                  >
+                    See all →
+                  </button>
+                </div>
+                <div style={{ maxHeight: 260, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                  {messages.slice(0, 5).map(msg => (
+                    <div key={msg.id} style={styles.msgBubble}>
+                      <span style={styles.msgDir}>{msg.direction === 'inbound' ? '← In' : '→ Out'}</span>
+                      <span style={{ ...styles.msgText, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.content || '(no text)'}</span>
+                      <span style={styles.msgTime}>
+                        {new Date(msg.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </>

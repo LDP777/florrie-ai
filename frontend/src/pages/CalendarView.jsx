@@ -586,9 +586,10 @@ export default function CalendarView({ initialView } = {}) {
               const treatColor = treatmentColor(appt.treatments);
               const dead = DEAD_STATUSES.includes(appt.status);
               const clientInitials = `${appt.clients?.first_name?.[0] || ''}${appt.clients?.last_name?.[0] || ''}`.toUpperCase();
-              const compact = cols > 1 || height < 72;
+              const tiny = height < 50 && cols === 1;   // e.g. a 10-min patch test
+              const compact = tiny || cols > 1 || height < 72;
               const showTreatment = height >= 60 && cols < 3;
-              const showMeta = cols < 3;
+              const showMeta = cols < 3 && !tiny;   // time is inlined with the name when tiny
               return (
                 <button
                   key={appt.id}
@@ -1404,6 +1405,25 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               <div style={styles.detailRow}><span style={styles.detailLabel}>Buffer</span><span style={styles.detailValue}>{appointment.buffer_minutes} min cleanup</span></div>
             )}
             {appointment.ai_booked && <div style={styles.detailRow}><span style={styles.detailLabel}>Booked by</span><span style={styles.aiTag}>Florrie</span></div>}
+            {/* Booking audit trail: when it was made + how, and when the client
+                was confirmed. This is Ellie's evidence in a no-show dispute. */}
+            {appointment.created_at && (
+              <div style={styles.detailRow}>
+                <span style={styles.detailLabel}>Booked</span>
+                <span style={styles.detailValue}>
+                  {new Date(appointment.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  {appointment.booked_via === 'booking_page' ? ' · online' : appointment.booked_via === 'manual' ? ' · by you' : ''}
+                </span>
+              </div>
+            )}
+            {appointment.confirmation_sent_at && (
+              <div style={styles.detailRow}>
+                <span style={styles.detailLabel}>Confirmation sent</span>
+                <span style={styles.detailValue}>
+                  {new Date(appointment.confirmation_sent_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+            )}
           </div>
           {/* Persistent notes - always visible, save without completing */}
           <div style={{ marginTop: 14 }}>

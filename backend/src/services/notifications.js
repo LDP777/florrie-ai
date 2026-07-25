@@ -1017,6 +1017,17 @@ export async function notifyBookingConfirmed(appointmentId) {
     });
     logOutboundToThread({ beauticianId: appt.beautician_id, clientId: appt.client_id, channel: 'email', body: textMsg });
   }
+
+  // Stamp when the confirmation went out, so the appointment detail can show
+  // it as dispute evidence. Best-effort.
+  try {
+    await supabase
+      .from('appointments')
+      .update({ confirmation_sent_at: new Date().toISOString() })
+      .eq('id', appointmentId);
+  } catch (err) {
+    logger.warn({ err, appointmentId }, 'Could not stamp confirmation_sent_at');
+  }
 }
 
 /**
