@@ -1771,7 +1771,14 @@ router.patch('/appointments/:id/status', requireAuth, validate(statusTransitionS
     // for her means deposits/card-capture is currently off).
     let noShowFee = null;
     if (newStatus === 'no_show') {
-      const policy = updated.policy_snapshot || req.beautician?.booking_policy || {};
+      // Same merge as policy-fees: the snapshot wins, but a no-show percent set
+      // after the booking was made still applies (old snapshots lack the key).
+      const snap = updated.policy_snapshot || {};
+      const livePol = req.beautician?.booking_policy || {};
+      const policy = updated.policy_snapshot
+        ? { ...snap, ...(snap.no_show_charge_percent === undefined && livePol.no_show_charge_percent !== undefined
+              ? { no_show_charge_percent: livePol.no_show_charge_percent } : {}) }
+        : livePol;
       let feeCents = 0;
       try {
         ({ feeCents } = computePolicyFee(updated, policy, 'no_show'));

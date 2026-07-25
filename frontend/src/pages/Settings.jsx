@@ -470,6 +470,10 @@ export default function Settings({ onLogout }) {
         const bufferMinutes = policy.payment_buffer_minutes ?? 10;
         const cancelHours = policy.cancellation_notice_hours ?? 48;
         const chargePercent = policy.late_cancel_charge_percent ?? 100;
+        // A no-show is its own thing: it used to silently inherit the late-cancel
+        // percent, so setting late-cancel to 0 (deposit kept, not 100%) also
+        // silenced no-show charging entirely.
+        const noShowPercent = policy.no_show_charge_percent ?? policy.late_cancel_charge_percent ?? 0;
         const requireReschedDeposit = policy.require_deposit_on_late_reschedule ?? false;
         const reschedOnce = policy.reschedule_once ?? false;
         const reschedBetween = policy.reschedule_between_only ?? false;
@@ -603,6 +607,33 @@ export default function Settings({ onLogout }) {
                       {chargePercent === 0 ? 'No charge' : `${chargePercent}%`}
                     </span>
                   </div>
+
+                  <div style={{ height: 1, background: 'var(--border-light)', margin: '14px 0' }} />
+                  <div style={styles.cardTitle}>No-show charge</div>
+                  <p style={styles.cardDesc}>
+                    Percentage charged when a client simply doesn't turn up. Set this separately from
+                    late cancels, a no-show costs you the whole slot with no warning. You always
+                    confirm each charge yourself before any money is taken.
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8 }}>
+                    <input
+                      type="range"
+                      min={0} max={100} step={10}
+                      value={noShowPercent}
+                      onChange={e => savePolicy({ no_show_charge_percent: Number(e.target.value) })}
+                      style={{ flex: 1, accentColor: 'var(--accent)' }}
+                    />
+                    <span style={{ minWidth: 80, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', textAlign: 'right' }}>
+                      {noShowPercent === 0 ? 'No charge' : `${noShowPercent}%`}
+                    </span>
+                  </div>
+                  {noShowPercent > 0 && !(beautician.payment_settings?.require_deposit || beautician.payment_settings?.deposit_required) && (
+                    <p style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--warning-text, #92400E)', background: 'var(--warning-bg, #FEF6E7)', border: '1px solid #F0D9A8', borderRadius: 8, padding: '8px 10px', margin: '10px 0 0' }}>
+                      Heads up: you can only charge a card you actually hold. Cards are saved when
+                      deposits are on (Settings &gt; Payments). With deposits off, a no-show fee has
+                      nothing to charge against.
+                    </p>
+                  )}
 
                   <div style={{ height: 1, background: 'var(--border-light)', margin: '14px 0' }} />
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

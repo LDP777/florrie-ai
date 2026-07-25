@@ -120,7 +120,16 @@ export async function chargePolicyFee(appointmentId, kind) {
     const clientName = `${appt.clients?.first_name || 'the client'} ${appt.clients?.last_name || ''}`.trim();
     const label = KIND_LABELS[kind];
 
-    const policy = appt.policy_snapshot || appt.beauticians?.booking_policy || {};
+    // The snapshot is frozen at booking time and is what the client agreed to,
+    // so it wins. EXCEPT no_show_charge_percent, which is a newer setting: old
+    // snapshots simply don't have the key, and without this fall-through a fee
+    // Ellie sets today would never apply to a single existing booking.
+    const snapshot = appt.policy_snapshot || {};
+    const live = appt.beauticians?.booking_policy || {};
+    const policy = appt.policy_snapshot
+      ? { ...snapshot, ...(snapshot.no_show_charge_percent === undefined && live.no_show_charge_percent !== undefined
+            ? { no_show_charge_percent: live.no_show_charge_percent } : {}) }
+      : live;
     const { feeCents, percent } = computePolicyFee(appt, policy, kind);
 
     // Consent rule: no configured fee (or nothing left after the deposit) = no charge.
