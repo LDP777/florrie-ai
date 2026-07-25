@@ -121,7 +121,7 @@ router.get('/confirm/:sessionId', async (req, res) => {
                   type: full.payment_type === 'full' ? 'full_payment' : 'deposit',
                   status: 'completed',
                   stripe_payment_intent_id: session.payment_intent || null,
-                  payment_method: 'card',
+                  payment_method: 'card_online',
                 });
               }
 

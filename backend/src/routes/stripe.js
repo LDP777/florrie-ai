@@ -489,7 +489,7 @@ router.post('/refund', requireAuth, requireStripe, async (req, res) => {
       type: 'refund',
       status: 'completed',
       stripe_payment_intent_id: appointment.stripe_payment_intent_id,
-      payment_method: 'card',
+      payment_method: 'card_online',
     });
 
     // Update appointment deposit status if fully refunded
@@ -739,7 +739,7 @@ router.post('/webhook', async (req, res) => {
             type: 'payment_link',
             status: 'completed',
             stripe_payment_intent_id: session.payment_intent,
-            payment_method: 'card',
+            payment_method: 'card_online',
           });
 
           // If linked to an appointment, update its status
@@ -780,7 +780,7 @@ router.post('/webhook', async (req, res) => {
             type: paymentType === 'full' ? 'full_payment' : 'deposit',
             status: 'completed',
             stripe_payment_intent_id: session.payment_intent,
-            payment_method: 'card',
+            payment_method: 'card_online',
           });
 
           // If client paid, store their Stripe customer for faster future payments

@@ -247,7 +247,7 @@ export async function chargePolicyFee(appointmentId, kind) {
       type: kind === 'no_show' ? 'no_show_fee' : 'late_cancel_fee',
       status: 'completed',
       stripe_payment_intent_id: paymentIntent.id,
-      payment_method: 'card',
+      payment_method: 'card_online',
     });
 
     await logAction({
@@ -364,7 +364,7 @@ export async function chargeRescheduleDeposit(appointmentId, newStartIso) {
       type: 'deposit',
       status: 'completed',
       stripe_payment_intent_id: paymentIntent.id,
-      payment_method: 'card',
+      payment_method: 'card_online',
     });
 
     logger.info({ appointmentId, depositCents, paymentIntentId: paymentIntent.id }, 'Reschedule deposit charged');
@@ -463,7 +463,10 @@ export async function chargeRemainingBalance(appointmentId) {
     const ok = paymentIntent.status === 'succeeded' || paymentIntent.status === 'processing';
     if (!ok) return { charged: false, reason: paymentIntent.status };
 
-    await supabase.from('transactions').insert({
+    // MUST be checked. This row is also the double-charge guard above, so a
+    // silent insert failure means the card was charged AND the guard never
+    // engages, which is how you charge someone twice.
+    const { error: txErr } = await supabase.from('transactions').insert({
       beautician_id: appt.beautician_id,
       appointment_id: appt.id,
       client_id: appt.client_id || null,
@@ -471,8 +474,12 @@ export async function chargeRemainingBalance(appointmentId) {
       type: 'payment',
       status: 'completed',
       stripe_payment_intent_id: paymentIntent.id,
-      payment_method: 'card',
+      payment_method: 'card_online',
     });
+    if (txErr) {
+      logger.error({ err: txErr, appointmentId, paymentIntentId: paymentIntent.id, amountCents },
+        'CHARGED BUT NOT RECORDED: balance taken from the card but the transaction insert failed');
+    }
 
     logger.info({ appointmentId, amountCents, paymentIntentId: paymentIntent.id }, 'Remaining balance charged');
     return { charged: true, amountCents, paymentIntentId: paymentIntent.id };
@@ -563,7 +570,7 @@ export async function chargeCardAmount(appointmentId, amountCents, reason = '') 
     const ok = paymentIntent.status === 'succeeded' || paymentIntent.status === 'processing';
     if (!ok) return { charged: false, reason: paymentIntent.status };
 
-    await supabase.from('transactions').insert({
+    const { error: txErr } = await supabase.from('transactions').insert({
       beautician_id: appt.beautician_id,
       appointment_id: appt.id,
       client_id: appt.client_id || null,
@@ -571,9 +578,13 @@ export async function chargeCardAmount(appointmentId, amountCents, reason = '') 
       type: 'payment',
       status: 'completed',
       stripe_payment_intent_id: paymentIntent.id,
-      payment_method: 'card',
+      payment_method: 'card_online',
       description: reason || null,
     });
+    if (txErr) {
+      logger.error({ err: txErr, appointmentId, paymentIntentId: paymentIntent.id, amount },
+        'CHARGED BUT NOT RECORDED: card charged but the transaction insert failed');
+    }
 
     logger.info({ appointmentId, amount, reason, paymentIntentId: paymentIntent.id }, 'Manual card charge taken');
     return { charged: true, amountCents: amount, paymentIntentId: paymentIntent.id };
