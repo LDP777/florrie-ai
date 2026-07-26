@@ -203,19 +203,44 @@ router.get('/status', requireAuth, async (req, res) => {
   try {
     const { data } = await supabase
       .from('beauticians')
-      .select('instagram_page_id, instagram_page_name')
+      .select('instagram_page_id, instagram_page_name, instagram_page_token')
       .eq('id', req.beautician.id)
       .single();
 
-    if (data?.instagram_page_id) {
-      res.json({
-        connected: true,
-        page_name: data.instagram_page_name || 'Instagram',
-        account_id: data.instagram_page_id,
-      });
+    if (!data?.instagram_page_id) return res.json({ connected: false });
+
+    // Storing an id is NOT the same as being connected. Ellie's token expired
+    // on 21 June and this endpoint kept reporting "connected" for five weeks
+    // while every outbound call (replies, publishing, profile names) failed.
+    // Inbound DMs keep arriving because webhooks need no token, so nothing
+    // looked wrong. Actually ask Instagram whether the token still works.
+    let tokenValid = null;   // null = could not check
+    let tokenError = null;
+    if (data.instagram_page_token) {
+      try {
+        const r = await fetch('https://graph.instagram.com/v21.0/me?fields=id', {
+          headers: { Authorization: `Bearer ${data.instagram_page_token}` },
+        });
+        const body = await r.json().catch(() => ({}));
+        tokenValid = r.ok;
+        if (!r.ok) tokenError = body?.error?.message || `HTTP ${r.status}`;
+      } catch (err) {
+        tokenError = 'Could not reach Instagram';
+      }
     } else {
-      res.json({ connected: false });
+      tokenValid = false;
+      tokenError = 'No access token stored';
     }
+
+    res.json({
+      connected: true,
+      page_name: data.instagram_page_name || 'Instagram',
+      account_id: data.instagram_page_id,
+      token_valid: tokenValid,
+      // The app should surface a reconnect prompt on this, not on `connected`.
+      needs_reconnect: tokenValid === false,
+      token_error: tokenError,
+    });
   } catch (err) {
     res.status(500).json({ error: 'Something went wrong' });
   }

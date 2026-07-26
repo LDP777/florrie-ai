@@ -95,7 +95,7 @@ const CATALOG = [
 
 const categories = ['All', 'Payments', 'Calendar', 'Social', 'Accounting', 'Reviews'];
 
-function getIntegrationStatus(id, beautician, smsConfig) {
+function getIntegrationStatus(id, beautician, smsConfig, igStatus) {
   switch (id) {
     case 'stripe':
       return beautician?.stripe_account_id && beautician?.stripe_onboarding_complete
@@ -114,9 +114,9 @@ function getIntegrationStatus(id, beautician, smsConfig) {
         ? 'connected'
         : 'available';
     case 'instagram':
-      return beautician?.instagram_page_id
-        ? 'connected'
-        : 'available';
+      if (!beautician?.instagram_page_id) return 'available';
+      // igStatus is passed in; null means we haven't checked yet, so stay optimistic.
+      return igStatus?.needs_reconnect ? 'needs_reconnect' : 'connected';
     default:
       return 'coming_soon';
   }
@@ -155,10 +155,25 @@ export default function Integrations() {
   const [filter, setFilter] = useState('All');
   const [expanded, setExpanded] = useState(null);
   const [smsConfig, setSmsConfig] = useState(null);
+  // Storing an Instagram id is not the same as being connected. Ask the API
+  // whether the token still works, so an expired one stops showing "Connected".
+  const [igStatus, setIgStatus] = useState(null);
 
   useEffect(() => {
-    if (beautician) fetchSmsConfig();
+    if (beautician) { fetchSmsConfig(); fetchIgStatus(); }
   }, [beautician]);
+
+  async function fetchIgStatus() {
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/instagram/status`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.ok) setIgStatus(await res.json());
+    } catch (err) {
+      logger.debug('IG status fetch failed:', err);
+    }
+  }
 
   async function fetchSmsConfig() {
     try {
@@ -208,7 +223,7 @@ export default function Integrations() {
 
   const integrations = CATALOG.map(item => ({
     ...item,
-    status: item.comingSoon ? 'coming_soon' : getIntegrationStatus(item.id, beautician, smsConfig),
+    status: item.comingSoon ? 'coming_soon' : getIntegrationStatus(item.id, beautician, smsConfig, igStatus),
     stats: getConnectedStats(item.id, beautician, smsConfig),
   }));
 
@@ -220,6 +235,7 @@ export default function Integrations() {
     connected: { bg: 'var(--success-bg)', color: 'var(--success)', label: 'Connected' },
     available: { bg: 'var(--accent-light)', color: 'var(--accent)', label: 'Available' },
     coming_soon: { bg: 'var(--bg-subtle)', color: 'var(--text-muted)', label: 'Coming Soon' },
+    needs_reconnect: { bg: 'var(--danger-bg, #FDECEC)', color: 'var(--danger)', label: 'Reconnect needed' },
   };
 
   return (
@@ -357,6 +373,23 @@ export default function Integrations() {
                       onClick={e => { e.stopPropagation(); handleConnect(integ.id); }}
                       disabled={connecting === integ.id}
                     >{connecting === integ.id ? 'Connecting…' : `Connect ${integ.name} →`}</button>
+                  )}
+
+                  {/* Expired token. Say plainly what has stopped working and
+                      give her the one button that fixes it. */}
+                  {integ.status === 'needs_reconnect' && (
+                    <>
+                      <p style={{ ...type.bodySmall, fontSize: 12, lineHeight: 1.5, color: 'var(--danger)', margin: '0 0 10px' }}>
+                        {integ.name} has signed you out, so Florrie can't reply to your DMs
+                        or post for you. Messages still arrive, but nothing goes back out.
+                        Reconnecting takes a few seconds and fixes it.
+                      </p>
+                      <button
+                        style={{ ...ds.btnPrimary, padding: '10px 0', fontSize: 13 }}
+                        onClick={e => { e.stopPropagation(); handleConnect(integ.id); }}
+                        disabled={connecting === integ.id}
+                      >{connecting === integ.id ? 'Reconnecting…' : `Reconnect ${integ.name} →`}</button>
+                    </>
                   )}
 
                   {integ.status === 'coming_soon' && (
