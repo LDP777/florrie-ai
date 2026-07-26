@@ -18,57 +18,105 @@ export const supabase = url ? createClient(url, key) : null;
 // Fetches (and caches) the current beautician row.
 // On first signup the row won't exist yet — `ensureProfile`
 // creates it from auth metadata.
+//
+// PERFORMANCE: this hook is used by ~62 components, and several mount at once
+// on a single screen. It used to call supabase.auth.getUser() per component,
+// which is a real HTTP round trip to /auth/v1/user held under supabase-js's
+// navigator.locks lock (5s acquire timeout). Concurrent mounts therefore
+// SERIALISED behind that lock, which is the likely cause of Ellie's "takes a
+// long time to load", and a lock timeout throws, which used to leave the
+// calendar stuck. Two changes fix it:
+//   1. getSession() instead of getUser(): reads the cached session locally and
+//      only hits the network when the token actually needs refreshing.
+//   2. one shared in-flight promise + a short cache, so N concurrent mounts
+//      cost ONE lookup instead of N serialised ones.
+
+let beauticianCache = null;   // last resolved row
+let beauticianCacheAt = 0;
+let beauticianInFlight = null;
+const BEAUTICIAN_CACHE_MS = 30000;
+
+// A sign-in/sign-out must not serve the previous user's row.
+if (supabase) {
+  supabase.auth.onAuthStateChange(() => {
+    beauticianCache = null;
+    beauticianCacheAt = 0;
+    beauticianInFlight = null;
+  });
+}
+
+async function loadBeauticianOnce({ force = false } = {}) {
+  if (!force) {
+    if (beauticianCache && Date.now() - beauticianCacheAt < BEAUTICIAN_CACHE_MS) return beauticianCache;
+    if (beauticianInFlight) return beauticianInFlight;
+  }
+
+  const run = (async () => {
+    // supabase-js serialises auth calls behind a navigator.locks lock; under
+    // concurrent load a request can have its lock STOLEN and throw AbortError.
+    // Transient by definition, so retry once rather than sticking on a splash.
+    let session = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        ({ data: { session } } = await supabase.auth.getSession());
+        break;
+      } catch (err) {
+        const lockStolen = err?.name === 'AbortError' || /lock/i.test(String(err?.message || ''));
+        if (lockStolen && attempt === 0) {
+          await new Promise(r => setTimeout(r, 350 + Math.random() * 250));
+          continue;
+        }
+        throw err;
+      }
+    }
+    const user = session?.user || null;
+    if (!user) return null;
+
+    let { data, error } = await supabase
+      .from('beauticians')
+      .select('*')
+      .eq('auth_id', user.id)
+      .maybeSingle();
+
+    // First login after signup — create the row
+    if (!data && !error) {
+      const { data: created, error: createErr } = await supabase
+        .from('beauticians')
+        .insert({
+          auth_id: user.id,
+          email: user.email,
+          first_name: user.user_metadata?.first_name || '',
+          last_name: user.user_metadata?.last_name || '',
+        })
+        .select()
+        .single();
+      if (createErr) logger.error('Failed to create beautician profile:', createErr);
+      data = created;
+    }
+    return data || null;
+  })();
+
+  if (!force) beauticianInFlight = run;
+  try {
+    const row = await run;
+    beauticianCache = row;
+    beauticianCacheAt = Date.now();
+    return row;
+  } finally {
+    if (beauticianInFlight === run) beauticianInFlight = null;
+  }
+}
 
 export function useBeautician() {
-  const [beautician, setBeautician] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Seed from the cache so a second component mounting on the same screen
+  // renders immediately instead of flashing a spinner.
+  const [beautician, setBeautician] = useState(beauticianCache);
+  const [loading, setLoading] = useState(!beauticianCache);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async ({ force = true } = {}) => {
     try {
-      // supabase-js serialises auth calls behind a navigator.locks lock; under
-      // concurrent load (several components asking at once, extra tabs, the
-      // iOS webview) a request can have its lock STOLEN and throw AbortError.
-      // That is transient by definition - retry once before giving up, so the
-      // app never sticks on the splash screen over a lock squabble.
-      let user = null;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          ({ data: { user } } = await supabase.auth.getUser());
-          break;
-        } catch (err) {
-          const lockStolen = err?.name === 'AbortError' || /lock/i.test(String(err?.message || ''));
-          if (lockStolen && attempt === 0) {
-            await new Promise(r => setTimeout(r, 350 + Math.random() * 250));
-            continue;
-          }
-          throw err;
-        }
-      }
-      if (!user) { setLoading(false); return; }
-
-      let { data, error } = await supabase
-        .from('beauticians')
-        .select('*')
-        .eq('auth_id', user.id)
-        .maybeSingle();
-
-      // First login after signup — create the row
-      if (!data && !error) {
-        const { data: created, error: createErr } = await supabase
-          .from('beauticians')
-          .insert({
-            auth_id: user.id,
-            email: user.email,
-            first_name: user.user_metadata?.first_name || '',
-            last_name: user.user_metadata?.last_name || '',
-          })
-          .select()
-          .single();
-        if (createErr) logger.error('Failed to create beautician profile:', createErr);
-        data = created;
-      }
-
-      setBeautician(data);
+      const row = await loadBeauticianOnce({ force });
+      setBeautician(row);
     } catch (err) {
       logger.error('useBeautician error:', err);
     } finally {
@@ -76,7 +124,20 @@ export function useBeautician() {
     }
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const row = await loadBeauticianOnce();
+        if (!cancelled) setBeautician(row);
+      } catch (err) {
+        logger.error('useBeautician error:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   return { beautician, loading, refresh };
 }
