@@ -21,6 +21,48 @@ export default function ClientManagePage() {
   const [cancelConfirm, setCancelConfirm] = useState(false);
   const [cancelResult, setCancelResult] = useState(null);
 
+  // Change treatment. The deposit deliberately does NOT move: whatever they
+  // paid carries over, and the balance (price minus deposit) recomputes itself.
+  const [showTreatments, setShowTreatments] = useState(false);
+  const [treatmentList, setTreatmentList] = useState(null);
+  const [treatmentSaving, setTreatmentSaving] = useState(false);
+  const [treatmentError, setTreatmentError] = useState(null);
+  const [treatmentResult, setTreatmentResult] = useState(null);
+  async function openTreatments() {
+    setShowTreatments(true);
+    setTreatmentError(null);
+    if (treatmentList) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/booking/${slug}/manage/${token}/treatments`);
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Could not load treatments');
+      setTreatmentList(d.treatments || []);
+    } catch (err) {
+      setTreatmentError(err.message);
+      setTreatmentList([]);
+    }
+  }
+  async function changeTreatment(treatmentId) {
+    setTreatmentSaving(true);
+    setTreatmentError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/booking/${slug}/manage/${token}/change-treatment`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ treatment_id: treatmentId }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Could not change your treatment');
+      setTreatmentResult(d.message);
+      setShowTreatments(false);
+      await load();
+    } catch (err) {
+      setTreatmentError(err.message);
+    } finally {
+      setTreatmentSaving(false);
+    }
+  }
+
   // Reschedule state
   const [showReschedule, setShowReschedule] = useState(false);
   const [rescheduleDate, setRescheduleDate] = useState('');
@@ -358,6 +400,65 @@ export default function ClientManagePage() {
             <MetaRow icon="payments" label="Price"
               value={`£${((appointment.treatment?.price_cents || 0) / 100).toFixed(2)}`} />
           </div>
+
+          {/* Change treatment. Ellie's case: booked a full lamination weeks
+              ago, only needs the maintenance now. The deposit stays put. */}
+          {!isCancelled && !isCompleted && !isPast && (
+            <div style={{ marginTop: 14 }}>
+              {treatmentResult && (
+                <p style={{ fontSize: 13, lineHeight: 1.5, color: brand, background: brandLight, border: `1px solid ${brand}55`, borderRadius: 10, padding: '10px 12px', margin: '0 0 10px' }}>
+                  {treatmentResult}
+                </p>
+              )}
+              {!showTreatments ? (
+                <button onClick={openTreatments} style={{ ...S.keepBtn, width: '100%' }}>
+                  Change my treatment
+                </button>
+              ) : (
+                <div style={{ border: `1px solid ${brand}33`, borderRadius: 12, padding: 12, background: brandLight }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#2D1B1B', margin: '0 0 4px' }}>
+                    Pick a different treatment
+                  </p>
+                  <p style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--text-secondary)', margin: '0 0 10px' }}>
+                    Your deposit stays exactly as it is. You'll just pay the difference on the day.
+                  </p>
+                  {treatmentList === null && (
+                    <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>Loading…</p>
+                  )}
+                  {treatmentList?.length === 0 && (
+                    <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>
+                      No other treatments available to swap to. Message me and I'll sort it.
+                    </p>
+                  )}
+                  {(treatmentList || []).filter(t => t.id !== appointment.treatment?.id).map(t => (
+                    <button
+                      key={t.id}
+                      onClick={() => changeTreatment(t.id)}
+                      disabled={treatmentSaving}
+                      style={{
+                        width: '100%', textAlign: 'left', marginBottom: 6, padding: '10px 12px',
+                        borderRadius: 10, border: '1px solid #E8E4DF', background: 'var(--bg-card)',
+                        cursor: treatmentSaving ? 'wait' : 'pointer', fontFamily: 'inherit',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
+                      }}
+                    >
+                      <span style={{ fontSize: 13, fontWeight: 600, color: '#2D1B1B' }}>{t.name}</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                        £{((t.price_cents || 0) / 100).toFixed(2)} · {t.duration_minutes}m
+                      </span>
+                    </button>
+                  ))}
+                  {treatmentError && (
+                    <p style={{ fontSize: 13, color: 'var(--danger)', margin: '8px 0 0', lineHeight: 1.45 }}>{treatmentError}</p>
+                  )}
+                  <button onClick={() => { setShowTreatments(false); setTreatmentError(null); }} disabled={treatmentSaving}
+                    style={{ ...S.keepBtn, width: '100%', marginTop: 6 }}>
+                    Keep {appointment.treatment?.name}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Client info */}
           <div style={S.clientSection}>

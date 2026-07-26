@@ -3,7 +3,7 @@ import { z } from 'zod';
 import Stripe from 'stripe';
 import { supabase } from '../config.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
-import { pushNewBooking, pushBookingConfirmed, pushReschedule, pushPatchTestBooked, pushClientCancelled } from '../services/push-notifications.js';
+import { pushNewBooking, pushBookingConfirmed, pushReschedule, pushPatchTestBooked, pushClientCancelled, pushTeamUpdate } from '../services/push-notifications.js';
 import { refreshLiveActivity } from '../services/live-activity.js';
 import { sendConsultationFormSMS } from './consultation-forms.js';
 import { validate } from '../middleware/validate.js';
@@ -771,6 +771,188 @@ router.post('/:slug/manage/:token/cancel', async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, 'Cancel booking failed');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+/**
+ * GET  /api/booking/:slug/manage/:token/treatments
+ * POST /api/booking/:slug/manage/:token/change-treatment  { treatment_id }
+ *
+ * Let the CLIENT swap their treatment on an existing booking. Ellie's case:
+ * someone books a full brow lamination four weeks out but only needs the
+ * maintenance. Previously neither she nor the client could change it, only the
+ * time, so the booking had to be cancelled and rebooked, losing the deposit.
+ *
+ * THE DEPOSIT DOES NOT MOVE. Whatever they already paid stays exactly as it is:
+ * not refunded, not topped up, not recalculated. Only the price and the length
+ * follow the new treatment, so the balance owed (price minus deposit) simply
+ * works out on its own. That is deliberate, it keeps a swap frictionless and
+ * means a downgrade never triggers a refund Ellie has to chase.
+ */
+router.get('/:slug/manage/:token/treatments', async (req, res) => {
+  try {
+    const { data: appt } = await supabase
+      .from('appointments')
+      .select('id, starts_at, client_id, treatment_id, beauticians(id, booking_slug)')
+      .eq('management_token', req.params.token)
+      .single();
+    if (!appt || appt.beauticians?.booking_slug !== req.params.slug) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { data: treatments } = await supabase
+      .from('treatments')
+      .select('id, name, duration_minutes, price_cents, requires_patch_test')
+      .eq('beautician_id', appt.beauticians.id)
+      .eq('is_active', true)
+      .gt('price_cents', 0)
+      .order('sort_order', { ascending: true });
+
+    // A treatment needing a patch test they have not passed is not a valid
+    // swap: it would quietly put them into an appointment they cannot have.
+    const { data: pts } = await supabase
+      .from('patch_tests')
+      .select('status, test_date')
+      .eq('client_id', appt.client_id)
+      .eq('beautician_id', appt.beauticians.id);
+    const sixMonthsAgo = new Date(Date.now() - 182 * 24 * 60 * 60 * 1000);
+    const hasValidPatchTest = (pts || []).some(pt =>
+      pt.status === 'passed' && pt.test_date && new Date(pt.test_date) > sixMonthsAgo);
+
+    res.json({
+      current_treatment_id: appt.treatment_id,
+      treatments: (treatments || [])
+        .filter(t => !t.requires_patch_test || hasValidPatchTest)
+        .map(t => ({ id: t.id, name: t.name, duration_minutes: t.duration_minutes, price_cents: t.price_cents })),
+    });
+  } catch (err) {
+    logger.error({ err }, 'Manage treatments list failed');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+router.post('/:slug/manage/:token/change-treatment', async (req, res) => {
+  try {
+    const { treatment_id } = req.body || {};
+    if (!treatment_id) return res.status(400).json({ error: 'Please choose a treatment.' });
+
+    const { data: appt } = await supabase
+      .from('appointments')
+      .select(`
+        id, starts_at, ends_at, status, client_id, treatment_id,
+        price_cents, deposit_cents, deposit_paid, buffer_minutes, extra_padding_minutes,
+        clients(first_name),
+        beauticians(id, booking_slug, working_hours, timezone)
+      `)
+      .eq('management_token', req.params.token)
+      .single();
+    if (!appt || appt.beauticians?.booking_slug !== req.params.slug) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    if (['cancelled', 'completed', 'no_show'].includes(appt.status)) {
+      return res.status(409).json({ error: 'This booking can no longer be changed.' });
+    }
+    if (new Date(`${String(appt.starts_at).slice(0, 19)}Z`) < nowInSalonWall(appt.beauticians.timezone)) {
+      return res.status(409).json({ error: 'This appointment has already passed.' });
+    }
+
+    const { data: treat } = await supabase
+      .from('treatments')
+      .select('id, name, duration_minutes, price_cents, requires_patch_test')
+      .eq('id', treatment_id)
+      .eq('beautician_id', appt.beauticians.id)
+      .eq('is_active', true)
+      .maybeSingle();
+    if (!treat) return res.status(400).json({ error: 'That treatment is not available.' });
+
+    if (treat.requires_patch_test) {
+      const sixMonthsAgo = new Date(Date.now() - 182 * 24 * 60 * 60 * 1000);
+      const { data: pts } = await supabase
+        .from('patch_tests')
+        .select('status, test_date')
+        .eq('client_id', appt.client_id)
+        .eq('beautician_id', appt.beauticians.id);
+      const ok = (pts || []).some(pt => pt.status === 'passed' && pt.test_date && new Date(pt.test_date) > sixMonthsAgo);
+      if (!ok) {
+        return res.status(409).json({ error: 'That treatment needs a patch test first. Please message me and we will sort it.' });
+      }
+    }
+
+    // Re-end from the SAME start using the new length, in the wall frame.
+    const m = String(appt.starts_at).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if (!m) return res.status(500).json({ error: 'Something went wrong' });
+    const [, yy, mo, dd, hh, mi] = m;
+    const total = (treat.duration_minutes || 0) + (appt.buffer_minutes || 0) + (appt.extra_padding_minutes || 0);
+    const endDate = new Date(Date.UTC(Number(yy), Number(mo) - 1, Number(dd), Number(hh), Number(mi) + total));
+    const pad = (n) => String(n).padStart(2, '0');
+    const newEnds = `${endDate.getUTCFullYear()}-${pad(endDate.getUTCMonth() + 1)}-${pad(endDate.getUTCDate())}T${pad(endDate.getUTCHours())}:${pad(endDate.getUTCMinutes())}:00`;
+
+    // A longer treatment must not run into the next client, or past closing,
+    // or into one of Ellie's blocks.
+    const startD = new Date(`${String(appt.starts_at).slice(0, 19)}Z`);
+    const endD = new Date(`${newEnds}Z`);
+    const { data: clash } = await supabase
+      .from('appointments')
+      .select('id')
+      .eq('beautician_id', appt.beauticians.id)
+      .neq('id', appt.id)
+      .in('status', ['confirmed', 'pending', 'in_progress'])
+      .lt('starts_at', endD.toISOString())
+      .gt('ends_at', startD.toISOString());
+    if (clash && clash.length) {
+      return res.status(409).json({ error: 'That treatment takes longer and would run into the next appointment. Please pick a shorter one, or message me to move your time.' });
+    }
+    const blocks = await loadBlocks(appt.beauticians.id, startD, endD);
+    if (hitsBlock(startD, endD, blocks)) {
+      return res.status(409).json({ error: 'That treatment takes longer than the time left in that slot. Please pick a shorter one, or message me.' });
+    }
+    const dh = wallDayHours(appt.beauticians.working_hours || {}, startD);
+    if (dh) {
+      const [eh, em] = dh.end.split(':').map(Number);
+      const dayEnd = new Date(startD); dayEnd.setUTCHours(eh, em, 0, 0);
+      if (endD > dayEnd) {
+        return res.status(409).json({ error: 'That treatment would run past closing time. Please pick a shorter one, or message me.' });
+      }
+    }
+
+    // THE DEPOSIT IS DELIBERATELY UNTOUCHED. deposit_cents and deposit_paid are
+    // not in this update, so whatever they paid carries straight over and the
+    // remaining balance (price - deposit) recomputes itself.
+    const { error: upErr } = await supabase
+      .from('appointments')
+      .update({
+        treatment_id: treat.id,
+        duration_minutes: treat.duration_minutes,
+        price_cents: treat.price_cents,
+        ends_at: newEnds,
+      })
+      .eq('id', appt.id);
+    if (upErr) {
+      logger.error({ err: upErr, appointmentId: appt.id }, 'change-treatment update failed');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
+
+    const depositPaid = appt.deposit_paid ? (appt.deposit_cents || 0) : 0;
+    const remaining = Math.max(0, (treat.price_cents || 0) - depositPaid);
+
+    // Tell Ellie: her diary just changed under her.
+    const dLabel = new Date(`${String(appt.starts_at).slice(0, 10)}T00:00:00Z`)
+      .toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+    pushTeamUpdate(appt.beauticians.id, 'booking_rescheduled',
+      `${appt.clients?.first_name || 'A client'} changed their ${dLabel} booking to ${treat.name}. Deposit stays as paid.`,
+      { url: '/calendar/week', clientName: appt.clients?.first_name }
+    ).catch(err => logger.error({ err, appointmentId: appt.id }, 'change-treatment push failed'));
+
+    res.json({
+      success: true,
+      treatment: { id: treat.id, name: treat.name, duration_minutes: treat.duration_minutes, price_cents: treat.price_cents },
+      depositPaidCents: depositPaid,
+      remainingCents: remaining,
+      message: `Changed to ${treat.name}. Your deposit stays as it is${remaining > 0 ? `, with £${(remaining / 100).toFixed(2)} to pay on the day` : ''}.`,
+    });
+  } catch (err) {
+    logger.error({ err }, 'change-treatment failed');
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
