@@ -146,6 +146,12 @@ export default function CalendarView({ initialView } = {}) {
   const [appointments, setAppointments] = useState([]);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [loading, setLoading] = useState(true);
+  // A failed load used to leave the PREVIOUS week's rows in state. The render
+  // filters by exact date, so none of them match the new week and it reads as
+  // an empty diary rather than a failure. That is Ellie's "still not loading
+  // after 5 mins": it had already given up, silently.
+  const [loadError, setLoadError] = useState(null);
+  const loadSeq = useRef(0);
   const detailRef = useRef(null);
 
   // Deep-link to a specific appointment (?appt=<id>): once that day's
@@ -231,9 +237,19 @@ export default function CalendarView({ initialView } = {}) {
   useEffect(() => {
     if (beautician) {
       loadAppointments();
-      loadTimeBlocks();
+    } else if (!bLoading) {
+      // useBeautician gave up (auth lock timeout / network blip) and leaves
+      // beautician null forever. Without this, `loading` stays true from its
+      // initial value and the spinner never ends.
+      setLoading(false);
+      setLoadError('Could not load your account.');
     }
-  }, [beautician, currentDate, view]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [beautician, bLoading, currentDate, view]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Time blocks are NOT date-scoped (the endpoint returns them all), so
+  // refetching on every week swipe was pure waste against the rate limiter.
+  useEffect(() => {
+    if (beautician) loadTimeBlocks();
+  }, [beautician]); // eslint-disable-line react-hooks/exhaustive-deps
   // Auto-scroll to appointment detail when selected
   useEffect(() => {
     if (selectedAppointment && detailRef.current) {
@@ -272,9 +288,16 @@ export default function CalendarView({ initialView } = {}) {
     // For in-place edits (price/time set) hold the current scroll position so
     // the reload doesn't bounce the page to the bottom.
     if (keepScroll) preserveScrollRef.current = document.getElementById('app-scroll')?.scrollTop ?? window.scrollY;
+    // Swiping weeks quickly fires overlapping fetches. Without this, an older
+    // response landing last overwrites the newer range and blanks the week.
+    const seq = ++loadSeq.current;
     setLoading(true);
+    setLoadError(null);
     const from = view === 'day' ? formatDate(currentDate) : formatDate(getWeekStart(currentDate));
     const to = view === 'day' ? formatDate(currentDate) : formatDate(getWeekEnd(currentDate));
+    // A hung request used to leave the spinner up indefinitely. Give up at 15s.
+    const ac = new AbortController();
+    const killer = setTimeout(() => ac.abort(), 15000);
     try {
       const { data, error } = await supabase
         .from('appointments')
@@ -282,13 +305,21 @@ export default function CalendarView({ initialView } = {}) {
         .eq('beautician_id', beautician.id)
         .gte('starts_at', `${from}T00:00:00Z`)
         .lte('starts_at', `${to}T23:59:59Z`)
-        .order('starts_at');
-      if (error) logger.error('Calendar load:', error);
+        .order('starts_at')
+        .abortSignal(ac.signal);
+      if (seq !== loadSeq.current) return;   // a newer range is already loading
+      if (error) throw error;
       setAppointments(data || []);
     } catch (err) {
+      if (seq !== loadSeq.current) return;
       logger.error('Calendar load error:', err);
+      // Never keep the previous range's rows: they are invisible to the date
+      // filter, so the week silently reads as empty instead of as failed.
+      setAppointments([]);
+      setLoadError('Could not load this week.');
     } finally {
-      setLoading(false);
+      clearTimeout(killer);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }
   // Batch-complete every still-open booking on the viewed day. One tap at the
@@ -740,7 +771,17 @@ export default function CalendarView({ initialView } = {}) {
                 <style>{'@keyframes floSpin{to{transform:rotate(360deg)}}'}</style>
               </div>
             )}
-            {!loading && getAppointmentsForDate(currentDate).length === 0 && (
+            {!loading && loadError && (
+              <div style={{ position: 'absolute', top: (8 - START_HOUR) * HOUR_HEIGHT + 60, left: 0, right: 0, textAlign: 'center', padding: '0 16px' }}>
+                <button
+                  onClick={() => loadAppointments()}
+                  style={{ padding: '12px 18px', borderRadius: 12, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.primary, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}
+                >
+                  {loadError} Tap to try again.
+                </button>
+              </div>
+            )}
+            {!loading && !loadError && getAppointmentsForDate(currentDate).length === 0 && (
               <div style={{ position: 'absolute', top: (8 - START_HOUR) * HOUR_HEIGHT + 80, left: 0, right: 0, textAlign: 'center' }}>
                 <p style={{ fontSize: 13, color: COLORS.stone400 }}>No appointments</p>
               </div>
@@ -754,7 +795,25 @@ export default function CalendarView({ initialView } = {}) {
           work from on a phone than seven thin columns of tiny chips. */}
       {view === 'week' && (
         <div style={styles.weekAgenda}>
-          {weekDays.map(day => {
+          {/* The week view had NO loading and NO error state, so a failed or
+              slow fetch rendered a full seven-day "no bookings" skeleton and
+              looked exactly like an empty diary. */}
+          {loading && (
+            <div style={{ padding: '28px 0', textAlign: 'center' }}>
+              <div style={{ width: 26, height: 26, margin: '0 auto 10px', border: `3px solid ${COLORS.outlineVariant}`, borderTopColor: COLORS.primary, borderRadius: '50%', animation: 'floSpin 0.8s linear infinite' }} />
+              <p style={{ fontSize: 13, color: COLORS.stone400 }}>Loading…</p>
+              <style>{'@keyframes floSpin{to{transform:rotate(360deg)}}'}</style>
+            </div>
+          )}
+          {!loading && loadError && (
+            <button
+              onClick={() => loadAppointments()}
+              style={{ width: '100%', padding: '18px 0', borderRadius: 16, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--bg-card)', color: COLORS.primary, fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer' }}
+            >
+              {loadError} Tap to try again.
+            </button>
+          )}
+          {!loading && !loadError && weekDays.map(day => {
             const dayAppts = getAppointmentsForDate(day)
               .slice()
               .sort((a, b) => wallMinutes(a.starts_at) - wallMinutes(b.starts_at));
