@@ -794,7 +794,7 @@ router.get('/:slug/manage/:token/treatments', async (req, res) => {
   try {
     const { data: appt } = await supabase
       .from('appointments')
-      .select('id, starts_at, client_id, treatment_id, beauticians(id, booking_slug)')
+      .select('id, starts_at, client_id, treatment_id, treatments(requires_patch_test), beauticians(id, booking_slug)')
       .eq('management_token', req.params.token)
       .single();
     if (!appt || appt.beauticians?.booking_slug !== req.params.slug) {
@@ -819,11 +819,17 @@ router.get('/:slug/manage/:token/treatments', async (req, res) => {
     const sixMonthsAgo = new Date(Date.now() - 182 * 24 * 60 * 60 * 1000);
     const hasValidPatchTest = (pts || []).some(pt =>
       pt.status === 'passed' && pt.test_date && new Date(pt.test_date) > sixMonthsAgo);
+    // If what they ALREADY booked needs a patch test, they are in that lane
+    // and a test is either done or on the way, so swapping to another
+    // patch-test treatment adds no new requirement. Without this, the exact
+    // swap Ellie asked for (lamination -> lamination maintenance) was hidden.
+    const alreadyInPatchTestLane = appt.treatments?.requires_patch_test === true;
+    const patchTestOk = hasValidPatchTest || alreadyInPatchTestLane;
 
     res.json({
       current_treatment_id: appt.treatment_id,
       treatments: (treatments || [])
-        .filter(t => !t.requires_patch_test || hasValidPatchTest)
+        .filter(t => !t.requires_patch_test || patchTestOk)
         .map(t => ({ id: t.id, name: t.name, duration_minutes: t.duration_minutes, price_cents: t.price_cents })),
     });
   } catch (err) {
@@ -843,6 +849,7 @@ router.post('/:slug/manage/:token/change-treatment', async (req, res) => {
         id, starts_at, ends_at, status, client_id, treatment_id,
         price_cents, deposit_cents, deposit_paid, buffer_minutes, extra_padding_minutes,
         clients(first_name),
+        treatments(requires_patch_test),
         beauticians(id, booking_slug, working_hours, timezone)
       `)
       .eq('management_token', req.params.token)
@@ -866,7 +873,9 @@ router.post('/:slug/manage/:token/change-treatment', async (req, res) => {
       .maybeSingle();
     if (!treat) return res.status(400).json({ error: 'That treatment is not available.' });
 
-    if (treat.requires_patch_test) {
+    // Same rule as the list above: already booked into a patch-test treatment
+    // means swapping to another one adds no new requirement.
+    if (treat.requires_patch_test && appt.treatments?.requires_patch_test !== true) {
       const sixMonthsAgo = new Date(Date.now() - 182 * 24 * 60 * 60 * 1000);
       const { data: pts } = await supabase
         .from('patch_tests')
