@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
 import { sendOnChannel, shapeMessage } from '../services/messaging.js';
 import { generateReplySuggestions } from '../services/ai-front-desk.js';
+import { isMissingColumnError } from '../lib/junk-classifier.js';
 
 const router = Router();
 
@@ -92,11 +93,107 @@ function messageType(row) {
   return 'you';
 }
 
+/**
+ * Thread segmentation, shared contract with the Inbox UI.
+ *
+ * The frontend used to work all of this out for itself in Inbox.jsx, which
+ * meant the nav badge and the "Waiting on you" list could disagree about what
+ * was owed. The backend now says which bucket a thread belongs in and both
+ * sides read the same answer.
+ *
+ * A pure thank-you or sign-off does not owe a reply, so it should never nag
+ * her. Mirrors HANDLED_INTENTS in frontend/src/pages/Inbox.jsx.
+ */
+const HANDLED_INTENTS = new Set(['review_thanks', 'greeting']);
+const NEEDS_YOU_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * "A human reply is genuinely owed." Ported line for line from needsYou() in
+ * frontend/src/pages/Inbox.jsx so the two never drift:
+ *   - Florrie escalated something and the client's last word still asks
+ *     something, or
+ *   - the client had the last word, within a week, and was not just saying
+ *     thanks.
+ * A missing intent counts as owed, never as handled.
+ */
+function needsYou(bucket) {
+  const closerOnly = bucket.last_message_direction === 'inbound'
+    && HANDLED_INTENTS.has(bucket.last_inbound_intent || 'unknown');
+
+  if (bucket.needs_attention) return !closerOnly;
+  if (bucket.last_message_direction !== 'inbound') return false;
+  if (Date.now() - new Date(bucket.last_message_at).getTime() > NEEDS_YOU_WINDOW_MS) return false;
+  return !HANDLED_INTENTS.has(bucket.last_inbound_intent || 'unknown');
+}
+
+/**
+ * Which of the four buckets this thread belongs in.
+ *
+ * Order matters. Junk is tested FIRST, ahead of 'needs', which is a deliberate
+ * departure from a strict "needs beats everything" rule: junk no longer
+ * escalates, but an unanswered cold pitch still looks like "client spoke last,
+ * within a week, intent unknown", so it would walk straight back into Waiting
+ * and the classifier would have achieved nothing. Everything that is not junk
+ * keeps 'needs' on top.
+ */
+function segmentOf(bucket, { isJunk, isKnownClient, instagramOnly }) {
+  if (isJunk) return 'social';
+  if (needsYou(bucket)) return 'needs';
+  if (isKnownClient) return 'client';
+  if (instagramOnly) return 'social';
+  return 'new';
+}
+
+// The select without the columns that migration 016 adds. Until Levi has
+// applied it (and restarted Railway, because PgBouncer caches the schema), the
+// query falls back to this and the inbox still loads instead of 500ing.
+const THREAD_BASE_COLUMNS = `
+        id,
+        client_id,
+        channel,
+        direction,
+        content,
+        media_type,
+        created_at,
+        resolved,
+        read_at,
+        ai_handled,
+        escalated,
+        digital_employee,
+        ai_intent,
+        clients ( id, first_name, last_name, phone, email, whatsapp_id, instagram_id )`;
+
+/**
+ * Which of these client ids have ever had an appointment.
+ *
+ * "Known client" is the difference between 'client' and 'new' in the segment
+ * contract, and a booking is the strongest evidence there is. Fails soft to an
+ * empty set: worst case a regular is labelled 'new' for one page load, which
+ * is far better than the inbox failing to load at all.
+ */
+async function clientsWithAppointments(beauticianId, clientIds) {
+  const found = new Set();
+  if (!clientIds.length) return found;
+
+  const { data, error } = await supabase
+    .from('appointments')
+    .select('client_id')
+    .eq('beautician_id', beauticianId)
+    .in('client_id', Array.from(new Set(clientIds)));
+
+  if (error) {
+    logger.warn({ err: error }, 'inbox.threads appointment lookup failed');
+    return found;
+  }
+  for (const row of data || []) if (row.client_id) found.add(row.client_id);
+  return found;
+}
+
 router.get('/threads', requireAuth, async (req, res) => {
   const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
 
   try {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('messages')
       .select(`
         id,
@@ -112,11 +209,22 @@ router.get('/threads', requireAuth, async (req, res) => {
         escalated,
         digital_employee,
         ai_intent,
-        clients ( id, first_name, last_name, phone, email, whatsapp_id, instagram_id )
+        is_junk,
+        clients ( id, first_name, last_name, phone, email, whatsapp_id, instagram_id, instagram_username )
       `)
       .eq('beautician_id', req.beautician.id)
       .order('created_at', { ascending: false })
       .limit(THREAD_FETCH_CAP);
+
+    if (error && isMissingColumnError(error)) {
+      logger.warn({ err: error }, 'inbox.threads falling back: migration 016 not applied yet');
+      ({ data, error } = await supabase
+        .from('messages')
+        .select(THREAD_BASE_COLUMNS)
+        .eq('beautician_id', req.beautician.id)
+        .order('created_at', { ascending: false })
+        .limit(THREAD_FETCH_CAP));
+    }
 
     if (error) {
       logger.error({ err: error }, 'inbox.threads supabase failed');
@@ -173,11 +281,40 @@ router.get('/threads', requireAuth, async (req, res) => {
             // last. Filled from the newest inbound row with usable text.
             last_inbound_preview: null,
             last_inbound_at: null,
+            // The @handle, so she recognises an Instagram thread by the name
+            // she actually knows. Null on every other channel, and null on
+            // Instagram until her token is reconnected.
+            instagram_username: row.clients?.instagram_username || null,
             _hasInboundText: false,
+            // Scaffolding for segment(), all stripped before the response.
+            _inbound: 0,
+            _junkInbound: 0,
+            _hasIdentity: false,
+            _instagramOnly: true,
           };
           buckets.set(row.client_id, bucket);
           for (const k of keys) identityToBucket.set(k, bucket);
         }
+      }
+
+      // A handle can turn up on a later duplicate client record than the one
+      // that opened the bucket, so keep the first one we see either way.
+      if (!bucket.instagram_username && row.clients?.instagram_username) {
+        bucket.instagram_username = row.clients.instagram_username;
+      }
+      // Contact details she holds on file are what make someone a client
+      // rather than a stranger who found her on Instagram.
+      if (row.clients?.phone || row.clients?.email || row.clients?.whatsapp_id) {
+        bucket._hasIdentity = true;
+      }
+      if (row.channel !== 'instagram') bucket._instagramOnly = false;
+
+      // A thread only counts as junk when EVERY inbound message in it was
+      // flagged. One real question anywhere in the conversation pulls the
+      // whole thread back into the normal inbox, which is the safe direction.
+      if (row.direction === 'inbound') {
+        bucket._inbound += 1;
+        if (row.is_junk) bucket._junkInbound += 1;
       }
 
       // Unread = inbound, not read, not resolved.
@@ -217,14 +354,11 @@ router.get('/threads', requireAuth, async (req, res) => {
       }
     }
 
-    // Clean up internal scaffolding and guarantee no blank preview survives.
+    // Guarantee no blank preview survives.
     for (const bucket of new Set(buckets.values())) {
       if (!bucket.last_message_preview) {
         bucket.last_message_preview = bucket.last_inbound_preview || 'Sent a message';
       }
-      delete bucket.client_ids;
-      delete bucket._hasInboundText;
-      delete bucket._lastTextLocked;
     }
 
     // De-dup: buckets.values() now contains each thread once per client_id key,
@@ -232,6 +366,34 @@ router.get('/threads', requireAuth, async (req, res) => {
     const threads = Array.from(new Set(buckets.values()))
       .sort((a, b) => new Date(b.last_message_at) - new Date(a.last_message_at))
       .slice(0, limit);
+
+    // Someone who has ever been in the chair is a client, whatever contact
+    // details are on the record. Asked only for the threads we are actually
+    // returning (at most 100 buckets), so it stays one small query.
+    const idsInPlay = [];
+    for (const t of threads) for (const id of t.client_ids) idsInPlay.push(id);
+    const everBooked = await clientsWithAppointments(req.beautician.id, idsInPlay);
+
+    for (const t of threads) {
+      const isJunk = t._inbound > 0 && t._junkInbound === t._inbound;
+      const isKnownClient = t._hasIdentity
+        || Array.from(t.client_ids).some((id) => everBooked.has(id));
+
+      t.is_junk = isJunk;
+      t.segment = segmentOf(t, {
+        isJunk,
+        isKnownClient,
+        instagramOnly: t._instagramOnly && !isKnownClient,
+      });
+
+      delete t.client_ids;
+      delete t._hasInboundText;
+      delete t._lastTextLocked;
+      delete t._inbound;
+      delete t._junkInbound;
+      delete t._hasIdentity;
+      delete t._instagramOnly;
+    }
 
     res.json({ threads, count: threads.length });
   } catch (err) {
@@ -253,9 +415,12 @@ router.get('/thread/:client_id', requireAuth, async (req, res) => {
 
   try {
     // Verify the client belongs to this beautician first. Cheap query.
+    // select('*') rather than a column list on purpose: instagram_username
+    // only exists once migration 016 is applied, and naming it explicitly
+    // would 400 the whole thread view until then.
     const { data: client, error: cErr } = await supabase
       .from('clients')
-      .select('id, first_name, last_name, phone, email, whatsapp_id, instagram_id, messaging_autonomy')
+      .select('*')
       .eq('id', clientId)
       .eq('beautician_id', req.beautician.id)
       .maybeSingle();
@@ -357,6 +522,7 @@ router.get('/thread/:client_id', requireAuth, async (req, res) => {
         has_email: !!client.email,
         has_whatsapp: !!(client.whatsapp_id || client.phone),
         has_instagram: !!client.instagram_id,
+        instagram_username: client.instagram_username || null,
         messaging_autonomy: client.messaging_autonomy || null,
       },
       meta: {

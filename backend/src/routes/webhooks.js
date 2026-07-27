@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { supabase } from '../config.js';
 import { processInboundMessage } from '../services/ai-front-desk.js';
 import { pushMessagesWaiting } from '../services/push-notifications.js';
+import { classifyInboundMessage, looksLikeKnownClient } from '../lib/junk-classifier.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
 import { getAppSecret, getWhatsAppVerifyToken } from '../lib/env.js';
@@ -17,6 +18,25 @@ const webhookHits = [];
 function recordWebhookHit(entry) {
   webhookHits.unshift({ at: new Date().toISOString(), ...entry });
   if (webhookHits.length > 20) webhookHits.length = 20;
+}
+
+/**
+ * Mark a stored message as junk.
+ *
+ * Kept separate from the insert on purpose: is_junk / junk_reason arrive in
+ * migration 016, which is applied by hand, so a missing column must cost us a
+ * label and not the message itself. The suppression decisions are already made
+ * in memory by the time this runs. Best effort, logged, never thrown.
+ */
+async function flagMessageAsJunk(messageId, reason) {
+  if (!messageId) return;
+  const { error } = await supabase
+    .from('messages')
+    .update({ is_junk: true, junk_reason: reason })
+    .eq('id', messageId);
+  if (error) {
+    logger.warn({ err: error, messageId }, 'Could not set messages.is_junk (migration 016 applied?)');
+  }
 }
 
 // Constant-time token comparison. Avoids leaking length/match position via timing.
@@ -278,6 +298,15 @@ router.post('/whatsapp', async (req, res) => {
       messageContent = message.text?.body || '[Message]';
     }
 
+    // Same junk test as Instagram. She publishes her wa.me link in the
+    // Instagram redirect reply, so the cold pitches that used to land in her
+    // DMs now follow her onto WhatsApp. A flagged message is stored and stays
+    // findable, but it does not escalate, does not buzz her phone, and does
+    // not spend one of her metered monthly messages on an auto-reply.
+    const junk = classifyInboundMessage(messageContent, {
+      isKnownClient: looksLikeKnownClient(client, { channel: 'whatsapp' }),
+    });
+
     // Store the inbound message
     const { data: storedMessage } = await supabase
       .from('messages')
@@ -295,6 +324,12 @@ router.post('/whatsapp', async (req, res) => {
       })
       .select()
       .single();
+
+    if (junk.isJunk) {
+      await flagMessageAsJunk(storedMessage?.id, junk.reason);
+      logger.info({ beauticianId: beautician.id, from: waId, reason: junk.reason, signals: junk.signals }, 'WhatsApp message classified as junk: stored, not escalated, no push, no reply');
+      return;
+    }
 
     // Non-invasive nudge: "You have WhatsApp messages waiting for you"
     // (throttled to at most one per 15 min inside the helper). Fire-and-forget.

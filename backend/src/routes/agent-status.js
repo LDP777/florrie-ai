@@ -15,6 +15,8 @@
 import { Router } from 'express';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
+import { isMissingColumnError } from '../lib/junk-classifier.js';
+import logger from '../lib/logger.js';
 
 const router = Router();
 
@@ -241,24 +243,82 @@ function shortTimeAgo(date, now) {
 }
 
 /**
+ * How many people are actually waiting on a human reply right now.
+ *
+ * The old count was rows in `messages` where escalated and not resolved, with
+ * no upper bound in time. One chatty client could put five points on the
+ * badge, and nothing ever fell off, so it climbed to "99+" and stayed there.
+ * This counts distinct clients instead, drops anything the junk classifier
+ * flagged, and ignores escalations older than `sinceIso`.
+ *
+ * Fails soft to 0: a badge is never worth breaking the Hub over. Also falls
+ * back to the pre-migration shape if `is_junk` is not there yet.
+ */
+const ESCALATION_ROW_CAP = 2000;
+
+async function openEscalations(beauticianId, sinceIso) {
+  let { data, error } = await supabase
+    .from('messages')
+    .select('client_id, is_junk')
+    .eq('beautician_id', beauticianId)
+    .eq('escalated', true)
+    .eq('resolved', false)
+    .gte('created_at', sinceIso)
+    .limit(ESCALATION_ROW_CAP);
+
+  if (error && isMissingColumnError(error)) {
+    ({ data, error } = await supabase
+      .from('messages')
+      .select('client_id')
+      .eq('beautician_id', beauticianId)
+      .eq('escalated', true)
+      .eq('resolved', false)
+      .gte('created_at', sinceIso)
+      .limit(ESCALATION_ROW_CAP));
+  }
+
+  if (error) {
+    logger.warn({ err: error, beauticianId }, 'agents.counts open escalations failed');
+    return 0;
+  }
+
+  const clients = new Set();
+  for (const row of data || []) {
+    if (row.is_junk) continue;
+    if (row.client_id) clients.add(row.client_id);
+  }
+  return clients.size;
+}
+
+/**
  * GET /api/agents/counts
  * Single-call badge counter for the Hub agent grid.
  * Returns: { inbox, content, churn, bookkeeper, insights, compliance, total }
  *
- * inbox      - unresolved escalated messages (Front Desk action needed)
- * content    - draft content posts awaiting approval
+ * A badge is a promise about how much work is waiting. These counts used to
+ * accumulate for ever, so every one of them drifted past 99 and the UI just
+ * showed "99+", which told Ellie nothing at all. Anything that represents
+ * outstanding human work is now scoped to the last 30 days, because a thing
+ * she has not touched in a month is not today's work, and the inbox count is
+ * per conversation rather than per message.
+ *
+ * inbox      - distinct clients with an open escalation in the last 30 days,
+ *              junk excluded (one badge point per person who is waiting)
+ * content    - draft content posts from the last 30 days
  * churn      - clients flagged as high churn risk
  * bookkeeper - bookkeeper actions in the last 7 days (income, expenses, tax)
  * insights   - coaching actions in the last 7 days (Biz Coach activity)
- * compliance - pending patch tests + pending consultation responses
+ * compliance - pending patch tests + pending consultation responses,
+ *              last 30 days
  */
 router.get('/counts', requireAuth, async (req, res) => {
   try {
     const beauticianId = req.beautician.id;
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
     const [
-      escalationsRes,
+      inboxCount,
       contentRes,
       churnRes,
       bookkeeperRes,
@@ -267,20 +327,19 @@ router.get('/counts', requireAuth, async (req, res) => {
       consultationRes,
       outboundPendingRes,
     ] = await Promise.all([
-      // Inbox: unresolved escalated messages
-      supabase
-        .from('messages')
-        .select('id', { count: 'exact', head: true })
-        .eq('beautician_id', beauticianId)
-        .eq('escalated', true)
-        .eq('resolved', false),
+      // Inbox: open escalations, as rows rather than a head-count, because the
+      // badge is one point per waiting CLIENT and junk does not count at all.
+      // Bounded by date and by row cap so this stays a cheap badge query.
+      openEscalations(beauticianId, thirtyDaysAgo),
 
-      // Content: draft posts awaiting approval
+      // Content: draft posts awaiting approval. A draft she ignored for a
+      // month is not a pending decision, it is an abandoned idea.
       supabase
         .from('content_posts')
         .select('id', { count: 'exact', head: true })
         .eq('beautician_id', beauticianId)
-        .eq('status', 'draft'),
+        .eq('status', 'draft')
+        .gte('created_at', thirtyDaysAgo),
 
       // Churn: clients flagged high risk
       supabase
@@ -310,24 +369,27 @@ router.get('/counts', requireAuth, async (req, res) => {
         .from('patch_tests')
         .select('id', { count: 'exact', head: true })
         .eq('beautician_id', beauticianId)
-        .eq('status', 'pending'),
+        .eq('status', 'pending')
+        .gte('created_at', thirtyDaysAgo),
 
       // Compliance part 2: consultation responses awaiting signature
       supabase
         .from('consultation_responses')
         .select('id', { count: 'exact', head: true })
         .eq('beautician_id', beauticianId)
-        .eq('status', 'pending'),
+        .eq('status', 'pending')
+        .gte('created_at', thirtyDaysAgo),
 
       // Approvals: proactive messages Florrie is holding for the owner's OK
       supabase
         .from('outbound_sends')
         .select('id', { count: 'exact', head: true })
         .eq('beautician_id', beauticianId)
-        .eq('status', 'pending_approval'),
+        .eq('status', 'pending_approval')
+        .gte('created_at', thirtyDaysAgo),
     ]);
 
-    const inbox      = escalationsRes.count  ?? 0;
+    const inbox      = inboxCount;
     const content    = contentRes.count      ?? 0;
     const churn      = churnRes.count        ?? 0;
     const bookkeeper = bookkeeperRes.count   ?? 0;

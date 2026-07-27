@@ -16,8 +16,9 @@ import { bloom } from '../lib/bloom.js';
  *     emoji, so it reads as part of the app, not a chat clone.
  *   - Message TYPE awareness: a client message, a reply Florrie sent, a
  *     proactive nudge she lined up, or something she handed back to you.
- *   - A "Needs you" view that floats real, waiting conversations to the top
- *     and keeps Florrie's automated housekeeping from drowning them out.
+ *   - Segments (Needs you / Clients / New / Social) driven by the backend, so
+ *     Instagram fluff sits in its own quiet lane instead of burying the
+ *     handful of threads that actually want her.
  *
  * Two views: the thread list, and a conversation (when a client is open).
  * Mobile-first single column; from 768px the two panes sit side by side.
@@ -85,7 +86,9 @@ function clientFullName(t) {
 }
 
 function initialOf(name) {
-  return (name || 'C').trim().charAt(0).toUpperCase() || 'C';
+  // Names can arrive as a handle ("@nixiebeauty"); the @ is not an initial.
+  const clean = (name || 'C').trim().replace(/^@+/, '');
+  return clean.charAt(0).toUpperCase() || 'C';
 }
 
 // How long a needs-you thread has been waiting on her. Amber chip fuel.
@@ -199,11 +202,83 @@ function isAutomated(t) {
   return t.last_message_type === 'auto_reply' || t.last_message_type === 'proactive';
 }
 
+/**
+ * Segments. The backend labels every thread with exactly one of these on
+ * GET /api/inbox/threads, and both sides read the same answer so the list and
+ * the counts can never disagree.
+ *
+ *   needs  = a human reply is genuinely owed
+ *   client = someone she has a relationship with
+ *   new    = first contact, not a client yet
+ *   social = Instagram fluff: pitches, randoms, anything flagged junk
+ *
+ * Junk is settled before "needs" on the backend on purpose, so an unanswered
+ * cold pitch cannot walk back into the urgent lane.
+ */
+const SEGMENTS = ['needs', 'client', 'new', 'social'];
+
+// A cached response from before segments existed still has to render. This is
+// deliberately coarse: without the booking history the backend has, it cannot
+// tell a regular from a stranger, so it never guesses 'new'. Every thread
+// still lands somewhere, which is the only thing that really matters here.
+function fallbackSegment(t) {
+  if (t.is_junk) return 'social';
+  if (needsYou(t)) return 'needs';
+  if (t.last_channel === 'instagram' && isPlaceholderName(clientFullName(t))) return 'social';
+  return 'client';
+}
+
+// Never returns anything outside SEGMENTS: a value we do not recognise would
+// otherwise drop the thread out of every section and lose it silently.
+function segmentOf(t) {
+  if (SEGMENTS.includes(t.segment)) return t.segment;
+  if (t.segment) return 'client';
+  return fallbackSegment(t);
+}
+
+// Instagram contacts usually arrive with no name, so the webhook stores
+// "Instagram User". For those the @handle IS the identity, so it replaces the
+// placeholder rather than sitting next to it.
+const PLACEHOLDER_NAMES = new Set(['instagram user', 'client', 'unknown']);
+function isPlaceholderName(name) {
+  return !name || PLACEHOLDER_NAMES.has(name.trim().toLowerCase());
+}
+function handleOf(t) {
+  const h = (t.instagram_username || '').trim().replace(/^@/, '');
+  return h || null;
+}
+function displayName(t) {
+  const name = clientFullName(t);
+  const handle = handleOf(t);
+  if (handle && isPlaceholderName(name)) return `@${handle}`;
+  return name;
+}
+// The handle shown BESIDE a real name. Null when the handle is already doing
+// duty as the name, so a row never reads "@ellie @ellie".
+function secondaryHandle(t) {
+  const handle = handleOf(t);
+  if (!handle || isPlaceholderName(clientFullName(t))) return null;
+  return `@${handle}`;
+}
+
+// Chip order, left to right, and the order the All view stacks its sections:
+// urgent first, then people she knows, then strangers, then the fluff.
+const SEGMENT_TABS = [
+  { key: 'needs', label: 'Needs you' },
+  { key: 'client', label: 'Clients' },
+  { key: 'new', label: 'New' },
+  { key: 'social', label: 'Social' },
+  { key: 'all', label: 'All' },
+];
+const SECTION_TITLES = { needs: 'Needs you', client: 'Clients', new: 'New', social: 'Social' };
+
 export default function Inbox() {
   const [threads, setThreads] = useState(null);
   const [threadsError, setThreadsError] = useState(null);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState('all'); // 'all' (sectioned, default) | 'needs'
+  // 'all' shows every segment as its own section, so nothing is hidden by
+  // default. The other values narrow to one segment.
+  const [segment, setSegment] = useState('all');
   const [activeClientId, setActiveClientId] = useState(readClientFromUrl());
   const [isWide, setIsWide] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : false);
 
@@ -235,43 +310,63 @@ export default function Inbox() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const needsCount = useMemo(
-    () => (threads || []).filter(needsYou).length,
-    [threads]
-  );
-
   // Newest first within any group.
   const byRecency = (a, b) => new Date(b.last_message_at) - new Date(a.last_message_at);
 
-  // Build the section structure the list renders.
-  //   Needs-you view: one flat list of items owed a reply, newest first. No
-  //                   group headers, no redundant "Needs you" tag, the whole
-  //                   view is needs-you.
-  //   All view:       "Waiting on you" first (real client messages and
-  //                   escalations), then "Earlier" (everything Florrie has
-  //                   already handled or sent on her own), each newest first.
-  const sections = useMemo(() => {
+  // One pass: apply the search, drop each thread into its segment, sort each
+  // lane newest first. Search matches the name AND the @handle, because half
+  // of her Instagram contacts have no name to search for.
+  const grouped = useMemo(() => {
     if (!threads) return null;
-    const q = search.trim().toLowerCase();
-    const match = (t) => !q || clientFullName(t).toLowerCase().includes(q);
-
-    if (filter === 'needs') {
-      const items = threads.filter(t => needsYou(t) && match(t)).sort(byRecency);
-      return [{ key: 'needs', header: null, items, muted: false }];
+    const out = { needs: [], client: [], new: [], social: [] };
+    const q = search.trim().toLowerCase().replace(/^@/, '');
+    const match = (t) => {
+      if (!q) return true;
+      const handle = handleOf(t);
+      return clientFullName(t).toLowerCase().includes(q)
+        || (handle ? handle.toLowerCase().includes(q) : false);
+    };
+    for (const t of threads) {
+      if (!match(t)) continue;
+      out[segmentOf(t)].push(t);
     }
-
-    // Three sections by WHO HOLDS THE THREAD, so a glance answers
-    // "what needs me?": you, Florrie, or nobody.
-    const list = threads.filter(match);
-    const waiting = list.filter(needsYou).sort(byRecency);
-    const handling = list.filter(t => !needsYou(t) && isAutomated(t)).sort(byRecency);
-    const everyone = list.filter(t => !needsYou(t) && !isAutomated(t)).sort(byRecency);
-    const out = [];
-    if (waiting.length) out.push({ key: 'waiting', header: 'Needs you', items: waiting, muted: false });
-    if (handling.length) out.push({ key: 'handling', header: "Florrie's handling it", items: handling, muted: true });
-    if (everyone.length) out.push({ key: 'everyone', header: 'Everyone else', items: everyone, muted: true, collapsible: true });
+    for (const key of SEGMENTS) out[key].sort(byRecency);
     return out;
-  }, [threads, search, filter]);
+  }, [threads, search]);
+
+  // Counts come off the same buckets the list renders, and after the search,
+  // so a chip can never claim 12 while its list shows nothing.
+  const counts = useMemo(() => {
+    const base = { needs: 0, client: 0, new: 0, social: 0, all: 0 };
+    if (!grouped) return base;
+    for (const key of SEGMENTS) { base[key] = grouped[key].length; base.all += grouped[key].length; }
+    return base;
+  }, [grouped]);
+
+  // One segment selected: a flat list, no header, because the chip above it
+  // already says what she is looking at.
+  // All: every non-empty segment as its own section, in priority order. A
+  // section with nothing in it is never rendered, and Social folds away
+  // because that is the lane she should be able to ignore entirely.
+  const sections = useMemo(() => {
+    if (!grouped) return null;
+    if (segment !== 'all') {
+      const items = grouped[segment] || [];
+      if (!items.length) return [];
+      return [{ key: segment, header: null, items, muted: segment === 'social', quiet: segment === 'social' }];
+    }
+    return SEGMENTS
+      .filter(key => grouped[key].length)
+      .map(key => ({
+        key,
+        header: SECTION_TITLES[key],
+        items: grouped[key],
+        muted: key === 'social',
+        quiet: key === 'social',
+        collapsible: key === 'social',
+        quietNote: key === 'social' ? 'pitches and randoms, nothing owed' : null,
+      }));
+  }, [grouped, segment]);
 
   const visibleCount = useMemo(
     () => (sections || []).reduce((n, sec) => n + sec.items.length, 0),
@@ -317,9 +412,9 @@ export default function Inbox() {
             onOpen={openThread}
             onDelete={deleteThread}
             activeId={activeClientId}
-            filter={filter}
-            onFilter={setFilter}
-            needsCount={needsCount}
+            segment={segment}
+            onSegment={setSegment}
+            counts={counts}
             totalCount={threads?.length || 0}
           />
         </aside>
@@ -344,9 +439,9 @@ export default function Inbox() {
         onSearch={setSearch}
         onOpen={openThread}
         onDelete={deleteThread}
-        filter={filter}
-        onFilter={setFilter}
-        needsCount={needsCount}
+        segment={segment}
+        onSegment={setSegment}
+        counts={counts}
         totalCount={threads?.length || 0}
       />
     </div>
@@ -355,7 +450,12 @@ export default function Inbox() {
 
 function FilterChip({ active, onClick, label, count }) {
   return (
-    <button type="button" onClick={onClick} style={{ ...S.filterChip, ...(active ? S.filterChipActive : {}) }}>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      style={{ ...S.filterChip, ...(active ? S.filterChipActive : {}) }}
+    >
       {label}
       {count > 0 && (
         <span style={{ ...S.filterChipCount, ...(active ? S.filterChipCountActive : {}) }}>{count}</span>
@@ -364,15 +464,15 @@ function FilterChip({ active, onClick, label, count }) {
   );
 }
 
-function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, onDelete, activeId, filter, onFilter, needsCount, totalCount }) {
+function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, onDelete, activeId, segment, onSegment, counts, totalCount }) {
   const loading = sections === null;
-  // "Everyone else" starts folded to one line; searching unfolds everything.
+  // Social starts folded to one line; searching unfolds everything.
   const [expanded, setExpanded] = useState({});
   const isCollapsed = (sec) => sec.collapsible && !expanded[sec.key] && !search.trim();
   const isEmpty = !loading && visibleCount === 0;
   // In the needs-you view the whole list is needs-you, so the per-row tag is
-  // redundant. Hide it there; show the informative type label in the all view.
-  const hideTypeChip = filter === 'needs';
+  // redundant. Hide it there; show the informative type label elsewhere.
+  const hideTypeChip = segment === 'needs';
 
   return (
     <>
@@ -386,14 +486,23 @@ function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, o
           type="search"
           value={search}
           onChange={e => onSearch(e.target.value)}
-          placeholder="Search by name"
+          placeholder="Search by name or @handle"
           style={S.searchInput}
         />
       </div>
 
-      <div style={S.filterRow}>
-        <FilterChip active={filter === 'needs'} onClick={() => onFilter('needs')} label="Needs you" count={needsCount} />
-        <FilterChip active={filter === 'all'} onClick={() => onFilter('all')} label="All" count={totalCount} />
+      {/* Five chips do not fit a phone at once, so the row scrolls sideways
+          rather than wrapping into a second line that pushes the list down. */}
+      <div className="inbox-seg-row" style={S.filterRow}>
+        {SEGMENT_TABS.map(tab => (
+          <FilterChip
+            key={tab.key}
+            active={segment === tab.key}
+            onClick={() => onSegment(tab.key)}
+            label={tab.label}
+            count={counts?.[tab.key] || 0}
+          />
+        ))}
       </div>
 
       {loading && <ThreadSkeleton />}
@@ -403,9 +512,13 @@ function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, o
         </div>
       )}
       {!loading && !error && isEmpty && (
-        filter === 'needs' && totalCount > 0
-          ? <CaughtUp onShowAll={() => onFilter('all')} />
-          : <EmptyInbox />
+        search.trim()
+          ? <NoMatches onClear={() => onSearch('')} />
+          : totalCount === 0
+            ? <EmptyInbox />
+            : segment === 'needs'
+              ? <CaughtUp onShowAll={() => onSegment('all')} />
+              : <SegmentEmpty segment={segment} onShowAll={() => onSegment('all')} />
       )}
 
       {!loading && !error && !isEmpty && sections.map(sec => (
@@ -423,8 +536,8 @@ function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, o
                 <span className="material-symbols-outlined" style={S.sectionChevron} aria-hidden>
                   {isCollapsed(sec) ? 'expand_more' : 'expand_less'}
                 </span>
-                {isCollapsed(sec) && (
-                  <span style={S.sectionQuietNote}>quiet threads, all handled</span>
+                {isCollapsed(sec) && sec.quietNote && (
+                  <span style={S.sectionQuietNote}>{sec.quietNote}</span>
                 )}
               </button>
             ) : (
@@ -444,6 +557,7 @@ function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, o
                   onOpen={onOpen}
                   onDelete={onDelete}
                   muted={sec.muted}
+                  quiet={sec.quiet}
                   hideTypeChip={hideTypeChip}
                 />
               ))}
@@ -455,13 +569,20 @@ function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, o
   );
 }
 
-function ThreadRow({ thread, active, onOpen, onDelete, muted = false, hideTypeChip = false }) {
-  const name = clientFullName(thread);
+// `quiet` is the Social lane. Nothing in it may shout: no waiting chip, no
+// escalation dot, no bold unread, no maroon badge. She should be able to
+// scroll past the whole lane and lose nothing.
+function ThreadRow({ thread, active, onOpen, onDelete, muted = false, quiet = false, hideTypeChip = false }) {
+  const name = displayName(thread);
+  const handle = secondaryHandle(thread);
   const isUnread = thread.unread_count > 0;
-  const flagged = !!thread.needs_attention;
-  const owed = needsYou(thread);          // genuinely waiting on a human reply
-  const automated = isAutomated(thread);  // Florrie's own housekeeping
+  const loud = isUnread && !quiet;
+  const flagged = !quiet && !!thread.needs_attention;
+  const owed = !quiet && needsYou(thread);  // genuinely waiting on a human reply
+  const automated = isAutomated(thread);    // Florrie's own housekeeping
   const type = typeMeta(thread.last_message_type);
+  // A count in the thousands is not information, it is wallpaper. Cap it.
+  const unreadLabel = thread.unread_count > 99 ? '99+' : thread.unread_count;
 
   // What to show as the preview line.
   //  - Waiting on her: show the CLIENT's own latest words, so she sees what to
@@ -518,11 +639,16 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, hideTypeCh
 
         <span style={S.rowBody}>
           <span style={S.rowTop}>
-            <span style={{
-              ...S.rowName,
-              ...((automated || muted) && !owed ? S.rowNameMuted : {}),
-              fontWeight: owed || isUnread ? 700 : (automated || muted) ? 500 : 600,
-            }}>{name}</span>
+            <span style={S.rowNameWrap}>
+              <span style={{
+                ...S.rowName,
+                ...((automated || muted) && !owed ? S.rowNameMuted : {}),
+                fontWeight: owed || loud ? 700 : (automated || muted) ? 500 : 600,
+              }}>{name}</span>
+              {/* The handle is how she recognises an Instagram contact, so it
+                  rides beside the name rather than hiding on the profile. */}
+              {handle && <span style={S.rowHandle}>{handle}</span>}
+            </span>
             <span style={{ ...S.rowTime, ...((automated || muted) && !owed ? S.rowTimeMuted : {}) }}>
               {formatTimeShort(thread.last_message_at)}
             </span>
@@ -532,12 +658,14 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, hideTypeCh
             <span style={{
               ...S.rowPreview,
               ...((automated || muted) && !owed ? S.rowPreviewMuted : {}),
-              color: isUnread ? 'var(--text-primary, #1d1b19)' : 'var(--text-muted, #9B8A8E)',
-              fontWeight: isUnread ? 600 : 400,
+              color: loud ? 'var(--text-primary, #1d1b19)' : 'var(--text-muted, #9B8A8E)',
+              fontWeight: loud ? 600 : 400,
             }}>
               {previewPrefix}{previewText}
             </span>
-            {isUnread && <span style={S.rowBadge}>{thread.unread_count}</span>}
+            {isUnread && (
+              <span style={quiet ? S.rowBadgeQuiet : S.rowBadge}>{unreadLabel}</span>
+            )}
           </span>
 
           {/* Owed rows: an amber waiting-time chip, plus a petal line when
@@ -549,7 +677,7 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, hideTypeCh
               {flagged && <span style={S.petalNote}>{'\u{1F337}'} needs your yes or no</span>}
             </span>
           )}
-          {!hideTypeChip && !owed && (
+          {!hideTypeChip && !owed && !quiet && (
             <span style={S.rowMetaRow}>
               <span style={S.typeChip}>
                 <span style={{ ...S.typeDot, background: type.dot }} aria-hidden />
@@ -623,6 +751,35 @@ function CaughtUp({ onShowAll }) {
       <span className="material-symbols-outlined" style={S.emptyIcon}>task_alt</span>
       <p style={S.emptyText}>You're all caught up. Nothing is waiting on a reply.</p>
       <button type="button" onClick={onShowAll} style={S.caughtUpBtn}>See all conversations</button>
+    </div>
+  );
+}
+
+// Per-segment empty states, so an empty lane reads as "nothing here" rather
+// than "the inbox is broken".
+const SEGMENT_EMPTY = {
+  client: { icon: 'group', text: 'No client conversations here. Anyone you have booked in shows up in this lane.' },
+  new: { icon: 'waving_hand', text: 'No new enquiries right now. First-time messages land here.' },
+  social: { icon: 'photo_camera', text: 'Nothing parked here. Florrie keeps pitches and randoms out of your way.' },
+};
+
+function SegmentEmpty({ segment, onShowAll }) {
+  const copy = SEGMENT_EMPTY[segment] || { icon: 'forum', text: 'Nothing in this lane.' };
+  return (
+    <div style={S.empty}>
+      <span className="material-symbols-outlined" style={S.emptyIcon}>{copy.icon}</span>
+      <p style={S.emptyText}>{copy.text}</p>
+      <button type="button" onClick={onShowAll} style={S.caughtUpBtn}>See all conversations</button>
+    </div>
+  );
+}
+
+function NoMatches({ onClear }) {
+  return (
+    <div style={S.empty}>
+      <span className="material-symbols-outlined" style={S.emptyIcon}>search_off</span>
+      <p style={S.emptyText}>Nobody by that name or handle. Try a shorter search.</p>
+      <button type="button" onClick={onClear} style={S.caughtUpBtn}>Clear search</button>
     </div>
   );
 }
@@ -770,7 +927,12 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
   }
 
   const { client, messages = [], meta = null, drafts = [] } = state;
-  const fullName = [client?.first_name, client?.last_name].filter(Boolean).join(' ') || 'Client';
+  const storedName = [client?.first_name, client?.last_name].filter(Boolean).join(' ');
+  const igHandle = (client?.instagram_username || '').trim().replace(/^@/, '') || null;
+  // Same rule as the list: when all we have is "Instagram User", the handle is
+  // the only identity she can recognise, so it becomes the title.
+  const fullName = igHandle && isPlaceholderName(storedName) ? `@${igHandle}` : (storedName || 'Client');
+  const headerHandle = igHandle && !isPlaceholderName(storedName) ? `@${igHandle}` : null;
 
   // Fold runs of consecutive Florrie-sent messages (2+) behind a quiet
   // divider, so stretches she handled alone read as one line, not noise.
@@ -813,6 +975,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
         onBack={onBack}
         embedded={embedded}
         clientName={fullName}
+        handle={headerHandle}
         navigate={navigate}
         clientId={client?.id}
         channel={channel}
@@ -1018,8 +1181,11 @@ function nextApptLabel(iso) {
   return `${wd}, ${iso.slice(11, 16)}`;
 }
 
-function ConvoHeader({ onBack, embedded, clientName, navigate, clientId, channel = null, meta = null, initialAutonomy = null }) {
+function ConvoHeader({ onBack, embedded, clientName, navigate, clientId, channel = null, meta = null, initialAutonomy = null, handle = null }) {
   const metaBits = [];
+  // The handle leads the meta line, directly under the name, so she can place
+  // an Instagram contact without opening their profile.
+  if (handle) metaBits.push(handle);
   if (meta) {
     if (meta.visits >= 3) metaBits.push('Regular');
     metaBits.push(`${meta.visits} visit${meta.visits === 1 ? '' : 's'}`);
@@ -1273,10 +1439,14 @@ const S = {
     transition: 'border-color 0.15s ease, background 0.15s ease',
   },
 
-  filterRow: { display: 'flex', gap: 8, marginBottom: 4, padding: '0 18px' },
+  filterRow: {
+    display: 'flex', gap: 8, marginBottom: 4, padding: '0 18px',
+    flexWrap: 'nowrap', overflowX: 'auto', WebkitOverflowScrolling: 'touch',
+    scrollbarWidth: 'none',
+  },
   filterChip: {
-    display: 'inline-flex', alignItems: 'center', gap: 6,
-    padding: '8px 16px', minHeight: 44, borderRadius: 999,
+    display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap',
+    padding: '8px 14px', minHeight: 44, borderRadius: 999,
     border: 'none',
     background: 'var(--tone-2, #f6e7dd)', color: 'var(--text-secondary, #867277)',
     fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
@@ -1454,6 +1624,13 @@ const S = {
   },
   rowBody: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 },
   rowTop: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
+  // Name and handle share one line. The name gives up space first, so a long
+  // real name truncates before the handle disappears entirely.
+  rowNameWrap: { display: 'flex', alignItems: 'baseline', gap: 5, minWidth: 0, overflow: 'hidden' },
+  rowHandle: {
+    fontSize: 11.5, color: 'var(--text-muted, #9B8A8E)', fontWeight: 500, flexShrink: 0,
+    maxWidth: '46%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+  },
   rowName: { fontSize: 15, color: 'var(--text-primary, #1d1b19)', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 },
   rowTime: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)', flexShrink: 0, fontWeight: 500, letterSpacing: '0.01em' },
   rowBottom: { display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 },
@@ -1469,6 +1646,13 @@ const S = {
     fontSize: 10.5, fontWeight: 700, color: '#fff', background: 'var(--accent, #92405e)',
     padding: '1px 7px', borderRadius: 20, minWidth: 17, textAlign: 'center', flexShrink: 0,
     lineHeight: 1.5, boxShadow: '0 1px 2px rgba(146,64,94,0.22)',
+  },
+  // Social lane: still countable, never urgent. No accent, no shadow.
+  rowBadgeQuiet: {
+    fontSize: 10.5, fontWeight: 600, color: 'var(--text-muted, #9a8f93)',
+    background: 'rgba(146,64,94,0.06)',
+    padding: '1px 7px', borderRadius: 20, minWidth: 17, textAlign: 'center', flexShrink: 0,
+    lineHeight: 1.5,
   },
   rowMetaRow: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 1 },
   typeChip: {
@@ -1603,6 +1787,7 @@ if (typeof document !== 'undefined' && !document.getElementById('inbox-bold-css'
   const s = document.createElement('style');
   s.id = 'inbox-bold-css';
   s.textContent = `
+    .inbox-seg-row::-webkit-scrollbar { display: none; }
     .inbox-row-li { border-bottom: 1px solid rgba(146,64,94,0.07); }
     .inbox-row-li:last-child { border-bottom: none; }
     .inbox-row:hover { background: rgba(146,64,94,0.045) !important; }

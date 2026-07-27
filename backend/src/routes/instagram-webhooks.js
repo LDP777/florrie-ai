@@ -20,6 +20,7 @@ import crypto from 'crypto';
 import { supabase } from '../config.js';
 import { processInboundMessage } from '../services/ai-front-desk.js';
 import { pushMessagesWaiting } from '../services/push-notifications.js';
+import { classifyInboundMessage, looksLikeKnownClient } from '../lib/junk-classifier.js';
 import logger from '../lib/logger.js';
 
 const router = Router();
@@ -223,6 +224,43 @@ async function sendInstagramReply(recipientId, text, token) {
 const PLACEHOLDER_NAME = 'Instagram User';
 
 /**
+ * Write the @handle onto the client record.
+ *
+ * Deliberately separate from the insert/update that creates the client: the
+ * column arrives in migration 016, which is applied by hand, and a client
+ * record failing to save because of a missing column would lose the DM
+ * entirely. Best effort, logged, never thrown.
+ */
+async function saveInstagramUsername(clientId, username) {
+  if (!clientId || !username) return;
+  const { error } = await supabase
+    .from('clients')
+    .update({ instagram_username: username })
+    .eq('id', clientId);
+  if (error) {
+    logger.warn({ err: error, clientId }, 'Could not save instagram_username (migration 016 applied?)');
+  }
+}
+
+/**
+ * Mark a stored message as junk.
+ *
+ * Same reasoning as saveInstagramUsername: the flag is a nice-to-have on the
+ * row, and the suppression decisions below are already made in memory, so a
+ * failed write costs us a label rather than a message.
+ */
+async function flagMessageAsJunk(messageId, reason) {
+  if (!messageId) return;
+  const { error } = await supabase
+    .from('messages')
+    .update({ is_junk: true, junk_reason: reason })
+    .eq('id', messageId);
+  if (error) {
+    logger.warn({ err: error, messageId }, 'Could not set messages.is_junk (migration 016 applied?)');
+  }
+}
+
+/**
  * Find or create client, store message, and pass to AI Front Desk.
  */
 async function processInstagramDM(beautician, senderId, messageText, messageId) {
@@ -238,7 +276,7 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
 
   if (!client) {
     // Try to get profile info from Instagram
-    const name = await fetchInstagramProfile(senderId, beautician.instagram_page_token);
+    const { name, username } = await fetchInstagramIdentity(senderId, beautician.instagram_page_token);
 
     // Create new client
     const { data: newClient } = await supabase
@@ -255,13 +293,20 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
 
     client = newClient;
     if (newClient) {
-      logger.info({ beauticianId: beautician.id, instagramId: senderId, named: !!name }, 'Created new client from Instagram DM');
+      await saveInstagramUsername(newClient.id, username);
+      if (username) client = { ...newClient, instagram_username: username };
+      logger.info({ beauticianId: beautician.id, instagramId: senderId, named: !!name, handled: !!username }, 'Created new client from Instagram DM');
     }
-  } else if (client.first_name === PLACEHOLDER_NAME) {
+  } else if (client.first_name === PLACEHOLDER_NAME || client.instagram_username === null) {
     // Self-heal. Everyone who DM'd before the lookup worked is stuck as
-    // "Instagram User"; retry on their next message and keep the real name.
-    const name = await fetchInstagramProfile(senderId, beautician.instagram_page_token);
-    if (name && name !== PLACEHOLDER_NAME) {
+    // "Instagram User" with no handle; retry on their next message and keep
+    // whatever Instagram gives us. While her token is expired this is a no-op.
+    //
+    // `instagram_username === null` means the column is there and empty, so it
+    // is worth asking again. `undefined` means migration 016 has not landed,
+    // and chasing a handle we cannot store would burn a Graph call per DM.
+    const { name, username } = await fetchInstagramIdentity(senderId, beautician.instagram_page_token);
+    if (name && name !== PLACEHOLDER_NAME && client.first_name === PLACEHOLDER_NAME) {
       const { data: renamed } = await supabase
         .from('clients')
         .update({ first_name: name })
@@ -273,7 +318,20 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
         logger.info({ clientId: client.id, instagramId: senderId }, 'Backfilled Instagram client name');
       }
     }
+    if (username && client.instagram_username === null) {
+      await saveInstagramUsername(client.id, username);
+      client = { ...client, instagram_username: username };
+    }
   }
+
+  // Is this a client, or is it outreach? A cold pitch, a follower seller or a
+  // wingman message gets stored and stays findable, but it must not escalate,
+  // must not buzz her phone, and must not spend one of her monthly messages on
+  // an auto-reply. The classifier is heavily biased towards letting real
+  // clients through, and anyone she already deals with is exempt outright.
+  const junk = classifyInboundMessage(messageText, {
+    isKnownClient: looksLikeKnownClient(client, { channel: 'instagram' }),
+  });
 
   // Store the inbound message
   const { data: storedMessage } = await supabase
@@ -290,6 +348,12 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
     })
     .select()
     .single();
+
+  if (junk.isJunk) {
+    await flagMessageAsJunk(storedMessage?.id, junk.reason);
+    logger.info({ beauticianId: beautician.id, senderId, reason: junk.reason, signals: junk.signals }, 'Instagram DM classified as junk: stored, not escalated, no push, no reply');
+    return;
+  }
 
   // Non-invasive nudge: "You have Instagram messages waiting for you"
   // (throttled to at most one per 15 min inside the helper). Fire-and-forget.
@@ -366,22 +430,26 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
 }
 
 /**
- * Fetch an Instagram sender's profile name via the Instagram Graph API,
- * using the beautician's own long-lived Instagram token.
- */
-/**
- * Ask Instagram who this sender actually is. Returns a display name, or null.
+ * Ask Instagram who this sender actually is.
+ * Returns { name, username }, either of which may be null.
  *
  * This was failing silently for every DM (every client landed as "Instagram
  * User"), because a non-ok response was swallowed with no log. It now logs the
- * Graph error so we can see WHY, and falls back to @username when Instagram
- * gives us a handle but no display name.
+ * Graph error so we can see WHY.
+ *
+ * The username is what Ellie recognises people by, so it is returned in its
+ * own right rather than being melted into the display name. Note that as of
+ * 2026-06-21 her token is expired, so every one of these calls comes back as
+ * an OAuthException. That is survivable by design: callers treat a null
+ * identity as "not known yet" and try again on the next message or on the
+ * nightly backfill, so this starts working the moment she reconnects.
  */
-export async function fetchInstagramProfile(userId, token) {
+export async function fetchInstagramIdentity(userId, token) {
+  const empty = { name: null, username: null };
   const igToken = token || process.env.INSTAGRAM_PAGE_TOKEN;
   if (!igToken) {
     logger.warn({ userId }, 'IG profile lookup skipped: no page token');
-    return null;
+    return empty;
   }
 
   // Try richest -> simplest. Requesting `username` for a sender on a personal
@@ -402,15 +470,22 @@ export async function fetchInstagramProfile(userId, token) {
         lastErr = data?.error || { status: res.status };
         continue; // drop a field and retry
       }
-      const name = data.name || (data.username ? `@${data.username}` : null);
-      if (name) return name;
+      const username = normaliseHandle(data.username);
+      const name = data.name || (username ? `@${username}` : null);
+      if (name || username) return { name, username };
       lastErr = { reason: 'no name/username in response', data };
     } catch (err) {
       lastErr = { message: String(err) };
     }
   }
   logger.warn({ userId, lastErr }, 'IG profile lookup failed after all field attempts');
-  return null;
+  return empty;
+}
+
+/** Store handles bare, with no leading @, so lookups and display agree. */
+function normaliseHandle(raw) {
+  const h = String(raw || '').trim().replace(/^@+/, '');
+  return h || null;
 }
 
 export default router;

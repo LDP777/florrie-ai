@@ -11,7 +11,7 @@
  */
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
-import { fetchInstagramProfile } from '../routes/instagram-webhooks.js';
+import { fetchInstagramIdentity } from '../routes/instagram-webhooks.js';
 
 export async function refreshInstagramTokens() {
   const { data: rows, error } = await supabase
@@ -58,41 +58,77 @@ export async function refreshInstagramTokens() {
   }
 
   // While we have each beautician's fresh token, fix any client still stuck on
-  // the "Instagram User" placeholder (their name lookup failed when they first
-  // messaged). Cheap, self-correcting, no manual DB work.
+  // the "Instagram User" placeholder, and pick up the @handles we never had a
+  // working token to fetch. Cheap, self-correcting, no manual DB work.
   await backfillInstagramNames(rows || []);
 
   return { refreshed, failed, total: (rows || []).length };
 }
 
 /**
- * Re-resolve real names for IG clients still named "Instagram User".
- * Runs daily off the token-refresh job. Fail-soft, capped per run.
+ * Re-resolve identities for Instagram clients we could not name at the time.
+ *
+ * Two gaps get filled: clients still called "Instagram User" (their lookup
+ * failed when they first messaged) and clients with no @handle on file (the
+ * handle was only ever used as a fallback display name and then discarded).
+ *
+ * Runs daily off the token-refresh job. Fail-soft, capped per run. While a
+ * beautician's token is expired every lookup returns nothing and this loop
+ * quietly does nothing, then starts working on the first run after she
+ * reconnects. That is the whole design: no manual catch-up step.
  */
 export async function backfillInstagramNames(beauticians) {
   let fixed = 0;
+  let handled = 0;
   for (const b of beauticians) {
     if (!b.instagram_page_token) continue;
-    const { data: stuck } = await supabase
+
+    // Anyone missing a real name OR missing a handle, in one query. If
+    // migration 016 has not been applied the username half is not there yet,
+    // so fall back to the original name-only sweep rather than stopping.
+    let { data: stuck, error } = await supabase
       .from('clients')
-      .select('id, instagram_id')
+      .select('id, instagram_id, first_name, instagram_username')
       .eq('beautician_id', b.id)
-      .eq('first_name', 'Instagram User')
       .not('instagram_id', 'is', null)
+      .or('first_name.eq."Instagram User",instagram_username.is.null')
       .limit(50);
+
+    if (error) {
+      logger.warn({ err: error, beauticianId: b.id }, 'IG backfill: falling back to names only (migration 016 applied?)');
+      ({ data: stuck, error } = await supabase
+        .from('clients')
+        .select('id, instagram_id, first_name')
+        .eq('beautician_id', b.id)
+        .eq('first_name', 'Instagram User')
+        .not('instagram_id', 'is', null)
+        .limit(50));
+    }
+    if (error) {
+      logger.warn({ err: error, beauticianId: b.id }, 'IG backfill: client query failed');
+      continue;
+    }
 
     for (const c of stuck || []) {
       try {
-        const name = await fetchInstagramProfile(c.instagram_id, b.instagram_page_token);
-        if (name && name !== 'Instagram User') {
-          await supabase.from('clients').update({ first_name: name }).eq('id', c.id);
-          fixed++;
+        const { name, username } = await fetchInstagramIdentity(c.instagram_id, b.instagram_page_token);
+        const patch = {};
+        if (name && name !== 'Instagram User' && c.first_name === 'Instagram User') patch.first_name = name;
+        if (username && !c.instagram_username) patch.instagram_username = username;
+        if (!Object.keys(patch).length) continue;
+
+        const { error: upErr } = await supabase.from('clients').update(patch).eq('id', c.id);
+        if (upErr) {
+          logger.warn({ err: upErr, clientId: c.id }, 'IG backfill: update failed');
+          continue;
         }
+        if (patch.first_name) fixed++;
+        if (patch.instagram_username) handled++;
       } catch (err) {
-        logger.warn({ err, clientId: c.id }, 'IG name backfill: one client failed');
+        logger.warn({ err, clientId: c.id }, 'IG backfill: one client failed');
       }
     }
   }
-  if (fixed) logger.info({ fixed }, 'IG name backfill: renamed placeholder clients');
-  return { fixed };
+  if (fixed || handled) logger.info({ fixed, handled }, 'IG backfill: filled in names and handles');
+  return { fixed, handled };
 }
