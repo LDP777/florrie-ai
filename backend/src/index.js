@@ -29,6 +29,7 @@ import { locationScope } from './middleware/location.js';
 import { processReminders } from './services/notifications.js';
 import { cleanupStaleBookings } from './services/cleanup.js';
 import { refreshInstagramTokens } from './services/instagram-token-refresh.js';
+import { expireStaleOutboundSends } from './services/outbound-expiry.js';
 import { runMoneyMoments } from './services/money-moments.js';
 import { runWeekInReview } from './services/week-in-review.js';
 import { publishScheduledPosts } from './services/content-scheduler.js';
@@ -342,6 +343,15 @@ app.listen(PORT, () => {
   }, IG_TOKEN_INTERVAL);
   // Also run shortly after boot so a long-crashed deploy can't drift to expiry.
   setTimeout(() => refreshInstagramTokens().catch(() => {}), 60 * 1000);
+
+  // Expire proactive messages nobody ever answered. A gap-fill offer or rebook
+  // nudge is about a specific slot, so once the week has gone it is litter in
+  // her approvals queue rather than a decision she still owes.
+  const OUTBOUND_EXPIRY_INTERVAL = 6 * 60 * 60 * 1000;
+  setInterval(() => {
+    expireStaleOutboundSends().catch(err => logger.error({ err }, 'Outbound expiry: failed'));
+  }, OUTBOUND_EXPIRY_INTERVAL);
+  setTimeout(() => expireStaleOutboundSends().catch(() => {}), 90 * 1000);
 
   // Scheduled content posts — publish anything whose time has arrived.
   const CONTENT_SCHED_INTERVAL = 5 * 60 * 1000;

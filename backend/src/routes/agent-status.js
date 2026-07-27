@@ -256,6 +256,69 @@ function shortTimeAgo(date, now) {
  */
 const ESCALATION_ROW_CAP = 2000;
 
+/**
+ * How many clients are drifting away.
+ *
+ * This badge queried `clients.churn_risk`, a column that DOES NOT EXIST. The
+ * error was discarded, so the badge silently read 0 and had never once worked.
+ * The scoring logic did exist, in services/client-intelligence.js, but it wrote
+ * to `client_intelligence`, which has zero rows for Ellie, so even fixing the
+ * column would have shown nothing.
+ *
+ * So work it out from the diary instead. No new column, no refresh job to fall
+ * behind, and it cannot go stale because it is computed per request.
+ *
+ * At risk = someone with an established rhythm (2+ completed visits) who is now
+ * more than TWICE their usual gap overdue AND has nothing in the book. The
+ * "nothing booked" part matters: a regular who is already rebooked is not
+ * drifting, however long the gap looks.
+ */
+const CHURN_OVERDUE_MULTIPLIER = 2;
+async function churnRiskCount(beauticianId) {
+  try {
+    const { data: appts, error } = await supabase
+      .from('appointments')
+      .select('client_id, starts_at, status')
+      .eq('beautician_id', beauticianId)
+      .not('client_id', 'is', null)
+      .order('starts_at', { ascending: true })
+      .limit(5000);
+    if (error) {
+      logger.warn({ err: error, beauticianId }, 'agents.counts churn query failed');
+      return 0;
+    }
+
+    const now = Date.now();
+    const byClient = new Map();
+    for (const a of appts || []) {
+      let c = byClient.get(a.client_id);
+      if (!c) { c = { past: [], hasUpcoming: false }; byClient.set(a.client_id, c); }
+      const t = new Date(`${String(a.starts_at).slice(0, 19)}Z`).getTime();
+      if (Number.isNaN(t)) continue;
+      // Anything still to come, and not cancelled, means they are not drifting.
+      if (t > now) {
+        if (!['cancelled', 'cancelled_by_client', 'cancelled_by_beautician', 'no_show'].includes(a.status)) c.hasUpcoming = true;
+      } else if (a.status === 'completed') {
+        c.past.push(t);
+      }
+    }
+
+    let atRisk = 0;
+    for (const c of byClient.values()) {
+      if (c.hasUpcoming || c.past.length < 2) continue;
+      const gaps = [];
+      for (let i = 1; i < c.past.length; i++) gaps.push(c.past[i] - c.past[i - 1]);
+      const avgGap = gaps.reduce((x, y) => x + y, 0) / gaps.length;
+      if (!avgGap) continue;
+      if (now - c.past[c.past.length - 1] > avgGap * CHURN_OVERDUE_MULTIPLIER) atRisk += 1;
+    }
+    return atRisk;
+  } catch (err) {
+    logger.warn({ err, beauticianId }, 'agents.counts churn failed');
+    return 0;
+  }
+}
+
 async function openEscalations(beauticianId, sinceIso) {
   let { data, error } = await supabase
     .from('messages')
@@ -341,12 +404,8 @@ router.get('/counts', requireAuth, async (req, res) => {
         .eq('status', 'draft')
         .gte('created_at', thirtyDaysAgo),
 
-      // Churn: clients flagged high risk
-      supabase
-        .from('clients')
-        .select('id', { count: 'exact', head: true })
-        .eq('beautician_id', beauticianId)
-        .eq('churn_risk', 'high'),
+      // Churn: worked out from the diary, live.
+      churnRiskCount(beauticianId),
 
       // Bookkeeper: income, expense, tax actions in last 7 days
       supabase
@@ -380,18 +439,24 @@ router.get('/counts', requireAuth, async (req, res) => {
         .eq('status', 'pending')
         .gte('created_at', thirtyDaysAgo),
 
-      // Approvals: proactive messages Florrie is holding for the owner's OK
+      // Approvals: proactive messages Florrie is holding for the owner's OK.
+      // Bounded to SEVEN days, not thirty. These are time-sensitive by nature:
+      // a rebook nudge or a gap-fill offer is about a specific slot, so once
+      // that week has gone the message is not a pending decision, it is
+      // litter. Ellie has 103 of these, the oldest 15 days old, which is why
+      // the badge read 99+ and she stopped looking at it. The expiry sweep in
+      // services/outbound-expiry.js clears them out for real.
       supabase
         .from('outbound_sends')
         .select('id', { count: 'exact', head: true })
         .eq('beautician_id', beauticianId)
         .eq('status', 'pending_approval')
-        .gte('created_at', thirtyDaysAgo),
+        .gte('created_at', sevenDaysAgo),
     ]);
 
     const inbox      = inboxCount;
     const content    = contentRes.count      ?? 0;
-    const churn      = churnRes.count        ?? 0;
+    const churn      = churnRes;
     const bookkeeper = bookkeeperRes.count   ?? 0;
     const insights   = insightsRes.count     ?? 0;
     const compliance = (patchTestsRes.count ?? 0) + (consultationRes.count ?? 0);
