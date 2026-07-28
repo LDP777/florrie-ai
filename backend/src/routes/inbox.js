@@ -159,6 +159,7 @@ const THREAD_BASE_COLUMNS = `
         read_at,
         ai_handled,
         escalated,
+        ai_response,
         digital_employee,
         ai_intent,
         clients ( id, first_name, last_name, phone, email, whatsapp_id, instagram_id )`;
@@ -207,6 +208,7 @@ router.get('/threads', requireAuth, async (req, res) => {
         read_at,
         ai_handled,
         escalated,
+        ai_response,
         digital_employee,
         ai_intent,
         is_junk,
@@ -281,6 +283,13 @@ router.get('/threads', requireAuth, async (req, res) => {
             // last. Filled from the newest inbound row with usable text.
             last_inbound_preview: null,
             last_inbound_at: null,
+            // Florrie's suggested reply for the newest inbound she escalated.
+            // Carried on the thread so the messages page can show the answer
+            // and send it WITHOUT Ellie opening the conversation. That one
+            // change is what turns the page from a list into something she can
+            // clear between clients.
+            draft_reply: null,
+            draft_message_id: null,
             // The @handle, so she recognises an Instagram thread by the name
             // she actually knows. Null on every other channel, and null on
             // Instagram until her token is reconnected.
@@ -351,6 +360,13 @@ router.get('/threads', requireAuth, async (req, res) => {
       }
       if (row.escalated && !row.resolved) {
         bucket.needs_attention = true;
+        // Rows arrive newest-first, so the FIRST unresolved escalation we meet
+        // is the live one. Its draft is what the card offers her to send, so
+        // she can answer without opening the conversation at all.
+        if (!bucket.draft_reply && row.ai_response) {
+          bucket.draft_reply = row.ai_response;
+          bucket.draft_message_id = row.id;
+        }
       }
     }
 
@@ -380,6 +396,11 @@ router.get('/threads', requireAuth, async (req, res) => {
         || Array.from(t.client_ids).some((id) => everBooked.has(id));
 
       t.is_junk = isJunk;
+      // Surfaced so the card can say "Regular" or "New" from evidence rather
+      // than guessing off whether a name happens to be on file. A one-time
+      // named client is NOT a regular, and a webhook stranger with a real
+      // profile name is not a returning one.
+      t.is_known_client = isKnownClient;
       t.segment = segmentOf(t, {
         isJunk,
         isKnownClient,

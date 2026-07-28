@@ -53,6 +53,72 @@ const AUTONOMOUS_INTENTS = [
   INTENTS.REVIEW_THANKS
 ];
 
+/**
+ * Does this message actually leave a question hanging?
+ *
+ * THE NOISE PROBLEM. Florrie escalates every message from a known client so
+ * Ellie can approve the reply. Sound in principle, ruinous in practice: a
+ * regular saying "thanks, loved it!" or "see you Tuesday" became a badge point
+ * identical to "can I move to Saturday?". 144 escalations across 69 clients,
+ * so the badge read 99+ and stopped meaning anything.
+ *
+ * The mistake was asking "can Florrie write a reply to this?" (she can write a
+ * reply to anything) instead of "is a reply OWED?". A message that closes a
+ * loop needs no answer from anyone. Florrie should read it, log it, and leave
+ * Ellie alone.
+ *
+ * Conservative on purpose: anything with a question mark, or any intent that
+ * could be someone waiting, counts as owed. Staying quiet about a real question
+ * is far worse than one unnecessary badge point.
+ */
+const NO_REPLY_OWED_INTENTS = [
+  INTENTS.REVIEW_THANKS,
+  INTENTS.GREETING,
+];
+
+// Short closers that end a conversation. Deliberately tight: whole-message
+// matches only, so "thanks, but can you do Saturday?" is never caught.
+// Real sign-offs are usually a STRING of these, not one: "thanks lovely, see
+// you then x". So match a run of closing tokens rather than a single one.
+// Longest alternatives first, otherwise "see you" consumes "see you then".
+const CLOSING_TOKEN = '(?:see you soon|see you then|sounds good|no worries|no problem|thank you|goodbye|see you|will do|got it|understood|perfect|brilliant|amazing|cheers|lovely|thanks|thank|great|night|sure|deal|okay|yeah|yep|cool|fab|thx|bye|xxx|ta|np|ok|yes|ye|xx|kk|no|k|x)';
+const CLOSING_PHRASES = new RegExp(`^${CLOSING_TOKEN}(?:[\\s,.!]+${CLOSING_TOKEN})*[\\s.!,]*$`, 'i');
+
+const EMOJI_ONLY = /^[\p{Extended_Pictographic}\p{Emoji_Component}\s]+$/u;
+
+export function replyIsOwed(messageContent, classification) {
+  const text = String(messageContent || '').trim();
+
+  // A question mark is the clearest signal someone is waiting. Always owed,
+  // whatever the classifier thinks the intent is.
+  if (text.includes('?')) return true;
+
+  const intent = classification?.intent;
+
+  // Money, diary and unhappiness are owed even when phrased as a bare
+  // acknowledgement, because a one-word "yes" can BE the answer to something
+  // Florrie asked ("shall I cancel it?"). These outrank the closing-phrase
+  // test deliberately: going quiet on a real cancellation is the one mistake
+  // worth being noisy to avoid.
+  if ([INTENTS.COMPLAINT, INTENTS.CANCELLATION, INTENTS.RESCHEDULE,
+       INTENTS.BOOKING_REQUEST].includes(intent)) return true;
+
+  // Everything below is the noise fix. The classifier readily labels chit-chat
+  // as general_question, so the wording gets the final say: "ok" and "thanks
+  // lovely, see you then x" close a conversation whatever the intent says.
+  if (EMOJI_ONLY.test(text)) return false;
+  if (CLOSING_PHRASES.test(text)) return false;
+
+  if ([INTENTS.AVAILABILITY_CHECK, INTENTS.PRICE_ENQUIRY,
+       INTENTS.GENERAL_QUESTION].includes(intent)) return true;
+
+  if (NO_REPLY_OWED_INTENTS.includes(intent) && text.length < 120) return false;
+
+  // Unknown intent with real content: she should see it. Better a wasted glance
+  // than a client left hanging.
+  return true;
+}
+
 // Intents that always escalate (human judgment needed)
 const ALWAYS_ESCALATE = [
   INTENTS.COMPLAINT,
@@ -153,6 +219,22 @@ export async function processInboundMessage(messageId, beautician, client, messa
 
       logger.info({ handled: sent, drafted: !sent, intent: classification.intent }, sent ? 'AI Front Desk sent reply' : 'AI Front Desk drafted reply for one-tap send');
       return { handled: sent, drafted: !sent, intent: classification.intent, response: result.response };
+
+    } else if (!replyIsOwed(messageContent, classification)) {
+      // 4c. Nothing is owed. She said thanks, or see you Tuesday, or sent a
+      // heart. Florrie reads it, records what it was, and stays quiet. No
+      // escalation, no badge, no draft for Ellie to approve. This is the single
+      // biggest source of the 99+, and the cheapest thing to stop doing.
+      await supabase.from('messages').update({
+        ai_handled: false,
+        ai_confidence: classification.confidence,
+        ai_intent: classification.intent,
+        escalated: false,
+        digital_employee: 'front_desk',
+      }).eq('id', messageId);
+
+      logger.info({ intent: classification.intent }, 'AI Front Desk: no reply owed, staying quiet');
+      return { handled: false, drafted: false, quiet: true, intent: classification.intent };
 
     } else {
       // 4b. Escalate — still generate a suggested response
