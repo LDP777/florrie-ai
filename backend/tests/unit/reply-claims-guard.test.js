@@ -87,3 +87,49 @@ describe('timesMentionedIn', () => {
     expect(timesMentionedIn('10am')).toEqual(['10:00']);
   });
 });
+
+/**
+ * Found by running the real incident message through the guard rather than
+ * assuming it held. Two leaks, both silent:
+ *   - "half four" was DETECTED as a time token but normaliseTime returned null,
+ *     so it was dropped from the list and never checked.
+ *   - "Appointment moved!" did not match, because the claim pattern demanded
+ *     "has been moved". A full stop is still a promise.
+ */
+describe('the leaks the first version missed', () => {
+  it('blocks spoken times, not just digits', () => {
+    expect(checkReplyClaims("That's fine hun, half four Thursday. Appointment moved!").ok).toBe(false);
+    expect(checkReplyClaims('quarter past two suits me', { allowedTimes: ['16:30'] }).ok).toBe(false);
+  });
+
+  it('normalises spoken times so a genuinely free one is still allowed', () => {
+    expect(checkReplyClaims('half four?', { allowedTimes: ['16:30'] }).ok).toBe(true);
+    expect(checkReplyClaims('quarter past two?', { allowedTimes: ['14:15'] }).ok).toBe(true);
+    // Quarter TO five is the hour before.
+    expect(checkReplyClaims('quarter to five?', { allowedTimes: ['16:45'] }).ok).toBe(true);
+  });
+
+  it('does not let a price or a duration read as a clock time', () => {
+    // Tightening the guard introduced this: 35.50 matched the digit pattern.
+    expect(checkReplyClaims('It is £35.50 and lasts 90 minutes').ok).toBe(true);
+    expect(checkReplyClaims('That one is £42.00 hun').ok).toBe(true);
+  });
+
+  it('blocks bare past-tense claims with no subject', () => {
+    for (const claim of ['Appointment moved!', 'Booking changed', 'All done. Moved!', "changed it for you"]) {
+      expect(checkReplyClaims(claim, { allowedTimes: [] }).ok, claim).toBe(false);
+    }
+  });
+
+  it('still lets ordinary replies through', () => {
+    // Over-blocking would make Florrie useless, which is its own failure.
+    for (const fine of [
+      'Half price on your next one lovely',
+      'You have 3 loyalty points, one more and your next infill is half price!',
+      'Your usual is £35 and takes about an hour hun',
+      'I will check my book and come straight back to you',
+    ]) {
+      expect(checkReplyClaims(fine, { allowedTimes: ['16:30'] }).ok, fine).toBe(true);
+    }
+  });
+});

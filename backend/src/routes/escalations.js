@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { safeReply } from '../lib/reply-claims-guard.js';
+import { getFreeSlots } from '../lib/free-slots.js';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { learnFromCorrection } from '../services/ai-front-desk.js';
@@ -55,7 +57,52 @@ router.post('/:messageId/resolve', requireAuth, async (req, res) => {
     return res.json({ success: true });
   }
 
-  const finalResponse = response || message.ai_response;
+  // GUARD AT THE SEND BOUNDARY, not just where the draft was written.
+  //
+  // Two reasons generation-time checking is not enough. Every draft already
+  // sitting in the database predates the guard, so tapping Send on one would
+  // put the old unchecked text on the wire. And the diary moves: a draft
+  // written at 9am offering 16:30 is wrong by 2pm if someone books it.
+  //
+  // Only Florrie's own words are checked. If Ellie edited the reply those are
+  // HER words about HER diary, and second-guessing her would be both wrong and
+  // infuriating.
+  let finalResponse = response || message.ai_response;
+
+  if (action === 'send_as_is' || !response) {
+    let allowedTimes = [];
+    try {
+      const slots = await getFreeSlots(req.beautician.id, {
+        workingHours: req.beautician.working_hours,
+        timezone: req.beautician.timezone || 'Europe/London',
+      });
+      allowedTimes = slots.map(s => s.time);
+    } catch (err) {
+      // Could not read the diary, so nothing can be verified. safeReply with an
+      // empty allow-list refuses every time, which is the safe direction.
+      logger.warn({ err }, 'escalation send: diary read failed, refusing any named time');
+    }
+
+    const guarded = safeReply(finalResponse, { allowedTimes });
+    if (guarded.rejected) {
+      logger.warn({
+        beauticianId: req.beautician.id,
+        messageId: message.id,
+        reason: guarded.reason,
+        offending: guarded.offending,
+      }, 'BLOCKED an unverifiable claim at the send boundary');
+      return res.status(409).json({
+        error: 'blocked_unverified_claim',
+        reason: guarded.reason,
+        offending: guarded.offending,
+        message: guarded.reason === 'claimed a booking change that never happened'
+          ? 'This reply says the booking has been changed, but Florrie cannot move bookings. Edit it before sending.'
+          : 'This reply names a time that is not free in your diary any more. Edit it before sending.',
+        suggestion: guarded.text,
+      });
+    }
+    finalResponse = guarded.text;
+  }
 
   // If they edited the response, learn from the correction
   if (action === 'send_edited' && message.ai_response && response !== message.ai_response) {

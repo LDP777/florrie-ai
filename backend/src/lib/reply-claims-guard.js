@@ -24,11 +24,28 @@
 // "4.30", "4:30", "16:30", "4pm", "half four". Deliberately greedy: a false
 // positive costs a holding reply, a false negative costs a client turning up
 // to a locked door.
-const TIME_TOKENS = [
+const DIGIT_TIME_TOKENS = [
   /\b\d{1,2}\s*[.:]\s*\d{2}\s*(?:am|pm)?\b/gi,
   /\b\d{1,2}\s*(?:am|pm)\b/gi,
+];
+
+const SPOKEN_TIME_TOKENS = [
   /\b(?:half|quarter past|quarter to)\s+(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b/gi,
 ];
+
+// A number that is money or a duration is not a clock time. Without this,
+// "It is £35.50 and lasts 90 minutes" reads as 35:50 and gets refused.
+const NOT_A_TIME = [
+  /[£$€]\s*\d/,
+  /\d\s*(?:minutes|minute|mins|min|hours|hour|hrs|hr)\b/i,
+  /\bpoints?\b/i,
+];
+
+function looksLikeMoneyOrDuration(text, index, token) {
+  const before = text.slice(Math.max(0, index - 2), index + token.length);
+  const after = text.slice(index, index + token.length + 12);
+  return NOT_A_TIME.some(p => p.test(before) || p.test(after));
+}
 
 // Phrases that assert a booking changed. Present tense included, because
 // "you're moved to Thursday" is the same lie as "I have moved you".
@@ -37,8 +54,12 @@ const ACTION_CLAIMS = [
   /\byou(?:'re| are)\s+(?:now\s+)?(?:moved|rescheduled|booked|down|in)\b/i,
   /\b(?:that(?:'s| is)|it(?:'s| is)|all)\s+(?:sorted|done|booked|confirmed|changed|moved)\b/i,
   /\bi(?:'ve| have)\s+(?:put|got|booked)\s+you\b/i,
-  /\bappointment\s+(?:has been|is now)\s+(?:moved|changed|rescheduled)/i,
+  /\bappointment\s+(?:has been|is now|)\s*(?:moved|changed|rescheduled|booked)/i,
   /\bsee you (?:on|at)\b.*\binstead\b/i,
+  // Bare past-tense claims with no subject: "Appointment moved!", "Booking
+  // changed", "Moved!". A full stop or exclamation is still a promise.
+  /(?:^|[.!?]\s*)(?:appointment|booking|it)?\s*(?:moved|rescheduled|swapped|switched|changed)\b/i,
+  /\bchanged\s+(?:it|that|your appointment|the booking)\b/i,
 ];
 
 /**
@@ -46,7 +67,25 @@ const ACTION_CLAIMS = [
  * Returns null for anything that is not a real time of day, so junk can never
  * accidentally match an allowed slot.
  */
+const WORD_HOURS = {
+  one: 1, two: 2, three: 3, four: 4, five: 5, six: 6,
+  seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+};
+
 function normaliseTime(raw) {
+  const spoken = String(raw).toLowerCase().trim()
+    .match(/^(half|quarter past|quarter to)\s+(\w+)$/);
+  if (spoken) {
+    const base = WORD_HOURS[spoken[2]];
+    if (!base) return null;
+    // Salon hours, so "half four" is the afternoon. "half four" = 16:30,
+    // "quarter to five" = 16:45 (the hour BEFORE the one named).
+    const pm = base < 8 ? base + 12 : base;
+    if (spoken[1] === 'half') return `${String(pm).padStart(2, '0')}:30`;
+    if (spoken[1] === 'quarter past') return `${String(pm).padStart(2, '0')}:15`;
+    return `${String(pm - 1).padStart(2, '0')}:45`;
+  }
+
   const text = String(raw).toLowerCase().replace(/\s+/g, '');
   const withMinutes = text.match(/^(\d{1,2})[.:](\d{2})(am|pm)?$/);
   const hourOnly = text.match(/^(\d{1,2})(am|pm)$/);
@@ -83,13 +122,28 @@ function normaliseTime(raw) {
 
 /** Every time-like token in a piece of text, normalised. Junk tokens dropped. */
 export function timesMentionedIn(text) {
+  const body = String(text || '');
   const found = new Set();
-  for (const pattern of TIME_TOKENS) {
-    for (const match of String(text || '').matchAll(pattern)) {
+
+  for (const pattern of DIGIT_TIME_TOKENS) {
+    for (const match of body.matchAll(pattern)) {
+      if (looksLikeMoneyOrDuration(body, match.index, match[0])) continue;
       const normalised = normaliseTime(match[0]);
+      // A digit token that will not parse as a clock time (35:50, 90:00) is
+      // not a time at all, so it is dropped rather than counted against her.
       if (normalised) found.add(normalised);
     }
   }
+
+  for (const pattern of SPOKEN_TIME_TOKENS) {
+    for (const match of body.matchAll(pattern)) {
+      const normalised = normaliseTime(match[0]);
+      // A SPOKEN token that will not parse genuinely is an unverifiable time,
+      // so it must count. Dropping these is how "half four Thursday" got out.
+      found.add(normalised || `unparsed:${match[0].trim().toLowerCase()}`);
+    }
+  }
+
   return Array.from(found);
 }
 

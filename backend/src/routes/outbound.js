@@ -8,6 +8,8 @@
  * sendOnChannel() path and flips the row to 'sent'.
  */
 import { Router } from 'express';
+import { safeReply } from '../lib/reply-claims-guard.js';
+import { getFreeSlots } from '../lib/free-slots.js';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { sendOnChannel } from '../services/messaging.js';
@@ -83,6 +85,33 @@ async function deliverQueued(row, beauticianId) {
   if (!beautician) return { ok: false, error: 'Beautician not found' };
   if (!row.client_id) return { ok: false, error: 'No client on this message' };
   if (!row.body) return { ok: false, error: 'Nothing to send' };
+
+  // Same send-boundary guard as escalations. Everything queued here was written
+  // by Florrie, and rows can sit for days, so a time that was free when the
+  // draft was made may be booked by the time Ellie approves it.
+  let allowedTimes = [];
+  try {
+    const slots = await getFreeSlots(beauticianId, {
+      workingHours: beautician.working_hours,
+      timezone: beautician.timezone || 'Europe/London',
+    });
+    allowedTimes = slots.map(s => s.time);
+  } catch (err) {
+    logger.warn({ err, beauticianId }, 'outbound send: diary read failed, refusing any named time');
+  }
+
+  const guarded = safeReply(row.body, { allowedTimes });
+  if (guarded.rejected) {
+    logger.warn({
+      beauticianId, rowId: row.id, reason: guarded.reason, offending: guarded.offending,
+    }, 'BLOCKED an unverifiable claim at the outbound send boundary');
+    return {
+      ok: false,
+      error: guarded.reason === 'claimed a booking change that never happened'
+        ? 'This says the booking has been changed, but Florrie cannot move bookings. Edit it before sending.'
+        : 'This names a time that is not free in your diary any more. Edit it before sending.',
+    };
+  }
 
   const result = await sendOnChannel({
     beautician,
