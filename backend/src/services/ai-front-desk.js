@@ -5,6 +5,7 @@ import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 import { cleanReply } from '../lib/text.js';
 import { safeReply } from '../lib/reply-claims-guard.js';
+import { getFreeSlots } from '../lib/free-slots.js';
 import { createBookingSuggestion } from './automations.js';
 import { sendMessage, sendInstagramDM, sendWhatsAppText, sendSMS } from './notifications.js';
 import { pushEscalation, pushTeamUpdate } from './push-notifications.js';
@@ -303,7 +304,7 @@ async function gatherContext(beautician, client) {
   const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   // Parallel fetches for speed
-  const [treatments, upcomingAppointments, clientHistory, clientIntelligence, conversation, loyaltyConfig, clientPoints, patchTests, activePromos] = await Promise.all([
+  const [treatments, upcomingAppointments, clientHistory, clientIntelligence, conversation, loyaltyConfig, clientPoints, patchTests, activePromos, freeSlots] = await Promise.all([
     // Treatment menu
     supabase
       .from('treatments')
@@ -366,7 +367,24 @@ async function gatherContext(beautician, client) {
 
     // Live promo codes so Florrie can answer "any offers?" truthfully. Fail
     // soft to [] so a promo hiccup never blanks the brain.
-    getActivePromos(beautician.id, 3)
+    getActivePromos(beautician.id, 3),
+
+    // THE DIARY. Before this, no reply prompt was ever given a single real
+    // clock time, which is how a client was told 4.30 Thursday was free when it
+    // was not. Same generator the booking page uses, so what Florrie offers and
+    // what the client can actually pick are the same list. An hour is the
+    // conservative length: the treatment is often not known yet, and offering a
+    // slot too short to use is the same lie in a smaller hat. Fails soft to []
+    // because an empty list makes Florrie cautious, never wrong.
+    getFreeSlots(beautician.id, {
+      workingHours: beautician.working_hours,
+      timezone: beautician.timezone || 'Europe/London',
+      durationMinutes: 60,
+      days: 7,
+    }).catch(err => {
+      logger.warn({ err, beauticianId: beautician.id }, 'Free slot lookup failed, replying without times');
+      return [];
+    })
   ]);
 
   // Oldest to newest, ready to render as a transcript.
@@ -408,6 +426,7 @@ async function gatherContext(beautician, client) {
     clientHistory: clientHistory.data || [],
     clientIntelligence: clientIntelligence.data,
     conversation: conversationThread,
+    freeSlots: freeSlots || [],
     loyalty,
     patchTest,
     offers,
@@ -600,10 +619,13 @@ Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`,
     messages: [{ role: 'user', content: message }]
   });
 
-  // Nothing here verified a single free slot, and nothing here can move a
-  // booking, so any time named or change claimed is invented. Refuse it rather
-  // than send it. See lib/reply-claims-guard.js and the 28 Jul incident.
-  const guarded = safeReply(cleanReply(response.content[0].text.trim()));
+  // The prompt now holds real slots, so a named time is checkable: anything off
+  // the verified list is invented and gets refused. Nothing in this path can
+  // move a booking, so actionPerformed stays false and any "you're moved" claim
+  // is still refused outright. See lib/reply-claims-guard.js and the 28 Jul incident.
+  const guarded = safeReply(cleanReply(response.content[0].text.trim()), {
+    allowedTimes: (context.freeSlots || []).map(s => s.time),
+  });
   if (guarded.rejected) {
     logger.warn({
       beauticianId: beautician?.id,
@@ -722,6 +744,7 @@ Hard rules:
 Never use em dashes (—) or en dashes (–). Use commas, full stops, colons or line breaks instead.
 
 Treatments: ${context.treatments.map(t => `${t.name} (£${(t.price_cents/100).toFixed(2)})`).join(', ')}
+${renderFreeSlots(context.freeSlots)}
 ${context.loyalty ? `Loyalty: ${context.loyalty.summary} If it fits, you may mention it once, warmly, never pushy. Never invent points or rewards beyond this.` : ''}
 ${context.patchTest ? `Patch test: these treatments need one at least 24h before the first visit: ${context.patchTest.treatmentsNeedingTest.join(', ')}. This client's status: ${context.patchTest.status}. If they want one of these and status is none or pending, offer to book the quick patch test first at a real time; if completed, book as normal. Never invent a result.` : ''}
 ${context.offers?.length ? `Offers: ${context.offers.join('; ')}. Mention only if they ask about price or offers, or hesitate on cost. Never volunteer, never invent a code.` : `Offers: none running right now. If they ask about offers, say there is nothing on at the moment. Never invent an offer, discount, or code.`}
@@ -732,8 +755,10 @@ Write only the message to send.`,
   });
 
   // Ellie sends this from a card without opening the thread, so it has to be
-  // safe on its own. Same guard as the auto path.
-  const guarded = safeReply(cleanReply(response.content[0].text.trim()));
+  // safe on its own. Same guard, same verified list, as the auto path.
+  const guarded = safeReply(cleanReply(response.content[0].text.trim()), {
+    allowedTimes: (context.freeSlots || []).map(s => s.time),
+  });
   if (guarded.rejected) {
     logger.warn({
       reason: guarded.reason,
@@ -746,18 +771,16 @@ Write only the message to send.`,
 // INTENT-SPECIFIC PROMPT BUILDERS
 
 function buildBookingPrompt(context, extracted) {
-  const availableDays = getAvailableDays(context.upcomingAppointments, context.beautician.workingHours);
-
   return `The client wants to book an appointment.
 ${extracted?.treatment ? `They mentioned: "${extracted.treatment}"` : 'They haven\'t specified a treatment yet.'}
 ${extracted?.date ? `Preferred date: ${extracted.date}` : ''}
 ${extracted?.time ? `Preferred time: ${extracted.time}` : ''}
 
-Available times in the next 7 days: ${availableDays.length > 0 ? availableDays.join(', ') : 'check booking page'}
+${renderFreeSlots(context.freeSlots)}
 
 If they've specified enough details, confirm and direct them to the booking link.
 If they haven't specified a treatment, ask which one they'd like.
-If their preferred time is taken, suggest the nearest available alternative.`;
+If the time they asked for is not on the list above, say it has gone and offer the nearest time that IS on the list.`;
 }
 
 function buildPricePrompt(context, extracted) {
@@ -904,29 +927,38 @@ Return JSON with:
 
 // HELPERS
 
-function getAvailableDays(existingAppointments, workingHours) {
-  // Simple availability summary for the next 7 days
-  const days = [];
-  const now = new Date();
+// Wall-frame labels. The date string already IS the salon's wall clock, so it
+// is parsed as UTC and read with getUTC*: any locale conversion here would
+// shift the day by an hour in BST and put a client at the wrong door.
+const SLOT_DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const SLOT_MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-  for (let i = 1; i <= 7; i++) {
-    const date = new Date(now);
-    date.setDate(date.getDate() + i);
-    const dayKey = date.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
-    const hours = workingHours?.[dayKey];
+// Prompts get a readable list, not 200 lines of it. The guard's allow-list
+// still holds every slot, so trimming the prompt can only make Florrie offer
+// fewer real times, never a fake one.
+const SLOTS_SHOWN_IN_PROMPT = 40;
 
-    if (!hours) continue; // Not a working day
+function formatSlot(slot) {
+  const d = new Date(`${slot.date}T00:00:00Z`);
+  return `${SLOT_DAY_NAMES[d.getUTCDay()]} ${d.getUTCDate()} ${SLOT_MONTH_NAMES[d.getUTCMonth()]} ${slot.time}`;
+}
 
-    const dateStr = date.toISOString().split('T')[0];
-    const dayAppointments = existingAppointments.filter(a => a.starts_at.startsWith(dateStr));
-
-    // Rough check: if fewer than 8 appointments, probably has availability
-    if (dayAppointments.length < 8) {
-      days.push(date.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' }));
-    }
+/**
+ * The availability block every reply prompt gets.
+ *
+ * This replaced getAvailableDays, which listed a whole day as "available" if it
+ * held fewer than eight appointments. It never looked at working hours properly,
+ * never looked at her blocks, and never produced a clock time at all, so the
+ * model filled the gap itself. That guess is the 28 Jul incident.
+ */
+function renderFreeSlots(freeSlots) {
+  const slots = freeSlots || [];
+  if (!slots.length) {
+    return 'No free slots found. Do not name any time. Offer to check the book and come back to them.';
   }
-
-  return days;
+  const shown = slots.slice(0, SLOTS_SHOWN_IN_PROMPT).map(formatSlot).join(', ');
+  const more = slots.length > SLOTS_SHOWN_IN_PROMPT ? ', and more after that' : '';
+  return `Free slots (ONLY offer times from this list, never invent one): ${shown}${more}`;
 }
 
 async function sendResponse(beautician, client, responseText, classification, messageId) {
@@ -1085,6 +1117,7 @@ Rules:
 - Use the client's real first name (${firstName}) where natural, not a placeholder.
 
 Treatments: ${context.treatments.map(t => `${t.name} (£${(t.price_cents/100).toFixed(2)})`).join(', ') || 'none listed'}.
+${renderFreeSlots(context.freeSlots)}
 ${context.loyalty ? `Loyalty: ${context.loyalty.summary} One of the 3 options may nod to this if it fits, warmly and never pushy.` : ''}
 ${context.patchTest ? `Patch test: these treatments need one at least 24h before the first visit: ${context.patchTest.treatmentsNeedingTest.join(', ')}. This client's status: ${context.patchTest.status}. If they want one of these and status is none or pending, offer to book the quick patch test first at a real time; if completed, book as normal. Never invent a result.` : ''}
 ${context.offers?.length ? `Offers: ${context.offers.join('; ')}. Mention only if they ask about price or offers, or hesitate on cost. Never volunteer, never invent a code.` : `Offers: none running right now. If they ask about offers, say there is nothing on at the moment. Never invent an offer, discount, or code.`}
@@ -1107,5 +1140,7 @@ Respond with ONLY a JSON array of exactly 3 objects: [{"label":"...","text":"...
     id: `sg_${i}`,
     label: String(sug.label || `Option ${i + 1}`).replace(/[\u2013\u2014]/g, '-').slice(0, 28),
     text: String(sug.text || '').replace(/[\u2013\u2014]/g, '-').trim(),
-  })).filter(s => s.text && !safeReply(s.text).rejected);
+  })).filter(s => s.text && !safeReply(s.text, {
+    allowedTimes: (context.freeSlots || []).map(s2 => s2.time),
+  }).rejected);
 }

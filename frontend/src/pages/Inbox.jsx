@@ -852,8 +852,12 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
     return () => { cancelled = true; };
   }, [state.status, state.messages, clientId]);
 
-  async function handleSend() {
-    const body = composer.trim();
+  async function handleSend(retryBody) {
+    // Retry passes the failed bubble's own text. Without this the button could
+    // only ever resend whatever happened to be in the composer, which is
+    // usually empty.
+    const isRetry = typeof retryBody === 'string' && retryBody.trim().length > 0;
+    const body = isRetry ? retryBody.trim() : composer.trim();
     if (!body || sending || !channel) return;
     if (!clientId) return;
 
@@ -874,7 +878,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
       image_url: null,
     };
     setState(prev => ({ ...prev, messages: [...(prev.messages || []), optimistic] }));
-    setComposer('');
+    if (!isRetry) setComposer('');
 
     try {
       const res = await authFetch('/api/inbox/send', {
@@ -893,7 +897,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
         ...prev,
         messages: (prev.messages || []).filter(m => m.id !== tempId),
       }));
-      setComposer(body);
+      if (!isRetry) setComposer(body);
       setSendError(err.message || 'Send failed');
     } finally {
       setSending(false);
@@ -943,7 +947,20 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
       run.forEach(m => out.push(m));
       run = [];
     };
+    // Local day, not iso.slice(0,10): a message at 00:30 BST is today, and
+    // slicing the UTC string would file it under yesterday.
+    const dayKey = (iso) => new Date(iso).toLocaleDateString('en-GB');
+    let lastDay = null;
+
     for (const m of messages) {
+      const day = dayKey(m.created_at);
+      if (day !== lastDay) {
+        // Close any run of Florrie's own messages BEFORE the divider, so a
+        // collapsed run can never straddle two days.
+        flush();
+        out.push({ dateDivider: true, id: `day-${day}`, iso: m.created_at });
+        lastDay = day;
+      }
       const florrieSent = m.direction === 'outbound' && (m.message_type === 'auto_reply' || m.message_type === 'proactive');
       if (florrieSent) run.push(m);
       else { flush(); out.push(m); }
@@ -988,10 +1005,11 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
             No messages yet. Type below to start the conversation.
           </div>
         )}
-        {renderItems.map(m => m.divider
-          ? <HandledDivider key={m.id} count={m.count} />
-          : <Bubble key={m.id} msg={m} />
-        )}
+        {renderItems.map(m => {
+          if (m.dateDivider) return <DateDivider key={m.id} iso={m.iso} />;
+          if (m.divider) return <HandledDivider key={m.id} count={m.count} />;
+          return <Bubble key={m.id} msg={m} onRetry={handleSend} />;
+        })}
         {drafts.map(d => (
           <DraftBubble key={d.id} draft={d} onDone={removeDraft} onSent={() => { removeDraft(d.id); load(); onSent?.(); }} />
         ))}
@@ -1068,7 +1086,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
             />
             <button
               type="button"
-              onClick={handleSend}
+              onClick={() => handleSend()}
               disabled={!composer.trim() || sending}
               style={{ ...S.sendBtn, opacity: composer.trim() && !sending ? 1 : 0.45 }}
               aria-label="Send"
@@ -1724,6 +1742,20 @@ const S = {
   scroller: { flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '12px 14px 12px', display: 'flex', flexDirection: 'column', gap: 10 },
   bubbleRow: { display: 'flex', width: '100%' },
   bubbleStack: { display: 'flex', flexDirection: 'column', gap: 3, maxWidth: '78%' },
+  // These three were referenced but never defined, so React got style={undefined}
+  // and the day dividers and the failed-send Retry rendered as bare unstyled
+  // text. DateDivider was also never rendered at all until now.
+  dateDivider: { display: 'flex', justifyContent: 'center', margin: '14px 0 8px' },
+  dateChip: {
+    fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #8A7F79)',
+    background: 'var(--surface-2, #F6F1EC)', borderRadius: 999, padding: '3px 12px',
+    letterSpacing: '0.02em',
+  },
+  failedNote: {
+    minHeight: 44, display: 'inline-flex', alignItems: 'center', gap: 5,
+    border: 'none', background: 'none', padding: '4px 3px', cursor: 'pointer',
+    fontSize: 11, fontWeight: 600, fontFamily: 'inherit', color: '#B3261E',
+  },
   bubbleTag: { fontSize: 9.5, fontWeight: 700, color: 'var(--accent, #92405e)', letterSpacing: '0.05em', textTransform: 'uppercase', paddingLeft: 3, opacity: 0.85 },
   bubble: {
     padding: '10px 14px', border: '1px solid', borderRadius: 20,

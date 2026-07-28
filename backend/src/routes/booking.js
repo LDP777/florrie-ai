@@ -13,6 +13,7 @@ import { chargePolicyFee, computePolicyFee, chargeRescheduleDeposit } from '../s
 import { verifyTurnstile } from '../middleware/turnstile.js';
 import logger from '../lib/logger.js';
 import { bookingSchema } from '../lib/schemas.js';
+import { nowInSalonWall, loadBlocks, hitsBlock, wallDayHours } from '../lib/free-slots.js';
 
 const router = Router();
 const FRONTEND_URL = process.env.FRONTEND_URL;
@@ -1485,58 +1486,6 @@ router.post('/:slug/manage/:token/resend-payment', async (req, res) => {
  * the real diary and drift by an hour in BST.
  */
 const PATCH_TEST_LEAD_HOURS = 24; // must match the booking gate + the client copy
-const WALL_DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-
-/** "Now", rendered in the salon's wall clock, in the wall frame. */
-function nowInSalonWall(timezone = 'Europe/London') {
-  const p = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
-  }).formatToParts(new Date()).reduce((a, x) => (a[x.type] = x.value, a), {});
-  return new Date(`${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}Z`);
-}
-
-/** Working hours for the day a wall-frame Date falls on. null = salon closed. */
-/**
- * Ellie's personal blocks live in hours_exceptions (a date plus an optional
- * start/end wall time; no range = the whole day is closed). The public picker
- * respected them but the patch-test slot generator did not, so a client could
- * book a patch test straight over a block. Load them once, in the wall frame.
- */
-async function loadBlocks(beauticianId, fromWall, toWall) {
-  const { data: rows } = await supabase
-    .from('hours_exceptions')
-    .select('date, type, start_time, end_time')
-    .eq('beautician_id', beauticianId)
-    .gte('date', fromWall.toISOString().slice(0, 10))
-    .lte('date', toWall.toISOString().slice(0, 10));
-
-  const closedDays = new Set();
-  const intervals = [];
-  for (const r of rows || []) {
-    if (r.type !== 'closed' && r.start_time && r.end_time) {
-      intervals.push({
-        start: new Date(`${r.date}T${String(r.start_time).slice(0, 5)}:00Z`),
-        end: new Date(`${r.date}T${String(r.end_time).slice(0, 5)}:00Z`),
-      });
-    } else {
-      closedDays.add(r.date); // whole day off
-    }
-  }
-  return { closedDays, intervals };
-}
-
-function hitsBlock(slotStart, slotEnd, blocks) {
-  if (blocks.closedDays.has(slotStart.toISOString().slice(0, 10))) return true;
-  return blocks.intervals.some(b => slotStart < b.end && slotEnd > b.start);
-}
-
-function wallDayHours(workingHours, wallDate) {
-  const k = WALL_DAYS[wallDate.getUTCDay()];
-  const h = workingHours?.[k] || workingHours?.[k[0].toUpperCase() + k.slice(1)];
-  return h && h.start && h.end ? h : null;
-}
-
 
 router.get('/:slug/manage/:token/patch-test/slots', async (req, res) => {
   try {

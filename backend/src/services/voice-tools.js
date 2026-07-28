@@ -520,30 +520,71 @@ async function toolReschedule({ client_name, appointment_date, new_date, new_tim
   const appt = found.appt;
   if (!appt) return { result: appointment_date ? `${client.first_name} has nothing booked on ${appointment_date}.` : `${client.first_name} has no upcoming appointments to reschedule.` };
 
-  const existing = new Date(appt.starts_at);
-  const resolvedDate = new_date || existing.toISOString().slice(0, 10);
-  const resolvedTime = new_time || existing.toTimeString().slice(0, 5);
-  const newStart = new Date(`${resolvedDate}T${resolvedTime}:00`);
+  // WALL-TIME CONVENTION: starts_at stores the salon's wall clock inside a UTC
+  // slot. Never round-trip through `new Date(local string).toISOString()`, which
+  // converts, so 16:30 is stored as 15:30 in BST and the client is told an hour
+  // out. Build the string directly instead.
+  const resolvedDate = new_date || appt.starts_at.slice(0, 10);
+  const resolvedTime = new_time || appt.starts_at.slice(11, 16);
 
-  if (isNaN(newStart.getTime())) {
-    return { result: "Couldn't parse that date/time. Try something like 'Thursday at 2pm'." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(resolvedDate) || !/^\d{2}:\d{2}$/.test(resolvedTime)) {
+    return { result: "Couldn't parse that date and time. Try something like 'Thursday at 2pm'." };
   }
 
-  const newEnd = new Date(newStart.getTime() + (appt.duration_minutes || 60) * 60000);
+  const newStartIso = `${resolvedDate}T${resolvedTime}:00.000Z`;
+  const startMs = Date.parse(newStartIso);
+  if (Number.isNaN(startMs)) {
+    return { result: "Couldn't parse that date and time. Try something like 'Thursday at 2pm'." };
+  }
+  const durationMinutes = appt.duration_minutes || 60;
+  const newEndIso = new Date(startMs + durationMinutes * 60000).toISOString();
 
-  await supabase
+  // Never move an appointment on top of another one. This used to move first
+  // and tell the client afterwards, so a clash meant two people at one slot.
+  const { data: clashes, error: clashError } = await supabase
     .from('appointments')
-    .update({ starts_at: newStart.toISOString(), ends_at: newEnd.toISOString() })
+    .select('id, starts_at, ends_at')
+    .eq('beautician_id', beautician.id)
+    .neq('id', appt.id)
+    .not('status', 'in', '(cancelled,cancelled_by_client,cancelled_by_beautician,no_show)')
+    .lt('starts_at', newEndIso)
+    .gt('ends_at', newStartIso);
+
+  if (clashError) {
+    logger.warn({ err: clashError, appointmentId: appt.id }, 'Reschedule clash check failed');
+    return { result: "I couldn't check the diary just then, so I have not moved anything. Try again in a moment." };
+  }
+  if (clashes?.length) {
+    return { result: `That clashes with something already in the diary at ${resolvedTime}. Pick another time and I will move it.` };
+  }
+
+  const { error: updateError } = await supabase
+    .from('appointments')
+    .update({ starts_at: newStartIso, ends_at: newEndIso })
     .eq('id', appt.id);
 
+  // Nothing below may claim the move happened unless the write actually
+  // succeeded. The unique no-double-book index from migration 068 can reject
+  // this, and the old code told the client "has been moved" regardless.
+  if (updateError) {
+    logger.error({ err: updateError, appointmentId: appt.id }, 'Voice reschedule FAILED to write');
+    return { result: "I could not move that one, so nothing has changed. Worth checking the diary." };
+  }
+
   const treatmentName = appt.treatments?.name || 'appointment';
-  const friendlyDate = newStart.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
-  const friendlyTime = newStart.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const friendly = new Date(newStartIso);
+  const friendlyDate = friendly.toLocaleDateString('en-GB', {
+    weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC',
+  });
+  // timeZone UTC because the wall clock is what is stored in the slot.
+  const friendlyTime = friendly.toLocaleTimeString('en-GB', {
+    hour: '2-digit', minute: '2-digit', timeZone: 'UTC',
+  });
 
   if (notify_client) {
     await sendMessage({
       client,
-      body: `Hi ${client.first_name}! Quick update — your ${treatmentName} has been moved to ${friendlyDate} at ${friendlyTime}. See you then! 💕`,
+      body: `Hi ${client.first_name}! Quick update, your ${treatmentName} has been moved to ${friendlyDate} at ${friendlyTime}. See you then!`,
       beauticianId: beautician.id,
       beauticianPrefs: beautician.client_reminder_prefs || {},
     }).catch(e => logger.warn({ err: e }, 'Reschedule notification failed'));

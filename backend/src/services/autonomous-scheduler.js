@@ -89,7 +89,6 @@ async function runForBeautician(beautician) {
   const [rebookResults, gapResults, messageResults, gapFillResults, patchTestResults, prearrivalResults] = await Promise.allSettled([
     checkRebookDueClients(bid, threshold),
     checkCalendarGaps(bid, threshold),
-    checkUnansweredMessages(bid, beautician, threshold),
     checkGapFillOpportunities(bid, threshold),
     checkPatchTestsExpiring(bid, beautician),
     checkPreAppointmentRequirements(bid),
@@ -282,42 +281,24 @@ async function checkCalendarGaps(beauticianId, threshold) {
 }
 
 /**
- * 3. Check for unanswered messages and process them.
+ * 3. REMOVED: checkUnansweredMessages.
+ *
+ * It queried `.eq('replied', false)`. There is no `replied` column on messages
+ * and never has been, so the query errored 42703 every run, `data` came back
+ * null, and the function returned 0. It had never once done anything.
+ *
+ * It was not harmless. It selected `clients(first_name, last_name, phone)` with
+ * NO id, so `isKnownClient(bid, undefined, ...)` returned false, the
+ * known-client hold was skipped entirely, and every inbound message from the
+ * last four hours would have been auto-replied by SMS, every two hours. The
+ * moment anyone added a `replied` column it would have woken up as a full
+ * auto-send bypass, straight past the guard that exists precisely to stop
+ * Florrie speaking to Ellie's clients unprompted.
+ *
+ * Deleted rather than fixed. Inbound messages are already handled the moment
+ * they arrive, by the webhook calling processInboundMessage. A second sweep
+ * over the same messages was only ever going to double-reply.
  */
-async function checkUnansweredMessages(beauticianId, beautician, threshold) {
-  let actionsCount = 0;
-
-  // Find messages received in the last 4 hours with no reply
-  const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
-
-  const { data: unanswered } = await supabase
-    .from('messages')
-    .select('id, content, client_id, clients(first_name, last_name, phone)')
-    .eq('beautician_id', beauticianId)
-    .eq('direction', 'inbound')
-    .eq('replied', false)
-    .gte('created_at', fourHoursAgo)
-    .order('created_at', { ascending: true })
-    .limit(10);
-
-  if (!unanswered?.length) return 0;
-
-  for (const msg of unanswered) {
-    try {
-      const result = await processInboundMessage(
-        msg.id,
-        beautician,
-        msg.clients,
-        msg.content
-      );
-      actionsCount++;
-    } catch (err) {
-      logger.warn({ err, messageId: msg.id }, 'Failed to process unanswered message');
-    }
-  }
-
-  return actionsCount;
-}
 
 /**
  * 5. Check for patch tests expiring soon and remind clients.
