@@ -3,7 +3,7 @@ import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
 import { sendOnChannel, shapeMessage } from '../services/messaging.js';
-import { generateReplySuggestions } from '../services/ai-front-desk.js';
+import { generateReplySuggestions, replyIsOwed } from '../services/ai-front-desk.js';
 import { isMissingColumnError } from '../lib/junk-classifier.js';
 
 const router = Router();
@@ -108,22 +108,24 @@ const HANDLED_INTENTS = new Set(['review_thanks', 'greeting']);
 const NEEDS_YOU_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * "A human reply is genuinely owed." Ported line for line from needsYou() in
- * frontend/src/pages/Inbox.jsx so the two never drift:
- *   - Florrie escalated something and the client's last word still asks
- *     something, or
- *   - the client had the last word, within a week, and was not just saying
- *     thanks.
- * A missing intent counts as owed, never as handled.
+ * "A human reply is genuinely owed."
+ *
+ * ONE rule: the client had the last word, recently, and that last word asks
+ * something of her.
+ *
+ * It deliberately no longer keys off needs_attention (any escalated row in the
+ * thread never formally resolved). That flag is sticky: Ellie could answer a
+ * client five times and the thread still counted as waiting, because a row
+ * from three weeks ago was never marked resolved. That is what put 132 clients
+ * on the badge when only 15 were genuinely waiting. If Florrie or Ellie has
+ * spoken since, nobody is waiting, whatever the old rows say.
  */
 function needsYou(bucket) {
-  const closerOnly = bucket.last_message_direction === 'inbound'
-    && HANDLED_INTENTS.has(bucket.last_inbound_intent || 'unknown');
-
-  if (bucket.needs_attention) return !closerOnly;
   if (bucket.last_message_direction !== 'inbound') return false;
   if (Date.now() - new Date(bucket.last_message_at).getTime() > NEEDS_YOU_WINDOW_MS) return false;
-  return !HANDLED_INTENTS.has(bucket.last_inbound_intent || 'unknown');
+  return replyIsOwed(bucket.last_inbound_preview || bucket.last_message_preview, {
+    intent: bucket.last_inbound_intent,
+  });
 }
 
 /**

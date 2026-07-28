@@ -13,6 +13,7 @@
  * GET /api/agents/widget  - lightweight payload for iOS widget
  */
 import { Router } from 'express';
+import { replyIsOwed } from '../services/ai-front-desk.js';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { isMissingColumnError } from '../lib/junk-classifier.js';
@@ -320,37 +321,41 @@ async function churnRiskCount(beauticianId) {
 }
 
 async function openEscalations(beauticianId, sinceIso) {
-  let { data, error } = await supabase
+  // Counts CONVERSATIONS WAITING, not unresolved escalation rows.
+  //
+  // The old query counted any row with escalated=true and resolved=false. That
+  // flag is sticky: Ellie answers a client in the app, the reply goes out, but
+  // the original row is never marked resolved, so the thread counts against her
+  // forever. It read 132 clients when 15 were actually waiting, which is how
+  // the badge got stuck at 99+ and stopped meaning anything.
+  //
+  // The honest question is the same one the inbox asks: did the client have the
+  // last word, and does that last word ask something of her?
+  const { data, error } = await supabase
     .from('messages')
-    .select('client_id, is_junk')
+    .select('client_id, direction, content, ai_intent, is_junk, created_at')
     .eq('beautician_id', beauticianId)
-    .eq('escalated', true)
-    .eq('resolved', false)
     .gte('created_at', sinceIso)
+    .order('created_at', { ascending: false })
     .limit(ESCALATION_ROW_CAP);
-
-  if (error && isMissingColumnError(error)) {
-    ({ data, error } = await supabase
-      .from('messages')
-      .select('client_id')
-      .eq('beautician_id', beauticianId)
-      .eq('escalated', true)
-      .eq('resolved', false)
-      .gte('created_at', sinceIso)
-      .limit(ESCALATION_ROW_CAP));
-  }
 
   if (error) {
     logger.warn({ err: error, beauticianId }, 'agents.counts open escalations failed');
     return 0;
   }
 
-  const clients = new Set();
+  // Rows arrive newest-first, so the first row seen per client IS their last
+  // word. Anything after it is history and cannot make them waiting again.
+  const seen = new Set();
+  const waiting = new Set();
   for (const row of data || []) {
+    if (!row.client_id || seen.has(row.client_id)) continue;
+    seen.add(row.client_id);
     if (row.is_junk) continue;
-    if (row.client_id) clients.add(row.client_id);
+    if (row.direction !== 'inbound') continue;
+    if (replyIsOwed(row.content, { intent: row.ai_intent })) waiting.add(row.client_id);
   }
-  return clients.size;
+  return waiting.size;
 }
 
 /**

@@ -56,3 +56,47 @@ describe('replyIsOwed', () => {
     expect(replyIsOwed('my sister wants to come too next time', { intent: 'unknown' })).toBe(true);
   });
 });
+
+/**
+ * The sticky-flag bug, which is what actually pinned the badge at 99+.
+ *
+ * Production, 26 Jul: 323 unresolved escalations across 132 clients. But only
+ * 15 conversations had the client speaking last with something owed. The gap
+ * is threads Ellie HAD answered, still counting because an old escalated row
+ * was never marked resolved.
+ */
+describe('who is actually waiting', () => {
+  const owed = (t) => (
+    t.last_message_direction === 'inbound'
+    && replyIsOwed(t.last_inbound_preview, { intent: t.last_inbound_intent })
+  );
+
+  it('does not count a thread she has already answered', () => {
+    // The old rule returned true here purely because needs_attention was set.
+    expect(owed({
+      needs_attention: true,
+      last_message_direction: 'outbound',
+      last_inbound_preview: 'can I move to Saturday?',
+      last_inbound_intent: 'reschedule',
+    })).toBe(false);
+  });
+
+  it('still counts a thread where the client spoke last and asked something', () => {
+    expect(owed({
+      needs_attention: false,
+      last_message_direction: 'inbound',
+      last_inbound_preview: 'can I move to Saturday?',
+      last_inbound_intent: 'reschedule',
+    })).toBe(true);
+  });
+
+  it('does not count a thread whose last word was a sign-off', () => {
+    // 85 of the 323 were intent 'unknown' chit-chat like "*round lol x".
+    expect(owed({
+      needs_attention: true,
+      last_message_direction: 'inbound',
+      last_inbound_preview: 'amazing thank you xx',
+      last_inbound_intent: 'review_thanks',
+    })).toBe(false);
+  });
+});

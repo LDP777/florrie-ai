@@ -171,33 +171,17 @@ function ChannelMark({ channel, size = 22 }) {
 
 // A pure thank-you or sign-off does not owe a reply, so it should never nag
 // her. Anything else the client said last is a real reply owed.
-const HANDLED_INTENTS = new Set(['review_thanks', 'greeting']);
-
-// "Needs you" means a human reply is genuinely owed:
-//   - Florrie escalated something and the client's last word still asks
-//     something (a real open question), or
-//   - the client had the last word and was not just saying thanks.
-// Florrie's own replies and proactive housekeeping never count, even if the
-// thread shows unread automated rows.
+// "Needs you" means a human reply is genuinely owed. The BACKEND decides this
+// now and sends it as thread.segment, so there is exactly one copy of the rule
+// (replyIsOwed in ai-front-desk.js) instead of two that drift apart.
 //
-// An escalation whose latest inbound is a pure closer ("No worries x",
-// "Thanks!") is treated as handled: there is nothing to answer, so it drops
-// out of Waiting. We never demote a thread where the client actually asked
-// something, so a missing intent stays owed.
-function isCloserOnly(t) {
-  return t.last_message_direction === 'inbound'
-    && HANDLED_INTENTS.has(t.last_inbound_intent || 'unknown');
-}
-const NEEDS_YOU_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+// The rule it applies: the client had the last word, recently, and that last
+// word asks something of her. It deliberately ignores needs_attention, the old
+// "some row in this thread was escalated and never marked resolved" flag. That
+// flag is sticky, so a thread Ellie had already answered five times still
+// counted as waiting. It read 132 clients when 15 were genuinely waiting.
 function needsYou(t) {
-  if (t.needs_attention) return !isCloserOnly(t);
-  if (t.last_message_direction !== 'inbound') return false;
-  // A message older than a week that she never answered has answered itself.
-  // It drops to Everyone else instead of guilt-tripping her with "waiting 17d".
-  if (Date.now() - new Date(t.last_message_at).getTime() > NEEDS_YOU_WINDOW_MS) return false;
-  // Client spoke last. Skip pure acknowledgements (thanks, hello with nothing
-  // to answer). Treat a missing intent as "owed" rather than silently hiding it.
-  return !HANDLED_INTENTS.has(t.last_inbound_intent || 'unknown');
+  return segmentOf(t) === 'needs';
 }
 
 // Automated housekeeping: a reply Florrie sent or a nudge she lined up. These
@@ -228,7 +212,11 @@ const SEGMENTS = ['needs', 'client', 'new', 'social'];
 // still lands somewhere, which is the only thing that really matters here.
 function fallbackSegment(t) {
   if (t.is_junk) return 'social';
-  if (needsYou(t)) return 'needs';
+  // Must NOT call needsYou: that now asks segmentOf, which lands back here.
+  // A stale cached payload gets the coarse "client spoke last, recently" test
+  // and nothing more. It is one render, then the real payload arrives.
+  if (t.last_message_direction === 'inbound'
+      && Date.now() - new Date(t.last_message_at).getTime() < 7 * 24 * 60 * 60 * 1000) return 'needs';
   if (t.last_channel === 'instagram' && isPlaceholderName(clientFullName(t))) return 'social';
   return 'client';
 }
@@ -385,6 +373,15 @@ export default function Inbox() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ), [threads]);
 
+  // A hard ceiling on cards, whatever the data does. A card is big on purpose,
+  // so a screen of them is worse than the list it replaced: the whole point is
+  // that she can see the top of her day without scrolling. If a backlog ever
+  // pushes past this, the oldest wait behind one line rather than burying the
+  // urgent ones. She answers the top of the pile and the next few arrive.
+  const MAX_CARDS = 6;
+  const cards = waiting.slice(0, MAX_CARDS);
+  const overflow = waiting.length - cards.length;
+
   // The drawer's contents: one flat list, newest first. Junk stays out unless
   // she is searching for it, because a quiet lane for noise is still noise.
   const everything = useMemo(() => {
@@ -510,7 +507,7 @@ function ThreadList({
         <>
           {waiting.length > 0 && (
             <div style={S.cardStack}>
-              {waiting.map(t => (
+              {cards.map(t => (
                 <ActionCard
                   key={t.client_id}
                   thread={t}
@@ -520,6 +517,12 @@ function ThreadList({
                 />
               ))}
             </div>
+          )}
+
+          {overflow > 0 && (
+            <button type="button" onClick={onToggleEverything} style={S.overflowRow}>
+              and {overflow} more waiting
+            </button>
           )}
 
           {waiting.length === 0 && <AllClear />}
@@ -1636,6 +1639,11 @@ const S = {
   allClearIcon: { fontSize: 18, color: 'var(--accent, #92405e)', opacity: 0.6 },
 
   // The drawer handle. A hairline above it is the only separation it needs.
+  overflowRow: {
+    width: '100%', minHeight: 44, border: 'none', background: 'none',
+    color: '#8A7F79', fontSize: 13, fontFamily: 'inherit', cursor: 'pointer',
+    padding: '10px 4px', textAlign: 'center',
+  },
   everythingRow: {
     display: 'flex', alignItems: 'center', gap: 10, width: '100%',
     minHeight: 56, padding: '0 18px', marginTop: 6,
