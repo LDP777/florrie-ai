@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 import { cleanReply } from '../lib/text.js';
+import { safeReply } from '../lib/reply-claims-guard.js';
 import { createBookingSuggestion } from './automations.js';
 import { sendMessage, sendInstagramDM, sendWhatsAppText, sendSMS } from './notifications.js';
 import { pushEscalation, pushTeamUpdate } from './push-notifications.js';
@@ -185,7 +186,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
     // which is most likely on Instagram where we may be missing the earlier chat.
     // Skipped when she explicitly set this client to 'Florrie handles'.
     if (shouldAct && autonomyOverride !== 'florrie'
-        && await isKnownClient(beautician.id, client?.id, client, beautician.autonomy?.known_client_min_visits)) {
+        && await isKnownClient(beautician.id, client?.id, client)) {
       shouldAct = false;
     }
 
@@ -599,7 +600,19 @@ Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`,
     messages: [{ role: 'user', content: message }]
   });
 
-  const replyText = cleanReply(response.content[0].text.trim());
+  // Nothing here verified a single free slot, and nothing here can move a
+  // booking, so any time named or change claimed is invented. Refuse it rather
+  // than send it. See lib/reply-claims-guard.js and the 28 Jul incident.
+  const guarded = safeReply(cleanReply(response.content[0].text.trim()));
+  if (guarded.rejected) {
+    logger.warn({
+      beauticianId: beautician?.id,
+      intent: classification?.intent,
+      reason: guarded.reason,
+      offending: guarded.offending,
+    }, 'AI Front Desk BLOCKED an unverifiable claim in an auto-send reply');
+  }
+  const replyText = guarded.text;
 
   // Calculate tone match score by comparing against beautician's correction history
   const toneScore = await calculateToneScore(beautician, replyText);
@@ -718,7 +731,16 @@ Write only the message to send.`,
     messages: [{ role: 'user', content: message }]
   });
 
-  return cleanReply(response.content[0].text.trim());
+  // Ellie sends this from a card without opening the thread, so it has to be
+  // safe on its own. Same guard as the auto path.
+  const guarded = safeReply(cleanReply(response.content[0].text.trim()));
+  if (guarded.rejected) {
+    logger.warn({
+      reason: guarded.reason,
+      offending: guarded.offending,
+    }, 'AI Front Desk BLOCKED an unverifiable claim in a drafted reply');
+  }
+  return guarded.text;
 }
 
 // INTENT-SPECIFIC PROMPT BUILDERS
@@ -748,12 +770,22 @@ Keep it natural — don't list every treatment like a menu.`;
 }
 
 function buildReschedulePrompt(context, client, extracted) {
+  // This prompt used to say "Check if they have an upcoming appointment. If so,
+  // confirm the change." Both halves were impossible: no appointment list is
+  // given to the model, and NOTHING in the inbound-message path can move a
+  // booking. The only code that writes appointments.starts_at is the client's
+  // own manage link and Ellie's voice assistant. So "confirm the change" asked
+  // the model to state something that could never be true, which is exactly
+  // what it did on 28 Jul.
   return `The client wants to reschedule an existing appointment.
-${extracted?.date ? `New preferred date: ${extracted.date}` : ''}
+${extracted?.date ? `Date they mentioned: ${extracted.date}` : ''}
 
-Check if they have an upcoming appointment. If so, confirm the change.
-If you can't find their appointment, ask for more details.
-Direct them to the booking link if needed.`;
+You CANNOT move appointments yourself. Never say the appointment has been
+moved, changed, rescheduled, sorted, or is now at a new time. Never agree that
+a specific time is free: you cannot see the diary and you will be wrong.
+
+Acknowledge what they asked for warmly, then send them the link so they can
+move it themselves and see the real availability.`;
 }
 
 // TONE MODEL
@@ -978,7 +1010,10 @@ async function logAiAction(beauticianId, clientId, messageId, classification, re
     booking_request: 'booking_created',
     price_enquiry: 'message_replied',
     availability_check: 'message_replied',
-    reschedule: 'booking_rescheduled',
+    // NOT 'booking_rescheduled'. Nothing in this path moves a booking, so
+    // logging one told Ellie a second time that a change had happened. Only
+    // code that actually writes the row may claim that.
+    reschedule: 'message_replied',
     greeting: 'message_replied',
     review_thanks: 'message_replied'
   };
@@ -987,7 +1022,7 @@ async function logAiAction(beauticianId, clientId, messageId, classification, re
     booking_request: `Helped a client book an appointment`,
     price_enquiry: `Answered a price enquiry`,
     availability_check: `Checked availability for a client`,
-    reschedule: `Handled a reschedule request`,
+    reschedule: `Replied about a reschedule request`,
     greeting: `Greeted a client`,
     review_thanks: `Thanked a client for their feedback`
   };
@@ -1064,9 +1099,13 @@ Respond with ONLY a JSON array of exactly 3 objects: [{"label":"...","text":"...
   try { parsed = JSON.parse(raw); } catch { return []; }
   if (!Array.isArray(parsed)) return [];
 
+  // These are one tap from being sent, so they get the same guard. A chip that
+  // would name an unverified time is dropped rather than shown: three good
+  // options is better than four with a trap in it. The prompt's own worked
+  // example used to be "Confirm Friday", which is precisely this failure.
   return parsed.slice(0, 3).map((sug, i) => ({
     id: `sg_${i}`,
     label: String(sug.label || `Option ${i + 1}`).replace(/[\u2013\u2014]/g, '-').slice(0, 28),
     text: String(sug.text || '').replace(/[\u2013\u2014]/g, '-').trim(),
-  })).filter(s => s.text);
+  })).filter(s => s.text && !safeReply(s.text).rejected);
 }

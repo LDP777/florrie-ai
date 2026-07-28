@@ -1,0 +1,89 @@
+/**
+ * The 28 Jul incident: Florrie told a client "4.30 on Thursday" was available
+ * when it was not, and implied the appointment had moved when nothing in the
+ * inbound path can move one. These tests are the regression.
+ */
+import { describe, it, expect } from 'vitest';
+import { checkReplyClaims, safeReply, timesMentionedIn, HOLDING_REPLY } from '../../src/lib/reply-claims-guard.js';
+
+describe('checkReplyClaims', () => {
+  it('refuses the exact message that caused the incident', () => {
+    const v = checkReplyClaims("Yes lovely, 4.30 on Thursday is free, I've moved you over x");
+    expect(v.ok).toBe(false);
+  });
+
+  it('refuses a time that is not on the verified list', () => {
+    const v = checkReplyClaims('I can do 4.30 on Thursday', { allowedTimes: ['16:00', '17:15'] });
+    expect(v.ok).toBe(false);
+    expect(v.offending).toContain('16:30');
+  });
+
+  it('allows a time that IS on the verified list, in any notation', () => {
+    // The diary speaks 24h; clients and Florrie speak "4.30" and "4pm".
+    expect(checkReplyClaims('how about 4.30?', { allowedTimes: ['16:30'] }).ok).toBe(true);
+    expect(checkReplyClaims('how about 4pm?', { allowedTimes: ['16:00'] }).ok).toBe(true);
+    expect(checkReplyClaims('how about 16:30?', { allowedTimes: ['16:30'] }).ok).toBe(true);
+  });
+
+  it('refuses any time when nothing has been verified', () => {
+    // The reply prompts get no diary at all, so this is the normal case.
+    expect(checkReplyClaims('4.30 works!').ok).toBe(false);
+  });
+
+  it('refuses claims that a booking changed when nothing was written', () => {
+    for (const claim of [
+      "I've moved you to Thursday",
+      "you're now booked in",
+      'that is all sorted',
+      "I've put you down for Thursday",
+      'your appointment has been moved',
+    ]) {
+      expect(checkReplyClaims(claim).ok, claim).toBe(false);
+    }
+  });
+
+  it('allows the claim when the booking really was written', () => {
+    const v = checkReplyClaims("I've moved you to 16:30", {
+      allowedTimes: ['16:30'],
+      actionPerformed: true,
+    });
+    expect(v.ok).toBe(true);
+  });
+
+  it('leaves ordinary warm replies alone', () => {
+    for (const fine of [
+      'Thanks lovely, see you then x',
+      'No problem at all, I will check my book and come back to you',
+      'Your usual is £35 and takes about an hour',
+      'Pop onto the link and you can pick whatever suits you best x',
+    ]) {
+      expect(checkReplyClaims(fine).ok, fine).toBe(true);
+    }
+  });
+
+  it('does not mistake a price or a date for a time', () => {
+    expect(checkReplyClaims('It is £35.50 and lasts 90 minutes').ok).toBe(true);
+  });
+});
+
+describe('safeReply', () => {
+  it('swaps a bad draft for a holding reply rather than sending it', () => {
+    const r = safeReply("4.30 Thursday is free, you're moved x");
+    expect(r.rejected).toBe(true);
+    expect(r.text).toBe(HOLDING_REPLY);
+  });
+
+  it('passes a good draft through untouched', () => {
+    const r = safeReply('See you soon lovely x');
+    expect(r.rejected).toBe(false);
+    expect(r.text).toBe('See you soon lovely x');
+  });
+});
+
+describe('timesMentionedIn', () => {
+  it('normalises salon times to 24h', () => {
+    expect(timesMentionedIn('4.30')).toEqual(['16:30']);
+    expect(timesMentionedIn('9.15')).toEqual(['09:15']);
+    expect(timesMentionedIn('10am')).toEqual(['10:00']);
+  });
+});

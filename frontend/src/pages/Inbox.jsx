@@ -7,26 +7,21 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 import { bloom } from '../lib/bloom.js';
 
 /**
- * Messages, as a surface she acts on rather than a list she reads.
+ * Inbox , one calm thread per client.
  *
- * The old page was seventy identical rows and a 99+ badge, which told her that
- * something was happening and nothing about what. This one answers the only
- * question she actually has, which is who is waiting, and then lets her clear
- * them without opening anything:
+ * Salon owners think "Sarah", not "Sarah on WhatsApp", so each client is a
+ * single thread and the channel rides along as metadata. This refresh adds:
  *
- *   - A headline that states the real number of people waiting, and a quiet
- *     line for the work Florrie did on her own.
- *   - One card per waiting person: who they are, how long they have waited,
- *     their own last words, and where Florrie has drafted the answer, the
- *     answer itself with Send and Edit. Send goes through the escalation
- *     resolve endpoint, so it is delivered, logged and resolved exactly as it
- *     would be from the Escalations page.
- *   - One quiet Everything row for the rest. That is the only other view:
- *     lanes and chips just filed the noise more neatly.
+ *   - Material channel marks (WhatsApp, Instagram, SMS, email) instead of
+ *     emoji, so it reads as part of the app, not a chat clone.
+ *   - Message TYPE awareness: a client message, a reply Florrie sent, a
+ *     proactive nudge she lined up, or something she handed back to you.
+ *   - Segments (Needs you / Clients / New / Social) driven by the backend, so
+ *     Instagram fluff sits in its own quiet lane instead of burying the
+ *     handful of threads that actually want her.
  *
- * Salon owners think "Sarah", not "Sarah on WhatsApp", so a client is still
- * one thread and the channel rides along as metadata. Mobile-first single
- * column; from 768px the list and the conversation sit side by side.
+ * Two views: the thread list, and a conversation (when a client is open).
+ * Mobile-first single column; from 768px the two panes sit side by side.
  */
 
 // Channel marks. Material Symbols so they sit with the rest of the app.
@@ -171,16 +166,27 @@ function ChannelMark({ channel, size = 22 }) {
 
 // A pure thank-you or sign-off does not owe a reply, so it should never nag
 // her. Anything else the client said last is a real reply owed.
-// "Needs you" means a human reply is genuinely owed. The BACKEND decides this
-// now and sends it as thread.segment, so there is exactly one copy of the rule
-// (replyIsOwed in ai-front-desk.js) instead of two that drift apart.
+
+// "Needs you" means a human reply is genuinely owed:
+//   - Florrie escalated something and the client's last word still asks
+//     something (a real open question), or
+//   - the client had the last word and was not just saying thanks.
+// Florrie's own replies and proactive housekeeping never count, even if the
+// thread shows unread automated rows.
 //
-// The rule it applies: the client had the last word, recently, and that last
-// word asks something of her. It deliberately ignores needs_attention, the old
-// "some row in this thread was escalated and never marked resolved" flag. That
-// flag is sticky, so a thread Ellie had already answered five times still
-// counted as waiting. It read 132 clients when 15 were genuinely waiting.
+// An escalation whose latest inbound is a pure closer ("No worries x",
+// "Thanks!") is treated as handled: there is nothing to answer, so it drops
+// out of Waiting. We never demote a thread where the client actually asked
+// something, so a missing intent stays owed.
+const NEEDS_YOU_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 function needsYou(t) {
+  // The BACKEND owns this decision now and sends it as thread.segment, so
+  // there is one copy of the rule (replyIsOwed) rather than two that drift.
+  //
+  // It deliberately no longer consults needs_attention ("some message in this
+  // thread was escalated and never marked resolved"). That flag is sticky: a
+  // thread Ellie had already answered five times still counted as waiting.
+  // Production read 132 clients waiting when 15 genuinely were.
   return segmentOf(t) === 'needs';
 }
 
@@ -213,10 +219,10 @@ const SEGMENTS = ['needs', 'client', 'new', 'social'];
 function fallbackSegment(t) {
   if (t.is_junk) return 'social';
   // Must NOT call needsYou: that now asks segmentOf, which lands back here.
-  // A stale cached payload gets the coarse "client spoke last, recently" test
-  // and nothing more. It is one render, then the real payload arrives.
+  // A stale cached payload gets this coarse test instead, for the one render
+  // before the real payload arrives.
   if (t.last_message_direction === 'inbound'
-      && Date.now() - new Date(t.last_message_at).getTime() < 7 * 24 * 60 * 60 * 1000) return 'needs';
+      && Date.now() - new Date(t.last_message_at).getTime() < NEEDS_YOU_WINDOW_MS) return 'needs';
   if (t.last_channel === 'instagram' && isPlaceholderName(clientFullName(t))) return 'social';
   return 'client';
 }
@@ -254,60 +260,24 @@ function secondaryHandle(t) {
   return `@${handle}`;
 }
 
-// One page, two states: the people actually waiting, and a drawer holding
-// everything else. Chips only ever filed the noise more neatly, and a tidier
-// pile of noise is still noise on screen. What she needs is not a filter, it
-// is the answer, on the card, sendable without opening anything.
-
-// Numbers read as words up to ten, because "Two people waiting" is a sentence
-// and "2 people waiting" is a metric. Past ten a digit takes in faster.
-const NUMBER_WORDS = ['No one', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten'];
-function waitingHeadline(n) {
-  if (n <= 0) return 'No one waiting';
-  const word = n <= 10 ? NUMBER_WORDS[n] : String(n);
-  return `${word} ${n === 1 ? 'person' : 'people'} waiting`;
-}
-
-// Florrie's own work today, counted off the threads the page already holds, so
-// the line costs no extra call and can never contradict the list under it. A
-// thread counts when its newest message is one Florrie sent herself, it landed
-// today, and nothing is owed back. Thread level is all the payload carries, so
-// the copy says conversations rather than claiming a message count it cannot
-// see. Zero means no line at all: a hollow "handled 0" is worse than silence.
-function handledTodayCount(threads) {
-  if (!threads) return 0;
-  const startOfDay = new Date();
-  startOfDay.setHours(0, 0, 0, 0);
-  return threads.filter(t => (
-    (t.last_message_type === 'auto_reply' || t.last_message_type === 'proactive')
-    && !needsYou(t)
-    && new Date(t.last_message_at) >= startOfDay
-  )).length;
-}
-
-// Regular or new, decided on evidence: the backend flags anyone who has ever
-// booked. A named one-time enquiry is not a regular, and a stranger whose
-// Instagram profile happens to carry a real name is not a returning client.
-function relationLabel(t) {
-  return t.is_known_client ? 'Regular' : 'New';
-}
-
-// Two initials where there are two names, so the avatar identifies rather than
-// decorates. Handles lose their @ first (same rule as initialOf).
-function initialsOf(name) {
-  const clean = (name || '').trim().replace(/^@+/, '');
-  const parts = clean.split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return initialOf(name);
-}
+// Chip order, left to right, and the order the All view stacks its sections:
+// urgent first, then people she knows, then strangers, then the fluff.
+const SEGMENT_TABS = [
+  { key: 'needs', label: 'Needs you' },
+  { key: 'client', label: 'Clients' },
+  { key: 'new', label: 'New' },
+  { key: 'social', label: 'Social' },
+  { key: 'all', label: 'All' },
+];
+const SECTION_TITLES = { needs: 'Needs you', client: 'Clients', new: 'New', social: 'Social' };
 
 export default function Inbox() {
   const [threads, setThreads] = useState(null);
   const [threadsError, setThreadsError] = useState(null);
   const [search, setSearch] = useState('');
-  // A drawer, not a filter. Closed she sees only the people waiting; open she
-  // gets the whole list and the search box that belongs with it.
-  const [showEverything, setShowEverything] = useState(false);
+  // 'all' shows every segment as its own section, so nothing is hidden by
+  // default. The other values narrow to one segment.
+  const [segment, setSegment] = useState('all');
   const [activeClientId, setActiveClientId] = useState(readClientFromUrl());
   const [isWide, setIsWide] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : false);
 
@@ -363,38 +333,44 @@ export default function Inbox() {
     return out;
   }, [threads, search]);
 
-  // The cards. Only the 'needs' lane earns one: a card is a thing she has to
-  // decide about, so anything that does not want her must never become one.
-  // Built off the raw threads rather than the searched ones, because the
-  // search belongs to the drawer: typing a name in there must not make the
-  // headline claim nobody is waiting.
-  const waiting = useMemo(() => (
-    threads ? threads.filter(t => segmentOf(t) === 'needs').sort(byRecency) : []
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  ), [threads]);
+  // Counts come off the same buckets the list renders, and after the search,
+  // so a chip can never claim 12 while its list shows nothing.
+  const counts = useMemo(() => {
+    const base = { needs: 0, client: 0, new: 0, social: 0, all: 0 };
+    if (!grouped) return base;
+    for (const key of SEGMENTS) { base[key] = grouped[key].length; base.all += grouped[key].length; }
+    return base;
+  }, [grouped]);
 
-  // A hard ceiling on cards, whatever the data does. A card is big on purpose,
-  // so a screen of them is worse than the list it replaced: the whole point is
-  // that she can see the top of her day without scrolling. If a backlog ever
-  // pushes past this, the oldest wait behind one line rather than burying the
-  // urgent ones. She answers the top of the pile and the next few arrive.
-  const MAX_CARDS = 6;
-  const cards = waiting.slice(0, MAX_CARDS);
-  const overflow = waiting.length - cards.length;
-
-  // The drawer's contents: one flat list, newest first. Junk stays out unless
-  // she is searching for it, because a quiet lane for noise is still noise.
-  const everything = useMemo(() => {
-    if (!grouped) return [];
-    const searching = Boolean(search.trim());
+  // One segment selected: a flat list, no header, because the chip above it
+  // already says what she is looking at.
+  // All: every non-empty segment as its own section, in priority order. A
+  // section with nothing in it is never rendered, and Social folds away
+  // because that is the lane she should be able to ignore entirely.
+  const sections = useMemo(() => {
+    if (!grouped) return null;
+    if (segment !== 'all') {
+      const items = grouped[segment] || [];
+      if (!items.length) return [];
+      return [{ key: segment, header: null, items, muted: segment === 'social', quiet: segment === 'social' }];
+    }
     return SEGMENTS
-      .filter(key => searching || key !== 'social')
-      .flatMap(key => grouped[key])
-      .sort(byRecency);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [grouped, search]);
+      .filter(key => grouped[key].length)
+      .map(key => ({
+        key,
+        header: SECTION_TITLES[key],
+        items: grouped[key],
+        muted: key === 'social',
+        quiet: key === 'social',
+        collapsible: key === 'social',
+        quietNote: key === 'social' ? 'pitches and randoms, nothing owed' : null,
+      }));
+  }, [grouped, segment]);
 
-  const handledToday = useMemo(() => handledTodayCount(threads), [threads]);
+  const visibleCount = useMemo(
+    () => (sections || []).reduce((n, sec) => n + sec.items.length, 0),
+    [sections]
+  );
 
   function openThread(clientId) {
     setActiveClientId(clientId);
@@ -404,15 +380,6 @@ export default function Inbox() {
     setActiveClientId(null);
     setClientInUrl(null);
     loadThreads(); // refresh unread counts after reading
-  }
-
-  // A card she has sent is done with: drop it straight away so the stack
-  // shrinks under her thumb, then resync so the thread comes back where it now
-  // belongs (answered, in the drawer) rather than in the waiting stack.
-  function handleSent(clientId) {
-    setThreads(prev => (prev ? prev.filter(t => t.client_id !== clientId) : prev));
-    window.dispatchEvent(new Event('florrie:refresh-counts'));
-    loadThreads();
   }
 
   async function deleteThread(clientId) {
@@ -426,22 +393,6 @@ export default function Inbox() {
     }
   }
 
-  const listProps = {
-    waiting,
-    everything,
-    handledToday,
-    loading: threads === null,
-    error: threadsError,
-    search,
-    onSearch: setSearch,
-    onOpen: openThread,
-    onDelete: deleteThread,
-    onSent: handleSent,
-    showEverything,
-    onToggleEverything: () => setShowEverything(v => !v),
-    totalCount: threads?.length || 0,
-  };
-
   // Mobile: conversation takes the whole screen when one is open.
   if (!isWide && activeClientId) {
     return <Conversation clientId={activeClientId} onBack={closeThread} onSent={loadThreads} />;
@@ -451,7 +402,20 @@ export default function Inbox() {
     return (
       <div style={S.pageWide}>
         <aside style={S.paneList}>
-          <ThreadList {...listProps} activeId={activeClientId} />
+          <ThreadList
+            sections={sections}
+            visibleCount={visibleCount}
+            error={threadsError}
+            search={search}
+            onSearch={setSearch}
+            onOpen={openThread}
+            onDelete={deleteThread}
+            activeId={activeClientId}
+            segment={segment}
+            onSegment={setSegment}
+            counts={counts}
+            totalCount={threads?.length || 0}
+          />
         </aside>
         <section style={S.paneConvo}>
           {activeClientId ? (
@@ -466,32 +430,78 @@ export default function Inbox() {
 
   return (
     <div style={S.page}>
-      <ThreadList {...listProps} />
+      <ThreadList
+        sections={sections}
+        visibleCount={visibleCount}
+        error={threadsError}
+        search={search}
+        onSearch={setSearch}
+        onOpen={openThread}
+        onDelete={deleteThread}
+        segment={segment}
+        onSegment={setSegment}
+        counts={counts}
+        totalCount={threads?.length || 0}
+      />
     </div>
   );
 }
 
-/**
- * The page, top to bottom: how many people are waiting, a card for each of
- * them, and one quiet row that opens everything else.
- */
-function ThreadList({
-  waiting, everything, handledToday, loading, error,
-  search, onSearch, onOpen, onDelete, onSent,
-  activeId, showEverything, onToggleEverything, totalCount,
-}) {
-  const searching = Boolean(search.trim());
-  const nothingAtAll = !loading && !error && totalCount === 0;
+function FilterChip({ active, onClick, label, count }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      style={{ ...S.filterChip, ...(active ? S.filterChipActive : {}) }}
+    >
+      {label}
+      {count > 0 && (
+        <span style={{ ...S.filterChipCount, ...(active ? S.filterChipCountActive : {}) }}>{count}</span>
+      )}
+    </button>
+  );
+}
+
+function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, onDelete, activeId, segment, onSegment, counts, totalCount }) {
+  const loading = sections === null;
+  // Social starts folded to one line; searching unfolds everything.
+  const [expanded, setExpanded] = useState({});
+  const isCollapsed = (sec) => sec.collapsible && !expanded[sec.key] && !search.trim();
+  const isEmpty = !loading && visibleCount === 0;
+  // In the needs-you view the whole list is needs-you, so the per-row tag is
+  // redundant. Hide it there; show the informative type label elsewhere.
+  const hideTypeChip = segment === 'needs';
 
   return (
     <>
       <div style={S.headerWrap}>
-        <PageHeader
-          title={waitingHeadline(waiting.length)}
-          subtitle={handledToday > 0
-            ? `Florrie handled ${handledToday} on her own today.`
-            : undefined}
+        <PageHeader title="Inbox" subtitle="One thread per client. Florrie keeps the quiet ones tidy." />
+      </div>
+
+      <div style={S.searchWrap}>
+        <span className="material-symbols-outlined" style={S.searchIcon} aria-hidden>search</span>
+        <input
+          type="search"
+          value={search}
+          onChange={e => onSearch(e.target.value)}
+          placeholder="Search by name or @handle"
+          style={S.searchInput}
         />
+      </div>
+
+      {/* Five chips do not fit a phone at once, so the row scrolls sideways
+          rather than wrapping into a second line that pushes the list down. */}
+      <div className="inbox-seg-row" style={S.filterRow}>
+        {SEGMENT_TABS.map(tab => (
+          <FilterChip
+            key={tab.key}
+            active={segment === tab.key}
+            onClick={() => onSegment(tab.key)}
+            label={tab.label}
+            count={counts?.[tab.key] || 0}
+          />
+        ))}
       </div>
 
       {loading && <ThreadSkeleton />}
@@ -500,176 +510,61 @@ function ThreadList({
           Couldn't load conversations. Pull down to refresh, or check back in a bit.
         </div>
       )}
+      {!loading && !error && isEmpty && (
+        search.trim()
+          ? <NoMatches onClear={() => onSearch('')} />
+          : totalCount === 0
+            ? <EmptyInbox />
+            : segment === 'needs'
+              ? <CaughtUp onShowAll={() => onSegment('all')} />
+              : <SegmentEmpty segment={segment} onShowAll={() => onSegment('all')} />
+      )}
 
-      {nothingAtAll && <EmptyInbox />}
-
-      {!loading && !error && totalCount > 0 && (
-        <>
-          {waiting.length > 0 && (
-            <div style={S.cardStack}>
-              {cards.map(t => (
-                <ActionCard
+      {!loading && !error && !isEmpty && sections.map(sec => (
+        <section key={sec.key} style={S.section}>
+          {sec.header && (
+            sec.collapsible ? (
+              <button
+                type="button"
+                onClick={() => setExpanded(prev => ({ ...prev, [sec.key]: !prev[sec.key] }))}
+                style={S.sectionHeadBtn}
+                aria-expanded={!isCollapsed(sec)}
+              >
+                <span style={S.sectionTitle}>{sec.header}</span>
+                <span style={S.sectionCount}>{sec.items.length}</span>
+                <span className="material-symbols-outlined" style={S.sectionChevron} aria-hidden>
+                  {isCollapsed(sec) ? 'expand_more' : 'expand_less'}
+                </span>
+                {isCollapsed(sec) && sec.quietNote && (
+                  <span style={S.sectionQuietNote}>{sec.quietNote}</span>
+                )}
+              </button>
+            ) : (
+              <div style={S.sectionHead}>
+                <span style={S.sectionTitle}>{sec.header}</span>
+                <span style={S.sectionCount}>{sec.items.length}</span>
+              </div>
+            )
+          )}
+          {!isCollapsed(sec) && (
+            <ul style={S.list}>
+              {sec.items.map(t => (
+                <ThreadRow
                   key={t.client_id}
                   thread={t}
                   active={t.client_id === activeId}
                   onOpen={onOpen}
-                  onSent={onSent}
+                  onDelete={onDelete}
+                  muted={sec.muted}
+                  quiet={sec.quiet}
+                  hideTypeChip={hideTypeChip}
                 />
               ))}
-            </div>
+            </ul>
           )}
-
-          {overflow > 0 && (
-            <button type="button" onClick={onToggleEverything} style={S.overflowRow}>
-              and {overflow} more waiting
-            </button>
-          )}
-
-          {waiting.length === 0 && <AllClear />}
-
-          {/* The only other view. One row, no chips: she taps it when she wants
-              a specific person, and it is closed the rest of the time. */}
-          <button
-            type="button"
-            onClick={onToggleEverything}
-            aria-expanded={showEverything}
-            style={S.everythingRow}
-          >
-            <span className="material-symbols-outlined" style={S.everythingIcon} aria-hidden>search</span>
-            <span style={S.everythingLabel}>Everything</span>
-            <span style={S.everythingCount}>{everything.length}</span>
-          </button>
-
-          {showEverything && (
-            <>
-              <div style={S.searchWrap}>
-                <span className="material-symbols-outlined" style={S.searchIcon} aria-hidden>search</span>
-                <input
-                  type="search"
-                  value={search}
-                  onChange={e => onSearch(e.target.value)}
-                  placeholder="Search by name or @handle"
-                  style={S.searchInput}
-                />
-              </div>
-
-              {everything.length === 0 ? (
-                searching
-                  ? <NoMatches onClear={() => onSearch('')} />
-                  : <DrawerEmpty />
-              ) : (
-                <ul style={S.list}>
-                  {everything.map(t => (
-                    <ThreadRow
-                      key={t.client_id}
-                      thread={t}
-                      active={t.client_id === activeId}
-                      onOpen={onOpen}
-                      onDelete={onDelete}
-                      muted={segmentOf(t) === 'social'}
-                      quiet={segmentOf(t) === 'social'}
-                    />
-                  ))}
-                </ul>
-              )}
-            </>
-          )}
-        </>
-      )}
+        </section>
+      ))}
     </>
-  );
-}
-
-/**
- * One person waiting, answerable without opening anything.
- *
- * The card carries what she needs to decide (who, how long they have waited,
- * their own words) and, when Florrie has one ready, the reply itself. Send
- * goes through the same escalation resolve endpoint the Escalations page uses,
- * so a reply sent from a card is delivered on the client's own channel, logged
- * back into the thread and marked resolved exactly as it would be there. Edit
- * opens the conversation, because editing wants the full thread around it.
- */
-function ActionCard({ thread, active = false, onOpen, onSent }) {
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState(null);
-
-  const name = displayName(thread);
-  const draft = (thread.draft_reply || '').trim();
-  const canSend = Boolean(draft && thread.draft_message_id);
-  // Her own last words are what needs answering, even when Florrie spoke last.
-  const said = thread.last_inbound_preview || thread.last_message_preview || '';
-  const waited = waitingLabel(thread);
-
-  async function send(e) {
-    e.stopPropagation();
-    if (sending || !canSend) return;
-    setSending(true);
-    setError(null);
-    try {
-      await authFetch(`/api/escalations/${encodeURIComponent(thread.draft_message_id)}/resolve`, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'send_as_is' }),
-      });
-      bloom();
-      onSent?.(thread.client_id);
-      // No state reset: the parent drops the card the moment this resolves.
-    } catch (err) {
-      logger.error({ err }, 'inbox action card send failed');
-      // Put the card back exactly as it was and say what went wrong, so a
-      // failed send can never read as a sent one.
-      setSending(false);
-      setError(err.message || 'Could not send. Open the conversation and try there.');
-    }
-  }
-
-  return (
-    <article style={{ ...S.card, ...(active ? S.cardActive : {}) }}>
-      <button
-        type="button"
-        onClick={() => onOpen(thread.client_id)}
-        style={S.cardOpen}
-        aria-label={`Open conversation with ${name}`}
-      >
-        <span style={S.cardTopRow}>
-          <span style={S.cardAvatar} aria-hidden>{initialsOf(name)}</span>
-          <span style={S.cardWho}>
-            <span style={S.cardName}>{name}</span>
-            <span style={S.cardMeta}>
-              {relationLabel(thread)}{waited ? ` · ${waited}` : ''}
-            </span>
-          </span>
-          <ChannelMark channel={thread.last_channel} size={20} />
-        </span>
-        {said && <span style={S.cardQuote}>{'“'}{said}{'”'}</span>}
-      </button>
-
-      {canSend && (
-        <>
-          {/* Recessed so the drafted reply reads as Florrie's words sitting
-              inside the card, not as something the client said. */}
-          <div style={S.draftPanel}>
-            <span style={S.draftContext}>{'\u{1F337}'} Florrie has this ready</span>
-            <div style={S.draftPanelText}>{draft}</div>
-          </div>
-          <div style={S.cardActions}>
-            <button type="button" onClick={send} disabled={sending} style={S.cardSend}>
-              {sending ? 'Sending…' : 'Send'}
-            </button>
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); onOpen(thread.client_id); }}
-              disabled={sending}
-              style={S.cardEdit}
-            >
-              Edit
-            </button>
-          </div>
-        </>
-      )}
-
-      {error && <div style={S.cardError}>{error}</div>}
-    </article>
   );
 }
 
@@ -849,23 +744,31 @@ function EmptyInbox() {
   );
 }
 
-// Nobody waiting. One quiet line, no illustration and no button: an empty
-// action stack is the normal state of a good day, not an event.
-function AllClear() {
+function CaughtUp({ onShowAll }) {
   return (
-    <div style={S.allClear}>
-      <span className="material-symbols-outlined" style={S.allClearIcon} aria-hidden>task_alt</span>
-      <span>Nothing needs you. Florrie has the rest.</span>
+    <div style={S.empty}>
+      <span className="material-symbols-outlined" style={S.emptyIcon}>task_alt</span>
+      <p style={S.emptyText}>You're all caught up. Nothing is waiting on a reply.</p>
+      <button type="button" onClick={onShowAll} style={S.caughtUpBtn}>See all conversations</button>
     </div>
   );
 }
 
-// The drawer opened on nothing. Only reachable when every thread she has is
-// junk, so it says so plainly instead of implying the inbox is broken.
-function DrawerEmpty() {
+// Per-segment empty states, so an empty lane reads as "nothing here" rather
+// than "the inbox is broken".
+const SEGMENT_EMPTY = {
+  client: { icon: 'group', text: 'No client conversations here. Anyone you have booked in shows up in this lane.' },
+  new: { icon: 'waving_hand', text: 'No new enquiries right now. First-time messages land here.' },
+  social: { icon: 'photo_camera', text: 'Nothing parked here. Florrie keeps pitches and randoms out of your way.' },
+};
+
+function SegmentEmpty({ segment, onShowAll }) {
+  const copy = SEGMENT_EMPTY[segment] || { icon: 'forum', text: 'Nothing in this lane.' };
   return (
-    <div style={S.allClear}>
-      <span>Nothing else here. Florrie keeps pitches and randoms out of your way.</span>
+    <div style={S.empty}>
+      <span className="material-symbols-outlined" style={S.emptyIcon}>{copy.icon}</span>
+      <p style={S.emptyText}>{copy.text}</p>
+      <button type="button" onClick={onShowAll} style={S.caughtUpBtn}>See all conversations</button>
     </div>
   );
 }
@@ -949,10 +852,8 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
     return () => { cancelled = true; };
   }, [state.status, state.messages, clientId]);
 
-  // bodyOverride lets a failed bubble's Retry resend its own text without
-  // going through the composer, which may already hold something else.
-  async function handleSend(bodyOverride) {
-    const body = (typeof bodyOverride === 'string' ? bodyOverride : composer).trim();
+  async function handleSend() {
+    const body = composer.trim();
     if (!body || sending || !channel) return;
     if (!clientId) return;
 
@@ -973,7 +874,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
       image_url: null,
     };
     setState(prev => ({ ...prev, messages: [...(prev.messages || []), optimistic] }));
-    if (typeof bodyOverride !== 'string') setComposer('');
+    setComposer('');
 
     try {
       const res = await authFetch('/api/inbox/send', {
@@ -1037,26 +938,12 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
   const renderItems = (() => {
     const out = [];
     let run = [];
-    let day = null;
     const flush = () => {
       if (run.length >= 2) out.push({ divider: true, id: `div-${run[0].id}`, count: run.length });
       run.forEach(m => out.push(m));
       run = [];
     };
-    // Local day, not the ISO date slice: messages carry true UTC timestamps,
-    // so a 00:30 BST message would otherwise be filed under yesterday.
-    const dayKeyOf = (m) => {
-      const d = new Date(m.created_at);
-      return Number.isNaN(d.getTime()) ? null : `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-    };
     for (const m of messages) {
-      const key = dayKeyOf(m);
-      if (key && key !== day) {
-        // Close any run first: the date has to sit above the stretch it opens.
-        flush();
-        out.push({ dateDivider: true, id: `day-${key}`, iso: m.created_at });
-        day = key;
-      }
       const florrieSent = m.direction === 'outbound' && (m.message_type === 'auto_reply' || m.message_type === 'proactive');
       if (florrieSent) run.push(m);
       else { flush(); out.push(m); }
@@ -1101,11 +988,9 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
             No messages yet. Type below to start the conversation.
           </div>
         )}
-        {renderItems.map(m => m.dateDivider
-          ? <DateDivider key={m.id} iso={m.iso} />
-          : m.divider
-            ? <HandledDivider key={m.id} count={m.count} />
-            : <Bubble key={m.id} msg={m} onRetry={handleSend} />
+        {renderItems.map(m => m.divider
+          ? <HandledDivider key={m.id} count={m.count} />
+          : <Bubble key={m.id} msg={m} />
         )}
         {drafts.map(d => (
           <DraftBubble key={d.id} draft={d} onDone={removeDraft} onSent={() => { removeDraft(d.id); load(); onSent?.(); }} />
@@ -1183,7 +1068,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
             />
             <button
               type="button"
-              onClick={() => handleSend()}
+              onClick={handleSend}
               disabled={!composer.trim() || sending}
               style={{ ...S.sendBtn, opacity: composer.trim() && !sending ? 1 : 0.45 }}
               aria-label="Send"
@@ -1546,116 +1431,34 @@ const S = {
   },
   searchInput: {
     width: '100%', boxSizing: 'border-box',
-    padding: '13px 12px 13px 40px',
+    padding: '11px 12px 11px 40px',
     border: 'none',
     borderRadius: 16, background: 'var(--tone-2, #f6e7dd)',
     fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #1d1b19)', outline: 'none',
     transition: 'border-color 0.15s ease, background 0.15s ease',
   },
 
+  filterRow: {
+    display: 'flex', gap: 8, marginBottom: 4, padding: '0 18px',
+    flexWrap: 'nowrap', overflowX: 'auto', WebkitOverflowScrolling: 'touch',
+    scrollbarWidth: 'none',
+  },
+  filterChip: {
+    display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap',
+    padding: '8px 14px', minHeight: 44, borderRadius: 999,
+    border: 'none',
+    background: 'var(--tone-2, #f6e7dd)', color: 'var(--text-secondary, #867277)',
+    fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+    transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease',
+  },
+  filterChipActive: { background: 'var(--accent, #92405e)', color: '#fff' },
+  filterChipCount: {
+    fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 999,
+    background: 'var(--accent-light, rgba(146,64,94,0.10))', color: 'var(--accent, #92405e)',
+  },
+  filterChipCountActive: { background: 'rgba(255,255,255,0.24)', color: '#fff' },
+
   headerWrap: { padding: '0 18px' },
-
-  // The action stack. Cards, not rows: a card is a thing with a decision in
-  // it, so only the people waiting get one.
-  cardStack: { display: 'flex', flexDirection: 'column', gap: 12, padding: '2px 18px 4px' },
-  card: {
-    background: 'var(--bg-card, #fff)',
-    border: '1px solid rgba(146,64,94,0.10)',
-    borderRadius: 14,
-    boxShadow: '0 1px 3px rgba(146,64,94,0.07)',
-    overflow: 'hidden',
-  },
-  cardActive: { borderColor: 'rgba(146,64,94,0.34)' },
-  // The whole top of the card opens the thread, so the tap target is the card
-  // rather than a link buried in it.
-  cardOpen: {
-    display: 'flex', flexDirection: 'column', gap: 8, width: '100%',
-    padding: '13px 14px 12px', minHeight: 44,
-    background: 'transparent', border: 'none', borderRadius: 0,
-    textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
-    WebkitTapHighlightColor: 'transparent',
-  },
-  cardTopRow: { display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 },
-  cardAvatar: {
-    width: 42, height: 42, borderRadius: 21, flexShrink: 0,
-    background: 'linear-gradient(135deg, #ffe0e7 0%, #ffbecd 100%)',
-    color: 'var(--accent, #92405e)',
-    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 15, fontWeight: 700, fontFamily: "'Noto Serif', Georgia, serif",
-    boxShadow: 'inset 0 0 0 1px rgba(146,64,94,0.05)',
-  },
-  cardWho: { display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 },
-  cardName: {
-    fontSize: 15.5, fontWeight: 700, color: 'var(--text-primary, #1d1b19)',
-    letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-  },
-  cardMeta: { fontSize: 11.5, color: 'var(--text-muted, #9B8A8E)', fontWeight: 500 },
-  // Two lines of her own words is enough to decide on. More turns the card
-  // back into a conversation she has to read.
-  cardQuote: {
-    fontSize: 13.5, lineHeight: 1.45, color: 'var(--text-secondary, #867277)',
-    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-  },
-  draftPanel: {
-    margin: '0 14px', padding: '10px 12px', borderRadius: 8,
-    background: 'rgba(146,64,94,0.05)',
-    display: 'flex', flexDirection: 'column', gap: 5,
-  },
-  draftContext: {
-    fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
-    color: 'var(--accent, #92405e)', opacity: 0.85,
-  },
-  draftPanelText: {
-    fontSize: 13.5, lineHeight: 1.5, color: 'var(--text-primary, #1d1b19)',
-    whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-  },
-  cardActions: {
-    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, padding: '10px 14px 14px',
-  },
-  cardSend: {
-    minHeight: 44, borderRadius: 12, border: 'none',
-    background: 'var(--accent, #92405e)', color: '#fff',
-    fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-    WebkitTapHighlightColor: 'transparent',
-  },
-  cardEdit: {
-    minHeight: 44, borderRadius: 12,
-    border: '1px solid rgba(146,64,94,0.28)', background: 'transparent',
-    color: 'var(--accent, #92405e)',
-    fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-    WebkitTapHighlightColor: 'transparent',
-  },
-  cardError: {
-    margin: '0 14px 12px', padding: '8px 10px', borderRadius: 8,
-    background: '#FDECEA', border: '1px solid #F5C6C0',
-    fontSize: 12, color: '#8A2A1C', lineHeight: 1.45,
-  },
-
-  allClear: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-    padding: '18px 22px 22px', textAlign: 'center',
-    fontSize: 13.5, color: 'var(--text-muted, #9B8A8E)', lineHeight: 1.5,
-  },
-  allClearIcon: { fontSize: 18, color: 'var(--accent, #92405e)', opacity: 0.6 },
-
-  // The drawer handle. A hairline above it is the only separation it needs.
-  overflowRow: {
-    width: '100%', minHeight: 44, border: 'none', background: 'none',
-    color: '#8A7F79', fontSize: 13, fontFamily: 'inherit', cursor: 'pointer',
-    padding: '10px 4px', textAlign: 'center',
-  },
-  everythingRow: {
-    display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-    minHeight: 56, padding: '0 18px', marginTop: 6,
-    background: 'transparent', border: 'none',
-    borderTop: '1px solid rgba(146,64,94,0.10)',
-    cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
-    WebkitTapHighlightColor: 'transparent',
-  },
-  everythingIcon: { fontSize: 19, color: 'var(--text-muted, #B5AFA8)' },
-  everythingLabel: { flex: 1, fontSize: 14, fontWeight: 600, color: 'var(--text-secondary, #867277)' },
-  everythingCount: { fontSize: 12, fontWeight: 700, color: 'var(--text-muted, #B5AFA8)' },
-
   caughtUpBtn: {
     marginTop: 4, padding: '10px 18px', minHeight: 44,
     background: 'var(--tone-2, #f6e7dd)', color: 'var(--accent, #92405e)',
@@ -1665,6 +1468,14 @@ const S = {
 
   list: { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column' },
 
+  section: { marginBottom: 8 },
+  sectionHeadBtn: {
+    display: 'flex', alignItems: 'center', gap: 8, padding: '20px 18px 7px',
+    width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+    fontFamily: 'inherit', textAlign: 'left', minHeight: 44,
+  },
+  sectionChevron: { fontSize: 18, color: 'var(--text-muted, #B5AFA8)' },
+  sectionQuietNote: { fontSize: 11.5, color: 'var(--text-muted, #B5AFA8)', fontStyle: 'italic', marginLeft: 'auto' },
   waitChip: {
     fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
     background: '#fdf0e3', color: '#b3602f', letterSpacing: '0.02em',
@@ -1729,6 +1540,17 @@ const S = {
     background: 'var(--tone-2, #f6e7dd)', color: 'var(--text-secondary, #867277)',
     fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     WebkitTapHighlightColor: 'transparent',
+  },
+  sectionHead: {
+    display: 'flex', alignItems: 'center', gap: 8, padding: '20px 18px 7px',
+  },
+  sectionTitle: {
+    fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase',
+    color: 'var(--text-muted, #B5AFA8)',
+  },
+  sectionCount: {
+    fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted, #9a8f93)',
+    background: 'rgba(146,64,94,0.06)', borderRadius: 999, padding: '1px 7px', minWidth: 16, textAlign: 'center',
   },
   // Each row is a slice of an open list, not a card. A single hairline warm
   // divider sits under it (the last row drops its own via :last-child below),
@@ -1886,6 +1708,7 @@ const S = {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     fontSize: 14, fontWeight: 700, fontFamily: "'Noto Serif', Georgia, serif",
   },
+  convoNameWrap: { display: 'flex', flexDirection: 'column', gap: 1, flex: 1, minWidth: 0 },
   convoNameRow: { display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 },
   convoName: {
     fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #1d1b19)',
@@ -1907,21 +1730,6 @@ const S = {
     boxShadow: '0 1px 2px rgba(146,64,94,0.06)',
   },
   bubbleText: { fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
-  dateDivider: { display: 'flex', justifyContent: 'center', margin: '4px 0 0' },
-  dateChip: {
-    fontSize: 10, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase',
-    color: 'var(--text-muted, #9B8A8E)', background: 'rgba(146,64,94,0.06)',
-    borderRadius: 999, padding: '3px 10px',
-  },
-  // A failed send needs a real tap target, not a caption, so it keeps the 44px
-  // height even though it reads as a note.
-  failedNote: {
-    display: 'inline-flex', alignItems: 'center', minHeight: 44, padding: '0 4px',
-    background: 'transparent', border: 'none',
-    fontSize: 11, fontWeight: 700, color: '#9a2a22',
-    cursor: 'pointer', fontFamily: 'inherit',
-    WebkitTapHighlightColor: 'transparent',
-  },
   bubbleMeta: { fontSize: 10, marginTop: 4, display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' },
 
   waHint: {
@@ -1978,6 +1786,7 @@ if (typeof document !== 'undefined' && !document.getElementById('inbox-bold-css'
   const s = document.createElement('style');
   s.id = 'inbox-bold-css';
   s.textContent = `
+    .inbox-seg-row::-webkit-scrollbar { display: none; }
     .inbox-row-li { border-bottom: 1px solid rgba(146,64,94,0.07); }
     .inbox-row-li:last-child { border-bottom: none; }
     .inbox-row:hover { background: rgba(146,64,94,0.045) !important; }

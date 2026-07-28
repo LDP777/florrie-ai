@@ -46,26 +46,31 @@ function decision(d, tier, reason) {
   return { decision: d, tier, reason };
 }
 
-// A client Ellie already knows: a CURRENT regular, not just anyone with old
-// history. Frequency-based (Levi, 2026-07-04): 3+ completed appointments in
-// the last 6 months. A one-off client from last year is not a regular; someone
-// in every fortnight is. Explicit regular/VIP flags still count immediately.
-export const KNOWN_CLIENT_MIN_VISITS = 3;
-export const KNOWN_CLIENT_WINDOW_DAYS = 183;
-export async function isKnownClient(beauticianId, clientId, client = null, minVisits = KNOWN_CLIENT_MIN_VISITS) {
+// A client Ellie already knows. Florrie may only speak on her own to people
+// with NO relationship to the salon at all.
+//
+// This used to mean "a CURRENT regular": 3+ COMPLETED appointments in the last
+// 183 days. That let Florrie auto-reply to anyone below the bar, which on
+// 28 Jul told a client that 4.30 Thursday was free when it was not. The client
+// was asking to RESCHEDULE, so she demonstrably had a booking; she just had not
+// completed three of them in six months. A rule that treats a woman with an
+// appointment in the diary as a stranger is the wrong rule.
+//
+// Now: ANY appointment ever, in ANY status, makes her Ellie's. Cancelled and
+// no-showed count too, because a relationship exists either way. Levi,
+// 2026-07-28: "we shouldn't fuck with Ellie's clients."
+export const KNOWN_CLIENT_MIN_VISITS = 1;
+export const KNOWN_CLIENT_WINDOW_DAYS = null;
+export async function isKnownClient(beauticianId, clientId, client = null) {
   if (!clientId) return false;
-  const threshold = Number.isFinite(minVisits) && minVisits > 0 ? minVisits : KNOWN_CLIENT_MIN_VISITS;
   try {
     if (client && (client.is_regular === true || client.vip === true)) return true;
-    const windowStart = new Date(Date.now() - KNOWN_CLIENT_WINDOW_DAYS * 86400000).toISOString();
     const { count } = await supabase
       .from('appointments')
       .select('id', { count: 'exact', head: true })
       .eq('beautician_id', beauticianId)
-      .eq('client_id', clientId)
-      .eq('status', 'completed')
-      .gte('starts_at', windowStart);
-    return (count || 0) >= threshold;
+      .eq('client_id', clientId);
+    return (count || 0) > 0;
   } catch {
     // If we cannot tell, err towards asking rather than auto-sending.
     return true;
@@ -203,7 +208,7 @@ export async function evaluateOutbound({ beauticianId, clientId, messageType, ch
     // A client Ellie knows is a relationship she manages personally. Never auto-send
     // to them, even on 'auto': hold for her explicit yes/no so a proactive message
     // never lands out of context with someone she has a rapport with.
-    if (mode === 'auto' && await isKnownClient(beauticianId, clientId, c, b?.autonomy?.known_client_min_visits)) {
+    if (mode === 'auto' && await isKnownClient(beauticianId, clientId, c)) {
       return decision('approve', tier, 'known_client_review');
     }
     if (mode === 'auto') return decision('send', tier, 'trusted_auto');
