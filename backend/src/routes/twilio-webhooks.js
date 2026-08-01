@@ -24,6 +24,7 @@ import { supabase } from '../config.js';
 import { processInboundMessage } from '../services/ai-front-desk.js';
 import { twilioValidateSignature } from '../services/whatsapp-twilio.js';
 import logger from '../lib/logger.js';
+import { autoUnarchiveClient } from '../lib/client-archive.js';
 
 const router = Router();
 
@@ -175,7 +176,11 @@ async function findOrCreateClientByWhatsApp(beauticianId, from, profileName) {
     .eq('beautician_id', beauticianId)
     .eq('whatsapp_id', digits)
     .maybeSingle();
-  if (client) return client;
+  if (client) {
+    // An archived client messaging in means they are back; clear the flag (fail-soft).
+    autoUnarchiveClient(client.id, 'whatsapp_message').catch(() => {});
+    return client;
+  }
 
   // 2. Phone match — stored either as bare digits (Meta-created rows) or
   //    E.164 (Bird/manual rows). Link the WhatsApp ID on first contact.
@@ -191,6 +196,8 @@ async function findOrCreateClientByWhatsApp(beauticianId, from, profileName) {
         .from('clients')
         .update({ whatsapp_id: digits })
         .eq('id', phoneClient.id);
+      // Same as above: a message from an archived client unarchives them.
+      autoUnarchiveClient(phoneClient.id, 'whatsapp_message').catch(() => {});
       return { ...phoneClient, whatsapp_id: digits };
     }
   }

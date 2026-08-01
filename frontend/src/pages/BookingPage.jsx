@@ -1692,6 +1692,18 @@ export default function BookingPage() {
         {step === 3 && (
           <div>
             <h2 style={styles.stepTitle}>Confirm your booking</h2>
+            {/* Outstanding balance heads-up for a recognised returning client.
+                A warm notice only, never a wall: the backend fails open (zero)
+                on any error and booking always goes ahead. */}
+            {recognisedClient?.found && (recognisedClient.outstandingBalanceCents || 0) > 0 && (
+              <div style={{
+                padding: '12px 14px', borderRadius: 10, marginBottom: 14,
+                background: `${brand}10`, border: `1px solid ${brand}30`,
+                fontSize: 13, color: 'var(--text-primary, #1a0a0f)', lineHeight: 1.55,
+              }}>
+                Looks like there is an outstanding balance of £{(recognisedClient.outstandingBalanceCents / 100).toFixed(2)} from a previous visit. This will need settling at your appointment.
+              </div>
+            )}
             <div style={styles.summaryCard}>
               {/* Show each treatment row when multiple selected */}
               {selectedTreatments.length > 1 ? (

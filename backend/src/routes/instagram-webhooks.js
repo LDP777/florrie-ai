@@ -22,6 +22,7 @@ import { processInboundMessage } from '../services/ai-front-desk.js';
 import { pushMessagesWaiting } from '../services/push-notifications.js';
 import { classifyInboundMessage, looksLikeKnownClient } from '../lib/junk-classifier.js';
 import logger from '../lib/logger.js';
+import { autoUnarchiveClient } from '../lib/client-archive.js';
 
 const router = Router();
 
@@ -323,6 +324,11 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
       client = { ...client, instagram_username: username };
     }
   }
+
+  // A DM from an archived client means they are back: quietly clear the
+  // archive flag so their thread and profile reappear. Fail-soft inside the
+  // helper - DM handling never depends on it.
+  if (client?.id) autoUnarchiveClient(client.id, 'instagram_dm').catch(() => {});
 
   // Is this a client, or is it outreach? A cold pitch, a follower seller or a
   // wingman message gets stored and stays findable, but it must not escalate,

@@ -14,6 +14,8 @@ import { verifyTurnstile } from '../middleware/turnstile.js';
 import logger from '../lib/logger.js';
 import { bookingSchema } from '../lib/schemas.js';
 import { nowInSalonWall, loadBlocks, hitsBlock, wallDayHours } from '../lib/free-slots.js';
+import { getOutstandingBalanceCents } from '../services/outstanding-balance.js';
+import { autoUnarchiveClient } from '../lib/client-archive.js';
 
 const router = Router();
 const FRONTEND_URL = process.env.FRONTEND_URL;
@@ -496,6 +498,12 @@ router.post('/:slug/lookup-client', async (req, res) => {
 
     if (!client) return res.json({ found: false });
 
+    // Anything still owed from previous visits (unpaid policy fee or an
+    // unsettled remainder). The confirm step shows a warm heads-up so the
+    // client is not surprised at the till. Fails OPEN inside the service:
+    // any error means zero, and zero means no notice. Never blocks booking.
+    const { owesCents } = await getOutstandingBalanceCents(b.id, client.id);
+
     // Fetch their upcoming appointment count + patch test status + what they
     // had last time (for the one-tap "same again?" rebook path)
     const [{ data: upcoming }, { data: pendingTests }, { data: pendingForms }, { data: lastVisit }] = await Promise.all([
@@ -559,6 +567,7 @@ router.post('/:slug/lookup-client', async (req, res) => {
       hasPendingPatchTest: (pendingTests || []).length > 0,
       hasPendingForm: (pendingForms || []).length > 0,
       lastTreatment,
+      outstandingBalanceCents: owesCents || 0,
     });
   } catch (err) {
     logger.error({ err }, 'Client lookup failed');
@@ -2425,7 +2434,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   if (client_email) {
     const { data } = await supabase
       .from('clients')
-      .select('id, stripe_customer_id, blocked_at')
+      .select('id, stripe_customer_id, blocked_at, archived_at')
       .eq('beautician_id', beautician.id)
       .ilike('email', client_email.trim())
       .maybeSingle();
@@ -2440,7 +2449,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     if (cpd.length >= 7) {
       const { data } = await supabase
         .from('clients')
-        .select('id, stripe_customer_id, blocked_at')
+        .select('id, stripe_customer_id, blocked_at, archived_at')
         .eq('beautician_id', beautician.id)
         .ilike('phone', `%${cpd.slice(-9)}`)
         .limit(1);
@@ -2456,6 +2465,12 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
 
   if (existingClient) {
     client = existingClient;
+    // An archived client booking again is the clearest possible sign they are
+    // back: clear the flag so they reappear in the client list. Fail-soft and
+    // fire-and-forget, the booking must never wait on (or break over) this.
+    if (existingClient.archived_at) {
+      autoUnarchiveClient(existingClient.id, 'booked_again').catch(() => {});
+    }
   } else {
     // Create new client
     const { data: newClient, error: cError } = await supabase
