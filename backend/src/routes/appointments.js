@@ -611,6 +611,18 @@ router.patch('/:id', requireAuth, async (req, res) => {
   // Fire-and-forget: award loyalty points when marked completed (idempotent)
   if (req.body.status === 'completed') {
     awardLoyaltyPoints(req.beautician.id, data).catch(() => {});
+    // Count the visit and the spend. clients.total_spend_cents is what the
+    // client profile's "spent" figure reads, and only /complete-day ever
+    // incremented it, so anyone completed by THIS path (the normal one-tap
+    // complete) showed as 0 pounds spent forever. Ellie: "says 0 spent but
+    // this client been to me 3 times this month".
+    if (data.client_id) {
+      const { error: visitErr } = await supabase.rpc('increment_client_visit', {
+        p_client_id: data.client_id,
+        p_amount: data.price_cents || 0,
+      });
+      if (visitErr) logger.error({ err: visitErr, appointmentId: data.id }, 'quick complete: visit increment failed');
+    }
     // Log takings so the Money tab counts this as income, exactly like the
     // auto-complete sweep and the "All done" batch. Without this, tapping a
     // single appointment complete recorded NO income, so the Money page read

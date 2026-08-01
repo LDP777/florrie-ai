@@ -392,6 +392,7 @@ export async function chargeRemainingBalance(appointmentId) {
       .from('appointments')
       .select(`
         id, beautician_id, client_id, price_cents, deposit_cents, deposit_paid,
+        payment_type,
         stripe_payment_method_id,
         clients(id, first_name, last_name, stripe_customer_id),
         beauticians(id, business_name, first_name, stripe_account_id, stripe_onboarding_complete)
@@ -401,18 +402,31 @@ export async function chargeRemainingBalance(appointmentId) {
 
     if (!appt) return { charged: false, reason: 'not_found' };
 
+    // A pay-in-full booking has NO remainder, whatever price minus deposit
+    // says. deposit_cents still carries the standard deposit figure on these
+    // rows, so the arithmetic below would happily invoice a fully paid client
+    // for price minus 10 pounds. That is how Ellie's client who had paid in
+    // full showed as "charge 10 to card", one tap from a double charge.
+    if (appt.payment_type === 'full') {
+      return { charged: false, reason: 'paid_in_full' };
+    }
+
     const priceCents = appt.price_cents || 0;
     const depositPaidCents = appt.deposit_paid ? (appt.deposit_cents || 0) : 0;
     const amountCents = Math.max(0, priceCents - depositPaidCents);
     if (amountCents < 30) return { charged: false, reason: 'nothing_due' };
 
-    // Already charged a balance/payment for this appointment? (guard)
-    const { data: prior } = await supabase
+    // Already charged or already settled? full_payment counts: a client who
+    // paid everything at booking must trip this guard, and until now did not.
+    const { data: prior, error: priorError } = await supabase
       .from('transactions')
       .select('id')
       .eq('appointment_id', appt.id)
-      .eq('type', 'payment')
+      .in('type', ['payment', 'full_payment', 'payment_link'])
       .limit(1);
+    // If the guard itself cannot be read, refuse to charge. Charging blind is
+    // exactly the double-charge this guard exists to prevent.
+    if (priorError) return { charged: false, reason: 'guard_unreadable' };
     if (prior && prior.length) return { charged: false, reason: 'already_charged' };
 
     if (!stripe) return { charged: false, reason: 'stripe_not_configured' };

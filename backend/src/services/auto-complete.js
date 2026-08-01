@@ -85,6 +85,17 @@ export async function autoCompletePastAppointments() {
     if (!updated) continue; // already moved by another path
     completed++;
 
+    // Count the visit and the spend on the client record. The cron completes
+    // most appointments, and it never told the client profile, which is why
+    // regulars showed 0 pounds spent. Same RPC the manual paths use.
+    if (appt.client_id) {
+      const { error: visitErr } = await supabase.rpc('increment_client_visit', {
+        p_client_id: appt.client_id,
+        p_amount: appt.price_cents || 0,
+      });
+      if (visitErr) logger.error({ err: visitErr, id: appt.id }, 'auto-complete: visit increment failed');
+    }
+
     // Takings = remaining balance (price minus any deposit already counted).
     const depositPaid = appt.deposit_paid ? (appt.deposit_cents || 0) : 0;
     const takings = Math.max(0, (appt.price_cents || 0) - depositPaid);

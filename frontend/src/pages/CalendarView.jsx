@@ -1387,8 +1387,20 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
     setLinkLoading(true);
     try {
       const token = (await supabase.auth.getSession())?.data?.session?.access_token;
-      const remaining = appointment.price_cents - (appointment.deposit_cents || 0);
-      const amount = remaining > 0 ? remaining : appointment.price_cents;
+      // A pay-in-full booking owes nothing; the old fallback here would have
+      // sent a paid client a link for the FULL price again.
+      if (appointment.payment_type === 'full') {
+        alert('This booking was paid in full at booking. There is nothing to request.');
+        setLinkLoading(false);
+        return;
+      }
+      const remaining = appointment.price_cents - (appointment.deposit_paid ? (appointment.deposit_cents || 0) : 0);
+      if (remaining <= 0) {
+        alert('There is no balance left to request.');
+        setLinkLoading(false);
+        return;
+      }
+      const amount = remaining;
       const res = await fetch(`${API_BASE}/api/stripe/payment-link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -1412,6 +1424,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
   // Card fallback: take the remaining balance off the client's saved card when
   // they haven't paid the rest by bank transfer. Off-session, confirmed first.
   async function handleChargeBalance() {
+    if (appointment.payment_type === 'full') { alert('This booking was paid in full at booking.'); return; }
     const remaining = (appointment.price_cents || 0) - (appointment.deposit_paid ? (appointment.deposit_cents || 0) : 0);
     if (remaining < 30) { alert('There is no balance left to charge.'); return; }
     if (!confirm(`Charge the remaining £${(remaining / 100).toFixed(2)} to ${appointment.clients?.first_name || 'this client'}'s saved card?`)) return;
@@ -1765,8 +1778,14 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 Reschedule
               </button>
               {/* Card fallback: only shows when there's an unpaid balance (price
-                  minus the deposit they paid). For when they didn't bank-transfer. */}
-              {(((appointment.price_cents || 0) - (appointment.deposit_paid ? (appointment.deposit_cents || 0) : 0)) >= 30) && (
+                  minus the deposit they paid). NEVER for a pay-in-full booking:
+                  deposit_cents still carries the standard deposit on those rows,
+                  so the arithmetic would offer to charge a paid client again.
+                  That is exactly the "says charge 10 to card" complaint, and one
+                  tap from a double charge. The backend refuses too; this stops
+                  the button existing at all. */}
+              {appointment.payment_type !== 'full'
+                && (((appointment.price_cents || 0) - (appointment.deposit_paid ? (appointment.deposit_cents || 0) : 0)) >= 30) && (
                 <button onClick={() => { hapticTap(); handleChargeBalance(); }} disabled={chargingBalance}
                   style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--bg-input, #FAFAFA)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                   <span className="material-symbols-outlined" style={{ fontSize: 16 }}>credit_card</span>
