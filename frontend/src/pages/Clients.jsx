@@ -89,6 +89,18 @@ export default function Clients() {
   const [saving, setSaving] = useState(false);
   const [undoing, setUndoing] = useState(false);
   const [toast, setToast] = useState(null);
+  // Archived view + the one-time 12-months-inactive tidy-up helper.
+  // Archiving is reversible and never deletes; the backend auto-unarchives
+  // anyone who books or messages again.
+  const [showArchived, setShowArchived] = useState(false);
+  const [inactiveReview, setInactiveReview] = useState(null); // { count, candidates }
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewDismissed, setReviewDismissed] = useState(() => {
+    // localStorage keeps the helper one-time without needing a schema change.
+    try { return !!localStorage.getItem('florrie_inactive_review_dismissed'); } catch { return true; }
+  });
+  const [archivingId, setArchivingId] = useState(null);
+  const [archivingAll, setArchivingAll] = useState(false);
 
   // Just-imported filter, read from URL so a deep-link from the import flow
   // keeps working after a refresh.
@@ -103,6 +115,25 @@ export default function Clients() {
   useEffect(() => {
     if (beautician) loadClients();
   }, [beautician]);
+
+  // The tidy-up helper card. Fail-soft: any error and the card simply never
+  // appears, the page carries on.
+  useEffect(() => {
+    if (!beautician || reviewDismissed) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = getToken();
+        const res = await fetch(`${API_BASE}/api/clients/inactive-review`, {
+          headers: { Authorization: token ? `Bearer ${token}` : '' },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setInactiveReview(data);
+      } catch { /* no card, no harm */ }
+    })();
+    return () => { cancelled = true; };
+  }, [beautician, reviewDismissed]);
 
   // Auto-open client panel when navigated here with { state: { clientId } }
   useEffect(() => {
@@ -282,13 +313,21 @@ export default function Clients() {
     navigate('/messaging', { state: { recipients, prefilledFrom: 'clients' } });
   }
 
-  // Count summary across the *full* loaded list, not the filtered one.
-  const counts = clients.reduce((acc, c) => {
+  // Archived clients stay out of the main list and every count; the quiet
+  // "Archived" row at the bottom flips the whole view to only them. Pre
+  // migration 018 the column is simply absent, so nobody reads as archived.
+  const activeClients = clients.filter(c => !c.archived_at);
+  const archivedClients = clients.filter(c => !!c.archived_at);
+
+  // Count summary across the *full* active list, not the filtered one.
+  const counts = activeClients.reduce((acc, c) => {
     const b = bucketFor(c);
     acc[b] = (acc[b] || 0) + 1;
     return acc;
   }, {});
-  const filtered = applyFilterSort(clients);
+  const filtered = showArchived
+    ? [...archivedClients].sort((a, b) => `${a.first_name} ${a.last_name || ''}`.localeCompare(`${b.first_name} ${b.last_name || ''}`))
+    : applyFilterSort(activeClients);
 
   async function loadClientDetail(id) {
     try {
@@ -328,6 +367,60 @@ export default function Clients() {
     } catch (err) {
       logger.error('Client detail error:', err);
     }
+  }
+
+  // Archive one client via the backend (service role writes; the frontend
+  // anon key may not have update rights on archived_at).
+  async function archiveClientById(id) {
+    const token = getToken();
+    const res = await fetch(`${API_BASE}/api/clients/${id}/archive`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'Could not archive this client');
+    }
+  }
+
+  async function handleReviewArchive(id) {
+    setArchivingId(id);
+    try {
+      await archiveClientById(id);
+      setInactiveReview(prev => prev ? ({
+        count: Math.max(0, (prev.count || 1) - 1),
+        candidates: (prev.candidates || []).filter(c => c.id !== id),
+      }) : prev);
+      loadClients();
+    } catch (err) {
+      alert(err.message || 'Could not archive this client');
+    } finally {
+      setArchivingId(null);
+    }
+  }
+
+  async function handleReviewArchiveAll() {
+    const list = inactiveReview?.candidates || [];
+    if (!list.length) return;
+    if (!confirm(`Archive all ${list.length} clients? Nothing is deleted, and any of them come straight back if they book or message again.`)) return;
+    setArchivingAll(true);
+    let failed = 0;
+    // Sequential on purpose: tens of parallel writes against a small API is
+    // how you get half-done batches and rate-limit noise.
+    for (const c of list) {
+      try { await archiveClientById(c.id); } catch { failed += 1; }
+    }
+    setArchivingAll(false);
+    setInactiveReview({ count: failed, candidates: failed ? list : [] });
+    setReviewOpen(false);
+    setToast(failed ? `Archived ${list.length - failed}, ${failed} failed. Try those again.` : `Archived ${list.length} clients. Find them under Archived at the bottom.`);
+    setTimeout(() => setToast(null), 5000);
+    loadClients();
+  }
+
+  function dismissReview() {
+    try { localStorage.setItem('florrie_inactive_review_dismissed', '1'); } catch { /* fine */ }
+    setReviewDismissed(true);
   }
 
   async function handleAddClient() {
@@ -435,10 +528,32 @@ export default function Clients() {
         <div style={styles.toast}>{toast}</div>
       )}
 
-      {/* Count summary across the full loaded list */}
-      {clients.length > 0 && !justImportedBatchId && (
+      {/* Archived view header: same page, quieter frame, no tab bar */}
+      {showArchived && (
+        <div style={styles.archivedHeader}>
+          <span style={styles.archivedHeaderTitle}>Archived clients ({archivedClients.length})</span>
+          <span style={styles.archivedHeaderSub}>Hidden from your list, never deleted. Anyone who books or messages again comes straight back.</span>
+        </div>
+      )}
+
+      {/* One-time tidy-up helper: only when there is a real pile to review */}
+      {!showArchived && !justImportedBatchId && !reviewDismissed && (inactiveReview?.count || 0) >= 5 && (
+        <div style={styles.reviewCard}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={styles.reviewCardTitle}>{inactiveReview.count} clients have not visited in over a year.</div>
+            <div style={styles.reviewCardSub}>Archive them to tidy the list. They come straight back if they ever book or message again.</div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button onClick={() => setReviewOpen(true)} style={styles.reviewBtn}>Review</button>
+            <button onClick={dismissReview} style={styles.reviewGhostBtn}>Not now</button>
+          </div>
+        </div>
+      )}
+
+      {/* Count summary across the full active list */}
+      {activeClients.length > 0 && !justImportedBatchId && !showArchived && (
         <div style={styles.countRow}>
-          <span style={styles.countTotal}>{clients.length} total</span>
+          <span style={styles.countTotal}>{activeClients.length} total</span>
           <span style={styles.countSep}>·</span>
           <span style={styles.countActive}>{counts.active || 0} active</span>
           <span style={styles.countSep}>·</span>
@@ -449,6 +564,7 @@ export default function Clients() {
       )}
 
       {/* Search */}
+      {!showArchived && (
       <div style={styles.searchWrap}>
         <input
           type="text"
@@ -461,12 +577,14 @@ export default function Clients() {
           <button onClick={() => setSearch('')} style={styles.clearBtn}>×</button>
         )}
       </div>
+      )}
 
       {/* Filter chips + sort menu */}
+      {!showArchived && (
       <div style={styles.controlsRow}>
         <div style={styles.chipsWrap}>
           {FILTERS.map(f => {
-            const count = f.id === 'all' ? clients.length : (counts[f.id] || 0);
+            const count = f.id === 'all' ? activeClients.length : (counts[f.id] || 0);
             const active = filter === f.id;
             return (
               <button
@@ -513,6 +631,7 @@ export default function Clients() {
           )}
         </div>
       </div>
+      )}
 
       {/* Add client form */}
       {showAdd && (
@@ -620,11 +739,65 @@ export default function Clients() {
         </div>
       )}
 
+      {/* Quiet Archived row at the bottom - a link, not a tab bar */}
+      {!selectMode && !showArchived && archivedClients.length > 0 && (
+        <button onClick={() => setShowArchived(true)} style={styles.archivedLink}>
+          Archived ({archivedClients.length})
+        </button>
+      )}
+      {showArchived && (
+        <button onClick={() => setShowArchived(false)} style={styles.archivedLink}>
+          Back to all clients
+        </button>
+      )}
+
       {/* Floating action bar for multi-select */}
       {selectMode && selectedIds.size > 0 && (
         <div style={styles.actionBar}>
           <span style={styles.actionCount}>{selectedIds.size} selected</span>
           <button onClick={messageSelected} style={styles.actionBtnPrimary}>Message all</button>
+        </div>
+      )}
+
+      {/* Review list for the tidy-up helper: per-client Archive + Archive all */}
+      {reviewOpen && (
+        <div style={styles.detailOverlay} onClick={() => setReviewOpen(false)}>
+          <div style={styles.detailPanel} onClick={e => e.stopPropagation()}>
+            <button onClick={() => setReviewOpen(false)} style={styles.closeBtn}>×</button>
+            <h2 style={{ ...styles.detailName, marginTop: 4 }}>Not seen in over a year</h2>
+            <p style={styles.reviewCardSub}>
+              Archiving hides them from your list. Nothing is deleted, and anyone who books or messages again comes straight back.
+            </p>
+            {(inactiveReview?.candidates || []).length > 1 && (
+              <button onClick={handleReviewArchiveAll} disabled={archivingAll} style={styles.archiveAllBtn}>
+                {archivingAll ? 'Archiving...' : `Archive all ${(inactiveReview?.candidates || []).length}`}
+              </button>
+            )}
+            {(inactiveReview?.candidates || []).length === 0 ? (
+              <p style={styles.noHistory}>All reviewed. Lovely and tidy.</p>
+            ) : (
+              (inactiveReview?.candidates || []).map(c => (
+                <div key={c.id} style={styles.reviewRow}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={styles.reviewRowName}>{c.first_name} {c.last_name || ''}</div>
+                    <div style={styles.reviewRowMeta}>
+                      {c.last_visit_at
+                        ? `Last visit ${new Date(c.last_visit_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+                        : 'Never visited'}
+                      {c.total_visits > 0 ? ` · ${c.total_visits} visits` : ''}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleReviewArchive(c.id)}
+                    disabled={archivingId === c.id || archivingAll}
+                    style={styles.reviewRowBtn}
+                  >
+                    {archivingId === c.id ? '...' : 'Archive'}
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       )}
 
@@ -634,6 +807,7 @@ export default function Clients() {
           detail={clientDetail}
           onClose={() => { setSelected(null); setClientDetail(null); }}
           onNavigate={navigate}
+          onChanged={loadClients}
         />
       )}
     </div>
@@ -647,11 +821,34 @@ export default function Clients() {
  * Notes:    client notes + preferences
  * Messages: embedded conversation (Day 5)
  */
-function ClientDetailPanel({ detail, onClose, onNavigate }) {
+function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
   const [detailTab, setDetailTab] = useState('overview');
   const client = detail.client;
   const appointments = detail.appointments || [];
   const messages = detail.messages || [];
+  // Archive / unarchive: reversible tidy-up, sits quietly next to Block.
+  const [archived, setArchived] = useState(!!client?.archived_at);
+  const [archiving, setArchiving] = useState(false);
+  async function toggleArchive() {
+    const next = !archived;
+    if (next && !confirm(`Archive ${client.first_name || 'this client'}? They will be hidden from your client list. Nothing is deleted, and they come straight back if they book or message again.`)) return;
+    setArchiving(true);
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/clients/${client.id}/${next ? 'archive' : 'unarchive'}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not update this client');
+      setArchived(!!data.archived);
+      onChanged && onChanged();
+    } catch (err) {
+      alert(err.message || 'Could not update this client');
+    } finally {
+      setArchiving(false);
+    }
+  }
   // Block / unblock a problem client (they can no longer book online).
   const [blocked, setBlocked] = useState(!!client?.blocked_at);
   const [blocking, setBlocking] = useState(false);
@@ -830,6 +1027,11 @@ function ClientDetailPanel({ detail, onClose, onNavigate }) {
             Blocked — this client can't book online.
           </div>
         )}
+        {archived && (
+          <div style={{ background: 'var(--bg-subtle, #F5F1EC)', border: '1px solid var(--border, #E5E0DA)', borderRadius: 10, padding: '9px 12px', margin: '0 0 12px', fontSize: 13, color: 'var(--text-secondary, #6B6560)', fontWeight: 600, textAlign: 'center' }}>
+            Archived. Hidden from your client list; they come back automatically if they book or message again.
+          </div>
+        )}
 
         {/* Detail tabs */}
         <div style={styles.detailTabs}>
@@ -932,12 +1134,20 @@ function ClientDetailPanel({ detail, onClose, onNavigate }) {
               </div>
             )}
 
-            {/* Block / unblock. Kept quiet at the bottom of the profile. */}
-            <div style={{ marginTop: 20, textAlign: 'center' }}>
+            {/* Block / unblock and archive / unarchive. Kept quiet at the
+                bottom of the profile - housekeeping, not headline actions. */}
+            <div style={{ marginTop: 20, textAlign: 'center', display: 'flex', justifyContent: 'center', gap: 16, flexWrap: 'wrap' }}>
+              <button
+                onClick={toggleArchive}
+                disabled={archiving}
+                style={{ background: 'none', border: 'none', color: 'var(--text-secondary, #6B6560)', fontSize: 13, fontWeight: 600, cursor: archiving ? 'wait' : 'pointer', fontFamily: 'inherit', padding: '6px 10px', minHeight: 44 }}
+              >
+                {archiving ? '…' : archived ? 'Unarchive this client' : 'Archive this client'}
+              </button>
               <button
                 onClick={toggleBlock}
                 disabled={blocking}
-                style={{ background: 'none', border: 'none', color: blocked ? 'var(--primary)' : 'var(--danger)', fontSize: 13, fontWeight: 600, cursor: blocking ? 'wait' : 'pointer', fontFamily: 'inherit', padding: '6px 10px' }}
+                style={{ background: 'none', border: 'none', color: blocked ? 'var(--primary)' : 'var(--danger)', fontSize: 13, fontWeight: 600, cursor: blocking ? 'wait' : 'pointer', fontFamily: 'inherit', padding: '6px 10px', minHeight: 44 }}
               >
                 {blocking ? '…' : blocked ? 'Unblock this client' : 'Block this client'}
               </button>
@@ -1510,6 +1720,53 @@ const styles = {
     fontFamily: 'inherit',
     padding: '4px 0',
     textDecoration: 'underline',
+  },
+  archivedLink: {
+    display: 'block', width: '100%', textAlign: 'center', background: 'none',
+    border: 'none', color: 'var(--text-muted, #A8A29B)', fontSize: 13,
+    fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+    padding: '14px 0', marginTop: 8, minHeight: 44, textDecoration: 'underline',
+    textUnderlineOffset: 3,
+  },
+  archivedHeader: {
+    display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 12,
+  },
+  archivedHeaderTitle: { fontSize: 14, fontWeight: 700, color: 'var(--text-primary, #2D2A26)' },
+  archivedHeaderSub: { fontSize: 12.5, color: 'var(--text-muted, #A8A29B)', lineHeight: 1.5 },
+  reviewCard: {
+    display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+    background: 'var(--accent-light, #F7EDF1)', border: '1px solid var(--accent, #92405e)',
+    borderRadius: 12, padding: '12px 14px', marginBottom: 14,
+  },
+  reviewCardTitle: { fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', marginBottom: 2 },
+  reviewCardSub: { fontSize: 12.5, color: 'var(--text-secondary, #6B6560)', lineHeight: 1.5 },
+  reviewBtn: {
+    background: 'var(--accent, #92405e)', color: '#fff', border: 'none',
+    borderRadius: 10, padding: '0 18px', minHeight: 44, fontSize: 13,
+    fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+  },
+  reviewGhostBtn: {
+    background: 'none', border: 'none', color: 'var(--text-muted, #A8A29B)',
+    fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+    padding: '0 6px', minHeight: 44,
+  },
+  archiveAllBtn: {
+    display: 'block', width: '100%', minHeight: 44, margin: '12px 0',
+    background: 'var(--bg-card, #fff)', border: '1.5px solid var(--accent, #92405e)',
+    color: 'var(--accent, #92405e)', borderRadius: 10, fontSize: 13,
+    fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+  },
+  reviewRow: {
+    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0',
+    borderBottom: '1px solid var(--border, #EFEBE6)',
+  },
+  reviewRowName: { fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
+  reviewRowMeta: { fontSize: 12, color: 'var(--text-muted, #A8A29B)', marginTop: 1 },
+  reviewRowBtn: {
+    background: 'none', border: '1.5px solid var(--accent, #92405e)',
+    color: 'var(--accent, #92405e)', borderRadius: 10, padding: '0 14px',
+    minHeight: 44, fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+    fontFamily: 'inherit', flexShrink: 0,
   },
   toast: {
     position: 'fixed',

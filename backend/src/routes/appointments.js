@@ -406,7 +406,7 @@ router.post('/manual', requireAuth, validate(manualAppointmentSchema), async (re
 router.patch('/:id', requireAuth, async (req, res) => {
   const allowedFields = [
     'status', 'starts_at', 'ends_at', 'beautician_notes',
-    'no_show_fee_charged', 'treatment_id'
+    'no_show_fee_charged', 'treatment_id', 'duration_minutes'
   ];
 
   const VALID_TRANSITIONS = {
@@ -518,6 +518,74 @@ router.patch('/:id', requireAuth, async (req, res) => {
       const endDate = new Date(Date.UTC(Number(yy2), Number(mo2) - 1, Number(dd2), Number(hh2), Number(mi2) + total));
       const p2 = (n) => String(n).padStart(2, '0');
       updates.ends_at = `${endDate.getUTCFullYear()}-${p2(endDate.getUTCMonth() + 1)}-${p2(endDate.getUTCDate())}T${p2(endDate.getUTCHours())}:${p2(endDate.getUTCMinutes())}:00`;
+    }
+  }
+
+  // Shorten (or lengthen) a booking without changing the treatment. Ellie's
+  // ask: a client wants less doing today, so the slot should give the time
+  // back to the diary. ends_at is recomputed from starts_at + the new length
+  // in the WALL frame (string/UTC arithmetic only, exactly like the branches
+  // above) - never new Date(local).toISOString(), which shifts an hour in BST.
+  if (req.body.duration_minutes !== undefined) {
+    const dur = Number(req.body.duration_minutes);
+    if (!Number.isInteger(dur) || dur < 5 || dur > 480) {
+      return res.status(400).json({ error: 'Duration must be between 5 minutes and 8 hours.' });
+    }
+
+    const { data: current, error: curErr } = await supabase
+      .from('appointments')
+      .select('starts_at, ends_at, buffer_minutes, extra_padding_minutes')
+      .eq('id', req.params.id)
+      .eq('beautician_id', req.beautician.id)
+      .maybeSingle();
+    if (curErr) {
+      logger.error({ err: curErr, appointmentId: req.params.id }, 'duration change: could not load appointment');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
+    if (!current) return res.status(404).json({ error: 'Appointment not found' });
+
+    const startStr = updates.starts_at || current.starts_at;
+    const dm = String(startStr || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if (!dm) {
+      return res.status(400).json({ error: 'This appointment has no usable start time.' });
+    }
+    updates.duration_minutes = dur;
+
+    // Buffer and extra padding stay part of the blocked slot, same as every
+    // other ends_at computation in this file.
+    const [, dy, dmo, ddd, dhh, dmi] = dm;
+    const total = dur + (current.buffer_minutes || 0) + (current.extra_padding_minutes || 0);
+    const dEnd = new Date(Date.UTC(Number(dy), Number(dmo) - 1, Number(ddd), Number(dhh), Number(dmi) + total));
+    const dp = (n) => String(n).padStart(2, '0');
+    updates.ends_at = `${dEnd.getUTCFullYear()}-${dp(dEnd.getUTCMonth() + 1)}-${dp(dEnd.getUTCDate())}T${dp(dEnd.getUTCHours())}:${dp(dEnd.getUTCMinutes())}:00`;
+
+    // Clash check, mirroring voice-tools toolReschedule: never let a longer
+    // slot land on top of another live booking. Only checked when the new end
+    // pushes PAST the current one - a handful of legacy bookings deliberately
+    // overlap, and shortening one of those must not be rejected for an
+    // overlap it is actually reducing.
+    const currentEndWall = String(current.ends_at || '').slice(0, 16);
+    if (updates.ends_at.slice(0, 16) > currentEndWall) {
+      const newStartIso = `${dy}-${dmo}-${ddd}T${dhh}:${dmi}:00.000Z`;
+      const newEndIso = `${updates.ends_at.slice(0, 16)}:00.000Z`;
+      const { data: clashes, error: clashErr } = await supabase
+        .from('appointments')
+        .select('id')
+        .eq('beautician_id', req.beautician.id)
+        .neq('id', req.params.id)
+        .not('status', 'in', '(cancelled,cancelled_by_client,cancelled_by_beautician,no_show)')
+        .lt('starts_at', newEndIso)
+        .gt('ends_at', newStartIso)
+        .limit(1);
+      if (clashErr) {
+        // Cannot verify the diary = do not write. Failing closed here is the
+        // safe direction: a blind write could double-book a client.
+        logger.error({ err: clashErr, appointmentId: req.params.id }, 'duration change: clash check failed');
+        return res.status(500).json({ error: 'Could not check the diary just then. Nothing was changed, try again.' });
+      }
+      if (clashes && clashes.length > 0) {
+        return res.status(409).json({ error: 'That length runs into the next booking. Move the time first, or pick a shorter length.' });
+      }
     }
   }
 

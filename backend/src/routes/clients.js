@@ -6,6 +6,7 @@ import { validate } from '../middleware/validate.js';
 import { refreshAllIntelligence } from '../services/client-intelligence.js';
 import logger from '../lib/logger.js';
 import { parsePagination, buildPaginationMeta, handleQueryError, buildSearchFilter } from '../lib/queries.js';
+import { getOutstandingBalanceCents } from '../services/outstanding-balance.js';
 import {
   createClientSchema,
   updateClientSchema,
@@ -26,12 +27,18 @@ const router = Router();
 router.get('/', requireAuth, async (req, res) => {
   const { page, per_page, offset } = parsePagination(req.query);
 
-  // Build query
+  // Build query. Archived clients are hidden by default; ?archived=true
+  // flips the view to ONLY the archived ones (that is the "Archived" row at
+  // the bottom of the Clients page, not a merged list).
+  const wantArchived = req.query.archived === 'true';
   let query = supabase
     .from('clients')
     .select('*', { count: 'exact' })
     .eq('beautician_id', req.beautician.id)
     .order('last_visit_at', { ascending: false, nullsFirst: false });
+  query = wantArchived
+    ? query.not('archived_at', 'is', null)
+    : query.is('archived_at', null);
 
   if (req.query.status) {
     query = query.eq('status', req.query.status);
@@ -45,13 +52,93 @@ router.get('/', requireAuth, async (req, res) => {
   }
 
   // Apply pagination
-  const { data, error, count } = await query.range(offset, offset + per_page - 1);
+  let { data, error, count } = await query.range(offset, offset + per_page - 1);
+  if (error && error.code === '42703' && !wantArchived) {
+    // archived_at does not exist yet (migration 018 applied by hand). The
+    // client list must keep working in the meantime, so fall back to the
+    // unfiltered query - before the migration nobody is archived anyway.
+    let retry = supabase
+      .from('clients')
+      .select('*', { count: 'exact' })
+      .eq('beautician_id', req.beautician.id)
+      .order('last_visit_at', { ascending: false, nullsFirst: false });
+    if (req.query.status) retry = retry.eq('status', req.query.status);
+    if (req.query.search) {
+      const sf = buildSearchFilter(req.query.search, ['first_name', 'last_name', 'email']);
+      if (sf) retry = retry.or(sf);
+    }
+    ({ data, error, count } = await retry.range(offset, offset + per_page - 1));
+  }
   if (handleQueryError(error, res, 'fetch clients')) {
     return;
   }
 
   const pagination = buildPaginationMeta(count || 0, page, per_page);
   res.json({ data: data || [], pagination });
+});
+
+/**
+ * GET /api/clients/inactive-review
+ * The one-time tidy-up helper: clients who have not visited in over 12 months
+ * (or were added over 12 months ago and never visited), are not archived, not
+ * blocked, and have nothing upcoming in the diary. Powers the "12 clients have
+ * not visited in over a year. Review?" card on the Clients page.
+ * Registered before /:id so the router does not read "inactive-review" as an id.
+ */
+router.get('/inactive-review', requireAuth, async (req, res) => {
+  try {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - 12);
+    const cutoffIso = cutoff.toISOString();
+
+    const { data: all, error } = await supabase
+      .from('clients')
+      .select('id, first_name, last_name, last_visit_at, created_at, total_visits, archived_at, blocked_at')
+      .eq('beautician_id', req.beautician.id);
+    if (error) {
+      // Fail soft: the card simply does not appear. Never break the page.
+      logger.warn({ err: error }, 'inactive-review query failed');
+      return res.json({ count: 0, candidates: [] });
+    }
+
+    let candidates = (all || []).filter(c =>
+      !c.archived_at && !c.blocked_at
+      && (c.last_visit_at ? c.last_visit_at < cutoffIso : (c.created_at || '') < cutoffIso)
+    );
+
+    // Someone with a future booking is coming back, whatever their history
+    // says - never suggest archiving them.
+    if (candidates.length > 0) {
+      const { data: upcoming, error: upErr } = await supabase
+        .from('appointments')
+        .select('client_id')
+        .eq('beautician_id', req.beautician.id)
+        .in('client_id', candidates.map(c => c.id))
+        .in('status', ['confirmed', 'pending'])
+        .gte('starts_at', new Date().toISOString());
+      if (upErr) {
+        logger.warn({ err: upErr }, 'inactive-review upcoming check failed');
+        return res.json({ count: 0, candidates: [] });
+      }
+      const hasUpcoming = new Set((upcoming || []).map(a => a.client_id));
+      candidates = candidates.filter(c => !hasUpcoming.has(c.id));
+    }
+
+    candidates.sort((a, b) => String(a.last_visit_at || a.created_at || '').localeCompare(String(b.last_visit_at || b.created_at || '')));
+    res.json({
+      count: candidates.length,
+      candidates: candidates.map(c => ({
+        id: c.id,
+        first_name: c.first_name,
+        last_name: c.last_name,
+        last_visit_at: c.last_visit_at,
+        total_visits: c.total_visits || 0,
+      })),
+    });
+  } catch (err) {
+    logger.warn({ err }, 'inactive-review failed');
+    res.json({ count: 0, candidates: [] });
+  }
 });
 
 /**
@@ -166,6 +253,55 @@ router.post('/:id/block', requireAuth, async (req, res) => {
     return res.status(500).json({ error: 'Could not update this client. If blocking has just been added, the database may need a moment.' });
   }
   res.json({ client: data, blocked: !!data.blocked_at });
+});
+
+/**
+ * POST /api/clients/:id/archive and /api/clients/:id/unarchive
+ * Reversible tidy-up for clients who have drifted away. Archiving hides them
+ * from the client list; NOTHING is deleted, and the backend auto-unarchives
+ * them if they message or book again. Follows the block-route pattern above.
+ */
+router.post('/:id/archive', requireAuth, async (req, res) => {
+  const { data, error } = await supabase
+    .from('clients')
+    .update({ archived_at: new Date().toISOString() })
+    .eq('id', req.params.id)
+    .eq('beautician_id', req.beautician.id)
+    .select('id, first_name, archived_at')
+    .single();
+
+  if (error) {
+    logger.error({ err: error }, 'Failed to archive client');
+    return res.status(500).json({ error: 'Could not archive this client. If archiving has just been added, the database may need a moment.' });
+  }
+  res.json({ client: data, archived: !!data.archived_at });
+});
+
+router.post('/:id/unarchive', requireAuth, async (req, res) => {
+  const { data, error } = await supabase
+    .from('clients')
+    .update({ archived_at: null })
+    .eq('id', req.params.id)
+    .eq('beautician_id', req.beautician.id)
+    .select('id, first_name, archived_at')
+    .single();
+
+  if (error) {
+    logger.error({ err: error }, 'Failed to unarchive client');
+    return res.status(500).json({ error: 'Could not restore this client.' });
+  }
+  res.json({ client: data, archived: !!data.archived_at });
+});
+
+/**
+ * GET /api/clients/:id/outstanding-balance
+ * What this client still owes from previous visits (unpaid policy fees +
+ * unsettled remainders). Shown on the appointment sheet so Ellie knows before
+ * they arrive. The service fails open (zero) on any error.
+ */
+router.get('/:id/outstanding-balance', requireAuth, async (req, res) => {
+  const { owesCents, sources } = await getOutstandingBalanceCents(req.beautician.id, req.params.id);
+  res.json({ owes_cents: owesCents || 0, sources: sources || [] });
 });
 
 /**

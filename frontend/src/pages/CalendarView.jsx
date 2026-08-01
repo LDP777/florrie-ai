@@ -11,6 +11,15 @@ import { parseDateOnly } from '../lib/dates.js';
 // A patch test has no treatment_id (it is not one of her treatments), so
 // `treatments.name` is null and the appointment rendered as a blank row in the
 // diary. Fall back to the note we stamp on it at booking.
+// 15-minute duration steps for the appointment-length picker (15 min to 8 h).
+const DURATION_STEPS = Array.from({ length: 32 }, (_, i) => (i + 1) * 15);
+function durationLabel(m) {
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  const rest = m % 60;
+  return rest === 0 ? `${h} h` : `${h} h ${rest} min`;
+}
+
 function apptLabel(a) {
   if (a?.treatments?.name) return a.treatments.name;
   if (a?.beautician_notes && /patch test/i.test(a.beautician_notes)) return 'Patch test';
@@ -1159,6 +1168,53 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
       setTreatSaving(false);
     }
   }
+  // Shorten (or lengthen) the booking. 15-minute steps from 15 min to 8 h;
+  // the backend recomputes ends_at in the wall frame and rejects with 409 if
+  // a longer slot would run into another booking.
+  const [durEditing, setDurEditing] = useState(false);
+  const [durSaving, setDurSaving] = useState(false);
+  async function handleChangeDuration(minutes) {
+    setDurSaving(true);
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ duration_minutes: Number(minutes) }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 409) { alert(data.error || 'That length runs into the next booking. Move the time first.'); return; }
+      if (!res.ok) throw new Error(data.error || 'Could not change the length');
+      hapticSuccess();
+      setDurEditing(false);
+      onUpdate();
+    } catch (err) {
+      alert(err.message || 'Could not change the length');
+    } finally {
+      setDurSaving(false);
+    }
+  }
+  // Anything this client still owes from previous visits (unpaid no-show or
+  // late-cancel fee, or an unsettled remainder). Shown as a line on the sheet
+  // so Ellie knows before they arrive. Fail-soft: any error hides the line.
+  const [owesCents, setOwesCents] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    setOwesCents(0);
+    if (!appointment.client_id) return undefined;
+    (async () => {
+      try {
+        const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+        const res = await fetch(`${API_BASE}/api/clients/${appointment.client_id}/outstanding-balance`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const d = await res.json();
+        if (!cancelled) setOwesCents(d.owes_cents || 0);
+      } catch { /* the line just stays hidden */ }
+    })();
+    return () => { cancelled = true; };
+  }, [appointment.client_id]);
   // Editing / rescheduling the appointment time. The datetime-local value is
   // the stored wall-clock (no timezone shift), so what she sees is what saves.
   const [timeEditing, setTimeEditing] = useState(false);
@@ -1569,6 +1625,34 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               )}
             </div>
             <div style={styles.detailRow}>
+              <span style={styles.detailLabel}>Duration</span>
+              {durEditing ? (
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, maxWidth: '70%' }}>
+                  <select
+                    defaultValue={appointment.duration_minutes || ''}
+                    onChange={e => e.target.value && handleChangeDuration(e.target.value)}
+                    disabled={durSaving}
+                    style={{ padding: '8px 10px', borderRadius: 8, border: `1px solid ${COLORS.outlineVariant}`, fontFamily: 'inherit', fontSize: 13, background: 'var(--bg-card)', maxWidth: '100%' }}
+                  >
+                    <option value="" disabled>Choose a length...</option>
+                    {/* Keep an off-step current length selectable so the menu never lies about what is set */}
+                    {appointment.duration_minutes > 0 && appointment.duration_minutes % 15 !== 0 && (
+                      <option value={appointment.duration_minutes}>{durationLabel(appointment.duration_minutes)} (current)</option>
+                    )}
+                    {DURATION_STEPS.map(m => (
+                      <option key={m} value={m}>{durationLabel(m)}</option>
+                    ))}
+                  </select>
+                  <button onClick={() => setDurEditing(false)} style={{ background: 'none', border: 'none', color: COLORS.stone400, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Cancel</button>
+                </span>
+              ) : (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={styles.detailValue}>{appointment.duration_minutes ? durationLabel(appointment.duration_minutes) : 'Not set'}</span>
+                  <button onClick={() => setDurEditing(true)} style={{ background: 'none', border: `1px dashed ${COLORS.outlineVariant}`, borderRadius: 8, padding: '3px 8px', color: COLORS.primary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Change</button>
+                </span>
+              )}
+            </div>
+            <div style={styles.detailRow}>
               <span style={styles.detailLabel}>Price</span>
               {priceEditing ? (
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1604,6 +1688,12 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               <span style={styles.detailLabel}>Status</span>
               <span style={{ ...styles.statusBadge, background: getStatusColor(appointment.status) + '20', color: getStatusColor(appointment.status) }}>{appointment.status?.replace(/_/g, ' ')}</span>
             </div>
+            {owesCents > 0 && (
+              <div style={styles.detailRow}>
+                <span style={styles.detailLabel}>Outstanding balance</span>
+                <span style={{ ...styles.detailValue, color: 'var(--accent, #92405e)' }}>£{(owesCents / 100).toFixed(2)} from before</span>
+              </div>
+            )}
             {appointment.buffer_minutes > 0 && (
               <div style={styles.detailRow}><span style={styles.detailLabel}>Buffer</span><span style={styles.detailValue}>{appointment.buffer_minutes} min cleanup</span></div>
             )}

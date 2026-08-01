@@ -7,6 +7,7 @@ import { classifyInboundMessage, looksLikeKnownClient } from '../lib/junk-classi
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
 import { getAppSecret, getWhatsAppVerifyToken } from '../lib/env.js';
+import { autoUnarchiveClient } from '../lib/client-archive.js';
 import Anthropic from '@anthropic-ai/sdk';
 
 const router = Router();
@@ -249,6 +250,11 @@ router.post('/whatsapp', async (req, res) => {
         client = newClient;
       }
     }
+
+    // An archived client messaging in means they are back: quietly clear the
+    // archive flag so their thread and profile reappear. Fail-soft inside the
+    // helper - message handling never depends on it.
+    if (client?.id) autoUnarchiveClient(client.id, 'whatsapp_message').catch(() => {});
 
     // Extract message content
     let messageContent = '';
@@ -542,6 +548,8 @@ async function findOrCreateClientBySMS(beauticianId, phoneNumber) {
     .single();
 
   if (client) {
+    // A text from an archived client = they are back; clear the flag (fail-soft).
+    autoUnarchiveClient(client.id, 'sms_message').catch(() => {});
     return client;
   }
 
