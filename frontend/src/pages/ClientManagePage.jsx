@@ -469,13 +469,37 @@ export default function ClientManagePage() {
           </div>
         </div>
 
+        {/* Payment summary. States exactly what was paid and what remains,
+            because clients kept assuming the deposit was the full amount (or
+            the other way round). Figures come from the logged charge on the
+            backend, so they match the card statement. */}
+        {!isCancelled && payment && (payment.depositPaidCents > 0 || payment.paidInFull) && (
+          <div style={{ ...S.policyCard, borderLeft: `3px solid ${brand}` }}>
+            <p style={S.sectionLabel}>Payment</p>
+            <p style={S.policyText}>
+              <strong style={{ fontSize: 16, color: '#2D1B1B' }}>
+                {payment.paidInFull
+                  ? `Paid in full: £${(payment.depositPaidCents / 100).toFixed(2)}.`
+                  : payment.remainingCents > 0
+                  ? `Deposit paid: £${(payment.depositPaidCents / 100).toFixed(2)}. Remaining £${(payment.remainingCents / 100).toFixed(2)} due on the day.`
+                  : `Deposit paid: £${(payment.depositPaidCents / 100).toFixed(2)}.`}
+              </strong>
+            </p>
+            {(payment.paidInFull || payment.remainingCents === 0) && !isCompleted && (
+              <p style={{ ...S.policyText, color: 'var(--text-muted)', marginTop: 4 }}>
+                Nothing more to pay on the day.
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Balance to pay, after the deposit. Shown when there's a remaining
             amount and the booking is still live. */}
         {!isCancelled && !isCompleted && payment?.remainingCents > 0 && (
           <div style={{ ...S.policyCard, borderLeft: `3px solid ${brand}` }}>
             <p style={S.sectionLabel}>Balance to pay</p>
             <p style={S.policyText}>
-              <strong style={{ fontSize: 16, color: '#2D1B1B' }}>£{(payment.remainingCents / 100).toFixed(2)}</strong> remaining after your deposit.
+              <strong style={{ fontSize: 16, color: '#2D1B1B' }}>£{(payment.remainingCents / 100).toFixed(2)}</strong> {payment.depositPaidCents > 0 ? 'remaining after your deposit.' : 'to pay.'}
             </p>
             {payment.bankDetails?.account_number ? (
               <div style={{ marginTop: 12, padding: '14px', borderRadius: 12, background: brandLight, border: `1px solid ${brand}22` }}>

@@ -942,7 +942,57 @@ export async function notifyBookingConfirmed(appointmentId) {
   const manageUrl = (appt.management_token && biz?.booking_slug && process.env.FRONTEND_URL)
     ? `${process.env.FRONTEND_URL}/book/${biz.booking_slug}/manage/${appt.management_token}`
     : null;
-  const textMsg = `Hi ${client.first_name}, your ${treatment.name} with ${bizName} is confirmed for ${shortDate} at ${timeStr}.${manageUrl ? ` Manage or reschedule: ${manageUrl}` : ''}`;
+
+  // Receipt line: exactly what was paid and what remains, stated on every
+  // confirmation. Clients kept thinking the deposit was the full amount (or
+  // the other way round), so the confirmation now says it in one plain line.
+  // The figure comes from the logged transaction, which is what the card
+  // statement shows. It is never recomputed from the treatment price, so the
+  // two can never disagree. Historic bookings may have no transaction row
+  // (the webhook gap), so the appointment's own deposit fields are the
+  // fallback evidence.
+  let receiptLine = '';
+  try {
+    const { data: txRows, error: txErr } = await supabase
+      .from('transactions')
+      .select('amount_cents, type')
+      .eq('appointment_id', appointmentId)
+      .eq('status', 'completed')
+      .in('type', ['deposit', 'full_payment'])
+      .limit(1);
+    if (txErr) logger.warn({ err: txErr, appointmentId }, 'Receipt line: transaction lookup failed');
+    const upfrontTx = (txRows || [])[0] || null;
+    const paidEvidenced = !!(
+      upfrontTx ||
+      appt.deposit_paid ||
+      (appt.stripe_payment_intent_id && appt.deposit_status === 'paid')
+    );
+    if (paidEvidenced) {
+      const paidCents = upfrontTx?.amount_cents ?? appt.deposit_amount_cents ?? appt.deposit_cents ?? 0;
+      const paidInFull = appt.payment_type === 'full' || upfrontTx?.type === 'full_payment';
+      if (paidInFull && paidCents > 0) {
+        receiptLine = `Paid in full: £${(paidCents / 100).toFixed(2)}.`;
+      } else if (paidCents > 0) {
+        // Add-ons are charged in full alongside the deposit, so the balance
+        // is price plus add-ons minus what was charged (never below zero).
+        const { data: aoRows, error: aoErr } = await supabase
+          .from('appointment_add_ons')
+          .select('price_cents')
+          .eq('appointment_id', appointmentId);
+        if (aoErr) logger.warn({ err: aoErr, appointmentId }, 'Receipt line: add-on lookup failed');
+        const addOnCents = (aoRows || []).reduce((sum, r) => sum + (r.price_cents || 0), 0);
+        const remainingCents = Math.max(0, (appt.price_cents || 0) + addOnCents - paidCents);
+        receiptLine = remainingCents > 0
+          ? `Deposit paid: £${(paidCents / 100).toFixed(2)}. Remaining £${(remainingCents / 100).toFixed(2)} due on the day.`
+          : `Deposit paid: £${(paidCents / 100).toFixed(2)}.`;
+      }
+    }
+  } catch (err) {
+    // The receipt is a clarity bonus; a failure here must never block the confirmation itself.
+    logger.warn({ err, appointmentId }, 'Receipt line build failed (non-fatal)');
+  }
+
+  const textMsg = `Hi ${client.first_name}, your ${treatment.name} with ${bizName} is confirmed for ${shortDate} at ${timeStr}.${receiptLine ? ` ${receiptLine}` : ''}${manageUrl ? ` Manage or reschedule: ${manageUrl}` : ''}`;
 
   // SMS/WhatsApp — only if beautician has opted in
   if (prefs.booking_confirmation !== false) {
@@ -960,15 +1010,14 @@ export async function notifyBookingConfirmed(appointmentId) {
 
   // Email — always send unless explicitly disabled (prefs.email_confirmation === false)
   if (client.email && prefs.email_confirmation !== false) {
-    const depositLine = appt.deposit_cents > 0
-      ? `<p style="margin:12px 0 0;color:#6b6560;font-size:14px">Deposit paid: <strong>&pound;${(appt.deposit_cents / 100).toFixed(2)}</strong></p>`
-      : '';
-
     const accent = biz.brand_color || '#C4A882';
-    const depositRow = appt.deposit_cents > 0
+    // The row shows the receipt line built above (actual charge, not the
+    // configured deposit), so the email can never claim a deposit that was
+    // not paid, and a full payment reads as paid in full.
+    const receiptRow = receiptLine
       ? `<tr><td style="padding:14px 20px">
-            <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#b3a890">Deposit paid</div>
-            <div style="font-size:16px;color:#2d2a26;font-weight:600;margin-top:3px">&pound;${(appt.deposit_cents / 100).toFixed(2)} <span style="font-size:12px;font-weight:400;color:#9c9388">&middot; balance on the day</span></div>
+            <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#b3a890">Payment</div>
+            <div style="font-size:16px;color:#2d2a26;font-weight:600;margin-top:3px">${receiptLine.replace(/£/g, '&pound;')}</div>
           </td></tr>`
       : '';
     const html = emailTemplate({
@@ -993,11 +1042,11 @@ export async function notifyBookingConfirmed(appointmentId) {
               <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#b3a890">When</div>
               <div style="font-size:16px;color:#2d2a26;font-weight:600;margin-top:3px">${dateStr} &middot; ${timeStr}</div>
             </td></tr>
-            <tr><td style="padding:14px 20px;${appt.deposit_cents > 0 ? 'border-bottom:1px solid #f4eee4' : ''}">
+            <tr><td style="padding:14px 20px;${receiptRow ? 'border-bottom:1px solid #f4eee4' : ''}">
               <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#b3a890">Duration</div>
               <div style="font-size:16px;color:#2d2a26;font-weight:600;margin-top:3px">${treatment.duration_minutes} minutes</div>
             </td></tr>
-            ${depositRow}
+            ${receiptRow}
           </table>
         </div>
         ${manageUrl ? `<div style="padding:18px 32px 4px;text-align:center">
