@@ -783,7 +783,12 @@ router.post('/:id/charge-balance', requireAuth, async (req, res) => {
   }
   const messages = {
     nothing_due: 'There is no balance left to charge.',
-    already_charged: 'The balance has already been charged.',
+    // 'already_charged' includes the assumed takings row that completion
+    // writes, so it fires for money never actually carded. The wording stays
+    // honest about that rather than claiming a card was charged.
+    already_charged: 'This balance is already recorded as settled, so nothing was charged.',
+    paid_in_full: 'This booking was paid in full at booking. There is nothing left to charge.',
+    guard_unreadable: 'Could not verify what has already been paid, so nothing was charged. Try again in a moment.',
     no_card_on_file: 'No saved card on file for this client. Cards are only saved when deposits (card required at booking) are turned on in Settings. For a client with no card, send them a payment link instead.',
     stripe_not_onboarded: 'Connect your Stripe payouts first to charge cards.',
     stripe_not_configured: 'Card payments are not set up.',
@@ -844,13 +849,22 @@ router.post('/:id/charge-card', requireAuth, async (req, res) => {
  * Mark appointment as completed + auto-log income transaction.
  */
 router.post('/:id/complete', requireAuth, async (req, res) => {
+  // Nothing in the frontend calls this endpoint, but it was live and had NO
+  // status guard: every repeat call inserted another full-price transaction
+  // and incremented the visit count again. Guarded compare-and-swap so a
+  // second call is a harmless no-op instead of double-counted money.
   const { data: appointment, error } = await supabase
     .from('appointments')
     .update({ status: 'completed' })
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id)
+    .eq('status', 'confirmed')
     .select()
-    .single();
+    .maybeSingle();
+
+  if (!error && !appointment) {
+    return res.status(409).json({ error: 'Appointment already completed or not completable' });
+  }
 
   if (error) {
     logger.error({ err: error }, 'Failed to mark appointment as completed');
@@ -937,17 +951,24 @@ router.post('/complete-day', requireAuth, validate(completeDaySchema), async (re
     const completedAt = new Date().toISOString();
     const ids = appointments.map(a => a.id);
 
-    const { error: updateError } = await supabase
+    // Compare-and-swap on status, and keep only the rows WE flipped. The
+    // auto-complete cron chases exactly the same appointments, so without this
+    // a row it completed between our fetch and our write got its takings and
+    // visit counted twice, once by each.
+    const { data: flipped, error: updateError } = await supabase
       .from('appointments')
       .update({ status: 'completed', completed_at: completedAt })
-      .in('id', ids);
+      .in('id', ids)
+      .eq('status', 'confirmed')
+      .select('id');
 
     if (updateError) {
       return res.status(500).json({ error: 'Failed to update appointments' });
     }
+    const flippedIds = new Set((flipped || []).map(r => r.id));
 
-    // Auto-log income transactions for all completed appointments
-    const transactions = appointments.map(apt => ({
+    // Auto-log income transactions, only for the rows this request flipped
+    const transactions = appointments.filter(apt => flippedIds.has(apt.id)).map(apt => ({
       beautician_id: req.beautician.id,
       appointment_id: apt.id,
       amount_cents: apt.price_cents,

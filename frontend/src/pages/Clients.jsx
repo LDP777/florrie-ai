@@ -1109,10 +1109,15 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
                     const dateLabel = day
                       ? `${new Date(`${day}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · ${time}`
                       : '';
+                    // A cancelled or no-show visit has nothing "due on the
+                    // day": the day is not happening. Show what WAS paid and
+                    // leave the balance language off those rows.
+                    const dead = pa.status === 'cancelled' || pa.status === 'cancelled_by_client'
+                      || pa.status === 'cancelled_by_beautician' || pa.status === 'no_show';
                     const line = pa.paid_in_full
                       ? `Paid in full · £${(pa.deposit_cents / 100).toFixed(2)}`
                       : pa.deposit_paid
-                      ? `Deposit £${(pa.deposit_cents / 100).toFixed(2)} paid${pa.balance_cents > 0 && !pa.balance_settled ? ` · £${(pa.balance_cents / 100).toFixed(2)} due on the day` : ''}`
+                      ? `Deposit £${(pa.deposit_cents / 100).toFixed(2)} paid${!dead && pa.balance_cents > 0 && !pa.balance_settled ? ` · £${(pa.balance_cents / 100).toFixed(2)} due on the day` : ''}${dead ? ` · ${pa.status === 'no_show' ? 'no show' : 'cancelled'}` : ''}`
                       : pa.deposit_cents > 0
                       ? `Deposit £${(pa.deposit_cents / 100).toFixed(2)} not paid yet`
                       : 'No deposit taken';

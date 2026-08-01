@@ -36,7 +36,7 @@ export async function getOutstandingBalanceCents(beauticianId, clientId) {
     const [{ data: appts, error: apptErr }, { data: bRow, error: bErr }] = await Promise.all([
       supabase
         .from('appointments')
-        .select('id, status, price_cents, deposit_cents, deposit_paid, policy_snapshot, policy_fee_charged_at, late_cancel_charged, starts_at')
+        .select('id, status, price_cents, deposit_cents, deposit_paid, payment_type, policy_snapshot, policy_fee_charged_at, late_cancel_charged, starts_at')
         .eq('beautician_id', beauticianId)
         .eq('client_id', clientId)
         .in('status', ['no_show', 'cancelled', 'completed'])
@@ -89,6 +89,12 @@ export async function getOutstandingBalanceCents(beauticianId, clientId) {
           sources.push({ appointment_id: appt.id, kind: 'late_cancel_fee', cents: feeCents });
         }
       } else if (appt.status === 'completed' && (appt.price_cents || 0) > 0) {
+        // A pay-in-full booking owes nothing whatever its transaction rows
+        // say: money was taken at booking, and the historic recording bug
+        // means the full_payment row is often missing. Without this skip, the
+        // public page would tell a client who paid everything that they owe
+        // money, which is the exact trust failure this feature exists to fix.
+        if (appt.payment_type === 'full') continue;
         completedIds.push(appt.id);
       }
     }

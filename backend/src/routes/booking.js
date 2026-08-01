@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import Stripe from 'stripe';
 import { supabase } from '../config.js';
+import { isMissingColumnError } from '../lib/junk-classifier.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
 import { pushNewBooking, pushBookingConfirmed, pushReschedule, pushPatchTestBooked, pushClientCancelled, pushTeamUpdate } from '../services/push-notifications.js';
 import { refreshLiveActivity } from '../services/live-activity.js';
@@ -1657,8 +1658,8 @@ router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
       .from('appointments')
       .select(`
         id, starts_at, client_id, client_email,
-        clients(first_name),
-        beauticians(id, booking_slug, working_hours, timezone, patch_test_duration_minutes, patch_test_price_cents)
+        clients(first_name, phone, email),
+        beauticians(id, booking_slug, business_name, first_name, working_hours, timezone, patch_test_duration_minutes, patch_test_price_cents)
       `)
       .eq('management_token', req.params.token)
       .single();
@@ -1790,6 +1791,35 @@ router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
       whenLabel,
       { appointmentId: patchTestAppt.id, apptDate: patchTestAppt.starts_at },
     ).catch(() => {});
+
+    // The CLIENT gets it in writing too. Until now only Ellie was told, so a
+    // client who closed the tab had nothing: no text, no email, no trace of a
+    // ten minute visit people forget. Fire and forget, same rule as the push:
+    // a send problem must never fail a booking that already exists.
+    (async () => {
+      const { sendSMS, sendEmail } = await import('../services/notifications.js');
+      const firstName = appt.clients?.first_name || 'there';
+      const bizName = beautician.business_name || beautician.first_name || 'the salon';
+      const line = `Hi ${firstName}, your patch test with ${bizName} is booked for ${whenLabel}. It only takes a few minutes. See you then!`;
+      let sent = false;
+      if (appt.clients?.phone) {
+        const r = await sendSMS({
+          to: appt.clients.phone, body: line, beauticianId: beautician.id,
+          messageType: 'booking_confirmation', clientId: appt.client_id,
+        }).catch(() => null);
+        sent = !!r?.success || !!r;
+      }
+      if (appt.clients?.email) {
+        await sendEmail({
+          to: appt.clients.email,
+          subject: `Patch test booked: ${whenLabel}`,
+          text: line,
+          html: `<p>${line}</p>`,
+        }).catch(() => null);
+        sent = true;
+      }
+      if (!sent) logger.warn({ appointmentId: patchTestAppt.id }, 'patch test booked but client has no phone or email to confirm to');
+    })().catch(err => logger.warn({ err }, 'patch test client confirmation failed (non-fatal)'));
 
     res.json({
       success: true,
@@ -2431,14 +2461,30 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   // consultation form / patch test. Try email first, fall back to phone.
   let existingClient = null;
 
+  // Until migration 018 runs, archived_at does not exist and selecting it
+  // errors 42703. Ignoring that error is how a returning client silently
+  // becomes null here, which creates a DUPLICATE record and, far worse,
+  // bypasses the blocked-client check below. So: try with archived_at,
+  // and on a missing-column error retry without it rather than shrugging.
+  const lookupClient = async (build) => {
+    let { data, error } = await build('id, stripe_customer_id, blocked_at, archived_at');
+    if (error && isMissingColumnError(error)) {
+      ({ data, error } = await build('id, stripe_customer_id, blocked_at'));
+    }
+    if (error) {
+      logger.error({ err: error }, 'booking client lookup failed');
+      return null;
+    }
+    return data;
+  };
+
   if (client_email) {
-    const { data } = await supabase
+    existingClient = await lookupClient((cols) => supabase
       .from('clients')
-      .select('id, stripe_customer_id, blocked_at, archived_at')
+      .select(cols)
       .eq('beautician_id', beautician.id)
       .ilike('email', client_email.trim())
-      .maybeSingle();
-    existingClient = data;
+      .maybeSingle());
   }
 
   if (!existingClient && client_phone) {
@@ -2447,13 +2493,13 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     // re-asked for a patch test / consultation form they already did.
     const cpd = String(client_phone).replace(/\D/g, '');
     if (cpd.length >= 7) {
-      const { data } = await supabase
+      const rows = await lookupClient((cols) => supabase
         .from('clients')
-        .select('id, stripe_customer_id, blocked_at, archived_at')
+        .select(cols)
         .eq('beautician_id', beautician.id)
         .ilike('phone', `%${cpd.slice(-9)}`)
-        .limit(1);
-      existingClient = data?.[0] || null;
+        .limit(1));
+      existingClient = rows?.[0] || null;
     }
   }
 

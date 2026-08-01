@@ -250,6 +250,9 @@ export default function ClientManagePage() {
       setPatchTestSlots(null);
     } catch (err) {
       setSlotsError(err.message || 'That time just went. Pick another one.');
+      // Refetch so the list she picks from is current. Without this the stale
+      // list stays up and the same dead slot can be tapped again and again.
+      loadPatchTestSlots().catch(() => {});
     } finally {
       setConfirmingSlot(false);
     }

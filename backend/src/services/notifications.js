@@ -1130,13 +1130,19 @@ export async function notifyReminder24h(appointmentId) {
   const timeStr = new Date(appt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
   const dateStr = new Date(appt.starts_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
 
-  const textMsg = `Hi ${client.first_name}, just a reminder your ${treatment.name} with ${bizName} is tomorrow at ${timeStr}. Reply here if you need to change anything. See you then!`;
+  // Patch tests carry no treatment_id, so treatment is null here. Before this
+  // guard the reminder CRASHED on treatment.name, and it crashed AFTER the
+  // idempotency marker was written, so the one reminder the client would ever
+  // get was burned silently. Patch-test clients heard nothing at all.
+  const treatmentName = treatment?.name || 'patch test';
+
+  const textMsg = `Hi ${client.first_name}, just a reminder your ${treatmentName} with ${bizName} is tomorrow at ${timeStr}. Reply here if you need to change anything. See you then!`;
 
   // SMS/WhatsApp — only if opted in
   if (prefs.reminder_24h !== false) {
     const channel = prefs.channel || 'whatsapp';
     if (channel === 'whatsapp' && client.phone) {
-      const waResult = await sendWhatsApp({ to: client.phone, templateName: 'reminder_24h_v2', templateParams: [client.first_name, treatment.name, timeStr], beauticianId: appt.beautician_id });
+      const waResult = await sendWhatsApp({ to: client.phone, templateName: 'reminder_24h_v2', templateParams: [client.first_name, treatmentName, timeStr], beauticianId: appt.beautician_id });
       // Fall through to SMS if WhatsApp not available
       if (!waResult && client.phone && BIRD_API_KEY) {
         await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'appointment_reminder' });
@@ -1160,7 +1166,7 @@ export async function notifyReminder24h(appointmentId) {
         <table width="100%" cellpadding="0" cellspacing="0" style="background:#faf9f7;border-radius:8px;padding:20px">
           <tr><td>
             <p style="margin:0;color:#a09a93;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">Treatment</p>
-            <p style="margin:4px 0 16px;color:#2d2a26;font-size:16px;font-weight:600">${treatment.name}</p>
+            <p style="margin:4px 0 16px;color:#2d2a26;font-size:16px;font-weight:600">${treatmentName}</p>
             <p style="margin:0;color:#a09a93;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">When</p>
             <p style="margin:4px 0 16px;color:#2d2a26;font-size:16px;font-weight:600">${dateStr} at ${timeStr}</p>
             <p style="margin:0;color:#a09a93;font-size:12px;text-transform:uppercase;letter-spacing:0.5px">Duration</p>
@@ -1173,7 +1179,7 @@ export async function notifyReminder24h(appointmentId) {
 
     await sendEmail({
       to: client.email,
-      subject: `Reminder: ${treatment.name} tomorrow at ${timeStr}`,
+      subject: `Reminder: ${treatmentName} tomorrow at ${timeStr}`,
       text: textMsg,
       html,
     });
