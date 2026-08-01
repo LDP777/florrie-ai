@@ -89,6 +89,118 @@ router.get('/:id', requireAuth, async (req, res) => {
 });
 
 /**
+ * GET /api/clients/:id/payments
+ * Payment truth for one client, assembled from BOTH sources:
+ *   - transactions rows (what was actually charged and logged)
+ *   - the appointment's own deposit fields (deposit_paid, deposit_status,
+ *     deposit_amount_cents, deposit_cents, stripe_payment_intent_id)
+ *
+ * WHY both: the Stripe webhook historically failed to fire in production, so
+ * plenty of deposits that clients genuinely paid have NO transaction row. The
+ * appointment still carries the Stripe payment intent and the deposit_paid
+ * flag, which is proof the charge happened, so a deposit evidenced that way
+ * counts as paid even without a transaction row. This is why the client
+ * profile used to say "£0 spent" for clients who had paid three deposits.
+ */
+router.get('/:id/payments', requireAuth, async (req, res) => {
+  // Confirm the client belongs to this beautician before exposing money data.
+  const { data: client, error: cErr } = await supabase
+    .from('clients')
+    .select('id')
+    .eq('id', req.params.id)
+    .eq('beautician_id', req.beautician.id)
+    .single();
+
+  if (cErr || !client) return res.status(404).json({ error: 'Client not found' });
+
+  const [txRes, apptRes] = await Promise.all([
+    supabase
+      .from('transactions')
+      .select('id, appointment_id, amount_cents, type, payment_method, status, created_at')
+      .eq('beautician_id', req.beautician.id)
+      .eq('client_id', client.id)
+      .eq('status', 'completed')
+      .order('created_at', { ascending: false })
+      .limit(100),
+    supabase
+      .from('appointments')
+      .select('id, starts_at, status, price_cents, deposit_cents, deposit_amount_cents, deposit_paid, deposit_status, payment_type, stripe_payment_intent_id, treatments(name)')
+      .eq('beautician_id', req.beautician.id)
+      .eq('client_id', client.id)
+      .order('starts_at', { ascending: false })
+      .limit(50),
+  ]);
+
+  if (handleQueryError(txRes.error, res, 'fetch client transactions')) return;
+  if (handleQueryError(apptRes.error, res, 'fetch client appointments')) return;
+
+  const transactions = txRes.data || [];
+  const txByAppt = new Map();
+  for (const tx of transactions) {
+    if (!tx.appointment_id) continue;
+    if (!txByAppt.has(tx.appointment_id)) txByAppt.set(tx.appointment_id, []);
+    txByAppt.get(tx.appointment_id).push(tx);
+  }
+
+  let depositsTotalCents = 0;
+  const perAppointment = (apptRes.data || []).map(appt => {
+    const txs = txByAppt.get(appt.id) || [];
+    const upfrontTx = txs.find(t => t.type === 'deposit' || t.type === 'full_payment') || null;
+
+    // Paid evidence, strongest first: a logged transaction, then the paid
+    // flag, then a Stripe intent alongside a paid deposit status. The last
+    // two exist purely to cover the historic recording gap described above.
+    const depositPaid = !!(
+      upfrontTx ||
+      appt.deposit_paid ||
+      (appt.stripe_payment_intent_id && appt.deposit_status === 'paid')
+    );
+
+    // Amount: prefer what was ACTUALLY charged (the transaction, which is
+    // what the card statement shows), then the amount the checkout session
+    // was created for, then the configured deposit. Never recomputed from
+    // the treatment price, so this figure cannot contradict the statement.
+    const depositCents = upfrontTx?.amount_cents
+      ?? appt.deposit_amount_cents
+      ?? appt.deposit_cents
+      ?? 0;
+
+    const paidInFull = depositPaid &&
+      (appt.payment_type === 'full' || upfrontTx?.type === 'full_payment');
+
+    const balanceTx = txs.find(t => t.type === 'payment' || t.type === 'payment_link') || null;
+    const balanceCents = paidInFull
+      ? 0
+      : Math.max(0, (appt.price_cents || 0) - (depositPaid ? depositCents : 0));
+    // A completed appointment is treated as settled: the balance is taken on
+    // the day, so an open balance on a past visit would just be noise.
+    const balanceSettled = paidInFull || balanceCents === 0 || !!balanceTx || appt.status === 'completed';
+
+    // Full payments count towards the total too: it is all money the client
+    // paid up front, which is exactly what Ellie could not see before.
+    if (depositPaid) depositsTotalCents += depositCents;
+
+    return {
+      appointment_id: appt.id,
+      starts_at: appt.starts_at,
+      status: appt.status,
+      treatment: appt.treatments?.name || 'Appointment',
+      deposit_cents: depositCents,
+      deposit_paid: depositPaid,
+      paid_in_full: paidInFull,
+      balance_cents: balanceCents,
+      balance_settled: balanceSettled,
+    };
+  });
+
+  res.json({
+    deposits_total_cents: depositsTotalCents,
+    payments: transactions,
+    per_appointment: perAppointment,
+  });
+});
+
+/**
  * POST /api/clients
  * Create a new client.
  */

@@ -105,6 +105,26 @@ export default function BookingPage() {
   const [error, setError] = useState(isCancelled ? 'Payment was cancelled. Your booking slot is held for 15 minutes, you can try again.' : null);
   const confirmedManageToken = new URLSearchParams(location.search).get('mt');
   const [success, setSuccess] = useState(isConfirmedReturn ? { depositPaid: true, manageUrl: confirmedManageToken ? `/book/${slug}/manage/${confirmedManageToken}` : null } : null);
+  // Receipt for the Stripe-return success screen. The figures come from the
+  // manage endpoint, which reads the logged charge, so what we show matches
+  // the card statement instead of being recomputed from the treatment price.
+  const [receipt, setReceipt] = useState(null);
+  useEffect(() => {
+    if (!isConfirmedReturn || !confirmedManageToken) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/booking/${slug}/manage/${confirmedManageToken}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && data?.payment) setReceipt(data.payment);
+      } catch {
+        // The receipt is a bonus; the confirmation stands without it.
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConfirmedReturn, confirmedManageToken, slug]);
   const [fieldErrors, setFieldErrors] = useState({});
   // Data
   const [beautician, setBeautician] = useState(null);
@@ -830,11 +850,22 @@ export default function BookingPage() {
         <div style={styles.card}>
           <div style={{ ...styles.successIcon, background: brandLight, color: brand }}>✓</div>
           <h2 style={styles.successTitle}>
-            {success.depositPaid ? "You're booked, deposit paid" : success.depositPending ? "Almost there, deposit needed" : "You're booked"}
+            {success.depositPaid ? (receipt?.paidInFull ? "You're booked, paid in full" : "You're booked, deposit paid") : success.depositPending ? "Almost there, deposit needed" : "You're booked"}
           </h2>
           <div style={styles.successDetails}>
             {success.depositPaid ? (
-              <p>Your deposit has been received and your appointment is confirmed. You'll get a confirmation message shortly.</p>
+              <>
+                <p>{receipt?.paidInFull ? 'Your payment has been received and your appointment is confirmed.' : 'Your deposit has been received and your appointment is confirmed.'} You'll get a confirmation message shortly.</p>
+                {receipt && receipt.depositPaidCents > 0 && (
+                  <p style={{ color: brand, fontWeight: 600, marginTop: 12 }}>
+                    {receipt.paidInFull
+                      ? `Paid in full: £${(receipt.depositPaidCents / 100).toFixed(2)}.`
+                      : receipt.remainingCents > 0
+                      ? `Deposit paid: £${(receipt.depositPaidCents / 100).toFixed(2)}. Remaining £${(receipt.remainingCents / 100).toFixed(2)} due on the day.`
+                      : `Deposit paid: £${(receipt.depositPaidCents / 100).toFixed(2)}.`}
+                  </p>
+                )}
+              </>
             ) : success.depositPending ? (
               <>
                 <p><strong>{success.treatment}</strong></p>

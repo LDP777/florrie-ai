@@ -578,7 +578,8 @@ router.get('/:slug/manage/:token', async (req, res) => {
       .select(`
         id, starts_at, ends_at, status, management_token, rescheduled_at,
         payment_expires_at, policy_snapshot, client_email,
-        price_cents, deposit_cents, deposit_paid, stripe_payment_method_id,
+        price_cents, deposit_cents, deposit_amount_cents, deposit_paid, deposit_status,
+        payment_type, stripe_payment_intent_id, stripe_payment_method_id,
         treatments(id, name, duration_minutes, price_cents, category, requires_patch_test),
         clients(id, first_name, last_name, email, phone, stripe_customer_id),
         beauticians(id, first_name, business_name, booking_policy, booking_slug, brand_color, patch_test_expiry_months, patch_test_block_booking, payment_settings)
@@ -598,7 +599,7 @@ router.get('/:slug/manage/:token', async (req, res) => {
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - expiryMonths);
 
-    const [{ data: patchTests }, { data: pendingForms }] = await Promise.all([
+    const [{ data: patchTests }, { data: pendingForms }, { data: upfrontTxRows }] = await Promise.all([
       supabase
         .from('patch_tests')
         .select('id, status, test_date, result, suggested_slot, confirmed_at, treatments(name)')
@@ -614,6 +615,17 @@ router.get('/:slug/manage/:token', async (req, res) => {
         .eq('beautician_id', beauticianId)
         .eq('status', 'pending')
         .limit(5),
+
+      // What was ACTUALLY charged at booking, from the transaction log. This
+      // is the figure on the client's card statement, so it is the figure the
+      // receipt must show. Never recompute it from the treatment price.
+      supabase
+        .from('transactions')
+        .select('amount_cents, type')
+        .eq('appointment_id', appt.id)
+        .eq('status', 'completed')
+        .in('type', ['deposit', 'full_payment'])
+        .limit(1),
     ]);
 
     // Determine if a patch test is needed:
@@ -647,6 +659,7 @@ router.get('/:slug/manage/:token', async (req, res) => {
         startsAt: appt.starts_at,
         endsAt: appt.ends_at,
         status: appt.status,
+        depositPaid: !!appt.deposit_paid,
         paymentExpiresAt: appt.payment_expires_at,
         treatment: appt.treatments,
         client: {
@@ -663,11 +676,35 @@ router.get('/:slug/manage/:token', async (req, res) => {
       // so the client can pay the rest by transfer.
       payment: (() => {
         const priceCents = appt.price_cents || appt.treatments?.price_cents || 0;
-        const depositPaidCents = appt.deposit_paid ? (appt.deposit_cents || 0) : 0;
+        const upfrontTx = (upfrontTxRows || [])[0] || null;
+        // A deposit counts as paid when a transaction was logged OR the
+        // appointment itself says so. The fallback exists because the Stripe
+        // webhook historically failed to fire, leaving genuinely paid deposits
+        // with no transaction row; the intent stamped on the appointment is
+        // proof enough that the money moved.
+        const depositEvidenced = !!(
+          upfrontTx ||
+          appt.deposit_paid ||
+          (appt.stripe_payment_intent_id && appt.deposit_status === 'paid')
+        );
+        // What we display as paid: prefer the logged charge (matches the card
+        // statement, and includes any add-ons paid alongside the deposit),
+        // then the amount the checkout was created for, then the configured
+        // deposit. The remaining balance is worked out from the deposit
+        // portion only, because add-ons were already paid in full.
+        const depositPortionCents = appt.deposit_amount_cents ?? appt.deposit_cents ?? 0;
+        const paidCents = depositEvidenced
+          ? (upfrontTx?.amount_cents ?? depositPortionCents)
+          : 0;
+        const paidInFull = depositEvidenced &&
+          (appt.payment_type === 'full' || upfrontTx?.type === 'full_payment');
         return {
           priceCents,
-          depositPaidCents,
-          remainingCents: Math.max(0, priceCents - depositPaidCents),
+          depositPaidCents: paidCents,
+          paidInFull,
+          remainingCents: paidInFull
+            ? 0
+            : Math.max(0, priceCents - (depositEvidenced ? (depositPortionCents || paidCents) : 0)),
           bankDetails: appt.beauticians?.payment_settings?.bank_details || null,
         };
       })(),

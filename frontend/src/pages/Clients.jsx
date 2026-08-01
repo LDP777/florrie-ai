@@ -318,11 +318,27 @@ export default function Clients() {
         }
       } catch { /* loyalty is optional, never block the panel */ }
 
+      // Payment truth comes from the backend, which merges the transaction
+      // log with the appointment deposit fields. Historic deposits often have
+      // no transaction row (the webhook gap), so querying transactions
+      // directly is exactly how this panel ended up saying £0 spent for
+      // clients who had paid three deposits. Fail-soft: the panel works
+      // without the card.
+      let payments = null;
+      try {
+        const token = getToken();
+        const res = await fetch(`${API_BASE}/api/clients/${id}/payments`, {
+          headers: { Authorization: token ? `Bearer ${token}` : '' },
+        });
+        if (res.ok) payments = await res.json();
+      } catch { /* payments card is optional, never block the panel */ }
+
       setClientDetail({
         client: clientRes.data,
         appointments: apptsRes.data || [],
         messages: msgsRes.data || [],
         loyalty,
+        payments,
       });
       setSelected(id);
     } catch (err) {
@@ -869,6 +885,54 @@ function ClientDetailPanel({ detail, onClose, onNavigate }) {
               </div>
             </div>
 
+            {/* Payments. Ellie's ask, verbatim: "a clear part where it says
+                what deposit they've paid". Total deposits first, then the
+                recent appointments with what was paid and what is still due. */}
+            {detail.payments && (
+              <div style={styles.paymentsCard}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <h4 style={{ ...styles.sectionLabel, margin: 0 }}>Payments</h4>
+                  <span style={styles.paymentsTotal}>
+                    £{((detail.payments.deposits_total_cents || 0) / 100).toFixed(2)} paid in deposits
+                  </span>
+                </div>
+                {(detail.payments.per_appointment || []).length === 0 ? (
+                  <p style={{ ...styles.noHistory, marginTop: 8 }}>No appointments yet</p>
+                ) : (
+                  (detail.payments.per_appointment || []).slice(0, 5).map(pa => {
+                    // Wall-time convention: starts_at holds salon wall time in a
+                    // UTC slot, so the time is read straight off the string.
+                    const day = String(pa.starts_at || '').slice(0, 10);
+                    const time = String(pa.starts_at || '').slice(11, 16);
+                    const dateLabel = day
+                      ? `${new Date(`${day}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · ${time}`
+                      : '';
+                    const line = pa.paid_in_full
+                      ? `Paid in full · £${(pa.deposit_cents / 100).toFixed(2)}`
+                      : pa.deposit_paid
+                      ? `Deposit £${(pa.deposit_cents / 100).toFixed(2)} paid${pa.balance_cents > 0 && !pa.balance_settled ? ` · £${(pa.balance_cents / 100).toFixed(2)} due on the day` : ''}`
+                      : pa.deposit_cents > 0
+                      ? `Deposit £${(pa.deposit_cents / 100).toFixed(2)} not paid yet`
+                      : 'No deposit taken';
+                    return (
+                      <div key={pa.appointment_id} style={styles.paymentRow}>
+                        <div style={{ minWidth: 0 }}>
+                          <span style={styles.paymentTreatment}>{pa.treatment}</span>
+                          <span style={styles.paymentDate}>{dateLabel}</span>
+                        </div>
+                        <span style={{
+                          ...styles.paymentStatus,
+                          color: pa.paid_in_full || pa.deposit_paid ? 'var(--accent)' : 'var(--text-muted)',
+                        }}>
+                          {line}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+
             {daysSinceVisit !== null && (
               <div style={styles.lastVisitCard}>
                 <span style={styles.lastVisitLabel}>Last visit</span>
@@ -1330,6 +1394,15 @@ const styles = {
     padding: '10px 14px', borderRadius: 10, background: 'var(--bg-card)',
     boxShadow: 'var(--shadow-sm)', marginBottom: 10,
   },
+  paymentsCard: { background: 'var(--bg-card)', borderRadius: 12, padding: 14, marginBottom: 12, boxShadow: 'var(--shadow-sm)' },
+  paymentsTotal: { fontSize: 13, fontWeight: 700, color: 'var(--accent)' },
+  paymentRow: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
+    minHeight: 44, padding: '6px 0', borderBottom: '1px solid var(--bg)',
+  },
+  paymentTreatment: { display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+  paymentDate: { display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 1 },
+  paymentStatus: { fontSize: 12, fontWeight: 600, textAlign: 'right', flexShrink: 0, maxWidth: '58%' },
   lastVisitLabel: { fontSize: 12, color: 'var(--text-muted)' },
   lastVisitValue: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
   aiInsight: {
