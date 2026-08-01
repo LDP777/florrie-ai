@@ -44,6 +44,7 @@ const CATEGORIES = [
       { path: '/whatsapp/templates', label: 'Message templates', matIcon: 'description',     desc: 'What Florrie sends, signed as you' },
       { path: '/portal',             label: 'Booking Page',      matIcon: 'open_in_browser', desc: 'Your public booking link'       },
       { path: '/automations',        label: 'Automations',       matIcon: 'bolt',            desc: 'If-this-then-that rules'        },
+      { path: '/knowledge',          label: "Florrie's knowledge", matIcon: 'menu_book',     desc: 'What Florrie can answer from your own notes' },
       { path: '/pricing',            label: 'Plans',             matIcon: 'workspace_premium', desc: 'Subscription and billing'     },
     ],
   },

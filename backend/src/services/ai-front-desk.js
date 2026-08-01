@@ -6,6 +6,7 @@ import logger from '../lib/logger.js';
 import { cleanReply } from '../lib/text.js';
 import { safeReply } from '../lib/reply-claims-guard.js';
 import { getFreeSlots } from '../lib/free-slots.js';
+import { retrieveKnowledge, renderKnowledgeBlock } from '../lib/knowledge.js';
 import { createBookingSuggestion } from './automations.js';
 import { sendMessage, sendInstagramDM, sendWhatsAppText, sendSMS } from './notifications.js';
 import { pushEscalation, pushTeamUpdate } from './push-notifications.js';
@@ -164,7 +165,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
     }
 
     // 1. Gather context
-    const context = await gatherContext(beautician, client);
+    const context = await gatherContext(beautician, client, messageContent);
 
     // 2. Classify intent
     const classification = await classifyIntent(messageContent, context);
@@ -299,12 +300,12 @@ export async function processInboundMessage(messageId, beautician, client, messa
 
 // STEP 1: GATHER CONTEXT
 
-async function gatherContext(beautician, client) {
+async function gatherContext(beautician, client, messageContent = '') {
   const now = new Date();
   const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
   // Parallel fetches for speed
-  const [treatments, upcomingAppointments, clientHistory, clientIntelligence, conversation, loyaltyConfig, clientPoints, patchTests, activePromos, freeSlots] = await Promise.all([
+  const [treatments, upcomingAppointments, clientHistory, clientIntelligence, conversation, loyaltyConfig, clientPoints, patchTests, activePromos, freeSlots, knowledge] = await Promise.all([
     // Treatment menu
     supabase
       .from('treatments')
@@ -384,6 +385,18 @@ async function gatherContext(beautician, client) {
     }).catch(err => {
       logger.warn({ err, beauticianId: beautician.id }, 'Free slot lookup failed, replying without times');
       return [];
+    }),
+
+    // THE SALON'S OWN NOTES. Aftercare, policies, treatment explainers, prep,
+    // written by the beautician in the Knowledge page. Retrieval is lexical
+    // keyword overlap against this message (see lib/knowledge.js for why not
+    // embeddings at this scale). The prompt block built from these tells the
+    // model to answer ONLY from them, and to say it will check and come back
+    // rather than guess: same shape as the free-slots fix. Fails soft to []
+    // so a knowledge hiccup makes Florrie cautious, never wrong.
+    retrieveKnowledge(beautician.id, messageContent).catch(err => {
+      logger.warn({ err, beauticianId: beautician.id }, 'Knowledge lookup failed, replying without knowledge');
+      return [];
     })
   ]);
 
@@ -427,6 +440,7 @@ async function gatherContext(beautician, client) {
     clientIntelligence: clientIntelligence.data,
     conversation: conversationThread,
     freeSlots: freeSlots || [],
+    knowledge: knowledge || [],
     loyalty,
     patchTest,
     offers,
@@ -613,6 +627,7 @@ ${context.clientIntelligence?.favourite_treatments?.length ? `Favourite treatmen
 ${context.loyalty ? `LOYALTY: ${context.loyalty.summary} If it fits this message, you may mention it once, warmly and naturally, never pushy. Never invent points or rewards beyond what is stated here.` : ''}
 ${context.patchTest ? `PATCH TEST: These treatments need a patch test at least 24 hours before the first appointment: ${context.patchTest.treatmentsNeedingTest.join(', ')}. This client's patch test status: ${context.patchTest.status}. If they want to book one of these and their status is none or pending, warmly explain they need a quick patch test first and offer to pop them in for it at a real available time before the main appointment, rather than stalling. If their status is completed, treat it as a normal booking. Never invent a patch test result.` : ''}
 ${context.offers?.length ? `OFFERS: ${context.offers.join('; ')}. Only mention an offer if the client asks about price or offers, or is hesitating on cost. Never volunteer it otherwise, and never invent a code.` : `OFFERS: none running right now. If the client asks about offers or discounts, tell them there is nothing on at the moment. Never invent an offer, discount, or code.`}
+${renderKnowledgeBlock(context.knowledge)}
 ${buildTranscript(context, message) ? `\nConversation so far (oldest first). Continue it naturally, do not repeat yourself or reintroduce yourself:\n${buildTranscript(context, message)}` : ''}
 
 Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`,
@@ -748,6 +763,7 @@ ${renderFreeSlots(context.freeSlots)}
 ${context.loyalty ? `Loyalty: ${context.loyalty.summary} If it fits, you may mention it once, warmly, never pushy. Never invent points or rewards beyond this.` : ''}
 ${context.patchTest ? `Patch test: these treatments need one at least 24h before the first visit: ${context.patchTest.treatmentsNeedingTest.join(', ')}. This client's status: ${context.patchTest.status}. If they want one of these and status is none or pending, offer to book the quick patch test first at a real time; if completed, book as normal. Never invent a result.` : ''}
 ${context.offers?.length ? `Offers: ${context.offers.join('; ')}. Mention only if they ask about price or offers, or hesitate on cost. Never volunteer, never invent a code.` : `Offers: none running right now. If they ask about offers, say there is nothing on at the moment. Never invent an offer, discount, or code.`}
+${renderKnowledgeBlock(context.knowledge)}
 ${buildTranscript(context, message) ? `\nConversation so far (oldest first), so your draft fits the thread:\n${buildTranscript(context, message)}` : ''}
 
 Write only the message to send.`,
@@ -1096,7 +1112,7 @@ function truncate(str, len) {
 export async function generateReplySuggestions(beautician, client, lastInboundMessage) {
   if (!lastInboundMessage || !process.env.ANTHROPIC_API_KEY) return [];
 
-  const context = await gatherContext(beautician, client);
+  const context = await gatherContext(beautician, client, lastInboundMessage);
   const toneGuide = buildToneGuide(beautician.tone_model);
   const firstName = context.client?.name || 'the client';
 

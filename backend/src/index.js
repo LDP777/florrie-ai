@@ -88,6 +88,7 @@ import courseRoutes from './routes/courses.js';
 import suggestionsRoutes from './routes/suggestions.js';
 import outboundRoutes from './routes/outbound.js';
 import calendarRoutes from './routes/calendar.js';
+import knowledgeRoutes from './routes/knowledge.js';
 
 dotenv.config();
 
@@ -280,6 +281,7 @@ app.use('/api/courses', bookingLimiter, courseRoutes); // public course enrollme
 app.use('/api/suggestions', apiLimiter, suggestionsRoutes);
 app.use('/api/outbound', apiLimiter, outboundRoutes); // Florrie's outbox: review/approve proactive sends
 app.use('/api/calendar', apiLimiter, calendarRoutes); // private iCal subscribe feed + sync URLs
+app.use('/api/knowledge', apiLimiter, knowledgeRoutes); // the salon's own notes, what the AI front desk may quote
 
 // Sentry error handler , must come after all routes, before the generic handler
 if (process.env.SENTRY_DSN) {

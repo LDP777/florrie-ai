@@ -45,6 +45,7 @@ const SmartSchedule = lazy(() => import('./pages/SmartSchedule.jsx'));
 const GiftVouchers = lazy(() => import('./pages/GiftVouchers.jsx'));
 const Notifications = lazy(() => import('./pages/Notifications.jsx'));
 const HoursExceptions = lazy(() => import('./pages/HoursExceptions.jsx'));
+const Knowledge = lazy(() => import('./pages/Knowledge.jsx'));
 const PatchTests = lazy(() => import('./pages/PatchTests.jsx'));
 // IntakeForms removed , duplicate of ConsultationFormBuilder (/consultation-forms)
 // Reports removed , merged into Analytics (/analytics → Export tab)
@@ -394,6 +395,7 @@ export default function App() {
             <Route path="/vouchers" element={<GiftVouchers />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/hours" element={<HoursExceptions />} />
+            <Route path="/knowledge" element={<Knowledge />} />
             <Route path="/compliance" element={<Compliance />} />
             <Route path="/patch-tests" element={<PatchTests />} />
             {/* /forms removed , use /consultation-forms instead */}
