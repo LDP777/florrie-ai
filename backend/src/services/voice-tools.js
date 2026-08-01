@@ -374,7 +374,8 @@ async function toolCheckSchedule({ date }, beautician, supabase) {
   }
 
   const lines = appts.map(a => {
-    const t = new Date(a.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    // timeZone UTC: starts_at is salon wall time stored in the UTC slot
+    const t = new Date(a.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
     return `${t} — ${a.clients?.first_name || 'Client'} (${a.treatments?.name || 'Treatment'})`;
   });
 
@@ -404,8 +405,9 @@ async function toolGetUpcoming({ days_ahead = 7 }, beautician, supabase) {
 
   const lines = appts.map(a => {
     const d = new Date(a.starts_at);
-    const dayStr = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-    const timeStr = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    // timeZone UTC: the UTC slot holds the salon wall clock
+    const dayStr = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+    const timeStr = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
     return `${dayStr} ${timeStr} — ${a.clients?.first_name || 'Client'} (${a.treatments?.name || 'Treatment'})`;
   });
 
@@ -440,7 +442,7 @@ async function toolBookAppointment({ client_name, treatment, date, time }, beaut
     }
   }
 
-  const startsAt = new Date(`${date}T${time}:00`);
+  const startsAt = new Date(`${date}T${time}:00Z`); // wall time into the UTC slot, per the starts_at convention
   const endsAt = new Date(startsAt.getTime() + durationMins * 60000);
 
   const { data: newAppt, error } = await supabase
@@ -467,8 +469,8 @@ async function toolBookAppointment({ client_name, treatment, date, time }, beaut
     return { result: 'Something went wrong creating the booking.' };
   }
 
-  const friendlyDate = startsAt.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
-  const friendlyTime = startsAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const friendlyDate = startsAt.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+  const friendlyTime = startsAt.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
 
   await sendMessage({
     client,
@@ -1122,7 +1124,7 @@ async function toolGetBusiestDays({ weeks_back = 8 }, beautician, supabase) {
 
   const dayCounts = [0, 0, 0, 0, 0, 0, 0]; // Sun=0
   for (const a of (appts || [])) {
-    dayCounts[new Date(a.starts_at).getDay()]++;
+    dayCounts[new Date(a.starts_at).getUTCDay()]++; // wall-frame weekday
   }
 
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];

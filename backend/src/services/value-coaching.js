@@ -183,8 +183,9 @@ function analyseSlotDemand(appointments) {
 
   appointments.forEach(apt => {
     const d = new Date(apt.starts_at);
-    const dayOfWeek = d.getDay();
-    const hour = d.getHours();
+    // starts_at is salon wall time in the UTC slot, so bucket by the UTC fields
+    const dayOfWeek = d.getUTCDay();
+    const hour = d.getUTCHours();
     const block = hour < 12 ? 'morning' : 'afternoon';
     const key = `${dayOfWeek}-${block}`;
 
@@ -213,8 +214,9 @@ function findMostPopularTreatment(appointments, treatments, dayOfWeek, block) {
   const counts = {};
   appointments.forEach(apt => {
     const d = new Date(apt.starts_at);
-    if (d.getDay() !== dayOfWeek) return;
-    if ((d.getHours() < 12 ? 'morning' : 'afternoon') !== block) return;
+    // same wall-frame read as analyseSlotDemand
+    if (d.getUTCDay() !== dayOfWeek) return;
+    if ((d.getUTCHours() < 12 ? 'morning' : 'afternoon') !== block) return;
     if (!apt.treatment_id) return;
 
     counts[apt.treatment_id] = (counts[apt.treatment_id] || 0) + 1;

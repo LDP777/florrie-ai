@@ -451,10 +451,11 @@ export default function DailyChecklist() {
   const todayInsights = useMemo(() => {
     const apptCount = appointments.length;
     const expectedRevenue = appointments.reduce((sum, a) => sum + (a.price_cents || 0), 0);
-    const nextAppt = appointments.find(a => new Date(a.starts_at) > new Date());
-    const nextTime = nextAppt
-      ? new Date(nextAppt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
-      : null;
+    // starts_at stores salon wall time in the UTC slot, so compare and read in that frame
+    const nowWall = new Date();
+    const nowWallMs = Date.UTC(nowWall.getFullYear(), nowWall.getMonth(), nowWall.getDate(), nowWall.getHours(), nowWall.getMinutes());
+    const nextAppt = appointments.find(a => new Date(a.starts_at).getTime() > nowWallMs);
+    const nextTime = nextAppt ? String(nextAppt.starts_at).slice(11, 16) : null;
     return { apptCount, expectedRevenue, nextAppt, nextTime };
   }, [appointments]);
   const iconForItem = (item) => {
@@ -780,7 +781,7 @@ export default function DailyChecklist() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {appointments.slice(0, 4).map(apt => {
-              const time = new Date(apt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+              const time = String(apt.starts_at).slice(11, 16); // wall time lives in the UTC slot
               return (
                 <div key={apt.id} style={S.apptRow}>
                   <div style={{ textAlign: 'center', flexShrink: 0, width: 40 }}>

@@ -1215,8 +1215,8 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
       chargePercent,
       newDepositCollected,
       message: isLateReschedule && chargePercent > 0
-        ? `Rescheduled to ${newStart.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at ${newStart.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}. As this is within the ${noticeHours}-hour notice period, a ${chargePercent}% fee for the original appointment will be charged to the card on file${newDepositCollected ? ', and a fresh deposit has been taken for your new appointment' : ', and your new appointment will need a fresh deposit'}.`
-        : `Rescheduled to ${newStart.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })} at ${newStart.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}.`,
+        ? `Rescheduled to ${newStart.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })} at ${newStart.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}. As this is within the ${noticeHours}-hour notice period, a ${chargePercent}% fee for the original appointment will be charged to the card on file${newDepositCollected ? ', and a fresh deposit has been taken for your new appointment' : ', and your new appointment will need a fresh deposit'}.`
+        : `Rescheduled to ${newStart.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })} at ${newStart.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}.`,
     });
   } catch (err) {
     logger.error({ err }, 'Reschedule failed');
@@ -1418,8 +1418,9 @@ router.post('/:slug/manage/:token/resend-payment', async (req, res) => {
     if (!depositCents) return res.status(400).json({ error: 'No deposit amount set' });
 
     const startsDate = new Date(appt.starts_at);
-    const dateLabel = startsDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
-    const timeLabel = startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    // timeZone UTC: starts_at stores salon wall time in the UTC slot
+    const dateLabel = startsDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+    const timeLabel = startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
     const beauticianName = b.business_name || b.first_name;
 
     const session = await stripe.checkout.sessions.create({
@@ -1779,8 +1780,9 @@ async function notifyWaitlistAboutFreedSlot({ beauticianId, treatmentId, freedSt
   const { sendSMS } = await import('./notifications.js');
   const { sendEmail } = await import('../services/notifications.js');
 
-  const dayName = freedDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
-  const timeStr = freedDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  // timeZone UTC: the freed slot is salon wall time stored in the UTC slot
+  const dayName = freedDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+  const timeStr = freedDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
 
   for (const waiter of waiters) {
     const msg = `Hi ${waiter.first_name || 'there'}! A slot has just opened up: ${dayName} at ${timeStr}. Reply YES to claim it or book at your link.`;
@@ -1837,7 +1839,7 @@ router.post('/:slug/send-manage-link', async (req, res) => {
 
     const manageUrl = `${FRONTEND_URL}/book/${req.params.slug}/manage/${appt.management_token}`;
     const treatmentName = appt.treatments?.name || 'your appointment';
-    const apptDate = new Date(appt.starts_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+    const apptDate = new Date(appt.starts_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
 
     // Send via the notifications service (Resend email)
     const { sendEmail } = await import('../services/notifications.js');
@@ -2735,7 +2737,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     beautician_id: beautician.id,
     action_type: 'booking_created',
     digital_employee: 'front_desk',
-    summary: `${firstName} booked ${treatmentNames} for ${startsDate.toLocaleDateString('en-GB')} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`,
+    summary: `${firstName} booked ${treatmentNames} for ${startsDate.toLocaleDateString('en-GB', { timeZone: 'UTC' })} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}`,
     details: { appointment_id: appointment.id, treatment: treatmentNames, treatments: allTreatments.map(t => ({ id: t.id, name: t.name })), client_name },
     client_id: client.id,
     appointment_id: appointment.id,
@@ -2743,13 +2745,14 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     autonomous: false,
     outcome: 'success',
     notification_sent: true,
-    notification_text: `New booking: ${firstName} — ${treatmentNames}, ${startsDate.toLocaleDateString('en-GB')} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
+    notification_text: `New booking: ${firstName} — ${treatmentNames}, ${startsDate.toLocaleDateString('en-GB', { timeZone: 'UTC' })} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}`
   });
   if (logErr) logger.warn({ err: logErr }, 'AI action log failed (non-fatal)');
 
   // Push notification — beautician gets a team-style alert
-  const timeStr = startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  const dateStr = startsDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  // timeZone UTC: wall time lives in the UTC slot
+  const timeStr = startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+  const dateStr = startsDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
   // Only alert on a REAL booking. A deposit booking starts as 'pending'; it must
   // NOT fire a "waiting on a deposit" push up front (that was the noise). Ellie
   // now hears about a deposit booking only when the deposit lands (confirmed push
@@ -2793,8 +2796,8 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
         manageUrl: `${FRONTEND_URL}/book/${req.params.slug}/manage/${appointment.management_token}`,
         treatment: treatmentNames,
         treatments: allTreatments.map(t => ({ id: t.id, name: t.name, price_cents: t.price_cents })),
-        date: startsDate.toLocaleDateString('en-GB'),
-        time: startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+        date: startsDate.toLocaleDateString('en-GB', { timeZone: 'UTC' }),
+        time: startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
         price: `£${(combinedPriceCents / 100).toFixed(2)}`,
         deposit: `£${(depositCents / 100).toFixed(2)}`,
         status: 'pending',
@@ -2810,7 +2813,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   if (depositRequired && stripe && beautician.stripe_account_id && beautician.stripe_onboarding_complete) {
     try {
       const bookingSlug = req.params.slug;
-      const dateLabel = startsDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+      const dateLabel = startsDate.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 
       // Ensure client has a Stripe Customer for saved card reuse
       let stripeCustomerId = client.stripe_customer_id;
@@ -2844,7 +2847,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
               currency: 'gbp',
               product_data: {
                 name: discountCents > 0 && t === treatment ? `${t.name} (${discountMeta?.code} applied)` : t.name,
-                description: `${dateLabel} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} with ${beautician.business_name || beautician.first_name}`,
+                description: `${dateLabel} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} with ${beautician.business_name || beautician.first_name}`,
               },
               unit_amount: Math.max(0, amount),
             },
@@ -2861,7 +2864,7 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
             currency: 'gbp',
             product_data: {
               name: label,
-              description: `${dateLabel} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} with ${beautician.business_name || beautician.first_name}`,
+              description: `${dateLabel} at ${startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} with ${beautician.business_name || beautician.first_name}`,
             },
             unit_amount: depositCents,
           },
@@ -2967,8 +2970,8 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
           manageUrl: `${FRONTEND_URL}/book/${req.params.slug}/manage/${appointment.management_token}`,
           treatment: treatmentNames,
           treatments: allTreatments.map(t => ({ id: t.id, name: t.name, price_cents: t.price_cents })),
-          date: startsDate.toLocaleDateString('en-GB'),
-          time: startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+          date: startsDate.toLocaleDateString('en-GB', { timeZone: 'UTC' }),
+          time: startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
           price: `£${(combinedPriceCents / 100).toFixed(2)}`,
           deposit: isFullPayment ? null : `£${(depositCents / 100).toFixed(2)}`,
           payment_type: isFullPayment ? 'full' : 'deposit',
@@ -3015,8 +3018,8 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
       manageUrl: `${FRONTEND_URL}/book/${req.params.slug}/manage/${appointment.management_token}`,
       treatment: treatmentNames,
       treatments: allTreatments.map(t => ({ id: t.id, name: t.name, price_cents: t.price_cents })),
-      date: startsDate.toLocaleDateString('en-GB'),
-      time: startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+      date: startsDate.toLocaleDateString('en-GB', { timeZone: 'UTC' }),
+      time: startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
       price: `£${(combinedPriceCents / 100).toFixed(2)}`,
       deposit: null,
       status: appointment.status,

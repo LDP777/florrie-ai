@@ -360,7 +360,8 @@ export default function ContentAutopilot() {
         day: 'numeric',
         month: 'short',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
+        timeZone: 'UTC' // starts_at is salon wall time in the UTC slot
       });
       const res = await fetch(`${API_BASE}/api/content/caption`, {
         method: 'POST',
@@ -815,7 +816,7 @@ export default function ContentAutopilot() {
           <div style={{ flex: 1 }}>
             <span style={{ fontSize: 13, fontWeight: 600 }}>A slot opened up</span>
             <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-secondary, #7A756F)' }}>
-              {new Date(cancelledPrompt.starts_at).toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} was cancelled
+              {new Date(cancelledPrompt.starts_at).toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} was cancelled
             </p>
           </div>
           <button onClick={handleGenerateAvailabilityPost} disabled={generatingAI} style={styles.promptActionBtn}>

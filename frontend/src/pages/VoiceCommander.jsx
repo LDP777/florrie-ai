@@ -188,7 +188,9 @@ function buildLiveSuggestions({ todayAppts, upcomingAppts, recentClients, dorman
   // Schedule-based
   if (todayAppts.length > 0) {
     pool.push(`What's my schedule today?`);
-    const nextAppt = todayAppts.find(a => new Date(a.starts_at) > now);
+    // starts_at is salon wall time in the UTC slot, so "upcoming" must compare wall-to-wall
+    const nowWallMs = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes());
+    const nextAppt = todayAppts.find(a => new Date(a.starts_at).getTime() > nowWallMs);
     if (nextAppt) {
       const clientName = nextAppt.clients
         ? `${nextAppt.clients.first_name || ''} ${nextAppt.clients.last_name || ''}`.trim()

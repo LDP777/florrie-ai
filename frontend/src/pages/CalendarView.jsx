@@ -40,7 +40,7 @@ function wallMinutes(isoish) {
   const m = parseInt(s.slice(14, 16), 10);
   if (isNaN(h) || isNaN(m)) {
     const d = new Date(isoish);
-    return d.getHours() * 60 + d.getMinutes();
+    return d.getUTCHours() * 60 + d.getUTCMinutes(); // UTC frame IS the wall clock
   }
   return h * 60 + m;
 }

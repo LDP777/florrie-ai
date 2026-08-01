@@ -972,8 +972,10 @@ function generateSlots(date, startTime, endTime, durationMinutes, existingAppoin
   const slots = [];
   const slotInterval = 15; // 15-minute slot intervals
 
-  let current = new Date(`${date}T${startTime}:00`);
-  const end = new Date(`${date}T${endTime}:00`);
+  // Build candidate slots in the wall frame (the UTC slot IS the salon wall
+  // clock for starts_at), so the conflict check and the stored value line up.
+  let current = new Date(`${date}T${startTime}:00Z`);
+  const end = new Date(`${date}T${endTime}:00Z`);
 
   while (current.getTime() + durationMinutes * 60000 <= end.getTime()) {
     const slotEnd = new Date(current.getTime() + durationMinutes * 60000);
@@ -989,7 +991,7 @@ function generateSlots(date, startTime, endTime, durationMinutes, existingAppoin
       slots.push({
         starts_at: current.toISOString(),
         ends_at: slotEnd.toISOString(),
-        display: current.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+        display: current.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })
       });
     }
 

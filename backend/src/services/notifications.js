@@ -935,9 +935,11 @@ export async function notifyBookingConfirmed(appointmentId) {
   // Master pause — when on, nothing automated goes out on the beautician's behalf.
   if (prefs.paused) return;
   const bizName = biz?.business_name || biz?.first_name;
-  const dateStr = new Date(appt.starts_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
-  const timeStr = new Date(appt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  const shortDate = new Date(appt.starts_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+  // timeZone UTC throughout: starts_at stores salon wall time in the UTC slot,
+  // so local conversion told clients 11:30 for a 10:30 booking in BST.
+  const dateStr = new Date(appt.starts_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+  const timeStr = new Date(appt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+  const shortDate = new Date(appt.starts_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 
   const manageUrl = (appt.management_token && biz?.booking_slug && process.env.FRONTEND_URL)
     ? `${process.env.FRONTEND_URL}/book/${biz.booking_slug}/manage/${appt.management_token}`
@@ -1075,8 +1077,9 @@ export async function notifyReminder24h(appointmentId) {
   }
 
   const bizName = biz?.business_name || biz?.first_name;
-  const timeStr = new Date(appt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  const dateStr = new Date(appt.starts_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+  // timeZone UTC: wall time lives in the UTC slot (see confirmation above)
+  const timeStr = new Date(appt.starts_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+  const dateStr = new Date(appt.starts_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
 
   const textMsg = `Hi ${client.first_name}, just a reminder your ${treatment.name} with ${bizName} is tomorrow at ${timeStr}. Reply here if you need to change anything. See you then!`;
 

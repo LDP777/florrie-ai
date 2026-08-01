@@ -253,9 +253,10 @@ function formatGbp(pence) {
 }
 
 function formatTime(iso) {
-  try {
-    return new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  } catch { return ''; }
+  // starts_at stores salon WALL time in the UTC slot; read it off the string.
+  // Intl-converting it showed "first at 11:30" for a 10:30 booking in BST.
+  const t = String(iso || '').slice(11, 16);
+  return /^\d\d:\d\d$/.test(t) ? t : '';
 }
 
 const MC = {
