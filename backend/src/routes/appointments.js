@@ -12,6 +12,7 @@ import { chargePolicyFee, chargeRemainingBalance, chargeCardAmount, getCardOnFil
 import { feePreview } from '../lib/platform-fees.js';
 import { logAssumedTakings } from '../lib/takings.js';
 import { onlyFlipped } from '../lib/money-guards.js';
+import { recomputeTotals, endsAtWall, parseExtraTreatmentIds } from '../lib/appointment-treatments.js';
 import logger from '../lib/logger.js';
 import { parsePagination, buildPaginationMeta, handleQueryError } from '../lib/queries.js';
 import { completeDaySchema, manualAppointmentSchema } from '../lib/schemas.js';
@@ -409,7 +410,10 @@ router.post('/manual', requireAuth, validate(manualAppointmentSchema), async (re
 router.patch('/:id', requireAuth, async (req, res) => {
   const allowedFields = [
     'status', 'starts_at', 'ends_at', 'beautician_notes',
-    'no_show_fee_charged', 'treatment_id', 'duration_minutes'
+    'no_show_fee_charged', 'treatment_id', 'duration_minutes',
+    // Extra treatments on an appointment that already exists. Ellie's ask: a
+    // client turns up for a patch test and has an infill done at the same time.
+    'extra_treatment_ids',
   ];
 
   const VALID_TRANSITIONS = {
@@ -425,13 +429,29 @@ router.patch('/:id', requireAuth, async (req, res) => {
     if (req.body[field] !== undefined) updates[field] = req.body[field];
   }
 
-  // treatment_id comes straight from the body. Without this, a booking can be
-  // repointed at another salon's treatment, which then drives its price, its
-  // duration and the ends_at recomputed below. The backend uses the service
-  // key, so RLS is bypassed and this is the only check there is. 404 rather
-  // than 403, so the response does not confirm the treatment exists.
+  // Extra treatment ids are shaped-checked before the ownership pass, so a
+  // malformed body is a plain 400 rather than a row of pointless lookups.
+  let extraIds = null;      // the ids she wants attached, [] means clear them
+  let extraStore = undefined; // what goes in the column: an array, or null for none
+  if (req.body.extra_treatment_ids !== undefined) {
+    const parsed = parseExtraTreatmentIds(req.body.extra_treatment_ids);
+    if (!parsed.ok) return res.status(400).json({ error: parsed.error });
+    extraIds = parsed.ids;
+    extraStore = parsed.store;
+    updates.extra_treatment_ids = extraStore;
+  }
+
+  // treatment_id and every extra treatment id come straight from the body.
+  // Without this, a booking can be repointed at (or padded out with) another
+  // salon's treatment, which then drives its price, its duration and the
+  // ends_at recomputed below. The backend uses the service key, so RLS is
+  // bypassed and this is the only check there is. 404 rather than 403, so the
+  // response does not confirm the treatment exists.
   if (!await requireOwned(req, res, [
     { table: 'treatments', id: req.body.treatment_id },
+    // Deduplicated: two of the same treatment is a legitimate booking, but it
+    // is one ownership question, not two.
+    ...[...new Set(extraIds || [])].map(id => ({ table: 'treatments', id })),
   ])) return;
 
   // Validate status transition if status is being updated
@@ -499,37 +519,128 @@ router.patch('/:id', requireAuth, async (req, res) => {
     }
   }
 
-  // Changing the treatment (e.g. a full lamination swapped for a maintenance)
-  // must pull the new length + price across, and re-end the appointment from
-  // its start. Previously there was nowhere to change a booking's treatment at
-  // all - only its time.
-  if (req.body.treatment_id) {
-    const { data: newTreat } = await supabase
-      .from('treatments')
-      .select('duration_minutes, price_cents')
-      .eq('id', req.body.treatment_id)
+  // THE TREATMENTS ON THIS APPOINTMENT, WHATEVER THEY NOW ARE.
+  //
+  // Ellie: "she is trying to add to a patch test appointment and can't. And
+  // then the time change auto also." A patch test carries no treatment_id (it
+  // is not one of her priced treatments), so the sheet's Change dropdown was
+  // keyed on null and there was no way in at all. This branch takes the WHOLE
+  // set, base plus every extra, and recomputes length, price and finish time
+  // in one pass, so she never works out the new end time herself.
+  //
+  // It also owns a plain treatment_id swap, which used to have its own branch
+  // that read the new treatment's length as THE length. That was fine while a
+  // booking could only hold one treatment: with extras attached it silently
+  // dropped their time and their money off the row while leaving them listed.
+  // One path, one answer. A swap on a booking with no extras comes out exactly
+  // as it did before, with a clash check it did not have.
+  if (req.body.extra_treatment_ids !== undefined || req.body.treatment_id) {
+    const { data: current, error: curErr } = await supabase
+      .from('appointments')
+      .select('starts_at, ends_at, treatment_id, extra_treatment_ids, duration_minutes, price_cents, buffer_minutes, extra_padding_minutes')
+      .eq('id', req.params.id)
       .eq('beautician_id', req.beautician.id)
       .maybeSingle();
-    if (!newTreat) {
+    if (curErr) {
+      logger.error({ err: curErr, appointmentId: req.params.id }, 'extra treatments: could not load appointment');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
+    if (!current) return res.status(404).json({ error: 'Appointment not found' });
+
+    // The base is whatever the treatment is AFTER this request: a treatment_id
+    // in the same body wins, otherwise the one already on the row. Both went
+    // through the ownership pass above.
+    const baseId = req.body.treatment_id || current.treatment_id || null;
+    const currentExtraIds = Array.isArray(current.extra_treatment_ids) ? current.extra_treatment_ids : [];
+    // A body that says nothing about extras is not saying "remove them". Only
+    // an explicit list (including an empty one) changes what is attached.
+    const nextExtraIds = extraIds !== null ? extraIds : currentExtraIds;
+
+    // One query for every treatment involved: the base, the extras being
+    // attached, and the extras ALREADY attached. The last of those is what
+    // lets a patch test keep its own ten minutes (see ownTotals).
+    const wanted = [...new Set([baseId, ...nextExtraIds, ...currentExtraIds].filter(Boolean))];
+    let byId = {};
+    if (wanted.length > 0) {
+      const { data: rows, error: tErr } = await supabase
+        .from('treatments')
+        .select('id, name, duration_minutes, price_cents')
+        .eq('beautician_id', req.beautician.id)
+        .in('id', wanted);
+      if (tErr) {
+        logger.error({ err: tErr, appointmentId: req.params.id }, 'extra treatments: could not load treatments');
+        return res.status(500).json({ error: 'Something went wrong' });
+      }
+      byId = Object.fromEntries((rows || []).map(t => [t.id, t]));
+    }
+
+    // A treatment that vanished between her tapping and this request would
+    // otherwise be priced at zero minutes and zero pounds. Refuse instead.
+    if (baseId && !byId[baseId]) {
       return res.status(400).json({ error: 'That treatment was not found.' });
     }
-    updates.duration_minutes = newTreat.duration_minutes;
-    updates.price_cents = newTreat.price_cents;
+    for (const id of nextExtraIds) {
+      if (!byId[id]) {
+        // Only ever raised for extras she just picked. An extra already on the
+        // row that has since been deleted is handled below, not rejected here,
+        // because refusing would lock her out of her own appointment.
+        if (extraIds && extraIds.includes(id)) {
+          return res.status(400).json({ error: 'One of those treatments was not found.' });
+        }
+      }
+    }
 
-    // Re-end from the (new or existing) start using the new length.
-    const startStr = updates.starts_at
-      || (await supabase.from('appointments').select('starts_at').eq('id', req.params.id).single()).data?.starts_at;
-    const sm = String(startStr || '').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-    if (sm) {
-      const [, yy2, mo2, dd2, hh2, mi2] = sm;
-      const { data: pad0 } = await supabase
+    const extraTreatments = nextExtraIds.map(id => byId[id]).filter(Boolean);
+    // An already-attached extra that has since been deleted just drops out of
+    // the subtraction. Undercounting what to take off is the safe direction:
+    // it leaves the appointment longer than it should be, never shorter, so
+    // nothing lands on top of the next client.
+    const currentExtras = currentExtraIds.map(id => byId[id]).filter(Boolean);
+
+    const totals = recomputeTotals({
+      baseTreatment: baseId ? byId[baseId] : null,
+      extraTreatments,
+      existing: current,
+      currentExtras,
+    });
+
+    // Re-end from the new start if she is moving it in the same request,
+    // otherwise from where it already is. Wall frame only, see endsAtWall.
+    const startStr = updates.starts_at || current.starts_at;
+    const newEnd = endsAtWall(startStr, totals.blockMinutes);
+    if (!newEnd) {
+      return res.status(400).json({ error: 'This appointment has no usable start time.' });
+    }
+
+    updates.duration_minutes = totals.durationMinutes;
+    updates.price_cents = totals.priceCents;
+    updates.ends_at = newEnd;
+
+    // Clash check, same rule as the length change: only when the new end
+    // pushes PAST the current one. Thirteen legacy bookings deliberately
+    // overlap, and taking a treatment OFF one of those must not be rejected
+    // for an overlap it is actually reducing.
+    if (newEnd.slice(0, 16) > String(current.ends_at || '').slice(0, 16)) {
+      const newStartIso = `${String(startStr).slice(0, 16)}:00.000Z`;
+      const newEndIso = `${newEnd.slice(0, 16)}:00.000Z`;
+      const { data: clashes, error: clashErr } = await supabase
         .from('appointments')
-        .select('buffer_minutes, extra_padding_minutes')
-        .eq('id', req.params.id).single();
-      const total = (newTreat.duration_minutes || 0) + (pad0?.buffer_minutes || 0) + (pad0?.extra_padding_minutes || 0);
-      const endDate = new Date(Date.UTC(Number(yy2), Number(mo2) - 1, Number(dd2), Number(hh2), Number(mi2) + total));
-      const p2 = (n) => String(n).padStart(2, '0');
-      updates.ends_at = `${endDate.getUTCFullYear()}-${p2(endDate.getUTCMonth() + 1)}-${p2(endDate.getUTCDate())}T${p2(endDate.getUTCHours())}:${p2(endDate.getUTCMinutes())}:00`;
+        .select('id')
+        .eq('beautician_id', req.beautician.id)
+        .neq('id', req.params.id)
+        .not('status', 'in', '(cancelled,cancelled_by_client,cancelled_by_beautician,no_show)')
+        .lt('starts_at', newEndIso)
+        .gt('ends_at', newStartIso)
+        .limit(1);
+      if (clashErr) {
+        // Cannot read the diary = do not write. A blind write here would
+        // double-book a client.
+        logger.error({ err: clashErr, appointmentId: req.params.id }, 'extra treatments: clash check failed');
+        return res.status(500).json({ error: 'Could not check the diary just then. Nothing was changed, try again.' });
+      }
+      if (clashes && clashes.length > 0) {
+        return res.status(409).json({ error: 'That runs into the next booking. Move the time first, or take something off.' });
+      }
     }
   }
 
@@ -664,6 +775,28 @@ router.patch('/:id', requireAuth, async (req, res) => {
     chargePolicyFee(req.params.id, 'no_show').catch(err =>
       logger.error({ err, appointmentId: req.params.id }, 'no_show policy fee charge failed (non-fatal)')
     );
+  }
+
+  // The sheet lists every treatment on the appointment by name. treatments()
+  // only joins the base one, and extra_treatment_ids is a bare array of uuids,
+  // so name the extras here rather than making the app guess. Fail-soft: a
+  // failure here costs the names, not the change she just made.
+  if (Array.isArray(data.extra_treatment_ids) && data.extra_treatment_ids.length > 0) {
+    const { data: extraRows, error: exErr } = await supabase
+      .from('treatments')
+      .select('id, name, duration_minutes, price_cents')
+      .eq('beautician_id', req.beautician.id)
+      .in('id', data.extra_treatment_ids);
+    if (exErr) {
+      logger.error({ err: exErr, appointmentId: data.id }, 'could not name the extra treatments');
+    } else {
+      const nameById = Object.fromEntries((extraRows || []).map(t => [t.id, t]));
+      // Mapped over the stored ids, not the query result, so the order she
+      // added them in survives and a repeated treatment appears twice.
+      data.extra_treatments = data.extra_treatment_ids.map(id => nameById[id]).filter(Boolean);
+    }
+  } else {
+    data.extra_treatments = [];
   }
 
   res.json({ appointment: data });

@@ -8,9 +8,6 @@ import { hapticTap, hapticSuccess } from '../lib/native.js';
 import { treatmentColor, tint } from '../lib/treatmentColors.js';
 import { parseDateOnly } from '../lib/dates.js';
 
-// A patch test has no treatment_id (it is not one of her treatments), so
-// `treatments.name` is null and the appointment rendered as a blank row in the
-// diary. Fall back to the note we stamp on it at booking.
 // 15-minute duration steps for the appointment-length picker (15 min to 8 h).
 const DURATION_STEPS = Array.from({ length: 32 }, (_, i) => (i + 1) * 15);
 function durationLabel(m) {
@@ -20,10 +17,35 @@ function durationLabel(m) {
   return rest === 0 ? `${h} h` : `${h} h ${rest} min`;
 }
 
-function apptLabel(a) {
+// A patch test has no treatment_id (it is not one of her treatments), so
+// `treatments.name` is null and the appointment rendered as a blank row in the
+// diary. Fall back to the note we stamp on it at booking.
+function baseLabel(a) {
   if (a?.treatments?.name) return a.treatments.name;
   if (a?.beautician_notes && /patch test/i.test(a.beautician_notes)) return 'Patch test';
   return '';
+}
+
+/** The extra treatment ids on an appointment, always as an array. */
+function extraIdsOf(a) {
+  return Array.isArray(a?.extra_treatment_ids) ? a.extra_treatment_ids : [];
+}
+
+/**
+ * What the appointment is called now that a booking can hold more than one
+ * treatment: "Patch test + Lash infill", "Lash lift + Brow tint".
+ *
+ * The extras are stored as bare uuids, so naming them needs a lookup. Where
+ * there is no map to hand (or a treatment has since been deleted) it degrades
+ * to the base name rather than printing a uuid at her.
+ *
+ * @param {object} a appointment row
+ * @param {Record<string,string>} [names] treatment id -> name
+ */
+function apptLabel(a, names) {
+  const base = baseLabel(a);
+  const extras = names ? extraIdsOf(a).map(id => names[id]).filter(Boolean) : [];
+  return [base, ...extras].filter(Boolean).join(' + ');
 }
 
 /**
@@ -129,6 +151,65 @@ const COLORS = {
   outlineVariant: '#d8c1c6',
   stone400: '#78716b',
 };
+
+// Controls on the treatments list. Pulled out because the same select and the
+// same button appear three times on that row and inline styles drift.
+// 44px minimums throughout: this is tapped with a thumb, mid-appointment.
+const TAP = 44;
+const treatSelectStyle = {
+  minHeight: TAP,
+  padding: '8px 10px',
+  borderRadius: 8,
+  border: `1px solid ${COLORS.outlineVariant}`,
+  fontFamily: 'inherit',
+  fontSize: 13,
+  background: 'var(--bg-card)',
+  maxWidth: '100%',
+};
+const dashedBtnStyle = {
+  minHeight: TAP,
+  minWidth: TAP,
+  background: 'none',
+  border: `1px dashed ${COLORS.outlineVariant}`,
+  borderRadius: 8,
+  padding: '3px 10px',
+  color: COLORS.primary,
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+};
+// Quiet on purpose: removing a treatment is a correction, not a headline
+// action, so it must not compete with "+ Add treatment" for her thumb.
+const quietRemoveStyle = {
+  minHeight: TAP,
+  minWidth: TAP,
+  background: 'none',
+  border: 'none',
+  padding: '0 6px',
+  color: COLORS.stone400,
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  textDecoration: 'underline',
+};
+const quietBtnStyle = {
+  minHeight: TAP,
+  background: 'none',
+  border: 'none',
+  color: COLORS.stone400,
+  fontSize: 12,
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  padding: 0,
+};
+/** "Lash infill · £30 · 45m" for a picker option. */
+function treatOptionLabel(t) {
+  const price = t.price_cents ? ` · £${(t.price_cents / 100).toFixed(0)}` : '';
+  const mins = t.duration_minutes ? ` · ${t.duration_minutes}m` : '';
+  return `${t.name}${price}${mins}`;
+}
 export default function CalendarView({ initialView } = {}) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -158,6 +239,10 @@ export default function CalendarView({ initialView } = {}) {
     if (params.get('view') === 'day') setView('day');
   }, [location.search]);
   const [appointments, setAppointments] = useState([]);
+  // Extra treatments are stored on the appointment as bare uuids, so the cards
+  // and the week rows need a name for each one. Loaded once for the whole
+  // page: it is a handful of rows and it never changes mid-session.
+  const [treatNames, setTreatNames] = useState({});
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [loading, setLoading] = useState(true);
   // A failed load used to leave the PREVIOUS week's rows in state. The render
@@ -167,6 +252,22 @@ export default function CalendarView({ initialView } = {}) {
   const [loadError, setLoadError] = useState(null);
   const loadSeq = useRef(0);
   const detailRef = useRef(null);
+
+  // Fail-soft: without the names the labels just read as the base treatment,
+  // which is exactly how the diary looked before extras existed.
+  useEffect(() => {
+    if (!beautician?.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('treatments')
+        .select('id, name')
+        .eq('beautician_id', beautician.id);
+      if (error || cancelled) return;
+      setTreatNames(Object.fromEntries((data || []).map(t => [t.id, t.name])));
+    })();
+    return () => { cancelled = true; };
+  }, [beautician?.id]);
 
   // Deep-link to a specific appointment (?appt=<id>): once that day's
   // appointments have loaded, open its detail. The selection effect further
@@ -186,7 +287,7 @@ export default function CalendarView({ initialView } = {}) {
   const longPressFired = useRef(false);
   async function deleteAppointmentFromAgenda(appt) {
     const who = appt.clients?.first_name
-      ? `${appt.clients.first_name}'s ${apptLabel(appt) || 'appointment'}`
+      ? `${appt.clients.first_name}'s ${apptLabel(appt, treatNames) || 'appointment'}`
       : 'this appointment';
     if (!confirm(`Delete ${who}? This can't be undone.`)) return;
     try {
@@ -805,7 +906,7 @@ export default function CalendarView({ initialView } = {}) {
                       <div style={styles.appointmentCardTextBlock}>
                         <div style={{ ...styles.appointmentCardClientName, ...(compact ? { fontSize: 12 } : {}), ...(dead ? { textDecoration: 'line-through' } : {}) }}>{appt.clients?.first_name} {appt.clients?.last_name || ''}</div>
                         {showTreatment && (
-                          <div style={styles.appointmentCardTreatment}>{apptLabel(appt)}</div>
+                          <div style={styles.appointmentCardTreatment}>{apptLabel(appt, treatNames)}</div>
                         )}
                       </div>
                     </div>
@@ -1041,7 +1142,7 @@ export default function CalendarView({ initialView } = {}) {
                           <span style={{ ...styles.weekRowDot, background: dotColor }} />
                           <span style={styles.weekRowBody}>
                             <span style={{ ...styles.weekRowName, textDecoration: dead ? 'line-through' : 'none' }}>{clientLabel}</span>
-                            {apptLabel(appt) && <span style={styles.weekRowTreatment}>{apptLabel(appt)}</span>}
+                            {apptLabel(appt, treatNames) && <span style={styles.weekRowTreatment}>{apptLabel(appt, treatNames)}</span>}
                           </span>
                           {price > 0 && <span style={styles.weekRowPrice}>£{(price / 100).toFixed(0)}</span>}
                           {appt.ai_booked && <span style={styles.aiTag}>AI</span>}
@@ -1290,17 +1391,31 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
   const [treatEditing, setTreatEditing] = useState(false);
   const [treatList, setTreatList] = useState([]);
   const [treatSaving, setTreatSaving] = useState(false);
-  async function openTreatEdit() {
-    setTreatEditing(true);
-    if (treatList.length === 0) {
-      const { data } = await supabase
-        .from('treatments')
-        .select('id, name, duration_minutes, price_cents, is_active, hidden')
-        .eq('beautician_id', beautician.id)
-        .order('sort_order', { ascending: true });
-      setTreatList((data || []).filter(t => t.is_active !== false && !t.hidden));
-    }
+  // "Add treatment" is a second picker on the same row. Kept separate from
+  // treatEditing so opening one closes the other and she is never looking at
+  // two dropdowns wondering which does what.
+  const [addingTreat, setAddingTreat] = useState(false);
+  async function loadTreatList() {
+    if (treatList.length > 0) return treatList;
+    const { data } = await supabase
+      .from('treatments')
+      .select('id, name, duration_minutes, price_cents, is_active, hidden')
+      .eq('beautician_id', beautician.id)
+      .order('sort_order', { ascending: true });
+    const list = (data || []).filter(t => t.is_active !== false && !t.hidden);
+    setTreatList(list);
+    return list;
   }
+  // Loaded as soon as the sheet opens, not on first tap: the extras are stored
+  // as bare uuids, so without this the list would show "+ 1 more" style
+  // nonsense until she happened to open a picker.
+  useEffect(() => { loadTreatList(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [beautician?.id]);
+  const treatById = Object.fromEntries(treatList.map(t => [t.id, t]));
+  const extraIds = Array.isArray(appointment.extra_treatment_ids) ? appointment.extra_treatment_ids : [];
+  // The base line. A patch test has no treatment_id, so it is named from the
+  // note we stamp on it, and that line has no remove control: taking the patch
+  // test off a patch test would leave an appointment for nothing.
+  const baseTreatName = baseLabel(appointment);
   async function handleChangeTreatment(treatmentId) {
     setTreatSaving(true);
     try {
@@ -1318,6 +1433,51 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
       onUpdate();
     } catch (err) {
       alert(err.message || 'Could not change the treatment');
+    } finally {
+      setTreatSaving(false);
+    }
+  }
+  // Add or remove extra treatments. The backend recomputes length, price and
+  // the finish time from the whole set, so the answer comes back in the
+  // response and the sheet redraws from that rather than guessing.
+  //
+  // Ellie: "add additional treatments to a client... and then the time change
+  // auto also." The Time row below reads straight off appointment.ends_at, so
+  // folding the response back in is what makes the new finish time appear
+  // without her doing the sums.
+  async function handleSetExtras(nextIds, { label } = {}) {
+    setTreatSaving(true);
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/appointments/${appointment.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ extra_treatment_ids: nextIds }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 409) {
+        // Nothing was written. Say what happened and leave the booking alone.
+        alert(data.error || 'That runs into the next booking. Move the time first, or take something off.');
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || (label ? `Could not add ${label}` : 'Could not update the treatments'));
+      hapticSuccess();
+      setAddingTreat(false);
+      const updated = data.appointment || data;
+      // Fold the recomputed row into the open panel so the Time, Duration and
+      // Price rows all move together, in place, with the sheet still open.
+      if (onRefresh) {
+        onRefresh({
+          extra_treatment_ids: Array.isArray(updated.extra_treatment_ids) ? updated.extra_treatment_ids : [],
+          ...(updated.ends_at ? { ends_at: updated.ends_at } : {}),
+          ...(updated.duration_minutes != null ? { duration_minutes: updated.duration_minutes } : {}),
+          ...(updated.price_cents != null ? { price_cents: updated.price_cents } : {}),
+        });
+      } else {
+        onUpdate();
+      }
+    } catch (err) {
+      alert(err.message || 'Could not update the treatments');
     } finally {
       setTreatSaving(false);
     }
@@ -1733,31 +1893,90 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
       {mode === 'detail' && (
         <>
           <div style={styles.detailGrid}>
-            <div style={styles.detailRow}>
-              <span style={styles.detailLabel}>Treatment</span>
-              {treatEditing ? (
-                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, maxWidth: '70%' }}>
-                  <select
-                    defaultValue={appointment.treatment_id || ''}
-                    onChange={e => e.target.value && handleChangeTreatment(e.target.value)}
+            {/* The treatments ON this booking, not just the one it was booked
+                as. A patch test sits at the top with no remove control (there
+                would be no appointment left), and every extra she has added
+                gets its own line she can take back off. */}
+            <div style={{ ...styles.detailRow, alignItems: 'flex-start' }}>
+              <span style={styles.detailLabel}>{extraIds.length > 0 ? 'Treatments' : 'Treatment'}</span>
+              <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, maxWidth: '72%' }}>
+                {treatEditing ? (
+                  <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, maxWidth: '100%' }}>
+                    <select
+                      defaultValue={appointment.treatment_id || ''}
+                      onChange={e => e.target.value && handleChangeTreatment(e.target.value)}
+                      disabled={treatSaving}
+                      style={treatSelectStyle}
+                    >
+                      <option value="" disabled>Choose a treatment...</option>
+                      {treatList.map(t => (
+                        <option key={t.id} value={t.id}>{treatOptionLabel(t)}</option>
+                      ))}
+                    </select>
+                    <button onClick={() => setTreatEditing(false)} style={quietBtnStyle}>Cancel</button>
+                  </span>
+                ) : (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={styles.detailValue}>{baseTreatName || 'Not set'}</span>
+                    <button
+                      onClick={() => { setAddingTreat(false); setTreatEditing(true); loadTreatList(); }}
+                      style={dashedBtnStyle}
+                    >
+                      Change
+                    </button>
+                  </span>
+                )}
+
+                {extraIds.map((id, i) => (
+                  <span key={`${id}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={styles.detailValue}>{treatById[id]?.name || 'Treatment'}</span>
+                    <button
+                      onClick={() => handleSetExtras(extraIds.filter((_, j) => j !== i))}
+                      disabled={treatSaving}
+                      aria-label={`Remove ${treatById[id]?.name || 'this treatment'}`}
+                      style={quietRemoveStyle}
+                    >
+                      Remove
+                    </button>
+                  </span>
+                ))}
+
+                {addingTreat ? (
+                  <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, maxWidth: '100%' }}>
+                    <select
+                      defaultValue=""
+                      onChange={e => e.target.value && handleSetExtras([...extraIds, e.target.value], { label: treatById[e.target.value]?.name })}
+                      disabled={treatSaving}
+                      style={treatSelectStyle}
+                    >
+                      <option value="" disabled>Add a treatment...</option>
+                      {treatList.map(t => (
+                        <option key={t.id} value={t.id}>{treatOptionLabel(t)}</option>
+                      ))}
+                    </select>
+                    <button onClick={() => setAddingTreat(false)} style={quietBtnStyle}>Cancel</button>
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => { setTreatEditing(false); setAddingTreat(true); loadTreatList(); }}
                     disabled={treatSaving}
-                    style={{ padding: '8px 10px', borderRadius: 8, border: `1px solid ${COLORS.outlineVariant}`, fontFamily: 'inherit', fontSize: 13, background: 'var(--bg-card)', maxWidth: '100%' }}
+                    style={dashedBtnStyle}
                   >
-                    <option value="" disabled>Choose a treatment...</option>
-                    {treatList.map(t => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}{t.price_cents ? ` \u00b7 \u00a3${(t.price_cents / 100).toFixed(0)}` : ''}{t.duration_minutes ? ` \u00b7 ${t.duration_minutes}m` : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <button onClick={() => setTreatEditing(false)} style={{ background: 'none', border: 'none', color: COLORS.stone400, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Cancel</button>
-                </span>
-              ) : (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={styles.detailValue}>{apptLabel(appointment)}</span>
-                  <button onClick={openTreatEdit} style={{ background: 'none', border: `1px dashed ${COLORS.outlineVariant}`, borderRadius: 8, padding: '3px 8px', color: COLORS.primary, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>Change</button>
-                </span>
-              )}
+                    {treatSaving ? 'Saving...' : '+ Add treatment'}
+                  </button>
+                )}
+
+                {/* The whole point of the feature: she should never have to
+                    work out the new length or the new finish time herself. */}
+                {extraIds.length > 0 && (
+                  <span style={{ fontSize: 12, color: COLORS.stone400, fontFamily: 'inherit', textAlign: 'right' }}>
+                    {appointment.duration_minutes ? durationLabel(appointment.duration_minutes) : ''}
+                    {appointment.duration_minutes ? ', ' : ''}
+                    £{(((appointment.price_cents ?? appointment.treatments?.price_cents) || 0) / 100).toFixed(2)}
+                    {appointment.ends_at ? ` · ends ${formatWallTime(appointment.ends_at)}` : ''}
+                  </span>
+                )}
+              </span>
             </div>
             <div style={styles.detailRow}>
               <span style={styles.detailLabel}>Time</span>
