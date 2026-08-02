@@ -430,12 +430,17 @@ router.post('/twilio-sms', async (req, res) => {
       return;
     }
 
-    // Use global TWILIO_PHONE_NUMBER to find beautician (MVP: single-tenant)
-    // In future, match To against beautician.twilio_phone_number column
-    const beautician = await findBeauticianByTwilioNumber(To || process.env.TWILIO_PHONE_NUMBER);
+    // Route strictly on the number the client actually texted. No env-level
+    // default: TWILIO_PHONE_NUMBER is the shared platform number, so using it
+    // as a stand-in re-creates the guess we are trying to remove.
+    const beautician = await findBeauticianByTwilioNumber(To);
 
     if (!beautician) {
-      logger.warn({ to: To, twilioNumber: process.env.TWILIO_PHONE_NUMBER }, 'No beautician found for Twilio number');
+      // Dropped on purpose. See findBeauticianByTwilioNumber for why.
+      logger.error(
+        { to: To, from: From },
+        'Inbound SMS could not be routed to a salon; dropping rather than guessing a tenant. Set beauticians.twilio_phone to the recipient number to route it.'
+      );
       return;
     }
 
@@ -503,33 +508,41 @@ router.post('/twilio-sms', async (req, res) => {
 });
 
 /**
- * Find beautician by Twilio phone number.
- * First tries to match phoneNumber against beautician columns, then falls back to first beautician.
+ * Find the beautician whose number an inbound SMS was sent TO.
+ * Matches twilio_phone, then phone. Returns null when nothing matches.
+ *
+ * There is deliberately NO "first beautician in the table" fallback. Every
+ * salon sends from the same shared long code, so a guess is not a guess about
+ * a rare edge case, it is a coin flip on every unmatched message. Getting it
+ * wrong puts a stranger's client into another salon's inbox, and with
+ * auto_reply_enabled on Florrie then answers that client in the wrong salon's
+ * voice, using the wrong salon's prices and diary.
+ *
+ * Dropping is the safer failure. A message that lands nowhere is recoverable:
+ * the sender still has it in their own SMS thread, and once the routing config
+ * is fixed they can be answered. A message that lands in the wrong salon's
+ * inbox cannot be un-seen, and it is a data leak between two paying customers.
  */
 async function findBeauticianByTwilioNumber(phoneNumber) {
-  // First try to match against twilio_phone or phone column
-  if (phoneNumber) {
-    // Sanitise: strip non-phone characters to prevent .or() filter injection
-    const sanitisedPhone = phoneNumber.replace(/[^0-9+\-() ]/g, '').substring(0, 30);
-    const { data: beautician } = await supabase
-      .from('beauticians')
-      .select('*')
-      .or(`twilio_phone.eq.${sanitisedPhone},phone.eq.${sanitisedPhone}`)
-      .single();
+  if (!phoneNumber) return null;
 
-    if (beautician) {
-      return beautician;
-    }
+  // Sanitise: strip non-phone characters to prevent .or() filter injection
+  const sanitisedPhone = String(phoneNumber).replace(/[^0-9+\-() ]/g, '').substring(0, 30);
+  if (!sanitisedPhone) return null;
 
-    logger.warn({ phoneNumber }, 'Twilio number not matched to beautician, falling back to first beautician');
-  }
-
-  // Fallback: assume the first beautician in the system (single-tenant MVP)
-  const { data: beautician } = await supabase
+  const { data: beautician, error } = await supabase
     .from('beauticians')
     .select('*')
-    .limit(1)
-    .single();
+    .or(`twilio_phone.eq.${sanitisedPhone},phone.eq.${sanitisedPhone}`)
+    .maybeSingle();
+
+  if (error) {
+    // maybeSingle() also errors when more than one row matches. Two tenants
+    // claiming the same number is a config error, and picking one of them is
+    // precisely the leak this function exists to prevent, so we drop instead.
+    logger.error({ err: error, phoneNumber: sanitisedPhone }, 'Twilio SMS: beautician lookup failed or was ambiguous, cannot route');
+    return null;
+  }
 
   return beautician || null;
 }
@@ -666,13 +679,17 @@ router.post('/bird-sms', async (req, res) => {
     const fromPhone = normalisePhoneNumber(from);
     const toPhone = to ? normalisePhoneNumber(to) : null;
 
-    // Resolve beautician by recipient number, then fall back to platform default
-    const beautician = await findBeauticianByBirdNumber(
-      toPhone || process.env.BIRD_ORIGINATOR
-    );
+    // Route strictly on the number the client actually texted. No env-level
+    // default: BIRD_ORIGINATOR is the shared platform long code, so using it as
+    // a stand-in re-creates the guess we are trying to remove.
+    const beautician = await findBeauticianByBirdNumber(toPhone);
 
     if (!beautician) {
-      logger.warn({ to: toPhone, birdOriginator: process.env.BIRD_ORIGINATOR }, 'No beautician found for Bird number');
+      // Dropped on purpose. See findBeauticianByBirdNumber for why.
+      logger.error(
+        { to: toPhone, from: fromPhone },
+        'Inbound Bird SMS could not be routed to a salon; dropping rather than guessing a tenant. Set beauticians.sms_originator to the recipient number to route it.'
+      );
       return;
     }
 
@@ -738,39 +755,50 @@ function normalisePhoneNumber(raw) {
 }
 
 /**
- * Find beautician by Bird virtual mobile number (the recipient on the inbound SMS).
- * Matches against sms_originator (per-beautician number) and falls back to first
- * beautician for single-tenant MVP.
+ * Find the beautician whose Bird virtual mobile number an inbound SMS was sent
+ * TO. Matches sms_originator (the per-beautician number), then phone for
+ * tenants who have not had sms_originator set yet. Returns null on no match.
+ *
+ * There is deliberately NO "first beautician in the table" fallback here
+ * either. See findBeauticianByTwilioNumber above for the full reasoning: a
+ * message in the wrong salon's inbox is worse than a message lost, because the
+ * sender still holds the original in their own SMS thread but the leak cannot
+ * be undone.
  */
 async function findBeauticianByBirdNumber(phoneNumber) {
-  if (phoneNumber) {
-    const sanitised = phoneNumber.toString().replace(/[^0-9+\-() ]/g, '').substring(0, 30);
-    let { data: beautician } = await supabase
-      .from('beauticians')
-      .select('*')
-      .eq('sms_originator', sanitised)
-      .maybeSingle();
-    // New tenants may not have sms_originator set yet; also match on phone so
-    // their inbound SMS isn't silently dropped (M6).
-    if (!beautician) {
-      ({ data: beautician } = await supabase
-        .from('beauticians')
-        .select('*')
-        .eq('phone', sanitised)
-        .maybeSingle());
-    }
-    if (beautician) return beautician;
+  if (!phoneNumber) return null;
 
-    logger.warn({ phoneNumber }, 'Bird number not matched to beautician, falling back to first');
-  }
+  const sanitised = phoneNumber.toString().replace(/[^0-9+\-() ]/g, '').substring(0, 30);
+  if (!sanitised) return null;
 
-  // MVP single-tenant fallback
-  const { data: beautician } = await supabase
+  const { data: byOriginator, error: originatorErr } = await supabase
     .from('beauticians')
     .select('*')
-    .limit(1)
-    .single();
-  return beautician || null;
+    .eq('sms_originator', sanitised)
+    .maybeSingle();
+
+  if (originatorErr) {
+    // Ambiguous (more than one tenant claims this number) or the query failed.
+    // Either way we cannot say whose client this is, so we do not guess.
+    logger.error({ err: originatorErr, phoneNumber: sanitised }, 'Bird SMS: sms_originator lookup failed or was ambiguous, cannot route');
+    return null;
+  }
+  if (byOriginator) return byOriginator;
+
+  // New tenants may not have sms_originator set yet; also match on phone so
+  // their inbound SMS isn't silently dropped (M6).
+  const { data: byPhone, error: phoneErr } = await supabase
+    .from('beauticians')
+    .select('*')
+    .eq('phone', sanitised)
+    .maybeSingle();
+
+  if (phoneErr) {
+    logger.error({ err: phoneErr, phoneNumber: sanitised }, 'Bird SMS: phone lookup failed or was ambiguous, cannot route');
+    return null;
+  }
+
+  return byPhone || null;
 }
 
 /**
