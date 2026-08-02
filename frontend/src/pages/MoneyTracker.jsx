@@ -602,7 +602,11 @@ export default function MoneyTracker() {
       changePct,
       compareLabel,
       curStart: cur,
-      treatments: curTx.filter(t => ['service', 'payment', 'payment_link', 'deposit', 'no_show_fee', 'late_cancel_fee'].includes(t.type)).reduce((s, t) => s + (t.amount_cents || 0), 0),
+      // full_payment and refund belong here too: a client who paid the whole
+      // treatment at booking is treatment income, and a refund is treatment
+      // income going back out (its amount_cents is negative, so it nets off).
+      // Their absence made this line disagree with the income total above.
+      treatments: curTx.filter(t => ['service', 'payment', 'payment_link', 'full_payment', 'deposit', 'no_show_fee', 'late_cancel_fee', 'refund'].includes(t.type)).reduce((s, t) => s + (t.amount_cents || 0), 0),
       products: curTx.filter(t => t.type === 'product_sale').reduce((s, t) => s + (t.amount_cents || 0), 0),
       tips: curTx.filter(t => t.type === 'tip').reduce((s, t) => s + (t.amount_cents || 0), 0),
     };

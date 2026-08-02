@@ -200,3 +200,33 @@ export function buildDisputeReversalTransaction(args) {
   const row = buildRefundTransaction(args);
   return { ...row, amount_cents: Math.abs(row.amount_cents) };
 }
+
+/**
+ * Everything that counts towards what Ellie earned, for every screen that
+ * shows her a total.
+ *
+ * Two bugs lived in the old per-site lists, in opposite directions:
+ *
+ *   OVERSTATED: 'refund' was missing, so refunds and lost chargebacks never
+ *   came off. Those rows are written with a NEGATIVE amount_cents, so simply
+ *   including the type here nets them off correctly, no special casing.
+ *
+ *   UNDERSTATED: 'full_payment' and 'payment_link' were missing, so a client
+ *   who paid the whole treatment at booking, or paid through a link, showed
+ *   up as no income at all. 'late_cancel_fee' and 'product_sale' were missing
+ *   for the same reason.
+ *
+ * Every member is in the transactions CHECK vocabulary (migration 076). One
+ * list, imported everywhere, because four copies is how they drifted.
+ */
+export const INCOME_TYPES = Object.freeze([
+  'payment',
+  'deposit',
+  'full_payment',
+  'payment_link',
+  'no_show_fee',
+  'late_cancel_fee',
+  'tip',
+  'product_sale',
+  'refund',
+]);

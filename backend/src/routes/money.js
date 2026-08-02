@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { INCOME_TYPES } from '../lib/money-guards.js';
 import { z } from 'zod';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -29,7 +30,7 @@ router.get('/pulse', requireAuth, async (req, res) => {
       .from('transactions')
       .select('amount_cents')
       .eq('beautician_id', req.beautician.id)
-      .in('type', ['payment', 'deposit', 'no_show_fee'])
+      .in('type', INCOME_TYPES)
       .eq('status', 'completed')
       .gte('created_at', weekStart.toISOString());
 
@@ -43,7 +44,7 @@ router.get('/pulse', requireAuth, async (req, res) => {
       .from('transactions')
       .select('amount_cents')
       .eq('beautician_id', req.beautician.id)
-      .in('type', ['payment', 'deposit', 'no_show_fee'])
+      .in('type', INCOME_TYPES)
       .eq('status', 'completed')
       .gte('created_at', lastWeekStart.toISOString())
       .lt('created_at', weekStart.toISOString());
@@ -517,7 +518,6 @@ router.get('/reports', requireAuth, async (req, res) => {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const ninetyAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-    const INCOME_TYPES = ['payment', 'deposit', 'no_show_fee', 'tip'];
 
     // Revenue: this month vs last month
     const { data: tx } = await supabase
