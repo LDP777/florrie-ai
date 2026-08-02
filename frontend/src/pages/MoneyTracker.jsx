@@ -53,6 +53,21 @@ const CATEGORIES = [
 
 const getCategoryMeta = (val) => CATEGORIES.find(c => c.value === val) || CATEGORIES[CATEGORIES.length - 1];
 
+/** transactions.type in plain English. The vocabulary is the one in the live
+ *  CHECK constraint, so a type with no label here is a schema change nobody
+ *  told the UI about, and it falls back to the raw value rather than hiding. */
+const INCOME_LABELS = {
+  payment: 'Payment',
+  deposit: 'Deposit',
+  full_payment: 'Paid in full',
+  payment_link: 'Payment link',
+  no_show_fee: 'No-show fee',
+  late_cancel_fee: 'Late cancellation fee',
+  tip: 'Tip',
+  product_sale: 'Product sale',
+  refund: 'Refund',
+};
+
 const HMRC_LABELS = {
   cost_of_goods: 'COGS',
   premises: 'Premises',
@@ -73,6 +88,90 @@ function startOfWeek(date) {
   d.setDate(diff);
   d.setHours(0, 0, 0, 0);
   return d;
+}
+
+/**
+ * "£450" rather than "£450.00" when there is nothing after the point. The
+ * Regular costs line reads as a sentence, and a trailing .00 in the middle of a
+ * sentence reads as a form field.
+ */
+const fmtNeat = (cents) => {
+  const value = Math.abs(cents) / 100;
+  const body = value % 1 === 0
+    ? value.toLocaleString('en-GB')
+    : value.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `${cents < 0 ? '-' : ''}£${body}`;
+};
+
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/** 1st, 2nd, 3rd, 21st. British, and worth getting right: "monthly on the 1"
+ *  reads like a bug. */
+function ordinal(n) {
+  const num = Number(n) || 1;
+  const tens = num % 100;
+  if (tens >= 11 && tens <= 13) return `${num}th`;
+  return `${num}${['th', 'st', 'nd', 'rd'][num % 10] || 'th'}`;
+}
+
+/** A date-only string as "1 September", with the year only when it is not this
+ *  one. Parsed from its own parts, never new Date(str), which is UTC midnight
+ *  and slides back a day in a negative-offset zone. */
+function prettyDate(dateStr, { withYear = 'auto' } = {}) {
+  if (!dateStr) return '';
+  const [y, m, d] = String(dateStr).slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return '';
+  const showYear = withYear === true || (withYear === 'auto' && y !== new Date().getFullYear());
+  return `${d} ${MONTH_NAMES[m - 1]}${showYear ? ` ${y}` : ''}`;
+}
+
+/** "Rent, £450, monthly on the 1st". The rule in one line, so she can check it
+ *  without opening the editor. */
+function describeRecurring(rule) {
+  const name = rule.vendor || rule.description || (CATEGORIES.find(c => c.value === rule.category)?.label ?? 'Cost');
+  const amount = fmtNeat(rule.amount_cents);
+  if (rule.frequency === 'weekly') {
+    return `${name}, ${amount}, weekly on ${WEEKDAY_NAMES[rule.day_of_week ?? 0]}`;
+  }
+  if (rule.frequency === 'yearly') {
+    return `${name}, ${amount}, yearly on ${ordinal(rule.day_of_month || 1)} ${MONTH_NAMES[(rule.month_of_year || 1) - 1]}`;
+  }
+  return `${name}, ${amount}, monthly on the ${ordinal(rule.day_of_month || 1)}`;
+}
+
+/**
+ * Authorised call to the backend.
+ *
+ * The page already talks to /api/money/reports this way. Collected here because
+ * the Ledger, the year to date summary and Regular costs all need it, and three
+ * more copies of "get the session, build the header, check res.ok" is three
+ * more places to forget the check.
+ */
+const emptyRecurringForm = () => {
+  const now = new Date();
+  return {
+    amount: '', vendor: '', description: '', category: 'rent',
+    frequency: 'monthly',
+    day_of_month: String(now.getDate()),
+    day_of_week: String(now.getDay()),
+    month_of_year: String(now.getMonth() + 1),
+  };
+};
+
+async function apiFetch(path, options = {}) {
+  const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      ...(options.headers || {}),
+    },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || 'Something went wrong');
+  return body;
 }
 
 function MIcon({ name, fill, size, style }) {
@@ -97,6 +196,38 @@ export default function MoneyTracker() {
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [period, setPeriod] = useState('week');
+
+  // Year to date, the ledger and the regular costs all come from the backend
+  // rather than being recomputed here: the tax-year boundary and the running
+  // total have to agree with the CSV export and the tax summary, and three
+  // implementations of a rule is how they drift.
+  const [ytd, setYtd] = useState(null);
+  const [recurring, setRecurring] = useState([]);
+  const [recurringOff, setRecurringOff] = useState(false); // migration not applied yet
+  const [ledger, setLedger] = useState(null);
+  const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [ledgerError, setLedgerError] = useState(null);
+  const [ledgerYear, setLedgerYear] = useState('');
+  const [ledgerCategory, setLedgerCategory] = useState('');
+  const [ledgerType, setLedgerType] = useState('all');
+  const [ledgerPage, setLedgerPage] = useState(1);
+
+  // A one-line problem that must NOT take the page away. The page-level
+  // `error` state renders an ErrorCard instead of everything else, which is
+  // right for "your money would not load" and much too heavy for "that pause
+  // did not save".
+  const [notice, setNotice] = useState(null);
+
+  const [showRecurringForm, setShowRecurringForm] = useState(false);
+  const [editingRecurring, setEditingRecurring] = useState(null);
+  const [savingRecurring, setSavingRecurring] = useState(false);
+  const [confirmDeleteRule, setConfirmDeleteRule] = useState(null);
+  const [recurringForm, setRecurringForm] = useState(emptyRecurringForm());
+
+  // The "this repeats" tick on the add-expense form. Off by default: creating a
+  // standing cost by accident is worse than typing one twice.
+  const [repeats, setRepeats] = useState(false);
+  const [repeatFrequency, setRepeatFrequency] = useState('monthly');
 
   const [receiptPreview, setReceiptPreview] = useState(null);
   const [showLogTip, setShowLogTip] = useState(false);
@@ -197,6 +328,208 @@ export default function MoneyTracker() {
       setError('Something went wrong loading your money data');
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Year to date and the regular costs load alongside the page rather than
+  // blocking it: if either fails the rest of the Money page still works, which
+  // is how the reports card already behaves.
+  useEffect(() => {
+    if (!beautician) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const data = await apiFetch('/api/money/year-to-date');
+        if (cancelled) return;
+        setYtd(data);
+        // Start the Ledger on the tax year we are in, so its first request is
+        // already scoped and the year picker is never briefly blank.
+        setLedgerYear(prev => prev || data.current.tax_year);
+      } catch (err) {
+        logger.warn({ err }, 'Year to date unavailable');
+      }
+      try {
+        const data = await apiFetch('/api/recurring-expenses');
+        if (cancelled) return;
+        setRecurring(data.recurring || []);
+        setRecurringOff(Boolean(data.needs_migration));
+      } catch (err) {
+        logger.warn({ err }, 'Regular costs unavailable');
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [beautician]);
+
+  // The ledger is only fetched when it is being looked at. It reads the whole
+  // filtered history to build the running total, so loading it on every page
+  // open would be a big query nobody asked for.
+  useEffect(() => {
+    if (!beautician || tab !== 'ledger') return;
+    let cancelled = false;
+
+    (async () => {
+      setLedgerLoading(true);
+      setLedgerError(null);
+      try {
+        const params = new URLSearchParams({ page: String(ledgerPage), page_size: '50' });
+        if (ledgerYear) params.set('tax_year', ledgerYear);
+        if (ledgerCategory) params.set('category', ledgerCategory);
+        if (ledgerType !== 'all') params.set('type', ledgerType);
+        const data = await apiFetch(`/api/money/ledger?${params.toString()}`);
+        if (cancelled) return;
+        setLedger(data);
+        // First load: settle the picker on the year the backend chose, so the
+        // dropdown and the numbers cannot disagree.
+        if (!ledgerYear && data.tax_years?.length) setLedgerYear(data.tax_years[0]);
+      } catch (err) {
+        if (!cancelled) setLedgerError('Could not load your ledger. Pull down and try again.');
+        logger.error({ err }, 'Ledger load failed');
+      } finally {
+        if (!cancelled) setLedgerLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [beautician, tab, ledgerYear, ledgerCategory, ledgerType, ledgerPage]);
+
+  async function reloadRecurring() {
+    try {
+      const data = await apiFetch('/api/recurring-expenses');
+      setRecurring(data.recurring || []);
+      setRecurringOff(Boolean(data.needs_migration));
+    } catch (err) {
+      logger.error({ err }, 'Could not reload regular costs');
+    }
+  }
+
+  function openRecurringEditor(rule) {
+    if (rule) {
+      setEditingRecurring(rule);
+      setRecurringForm({
+        amount: (rule.amount_cents / 100).toFixed(2),
+        vendor: rule.vendor || '',
+        description: rule.description || '',
+        category: rule.category,
+        frequency: rule.frequency,
+        day_of_month: String(rule.day_of_month || 1),
+        day_of_week: String(rule.day_of_week ?? 1),
+        month_of_year: String(rule.month_of_year || 1),
+      });
+    } else {
+      setEditingRecurring(null);
+      setRecurringForm(emptyRecurringForm());
+    }
+    setShowRecurringForm(true);
+  }
+
+  /** The rule fields, shaped for the API. Anchors that do not apply to the
+   *  chosen frequency are sent as null rather than left over from a previous
+   *  choice, or a rule switched from yearly to monthly keeps a month nobody
+   *  can see. */
+  function recurringPayload(form) {
+    const cents = Math.round(parseFloat(form.amount) * 100);
+    return {
+      amount_cents: cents,
+      vendor: form.vendor.trim() || null,
+      description: form.description.trim() || null,
+      category: form.category,
+      frequency: form.frequency,
+      day_of_month: form.frequency === 'weekly' ? null : (Number(form.day_of_month) || 1),
+      day_of_week: form.frequency === 'weekly' ? (Number(form.day_of_week) || 0) : null,
+      month_of_year: form.frequency === 'yearly' ? (Number(form.month_of_year) || 1) : null,
+    };
+  }
+
+  async function handleSaveRecurring() {
+    const cents = Math.round(parseFloat(recurringForm.amount) * 100);
+    if (!cents || cents <= 0) {
+      setNotice('Put an amount in first.');
+      return;
+    }
+    setSavingRecurring(true);
+    try {
+      const payload = recurringPayload(recurringForm);
+      if (editingRecurring) {
+        await apiFetch(`/api/recurring-expenses/${editingRecurring.id}`, {
+          method: 'PATCH', body: JSON.stringify(payload),
+        });
+      } else {
+        await apiFetch('/api/recurring-expenses', {
+          method: 'POST', body: JSON.stringify(payload),
+        });
+      }
+      hapticSuccess();
+      setShowRecurringForm(false);
+      setEditingRecurring(null);
+      setRecurringForm(emptyRecurringForm());
+      await reloadRecurring();
+    } catch (err) {
+      logger.error({ err }, 'Save regular cost failed');
+      setNotice(err.message || 'Could not save that regular cost.');
+    } finally {
+      setSavingRecurring(false);
+    }
+  }
+
+  async function handleToggleRecurring(rule) {
+    hapticTap();
+    // Optimistic, then reconciled from the response: pausing is a one-tap
+    // action and waiting a round trip for the switch to move feels broken.
+    setRecurring(prev => prev.map(r => (r.id === rule.id ? { ...r, active: !r.active } : r)));
+    try {
+      const data = await apiFetch(`/api/recurring-expenses/${rule.id}`, {
+        method: 'PATCH', body: JSON.stringify({ active: !rule.active }),
+      });
+      setRecurring(prev => prev.map(r => (r.id === rule.id ? data.recurring : r)));
+    } catch (err) {
+      logger.error({ err }, 'Pause regular cost failed');
+      setRecurring(prev => prev.map(r => (r.id === rule.id ? rule : r)));
+      setNotice('Could not change that regular cost.');
+    }
+  }
+
+  async function handleDeleteRecurring() {
+    const rule = confirmDeleteRule;
+    if (!rule) return;
+    try {
+      await apiFetch(`/api/recurring-expenses/${rule.id}`, { method: 'DELETE' });
+      hapticSuccess();
+      setRecurring(prev => prev.filter(r => r.id !== rule.id));
+    } catch (err) {
+      logger.error({ err }, 'Delete regular cost failed');
+      setNotice('Could not remove that regular cost.');
+    } finally {
+      setConfirmDeleteRule(null);
+    }
+  }
+
+  /** The CSV the accountant gets. Same export that already exists, reachable
+   *  from the ledger where somebody looking at a full history would go for it.
+   *  Fetched with the session token rather than as a bare link: the endpoint is
+   *  authed, so a plain href downloads an error page. */
+  async function handleExportLedgerCSV() {
+    const year = ledgerYear || ytd?.current?.tax_year;
+    if (!year) return;
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/exports/tax-quarterly?year=${encodeURIComponent(year)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `florrie-${year}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      logger.error({ err }, 'Ledger export failed');
+      setNotice('Could not build that export. Try again in a moment.');
     }
   }
 
@@ -496,15 +829,51 @@ export default function MoneyTracker() {
         tax_deductible: newExpense.tax_deductible,
       });
       setExpenses(prev => [row, ...prev]);
+
+      // "This repeats": the expense she just logged IS this month's, so the
+      // rule is anchored on its date and first_date tells the backend to start
+      // from the NEXT occurrence. Without that she would be charged twice for
+      // the month she is standing in.
+      if (repeats) {
+        const [ry, rm, rd] = newExpense.date.split('-').map(Number);
+        try {
+          await apiFetch('/api/recurring-expenses', {
+            method: 'POST',
+            body: JSON.stringify({
+              amount_cents: Math.round(parseFloat(newExpense.amount) * 100),
+              vendor: newExpense.vendor.trim() || null,
+              description: newExpense.description.trim() || null,
+              category: newExpense.category,
+              frequency: repeatFrequency,
+              first_date: newExpense.date,
+              day_of_month: repeatFrequency === 'weekly' ? null : rd,
+              day_of_week: repeatFrequency === 'weekly'
+                ? new Date(ry, rm - 1, rd).getDay()
+                : null,
+              month_of_year: repeatFrequency === 'yearly' ? rm : null,
+            }),
+          });
+          await reloadRecurring();
+        } catch (err) {
+          // The expense is saved either way. Say which half failed rather than
+          // letting her think the whole thing did not go in.
+          logger.error({ err }, 'Could not set up the repeat');
+          setNotice('Expense saved, but the repeat could not be set up. Add it under Regular costs.');
+        }
+      }
+
       setNewExpense({
         amount: '', vendor: '', description: '',
         category: 'products', date: todayLocal(),
         tax_deductible: true
       });
+      setRepeats(false);
+      setRepeatFrequency('monthly');
       setReceiptPreview(null);
       setShowAddExpense(false);
     } catch (err) {
       logger.error({ err }, 'Add expense error');
+      setNotice('Could not save that expense. Try again.');
     }
   }
 
@@ -689,9 +1058,47 @@ export default function MoneyTracker() {
         )}
       </div>
 
+      {/* Year to date, on the UK TAX year (6 April to 5 April), with the same
+          slice of last year beside it. Every other number on this page is a
+          window onto a week or a month; this is the one that carries. */}
+      {ytd && (
+        <section style={S.ytdCard}>
+          <div style={S.ytdHead}>
+            <span style={S.ytdTitle}>Tax year {ytd.current.tax_year} so far</span>
+            <span style={S.ytdDates}>6 April to {prettyDate(ytd.current.as_at)}</span>
+          </div>
+          <div style={S.ytdRow}>
+            <div style={S.ytdStat}>
+              <span style={S.ytdLabel}>Income</span>
+              <span style={S.ytdValue}>{fmtNeat(ytd.current.income_cents)}</span>
+            </div>
+            <div style={S.ytdStat}>
+              <span style={S.ytdLabel}>Expenses</span>
+              <span style={S.ytdValue}>{fmtNeat(ytd.current.expenses_cents)}</span>
+            </div>
+            <div style={S.ytdStat}>
+              <span style={S.ytdLabel}>Profit</span>
+              <span style={{
+                ...S.ytdValue,
+                color: ytd.current.profit_cents >= 0 ? 'var(--success)' : 'var(--danger)',
+              }}>{fmtNeat(ytd.current.profit_cents)}</span>
+            </div>
+          </div>
+          {/* Cut off at the same calendar point last year on purpose. Four
+              months against twelve always looks like a collapse. */}
+          <div style={S.ytdCompare}>
+            <span>{ytd.previous.tax_year} to the same point</span>
+            <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>
+              {fmtNeat(ytd.previous.income_cents)} in, {fmtNeat(ytd.previous.expenses_cents)} out,
+              {' '}{fmtNeat(ytd.previous.profit_cents)} profit
+            </span>
+          </div>
+        </section>
+      )}
+
       {/* ─── Tab Bar (pill style) ─── */}
       <div style={S.tabBar}>
-        {['pulse', 'expenses', 'income', 'tax'].map(t => (
+        {['pulse', 'expenses', 'ledger', 'income', 'tax'].map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -700,10 +1107,19 @@ export default function MoneyTracker() {
               ...(tab === t ? S.tabActive : {}),
             }}
           >
-            {t === 'pulse' ? 'Pulse' : t === 'expenses' ? 'Expenses' : t === 'income' ? 'Income' : 'Tax'}
+            {{ pulse: 'Pulse', expenses: 'Expenses', ledger: 'Ledger', income: 'Income', tax: 'Tax' }[t]}
           </button>
         ))}
       </div>
+
+      {notice && (
+        <div style={S.noticeBar} role="status">
+          <span style={{ flex: 1 }}>{notice}</span>
+          <button onClick={() => setNotice(null)} aria-label="Dismiss" style={S.noticeClose}>
+            <MIcon name="close" size={16} />
+          </button>
+        </div>
+      )}
 
       {/* ═══ PULSE TAB ═══ */}
       {tab === 'pulse' && (
@@ -1128,6 +1544,7 @@ export default function MoneyTracker() {
               <label style={{
                 display: 'flex', alignItems: 'center', fontSize: 13,
                 color: 'var(--text-secondary)', marginBottom: 14, cursor: 'pointer',
+                minHeight: 44,
               }}>
                 <input
                   type="checkbox" checked={newExpense.tax_deductible}
@@ -1136,11 +1553,258 @@ export default function MoneyTracker() {
                 <span style={{ marginLeft: 8 }}>Tax deductible</span>
               </label>
 
+              {/* This repeats. Rent, insurance and subscriptions were being
+                  retyped every month, or forgotten, which quietly overstates
+                  profit. Ticking it here saves the schedule as well as the
+                  expense; the one just logged counts as this month's. */}
+              {!recurringOff && (
+                <div style={S.repeatBox}>
+                  <label style={S.repeatToggle}>
+                    <input
+                      type="checkbox"
+                      checked={repeats}
+                      onChange={e => setRepeats(e.target.checked)}
+                    />
+                    <span style={{ marginLeft: 8, fontWeight: 600 }}>This repeats</span>
+                  </label>
+                  {repeats && (
+                    <>
+                      <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                        {[['weekly', 'Weekly'], ['monthly', 'Monthly'], ['yearly', 'Yearly']].map(([value, label]) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => setRepeatFrequency(value)}
+                            style={{
+                              ...S.chip,
+                              ...(repeatFrequency === value ? S.chipActive : {}),
+                            }}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <p style={S.repeatHint}>
+                        Florrie will log this again by itself. The next one is due after
+                        {' '}{prettyDate(newExpense.date) || 'the date above'}, so you will not be charged twice for this one.
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={handleAddExpense} style={S.btnPrimary}>Save Expense</button>
                 <button onClick={() => setShowAddExpense(false)} style={S.btnGhost}>Cancel</button>
               </div>
             </div>
+          )}
+
+          {/* ─── Regular costs ─── */}
+          {!recurringOff && (
+            <section style={{ marginBottom: 20 }}>
+              <div style={S.sectionHeader}>
+                <h3 style={S.sectionHeading}>Regular costs</h3>
+                <button
+                  onClick={() => openRecurringEditor(null)}
+                  style={S.addRuleBtn}
+                >
+                  <MIcon name="add" size={16} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                  Add
+                </button>
+              </div>
+
+              {recurring.length === 0 && !showRecurringForm && (
+                <p style={S.ledgerNote}>
+                  Rent, insurance, your booking software. Add them once and Florrie logs them
+                  every time they are due.
+                </p>
+              )}
+
+              {showRecurringForm && (
+                <div style={S.formCard}>
+                  <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={S.formLabel}>Amount (£)</label>
+                      <input
+                        type="number" step="0.01" placeholder="0.00"
+                        value={recurringForm.amount}
+                        onChange={e => setRecurringForm(f => ({ ...f, amount: e.target.value }))}
+                        style={S.formInput}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <label style={S.formLabel}>What is it</label>
+                      <input
+                        type="text" placeholder="e.g. Rent"
+                        value={recurringForm.vendor}
+                        onChange={e => setRecurringForm(f => ({ ...f, vendor: e.target.value }))}
+                        style={S.formInput}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={S.formLabel}>Category</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {CATEGORIES.map(c => (
+                        <button
+                          key={c.value}
+                          type="button"
+                          onClick={() => setRecurringForm(f => ({ ...f, category: c.value }))}
+                          style={{
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                            padding: '8px 10px', borderRadius: 10, minWidth: 56, minHeight: 44,
+                            border: recurringForm.category === c.value ? '1.5px solid var(--accent)' : '1.5px solid var(--border-light)',
+                            background: recurringForm.category === c.value ? 'var(--accent-bg)' : 'var(--bg-card)',
+                            cursor: 'pointer', fontFamily: 'inherit',
+                          }}
+                        >
+                          <span>{c.icon}</span>
+                          <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{c.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={S.formLabel}>How often</label>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {[['weekly', 'Weekly'], ['monthly', 'Monthly'], ['yearly', 'Yearly']].map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => setRecurringForm(f => ({ ...f, frequency: value }))}
+                          style={{
+                            ...S.chip,
+                            ...(recurringForm.frequency === value ? S.chipActive : {}),
+                          }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {recurringForm.frequency === 'weekly' && (
+                    <div style={{ marginBottom: 12 }}>
+                      <label style={S.formLabel}>Which day</label>
+                      <select
+                        value={recurringForm.day_of_week}
+                        onChange={e => setRecurringForm(f => ({ ...f, day_of_week: e.target.value }))}
+                        style={S.formInput}
+                      >
+                        {WEEKDAY_NAMES.map((name, i) => (
+                          <option key={name} value={String(i)}>{name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {recurringForm.frequency !== 'weekly' && (
+                    <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+                      {recurringForm.frequency === 'yearly' && (
+                        <div style={{ flex: 1 }}>
+                          <label style={S.formLabel}>Which month</label>
+                          <select
+                            value={recurringForm.month_of_year}
+                            onChange={e => setRecurringForm(f => ({ ...f, month_of_year: e.target.value }))}
+                            style={S.formInput}
+                          >
+                            {MONTH_NAMES.map((name, i) => (
+                              <option key={name} value={String(i + 1)}>{name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      <div style={{ flex: 1 }}>
+                        <label style={S.formLabel}>Day of the month</label>
+                        <select
+                          value={recurringForm.day_of_month}
+                          onChange={e => setRecurringForm(f => ({ ...f, day_of_month: e.target.value }))}
+                          style={S.formInput}
+                        >
+                          {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
+                            <option key={d} value={String(d)}>{ordinal(d)}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Says what actually happens in a short month, because "the
+                      31st" in February is the question everybody asks. */}
+                  {recurringForm.frequency !== 'weekly' && Number(recurringForm.day_of_month) > 28 && (
+                    <p style={S.repeatHint}>
+                      In a short month this lands on the last day instead, then goes back to
+                      the {ordinal(recurringForm.day_of_month)}.
+                    </p>
+                  )}
+
+                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                    <button
+                      onClick={handleSaveRecurring}
+                      disabled={savingRecurring}
+                      style={{ ...S.btnPrimary, opacity: savingRecurring ? 0.6 : 1, minHeight: 44 }}
+                    >
+                      {savingRecurring ? 'Saving...' : (editingRecurring ? 'Save changes' : 'Add regular cost')}
+                    </button>
+                    <button
+                      onClick={() => { setShowRecurringForm(false); setEditingRecurring(null); }}
+                      style={{ ...S.btnGhost, minHeight: 44 }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {recurring.map(rule => {
+                  const meta = getCategoryMeta(rule.category);
+                  return (
+                    <div key={rule.id} style={{ ...S.txRow, opacity: rule.active ? 1 : 0.55 }}>
+                      <div style={{ ...S.catBubble, background: meta.color }}>
+                        <span style={{ fontSize: 16 }}>{meta.icon}</span>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+                          {describeRecurring(rule)}
+                        </p>
+                        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '2px 0 0' }}>
+                          {rule.active
+                            ? `next ${prettyDate(rule.next_due_date)}`
+                            : 'paused, nothing will be logged'}
+                        </p>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <button
+                          onClick={() => handleToggleRecurring(rule)}
+                          aria-label={rule.active ? 'Pause this cost' : 'Start this cost again'}
+                          style={S.iconBtn}
+                        >
+                          <MIcon name={rule.active ? 'pause' : 'play_arrow'} size={20} style={{ color: 'var(--accent)' }} />
+                        </button>
+                        <button
+                          onClick={() => openRecurringEditor(rule)}
+                          aria-label="Edit this cost"
+                          style={S.iconBtn}
+                        >
+                          <MIcon name="edit" size={18} style={{ color: 'var(--text-muted)' }} />
+                        </button>
+                        <button
+                          onClick={() => setConfirmDeleteRule(rule)}
+                          aria-label="Remove this cost"
+                          style={S.iconBtn}
+                        >
+                          <MIcon name="delete" size={18} style={{ color: 'var(--text-muted)' }} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
           )}
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1186,6 +1850,186 @@ export default function MoneyTracker() {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* ═══ LEDGER TAB ═══ */}
+      {tab === 'ledger' && (
+        <div>
+          {/* Filters. Tax year rather than calendar year, because the year the
+              number eventually goes on a form runs 6 April to 5 April. */}
+          <div style={S.ledgerFilters}>
+            <select
+              value={ledgerYear}
+              onChange={e => { setLedgerYear(e.target.value); setLedgerPage(1); }}
+              style={S.ledgerSelect}
+            >
+              {(ledger?.tax_years || []).map(y => (
+                <option key={y} value={y}>Tax year {y}</option>
+              ))}
+              <option value="all">Everything</option>
+            </select>
+            <select
+              value={ledgerCategory}
+              onChange={e => { setLedgerCategory(e.target.value); setLedgerPage(1); }}
+              style={S.ledgerSelect}
+            >
+              <option value="">All categories</option>
+              {CATEGORIES.map(c => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={S.ledgerTypeBar}>
+            {[['all', 'Everything'], ['expense', 'Expenses'], ['income', 'Income']].map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => { setLedgerType(value); setLedgerPage(1); }}
+                disabled={Boolean(ledgerCategory) && value === 'income'}
+                style={{
+                  ...S.periodBtn,
+                  ...(ledgerType === value ? S.periodBtnActive : {}),
+                  minHeight: 44,
+                  opacity: ledgerCategory && value === 'income' ? 0.4 : 1,
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {ledgerCategory && (
+            <p style={S.ledgerNote}>
+              Categories only apply to money going out, so this is expenses on their own.
+            </p>
+          )}
+
+          {/* The carry-over. This is the number that was never on any screen. */}
+          {ledger?.summary && (
+            <section style={S.ledgerTotalCard}>
+              <span style={S.ledgerTotalLabel}>Running total</span>
+              <span style={{
+                ...S.ledgerTotalValue,
+                color: ledger.summary.running_total_cents >= 0 ? 'var(--success)' : 'var(--danger)',
+              }}>{fmtNeat(ledger.summary.running_total_cents)}</span>
+              <span style={S.ledgerTotalSub}>
+                {fmtNeat(ledger.summary.income_cents)} in, {fmtNeat(ledger.summary.expenses_cents)} out,
+                {' '}across {ledger.summary.row_count} {ledger.summary.row_count === 1 ? 'entry' : 'entries'}
+              </span>
+              {ledger.truncated && (
+                <span style={{ ...S.ledgerTotalSub, color: 'var(--danger)' }}>
+                  Showing the most recent entries only. Narrow the dates to see the rest.
+                </span>
+              )}
+            </section>
+          )}
+
+          {ledgerError && <ErrorCard message={ledgerError} onDismiss={() => setLedgerError(null)} />}
+
+          {ledgerLoading && !ledger && (
+            <p style={S.ledgerNote}>Adding it all up...</p>
+          )}
+
+          {ledger && ledger.rows.length === 0 && !ledgerLoading && (
+            <EmptyState message="Nothing on the books for that filter yet." icon="📒" />
+          )}
+
+          {/* Category totals, so "where did it go" is one glance rather than
+              mental arithmetic down the list. */}
+          {ledger?.summary && Object.keys(ledger.summary.by_category).length > 0 && (
+            <section style={S.breakdownCard}>
+              <h4 style={S.breakdownTitle}>By category</h4>
+              {Object.entries(ledger.summary.by_category)
+                .sort(([, a], [, b]) => b.total_cents - a.total_cents)
+                .map(([key, bucket]) => (
+                  <div key={key} style={S.breakdownRow}>
+                    <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                      {bucket.kind === 'expense'
+                        ? (CATEGORIES.find(c => c.value === key)?.label || key)
+                        : (INCOME_LABELS[key] || key)}
+                      <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{` · ${bucket.count}`}</span>
+                    </span>
+                    <span style={{
+                      fontSize: 13, fontWeight: 600,
+                      color: bucket.kind === 'expense' ? 'var(--danger)' : 'var(--success)',
+                    }}>
+                      {bucket.kind === 'expense' ? '-' : '+'}{fmtNeat(bucket.total_cents)}
+                    </span>
+                  </div>
+                ))}
+            </section>
+          )}
+
+          {/* Newest first, each row carrying the total as at that point. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {(ledger?.rows || []).map(row => {
+              const isExpense = row.kind === 'expense';
+              const meta = isExpense ? getCategoryMeta(row.category) : null;
+              const label = isExpense
+                ? (row.vendor || row.description || meta.label)
+                : (row.description || INCOME_LABELS[row.category] || 'Payment');
+              return (
+                <div key={`${row.kind}-${row.id}`} style={S.txRow}>
+                  <div style={{
+                    ...S.catBubble,
+                    background: isExpense ? meta.color : 'rgba(91, 169, 123, 0.15)',
+                  }}>
+                    <span style={{ fontSize: 16 }}>{isExpense ? meta.icon : '💷'}</span>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {label}
+                    </p>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
+                      {prettyDate(row.date)}
+                      {isExpense ? ` · ${meta.label}` : ` · ${INCOME_LABELS[row.category] || row.category}`}
+                      {row.recurring_expense_id ? ' · repeats' : ''}
+                    </p>
+                  </div>
+                  <div style={{ textAlign: 'right', marginLeft: 10 }}>
+                    <span style={{
+                      display: 'block', fontSize: 14, fontWeight: 700,
+                      color: row.amount_cents < 0 ? 'var(--danger)' : 'var(--success)',
+                      fontVariantNumeric: 'tabular-nums',
+                    }}>
+                      {row.amount_cents < 0 ? '' : '+'}{fmtNeat(row.amount_cents)}
+                    </span>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                      {fmtNeat(row.running_total_cents)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {ledger && ledger.total_rows > ledger.page_size && (
+            <div style={S.ledgerPager}>
+              <button
+                onClick={() => setLedgerPage(p => Math.max(1, p - 1))}
+                disabled={ledger.page <= 1}
+                style={{ ...S.pagerBtn, opacity: ledger.page <= 1 ? 0.4 : 1 }}
+              >
+                Newer
+              </button>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                Page {ledger.page} of {Math.max(1, Math.ceil(ledger.total_rows / ledger.page_size))}
+              </span>
+              <button
+                onClick={() => setLedgerPage(p => p + 1)}
+                disabled={!ledger.has_more}
+                style={{ ...S.pagerBtn, opacity: ledger.has_more ? 1 : 0.4 }}
+              >
+                Older
+              </button>
+            </div>
+          )}
+
+          <button onClick={handleExportLedgerCSV} style={S.exportBtn}>
+            <MIcon name="download" size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+            Export {ledgerYear && ledgerYear !== 'all' ? ledgerYear : 'this year'} as CSV
+          </button>
         </div>
       )}
 
@@ -1534,6 +2378,61 @@ export default function MoneyTracker() {
         </div>,
         document.body
       )}
+
+      {/* Removing a regular cost stops the schedule and nothing else. Says so,
+          because "delete" next to money reads as "erase the history". */}
+      {confirmDeleteRule && createPortal(
+        <div
+          onClick={() => setConfirmDeleteRule(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 2000,
+            background: 'rgba(29,27,25,0.45)',
+            display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: 480, background: 'var(--bg-card, #fff)',
+              borderRadius: '18px 18px 0 0',
+              padding: '20px 20px calc(28px + env(safe-area-inset-bottom, 8px))',
+            }}
+          >
+            <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 4px' }}>
+              Remove this regular cost?
+            </p>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 16px' }}>
+              {describeRecurring(confirmDeleteRule)}. It will stop being logged from now on.
+              Everything already on the books stays exactly as it is.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={handleDeleteRecurring}
+                style={{
+                  flex: 1, padding: '13px 0', borderRadius: 12, border: 'none',
+                  background: 'var(--danger, #BA1A1A)', color: '#fff',
+                  fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                  minHeight: 44,
+                }}
+              >
+                Remove
+              </button>
+              <button
+                onClick={() => setConfirmDeleteRule(null)}
+                style={{
+                  flex: 1, padding: '13px 0', borderRadius: 12,
+                  border: '1.5px solid var(--border, #EDE9E4)', background: 'var(--bg-card, #fff)',
+                  color: 'var(--text-primary)', fontSize: 14, fontWeight: 600,
+                  cursor: 'pointer', fontFamily: 'inherit', minHeight: 44,
+                }}
+              >
+                Keep it
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
@@ -1764,6 +2663,125 @@ const S = {
     padding: '11px 16px', borderRadius: 12, border: 'none',
     background: 'var(--bg-hover)', color: 'var(--text-secondary)', fontSize: 13,
     cursor: 'pointer', fontFamily: 'inherit',
+  },
+
+  noticeBar: {
+    display: 'flex', alignItems: 'center', gap: 8,
+    background: 'var(--warning-bg, #FDF4E3)', color: 'var(--text-primary)',
+    borderRadius: 12, padding: '10px 12px', marginBottom: 12,
+    fontSize: 12.5, lineHeight: 1.45,
+  },
+  noticeClose: {
+    width: 44, height: 44, marginRight: -10, border: 'none', background: 'none',
+    color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'inherit',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  },
+
+  // Year to date (UK tax year)
+  ytdCard: {
+    background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: '16px 16px 14px',
+    marginBottom: 14,
+  },
+  ytdHead: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+    gap: 8, marginBottom: 12, flexWrap: 'wrap',
+  },
+  ytdTitle: {
+    fontSize: 12, fontWeight: 700, textTransform: 'uppercase',
+    letterSpacing: '0.06em', color: '#92405e',
+  },
+  ytdDates: { fontSize: 11, color: 'var(--text-muted)' },
+  ytdRow: { display: 'flex', justifyContent: 'space-between', gap: 10 },
+  ytdStat: { display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 },
+  ytdLabel: {
+    fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em',
+    color: 'var(--text-muted)', fontWeight: 600,
+  },
+  ytdValue: {
+    fontSize: 19, fontWeight: 700, color: 'var(--text-primary)',
+    fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em',
+  },
+  ytdCompare: {
+    marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(146, 64, 94, 0.08)',
+    display: 'flex', flexDirection: 'column', gap: 2,
+    fontSize: 11.5, color: 'var(--text-muted)',
+  },
+
+  // Ledger
+  ledgerFilters: { display: 'flex', gap: 8, marginBottom: 10 },
+  ledgerSelect: {
+    flex: 1, minWidth: 0, minHeight: 44, padding: '10px 12px', borderRadius: 12,
+    border: '1.5px solid var(--border)', background: 'var(--bg-input)',
+    color: 'var(--text-primary)', fontSize: 13, fontFamily: 'inherit',
+  },
+  ledgerTypeBar: { display: 'flex', gap: 8, marginBottom: 12 },
+  ledgerNote: {
+    fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5,
+    margin: '0 0 12px',
+  },
+  ledgerTotalCard: {
+    background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: 16,
+    marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 2,
+  },
+  ledgerTotalLabel: {
+    fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.08em',
+    color: 'var(--text-muted)', fontWeight: 700,
+  },
+  ledgerTotalValue: {
+    fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em',
+    fontVariantNumeric: 'tabular-nums',
+  },
+  ledgerTotalSub: { fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.45 },
+  ledgerPager: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    gap: 10, margin: '14px 0',
+  },
+  pagerBtn: {
+    minHeight: 44, padding: '11px 18px', borderRadius: 12,
+    border: '1.5px solid var(--border)', background: 'var(--bg-card)',
+    color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'inherit',
+  },
+  exportBtn: {
+    width: '100%', minHeight: 44, padding: '14px 0', borderRadius: 12,
+    border: 'none', background: 'var(--accent)', color: '#fff',
+    fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+    marginTop: 8,
+  },
+
+  // Regular costs
+  addRuleBtn: {
+    minHeight: 44, padding: '10px 16px', borderRadius: 12,
+    border: '1.5px solid var(--border)', background: 'var(--bg-card)',
+    color: 'var(--accent)', fontSize: 13, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'inherit',
+  },
+  iconBtn: {
+    width: 44, height: 44, borderRadius: 12, border: 'none',
+    background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  },
+  chip: {
+    flex: 1, minHeight: 44, padding: '10px 12px', borderRadius: 12,
+    border: '1.5px solid var(--border-light)', background: 'var(--bg-card)',
+    color: 'var(--text-secondary)', fontSize: 13, fontWeight: 500,
+    cursor: 'pointer', fontFamily: 'inherit',
+  },
+  chipActive: {
+    border: '1.5px solid var(--accent)', background: 'var(--accent-bg)',
+    color: 'var(--accent)', fontWeight: 600,
+  },
+  repeatBox: {
+    background: 'var(--bg-card)', border: '1.5px solid var(--border-light)',
+    borderRadius: 14, padding: 12, marginBottom: 14,
+  },
+  repeatToggle: {
+    display: 'flex', alignItems: 'center', minHeight: 44,
+    fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer',
+  },
+  repeatHint: {
+    fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.5,
+    margin: '10px 0 0',
   },
 
   // Form

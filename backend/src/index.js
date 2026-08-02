@@ -59,6 +59,7 @@ import webhookRoutes from './routes/webhooks.js';
 import escalationRoutes from './routes/escalations.js';
 import contentRoutes from './routes/content.js';
 import moneyRoutes from './routes/money.js';
+import recurringExpenseRoutes from './routes/recurring-expenses.js';
 import stripeRoutes from './routes/stripe.js';
 import notificationRoutes from './routes/notifications.js';
 import gcalRoutes from './routes/google-calendar.js';
@@ -288,6 +289,7 @@ app.use('/api/webhooks', webhookLimiter, webhookRoutes); // WhatsApp + Twilio + 
 app.use('/api/escalations', apiLimiter, paywall, escalationRoutes);
 app.use('/api/content', apiLimiter, paywall, contentRoutes);
 app.use('/api/money', apiLimiter, paywall, moneyRoutes);
+app.use('/api/recurring-expenses', apiLimiter, paywall, recurringExpenseRoutes); // the rules behind regular costs, materialised daily by the recurring-expenses job
 // Stripe webhook must bypass rate limiter + idempotency guard , Stripe retries
 // from many IPs and doesn't send Idempotency-Key headers. The webhook handler
 // does its own idempotency check via the stripe_events table.

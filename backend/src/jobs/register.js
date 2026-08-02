@@ -53,6 +53,7 @@ import { runComeback } from './comeback.js';
 import { cleanupStripeEvents } from '../services/stripe-cleanup.js';
 import { billMonthlySurplus } from '../services/whatsapp-metering.js';
 import { runReconciliation } from '../services/reconciliation.js';
+import { materialiseDueExpenses } from '../services/recurring-expenses.js';
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
@@ -197,6 +198,24 @@ export const JOBS = [
     intervalMs: DAY,
     handler: cleanupStripeEvents,
     startupDelayMs: 3 * MINUTE,
+  },
+  {
+    // Rent, insurance and the software subscription were being retyped every
+    // month, or forgotten, which makes the profit figure wrong in her favour.
+    // Daily rather than monthly: a monthly cadence would mean a rule due on the
+    // 1st waiting until the job's own anniversary. Daily asks "what is due
+    // today" and the answer is usually nothing.
+    //
+    // Safe to run on any schedule: the pass is idempotent (unique index on
+    // expenses (recurring_expense_id, date), a read-before-write guard, and a
+    // cursor that only advances once the row exists), and this scheduler
+    // guarantees one replica at a time.
+    name: 'recurring-expenses',
+    description: 'turn due regular costs into real expense rows',
+    intervalMs: DAY,
+    handler: materialiseDueExpenses,
+    startupDelayMs: 2 * MINUTE,
+    leaseMs: 15 * MINUTE,
   },
   {
     // Reports, never repairs. Already wrapped in recordJobRun before this

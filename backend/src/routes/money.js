@@ -3,9 +3,19 @@ import { INCOME_TYPES } from '../lib/money-guards.js';
 import { z } from 'zod';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requireOwned } from '../lib/ownership.js';
 import Anthropic from '@anthropic-ai/sdk';
 import logger from '../lib/logger.js';
 import { expenseSchema } from '../lib/schemas.js';
+import {
+  buildLedger,
+  currentTaxYear,
+  paginate,
+  periodTotals,
+  samePointLastYear,
+  taxYearBounds,
+  taxYearsFrom,
+} from '../lib/ledger.js';
 
 const router = Router();
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -287,6 +297,14 @@ router.post('/expenses', requireAuth, async (req, res) => {
 
   const { amount_cents, vendor, description, category, hmrc_category, date, tax_deductible } = parsed.data;
 
+  // An id in the body is not permission to use it. A caller could post another
+  // salon's rule id and hang a row off it; the check is what stops that, and it
+  // answers 404 rather than 403 so the API is not an enumeration oracle.
+  const recurringExpenseId = req.body?.recurring_expense_id || null;
+  if (!await requireOwned(req, res, [
+    { table: 'recurring_expenses', id: recurringExpenseId },
+  ])) return;
+
   const { data, error } = await supabase
     .from('expenses')
     .insert({
@@ -298,7 +316,8 @@ router.post('/expenses', requireAuth, async (req, res) => {
       hmrc_category: hmrc_category || autoMapHmrcCategory(category),
       date,
       tax_deductible,
-      tax_year: getTaxYear(new Date(date))
+      tax_year: getTaxYear(new Date(date)),
+      ...(recurringExpenseId ? { recurring_expense_id: recurringExpenseId } : {}),
     })
     .select()
     .single();
@@ -588,6 +607,239 @@ router.get('/reports', requireAuth, async (req, res) => {
     });
   } catch (err) {
     logger.error({ err }, 'money.reports failed');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+/**
+ * Nothing is allowed to read the whole table without a ceiling. A solo salon's
+ * tax year is a few thousand rows, but a filter of "everything, ever" on an
+ * imported history is not, and a running total is computed in memory.
+ */
+const MAX_LEDGER_ROWS = 3000;
+
+/** Today as a plain calendar date. Expenses are a DATE column, so this is a
+ *  date question, not a wall-time one. */
+function todayDateStr() {
+  const now = new Date();
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`;
+}
+
+/** The oldest thing this salon has on the books, for the tax-year picker. Two
+ *  one-row reads rather than scanning either table. */
+async function oldestDatedRow(beauticianId) {
+  const [expense, transaction] = await Promise.all([
+    supabase.from('expenses').select('date')
+      .eq('beautician_id', beauticianId)
+      .order('date', { ascending: true }).limit(1).maybeSingle(),
+    supabase.from('transactions').select('created_at')
+      .eq('beautician_id', beauticianId)
+      .order('created_at', { ascending: true }).limit(1).maybeSingle(),
+  ]);
+
+  // Supabase reports errors in the result object. A failed lookup here must not
+  // silently shorten the year picker, so it degrades to "no idea" and the
+  // picker offers the current year only.
+  if (expense.error) logger.warn({ err: expense.error }, 'Ledger: could not read the oldest expense');
+  if (transaction.error) logger.warn({ err: transaction.error }, 'Ledger: could not read the oldest transaction');
+
+  const candidates = [
+    expense.data?.date,
+    transaction.data?.created_at ? String(transaction.data.created_at).slice(0, 10) : null,
+  ].filter(Boolean).sort();
+
+  return candidates[0] || null;
+}
+
+/**
+ * GET /api/money/ledger
+ *
+ * The carry-over view. Every other money surface in this app is a window:
+ * /pulse compares this week with last, /coach compares this month with last,
+ * the Money page shows today. None of them ever showed a running total or a
+ * full history, so "what have I actually spent this year" could only be
+ * answered by opening the CSV in a spreadsheet.
+ *
+ * Query:
+ *   from, to       YYYY-MM-DD, inclusive
+ *   tax_year       '2026-27', or 'all'. Overrides from/to. UK tax years run
+ *                  6 April to 5 April, which is why this is not a year filter
+ *   category       an expenses category. Income has no categories, so setting
+ *                  this narrows the answer to expenses only
+ *   type           expense | income | all   (default all)
+ *   page, page_size
+ *
+ * Returns rows NEWEST FIRST, each carrying the running total as at that row,
+ * plus totals by category and one grand total for the whole filter. The running
+ * total is accumulated over the entire filtered set before paging, because a
+ * running total that restarts on page two is not a running total.
+ */
+router.get('/ledger', requireAuth, async (req, res) => {
+  try {
+    const beauticianId = req.beautician.id;
+    const requestedYear = req.query.tax_year;
+    const type = ['expense', 'income', 'all'].includes(req.query.type) ? req.query.type : 'all';
+    const category = req.query.category || null;
+
+    let from = req.query.from || null;
+    let to = req.query.to || null;
+    let taxYear = null;
+
+    if (requestedYear && requestedYear !== 'all') {
+      const bounds = taxYearBounds(requestedYear);
+      taxYear = bounds.taxYear;
+      from = bounds.start;
+      to = bounds.end;
+    }
+
+    // A category is an expenses concept. Asking for "products" and getting a
+    // deposit back would be a lie, so a category filter implies expenses only.
+    const wantExpenses = type !== 'income';
+    const wantIncome = type !== 'expense' && !category;
+
+    let expenses = [];
+    if (wantExpenses) {
+      let q = supabase
+        .from('expenses')
+        .select('id, amount_cents, vendor, description, category, hmrc_category, date, tax_deductible, recurring_expense_id, created_at')
+        .eq('beautician_id', beauticianId)
+        .order('date', { ascending: false })
+        .limit(MAX_LEDGER_ROWS);
+      if (from) q = q.gte('date', from);
+      if (to) q = q.lte('date', to);
+      if (category) q = q.eq('category', category);
+
+      const { data, error } = await q;
+      if (error) {
+        logger.error({ err: error }, 'Ledger: failed to fetch expenses');
+        return res.status(500).json({ error: 'Something went wrong' });
+      }
+      expenses = data || [];
+    }
+
+    let transactions = [];
+    if (wantIncome) {
+      let q = supabase
+        .from('transactions')
+        .select('id, amount_cents, type, description, created_at')
+        .eq('beautician_id', beauticianId)
+        .eq('status', 'completed')
+        // INCOME_TYPES, never a hand-written list. Four copies of this list is
+        // how refunds stopped coming off her totals on some screens and not
+        // others. Refund rows are negative, so including the type nets them off.
+        .in('type', INCOME_TYPES)
+        .order('created_at', { ascending: false })
+        .limit(MAX_LEDGER_ROWS);
+      if (from) q = q.gte('created_at', `${from}T00:00:00.000Z`);
+      if (to) q = q.lte('created_at', `${to}T23:59:59.999Z`);
+
+      const { data, error } = await q;
+      if (error) {
+        logger.error({ err: error }, 'Ledger: failed to fetch transactions');
+        return res.status(500).json({ error: 'Something went wrong' });
+      }
+      transactions = data || [];
+    }
+
+    const { rows, summary } = buildLedger({ expenses, transactions });
+    const page = paginate(rows, req.query.page, req.query.page_size);
+
+    const oldest = await oldestDatedRow(beauticianId);
+
+    res.json({
+      ...page,
+      summary,
+      filters: {
+        from, to, category, type,
+        tax_year: taxYear || (requestedYear === 'all' ? 'all' : null),
+      },
+      tax_years: taxYearsFrom(oldest),
+      // Says so rather than quietly returning a total that is missing rows.
+      truncated: expenses.length >= MAX_LEDGER_ROWS || transactions.length >= MAX_LEDGER_ROWS,
+    });
+  } catch (err) {
+    logger.error({ err }, 'Ledger failed');
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+/**
+ * GET /api/money/year-to-date
+ *
+ * Income, expenses and profit for the tax year we are in, with the same slice
+ * of the year before alongside.
+ *
+ * The UK tax year runs 6 April to 5 April, so a calendar-year figure here would
+ * disagree with the number that eventually goes on her self-assessment. The
+ * comparison is cut off at the same calendar point last year on purpose: this
+ * year's four months against last year's twelve always looks like a collapse.
+ */
+router.get('/year-to-date', requireAuth, async (req, res) => {
+  try {
+    const beauticianId = req.beautician.id;
+    const today = todayDateStr();
+
+    const current = taxYearBounds(req.query.year || currentTaxYear());
+    const previousStartYear = Number(current.taxYear.split('-')[0]) - 1;
+    const previous = taxYearBounds(`${previousStartYear}-${String(previousStartYear + 1).slice(2)}`);
+
+    // Cut-off for "so far this year". A year already finished is shown whole.
+    const asAt = today < current.end ? today : current.end;
+    const previousAsAt = today < current.end ? samePointLastYear(asAt) : previous.end;
+
+    // One read per table across both years, then split in memory. Four queries
+    // would be four chances for an unchecked error object.
+    const [expenseResult, incomeResult] = await Promise.all([
+      supabase
+        .from('expenses')
+        .select('amount_cents, date, category')
+        .eq('beautician_id', beauticianId)
+        .gte('date', previous.start)
+        .lte('date', current.end)
+        .limit(MAX_LEDGER_ROWS),
+      supabase
+        .from('transactions')
+        .select('amount_cents, created_at, type')
+        .eq('beautician_id', beauticianId)
+        .eq('status', 'completed')
+        .in('type', INCOME_TYPES)
+        .gte('created_at', `${previous.start}T00:00:00.000Z`)
+        .lte('created_at', `${current.end}T23:59:59.999Z`)
+        .limit(MAX_LEDGER_ROWS),
+    ]);
+
+    if (expenseResult.error) {
+      logger.error({ err: expenseResult.error }, 'Year to date: failed to fetch expenses');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
+    if (incomeResult.error) {
+      logger.error({ err: incomeResult.error }, 'Year to date: failed to fetch income');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
+
+    const expenses = expenseResult.data || [];
+    const transactions = incomeResult.data || [];
+
+    res.json({
+      current: {
+        tax_year: current.taxYear,
+        start: current.start,
+        end: current.end,
+        as_at: asAt,
+        ...periodTotals({ expenses, transactions, start: current.start, end: asAt }),
+      },
+      previous: {
+        tax_year: previous.taxYear,
+        start: previous.start,
+        end: previous.end,
+        as_at: previousAsAt,
+        // The like-for-like number the UI should show next to this year.
+        ...periodTotals({ expenses, transactions, start: previous.start, end: previousAsAt }),
+        full_year: periodTotals({ expenses, transactions, start: previous.start, end: previous.end }),
+      },
+    });
+  } catch (err) {
+    logger.error({ err }, 'Year to date failed');
     res.status(500).json({ error: 'Something went wrong' });
   }
 });
