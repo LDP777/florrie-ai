@@ -37,6 +37,9 @@ export default function Settings({ onLogout }) {
   const [stripeBanner, setStripeBanner] = useState(null); // 'success' | 'refresh' | 'pending' | null
   const [igConnecting, setIgConnecting] = useState(false);
   const [igBanner, setIgBanner] = useState(null); // 'success' | 'error' | 'no_page' | 'no_ig_account' | null
+  // null = still checking; object = /api/instagram/status result;
+  // { check_failed: true } = the check itself failed (network, 500).
+  const [igStatus, setIgStatus] = useState(null);
 
   // Detect Google Calendar OAuth callback redirect (?gcal=success|error)
   useEffect(() => {
@@ -66,6 +69,32 @@ export default function Settings({ onLogout }) {
       if (igStatus === 'success') refresh();
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Ask the API whether the Instagram token still WORKS. The stored id only
+  // proves a past connection: Ellie's token expired on 21 June and the old
+  // id-based check kept this card saying Connected while nothing went out.
+  // Re-runs after the OAuth callback (igBanner) so a fresh reconnect turns
+  // the card green without a manual reload.
+  useEffect(() => {
+    if (!beautician?.instagram_page_id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = (await supabase.auth.getSession()).data.session?.access_token;
+        const res = await fetch(`${API_BASE}/api/instagram/status`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (!res.ok) throw new Error(`status ${res.status}`);
+        const data = await res.json();
+        if (!cancelled) setIgStatus(data);
+      } catch (err) {
+        logger.debug('Instagram status check failed:', err);
+        // A failed check must read "could not check", never a false Connected.
+        if (!cancelled) setIgStatus({ check_failed: true });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [beautician?.instagram_page_id, igBanner]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Detect Stripe Connect return (?stripe=success|refresh)
   useEffect(() => {
@@ -246,6 +275,12 @@ export default function Settings({ onLogout }) {
   const confidence = beautician.confidence_threshold || 0.85;
   const calSettings = beautician.calendar_settings || { buffer_minutes: 10, block_personal: false, push_bookings: true, two_way_sync: false };
   const paySettings = beautician.payment_settings || { require_deposit: false, deposit_amount: '£10', no_show_fee: false, accepted_methods: ['cash'] };
+
+  // Honest Instagram state for the card in the AI tab. An id in the database
+  // only proves she connected once; the token behind it can be long dead.
+  const igChecking = !!beautician.instagram_page_id && igStatus === null;
+  const igNeedsReconnect = !!beautician.instagram_page_id && igStatus?.needs_reconnect === true;
+  const igTokenValid = igStatus?.token_valid === true;
 
   return (
     <div style={{ ...styles.page, animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' }}>
@@ -1506,11 +1541,19 @@ export default function Settings({ onLogout }) {
                 <span style={styles.calProviderLabel}>Instagram</span>
                 <span style={{
                   ...styles.calProviderStatus,
-                  color: beautician.instagram_page_id ? 'var(--success)' : 'var(--text-muted)',
+                  color: !beautician.instagram_page_id ? 'var(--text-muted)'
+                    : igNeedsReconnect ? 'var(--danger)'
+                    : igTokenValid ? 'var(--success)'
+                    : 'var(--text-muted)',
                 }}>
-                  {beautician.instagram_page_id
-                    ? `● Connected${beautician.instagram_page_name ? `, ${beautician.instagram_page_name}` : ''}`
-                    : 'Not connected'}
+                  {/* Only say Connected once /api/instagram/status confirms the
+                      token works. A failed or pending check reads as unknown,
+                      never as a false Connected. */}
+                  {!beautician.instagram_page_id ? 'Not connected'
+                    : igChecking ? 'Checking…'
+                    : igNeedsReconnect ? '● Needs reconnecting'
+                    : igTokenValid ? `● Connected${beautician.instagram_page_name ? `, ${beautician.instagram_page_name}` : ''}`
+                    : 'Could not check just now'}
                 </span>
               </div>
               {beautician.instagram_page_id ? (
@@ -1530,11 +1573,48 @@ export default function Settings({ onLogout }) {
                 </button>
               )}
             </div>
-            <p style={{ ...styles.cardHint, marginTop: 8, marginBottom: 0 }}>
-              {beautician.instagram_page_id
-                ? 'Florrie reads and replies to your Instagram DMs in your voice, and Content Studio can post to your account.'
-                : 'Connect your Instagram so Florrie can read and reply to your DMs (and post for you). You just need a professional Instagram account, no Facebook Page required.'}
-            </p>
+            {/* Expired token. The row above says so; this card explains what
+                stopped and gives her the one button that fixes it. Same OAuth
+                flow as first-time connect, so nothing new to learn. The 21 June
+                date is Ellie's actual outage start (pilot-specific copy). */}
+            {igNeedsReconnect && (
+              <div style={{
+                marginTop: 12,
+                padding: '12px 14px',
+                borderRadius: 12,
+                background: 'var(--danger-bg, #FDECEC)',
+              }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--danger)', margin: '0 0 4px' }}>
+                  Instagram needs reconnecting
+                </p>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
+                  Messages still arrive, but replies, posting and client names stopped going out on 21 June. Takes one tap.
+                </p>
+                <button
+                  onClick={handleConnectInstagram}
+                  disabled={igConnecting}
+                  style={{
+                    ...styles.connectBtn,
+                    width: '100%',
+                    minHeight: 44, // the button that matters most gets a full thumb target
+                    background: 'var(--danger)',
+                    opacity: igConnecting ? 0.6 : 1,
+                    cursor: igConnecting ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {igConnecting ? 'Reconnecting…' : 'Reconnect Instagram'}
+                </button>
+              </div>
+            )}
+            {/* Hidden while broken: "reads and replies to your DMs" would
+                contradict the reconnect card directly above it. */}
+            {!igNeedsReconnect && (
+              <p style={{ ...styles.cardHint, marginTop: 8, marginBottom: 0 }}>
+                {beautician.instagram_page_id
+                  ? 'Florrie reads and replies to your Instagram DMs in your voice, and Content Studio can post to your account.'
+                  : 'Connect your Instagram so Florrie can read and reply to your DMs (and post for you). You just need a professional Instagram account, no Facebook Page required.'}
+              </p>
+            )}
             {igBanner === 'success' && (
               <p style={{ fontSize: 12, color: 'var(--success)', marginTop: 8, marginBottom: 0 }}>✓ Instagram connected, Content Studio can now post directly</p>
             )}
