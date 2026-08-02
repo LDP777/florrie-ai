@@ -786,6 +786,17 @@ export default function CalendarView({ initialView } = {}) {
                     ...(lifted ? { zIndex: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.25)', opacity: 0.95, transform: 'scale(1.02)' } : {}),
                   }}
                 >
+                  {/* Paid in full must be visible WITHOUT opening the sheet:
+                      Ellie plans her day off this grid, and knowing the money
+                      is already banked changes how she treats a no-show. Green
+                      because this is a settled STATE, not a brand accent. On
+                      tiny cards a labelled chip cannot fit, so it becomes a
+                      dot in the same green. */}
+                  {appt.payment_type === 'full' && (
+                    tiny
+                      ? <span title="Paid in full" style={{ position: 'absolute', top: 3, right: 3, width: 8, height: 8, borderRadius: '50%', background: '#2E7D32' }} />
+                      : <span style={{ position: 'absolute', top: 3, right: 4, background: '#2E7D32', color: '#fff', fontSize: 8, fontWeight: 700, letterSpacing: '0.04em', padding: '1px 5px', borderRadius: 6 }}>PAID</span>
+                  )}
                   <div style={styles.appointmentCardContent}>
                     <div style={styles.appointmentCardHeader}>
                       <div style={{ ...styles.appointmentAvatar, background: statusColor, ...(compact ? { width: 22, height: 22, fontSize: 8 } : {}) }}>
@@ -1900,9 +1911,22 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0 0', marginTop: 3, borderTop: `1px solid ${COLORS.outlineVariant}66`, fontSize: 14 }}>
-                  <span style={{ fontWeight: 700, color: owed > 0 ? COLORS.primary : 'var(--success, #5BA97B)' }}>{owed > 0 ? 'To collect' : 'Nothing to collect'}</span>
+                  <span style={{ fontWeight: 700, color: owed > 0 ? COLORS.primary : '#2E7D32', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    {owed <= 0 && <span className="material-symbols-outlined" style={{ fontSize: 16 }} aria-hidden>check_circle</span>}
+                    {owed > 0 ? 'To collect' : paidInFull ? 'Paid in full' : 'Nothing to collect'}
+                  </span>
                   {owed > 0 && <span style={{ fontWeight: 700, color: COLORS.primary, fontVariantNumeric: 'tabular-nums' }}>£{(owed / 100).toFixed(2)}</span>}
                 </div>
+                {/* The question Ellie actually asks in front of this sheet is
+                    "if they no-show, am I covered?". For a paid-in-full booking
+                    the answer is yes BY DEFINITION: the money is already hers,
+                    which is exactly why the charge button refuses to exist.
+                    Say it, so a missing button reads as safety, not a bug. */}
+                {paidInFull && appointment.status !== 'completed' && appointment.status !== 'no_show' && (
+                  <p style={{ fontSize: 11, color: '#2E7D32', margin: '6px 0 0', lineHeight: 1.45 }}>
+                    If they do not show, you keep this. There is nothing more to charge.
+                  </p>
+                )}
                 {owed > 0 && fees && fees.amount_cents > 0 && (
                   <p style={{ fontSize: 11, color: COLORS.stone400, margin: '6px 0 0', lineHeight: 1.45 }}>
                     On the card that's about £{((fees.estimated_net_cents || 0) / 100).toFixed(2)} to you after
