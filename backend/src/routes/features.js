@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
 import { guardedSend } from '../lib/outbound-guard.js';
 import { sendNudge } from '../services/notifications.js';
+import { requireOwned } from '../lib/ownership.js';
 
 const router = Router();
 
@@ -132,6 +133,13 @@ router.post('/consultations', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'client_id and treatment_id are required' });
   }
 
+  // The backend uses the service key, so RLS is bypassed and this check is
+  // the only thing stopping a foreign id from being accepted. 404, not 403.
+  if (!await requireOwned(req, res, [
+    { table: 'clients', id: client_id },
+    { table: 'treatments', id: treatment_id },
+  ])) return;
+
   const { data, error } = await supabase
     .from('consultations')
     .insert({
@@ -222,6 +230,13 @@ router.post('/patch-tests', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'client_id, treatment_id, and test_date are required' });
   }
 
+  // The backend uses the service key, so RLS is bypassed and this check is
+  // the only thing stopping a foreign id from being accepted. 404, not 403.
+  if (!await requireOwned(req, res, [
+    { table: 'clients', id: client_id },
+    { table: 'treatments', id: treatment_id },
+  ])) return;
+
   const { data, error } = await supabase
     .from('patch_tests')
     .insert({
@@ -310,6 +325,12 @@ router.post('/aftercare-messages', requireAuth, async (req, res) => {
   if (!treatment_id || !message_text) {
     return res.status(400).json({ error: 'treatment_id and message_text are required' });
   }
+
+  // The backend uses the service key, so RLS is bypassed and this check is
+  // the only thing stopping a foreign id from being accepted. 404, not 403.
+  if (!await requireOwned(req, res, [
+    { table: 'treatments', id: treatment_id },
+  ])) return;
 
   const { data, error } = await supabase
     .from('aftercare_messages')
@@ -491,6 +512,13 @@ router.post('/client-packages', requireAuth, async (req, res) => {
   if (!client_id || !package_id) {
     return res.status(400).json({ error: 'client_id and package_id are required' });
   }
+
+  // The backend uses the service key, so RLS is bypassed and this check is
+  // the only thing stopping a foreign id from being accepted. 404, not 403.
+  if (!await requireOwned(req, res, [
+    { table: 'clients', id: client_id },
+    { table: 'packages', id: package_id },
+  ])) return;
 
   const { data, error } = await supabase
     .from('client_packages')
@@ -693,6 +721,15 @@ router.post('/gift-vouchers', requireAuth, async (req, res) => {
  */
 router.patch('/gift-vouchers/:id', requireAuth, async (req, res) => {
   const { action, used_by_client_id, appointment_id } = req.body;
+
+  // Redeeming a voucher against somebody else's client or booking. The service
+  // key bypasses RLS, so this is the tenant check. Both ids are optional, so
+  // requireOwned skips whichever was not sent. 404, not 403.
+  if (!await requireOwned(req, res, [
+    { table: 'clients', id: used_by_client_id },
+    { table: 'appointments', id: appointment_id },
+  ])) return;
+
   const updates = {};
 
   if (action === 'redeem') {
@@ -764,6 +801,13 @@ router.post('/client-memberships', requireAuth, async (req, res) => {
   if (!client_id || !membership_id) {
     return res.status(400).json({ error: 'client_id and membership_id are required' });
   }
+
+  // The backend uses the service key, so RLS is bypassed and this check is
+  // the only thing stopping a foreign id from being accepted. 404, not 403.
+  if (!await requireOwned(req, res, [
+    { table: 'clients', id: client_id },
+    { table: 'client_memberships', id: membership_id },
+  ])) return;
 
   const { data, error } = await supabase
     .from('client_memberships')
@@ -854,6 +898,12 @@ router.post('/membership-subscriptions', requireAuth, async (req, res) => {
   if (!client_membership_id) {
     return res.status(400).json({ error: 'client_membership_id is required' });
   }
+
+  // The backend uses the service key, so RLS is bypassed and this check is
+  // the only thing stopping a foreign id from being accepted. 404, not 403.
+  if (!await requireOwned(req, res, [
+    { table: 'client_memberships', id: client_membership_id },
+  ])) return;
 
   const { data, error } = await supabase
     .from('membership_subscriptions')
@@ -979,6 +1029,12 @@ router.post('/loyalty-points', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'client_id and points are required' });
   }
 
+  // The backend uses the service key, so RLS is bypassed and this check is
+  // the only thing stopping a foreign id from being accepted. 404, not 403.
+  if (!await requireOwned(req, res, [
+    { table: 'clients', id: client_id },
+  ])) return;
+
   const { data, error } = await supabase
     .from('loyalty_points')
     .insert({
@@ -1026,6 +1082,13 @@ router.post('/referrals', requireAuth, async (req, res) => {
   if (!referrer_client_id || !referred_client_id) {
     return res.status(400).json({ error: 'referrer_client_id and referred_client_id are required' });
   }
+
+  // The backend uses the service key, so RLS is bypassed and this check is
+  // the only thing stopping a foreign id from being accepted. 404, not 403.
+  if (!await requireOwned(req, res, [
+    { table: 'clients', id: referrer_client_id },
+    { table: 'clients', id: referred_client_id },
+  ])) return;
 
   const { data, error } = await supabase
     .from('referrals')
@@ -1561,6 +1624,13 @@ router.post('/form-submissions', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'form_id, client_id, and submission_data are required' });
   }
 
+  // The backend uses the service key, so RLS is bypassed and this check is
+  // the only thing stopping a foreign id from being accepted. 404, not 403.
+  if (!await requireOwned(req, res, [
+    { table: 'intake_forms', id: form_id },
+    { table: 'clients', id: client_id },
+  ])) return;
+
   const { data, error } = await supabase
     .from('form_submissions')
     .insert({
@@ -1751,6 +1821,14 @@ router.post('/client-tag-assignments', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'client_id and client_tag_id are required' });
   }
 
+  // client_tag_assignments has no beautician_id column of its own (see
+  // migration 007), so verifying both ends IS the tenant check. The service
+  // key bypasses RLS, so nothing else would stop it.
+  if (!await requireOwned(req, res, [
+    { table: 'clients', id: client_id },
+    { table: 'client_tags', id: client_tag_id },
+  ])) return;
+
   const { data, error } = await supabase
     .from('client_tag_assignments')
     .insert({
@@ -1814,6 +1892,12 @@ router.post('/reviews', requireAuth, async (req, res) => {
   if (!client_id || rating === undefined) {
     return res.status(400).json({ error: 'client_id and rating are required' });
   }
+
+  // The backend uses the service key, so RLS is bypassed and this check is
+  // the only thing stopping a foreign id from being accepted. 404, not 403.
+  if (!await requireOwned(req, res, [
+    { table: 'clients', id: client_id },
+  ])) return;
 
   const { data, error } = await supabase
     .from('reviews')
@@ -1993,6 +2077,13 @@ router.post('/rebook-reminders', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'client_id and reminder_date are required' });
   }
 
+  // Service key bypasses RLS, so this is the tenant check. appointment_id is
+  // optional and requireOwned skips a missing id.
+  if (!await requireOwned(req, res, [
+    { table: 'clients', id: client_id },
+    { table: 'appointments', id: appointment_id },
+  ])) return;
+
   const { data, error } = await supabase
     .from('rebook_reminders')
     .insert({
@@ -2105,6 +2196,13 @@ router.post('/waitlist', requireAuth, async (req, res) => {
   if (!client_id || !treatment_id) {
     return res.status(400).json({ error: 'client_id and treatment_id are required' });
   }
+
+  // This one returned the other tenant's client phone in the joined select.
+  // The service key bypasses RLS, so this check is the only guard. 404.
+  if (!await requireOwned(req, res, [
+    { table: 'clients', id: client_id },
+    { table: 'treatments', id: treatment_id },
+  ])) return;
 
   const row = {
     beautician_id: req.beautician.id,
@@ -2297,6 +2395,12 @@ router.post('/messages', requireAuth, async (req, res) => {
   if (!client_id || !message_text) {
     return res.status(400).json({ error: 'client_id and message_text are required' });
   }
+
+  // The backend uses the service key, so RLS is bypassed and this check is
+  // the only thing stopping a foreign id from being accepted. 404, not 403.
+  if (!await requireOwned(req, res, [
+    { table: 'clients', id: client_id },
+  ])) return;
 
   const { data, error } = await supabase
     .from('messages')

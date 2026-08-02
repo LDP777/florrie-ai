@@ -26,29 +26,17 @@ import { securityHeaders, paymentLimiter, sanitiseBody, idempotencyGuard } from 
 import { locationScope } from './middleware/location.js';
 import { paywall } from './middleware/require-plan.js';
 
-// Services
-import { processReminders } from './services/notifications.js';
-import { cleanupStaleBookings } from './services/cleanup.js';
-import { refreshInstagramTokens } from './services/instagram-token-refresh.js';
-import { expireStaleOutboundSends } from './services/outbound-expiry.js';
-import { runMoneyMoments } from './services/money-moments.js';
-import { runWeekInReview } from './services/week-in-review.js';
-import { publishScheduledPosts } from './services/content-scheduler.js';
-import { runVoiceProfileRefresh } from './services/voice-profile.js';
-import { runAutonomousCycle } from './services/autonomous-scheduler.js';
-import { autoCompletePastAppointments } from './services/auto-complete.js';
-import { runPredictiveNudges } from './services/predictive-nudge.js';
-import { runDailyHeartbeats } from './services/florrie-heartbeat.js';
-import { processEmailQueue, checkTrialExpiry } from './services/email-sequences.js';
-import { processRetryQueue as processWhatsAppRetryQueue } from './services/whatsapp-retry.js';
-import { runComeback } from './jobs/comeback.js';
-import { cleanupStripeEvents } from './services/stripe-cleanup.js';
-import { billMonthlySurplus } from './services/whatsapp-metering.js';
-import { runReconciliation } from './services/reconciliation.js';
+// Background jobs
+//
+// The job list and the scheduler that runs it live in their own modules. This
+// file used to hold fifteen setInterval calls and nine startup setTimeouts,
+// none of which recorded whether they ever ran, and two of which almost
+// certainly never did. See lib/scheduler.js and jobs/register.js.
+import { registerAllJobs } from './jobs/register.js';
+import { startScheduler, listJobs } from './lib/scheduler.js';
 
 // Detection layer: heartbeats for the crons and a health endpoint that can
 // actually go red. See lib/health.js for why the old one was a lie.
-import { recordJobRun } from './lib/job-runs.js';
 import { runHealthChecks, reportDegraded } from './lib/health.js';
 import Stripe from 'stripe';
 
@@ -243,7 +231,9 @@ app.get('/health/live', (req, res) => {
 // a human nothing.
 app.get('/health', async (req, res) => {
   try {
-    const result = await runHealthChecks({ stripe: healthStripe });
+    // Pass the live registry rather than a hardcoded list, so the names
+    // /health reports and the names that actually run cannot drift apart.
+    const result = await runHealthChecks({ stripe: healthStripe, jobs: listJobs() });
     if (result.status === 'degraded') {
       reportDegraded(result);
       return res.status(503).json({
@@ -369,278 +359,16 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   logger.info({ port: PORT }, 'Florrie API started');
 
-  // Run 24h appointment reminders every hour
-  // Finds appointments in a 1-hour window around the 24h mark and sends reminders
-  const REMINDER_INTERVAL = 60 * 60 * 1000; // 1 hour
-  setInterval(async () => {
-    try {
-      const result = await processReminders();
-      if (result.sent > 0) {
-        logger.info({ sent: result.sent, total: result.total }, 'Reminder cron: sent appointment reminders');
-      }
-    } catch (err) {
-      logger.error({ err }, 'Reminder cron: processing failed');
-    }
-  }, REMINDER_INTERVAL);
-
-  // NOTE: deliberately NOT running processReminders() on startup. It used to run
-  // on every boot "to catch missed reminders", but combined with frequent deploys
-  // that re-sent the same 24h reminder repeatedly. The hourly interval (plus the
-  // per-appointment idempotency guard in notifyReminder24h) covers everything
-  // within an hour, which is fine for a reminder sent a day ahead.
-
-  // Auto-cancel unpaid deposit bookings after 15 minutes
-  const CLEANUP_INTERVAL = 5 * 60 * 1000; // check every 5 minutes
-  setInterval(async () => {
-    try {
-      const result = await cleanupStaleBookings();
-      if (result.cancelled > 0) {
-        logger.info({ cancelled: result.cancelled }, 'Cleanup cron: cancelled stale unpaid bookings');
-      }
-    } catch (err) {
-      logger.error({ err }, 'Cleanup cron: booking cleanup failed');
-    }
-  }, CLEANUP_INTERVAL);
-
-  // Run cleanup on startup
-  cleanupStaleBookings().then(r => {
-    if (r?.cancelled > 0) logger.info({ cancelled: r.cancelled }, 'Startup: cancelled stale bookings');
-  }).catch(() => {});
-
-  // Instagram token refresh — Business Login tokens live 60 days; a daily
-  // refresh keeps every connected account permanently fresh.
-  const IG_TOKEN_INTERVAL = 24 * 60 * 60 * 1000;
-  setInterval(() => {
-    refreshInstagramTokens()
-      .then(r => { if (r.refreshed || r.failed) logger.info({ r }, 'IG token refresh: done'); })
-      .catch(err => logger.error({ err }, 'IG token refresh: failed'));
-  }, IG_TOKEN_INTERVAL);
-  // Also run shortly after boot so a long-crashed deploy can't drift to expiry.
-  setTimeout(() => refreshInstagramTokens().catch(() => {}), 60 * 1000);
-
-  // Expire proactive messages nobody ever answered. A gap-fill offer or rebook
-  // nudge is about a specific slot, so once the week has gone it is litter in
-  // her approvals queue rather than a decision she still owes.
-  const OUTBOUND_EXPIRY_INTERVAL = 6 * 60 * 60 * 1000;
-  setInterval(() => {
-    expireStaleOutboundSends().catch(err => logger.error({ err }, 'Outbound expiry: failed'));
-  }, OUTBOUND_EXPIRY_INTERVAL);
-  setTimeout(() => expireStaleOutboundSends().catch(() => {}), 90 * 1000);
-
-  // Scheduled content posts — publish anything whose time has arrived.
-  const CONTENT_SCHED_INTERVAL = 5 * 60 * 1000;
-  setInterval(() => {
-    publishScheduledPosts()
-      .catch(err => logger.error({ err }, 'Content scheduler: failed'));
-  }, CONTENT_SCHED_INTERVAL);
-
-  // Money moments + week in review — hourly tick; each fires in the
-  // beautician's own local evening window and dedupes itself.
-  const MOMENTS_INTERVAL = 60 * 60 * 1000;
-  setInterval(() => {
-    runMoneyMoments().catch(err => logger.error({ err }, 'Money moments: failed'));
-    runWeekInReview().catch(err => logger.error({ err }, 'Week in review: failed'));
-  }, MOMENTS_INTERVAL);
-  setTimeout(() => {
-    runMoneyMoments().catch(() => {});
-    runWeekInReview().catch(() => {});
-  }, 2 * 60 * 1000);
-
-  // Voice profiles — weekly distil of each beautician's own writing style.
-  const VOICE_PROFILE_INTERVAL = 7 * 24 * 60 * 60 * 1000;
-  setInterval(() => {
-    runVoiceProfileRefresh()
-      .then(r => logger.info({ r }, 'Voice profile sweep: done'))
-      .catch(err => logger.error({ err }, 'Voice profile sweep: failed'));
-  }, VOICE_PROFILE_INTERVAL);
-  // Run once after boot: deploys happen more often than weekly, so in
-  // practice this keeps profiles fresh without a persistent scheduler.
-  setTimeout(() => runVoiceProfileRefresh().catch(() => {}), 5 * 60 * 1000);
-
-  // Florrie autonomous scheduler , rebook nudges, gap posts, unanswered messages
-  const AUTONOMOUS_INTERVAL = 2 * 60 * 60 * 1000; // every 2 hours
-  setInterval(async () => {
-    try {
-      await runAutonomousCycle();
-    } catch (err) {
-      logger.error({ err }, 'Autonomous cron: cycle failed');
-    }
-  }, AUTONOMOUS_INTERVAL);
-
-  // Run first autonomous cycle 30s after startup (let DB connections settle)
-  setTimeout(() => {
-    runAutonomousCycle().catch(err => {
-      logger.error({ err }, 'Startup: autonomous cycle failed');
-    });
-  }, 30_000);
-
-  // Predictive nudges , daily at startup, then every 24 hours
-  const PREDICTIVE_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
-  setInterval(async () => {
-    try {
-      await runPredictiveNudges();
-    } catch (err) {
-      logger.error({ err }, 'Predictive nudge cron: failed');
-    }
-  }, PREDICTIVE_INTERVAL);
-
-  // Run first predictive scan 60s after startup
-  setTimeout(() => {
-    runPredictiveNudges().catch(err => {
-      logger.error({ err }, 'Startup: predictive nudge scan failed');
-    });
-  }, 60_000);
-
-  // Auto-complete past appointments: assume each one happened (mark completed +
-  // log takings) unless the beautician flags a no-show. Frequent so it feels
-  // instant; the sweep itself only touches appointments that ended in the last
-  // 48h and is idempotent. See services/auto-complete.js.
-  const AUTO_COMPLETE_INTERVAL = 10 * 60 * 1000; // every 10 minutes
-  setInterval(async () => {
-    try {
-      await autoCompletePastAppointments();
-    } catch (err) {
-      logger.error({ err }, 'Auto-complete cron: failed');
-    }
-  }, AUTO_COMPLETE_INTERVAL);
-
-  // Run first sweep 45s after startup
-  setTimeout(() => {
-    autoCompletePastAppointments().catch(err => {
-      logger.error({ err }, 'Startup: auto-complete sweep failed');
-    });
-  }, 45_000);
-
-  // Florrie heartbeat: once-daily passive checks that log real numbers to
-  // ai_actions so the Hub "What Florrie did" feed stays populated with truthful
-  // entries. See backend/src/services/florrie-heartbeat.js for the five checks.
-  // Idempotent — a beautician only gets one heartbeat per calendar day.
-  const HEARTBEAT_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
-  setInterval(async () => {
-    try {
-      await runDailyHeartbeats();
-    } catch (err) {
-      logger.error({ err }, 'Heartbeat cron: failed');
-    }
-  }, HEARTBEAT_INTERVAL);
-
-  // Run first heartbeat 30s after startup, so the feed gets fresh real rows
-  // shortly after a Railway deploy/restart.
-  setTimeout(() => {
-    runDailyHeartbeats().catch(err => {
-      logger.error({ err }, 'Startup: heartbeat run failed');
-    });
-  }, 75_000); // M8: sits between predictive (60s) and WhatsApp retry (90s) to avoid a startup CPU/pool spike
-
-  // Email sequence queue , process due emails every 15 minutes
-  const EMAIL_QUEUE_INTERVAL = 15 * 60 * 1000; // 15 minutes
-  setInterval(async () => {
-    try {
-      const result = await processEmailQueue();
-      if (result.sent > 0) logger.info(result, 'Email queue: processed');
-    } catch (err) {
-      logger.error({ err }, 'Email queue cron: failed');
-    }
-  }, EMAIL_QUEUE_INTERVAL);
-
-  // Trial expiry check , daily, triggers warning emails for expiring trials
-  const TRIAL_CHECK_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
-  setInterval(async () => {
-    try {
-      const result = await checkTrialExpiry();
-      if (result.triggered > 0) logger.info(result, 'Trial expiry: triggered sequences');
-    } catch (err) {
-      logger.error({ err }, 'Trial expiry cron: failed');
-    }
-  }, TRIAL_CHECK_INTERVAL);
-
-  // Run email queue 45s after startup
-  setTimeout(() => {
-    processEmailQueue().catch(err => {
-      logger.error({ err }, 'Startup: email queue processing failed');
-    });
-  }, 45_000);
-
-  // WhatsApp registration retry queue: picks up cooldowns once Meta has
-  // released them, and polls pending-activation numbers until they flip to
-  // CONNECTED. 5 minutes balances 1h rate-limits (need tight polling) with
-  // 24h cooldowns (no harm checking more often).
-  const WHATSAPP_RETRY_INTERVAL = 5 * 60 * 1000; // 5 minutes
-  setInterval(async () => {
-    try {
-      const result = await processWhatsAppRetryQueue();
-      if (result.processed > 0) {
-        logger.info(result, 'WhatsApp retry cron: processed queue');
-      }
-    } catch (err) {
-      logger.error({ err }, 'WhatsApp retry cron: failed');
-    }
-  }, WHATSAPP_RETRY_INTERVAL);
-
-  // Run once 90s after startup so deploys don't eat queued retries.
-  setTimeout(() => {
-    processWhatsAppRetryQueue().catch(err => {
-      logger.error({ err }, 'Startup: WhatsApp retry queue pass failed');
-    });
-  }, 90_000);
-
-  // ── Revenue + maintenance crons (ported off Railway/Cowork scheduling, C5) ──
-  const REVENUE_CRON_INTERVAL = 24 * 60 * 60 * 1000; // daily; all three are idempotent
-
-  // Comeback engine — re-engage lapsed clients.
-  setInterval(() => {
-    runComeback().catch(err => logger.error({ err }, 'Comeback cron: failed'));
-  }, REVENUE_CRON_INTERVAL);
-  setTimeout(() => {
-    runComeback().catch(err => logger.error({ err }, 'Startup: comeback pass failed'));
-  }, 120_000);
-
-  // Message surplus billing — bill completed months over the 120/month combined
-  // (SMS + WhatsApp) allowance, charged via Stripe invoice items. Idempotent.
-  // Daily interval only. The per-boot run was removed: frequent deploys meant
-  // many billing passes a day. Rows are claimed optimistically (billed=true
-  // gated on billed=false) so an overlap can never double-bill, and a daily
-  // cadence is fine for billing a frozen past month.
-  setInterval(() => {
-    billMonthlySurplus()
-      .then(r => { if (r) logger.info({ r }, 'Monthly surplus billing cron: done'); })
-      .catch(err => logger.error({ err }, 'Monthly surplus billing cron: failed'));
-  }, REVENUE_CRON_INTERVAL);
-
-  // Stripe events cleanup — prune stripe_events rows past TTL.
-  setInterval(() => {
-    cleanupStripeEvents()
-      .then(r => { if (r) logger.info({ r }, 'Stripe cleanup cron: done'); })
-      .catch(err => logger.error({ err }, 'Stripe cleanup cron: failed'));
-  }, REVENUE_CRON_INTERVAL);
-  setTimeout(() => {
-    cleanupStripeEvents().catch(err => logger.error({ err }, 'Startup: stripe cleanup failed'));
-  }, 180_000);
-
-  // ── Nightly money reconciliation ──────────────────────────────────────────
-  // Compares Stripe against the transactions ledger over the last 48h and
-  // reports what does not match. It exists because card charges failed to
-  // RECORD for weeks (a CHECK constraint rejected the insert, Supabase returns
-  // errors in the result object rather than throwing, nobody looked) and
-  // because auto-complete.js logs its takings failures into a void.
+  // One scheduler, one ledger, one leader.
   //
-  // It reports. It never repairs.
-  //
-  // Wrapped in recordJobRun so job_runs knows when it last actually worked,
-  // and so a throw lands in Sentry instead of a swallowed .catch. The startup
-  // kick is not optional: this service redeploys most days, and a bare 24h
-  // setInterval on a process that restarts every few hours never matures, so
-  // the job would appear to be scheduled while never once running.
-  const RECONCILIATION_INTERVAL = 24 * 60 * 60 * 1000;
-  setInterval(() => {
-    // recordJobRun never rejects, but an unhandled rejection here would kill
-    // the process on Node 18+, so the guard stays.
-    recordJobRun('reconciliation', runReconciliation).catch(() => {});
-  }, RECONCILIATION_INTERVAL);
-  // 4 minutes after boot: late enough that DB connections have settled and the
-  // deploy is not still thrashing, early enough that a container which only
-  // lives a few hours still runs it.
-  setTimeout(() => {
-    recordJobRun('reconciliation', runReconciliation).catch(() => {});
-  }, 4 * 60 * 1000);
+  // Registration is declarative and lives in jobs/register.js. The scheduler
+  // ticks every minute, asks job_runs which jobs have not SUCCEEDED within
+  // their own cadence, claims each one with a compare-and-swap so a second
+  // Railway replica cannot double-run it, and stamps the result. A daily job
+  // therefore runs a day after its last success rather than a day after the
+  // last deploy, which is the difference between running and not running at
+  // all.
+  const registered = registerAllJobs();
+  startScheduler();
+  logger.info({ jobs: registered }, 'Background jobs registered');
 });

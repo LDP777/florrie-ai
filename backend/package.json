@@ -7,7 +7,11 @@
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
     "build": "echo 'No build step \u2014 pure Node.js backend'",
-    "test": "node --test tests/unit/"
+    "test": "vitest run",
+    "migrate": "node scripts/migrate.js up",
+    "migrate:status": "node scripts/migrate.js status",
+    "migrate:baseline": "node scripts/migrate.js baseline",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.1",
@@ -22,6 +26,10 @@
     "stripe": "^17.0.0",
     "web-push": "^3.6.7",
     "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "pg": "^8.20.0",
+    "vitest": "^4.1.10"
   },
   "overrides": {
     "ws": "^8.21.0",

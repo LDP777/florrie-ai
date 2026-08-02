@@ -16,8 +16,11 @@
     "build:frontend": "cd frontend && npm run build",
     "build:backend": "cd backend && npm run build",
     "build:shared": "cd shared && npm run build",
-    "db:migrate": "cd supabase && npx supabase db push",
-    "db:reset": "cd supabase && npx supabase db reset"
+    "db:migrate": "node backend/scripts/migrate.js up",
+    "db:reset": "cd supabase && npx supabase db reset",
+    "test": "npm run test --workspace backend",
+    "migrate": "node backend/scripts/migrate.js up",
+    "migrate:status": "node backend/scripts/migrate.js status"
   },
   "devDependencies": {
     "pg": "^8.20.0"

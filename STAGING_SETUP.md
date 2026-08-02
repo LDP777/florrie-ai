@@ -60,7 +60,11 @@ Reference: `backend/.env.staging.example`
 ## Step 4 — Supabase staging project
 
 Option A (free): Create a separate Supabase project called `florrie-staging`.
-Run migrations against it: `psql $STAGING_DB_URL < backend/src/migrations/*.sql`
+Run migrations against it with the runner, which is the only supported way:
+`DATABASE_URL=$STAGING_DB_URL node backend/scripts/migrate.js up --force-empty`
+(`--force-empty` because a genuinely fresh database has an empty ledger and
+the runner otherwise refuses, in case you meant to baseline production.)
+See `docs/MIGRATIONS.md`.
 
 Option B (Pro plan): Use Supabase Branch Databases — a staging database branch
 is created automatically from `main` and stays in sync with schema changes.

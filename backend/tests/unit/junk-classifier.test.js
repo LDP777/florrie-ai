@@ -1,5 +1,9 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
+/**
+ * What Florrie hides from Ellie. A false positive here means a real client's
+ * message never reaches her, which is far worse than a spammer getting
+ * through, so the "never flags a real client" cases are the ones that matter.
+ */
+import { describe, it, expect } from 'vitest';
 import { classifyInboundMessage, looksLikeKnownClient } from '../../src/lib/junk-classifier.js';
 
 // The two Ellie actually received, plus the categories they represent.
@@ -29,47 +33,49 @@ const REAL = [
   "I have to cancel Friday sorry, family emergency",
 ];
 
-test('flags obvious non-client outreach', () => {
-  for (const [label, text] of JUNK) {
-    assert.equal(classifyInboundMessage(text).isJunk, true, `missed: ${label}`);
-  }
-});
+describe('junk classifier', () => {
+  it('flags obvious non-client outreach', () => {
+    for (const [label, text] of JUNK) {
+      expect(classifyInboundMessage(text).isJunk, `missed: ${label}`).toBe(true);
+    }
+  });
 
-test('never flags a real client message', () => {
-  for (const text of REAL) {
-    const result = classifyInboundMessage(text);
-    assert.equal(result.isJunk, false, `false positive on: ${text} (${result.reason})`);
-  }
-});
+  it('never flags a real client message', () => {
+    for (const text of REAL) {
+      const result = classifyInboundMessage(text);
+      expect(result.isJunk, `false positive on: ${text} (${result.reason})`).toBe(false);
+    }
+  });
 
-test('one weak signal alone is never enough', () => {
-  assert.equal(classifyInboundMessage('Hi, I came across your page and wanted to say hello to you').isJunk, false);
-  assert.equal(classifyInboundMessage('Hello there, I hope you are doing well today, just saying hi').isJunk, false);
-});
+  it('one weak signal alone is never enough', () => {
+    expect(classifyInboundMessage('Hi, I came across your page and wanted to say hello to you').isJunk).toBe(false);
+    expect(classifyInboundMessage('Hello there, I hope you are doing well today, just saying hi').isJunk).toBe(false);
+  });
 
-test('salon vocabulary beats every spam signal', () => {
-  // Deliberate false negative: better a spammer gets through than a client
-  // asking about lashes gets hidden.
-  const text = "I'm a photographer, I'd love to shoot your lash work for free, no obligation";
-  assert.equal(classifyInboundMessage(text).isJunk, false);
-});
+  it('salon vocabulary beats every spam signal', () => {
+    // Deliberate false negative: better a spammer gets through than a client
+    // asking about lashes gets hidden.
+    const text = "I'm a photographer, I'd love to shoot your lash work for free, no obligation";
+    expect(classifyInboundMessage(text).isJunk).toBe(false);
+  });
 
-test('someone she already deals with is exempt', () => {
-  const text = JUNK[0][1];
-  assert.equal(classifyInboundMessage(text).isJunk, true);
-  assert.equal(classifyInboundMessage(text, { isKnownClient: true }).isJunk, false);
-});
+  it('someone she already deals with is exempt', () => {
+    const text = JUNK[0][1];
+    expect(classifyInboundMessage(text).isJunk).toBe(true);
+    expect(classifyInboundMessage(text, { isKnownClient: true }).isJunk).toBe(false);
+  });
 
-test('short messages and media stubs are never judged', () => {
-  assert.equal(classifyInboundMessage('hi').isJunk, false);
-  assert.equal(classifyInboundMessage('[Photo]').isJunk, false);
-  assert.equal(classifyInboundMessage('').isJunk, false);
-  assert.equal(classifyInboundMessage(null).isJunk, false);
-});
+  it('short messages and media stubs are never judged', () => {
+    expect(classifyInboundMessage('hi').isJunk).toBe(false);
+    expect(classifyInboundMessage('[Photo]').isJunk).toBe(false);
+    expect(classifyInboundMessage('').isJunk).toBe(false);
+    expect(classifyInboundMessage(null).isJunk).toBe(false);
+  });
 
-test('a phone number is not evidence on the channel that supplied it', () => {
-  const fresh = { phone: '+447700900000', whatsapp_id: '447700900000', status: 'new' };
-  assert.equal(looksLikeKnownClient(fresh, { channel: 'whatsapp' }), false);
-  assert.equal(looksLikeKnownClient(fresh, { channel: 'instagram' }), true);
-  assert.equal(looksLikeKnownClient({ ...fresh, total_visits: 3 }, { channel: 'whatsapp' }), true);
+  it('a phone number is not evidence on the channel that supplied it', () => {
+    const fresh = { phone: '+447700900000', whatsapp_id: '447700900000', status: 'new' };
+    expect(looksLikeKnownClient(fresh, { channel: 'whatsapp' })).toBe(false);
+    expect(looksLikeKnownClient(fresh, { channel: 'instagram' })).toBe(true);
+    expect(looksLikeKnownClient({ ...fresh, total_visits: 3 }, { channel: 'whatsapp' })).toBe(true);
+  });
 });

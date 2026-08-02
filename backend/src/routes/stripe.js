@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requireOwned } from '../lib/ownership.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
 import { pushBookingConfirmed } from '../services/push-notifications.js';
 import { cleanupStripeEvents } from '../services/stripe-cleanup.js';
@@ -787,6 +788,17 @@ router.post('/payment-link', requireAuth, requireStripe, async (req, res) => {
   if (!req.beautician.stripe_account_id || !req.beautician.stripe_onboarding_complete) {
     return res.status(400).json({ error: 'Complete Stripe setup first' });
   }
+
+  // Both ids end up in Stripe metadata AND in the payment_links row, so an
+  // unverified one attaches a real payment to another salon's booking and the
+  // webhook then reconciles it against their books. The client_id lookup below
+  // was already scoped, but it silently carried on when it found nothing, so
+  // the foreign id was stored anyway. The service key bypasses RLS, so this is
+  // the only check. Both are optional; requireOwned skips a missing id.
+  if (!await requireOwned(req, res, [
+    { table: 'clients', id: client_id },
+    { table: 'appointments', id: appointment_id },
+  ])) return;
 
   try {
     // Destination charge: the platform pays Stripe's processing fee, so the
