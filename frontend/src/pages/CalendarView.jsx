@@ -62,6 +62,26 @@ const END_HOUR = 23;
 const MIN_CARD_PX = 56;
 // Statuses that don't count toward a day's bookings / takings / hours.
 const DEAD_STATUSES = ['cancelled', 'cancelled_by_client', 'cancelled_by_beautician', 'no_show'];
+// getDay() order, so working_hours can be looked up straight off a Date. The
+// week strip, the day grid's out-of-hours dimming and the week agenda all read
+// her hours the same way; they used to each carry their own copy of this.
+const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+// Density dots on the strip stop at five. Past that the shape of the day is
+// already "full" and a sixth dot tells her nothing she would act on.
+const STRIP_MAX_DOTS = 5;
+// A horizontal swipe has to travel a decent distance AND clearly beat the
+// vertical drift, or a scroll down the diary would start flicking days past
+// her. Same test for both swipes on this screen so they feel like one gesture.
+const SWIPE_MIN_PX = 56;
+const SWIPE_RATIO = 1.4;
+/** -1 (backwards), 1 (forwards) or 0 (that was not a swipe). */
+function swipeDirection(start, x, y) {
+  if (!start) return 0;
+  const dx = x - start.x;
+  const dy = y - start.y;
+  if (Math.abs(dx) < SWIPE_MIN_PX || Math.abs(dx) < Math.abs(dy) * SWIPE_RATIO) return 0;
+  return dx < 0 ? 1 : -1;   // dragging left pulls the next day/week in from the right
+}
 
 /** Wall-clock minutes since midnight, read straight off the stored string
  *  ("2026-06-12T14:00:00..." -> 840) so no browser timezone ever shifts it. */
@@ -239,6 +259,11 @@ export default function CalendarView({ initialView } = {}) {
     if (params.get('view') === 'day') setView('day');
   }, [location.search]);
   const [appointments, setAppointments] = useState([]);
+  // Bookings per day for the visible week, keyed 'YYYY-MM-DD', for the strip's
+  // density dots. `null` means the read failed, which is NOT the same as an
+  // empty week: the strip then shows no dots at all rather than drawing seven
+  // quiet days she would plan around.
+  const [weekCounts, setWeekCounts] = useState(null);
   // Extra treatments are stored on the appointment as bare uuids, so the cards
   // and the week rows need a name for each one. Loaded once for the whole
   // page: it is a handful of rows and it never changes mid-session.
@@ -268,6 +293,44 @@ export default function CalendarView({ initialView } = {}) {
     })();
     return () => { cancelled = true; };
   }, [beautician?.id]);
+
+  // The strip needs a count for all seven days, but day view only ever fetches
+  // the one day it is showing. This is a separate, deliberately tiny query (two
+  // columns, no joins) that runs alongside the main one, so the day's own
+  // appointments still paint on the main fetch without waiting for the dots.
+  // Keyed on the WEEK, not the day: tapping through days inside a week costs
+  // nothing, which is what makes the strip feel still.
+  const weekStartKey = formatDate(getWeekStart(currentDate));
+  const weekEndKey = formatDate(getWeekEnd(currentDate));
+  useEffect(() => {
+    if (!beautician?.id) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('starts_at, status')
+        .eq('beautician_id', beautician.id)
+        .gte('starts_at', `${weekStartKey}T00:00:00Z`)
+        .lte('starts_at', `${weekEndKey}T23:59:59Z`);
+      if (cancelled) return;
+      // An unchecked select that comes back null renders as "nothing there",
+      // and on a row of dots that is indistinguishable from a genuinely quiet
+      // week. Say "unknown" and drop the dots instead of lying about her diary.
+      if (error) {
+        logger.error('Week counts error:', error);
+        setWeekCounts(null);
+        return;
+      }
+      const counts = {};
+      for (const a of data || []) {
+        if (DEAD_STATUSES.includes(a.status)) continue;   // a cancellation is not a booking
+        const key = String(a.starts_at || '').slice(0, 10);   // stored wall date, never Intl-converted
+        if (key) counts[key] = (counts[key] || 0) + 1;
+      }
+      setWeekCounts(counts);
+    })();
+    return () => { cancelled = true; };
+  }, [beautician?.id, weekStartKey, weekEndKey]);
 
   // Deep-link to a specific appointment (?appt=<id>): once that day's
   // appointments have loaded, open its detail. The selection effect further
@@ -464,9 +527,18 @@ export default function CalendarView({ initialView } = {}) {
       alert(err.message || 'Could not move the appointment. Please try again.');
     }
   }
-  // Week strip swipe: start point + horizontal-intent lock, so a horizontal
-  // flick moves a week without hijacking vertical page scrolling.
-  const stripTouch = useRef(null);
+  // Two horizontal swipes live on this screen and the gesture has to match
+  // whatever is under her thumb: sideways on the STRIP moves a week, sideways
+  // on the DAY GRID moves a day. Both hold their start point here and use the
+  // same intent test, so neither can be triggered by a vertical scroll.
+  const stripSwipe = useRef(null);
+  const gridSwipe = useRef(null);
+  // A committed swipe still ends in a pointerup, which the browser can turn
+  // into a click on whatever happens to be under the finger. These swallow
+  // exactly one such click. Every fresh pointerdown clears them, so a guard
+  // that was never spent cannot survive into a later, genuine tap.
+  const stripSwipeGuard = useRef(false);
+  const gridSwipeGuard = useRef(false);
   const lastScrollKey = useRef(null);
   useEffect(() => {
     if (beautician) {
@@ -629,15 +701,41 @@ export default function CalendarView({ initialView } = {}) {
       logger.error('Delete time block error:', err);
     }
   }
-  function navigateDate(direction) {
-    const delta = view === 'day' ? 1 : 7;
+  /** Move the whole strip a week. The arrows meant "one day" in day view and
+   *  "one week" in week view, which is one control with two meanings; days are
+   *  now picked on the strip, so the arrows only ever do the one thing the
+   *  strip cannot be tapped to do. */
+  function navigateWeek(direction) {
     const newDate = new Date(currentDate);
-    newDate.setDate(newDate.getDate() + (direction * delta));
+    newDate.setDate(newDate.getDate() + direction * 7);
+    setCurrentDate(newDate);
+  }
+  /** Move a day. Used by the swipe across the day grid. */
+  function navigateDay(direction) {
+    const newDate = new Date(currentDate);
+    newDate.setDate(newDate.getDate() + direction);
     setCurrentDate(newDate);
   }
   function getAppointmentsForDate(date) {
     const dateStr = formatDate(date);
     return appointments.filter(a => a.starts_at?.startsWith(dateStr));
+  }
+  /**
+   * Bookings on a day, for the strip's dots.
+   *
+   * Whatever range is already loaded into `appointments` is the authority: it
+   * reflects a drag-to-move or a delete the instant it lands, where the week
+   * count query would not refresh until she left the week. Anything outside
+   * that range falls back to the counts. `null` means unknown, not zero, and
+   * is why the caller draws nothing rather than an empty day.
+   */
+  function stripCountFor(day) {
+    const key = formatDate(day);
+    const loadedHere = view === 'week' || key === formatDate(currentDate);
+    if (loadedHere && !loading) {
+      return appointments.filter(a => a.starts_at?.startsWith(key) && !DEAD_STATUSES.includes(a.status)).length;
+    }
+    return weekCounts ? (weekCounts[key] || 0) : null;
   }
   // After a one-tap complete, jump straight to the next client still needing
   // action that day (earliest first), so Ellie never scrolls back up the list.
@@ -685,8 +783,6 @@ export default function CalendarView({ initialView } = {}) {
     return 0;
   }
   const weekDays = getWeekDays();
-  const weekMonthName = getWeekStart(currentDate).toLocaleDateString('en-GB', { month: 'long' });
-  const weekNumber = Math.ceil((currentDate.getDate() + 6 - currentDate.getDay()) / 7);
   const gapsToday = countGapsToday();
   const waitlistMatches = countWaitlistMatches();
   const showInsightsPill = view === 'day' && (gapsToday > 0 || waitlistMatches > 0);
@@ -694,7 +790,11 @@ export default function CalendarView({ initialView } = {}) {
     <div style={styles.page}>
       <div style={styles.header}>
         <div style={styles.headerTop}>
-          <button onClick={() => navigateDate(-1)} style={styles.navBtn}>‹</button>
+          {/* Always a WEEK, in both views. Days are chosen on the strip below,
+              so these are the only thing that has to stay a button: swiping is
+              the fast way to move a week, and a swipe is no use on a desktop or
+              to a keyboard. */}
+          <button onClick={() => navigateWeek(-1)} aria-label="Previous week" style={styles.navBtn}>‹</button>
           <div style={styles.headerCenter}>
             <h1 style={styles.dateTitle}>
               {view === 'day'
@@ -703,103 +803,169 @@ export default function CalendarView({ initialView } = {}) {
             </h1>
             <button onClick={() => setCurrentDate(new Date())} style={styles.todayBtn}>Today</button>
           </div>
-          <button onClick={() => navigateDate(1)} style={styles.navBtn}>›</button>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          {!initialView && (
-            <div style={styles.viewToggle}>
-              <button onClick={() => setView('day')} style={{ ...styles.toggleBtn, background: view === 'day' ? COLORS.primary : 'transparent', color: view === 'day' ? '#fff' : COLORS.stone400 }}>Day</button>
-              <button onClick={() => setView('week')} style={{ ...styles.toggleBtn, background: view === 'week' ? COLORS.primary : 'transparent', color: view === 'week' ? '#fff' : COLORS.stone400 }}>Week</button>
-            </div>
-          )}
-          {/* Embedded on the Hub week tab: tapping a day chip opens day view,
-              and this is the way back. Without it Ellie was stuck in day
-              view with no route home. */}
-          {initialView === 'week' && view === 'day' && (
-            <button
-              onClick={() => setView('week')}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, minHeight: 40, padding: '8px 14px', borderRadius: 999, border: 'none', background: 'var(--tone-2, #f6e7dd)', color: COLORS.primary, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', WebkitTapHighlightColor: 'transparent' }}
-            >
-              ‹ Calendar
-            </button>
-          )}
-          <button
-            onClick={() => navigate('/calendar/full')}
-            title="Open full calendar"
-            aria-label="Open full calendar"
-            style={{ height: 36, width: 36, borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #fff)', color: COLORS.stone400, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 18, fontVariationSettings: "'FILL' 0, 'wght' 300" }}>open_in_full</span>
-          </button>
-          <button
-            onClick={() => setShowBlockModal(true)}
-            title="Block time"
-            style={{ height: 36, padding: '0 12px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #fff)', color: COLORS.stone400, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit' }}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 15, fontVariationSettings: "'FILL' 0, 'wght' 300" }}>event_busy</span>
-            Block
-          </button>
-          {view === 'day' && (
-            <button
-              onClick={handleMarkAllDone}
-              disabled={markingAllDone}
-              title="Mark all done"
-              style={{ height: 36, padding: '0 12px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #fff)', color: '#5BA67F', cursor: markingAllDone ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', opacity: markingAllDone ? 0.6 : 1 }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: 15, fontVariationSettings: "'FILL' 0, 'wght' 300" }}>done_all</span>
-              {markingAllDone ? '…' : 'All done'}
-            </button>
-          )}
+          <button onClick={() => navigateWeek(1)} aria-label="Next week" style={styles.navBtn}>›</button>
         </div>
       </div>
-      {/* Weekly Date Strip (shared for both views). Swipe it sideways to
-          move a week at a time - left for next, right for last. */}
+
+      {/*
+        THE WEEK STRIP. It sits under the date in both views and it is the one
+        thing on this screen that never moves: tapping a day changes only the
+        schedule below it, so the week she is planning stays in front of her
+        instead of being swapped out for it. Swipe it sideways to move a week.
+      */}
       <div
-        style={{ ...styles.weeklyStripContainer, touchAction: 'pan-y' }}
-        onTouchStart={e => {
-          stripTouch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        style={{ ...styles.weeklyStripContainer, touchAction: 'pan-y pinch-zoom' }}
+        onPointerDown={e => {
+          stripSwipeGuard.current = false;
+          stripSwipe.current = { x: e.clientX, y: e.clientY };
         }}
-        onTouchEnd={e => {
-          const start = stripTouch.current;
-          stripTouch.current = null;
-          if (!start) return;
-          const dx = e.changedTouches[0].clientX - start.x;
-          const dy = e.changedTouches[0].clientY - start.y;
-          // Horizontal intent only: a decent sideways travel that clearly
-          // beats the vertical drift. Anything else is a scroll or a tap.
-          if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
-          const d = new Date(currentDate);
-          d.setDate(d.getDate() + (dx < 0 ? 7 : -7));
-          setCurrentDate(d);
+        onPointerUp={e => {
+          const dir = swipeDirection(stripSwipe.current, e.clientX, e.clientY);
+          stripSwipe.current = null;
+          if (!dir) return;
+          // The finger lifts over a day button, so the browser is about to fire
+          // a click on it. Swallow that one, or every week swipe would also
+          // select whichever day it happened to land on.
+          stripSwipeGuard.current = true;
+          navigateWeek(dir);
+        }}
+        onPointerCancel={() => { stripSwipe.current = null; }}
+        onClickCapture={e => {
+          if (!stripSwipeGuard.current) return;
+          stripSwipeGuard.current = false;
+          e.stopPropagation();
+          e.preventDefault();
         }}
       >
-        <div style={styles.weeklyStripHeader}>
-          <span style={styles.weeklyStripMonth}>{weekMonthName} WEEK {weekNumber}</span>
-        </div>
         <div style={styles.weeklyStrip}>
-          {weekDays.map(day => (
-            <button
-              key={day.toISOString()}
-              onClick={() => { setCurrentDate(day); setView('day'); }}
-              style={{
-                ...styles.weeklyStripDay,
-                // The filled pill follows the SELECTED day; today keeps a soft
-                // outline when it isn't the one selected.
-                background: isSameDay(day, currentDate) ? COLORS.primary : 'transparent',
-                color: isSameDay(day, currentDate) ? '#fff' : isToday(day) ? COLORS.primary : COLORS.onSurface,
-                boxShadow: isSameDay(day, currentDate) ? `0 4px 10px rgba(146, 64, 94, 0.15)` : 'none',
-                border: !isSameDay(day, currentDate) && isToday(day) ? `1.5px solid rgba(146, 64, 94, 0.35)` : '1.5px solid transparent',
-              }}
-            >
-              <span style={styles.weeklyStripDayName}>{day.toLocaleDateString('en-GB', { weekday: 'short' })}</span>
-              <span style={styles.weeklyStripDayNumber}>{day.getDate()}</span>
-            </button>
-          ))}
+          {weekDays.map(day => {
+            const selected = isSameDay(day, currentDate);
+            const wh = beautician?.working_hours?.[DAY_KEYS[day.getDay()]];
+            // Only call a day off once her hours have actually loaded, or every
+            // day would look shut for the first frame.
+            const dayOff = !!beautician?.working_hours && !(wh?.start && wh?.end);
+            // A day off is dimmed and, being empty, draws no dots. It is not
+            // FORCED to zero though: clients do get squeezed in on a Sunday and
+            // hiding that booking would be the same silent lie as an unchecked
+            // select rendering as an empty diary.
+            const count = stripCountFor(day);
+            const dayLabel = day.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+            const bookings = count == null ? 'bookings not loaded' : `${count} booking${count === 1 ? '' : 's'}`;
+            const countLabel = dayOff ? (count ? `day off, ${bookings}` : 'day off') : bookings;
+            return (
+              <button
+                key={day.toISOString()}
+                onClick={() => { setCurrentDate(day); setView('day'); }}
+                aria-current={selected ? 'date' : undefined}
+                aria-label={`${dayLabel}, ${countLabel}`}
+                style={{
+                  ...styles.weeklyStripDay,
+                  // Filled maroon chip follows the SELECTED day. Today, when it
+                  // is not the selected one, only tints its text: a second
+                  // strong marker would make her hunt for which one she is on.
+                  background: selected ? COLORS.primary : 'transparent',
+                  color: selected ? '#fff' : isToday(day) ? COLORS.primary : COLORS.onSurface,
+                  boxShadow: selected ? '0 4px 10px rgba(146, 64, 94, 0.15)' : 'none',
+                  // A day she does not work is still tappable (clients do turn
+                  // up on a Sunday) but it recedes.
+                  opacity: dayOff && !selected ? 0.38 : 1,
+                }}
+              >
+                <span style={styles.weeklyStripDayName}>{day.toLocaleDateString('en-GB', { weekday: 'narrow' })}</span>
+                <span style={styles.weeklyStripDayNumber}>{day.getDate()}</span>
+                {/* Density, not data. Capped, never a number: she reads busy or
+                    quiet off this in a glance and taps the day for the detail.
+                    Fixed height so the row does not jump as the counts land. */}
+                <span style={styles.weeklyStripDots} aria-hidden="true">
+                  {!count ? null : Array.from({ length: Math.min(count, STRIP_MAX_DOTS) }, (_, i) => (
+                    <span
+                      key={i}
+                      style={{ ...styles.weeklyStripDot, background: selected ? 'rgba(255, 255, 255, 0.85)' : COLORS.primary }}
+                    />
+                  ))}
+                </span>
+              </button>
+            );
+          })}
         </div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end', marginBottom: 14 }}>
+        {/* ONE view control, rendered whether this is embedded on the Hub or
+            routed on its own, so the screen does not change shape depending on
+            how she got here. The "back to Calendar" button that used to appear
+            only in the embedded case is gone: with the strip on screen, day
+            view is not somewhere she needs a way out of. */}
+        <div style={styles.viewToggle} role="group" aria-label="Calendar view">
+          <button onClick={() => setView('day')} aria-pressed={view === 'day'} style={{ ...styles.toggleBtn, background: view === 'day' ? COLORS.primary : 'transparent', color: view === 'day' ? '#fff' : COLORS.stone400 }}>Day</button>
+          <button onClick={() => setView('week')} aria-pressed={view === 'week'} style={{ ...styles.toggleBtn, background: view === 'week' ? COLORS.primary : 'transparent', color: view === 'week' ? '#fff' : COLORS.stone400 }}>Week</button>
+        </div>
+        <button
+          onClick={() => navigate('/calendar/full')}
+          title="Open full calendar"
+          aria-label="Open full calendar"
+          style={{ height: 36, width: 36, borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #fff)', color: COLORS.stone400, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 18, fontVariationSettings: "'FILL' 0, 'wght' 300" }}>open_in_full</span>
+        </button>
+        <button
+          onClick={() => setShowBlockModal(true)}
+          title="Block time"
+          style={{ height: 36, padding: '0 12px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #fff)', color: COLORS.stone400, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit' }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 15, fontVariationSettings: "'FILL' 0, 'wght' 300" }}>event_busy</span>
+          Block
+        </button>
+        {view === 'day' && (
+          <button
+            onClick={handleMarkAllDone}
+            disabled={markingAllDone}
+            title="Mark all done"
+            style={{ height: 36, padding: '0 12px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #fff)', color: '#5BA67F', cursor: markingAllDone ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', opacity: markingAllDone ? 0.6 : 1 }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 15, fontVariationSettings: "'FILL' 0, 'wght' 300" }}>done_all</span>
+            {markingAllDone ? '…' : 'All done'}
+          </button>
+        )}
       </div>
       {/* Day View with Timeline Grid */}
       {view === 'day' && (
-        <div ref={gridScrollRef} style={styles.dayGrid}>
+        <div
+          ref={gridScrollRef}
+          // pan-y leaves the vertical scroll to the browser and hands us the
+          // sideways movement, which is what makes a horizontal swipe here
+          // possible at all without fighting the diary's own scrolling.
+          style={{ ...styles.dayGrid, touchAction: 'pan-y pinch-zoom' }}
+          onPointerDown={e => {
+            gridSwipeGuard.current = false;
+            gridSwipe.current = { x: e.clientX, y: e.clientY };
+          }}
+          onPointerMove={() => {
+            // She is moving an appointment, not the day: stand down. The two
+            // cannot both fire anyway (beginCardDrag drops the lift the moment
+            // the finger travels 8px, long before 56px counts as a swipe) but a
+            // lift that was already active before this gesture must not have
+            // the day change out from under it.
+            if (dragRef.current?.active) gridSwipe.current = null;
+          }}
+          onPointerUp={e => {
+            const dir = swipeDirection(gridSwipe.current, e.clientX, e.clientY);
+            gridSwipe.current = null;
+            if (!dir) return;
+            gridSwipeGuard.current = true;
+            navigateDay(dir);
+          }}
+          onPointerCancel={() => { gridSwipe.current = null; }}
+          onClickCapture={e => {
+            // The pointerup that ended the swipe can still become a click on a
+            // card or a block chip. Swallow exactly one, here at the top, so no
+            // individual card has to know that swiping exists.
+            if (!gridSwipeGuard.current) return;
+            gridSwipeGuard.current = false;
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+        >
           <div style={{ ...styles.timeColumn, height: (END_HOUR - START_HOUR) * HOUR_HEIGHT }}>
             {Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => (
               <div key={i} style={{ ...styles.timeLabel, top: i * HOUR_HEIGHT }}>
@@ -810,8 +976,7 @@ export default function CalendarView({ initialView } = {}) {
           <div style={{ ...styles.appointmentColumn, height: (END_HOUR - START_HOUR) * HOUR_HEIGHT }}>
             {/* Outside-working-hours dimming. Visual only, never blocks taps. */}
             {(() => {
-              const dayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][currentDate.getDay()];
-              const wh = beautician?.working_hours?.[dayKey];
+              const wh = beautician?.working_hours?.[DAY_KEYS[currentDate.getDay()]];
               const fullHeight = (END_HOUR - START_HOUR) * HOUR_HEIGHT;
               const bands = [];
               if (wh?.start && wh?.end) {
@@ -923,7 +1088,7 @@ export default function CalendarView({ initialView } = {}) {
             {/* While a card is lifted: the time it will land on, live */}
             {dragMove && (
               <div style={{ position: 'absolute', top: Math.max(0, dragMove.top - 26), right: 8, zIndex: 11, background: COLORS.primary, color: '#fff', borderRadius: 8, padding: '3px 9px', fontSize: 12, fontWeight: 700, pointerEvents: 'none', fontVariantNumeric: 'tabular-nums' }}>
-                {minToHHMM(dragMove.startMin)} – {minToHHMM(dragMove.startMin + dragMove.durMin)}
+                {minToHHMM(dragMove.startMin)} to {minToHHMM(dragMove.startMin + dragMove.durMin)}
               </div>
             )}
             {/* Time block overlays */}
@@ -1085,8 +1250,7 @@ export default function CalendarView({ initialView } = {}) {
             const takingsPence = live.reduce((s, a) => s + (a.price_cents || a.treatments?.price_cents || 0), 0);
             const workedMins = live.reduce((s, a) => s + Math.max(0, wallMinutes(a.ends_at || a.starts_at) - wallMinutes(a.starts_at)), 0);
             const hours = workedMins / 60;
-            const dayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][day.getDay()];
-            const wh = beautician?.working_hours?.[dayKey];
+            const wh = beautician?.working_hours?.[DAY_KEYS[day.getDay()]];
             const dayOff = !!beautician?.working_hours && !(wh?.start && wh?.end);
             const today = isToday(day);
             return (
@@ -2536,7 +2700,7 @@ function getWeekEnd(d) { const e = getWeekStart(d); e.setDate(e.getDate() + 6); 
 function getNowPosition() { const now = new Date(); return ((now.getHours() * 60 + now.getMinutes() - START_HOUR * 60) / 60) * HOUR_HEIGHT; }
 const styles = {
   page: { minHeight: '100vh', background: 'var(--bg)', fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)", padding: '0 16px 120px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)', animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' },
-  header: { paddingTop: 8, paddingBottom: 16 },
+  header: { paddingTop: 8 },
   headerTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   headerCenter: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 },
   dateTitle: { fontSize: 17, fontWeight: 600, margin: 0, textAlign: 'center', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
@@ -2544,17 +2708,21 @@ const styles = {
   navBtn: { background: 'none', border: 'none', fontSize: 28, color: COLORS.stone400, cursor: 'pointer', padding: '0 8px', minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
   viewToggle: { display: 'flex', gap: 3, background: 'var(--card-bg, #fff)', borderRadius: 12, padding: 3, border: `1px solid ${COLORS.outlineVariant}` },
   toggleBtn: { flex: 1, padding: '6px 14px', minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'inherit' },
-  // Weekly Date Strip
-  weeklyStripContainer: { marginBottom: 20, background: COLORS.surfaceContainerLow, borderRadius: 24, padding: '12px 16px', position: 'relative' },
-  weeklyStripHeader: { marginBottom: 12 },
-  weeklyStripMonth: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: COLORS.stone400 },
-  weeklyStrip: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 8 },
-  weeklyStripDay: { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '8px 4px', borderRadius: 12, border: 'none', cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s ease' },
-  weeklyStripDayName: { fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' },
-  weeklyStripDayNumber: { fontSize: 16, fontWeight: 700, marginTop: 2 },
+  // Weekly Date Strip. The month label and the made-up "WEEK 5" that used to
+  // sit above it are gone: the title directly above already says the date, and
+  // the closer the seven days sit to it the more they read as one control.
+  weeklyStripContainer: { marginBottom: 14, background: COLORS.surfaceContainerLow, borderRadius: 24, padding: '8px 10px', position: 'relative' },
+  weeklyStrip: { display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 },
+  // 56px tall, and seven columns of a 480px page leave roughly 57px each, so
+  // every day clears the 44px thumb minimum on its own.
+  weeklyStripDay: { minHeight: 56, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '7px 2px', borderRadius: 14, border: 'none', cursor: 'pointer', fontFamily: 'inherit', transition: 'background 0.18s ease, color 0.18s ease, opacity 0.18s ease', WebkitTapHighlightColor: 'transparent' },
+  weeklyStripDayName: { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.7 },
+  weeklyStripDayNumber: { fontSize: 16, fontWeight: 700, marginTop: 1, fontVariantNumeric: 'tabular-nums' },
+  weeklyStripDots: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, height: 4, marginTop: 5 },
+  weeklyStripDot: { width: 4, height: 4, borderRadius: '50%' },
   // Day View Timeline. The grid scrolls inside its own container so the
   // full 06:00-23:00 day fits and we can auto-scroll to the first booking.
-  dayGrid: { display: 'flex', gap: 0, background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, overflowY: 'auto', overflowX: 'hidden', maxHeight: 'calc(100dvh - 300px)', minHeight: 420, WebkitOverflowScrolling: 'touch' },
+  dayGrid: { display: 'flex', gap: 0, background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, overflowY: 'auto', overflowX: 'hidden', maxHeight: 'calc(100dvh - 280px)', minHeight: 420, WebkitOverflowScrolling: 'touch' },
   timeColumn: { width: 56, position: 'relative', borderRight: `1px solid ${COLORS.outlineVariant}33`, flexShrink: 0 },
   timeLabel: { position: 'absolute', right: 8, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: COLORS.stone400, transform: 'translateY(-6px)' },
   appointmentColumn: { flex: 1, position: 'relative' },
