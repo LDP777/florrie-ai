@@ -86,6 +86,7 @@ import whatsappConfigRoutes from './routes/whatsapp-config.js';
 import coachRoutes from './routes/coach.js';
 import courseRoutes from './routes/courses.js';
 import suggestionsRoutes from './routes/suggestions.js';
+import florrieThinksRoutes from './routes/florrie-thinks.js';
 import outboundRoutes from './routes/outbound.js';
 import calendarRoutes from './routes/calendar.js';
 import knowledgeRoutes from './routes/knowledge.js';
@@ -279,6 +280,7 @@ app.use('/api/coach', apiLimiter, coachRoutes);
 app.use('/api/instagram', apiLimiter, instagramRoutes);
 app.use('/api/courses', bookingLimiter, courseRoutes); // public course enrollment API
 app.use('/api/suggestions', apiLimiter, suggestionsRoutes);
+app.use('/api/florrie-thinks', apiLimiter, florrieThinksRoutes); // the rebuilt, grounded Florrie-thinks feed
 app.use('/api/outbound', apiLimiter, outboundRoutes); // Florrie's outbox: review/approve proactive sends
 app.use('/api/calendar', apiLimiter, calendarRoutes); // private iCal subscribe feed + sync URLs
 app.use('/api/knowledge', apiLimiter, knowledgeRoutes); // the salon's own notes, what the AI front desk may quote

@@ -14,7 +14,7 @@ import { API_BASE } from '../lib/config.js';
  * Pulls:
  *   - Yesterday's revenue / no-shows from /api/money/pulse (or the activity feed)
  *   - Today's appointments from /api/appointments
- *   - Suggestion count from /api/suggestions
+ *   - Suggestion count from /api/florrie-thinks (the grounded feed)
  *   - Heads-up from the suggestion stream (first high-priority)
  */
 
@@ -158,7 +158,9 @@ async function loadData(beautician) {
       { headers: h }
     ).catch(() => null),
     fetch(`${API_BASE}/api/money/pulse`, { headers: h }).catch(() => null),
-    fetch(`${API_BASE}/api/suggestions`, { headers: h }).catch(() => null),
+    // Same source as the cards below, so the brief's count can never disagree
+    // with what actually renders.
+    fetch(`${API_BASE}/api/florrie-thinks`, { headers: h }).catch(() => null),
   ]);
 
   let todayCount = null, firstAppt = null;
@@ -194,7 +196,7 @@ async function loadData(beautician) {
   let suggestionCount = 0;
   if (suggRes?.ok) {
     const sj = await suggRes.json();
-    const list = sj.suggestions || [];
+    const list = sj.cards || [];
     suggestionCount = list.length;
     // Don't echo the first suggestion verbatim - the cards below carry the
     // detail. The brief just previews how many things need a look.

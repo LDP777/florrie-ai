@@ -613,6 +613,20 @@ async function fromBookingSuggestions(beauticianId) {
 
   if (error || !data || !data.length) return [];
 
+  // LEGACY PURGE, server side: a stored suggestion whose date has passed, or
+  // one that cannot name its client, must never render anywhere. The August
+  // incident was this exact table serving "Thu 25 Jun, book it in?" months
+  // late, for nobody in particular, with a Book button that would have written
+  // a June date into the diary. Rows are filtered, not deleted; the new
+  // /api/florrie-thinks endpoint also retires past-dated rows to 'dismissed'.
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const live = data.filter(row =>
+    row.clients?.first_name?.trim()
+    && row.suggested_date
+    && String(row.suggested_date).slice(0, 10) >= todayStr
+  );
+  if (!live.length) return [];
+
   // Price each suggested treatment by name so the card shows real money at stake.
   const { data: treatments } = await supabase
     .from('treatments')
@@ -622,8 +636,8 @@ async function fromBookingSuggestions(beauticianId) {
     (treatments || []).map(t => [(t.name || '').trim().toLowerCase(), t.price_cents || 0])
   );
 
-  return data.map(row => {
-    const first = row.clients?.first_name?.trim() || 'a client';
+  return live.map(row => {
+    const first = row.clients.first_name.trim();
     const dateLong = formatShortDate(row.suggested_date);
     const time = row.suggested_time ? ` at ${String(row.suggested_time).slice(0, 5)}` : '';
     const calendarDate = isoDateOnly(row.suggested_date);

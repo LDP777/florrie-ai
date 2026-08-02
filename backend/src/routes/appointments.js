@@ -1147,8 +1147,10 @@ router.get('/:id/manage-link', requireAuth, async (req, res) => {
   });
 });
 
-/** Does this client still have an unbooked patch test on file? */
-async function clientNeedsPatchTest(beauticianId, clientId) {
+/** Does this client still have an unbooked patch test on file? Exported so
+ * the Florrie-thinks feed grounds its patch-test card in the same rule the
+ * appointment sheet uses, rather than growing a second definition. */
+export async function clientNeedsPatchTest(beauticianId, clientId) {
   if (!clientId) return false;
   const { data, error } = await supabase
     .from('patch_tests')
