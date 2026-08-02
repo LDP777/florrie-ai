@@ -15,7 +15,7 @@
  *   TWILIO_ACCOUNT_SID   ACxxxxxxxx... (console home page)
  *   TWILIO_AUTH_TOKEN    auth token (also used for webhook signatures)
  *   TWILIO_CONTENT_SIDS  optional JSON map templateName -> ContentSid,
- *                        e.g. {"booking_confirmation_v3":"HX..."}
+ *                        e.g. {"booking_confirmation_v4":"HX..."}
  */
 import crypto from 'node:crypto';
 import logger from '../lib/logger.js';
@@ -170,9 +170,19 @@ export async function twilioSendTemplate({ to, contentSid, variables, sender }) 
 
 /**
  * Content SID lookup: env-driven JSON map, parsed once.
- * TWILIO_CONTENT_SIDS = {"booking_confirmation_v3":"HX...", ...}
- * This stands in for a proper DB-backed template registry until the Week 1
- * template-sync job (sprint item 4) lands. Returns null when unmapped.
+ * TWILIO_CONTENT_SIDS = {"booking_confirmation_v4":"HX...", ...}
+ *
+ * One global map is CORRECT for the shared _v4 templates: they carry no salon
+ * name, so a SID identifies a message, not a tenant. It would not have been
+ * correct for the old _v3 pack, where each salon needed her own wording.
+ *
+ * Twilio content variables are positional ({"1": ..., "2": ...}), so each
+ * Content Template must be authored with the parameter order declared for
+ * that name in lib/whatsapp-templates.js. For the _v4 set that means the
+ * salon name is variable 2 in every one of them.
+ *
+ * Returns null when unmapped, which the sender treats as "fall back to the
+ * previous version, or to free-form inside the 24-hour window".
  */
 let _contentSids = null;
 export function twilioContentSid(templateName) {

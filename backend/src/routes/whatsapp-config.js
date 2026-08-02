@@ -42,6 +42,7 @@ import logger from '../lib/logger.js';
 import { getAppSecret } from '../lib/env.js';
 import { requireAuth } from '../middleware/auth.js';
 import { getMonthlyUsage } from '../services/whatsapp-metering.js';
+import { starterPack, exampleValuesFor } from '../lib/whatsapp-templates.js';
 
 const router = express.Router();
 router.use(requireAuth);
@@ -1597,8 +1598,13 @@ async function resolveTemplateWaba(beauticianId) {
 /**
  * Build Meta template components from plain text fields, attaching the
  * example values Meta requires for every {{n}} placeholder.
+ *
+ * `bodyExamples` lets a caller pass the right example per SLOT. The starter
+ * pack needs this: the salon name is now a parameter, and which position it
+ * sits in differs per template, so a fixed positional sample list would offer
+ * Meta a date where the salon name belongs.
  */
-function buildTemplateComponents({ headerText, bodyText, footerText }) {
+function buildTemplateComponents({ headerText, bodyText, footerText, bodyExamples = null }) {
   const sampleValues = ['Sarah', 'Friday 6 June', '2pm', 'Brow Lamination', 'Monday', '10am'];
   const placeholderCount = (t) => {
     const nums = [...String(t).matchAll(/\{\{\s*(\d+)\s*\}\}/g)].map((m) => parseInt(m[1], 10));
@@ -1614,34 +1620,33 @@ function buildTemplateComponents({ headerText, bodyText, footerText }) {
   }
   const bodyComp = { type: 'BODY', text: bodyText };
   const bn = placeholderCount(bodyText);
-  if (bn > 0) bodyComp.example = { body_text: [exampleList(bn)] };
+  if (bn > 0) {
+    const examples = Array.isArray(bodyExamples) && bodyExamples.length === bn ? bodyExamples : exampleList(bn);
+    bodyComp.example = { body_text: [examples] };
+  }
   components.push(bodyComp);
   if (footerText) components.push({ type: 'FOOTER', text: footerText });
   return components;
 }
 
 /**
- * The personalised starter pack: the five standard templates Florrie sends,
- * with the salon's own name written into every body so clients always know
- * who is messaging them (display names only show on the contact card, the
- * message itself is what people read). Placeholder counts MUST match what
- * the senders in notifications.js / gap-fill-engine.js / automations.js /
- * autonomous-scheduler.js pass for the matching _v2 names.
+ * The starter pack: the five standard messages Florrie sends.
+ *
+ * These used to be personalised, with each salon's own name written into
+ * every body. That was a multi-tenancy bug, not a feature: all beauticians
+ * register onto ONE shared WABA, template names are global there, and
+ * creation skips names that already exist. So the first salon to submit
+ * "booking_confirmation_v3" owned the wording, and everyone after her sent
+ * confirmations signed with HER business name.
+ *
+ * The _v4 pack takes the salon name as a parameter instead. One shared set
+ * serves every tenant, which also respects Meta's per-WABA template limit and
+ * means one review queue rather than one per customer. The bodies and their
+ * parameter order live in lib/whatsapp-templates.js, alongside the senders
+ * that fill them in.
  */
-function starterPackFor(businessName) {
-  const biz = String(businessName || '').trim() || 'your salon';
-  return [
-    { name: 'booking_confirmation_v3', category: 'UTILITY', label: 'Booking confirmation',
-      body: `Hi {{1}}! It's ${biz} 🌸 Your appointment is confirmed for {{2}} at {{3}}. Reply here if anything needs changing. See you then!` },
-    { name: 'reminder_24h_v3', category: 'UTILITY', label: '24-hour reminder',
-      body: `Hi {{1}}, it's ${biz}! A little reminder that your {{2}} is tomorrow at {{3}}. Reply if you need to reschedule. See you soon 🌸` },
-    { name: 'gap_fill_offer_v3', category: 'MARKETING', label: 'Last-minute gap offer',
-      body: `Hi {{1}}, it's ${biz}! A spot has just opened up on {{2}} at {{3}}. Fancy it? Reply YES and it's yours, or tell me a time that suits.` },
-    { name: 'rebook_nudge_v3', category: 'MARKETING', label: 'Rebook invite',
-      body: `Hi {{1}}, it's ${biz} 🌸 It's been a little while! Fancy getting booked back in? Reply here and I'll find you a time.` },
-    { name: 'generic_message_v3', category: 'MARKETING', label: 'General message',
-      body: `Hi {{1}}! It's ${biz} 🌸 {{2}} Reply here anytime.` },
-  ];
+function starterPackFor() {
+  return starterPack();
 }
 
 /**
@@ -1739,7 +1744,9 @@ router.post('/meta-templates', async (req, res) => {
 
   // Meta REJECTS any template whose text contains {{n}} placeholders unless we
   // also supply example values for them. Derive realistic samples per placeholder.
-  const sampleValues = ['Sarah', 'Friday 6 June', '2pm', 'Brow Lamination', 'Ellindigo', 'Monday', '10am'];
+  // Neutral examples only: these go to Meta reviewers and stand in for every
+  // salon on the shared WABA, so no real customer's name belongs here.
+  const sampleValues = ['Sarah', 'Your Salon', 'Friday 6 June', '2pm', 'Brow Lamination', 'Monday', '10am'];
   const placeholderCount = (t) => {
     const nums = [...String(t).matchAll(/\{\{\s*(\d+)\s*\}\}/g)].map((m) => parseInt(m[1], 10));
     return nums.length ? Math.max(...nums) : 0;
@@ -1802,21 +1809,25 @@ router.post('/meta-templates', async (req, res) => {
 
 /**
  * GET /meta-templates/starter-pack
- * Returns the personalised starter pack (named after the salon) without
- * creating anything, plus which of the five already exist on the WABA.
+ * Returns the starter pack without creating anything, plus which of the five
+ * already exist on the WABA. The pack is shared across tenants, so a salon
+ * joining after the first one usually finds all five already approved and
+ * has nothing to submit.
  */
 router.get('/meta-templates/starter-pack', async (req, res) => {
   if (!WA_TOKEN || !WABA_ID) {
     return res.status(503).json({ error: 'WhatsApp env not configured', code: 'whatsapp_env_missing' });
   }
   try {
-    const { data: b } = await supabase
+    const { data: b, error: bErr } = await supabase
       .from('beauticians')
       .select('business_name, first_name')
       .eq('id', req.beautician.id)
-      .single();
+      .maybeSingle();
+    if (bErr) logger.warn({ err: bErr, beauticianId: req.beautician.id }, 'starter-pack preview: beautician lookup failed');
+    // Display only now: the name is a send-time parameter, not part of the body.
     const biz = b?.business_name || b?.first_name || '';
-    const pack = starterPackFor(biz);
+    const pack = starterPackFor();
     const waba = await resolveTemplateWaba(req.beautician.id);
     const r = await fetch(
       `${GRAPH}/${waba.wabaId}/message_templates?fields=name,status&limit=200`,
@@ -1839,21 +1850,33 @@ router.get('/meta-templates/starter-pack', async (req, res) => {
  * POST /meta-templates/starter-pack
  * Creates every missing starter-pack template on the beautician's WABA and
  * submits them to Meta for review. Idempotent: existing names are skipped.
+ *
+ * Skipping is now SAFE. It never was before: the bodies carried the first
+ * salon's name, so "skipped" quietly handed her wording to the next customer.
+ * The _v4 bodies name nobody, so an already-approved template is genuinely
+ * ready to use, and that is what the response says.
  */
 router.post('/meta-templates/starter-pack', async (req, res) => {
   if (!WA_TOKEN || !WABA_ID) {
     return res.status(503).json({ error: 'WhatsApp env not configured', code: 'whatsapp_env_missing' });
   }
   try {
-    const { data: b } = await supabase
+    const { data: b, error: bErr } = await supabase
       .from('beauticians')
       .select('business_name, first_name')
       .eq('id', req.beautician.id)
-      .single();
+      .maybeSingle();
+    if (bErr) {
+      logger.error({ err: bErr, beauticianId: req.beautician.id }, 'starter-pack: beautician lookup failed');
+      return res.status(500).json({ error: 'Could not read your salon details, try again.' });
+    }
     const biz = b?.business_name || b?.first_name || '';
     if (!biz) {
+      // The name no longer lives in the template body, it is passed with every
+      // send. Still required here, because without one her clients would read
+      // "It's your salon" instead of her name.
       return res.status(400).json({
-        error: 'Set your business name in Settings first, it goes into every template.',
+        error: 'Set your business name in Settings first, it goes out with every message.',
         code: 'missing_business_name',
       });
     }
@@ -1866,9 +1889,9 @@ router.post('/meta-templates/starter-pack', async (req, res) => {
     const existing = new Map((listData?.data || []).map((t) => [t.name, t.status]));
 
     const results = [];
-    for (const tpl of starterPackFor(biz)) {
+    for (const tpl of starterPackFor()) {
       if (existing.has(tpl.name)) {
-        results.push({ name: tpl.name, label: tpl.label, action: 'skipped', status: existing.get(tpl.name) });
+        results.push({ name: tpl.name, label: tpl.label, action: 'already_there', status: existing.get(tpl.name) });
         continue;
       }
       try {
@@ -1879,7 +1902,13 @@ router.post('/meta-templates/starter-pack', async (req, res) => {
             name: tpl.name,
             category: tpl.category,
             language: 'en',
-            components: buildTemplateComponents({ bodyText: tpl.body, footerText: tpl.category === 'MARKETING' ? 'Reply STOP to opt out' : undefined }),
+            components: buildTemplateComponents({
+              bodyText: tpl.body,
+              // Per-slot examples: the salon name sits in a different position
+              // per template, so a positional guess would mislabel it.
+              bodyExamples: exampleValuesFor(tpl.name),
+              footerText: tpl.category === 'MARKETING' ? 'Reply STOP to opt out' : undefined,
+            }),
           }),
         });
         const data = await r.json();

@@ -10,6 +10,14 @@ import { isMarketingTemplate, isMarketingSmsType, canSendMarketing, findClientBy
 import { trackSMSUsage } from './sms-metering.js';
 import { checkWhatsAppQuota, trackWhatsAppMessage, trackSmsInMonthlyQuota } from './whatsapp-metering.js';
 import { twilioConfigured, twilioSendText, twilioSendTemplate, twilioContentSid } from './whatsapp-twilio.js';
+import {
+  chooseTemplateVersion,
+  adaptParams,
+  renderTemplateBody,
+  fieldsFromParams,
+  paramFieldsFor,
+  specFor,
+} from '../lib/whatsapp-templates.js';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || 'Florrie <noreply@florrie.ai>';
@@ -232,58 +240,95 @@ async function getPhoneParentWaba(phoneNumberId) {
   }
 }
 
-// Cache of wabaId -> { map: templateName->approvedLanguage, at }
-const _tplLangCache = new Map();
-async function resolveTemplateLanguage(templateName, wabaId) {
+// Cache of wabaId -> { map: templateName->language, approved: Set(names), at }
+const _tplCatalogueCache = new Map();
+
+/**
+ * The template catalogue for one WABA: the language each template is
+ * published in, and the set of names Meta has APPROVED. Cached for ten
+ * minutes because every send needs it twice, once to pick the version and
+ * once to pick the locale. A failed fetch keeps the previous catalogue
+ * rather than blanking it, so a Graph blip never downgrades live sends.
+ */
+async function loadTemplateCatalogue(wabaId) {
   const waba = wabaId || WA_WABA_ID;
   if (!WA_TOKEN || !waba) return null;
-  const hit = _tplLangCache.get(waba);
-  if (!hit || Date.now() - hit.at >= 10 * 60 * 1000) {
-    try {
-      const r = await fetch(
-        `${WA_GRAPH}/${waba}/message_templates?fields=name,language,status&limit=200`,
-        { headers: { Authorization: `Bearer ${WA_TOKEN}` } }
-      );
-      const data = await r.json();
-      if (r.ok && Array.isArray(data?.data)) {
-        const map = {};
-        const approved = new Set();
-        for (const t of data.data) {
-          if (!map[t.name] || t.status === 'APPROVED') map[t.name] = t.language;
-          if (t.status === 'APPROVED') approved.add(t.name);
-        }
-        _tplLangCache.set(waba, { map, approved, at: Date.now() });
-        logger.info(
-          { waba, templates: data.data.map((t) => `${t.name}:${t.language}:${t.status}`) },
-          'resolveTemplateLanguage: template list loaded'
-        );
-      } else {
-        logger.warn({ waba, status: r.status, body: data }, 'resolveTemplateLanguage: template list fetch non-ok');
+  const hit = _tplCatalogueCache.get(waba);
+  if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit;
+  try {
+    const r = await fetch(
+      `${WA_GRAPH}/${waba}/message_templates?fields=name,language,status&limit=200`,
+      { headers: { Authorization: `Bearer ${WA_TOKEN}` } }
+    );
+    const data = await r.json();
+    if (r.ok && Array.isArray(data?.data)) {
+      const map = {};
+      const approved = new Set();
+      for (const t of data.data) {
+        if (!map[t.name] || t.status === 'APPROVED') map[t.name] = t.language;
+        if (t.status === 'APPROVED') approved.add(t.name);
       }
-    } catch (err) {
-      logger.warn({ err, waba }, 'resolveTemplateLanguage: template list fetch failed');
+      const entry = { map, approved, at: Date.now() };
+      _tplCatalogueCache.set(waba, entry);
+      logger.info(
+        { waba, templates: data.data.map((t) => `${t.name}:${t.language}:${t.status}`) },
+        'loadTemplateCatalogue: template list loaded'
+      );
+      return entry;
     }
+    logger.warn({ waba, status: r.status, body: data }, 'loadTemplateCatalogue: template list fetch non-ok');
+  } catch (err) {
+    logger.warn({ err, waba }, 'loadTemplateCatalogue: template list fetch failed');
   }
-  const entry = _tplLangCache.get(waba);
-  return entry ? entry.map[templateName] || null : null;
+  return _tplCatalogueCache.get(waba) || null;
+}
+
+async function resolveTemplateLanguage(templateName, wabaId) {
+  const catalogue = await loadTemplateCatalogue(wabaId);
+  return catalogue ? catalogue.map[templateName] || null : null;
 }
 
 /**
- * Prefer a personalised _v3 template (salon name baked into the body via the
- * starter pack) when one is APPROVED on the sending WABA. Falls back to the
- * requested _v2 name so nothing breaks while v3s are still in review.
+ * Pick the version of a template to send, and remap the parameters to match
+ * it in the same breath.
+ *
+ * These two decisions CANNOT be separated. Every caller passes the params for
+ * the _v2 shape, but _v4 carries the salon name as an extra parameter (see
+ * lib/whatsapp-templates.js for why the name left the body). Send a v4 body
+ * with v2 params and Meta rejects the whole message for parameter count, so
+ * the client hears nothing at all.
+ *
+ * `isAvailable` is what makes the fallback safe: a version is only chosen
+ * when it can actually be sent on this tenant's WABA (APPROVED on Meta, or
+ * mapped to a ContentSid on Twilio). While _v4 sits in Meta review, everyone
+ * keeps sending the version they already have.
  */
-async function resolvePersonalisedTemplate(templateName, wabaId) {
-  if (!/_v2$/.test(templateName)) return templateName;
-  const upgraded = templateName.replace(/_v2$/, '_v3');
-  await resolveTemplateLanguage(upgraded, wabaId); // warms the per-WABA cache
-  const waba = wabaId || WA_WABA_ID;
-  const hit = _tplLangCache.get(waba);
-  if (hit?.approved?.has(upgraded)) {
-    logger.info({ templateName, upgraded, waba }, 'sendWhatsApp: using personalised template');
-    return upgraded;
+function resolveTemplateForSend({ templateName, templateParams, businessName, isAvailable, beauticianId }) {
+  const sendAs = chooseTemplateVersion(templateName, isAvailable);
+  if (sendAs === templateName) return { name: templateName, params: templateParams };
+
+  // A salon name is required by the v4 bodies and an empty WhatsApp parameter
+  // is rejected outright, so fall back to a neutral word rather than sending
+  // "It's ." to a real client.
+  const name = String(businessName || '').trim();
+  const needsName = (paramFieldsFor(sendAs) || []).includes('business_name');
+  if (!name && needsName) {
+    logger.warn({ beauticianId, templateName, sendAs }, 'resolveTemplateForSend: no business name on the beautician record, her clients will read a neutral one');
   }
-  return templateName;
+  const params = adaptParams({
+    requestedName: templateName,
+    sendAsName: sendAs,
+    params: templateParams,
+    businessName: name || 'your salon',
+  });
+  if (!params) {
+    // Unknown template or params we cannot map: never gamble on a shape we
+    // do not understand, send exactly what the caller asked for.
+    logger.warn({ templateName, sendAs }, 'resolveTemplateForSend: could not remap params, sending the requested template');
+    return { name: templateName, params: templateParams };
+  }
+  logger.info({ templateName, sendAs, paramCount: params.length }, 'resolveTemplateForSend: using shared template');
+  return { name: sendAs, params };
 }
 
 /**
@@ -317,13 +362,6 @@ async function logSendFailure({ beauticianId, to, channel, detail }) {
  * nudges) are written into the messages table so the client's thread shows
  * the whole conversation, not just the chatty parts. Fail-soft.
  */
-const TEMPLATE_LABELS = {
-  booking_confirmation: 'Booking confirmation',
-  reminder_24h: 'Reminder',
-  gap_fill_offer: 'Last-minute gap offer',
-  rebook_nudge: 'Rebook invite',
-  generic_message: null, // params[1] IS the message
-};
 async function logOutboundToThread({ beauticianId, to, clientId, channel, templateName, templateParams, body }) {
   try {
     if (!beauticianId) return;
@@ -344,19 +382,26 @@ async function logOutboundToThread({ beauticianId, to, clientId, channel, templa
     if (!content && templateName) {
       const base = String(templateName).replace(/_v\d+$/, '');
       const params = (templateParams || []).map(String);
-      // Prefer the REAL message the client received (same copy as the Twilio
-      // free-form fallback), so the thread reads like a conversation rather than
-      // a terse "Reminder · Korean lash lift · 12:20" system stub.
-      const builder = TWILIO_FALLBACK_BODIES[base];
-      if (builder) {
-        const { data: biz } = await supabase
-          .from('beauticians').select('business_name, first_name').eq('id', beauticianId).single();
-        content = builder(params, biz?.business_name || biz?.first_name || 'us');
+      // Prefer the REAL message the client received, rendered from the same
+      // registry the Meta template body is generated from, so the thread reads
+      // like a conversation rather than a terse "Reminder · Korean lash lift
+      // · 12:20" system stub.
+      if (specFor(templateName)) {
+        // _v4 carries the salon name as a parameter, older versions bake it
+        // into the body, so only pay for the lookup when the params did not
+        // already tell us who sent it.
+        const fields = fieldsFromParams(templateName, params);
+        if (!fields.business_name) {
+          const { data: biz, error: bizErr } = await supabase
+            .from('beauticians').select('business_name, first_name').eq('id', beauticianId).maybeSingle();
+          if (bizErr) logger.warn({ err: bizErr, beauticianId }, 'logOutboundToThread: business name lookup failed, using a neutral one');
+          fields.business_name = biz?.business_name || biz?.first_name || 'us';
+        }
+        content = renderTemplateBody(templateName, fields);
       } else {
-        const label = TEMPLATE_LABELS[base];
-        if (label === null && params[1]) content = params[1];
-        else if (label) content = `${label}${params.length > 1 ? ` · ${params.slice(1).join(' · ')}` : ''}`;
-        else content = `Automated message (${base.replace(/_/g, ' ')})`;
+        // A template the beautician wrote herself: we do not know its wording,
+        // so say what it was rather than inventing words she never approved.
+        content = `Automated message (${base.replace(/_/g, ' ')})`;
       }
     }
     if (!content) return;
@@ -374,59 +419,53 @@ async function logOutboundToThread({ beauticianId, to, clientId, channel, templa
 }
 
 /**
- * Local fallback bodies for the Twilio path, mirroring the starter-pack
- * wording in whatsapp-config.js starterPackFor(). Used ONLY when a template
- * has no ContentSid mapped in TWILIO_CONTENT_SIDS yet: we render the same
- * copy with params interpolated and send it free-form.
- *
- * CAVEAT: Twilio (like Meta) only delivers free-form WhatsApp inside the
- * 24-hour customer service window. Outside it the send fails (Twilio error
- * 63016). So this fallback covers reactive sends during conversations, but
- * proactive out-of-window sends NEED the ContentSid mapping — see
- * docs/TWILIO_GO_LIVE_CHECKLIST.md.
- */
-const TWILIO_FALLBACK_BODIES = {
-  booking_confirmation: (p, biz) => `Hi ${p[0]}! It's ${biz} 🌸 Your appointment is confirmed for ${p[1]} at ${p[2]}. Reply here if anything needs changing. See you then!`,
-  reminder_24h: (p, biz) => `Hi ${p[0]}, it's ${biz}! A little reminder that your ${p[1]} is tomorrow at ${p[2]}. Reply if you need to reschedule. See you soon 🌸`,
-  gap_fill_offer: (p, biz) => `Hi ${p[0]}, it's ${biz}! A spot has just opened up on ${p[1]} at ${p[2]}. Fancy it? Reply YES and it's yours, or tell me a time that suits.`,
-  rebook_nudge: (p, biz) => `Hi ${p[0]}, it's ${biz} 🌸 It's been a little while! Fancy getting booked back in? Reply here and I'll find you a time.`,
-  generic_message: (p, biz) => `Hi ${p[0]}! It's ${biz} 🌸 ${p[1] || ''} Reply here anytime.`,
-};
-
-/**
  * Twilio leg of sendWhatsApp. Quota + PECR are already checked by the caller;
- * this handles ContentSid resolution (prefer the personalised _v3 name),
- * the free-form fallback, then the same post-send wrappers as the Meta path
- * (trackWhatsAppMessage, logOutboundToThread, logSendFailure).
+ * this handles ContentSid resolution, the free-form fallback, then the same
+ * post-send wrappers as the Meta path (trackWhatsAppMessage,
+ * logOutboundToThread, logSendFailure).
+ *
+ * Twilio content variables are positional too ({"1": ..., "2": ...}), so the
+ * ContentSid for each name MUST be built with the parameter order declared in
+ * lib/whatsapp-templates.js. TWILIO_CONTENT_SIDS staying a single global JSON
+ * map is fine now that the templates carry no salon name: the SIDs are per
+ * template, not per tenant.
  */
 async function sendWhatsAppTemplateViaTwilio({ to, templateName, templateParams, sender, beauticianId, bizName, clientId = null, skipThreadLog = false }) {
-  // Mirror resolvePersonalisedTemplate: a mapped _v3 (salon name in the body)
-  // wins over the requested _v2 name.
-  const upgraded = /_v2$/.test(templateName) ? templateName.replace(/_v2$/, '_v3') : null;
-  const upgradedSid = upgraded ? twilioContentSid(upgraded) : null;
-  const contentSid = upgradedSid || twilioContentSid(templateName);
-  const sentAs = upgradedSid ? upgraded : templateName;
+  // Same version pick as the Meta path, with "can we send it" meaning "is
+  // there a ContentSid for it" rather than "has Meta approved it".
+  const { name: sentAs, params } = resolveTemplateForSend({
+    templateName,
+    templateParams,
+    businessName: bizName,
+    isAvailable: (n) => !!twilioContentSid(n),
+    beauticianId,
+  });
+  const contentSid = twilioContentSid(sentAs);
 
   let result = null;
   if (contentSid) {
-    result = await twilioSendTemplate({ to, contentSid, variables: templateParams || [], sender });
+    result = await twilioSendTemplate({ to, contentSid, variables: params || [], sender });
   } else {
-    const base = String(templateName).replace(/_v\d+$/, '');
-    const render = TWILIO_FALLBACK_BODIES[base];
-    if (!render) {
+    // No SID mapped for anything: render the same copy locally and send it
+    // free-form. Note this only reaches the client inside the 24-hour customer
+    // service window (Twilio error 63016 outside it), so proactive sends still
+    // NEED the ContentSid mapping. See docs/TWILIO_GO_LIVE_CHECKLIST.md.
+    const fields = fieldsFromParams(sentAs, params, {});
+    if (!fields.business_name) fields.business_name = bizName || 'your salon';
+    const body = renderTemplateBody(sentAs, fields);
+    if (!body) {
       logger.warn({ templateName }, 'Twilio WhatsApp: no ContentSid mapped and no local fallback body');
       await logSendFailure({ beauticianId, to, channel: 'WhatsApp', detail: `No Twilio content template for ${templateName}` });
       return null;
     }
     logger.info({ templateName }, 'Twilio WhatsApp: no ContentSid mapped, sending free-form fallback (24h window only)');
-    const body = render((templateParams || []).map(String), bizName || 'your salon');
     result = await twilioSendText({ to, body, sender });
   }
 
   if (result) {
     logger.info({ to, templateName: sentAs, provider: 'twilio', contentSid: contentSid || null }, 'WhatsApp template sent');
     if (beauticianId) await trackWhatsAppMessage(beauticianId);
-    if (!skipThreadLog) logOutboundToThread({ beauticianId, to, clientId, channel: 'whatsapp', templateName, templateParams });
+    if (!skipThreadLog) logOutboundToThread({ beauticianId, to, clientId, channel: 'whatsapp', templateName: sentAs, templateParams: params });
     return result;
   }
   await logSendFailure({ beauticianId, to, channel: 'WhatsApp', detail: `Twilio send failed (${sentAs})` });
@@ -503,8 +542,20 @@ export async function sendWhatsApp({ to, templateName, templateParams, beauticia
 
   // Resolve the language from the WABA that actually owns this sending phone.
   const sendingWaba = await getPhoneParentWaba(phoneNumberId);
-  // Personalised _v3 templates (salon name in the body) win when approved.
-  templateName = await resolvePersonalisedTemplate(templateName, sendingWaba);
+  // Every tenant's number sits on the same shared WABA, so the shared _v4
+  // templates (salon name passed as a parameter) win when Meta has approved
+  // them. Until then this stays on whatever version the WABA already has.
+  const catalogue = await loadTemplateCatalogue(sendingWaba);
+  const approved = catalogue?.approved || new Set();
+  const resolved = resolveTemplateForSend({
+    templateName,
+    templateParams,
+    businessName: bizName,
+    isAvailable: (n) => approved.has(n),
+    beauticianId,
+  });
+  templateName = resolved.name;
+  templateParams = resolved.params;
   const resolvedLang = await resolveTemplateLanguage(templateName, sendingWaba);
   const languages = [...new Set([resolvedLang, 'en_GB', 'en', 'en_US'].filter(Boolean))];
   logger.info({ templateName, phoneNumberId, sendingWaba, resolvedLang, languages }, 'sendWhatsApp: locale candidates');

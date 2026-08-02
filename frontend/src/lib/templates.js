@@ -7,8 +7,11 @@
  * and cleans up custom ones. The real Meta template name is still what gets sent,
  * this is display only.
  *
- * v3 entries are the personalised starter pack (salon name baked into the body),
- * so their preview comes from the REAL body text rather than canned copy.
+ * v3 entries are the old personalised pack (salon name baked into the body).
+ * v4 is the shared pack every salon uses: the salon name is passed with each
+ * send instead of being written into the body, which is what stops one salon's
+ * name reaching another salon's clients. Both take their preview from the REAL
+ * body text rather than canned copy.
  */
 const KNOWN = {
   booking_confirmation_v2: { label: 'Booking confirmation', blurb: 'Confirms an appointment',
@@ -27,6 +30,29 @@ const KNOWN = {
   gap_fill_offer_v3: { label: 'Last-minute gap offer', blurb: 'Offers a freed-up slot, signed with your name' },
   rebook_nudge_v3: { label: 'Rebook invite', blurb: 'Invites a client back, signed with your name' },
   generic_message_v3: { label: 'Quick hello', blurb: 'A friendly general message, signed with your name' },
+  // Shared set, preview built from the real body text below.
+  booking_confirmation_v4: { label: 'Booking confirmation', blurb: 'Confirms an appointment, signed with your name' },
+  reminder_24h_v4: { label: '24-hour reminder', blurb: 'Reminds a client the day before, signed with your name' },
+  gap_fill_offer_v4: { label: 'Last-minute gap offer', blurb: 'Offers a freed-up slot, signed with your name' },
+  rebook_nudge_v4: { label: 'Rebook invite', blurb: 'Invites a client back, signed with your name' },
+  generic_message_v4: { label: 'Quick hello', blurb: 'A friendly general message, signed with your name' },
+};
+
+/**
+ * What each {{n}} slot means, per template. The salon name became a parameter
+ * in v4 and it sits in a different position per message, so one shared list
+ * would label a date as a salon name in the preview.
+ */
+const SLOTS_BY_NAME = {
+  booking_confirmation_v4: ['client name', 'your salon name', 'date', 'time'],
+  reminder_24h_v4: ['client name', 'your salon name', 'treatment', 'time'],
+  gap_fill_offer_v4: ['client name', 'your salon name', 'day', 'time'],
+  rebook_nudge_v4: ['client name', 'your salon name'],
+  generic_message_v4: ['client name', 'your salon name', 'message'],
+  reminder_24h_v3: ['client name', 'treatment', 'time'],
+  gap_fill_offer_v3: ['client name', 'day', 'time'],
+  rebook_nudge_v3: ['client name'],
+  generic_message_v3: ['client name', 'message'],
 };
 const HIDDEN = new Set(['hello_world', 'test_template_for_deletion_demo', 'test_template_for_deletion_de']);
 
@@ -35,17 +61,22 @@ export function isClientTemplate(name) {
 }
 
 export function isPersonalised(name) {
-  return /_v3$/.test((name || '').toLowerCase());
+  return /_v[34]$/.test((name || '').toLowerCase());
 }
 
 /** The base set every salon should have, used to decide if the starter pack is done. */
 export const STARTER_NAMES = [
-  'booking_confirmation_v3',
-  'reminder_24h_v3',
-  'gap_fill_offer_v3',
-  'rebook_nudge_v3',
-  'generic_message_v3',
+  'booking_confirmation_v4',
+  'reminder_24h_v4',
+  'gap_fill_offer_v4',
+  'rebook_nudge_v4',
+  'generic_message_v4',
 ];
+
+/** The base name without its version suffix. */
+export function templateBase(name) {
+  return (name || '').toLowerCase().replace(/_v\d+$/, '');
+}
 
 function titleise(name) {
   return (name || '').replace(/_v\d+$/, '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).trim() || 'Template';
@@ -73,9 +104,10 @@ export function humanise(text, slots = SLOT_WORDS) {
 }
 
 export function templateDisplay(t) {
-  const known = KNOWN[(t.name || '').toLowerCase()];
+  const name = (t.name || '').toLowerCase();
+  const known = KNOWN[name];
   if (known) {
-    return { ...known, preview: known.preview || humanise(bodyText(t)) };
+    return { ...known, preview: known.preview || humanise(bodyText(t), SLOTS_BY_NAME[name] || SLOT_WORDS) };
   }
   return { label: titleise(t.name), blurb: 'Your custom template', preview: humanise(bodyText(t)) };
 }

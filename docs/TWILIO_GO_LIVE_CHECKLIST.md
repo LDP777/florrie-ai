@@ -21,8 +21,19 @@ The code is shipped and dormant. These are the human steps, in order.
 - On the sender (or its Messaging Service), set "When a message comes in" to `https://api.florrie.ai/api/webhooks/twilio/whatsapp`, method POST.
 
 ## 5. Content templates
-- Console, Messaging, Content Template Builder: recreate the five starter pack bodies (booking_confirmation_v3, reminder_24h_v3, gap_fill_offer_v3, rebook_nudge_v3, generic_message_v3), submit for WhatsApp approval.
-- Set `TWILIO_CONTENT_SIDS` to a JSON map, for example `{"booking_confirmation_v3":"HX..."}`. Unmapped templates fall back to plain text, which only delivers inside the 24 hour window.
+- Console, Messaging, Content Template Builder: recreate the five starter pack bodies (booking_confirmation_v4, reminder_24h_v4, gap_fill_offer_v4, rebook_nudge_v4, generic_message_v4), submit for WhatsApp approval.
+- Copy the bodies and the variable order from `backend/src/lib/whatsapp-templates.js`. Twilio variables are positional, exactly like Meta's, so the order has to match or the salon name lands in the date slot:
+
+| Template | {{1}} | {{2}} | {{3}} | {{4}} |
+| --- | --- | --- | --- | --- |
+| booking_confirmation_v4 | client name | salon name | date | time |
+| reminder_24h_v4 | client name | salon name | treatment | time |
+| gap_fill_offer_v4 | client name | salon name | day | time |
+| rebook_nudge_v4 | client name | salon name | | |
+| generic_message_v4 | client name | salon name | message | |
+
+- Set `TWILIO_CONTENT_SIDS` to a JSON map, for example `{"booking_confirmation_v4":"HX..."}`. One global map is right: the v4 bodies name no salon, so a SID identifies a message rather than a customer.
+- Unmapped names fall back to the previous version if that one is mapped, then to plain text, which only delivers inside the 24 hour window.
 
 ## 6. Flip one beautician (NOT Ellie, she stays on Meta)
 In Supabase SQL editor:

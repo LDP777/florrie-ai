@@ -142,7 +142,7 @@ const OPTIONAL_ENV = [
   'INSTAGRAM_APP_SECRET',// HMAC verify for Instagram webhooks
   'TWILIO_AUTH_TOKEN',   // Twilio webhook signatures + WhatsApp BSP auth
   'TWILIO_ACCOUNT_SID',  // Twilio WhatsApp BSP (wa_provider='twilio' tenants)
-  'TWILIO_CONTENT_SIDS', // JSON map templateName -> Twilio ContentSid (HX...)
+  'TWILIO_CONTENT_SIDS', // JSON map templateName -> Twilio ContentSid (HX...), shared across tenants
 ];
 
 const missing = REQUIRED_ENV.filter(k => !process.env[k]);

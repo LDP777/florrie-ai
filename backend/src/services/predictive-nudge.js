@@ -151,7 +151,11 @@ async function nudgeForBeautician(beautician) {
               client,
               body: message,
               templateName: 'rebook_nudge_v2',           // pre-approved WhatsApp template
-              templateParams: [client.first_name, slotLabel || 'soon'],
+              // The rebook invite has ONE slot, the client's name. Passing the
+              // suggested slot as a second param made WhatsApp reject the whole
+              // send for parameter count, so the nudge never arrived. The slot
+              // still reaches her on the SMS body above.
+              templateParams: [client.first_name],
               beauticianId: bid,
               beauticianPrefs,
             });

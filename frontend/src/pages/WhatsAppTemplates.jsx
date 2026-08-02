@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
-import { templateDisplay, isClientTemplate, humanise, STARTER_NAMES } from '../lib/templates.js';
+import { templateDisplay, isClientTemplate, humanise, STARTER_NAMES, templateBase } from '../lib/templates.js';
 
 /**
  * WhatsAppTemplates
@@ -144,8 +144,9 @@ function StarterPackCard({ pack, businessName, onSubmitted }) {
       <h2 style={styles.packTitle}>Sign every message with {businessName || 'your salon name'}</h2>
       <p style={styles.packDesc}>
         WhatsApp only shows your business name on your contact card, so the message itself
-        should say who it's from. This submits {missing.length === 1 ? 'the missing standard message' : `${missing.length} standard messages`} with
-        your name written in. Florrie switches over automatically once Meta approves them.
+        should say who it's from. This submits {missing.length === 1 ? 'the missing standard message' : `${missing.length} standard messages`}, and
+        Florrie drops your salon name into each one as it sends. She switches over
+        automatically once Meta approves them.
       </p>
 
       <div style={styles.packPreviews}>
@@ -166,9 +167,12 @@ function StarterPackCard({ pack, businessName, onSubmitted }) {
               <span>{r.label}</span>
               <span style={{
                 ...styles.statusChip,
-                ...(r.action === 'failed' ? chipStyle('attention') : chipStyle('review')),
+                ...(r.action === 'failed' ? chipStyle('attention')
+                  : r.action === 'created' ? chipStyle('review') : chipStyle('live')),
               }}>
-                {r.action === 'created' ? 'Sent for review' : r.action === 'skipped' ? 'Already there' : 'Failed'}
+                {r.action === 'created' ? 'Sent for review'
+                  : r.action === 'failed' ? 'Failed'
+                  : 'Ready to use'}
               </span>
             </div>
           ))}
@@ -358,10 +362,15 @@ export default function WhatsAppTemplates() {
   }
 
   const visible = templates.filter((t) => isClientTemplate(t.name));
-  // When a personalised _v3 exists, hide its _v2 twin: one card per message,
-  // and the personalised one is the truth of what Florrie sends.
-  const names = new Set(visible.map((t) => t.name));
-  const deduped = visible.filter((t) => !(STARTER_NAMES.includes(`${t.name.replace(/_v2$/, '_v3')}`) && /_v2$/.test(t.name) && names.has(t.name.replace(/_v2$/, '_v3'))));
+  // One card per message: when the current shared version of a message is on
+  // the account, hide the older versions of the same thing. The newest is what
+  // Florrie actually sends.
+  const names = new Set(visible.map((t) => (t.name || '').toLowerCase()));
+  const deduped = visible.filter((t) => {
+    const name = (t.name || '').toLowerCase();
+    const current = `${templateBase(name)}_v4`;
+    return name === current || !STARTER_NAMES.includes(current) || !names.has(current);
+  });
   const grouped = { live: [], review: [], attention: [] };
   for (const t of deduped) grouped[groupOf(t.status)].push(t);
 
