@@ -24,6 +24,7 @@ if (process.env.SENTRY_DSN) {
 import { apiLimiter, authLimiter, bookingLimiter } from './middleware/rate-limit.js';
 import { securityHeaders, paymentLimiter, sanitiseBody, idempotencyGuard } from './middleware/security.js';
 import { locationScope } from './middleware/location.js';
+import { paywall } from './middleware/require-plan.js';
 
 // Services
 import { processReminders } from './services/notifications.js';
@@ -264,18 +265,39 @@ app.get('/health', async (req, res) => {
 });
 
 // API routes
+//
+// `paywall` sits in front of the routers that are the beautician's own working
+// surface: the diary, her clients, her money, her inbox, anything Florrie
+// writes on her behalf. Once the 14-day trial is over and there is no active
+// subscription, those return 403 and the app shows the upgrade screen.
+//
+// Everything else is left open ON PURPOSE, and the reasons matter:
+//   /health                     uptime probes must answer even mid-outage
+//   /api/auth                   she has to be able to sign in to fix her billing
+//   /api/billing, /api/stripe   never put the pay button behind the paywall
+//   /api/booking, /api/courses  the public booking pages. Her clients are not
+//                               the subscriber and must never be locked out of
+//                               a booking because the salon owes us GBP 29
+//   /api/webhooks/*             inbound WhatsApp, SMS and Instagram. Dropping a
+//                               real client's message is not a billing lever
+//   /api/consultation-forms,    client-facing links sent out before expiry
+//   /api/photo-consent
+//   /api/calendar               the private iCal feed, authenticated by a URL
+//                               token rather than a JWT
+//   /api/push, /api/features,   read-only or account-level plumbing; blocking
+//   /api/usage, /api/setup      them buys nothing and breaks the upgrade flow
 app.use('/api/auth', authLimiter, authRoutes);
-app.use('/api/treatments', apiLimiter, treatmentRoutes);
-app.use('/api/clients', apiLimiter, clientRoutes);
-app.use('/api/appointments', apiLimiter, appointmentRoutes);
+app.use('/api/treatments', apiLimiter, paywall, treatmentRoutes);
+app.use('/api/clients', apiLimiter, paywall, clientRoutes);
+app.use('/api/appointments', apiLimiter, paywall, appointmentRoutes);
 app.use('/api/booking', bookingLimiter, bookingRoutes); // public booking page API
-app.use('/api/ai-actions', apiLimiter, aiActionRoutes);
+app.use('/api/ai-actions', apiLimiter, paywall, aiActionRoutes);
 app.use('/api/activity', apiLimiter, activityRoutes);
-app.use('/api/inbox', apiLimiter, inboxRoutes);
+app.use('/api/inbox', apiLimiter, paywall, inboxRoutes);
 app.use('/api/webhooks', webhookLimiter, webhookRoutes); // WhatsApp + Twilio + Bird SMS inbound webhooks
-app.use('/api/escalations', apiLimiter, escalationRoutes);
-app.use('/api/content', apiLimiter, contentRoutes);
-app.use('/api/money', apiLimiter, moneyRoutes);
+app.use('/api/escalations', apiLimiter, paywall, escalationRoutes);
+app.use('/api/content', apiLimiter, paywall, contentRoutes);
+app.use('/api/money', apiLimiter, paywall, moneyRoutes);
 // Stripe webhook must bypass rate limiter + idempotency guard , Stripe retries
 // from many IPs and doesn't send Idempotency-Key headers. The webhook handler
 // does its own idempotency check via the stripe_events table.
@@ -316,22 +338,22 @@ app.use('/api/referrals', apiLimiter, referralRoutes);
 app.use('/api/push', apiLimiter, pushRoutes);
 app.use('/api/agents', apiLimiter, agentStatusRoutes);
 app.use('/api/hmrc', apiLimiter, hmrcRoutes);
-app.use('/api/products', apiLimiter, productRoutes);
+app.use('/api/products', apiLimiter, paywall, productRoutes);
 app.use('/api/migrate', apiLimiter, migrateRoutes);
-app.use('/api/import', apiLimiter, importAppointmentsRoutes); // Timely appointment CSV import
+app.use('/api/import', apiLimiter, paywall, importAppointmentsRoutes); // Timely appointment CSV import
 app.use('/api/usage', apiLimiter, usageRoutes);
 app.use('/api/setup', apiLimiter, setupRoutes);
 app.use('/api/whatsapp', apiLimiter, whatsappConfigRoutes);
 app.use('/api/webhooks/instagram', webhookLimiter, instagramWebhookRoutes);
 app.use('/api/webhooks/twilio', webhookLimiter, twilioWebhookRoutes); // Twilio BSP WhatsApp inbound
-app.use('/api/coach', apiLimiter, coachRoutes);
+app.use('/api/coach', apiLimiter, paywall, coachRoutes);
 app.use('/api/instagram', apiLimiter, instagramRoutes);
 app.use('/api/courses', bookingLimiter, courseRoutes); // public course enrollment API
 app.use('/api/suggestions', apiLimiter, suggestionsRoutes);
 app.use('/api/florrie-thinks', apiLimiter, florrieThinksRoutes); // the rebuilt, grounded Florrie-thinks feed
-app.use('/api/outbound', apiLimiter, outboundRoutes); // Florrie's outbox: review/approve proactive sends
+app.use('/api/outbound', apiLimiter, paywall, outboundRoutes); // Florrie's outbox: review/approve proactive sends
 app.use('/api/calendar', apiLimiter, calendarRoutes); // private iCal subscribe feed + sync URLs
-app.use('/api/knowledge', apiLimiter, knowledgeRoutes); // the salon's own notes, what the AI front desk may quote
+app.use('/api/knowledge', apiLimiter, paywall, knowledgeRoutes); // the salon's own notes, what the AI front desk may quote
 
 // Sentry error handler , must come after all routes, before the generic handler
 if (process.env.SENTRY_DSN) {

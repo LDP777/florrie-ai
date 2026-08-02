@@ -134,6 +134,117 @@ function PageLoader() {
   );
 }
 
+/** Length of the free trial, in days. Matches the backend TIERS.trial. */
+const TRIAL_DAYS = 14;
+
+/**
+ * Work out when this account's trial ends.
+ *
+ * New accounts get trial_ends_at written at signup. Older rows were created
+ * without it, and a null used to read as "this trial never ends", which is why
+ * nobody was ever asked to pay. If the column is empty we fall back to the
+ * account's creation date plus the trial length, exactly as the backend does
+ * in middleware/auth.js withTrialWindow. Keep the two in step.
+ *
+ * Returns a Date, or null when there is nothing sensible to anchor to. Null
+ * means we do not lock anyone out, because a wrong lockout costs a customer.
+ */
+function resolveTrialEndsAt(beautician) {
+  if (!beautician) return null;
+  if (beautician.trial_ends_at) return new Date(beautician.trial_ends_at);
+  if (!beautician.created_at) return null;
+  const createdAt = new Date(beautician.created_at);
+  if (Number.isNaN(createdAt.getTime())) return null;
+  return new Date(createdAt.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+}
+
+/**
+ * The screen a beautician sees once the trial is over and there is no active
+ * subscription.
+ *
+ * On native iOS there is deliberately NO purchase CTA and no link out to a
+ * payment page: App Store Guideline 3.1.3(b) forbids steering to an external
+ * purchase from inside the app. That branch is unchanged, it just explains the
+ * state and offers sign out.
+ *
+ * On the web she can pay right here. It used to be a mailto to hello@, which
+ * meant the only way to give us money was to write us an email and wait.
+ */
+function TrialExpiredScreen({ onSignOut }) {
+  const iosNative = isIOSNative();
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function startCheckout() {
+    setError(null);
+    setStarting(true);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (!token) {
+        setError('Your session has expired. Refresh the page and try again.');
+        return;
+      }
+      const res = await fetch(`${API_BASE}/api/billing/create-checkout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ plan: 'florrie', interval: 'monthly' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data?.url) {
+        window.location.href = data.url;
+        return;
+      }
+      setError(data?.error || 'Could not open checkout. Try again in a moment.');
+    } catch {
+      setError('Could not reach billing. Check your connection and try again.');
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg, #FAF8F6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div style={{ maxWidth: 440, width: '100%', background: '#fff', borderRadius: 20, padding: '48px 40px', textAlign: 'center', boxShadow: '0 4px 32px rgba(0,0,0,0.08)' }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🌸</div>
+        <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, fontWeight: 700, color: 'var(--text-primary, #2C2825)', marginBottom: 8 }}>
+          Your free trial has ended
+        </h1>
+        <p style={{ color: 'var(--text-secondary, #6B6460)', fontSize: 15, lineHeight: 1.6, marginBottom: 32 }}>
+          {iosNative
+            ? 'Your trial is no longer active on this account.'
+            : 'Your diary, your clients and your messages are all still here. Start your plan and pick up where you left off.'}
+        </p>
+        {!iosNative && (
+          <>
+            <button
+              onClick={startCheckout}
+              disabled={starting}
+              style={{ display: 'block', width: '100%', background: 'var(--accent, #C76B8A)', color: '#fff', border: 'none', borderRadius: 12, padding: '14px 24px', fontSize: 15, fontWeight: 600, cursor: starting ? 'default' : 'pointer', opacity: starting ? 0.7 : 1, marginBottom: 12 }}
+            >
+              {starting ? 'Opening checkout...' : 'Continue for £29 a month'}
+            </button>
+            {error && (
+              <p style={{ color: 'var(--danger, #C0392B)', fontSize: 13, lineHeight: 1.5, marginBottom: 12 }}>{error}</p>
+            )}
+            <a href="/pricing" style={{ display: 'block', color: 'var(--text-secondary, #6B6460)', fontSize: 13, textDecoration: 'underline', marginBottom: 12 }}>
+              See all plans
+            </a>
+          </>
+        )}
+        <button
+          onClick={onSignOut}
+          style={{ background: 'none', border: 'none', color: 'var(--text-muted, #9E9790)', fontSize: 13, cursor: 'pointer', padding: 8 }}
+        >
+          Sign out
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -307,7 +418,7 @@ export default function App() {
   // Authenticated app
   const showNav = !isAuthRoute && !location.pathname.startsWith('/onboarding');
 
-  const trialEndsAt = beautician?.trial_ends_at ? new Date(beautician.trial_ends_at) : null;
+  const trialEndsAt = resolveTrialEndsAt(beautician);
   const now = new Date();
   const daysLeft = trialEndsAt ? Math.ceil((trialEndsAt - now) / (1000 * 60 * 60 * 24)) : null;
   const trialExpired = trialEndsAt ? now > trialEndsAt : false;
@@ -319,35 +430,10 @@ export default function App() {
   // On native iOS we show a benign read-only state with no purchase CTA,
   // per App Store Guideline 3.1.3(b) Multiplatform Services.
   if (showTrialExpired) {
-    const iosNative = isIOSNative();
     return (
-      <div style={{ minHeight: '100vh', background: 'var(--bg, #FAF8F6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-        <div style={{ maxWidth: 440, width: '100%', background: '#fff', borderRadius: 20, padding: '48px 40px', textAlign: 'center', boxShadow: '0 4px 32px rgba(0,0,0,0.08)' }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>🌸</div>
-          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, fontWeight: 700, color: 'var(--text-primary, #2C2825)', marginBottom: 8 }}>
-            Your free trial has ended
-          </h1>
-          <p style={{ color: 'var(--text-secondary, #6B6460)', fontSize: 15, lineHeight: 1.6, marginBottom: 32 }}>
-            {iosNative
-              ? 'Your trial is no longer active on this account.'
-              : "Thanks for trying Florrie! We're still in early access. Drop us a message and we'll get you set up on a plan."}
-          </p>
-          {!iosNative && (
-            <a
-              href="mailto:hello@florrie.ai?subject=I want to continue using Florrie"
-              style={{ display: 'block', background: 'var(--accent, #C76B8A)', color: '#fff', borderRadius: 12, padding: '14px 24px', fontSize: 15, fontWeight: 600, textDecoration: 'none', marginBottom: 12 }}
-            >
-              Get in touch to continue →
-            </a>
-          )}
-          <button
-            onClick={async () => { if (supabase) await supabase.auth.signOut(); setSession(null); }}
-            style={{ background: 'none', border: 'none', color: 'var(--text-muted, #9E9790)', fontSize: 13, cursor: 'pointer', padding: 8 }}
-          >
-            Sign out
-          </button>
-        </div>
-      </div>
+      <TrialExpiredScreen
+        onSignOut={async () => { if (supabase) await supabase.auth.signOut(); setSession(null); }}
+      />
     );
   }
 
@@ -358,8 +444,10 @@ export default function App() {
         {showTrialWarning && !isIOSNative() && (
           <div style={{ background: 'var(--gold, #C9A96E)', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 13, fontWeight: 500 }}>
             ⏳ Your free trial ends in {daysLeft} day{daysLeft === 1 ? '' : 's'}.{' '}
-            <a href="mailto:hello@florrie.ai?subject=Florrie plan" style={{ color: '#fff', fontWeight: 700, textDecoration: 'underline' }}>
-              get in touch to keep going
+            {/* Points at the real checkout, not a mailto. A beautician who
+                wants to keep Florrie should be able to pay in two taps. */}
+            <a href="/pricing" style={{ color: '#fff', fontWeight: 700, textDecoration: 'underline' }}>
+              pick a plan to keep going
             </a>
           </div>
         )}

@@ -78,8 +78,15 @@ async function loadBeauticianOnce({ force = false } = {}) {
       .eq('auth_id', user.id)
       .maybeSingle();
 
-    // First login after signup — create the row
+    // First login after signup, create the row.
     if (!data && !error) {
+      // The trial clock starts HERE, because this is the only place a
+      // beautician row is ever created on the live path. Leaving trial_ends_at
+      // null used to mean the trial never ended and nobody was ever asked to
+      // pay: both the app and the API read a null as "nothing to expire".
+      // The backend derives the same window from created_at if this is ever
+      // missed again (see backend middleware/auth.js withTrialWindow).
+      const TRIAL_DAYS = 14;
       const { data: created, error: createErr } = await supabase
         .from('beauticians')
         .insert({
@@ -87,6 +94,7 @@ async function loadBeauticianOnce({ force = false } = {}) {
           email: user.email,
           first_name: user.user_metadata?.first_name || '',
           last_name: user.user_metadata?.last_name || '',
+          trial_ends_at: new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000).toISOString(),
         })
         .select()
         .single();

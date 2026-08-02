@@ -11,6 +11,8 @@
  * AI and clients are unlimited on all paid tiers.
  */
 import { TIER_HIERARCHY, hasFeature, getTier, checkMessageLimit, isTrialExpired } from '../lib/tiers.js';
+import { resolveBeautician } from './auth.js';
+import logger from '../lib/logger.js';
 
 /**
  * Returns Express middleware that checks if req.beautician.subscription_plan
@@ -114,4 +116,35 @@ export function requireActiveSubscription() {
       current_plan: plan,
     });
   };
+}
+
+/**
+ * Router-level paywall. Mount in index.js in front of a router:
+ *
+ *   app.use('/api/clients', apiLimiter, paywall, clientRoutes);
+ *
+ * requireActiveSubscription() above needs req.beautician, which normally only
+ * exists after a route's own requireAuth has run. This wrapper resolves the
+ * session first so the check can sit at the mount point, where it is visible
+ * next to every other router and cannot be forgotten on a newly added route.
+ *
+ * If there is no usable session it calls next() instead of rejecting. That is
+ * deliberate, not a hole: a request with no valid token cannot reach anything
+ * private, because the router's own requireAuth still rejects it. Rejecting
+ * here would instead break the handful of genuinely public endpoints that live
+ * inside otherwise-private routers, such as the booking page's free-slots
+ * lookup. A client trying to book is not the subscriber and must never be told
+ * the salon has not paid.
+ */
+export async function paywall(req, res, next) {
+  try {
+    const result = await resolveBeautician(req);
+    if (!result.ok) return next();
+    return requireActiveSubscription()(req, res, next);
+  } catch (err) {
+    // Fail OPEN. A Supabase blip must not take a paying salon's diary offline
+    // mid-appointment; the worst case is one request served past expiry.
+    logger.error({ err, path: req.originalUrl }, 'paywall: subscription check failed, allowing request through');
+    return next();
+  }
 }
