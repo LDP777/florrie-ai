@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 import { supabase } from '../config.js';
-import { calculatePlatformFee } from '../lib/platform-fees.js';
+import { totalApplicationFee } from '../lib/platform-fees.js';
 import logger from '../lib/logger.js';
 
 /**
@@ -172,7 +172,10 @@ export async function chargePolicyFee(appointmentId, kind) {
       return { charged: false, reason: 'no_card_on_file' };
     }
 
-    const platformFee = calculatePlatformFee(feeCents);
+    // Destination charge: the platform pays Stripe's processing fee, so the
+    // application fee must recover it on top of Florrie's cut or this payment
+    // loses the platform money (the arrears leak).
+    const platformFee = totalApplicationFee(feeCents);
 
     let paymentIntent;
     try {
@@ -317,7 +320,8 @@ export async function chargeRescheduleDeposit(appointmentId, newStartIso) {
       return { charged: false, reason: 'no_card_on_file' };
     }
 
-    const platformFee = calculatePlatformFee(depositCents);
+    // Same as every destination charge: recover Stripe's processing fee too.
+    const platformFee = totalApplicationFee(depositCents);
     let paymentIntent;
     try {
       paymentIntent = await stripe.paymentIntents.create({
@@ -445,7 +449,8 @@ export async function chargeRemainingBalance(appointmentId) {
     }
     if (!customerId || !paymentMethodId) return { charged: false, reason: 'no_card_on_file' };
 
-    const platformFee = calculatePlatformFee(amountCents);
+    // Same as every destination charge: recover Stripe's processing fee too.
+    const platformFee = totalApplicationFee(amountCents);
     let paymentIntent;
     try {
       paymentIntent = await stripe.paymentIntents.create({
@@ -553,7 +558,8 @@ export async function chargeCardAmount(appointmentId, amountCents, reason = '') 
     }
     if (!customerId || !paymentMethodId) return { charged: false, reason: 'no_card_on_file' };
 
-    const platformFee = calculatePlatformFee(amount);
+    // Same as every destination charge: recover Stripe's processing fee too.
+    const platformFee = totalApplicationFee(amount);
     let paymentIntent;
     try {
       paymentIntent = await stripe.paymentIntents.create({

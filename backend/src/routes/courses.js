@@ -11,7 +11,7 @@ import { Router } from 'express';
 import Stripe from 'stripe';
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
-import { calculatePlatformFee } from '../lib/platform-fees.js';
+import { totalApplicationFee } from '../lib/platform-fees.js';
 import { enrollCourseSchema as enrollSchema } from '../lib/schemas.js';
 
 const router = Router();
@@ -181,7 +181,10 @@ router.post('/:slug/:courseId/enroll', async (req, res) => {
           ? new Date(course.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
           : '';
 
-        const platformFee = calculatePlatformFee(depositCents);
+        // Destination charge: the platform pays Stripe's processing fee, so the
+        // application fee must recover it on top of Florrie's cut or this payment
+        // loses the platform money (the arrears leak).
+        const platformFee = totalApplicationFee(depositCents);
 
         const session = await stripe.checkout.sessions.create({
           mode: 'payment',

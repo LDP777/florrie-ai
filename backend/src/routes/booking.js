@@ -9,7 +9,7 @@ import { refreshLiveActivity } from '../services/live-activity.js';
 import { sendConsultationFormSMS } from './consultation-forms.js';
 import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
-import { calculatePlatformFee } from '../lib/platform-fees.js';
+import { totalApplicationFee } from '../lib/platform-fees.js';
 import { chargePolicyFee, computePolicyFee, chargeRescheduleDeposit } from '../services/policy-fees.js';
 import { verifyTurnstile } from '../middleware/turnstile.js';
 import logger from '../lib/logger.js';
@@ -1485,7 +1485,10 @@ router.post('/:slug/manage/:token/resend-payment', async (req, res) => {
         quantity: 1,
       }],
       payment_intent_data: {
-        application_fee_amount: Math.round(depositCents * 0.015),
+        // Destination charge: totalApplicationFee (Florrie's cut plus Stripe's
+        // processing estimate), never a bare 1.5%, or the platform pays Stripe
+        // out of its own pocket on every resent deposit (the arrears leak).
+        application_fee_amount: totalApplicationFee(depositCents),
         transfer_data: { destination: b.stripe_account_id },
         metadata: {
           appointment_id: appt.id,
@@ -2994,7 +2997,10 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
 
       // Calculate total for platform fee (treatment payment + add-ons)
       const checkoutTotalCents = treatmentAmountCents + addOnTotalCents;
-      const platformFee = calculatePlatformFee(checkoutTotalCents);
+      // Destination charge: the platform pays Stripe's processing fee, so the
+      // application fee must recover it on top of Florrie's cut or every
+      // booking loses the platform money (the arrears leak).
+      const platformFee = totalApplicationFee(checkoutTotalCents);
 
       // Public base of THIS backend (the booking request came in on it), so the
       // checkout success redirect lands on our confirm endpoint, not the SPA.

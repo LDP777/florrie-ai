@@ -16,7 +16,7 @@
 
 import Stripe from 'stripe';
 import { sendMessage } from './notifications.js';
-import { calculatePlatformFee } from '../lib/platform-fees.js';
+import { totalApplicationFee } from '../lib/platform-fees.js';
 import logger from '../lib/logger.js';
 
 const stripe = process.env.STRIPE_SECRET_KEY
@@ -915,7 +915,10 @@ async function toolSendPaymentLink({ client_name, amount_pence, description }, b
     return { result: `Stripe isn't connected yet — head to Settings → Payments to connect it.` };
   }
 
-  const platformFee = calculatePlatformFee(amount_pence);
+  // Destination charge: the platform pays Stripe's processing fee, so the
+  // application fee must recover it on top of Florrie's cut or this payment
+  // loses the platform money (the arrears leak).
+  const platformFee = totalApplicationFee(amount_pence);
   const session = await stripe.checkout.sessions.create({
     mode: 'payment',
     line_items: [{

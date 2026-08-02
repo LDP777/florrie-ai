@@ -54,11 +54,41 @@ export function estimateStripeFee(amountCents) {
 }
 
 /**
+ * The application_fee_amount every destination charge must use.
+ *
+ * WHY both parts: client payments are destination charges, created on the
+ * platform account with transfer_data to the beautician. Stripe takes its
+ * processing fee from the PLATFORM, not from the beautician. If the
+ * application fee only recovered Florrie's 1.5% cut, every booking would
+ * lose money (on a GBP 10 deposit: collect 15p, pay Stripe ~34p, net
+ * MINUS 19p). That exact leak put the platform balance in arrears, so the
+ * application fee is Florrie's cut PLUS the estimated Stripe processing
+ * fee. The Settings explainer already tells the beautician she pays both.
+ *
+ * The Stripe part is an ESTIMATE (standard UK card). International and
+ * premium cards cost more; the platform absorbs that sliver rather than
+ * over-charging the beautician on every domestic payment.
+ *
+ * Capped at the charge amount itself because Stripe rejects an
+ * application_fee_amount greater than the charge.
+ *
+ * @param {number} amountCents - Charge amount in pence
+ * @returns {number} application_fee_amount in pence
+ */
+export function totalApplicationFee(amountCents) {
+  if (!amountCents || amountCents <= 0) return 0;
+  const amount = Math.round(amountCents);
+  return Math.min(amount, calculatePlatformFee(amount) + estimateStripeFee(amount));
+}
+
+/**
  * Fee preview for the app: everything needed to say "you receive about
- * £X after fees" BEFORE a charge is made. platform_fee_cents comes from the
- * exact same calculatePlatformFee the charge paths use, so the preview can
- * never drift from what is actually taken. The `model` constants let the app
- * preview a custom typed amount without a round trip per keystroke.
+ * £X after fees" BEFORE a charge is made. The two parts here sum to
+ * totalApplicationFee (bar the tiny-amount cap), which is exactly what the
+ * charge paths deduct, so the preview can never drift from what is actually
+ * taken: her net really is amount minus platform fee minus Stripe estimate.
+ * The `model` constants let the app preview a custom typed amount without a
+ * round trip per keystroke.
  */
 export function feePreview(amountCents) {
   const amount = Number.isFinite(amountCents) && amountCents > 0 ? Math.round(amountCents) : 0;

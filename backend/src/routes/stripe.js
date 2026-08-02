@@ -5,7 +5,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
 import { pushBookingConfirmed } from '../services/push-notifications.js';
 import { cleanupStripeEvents } from '../services/stripe-cleanup.js';
-import { calculatePlatformFee, getFeeDescription } from '../lib/platform-fees.js';
+import { totalApplicationFee, getFeeDescription } from '../lib/platform-fees.js';
 import { chargePolicyFee } from '../services/policy-fees.js';
 import logger from '../lib/logger.js';
 
@@ -183,7 +183,10 @@ router.post('/checkout', requireAuth, requireStripe, async (req, res) => {
   }
 
   try {
-    const platformFee = calculatePlatformFee(amount_cents);
+    // Destination charge: the platform pays Stripe's processing fee, so the
+    // application fee must recover it on top of Florrie's cut or this payment
+    // loses the platform money (the arrears leak).
+    const platformFee = totalApplicationFee(amount_cents);
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
@@ -639,7 +642,10 @@ router.post('/payment-link', requireAuth, requireStripe, async (req, res) => {
   }
 
   try {
-    const platformFee = calculatePlatformFee(amount_cents);
+    // Destination charge: the platform pays Stripe's processing fee, so the
+    // application fee must recover it on top of Florrie's cut or this payment
+    // loses the platform money (the arrears leak).
+    const platformFee = totalApplicationFee(amount_cents);
     const beauticianName = req.beautician.business_name || req.beautician.first_name;
 
     // Build customer reference if client_id provided
