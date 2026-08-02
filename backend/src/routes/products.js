@@ -28,7 +28,12 @@ router.get('/public/:beauticianId', async (req, res) => {
     .from('retail_products')
     .select('id, name, description, price_cents, image_url, category, max_per_order, stock_qty')
     .eq('beautician_id', beauticianId)
-    .eq('active', true)
+    // The column is `is_active`. 026_retail_products.sql declared `active` but
+    // never ran (its FK to product_inventory did not exist); the table that is
+    // really in production came from 078_schema_sweep_repairs.sql, which named
+    // it `is_active`. Filtering on `active` errored, so this listing was
+    // always empty and every soft-delete below was a no-op.
+    .eq('is_active', true)
     .order('sort_order', { ascending: true });
 
   if (error) {
@@ -93,7 +98,7 @@ router.post('/', requireAuth, async (req, res) => {
  * PATCH /api/products/:id — update a product
  */
 router.patch('/:id', requireAuth, async (req, res) => {
-  const allowed = ['name', 'description', 'price_cents', 'image_url', 'category', 'active', 'stock_qty', 'max_per_order', 'sort_order'];
+  const allowed = ['name', 'description', 'price_cents', 'image_url', 'category', 'is_active', 'stock_qty', 'max_per_order', 'sort_order'];
   const updates = {};
   for (const key of allowed) {
     if (req.body[key] !== undefined) updates[key] = req.body[key];
@@ -122,7 +127,7 @@ router.patch('/:id', requireAuth, async (req, res) => {
 router.delete('/:id', requireAuth, async (req, res) => {
   const { error } = await supabase
     .from('retail_products')
-    .update({ active: false })
+    .update({ is_active: false })
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id);
 
