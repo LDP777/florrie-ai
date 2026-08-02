@@ -34,7 +34,6 @@ const SetupHub = lazy(() => import('./pages/SetupHub.jsx'));
 const Team = lazy(() => import('./pages/Team.jsx'));
 const Analytics = lazy(() => import('./pages/Analytics.jsx'));
 // Waitlist removed , use WaitlistPro (/waitlist-pro) instead
-const WeeklyDigest = lazy(() => import('./pages/WeeklyDigest.jsx'));
 const Campaigns = lazy(() => import('./pages/Campaigns.jsx'));
 const VoiceCommander = lazy(() => import('./pages/VoiceCommander.jsx'));
 const Reviews = lazy(() => import('./pages/Reviews.jsx'));
@@ -77,7 +76,6 @@ const PriceList = lazy(() => import('./pages/PriceList.jsx'));
 const StaffPerformance = lazy(() => import('./pages/StaffPerformance.jsx'));
 
 const ClientMemberships = lazy(() => import('./pages/ClientMemberships.jsx'));
-const CommsLog = lazy(() => import('./pages/CommsLog.jsx'));
 const EndOfDay = lazy(() => import('./pages/EndOfDay.jsx'));
 const AutomationRules = lazy(() => import('./pages/AutomationRules.jsx'));
 const WhatsAppConfig = lazy(() => import('./pages/WhatsAppConfig.jsx'));
