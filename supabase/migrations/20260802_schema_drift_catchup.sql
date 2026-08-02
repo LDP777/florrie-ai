@@ -182,6 +182,6 @@ CREATE POLICY follow_up_enrollments_own ON follow_up_enrollments
   FOR ALL USING (beautician_id IN (SELECT id FROM beauticians WHERE auth_id = auth.uid()));
 
 COMMENT ON TABLE follow_up_sequences IS
-  'Aftercare / rebook message sequences. Created by hand in production before the migration ledger existed; this file exists so a fresh database matches.';
+  'Aftercare / rebook message sequences. Created by hand in production before the migration ledger existed. This file exists so a fresh database matches.';
 COMMENT ON TABLE follow_up_enrollments IS
-  'One row per client per sequence they are working through. Created by hand in production before the migration ledger existed; this file exists so a fresh database matches.';
+  'One row per client per sequence they are working through. Created by hand in production before the migration ledger existed. This file exists so a fresh database matches.';
