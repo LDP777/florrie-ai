@@ -32,6 +32,7 @@ import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 import { getTaxYear } from '../lib/time-utils.js';
+import { PRICE_SETTLED_TYPES, completionTakingsCents } from '../lib/money-guards.js';
 
 const WINDOW_MS = 48 * 60 * 60 * 1000;
 
@@ -98,17 +99,40 @@ export async function autoCompletePastAppointments() {
     }
 
     // Takings = remaining balance (price minus any deposit already counted).
-    const depositPaid = appt.deposit_paid ? (appt.deposit_cents || 0) : 0;
-    const takings = Math.max(0, (appt.price_cents || 0) - depositPaid);
+    // Shared with the one-tap complete route, which used to log the FULL price
+    // here and over-report every deposit booking by the deposit.
+    const takings = completionTakingsCents(appt);
     if (takings <= 0) continue;
 
-    // Don't double-log if a payment / full payment already exists.
-    const { data: prior } = await supabase
+    // Don't double-log if the price has already been settled. The list lives in
+    // lib/money-guards.js because this copy was missing 'payment_link': a
+    // client who paid by link kept a small deposit_cents on the row, so takings
+    // came out positive and this sweep logged a SECOND income row on top of
+    // money already banked.
+    const { data: prior, error: priorErr } = await supabase
       .from('transactions')
       .select('id')
       .eq('appointment_id', appt.id)
-      .in('type', ['payment', 'full_payment'])
+      .in('type', PRICE_SETTLED_TYPES)
       .limit(1);
+    if (priorErr) {
+      // Refuse rather than guess. A transient read failure returns null here,
+      // and inserting anyway is how you log the same takings twice. Same
+      // refusal chargeRemainingBalance already makes ('guard_unreadable').
+      logger.error({ err: priorErr, id: appt.id }, 'auto-complete: takings guard unreadable, skipping');
+      Sentry.captureMessage('Takings not logged: guard unreadable', {
+        level: 'warning',
+        tags: { area: 'payments', check: 'takings_guard' },
+        extra: {
+          appointmentId: appt.id,
+          beauticianId: appt.beautician_id,
+          takingsPence: takings,
+          dbError: priorErr.message,
+          dbCode: priorErr.code,
+        },
+      });
+      continue;
+    }
     if (prior && prior.length) continue;
 
     const { error: txErr } = await supabase.from('transactions').insert({

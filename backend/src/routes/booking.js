@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import Stripe from 'stripe';
+import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
 import { isMissingColumnError } from '../lib/junk-classifier.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
@@ -17,6 +18,7 @@ import { bookingSchema } from '../lib/schemas.js';
 import { nowInSalonWall, loadBlocks, hitsBlock, wallDayHours } from '../lib/free-slots.js';
 import { getOutstandingBalanceCents } from '../services/outstanding-balance.js';
 import { autoUnarchiveClient } from '../lib/client-archive.js';
+import { BOOKING_MONEY_LOGGED_TYPES } from '../lib/money-guards.js';
 
 const router = Router();
 const FRONTEND_URL = process.env.FRONTEND_URL;
@@ -109,15 +111,34 @@ router.get('/confirm/:sessionId', async (req, res) => {
                 .eq('id', appointmentId).maybeSingle();
               if (!full) return;
 
-              // 1. deposit transaction (guarded so a retry cannot double-log)
-              const { data: already } = await supabase
+              // 1. deposit transaction (guarded so a retry cannot double-log).
+              // The client refreshing the confirmation tab replays this whole
+              // block, so the guard is the only thing between one deposit and
+              // two income rows. The error was NOT destructured: a transient
+              // read failure returned null, `already` came back undefined, and
+              // the insert ran regardless. Refuse instead, exactly as
+              // chargeRemainingBalance does with reason 'guard_unreadable'.
+              // Type list is canonical, see lib/money-guards.js.
+              const { data: already, error: alreadyErr } = await supabase
                 .from('transactions')
                 .select('id')
                 .eq('appointment_id', appointmentId)
-                .in('type', ['deposit', 'full_payment'])
+                .in('type', BOOKING_MONEY_LOGGED_TYPES)
                 .limit(1);
-              if (!already?.length) {
-                await supabase.from('transactions').insert({
+              if (alreadyErr) {
+                logger.error({ err: alreadyErr, appointmentId }, 'confirm-redirect: deposit guard unreadable, not logging');
+                Sentry.captureMessage('Deposit not logged: guard unreadable', {
+                  level: 'warning',
+                  tags: { area: 'payments', check: 'deposit_guard' },
+                  extra: {
+                    appointmentId,
+                    amountPence: session.amount_total ?? null,
+                    dbError: alreadyErr.message,
+                    dbCode: alreadyErr.code,
+                  },
+                });
+              } else if (!already?.length) {
+                const { error: depErr } = await supabase.from('transactions').insert({
                   beautician_id: full.beautician_id,
                   appointment_id: appointmentId,
                   client_id: full.client_id || null,
@@ -127,6 +148,24 @@ router.get('/confirm/:sessionId', async (req, res) => {
                   stripe_payment_intent_id: session.payment_intent || null,
                   payment_method: 'card_online',
                 });
+                if (depErr) {
+                  // This is the ONLY path that logs deposits (the webhook was
+                  // dead for six weeks). A rejected row here is money the
+                  // client paid that never reaches the Money tab.
+                  logger.error({ err: depErr, appointmentId }, 'PAID BUT NOT RECORDED: deposit insert failed');
+                  Sentry.captureMessage('PAID BUT NOT RECORDED: booking deposit', {
+                    level: 'error',
+                    tags: { area: 'payments', check: 'transaction_insert' },
+                    extra: {
+                      appointmentId,
+                      beauticianId: full.beautician_id,
+                      amountPence: session.amount_total ?? full.deposit_cents ?? 0,
+                      paymentIntentId: session.payment_intent || null,
+                      dbError: depErr.message,
+                      dbCode: depErr.code,
+                    },
+                  });
+                }
               }
 
               // 2. remember the card for later off-session charges

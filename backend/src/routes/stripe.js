@@ -7,6 +7,14 @@ import { notifyBookingConfirmed } from '../services/notifications.js';
 import { pushBookingConfirmed } from '../services/push-notifications.js';
 import { cleanupStripeEvents } from '../services/stripe-cleanup.js';
 import { totalApplicationFee, getFeeDescription } from '../lib/platform-fees.js';
+import {
+  buildRefundTransaction,
+  buildDisputeReversalTransaction,
+  refundDeltaCents,
+  disputeTag,
+  disputeWonTag,
+  hasTag,
+} from '../lib/money-guards.js';
 import { chargePolicyFee } from '../services/policy-fees.js';
 import logger from '../lib/logger.js';
 
@@ -434,6 +442,125 @@ router.post('/charge-no-show', requireAuth, requireStripe, async (req, res) => {
 // ═══════════════════════════════════════════════
 
 /**
+ * The off-session charges that write a status:'completed' transaction the
+ * moment Stripe says 'processing', before the money has actually cleared. These
+ * are the ones a later payment_intent.payment_failed has to undo. Every value
+ * here is a metadata.type set in services/policy-fees.js.
+ */
+const OPTIMISTIC_CHARGE_TYPES = new Set([
+  'no_show_fee', 'late_cancel_fee', 'reschedule_deposit', 'remaining_balance', 'manual_charge',
+]);
+
+/**
+ * Write a money-out row (refund or dispute) to the books, once.
+ *
+ * WHY THIS IS SHARED
+ * Refunds reached the ledger from exactly one place, POST /api/stripe/refund,
+ * with an unchecked insert. The charge.refunded webhook only wrote a log line,
+ * and charge.dispute.created was not handled at all, so a chargeback removed
+ * money from Ellie's account and left the books showing it as income for ever.
+ * Both paths now come through here, which is also the only way the two can
+ * dedupe against each other: a refund Ellie triggers in the app arrives a
+ * second time as a webhook seconds later.
+ *
+ * Returns { recorded, reason }. Never throws.
+ */
+async function recordMoneyOut({
+  paymentIntentId,
+  chargeId = null,
+  totalRefundedCents,
+  exactAmountCents = null,
+  tag = null,
+  reversal = false,
+  fallbackBeauticianId = null,
+  fallbackAppointmentId = null,
+  description = null,
+  source,
+}) {
+  if (!paymentIntentId) return { recorded: false, reason: 'no_payment_intent' };
+
+  // Everything already written against this PaymentIntent. This read is the
+  // guard, so a failed read must REFUSE, not fall through and insert: a
+  // transient error that returns null would otherwise write a duplicate
+  // negative row and understate Ellie's takings by the refund amount.
+  const { data: priorRows, error: priorErr } = await supabase
+    .from('transactions')
+    .select('id, amount_cents, description, beautician_id, appointment_id, client_id')
+    .eq('stripe_payment_intent_id', paymentIntentId);
+
+  if (priorErr) {
+    logger.error({ err: priorErr, paymentIntentId, source }, 'refund guard unreadable, refusing to record');
+    Sentry.captureMessage('Refund not recorded: guard unreadable', {
+      level: 'error',
+      tags: { area: 'payments', check: 'refund_guard' },
+      extra: { paymentIntentId, source, dbError: priorErr.message, dbCode: priorErr.code },
+    });
+    return { recorded: false, reason: 'guard_unreadable' };
+  }
+
+  const refundRows = (priorRows || []).filter((r) => (Number(r.amount_cents) || 0) < 0
+    || String(r.description || '').includes('[dispute:'));
+
+  if (tag && hasTag(priorRows, tag)) {
+    return { recorded: false, reason: 'already_recorded' };
+  }
+
+  const amountCents = exactAmountCents !== null
+    ? Math.abs(Math.round(Number(exactAmountCents) || 0))
+    : refundDeltaCents(totalRefundedCents, refundRows);
+
+  if (!amountCents) return { recorded: false, reason: 'already_recorded' };
+
+  // The original payment row carries who this money belongs to. transactions
+  // .beautician_id is NOT NULL, so without it there is nothing we can write.
+  const origin = (priorRows || []).find((r) => (Number(r.amount_cents) || 0) > 0) || {};
+  const beauticianId = origin.beautician_id || fallbackBeauticianId;
+  const appointmentId = origin.appointment_id || fallbackAppointmentId || null;
+
+  if (!beauticianId) {
+    logger.error({ paymentIntentId, source }, 'money out with no owning beautician, not recorded');
+    Sentry.captureMessage('Refund not recorded: no matching payment row', {
+      level: 'error',
+      tags: { area: 'payments', check: 'refund_orphan' },
+      extra: { paymentIntentId, chargeId, amountCents, source },
+    });
+    return { recorded: false, reason: 'no_beautician' };
+  }
+
+  const build = reversal ? buildDisputeReversalTransaction : buildRefundTransaction;
+  const row = build({
+    beauticianId,
+    appointmentId,
+    clientId: origin.client_id || null,
+    amountCents,
+    paymentIntentId,
+    chargeId,
+    description: tag ? `${tag} ${description || ''}`.trim() : description,
+  });
+
+  const { error: insErr } = await supabase.from('transactions').insert(row);
+  if (insErr) {
+    // Money has left the account and the books do not know. Same failure mode
+    // as the six weeks of card charges that were rejected by a CHECK
+    // constraint and only ever logged.
+    logger.error({ err: insErr, paymentIntentId, amountCents, source },
+      'REFUNDED BUT NOT RECORDED: money out but the transaction insert failed');
+    Sentry.captureMessage('REFUNDED BUT NOT RECORDED', {
+      level: 'error',
+      tags: { area: 'payments', check: 'transaction_insert' },
+      extra: {
+        paymentIntentId, chargeId, amountCents, source, beauticianId, appointmentId,
+        dbError: insErr.message, dbCode: insErr.code,
+      },
+    });
+    return { recorded: false, reason: 'insert_failed' };
+  }
+
+  logger.info({ paymentIntentId, amountCents, source }, 'Money out recorded');
+  return { recorded: true, amountCents };
+}
+
+/**
  * POST /api/stripe/refund
  * Refunds a payment (full or partial).
  * The beautician can refund from their dashboard.
@@ -484,24 +611,39 @@ router.post('/refund', requireAuth, requireStripe, async (req, res) => {
 
     const refund = await stripe.refunds.create(refundParams);
 
-    // Record refund transaction (negative amount)
+    // Record refund transaction (negative amount). This insert was unchecked,
+    // and it was the ONLY path in the codebase that ever wrote a refund, so a
+    // rejected row meant the money went back to the client and the books still
+    // showed it as income. Shared recorder so the charge.refunded webhook that
+    // follows seconds later cannot write the same refund again.
     const refundedAmount = refund.amount;
-    await supabase.from('transactions').insert({
-      beautician_id: req.beautician.id,
-      appointment_id,
-      amount_cents: -refundedAmount,
-      type: 'refund',
-      status: 'completed',
-      stripe_payment_intent_id: appointment.stripe_payment_intent_id,
-      payment_method: 'card_online',
+    const recorded = await recordMoneyOut({
+      paymentIntentId: appointment.stripe_payment_intent_id,
+      chargeId: typeof refund.charge === 'string' ? refund.charge : refund.charge?.id || null,
+      exactAmountCents: refundedAmount,
+      fallbackBeauticianId: req.beautician.id,
+      fallbackAppointmentId: appointment_id,
+      description: reason ? `Refund, ${String(reason).slice(0, 80)}` : 'Refund',
+      source: 'app_refund_route',
     });
 
     // Update appointment deposit status if fully refunded
     if (!amount_cents || amount_cents >= (appointment.deposit_cents || appointment.price_cents)) {
-      await supabase.from('appointments').update({
+      const { error: apptErr } = await supabase.from('appointments').update({
         deposit_status: 'refunded',
         deposit_paid: false,
       }).eq('id', appointment_id);
+      if (apptErr) {
+        // A stale deposit_paid=true after a full refund makes chargeRemainingBalance
+        // compute price minus a deposit that no longer exists, so the client gets
+        // asked for less than they owe.
+        logger.error({ err: apptErr, appointment_id }, 'Refund: appointment deposit status not cleared');
+        Sentry.captureMessage('Refund: appointment deposit status not cleared', {
+          level: 'error',
+          tags: { area: 'payments', check: 'appointment_update' },
+          extra: { appointment_id, dbError: apptErr.message, dbCode: apptErr.code },
+        });
+      }
     }
 
     res.json({
@@ -509,6 +651,10 @@ router.post('/refund', requireAuth, requireStripe, async (req, res) => {
       refund_id: refund.id,
       amount_cents: refundedAmount,
       status: refund.status,
+      // Tell the caller the truth: the refund went through at Stripe either
+      // way, but the books may not have it.
+      recorded: recorded.recorded,
+      ...(recorded.recorded ? {} : { record_issue: recorded.reason }),
     });
   } catch (err) {
     logger.error({ err }, 'Refund error');
@@ -1011,41 +1157,195 @@ router.post('/webhook', async (req, res) => {
       }
 
       case 'charge.refunded': {
+        // This case used to log a line and write NOTHING. A refund issued from
+        // the Stripe dashboard (or by Stripe itself) never reached the books at
+        // all, so Ellie's income included money that had already gone back.
+        //
+        // charge.amount_refunded is a RUNNING TOTAL for the charge, so the
+        // recorder writes the difference against what is already on file. That
+        // is what makes this safe to run alongside POST /api/stripe/refund,
+        // which fires for the same money moments earlier.
         const charge = event.data.object;
-        if (charge.metadata?.appointment_id) {
-          logger.info({ appointment_id: charge.metadata.appointment_id, amount: charge.amount_refunded }, 'Charge refunded via webhook');
+        const piId = typeof charge.payment_intent === 'string'
+          ? charge.payment_intent
+          : charge.payment_intent?.id || null;
+
+        if (!piId) {
+          logger.warn({ chargeId: charge.id }, 'charge.refunded with no payment_intent, cannot key the ledger row');
+          break;
         }
+
+        await recordMoneyOut({
+          paymentIntentId: piId,
+          chargeId: charge.id,
+          totalRefundedCents: charge.amount_refunded,
+          fallbackBeauticianId: charge.metadata?.beautician_id || null,
+          fallbackAppointmentId: charge.metadata?.appointment_id || null,
+          description: 'Refund',
+          source: 'webhook_charge_refunded',
+        });
+        break;
+      }
+
+      case 'charge.dispute.created': {
+        // A chargeback takes the money back out of the account, plus Stripe's
+        // dispute fee. Nothing in this codebase handled disputes, so the books
+        // kept counting the payment as income permanently. Recorded as a
+        // negative 'refund' row tagged with the dispute id: the CHECK
+        // constraint has no 'dispute' member, and inventing a type is what
+        // silently rejected every product_sale row before migration 076.
+        const dispute = event.data.object;
+        const piId = typeof dispute.payment_intent === 'string'
+          ? dispute.payment_intent
+          : dispute.payment_intent?.id || null;
+
+        if (!piId) {
+          logger.warn({ disputeId: dispute.id }, 'dispute with no payment_intent, cannot key the ledger row');
+          break;
+        }
+
+        const outcome = await recordMoneyOut({
+          paymentIntentId: piId,
+          chargeId: typeof dispute.charge === 'string' ? dispute.charge : dispute.charge?.id || null,
+          exactAmountCents: dispute.amount,
+          tag: disputeTag(dispute.id),
+          description: 'Disputed by the client, money held by the bank',
+          source: 'webhook_dispute_created',
+        });
+
+        // Ellie has a deadline to submit evidence and losing is the default, so
+        // this is not just bookkeeping.
+        Sentry.captureMessage('Card payment disputed by a client', {
+          level: 'warning',
+          tags: { area: 'payments', check: 'dispute' },
+          extra: {
+            disputeId: dispute.id,
+            paymentIntentId: piId,
+            amountPence: dispute.amount,
+            reason: dispute.reason || null,
+            evidenceDueBy: dispute.evidence_details?.due_by || null,
+            recorded: outcome.recorded,
+          },
+        });
+        break;
+      }
+
+      case 'charge.dispute.closed': {
+        const dispute = event.data.object;
+        const piId = typeof dispute.payment_intent === 'string'
+          ? dispute.payment_intent
+          : dispute.payment_intent?.id || null;
+
+        // Lost: the money is gone and the negative row written when the dispute
+        // opened is already correct. Won: the bank returns it, so that negative
+        // row has to be undone or the books stay short for ever.
+        if (piId && dispute.status === 'won') {
+          await recordMoneyOut({
+            paymentIntentId: piId,
+            chargeId: typeof dispute.charge === 'string' ? dispute.charge : dispute.charge?.id || null,
+            exactAmountCents: dispute.amount,
+            tag: disputeWonTag(dispute.id),
+            reversal: true,
+            description: 'Dispute won, money returned',
+            source: 'webhook_dispute_won',
+          });
+        }
+
+        logger.info({ disputeId: dispute.id, status: dispute.status }, 'Dispute closed');
         break;
       }
 
       case 'payment_intent.payment_failed': {
         const pi = event.data.object;
         const feeType = pi.metadata?.type;
-        // Reconcile both policy-fee kinds. The policy-fees service marks the
-        // appointment as charged (no_show_fee_charged / late_cancel_charged) and
-        // writes a transaction before Stripe confirms — so a later payment_failed
-        // must roll those flags back, otherwise the fee shows as collected when it
-        // was not.
-        if (feeType === 'no_show_fee' || feeType === 'late_cancel_fee') {
-          // Mark the money-feed row as failed.
-          await supabase.from('transactions')
+        const apptId = pi.metadata?.appointment_id || null;
+        const isPolicyFee = feeType === 'no_show_fee' || feeType === 'late_cancel_fee';
+
+        // EVERY off-session charge in policy-fees.js treats a 'processing'
+        // PaymentIntent as success and writes a status:'completed' transaction
+        // before Stripe has confirmed anything. This case only ever handled the
+        // two policy-fee kinds, so a remaining balance or a reschedule deposit
+        // that later failed left a completed row in the books for money that
+        // never arrived.
+        //
+        // Scoped to those optimistic charges on purpose. A Checkout deposit
+        // writes its row only AFTER payment succeeds, and a client whose first
+        // card is declined and second card works produces a payment_failed and
+        // a success on the SAME PaymentIntent, so a blanket update here would
+        // mark a good payment failed if Stripe retried the failure event.
+        if (OPTIMISTIC_CHARGE_TYPES.has(feeType)) {
+          const { error: txErr } = await supabase.from('transactions')
             .update({ status: 'failed' })
             .eq('stripe_payment_intent_id', pi.id);
+          if (txErr) {
+            logger.error({ err: txErr, paymentIntentId: pi.id }, 'Failed charge: could not mark the transaction failed');
+            Sentry.captureMessage('Failed charge still counted as income', {
+              level: 'error',
+              tags: { area: 'payments', check: 'failed_charge_rollback' },
+              extra: { paymentIntentId: pi.id, feeType: feeType || null, appointmentId: apptId, dbError: txErr.message },
+            });
+          }
+        }
 
-          const apptUpdate = feeType === 'no_show_fee'
-            ? { no_show_fee_charged: false }
-            : { late_cancel_charged: false };
+        if (isPolicyFee && apptId) {
+          // policy_fee_charged_at is the REAL idempotency anchor
+          // (services/policy-fees.js refuses outright when it is non-null).
+          // Clearing only no_show_fee_charged / late_cancel_charged left the
+          // appointment permanently stuck at 'already_charged', so a fee that
+          // failed could never be collected, by any path, ever again.
+          //
+          // Guarded on the PaymentIntent id: if a LATER charge succeeded and
+          // re-stamped the anchor, this stale failure event must not wipe it,
+          // which would be the double-charge this anchor exists to prevent.
+          const { data: appt, error: readErr } = await supabase
+            .from('appointments')
+            .select('id, policy_fee_payment_intent_id')
+            .eq('id', apptId)
+            .maybeSingle();
 
-          if (pi.metadata.appointment_id) {
-            await supabase.from('appointments')
-              .update(apptUpdate)
-              .eq('id', pi.metadata.appointment_id);
+          if (readErr) {
+            logger.error({ err: readErr, appointment_id: apptId }, 'Failed policy fee: appointment unreadable, not rolling back');
+            Sentry.captureMessage('Failed policy fee left locked: appointment unreadable', {
+              level: 'error',
+              tags: { area: 'payments', check: 'failed_charge_rollback' },
+              extra: { appointmentId: apptId, paymentIntentId: pi.id, dbError: readErr.message },
+            });
+          } else if (appt && (!appt.policy_fee_payment_intent_id || appt.policy_fee_payment_intent_id === pi.id)) {
+            const { error: apptErr } = await supabase.from('appointments')
+              .update({
+                policy_fee_charged_at: null,
+                policy_fee_amount_cents: null,
+                policy_fee_payment_intent_id: null,
+                ...(feeType === 'no_show_fee'
+                  ? { no_show_fee_charged: false, no_show_fee_cents: null, no_show_fee_payment_intent: null }
+                  : { late_cancel_charged: false }),
+              })
+              .eq('id', apptId);
+            if (apptErr) {
+              logger.error({ err: apptErr, appointment_id: apptId, feeType }, 'Failed policy fee: rollback failed');
+              Sentry.captureMessage('Failed policy fee left locked as already_charged', {
+                level: 'error',
+                tags: { area: 'payments', check: 'failed_charge_rollback' },
+                extra: { appointmentId: apptId, paymentIntentId: pi.id, feeType, dbError: apptErr.message },
+              });
+            }
           }
 
-          logger.warn(
-            { appointment_id: pi.metadata.appointment_id, feeType },
-            'Policy fee charge failed',
-          );
+          logger.warn({ appointment_id: apptId, feeType }, 'Policy fee charge failed');
+        } else if (feeType === 'reschedule_deposit' && apptId) {
+          // chargeRescheduleDeposit sets deposit_paid / deposit_status='paid'
+          // the moment Stripe says 'processing'. We deliberately do NOT clear
+          // those here: the same fields also carry the ORIGINAL deposit this
+          // client may well have paid weeks ago, and clearing them would tell
+          // Ellie to collect money she already has. A human decides.
+          logger.warn({ appointment_id: apptId }, 'Reschedule deposit charge failed after being recorded as paid');
+          Sentry.captureMessage('Reschedule deposit failed after the appointment was marked paid', {
+            level: 'error',
+            tags: { area: 'payments', check: 'failed_charge_rollback' },
+            extra: { appointmentId: apptId, paymentIntentId: pi.id, amountPence: pi.amount || null },
+          });
+        } else if (feeType) {
+          logger.warn({ appointment_id: apptId, feeType, paymentIntentId: pi.id }, 'Off-session charge failed');
         }
         break;
       }

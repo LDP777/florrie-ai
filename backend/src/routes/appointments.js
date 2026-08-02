@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -9,10 +10,10 @@ import { awardLoyaltyPoints } from '../services/loyalty.js';
 import { chargePolicyFee, chargeRemainingBalance, chargeCardAmount, getCardOnFile } from '../services/policy-fees.js';
 import { feePreview } from '../lib/platform-fees.js';
 import { logAssumedTakings } from '../lib/takings.js';
+import { onlyFlipped } from '../lib/money-guards.js';
 import logger from '../lib/logger.js';
 import { parsePagination, buildPaginationMeta, handleQueryError } from '../lib/queries.js';
 import { completeDaySchema, manualAppointmentSchema } from '../lib/schemas.js';
-import { getTaxYear } from '../lib/time-utils.js';
 import { notifyBookingConfirmed, sendWhatsApp, sendSMS } from '../services/notifications.js';
 
 const router = Router();
@@ -888,21 +889,31 @@ router.post('/:id/complete', requireAuth, async (req, res) => {
     return res.status(500).json({ error: 'Something went wrong' });
   }
 
-  // Auto-log the income transaction
-  await supabase.from('transactions').insert({
-    beautician_id: req.beautician.id,
-    appointment_id: appointment.id,
-    amount_cents: appointment.price_cents,
-    type: 'payment',
-    status: 'completed',
-    tax_year: getTaxYear(new Date())
-  });
+  // Auto-log the income transaction.
+  //
+  // This used to insert appointment.price_cents, unchecked, while the
+  // auto-complete sweep logged price MINUS the deposit already paid. Two paths
+  // to the same outcome disagreed, so a deposit-paid booking over-reported
+  // income by the deposit whenever it was completed this way. Both paths now
+  // go through logAssumedTakings, which cannot drift because there is only one
+  // of it, and which checks its own insert and captures the failure.
+  const takingsResult = await logAssumedTakings(req.beautician.id, appointment);
+  if (!takingsResult.logged && takingsResult.reason === 'insert_failed') {
+    // Do not tell her it worked. The appointment is completed either way, but
+    // the takings are not in the books.
+    logger.error({ appointmentId: appointment.id }, 'complete: appointment flipped but takings were not logged');
+  }
 
-  // Update client stats
-  await supabase.rpc('increment_client_visit', {
+  // Update client stats. The lifetime spend on the client record is the FULL
+  // price (the deposit was part of what they paid), unlike the takings row
+  // above which is only what is left to bank. Same as the cron.
+  const { error: visitErr } = await supabase.rpc('increment_client_visit', {
     p_client_id: appointment.client_id,
     p_amount: appointment.price_cents
   });
+  if (visitErr) {
+    logger.error({ err: visitErr, appointmentId: appointment.id }, 'complete: visit increment failed');
+  }
 
   // Fire-and-forget: update client intelligence
   updateClientIntelligence(req.beautician.id, appointment.client_id).catch(() => {});
@@ -945,7 +956,10 @@ router.post('/complete-day', requireAuth, validate(completeDaySchema), async (re
 
     const { data: appointments, error: fetchError } = await supabase
       .from('appointments')
-      .select('id, starts_at, ends_at, status, client_id, price_cents')
+      // deposit_cents / deposit_paid are needed to work out the takings.
+      // Without them every completion here logs the FULL price and
+      // double-counts the deposit the client already paid at booking.
+      .select('id, starts_at, ends_at, status, client_id, price_cents, deposit_cents, deposit_paid')
       .eq('beautician_id', req.beautician.id)
       .eq('status', 'confirmed')
       .gte('starts_at', dayStartIso)
@@ -984,27 +998,58 @@ router.post('/complete-day', requireAuth, validate(completeDaySchema), async (re
     }
     const flippedIds = new Set((flipped || []).map(r => r.id));
 
-    // Auto-log income transactions, only for the rows this request flipped
-    const transactions = appointments.filter(apt => flippedIds.has(apt.id)).map(apt => ({
-      beautician_id: req.beautician.id,
-      appointment_id: apt.id,
-      amount_cents: apt.price_cents,
-      type: 'payment',
-      status: 'completed',
-      tax_year: getTaxYear(new Date(apt.starts_at))
-    }));
+    // Everything after this point acts ONLY on the rows this request flipped.
+    // The transactions insert already filtered on flippedIds; the visit loop
+    // below did not, and iterated the pre-flip list instead, so every row the
+    // auto-complete cron had flipped in the seconds between our read and our
+    // write got its visit counted twice and its lifetime spend inflated.
+    const flippedAppointments = onlyFlipped(appointments, flippedIds);
 
-    if (transactions.length > 0) {
-      await supabase.from('transactions').insert(transactions);
+    // Auto-log income, one appointment at a time, through the SAME helper the
+    // cron and the one-tap complete use. A batch insert here is what let this
+    // path drift: it logged the full price while the cron logged the
+    // remainder, it had no already-paid guard, and its error was unchecked so
+    // a rejected batch lost a whole day's takings in silence.
+    let takingsFailures = 0;
+    for (const apt of flippedAppointments) {
+      const result = await logAssumedTakings(req.beautician.id, apt);
+      if (!result.logged && (result.reason === 'insert_failed' || result.reason === 'guard_unreadable')) {
+        takingsFailures += 1;
+      }
+    }
+    if (takingsFailures) {
+      // The appointments are already marked completed, so she believes she was
+      // paid and the Money tab counts nothing.
+      logger.error({ beauticianId: req.beautician.id, takingsFailures },
+        'complete-day: some appointments completed with no income logged');
+      Sentry.captureMessage('Takings lost: complete-day could not log every appointment', {
+        level: 'error',
+        tags: { area: 'payments', check: 'transaction_insert' },
+        extra: {
+          beauticianId: req.beautician.id,
+          failures: takingsFailures,
+          appointmentIds: flippedAppointments.map(a => a.id).slice(0, 25),
+        },
+      });
     }
 
-    // Update client stats for each
-    for (const apt of appointments) {
-      // Supabase returns thenable, not Promise — destructure instead of .catch()
-      const { error: _rpcErr } = await supabase.rpc('increment_client_visit', {
-        p_client_id: apt.client_id,
-        p_amount: apt.price_cents
-      });
+    // Update client stats, only for the rows this request flipped.
+    for (const apt of flippedAppointments) {
+      if (apt.client_id) {
+        // Supabase returns a thenable, not a Promise, so destructure the error
+        // instead of .catch(). It WAS destructured here and then never read,
+        // which is the same as not checking it: a client whose visit count and
+        // lifetime spend silently failed to move is how regulars showed zero
+        // pounds spent.
+        const { error: rpcErr } = await supabase.rpc('increment_client_visit', {
+          p_client_id: apt.client_id,
+          p_amount: apt.price_cents
+        });
+        if (rpcErr) {
+          logger.error({ err: rpcErr, appointmentId: apt.id, clientId: apt.client_id },
+            'complete-day: visit increment failed');
+        }
+      }
 
       // Fire-and-forget: update client intelligence
       updateClientIntelligence(req.beautician.id, apt.client_id).catch(() => {});
@@ -1013,10 +1058,14 @@ router.post('/complete-day', requireAuth, validate(completeDaySchema), async (re
       awardLoyaltyPoints(req.beautician.id, apt).catch(() => {});
     }
 
+    // Report what actually happened, not what we hoped. The old response
+    // counted the pre-flip list, so a day where the cron had already done the
+    // work still told Ellie she had completed them all.
     res.json({
-      count: appointments.length,
-      message: `Marked ${appointments.length} appointment(s) as completed`,
-      completed_appointments: appointments
+      count: flippedAppointments.length,
+      message: `Marked ${flippedAppointments.length} appointment(s) as completed`,
+      completed_appointments: flippedAppointments,
+      ...(takingsFailures ? { takings_logged: false, takings_failures: takingsFailures } : {}),
     });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });

@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
 import { totalApplicationFee } from '../lib/platform-fees.js';
+import { PRICE_SETTLED_TYPES } from '../lib/money-guards.js';
 import logger from '../lib/logger.js';
 
 /**
@@ -230,7 +231,7 @@ export async function chargePolicyFee(appointmentId, kind) {
     }
 
     // Mark charged (idempotency anchor) + audit fields.
-    await supabase.from('appointments').update({
+    const { error: apptErr } = await supabase.from('appointments').update({
       policy_fee_charged_at: new Date().toISOString(),
       policy_fee_amount_cents: feeCents,
       policy_fee_payment_intent_id: paymentIntent.id,
@@ -242,8 +243,34 @@ export async function chargePolicyFee(appointmentId, kind) {
       ...(kind === 'late_cancel' && { late_cancel_charged: true }),
     }).eq('id', appointmentId);
 
-    // Money feed.
-    await supabase.from('transactions').insert({
+    if (apptErr) {
+      // THE MOST DANGEROUS UNCHECKED WRITE IN THE CODEBASE, and it was silent.
+      // policy_fee_charged_at is the ONLY thing that stops this client being
+      // charged a second time: the guard at the top of this function reads it,
+      // and Stripe's idempotency key only covers a 24 hour window. If this
+      // write is rejected and nobody notices, tomorrow's no-show sweep charges
+      // the same card the same fee again, and the client's first hint is her
+      // statement.
+      logger.error({ err: apptErr, appointmentId, kind, paymentIntentId: paymentIntent.id, feeCents },
+        'CHARGED BUT NOT MARKED: policy fee taken but the idempotency anchor was not written, double charge possible');
+      Sentry.captureException(new Error('CHARGED BUT NOT MARKED: policy fee idempotency anchor not written'), {
+        level: 'fatal',
+        tags: { area: 'payments', check: 'policy_fee_anchor' },
+        extra: {
+          appointmentId,
+          kind,
+          paymentIntentId: paymentIntent.id,
+          feeCents,
+          dbError: apptErr.message,
+          dbCode: apptErr.code,
+        },
+      });
+    }
+
+    // Money feed. Same failure mode as chargeRemainingBalance: the card has
+    // been charged, and an unchecked reject means the fee never appears in
+    // Ellie's takings and nothing ever tells her.
+    const { error: txErr } = await supabase.from('transactions').insert({
       beautician_id: appt.beautician_id,
       appointment_id: appt.id,
       client_id: appt.client_id || null,
@@ -253,6 +280,22 @@ export async function chargePolicyFee(appointmentId, kind) {
       stripe_payment_intent_id: paymentIntent.id,
       payment_method: 'card_online',
     });
+    if (txErr) {
+      logger.error({ err: txErr, appointmentId, kind, paymentIntentId: paymentIntent.id, feeCents },
+        'CHARGED BUT NOT RECORDED: policy fee taken from the card but the transaction insert failed');
+      Sentry.captureMessage('CHARGED BUT NOT RECORDED: policy fee', {
+        level: 'error',
+        tags: { area: 'payments', check: 'transaction_insert' },
+        extra: {
+          appointmentId,
+          kind,
+          paymentIntentId: paymentIntent.id,
+          amountCents: feeCents,
+          dbError: txErr.message,
+          dbCode: txErr.code,
+        },
+      });
+    }
 
     await logAction({
       appt, kind,
@@ -355,13 +398,31 @@ export async function chargeRescheduleDeposit(appointmentId, newStartIso) {
     if (!ok) return { charged: false, reason: paymentIntent.status };
 
     // Record the new deposit + mark the new slot's deposit paid.
-    await supabase.from('appointments').update({
+    const { error: apptErr } = await supabase.from('appointments').update({
       deposit_paid: true,
       deposit_status: 'paid',
       stripe_payment_method_id: paymentMethodId,
     }).eq('id', appointmentId);
+    if (apptErr) {
+      // The client has paid a fresh deposit for the moved slot and the booking
+      // does not know. She gets chased for a deposit she has already paid, and
+      // completionTakingsCents will count the full price as still owed.
+      logger.error({ err: apptErr, appointmentId, paymentIntentId: paymentIntent.id, depositCents },
+        'CHARGED BUT NOT MARKED: reschedule deposit taken but the appointment was not marked paid');
+      Sentry.captureException(new Error('CHARGED BUT NOT MARKED: reschedule deposit'), {
+        level: 'error',
+        tags: { area: 'payments', check: 'appointment_update' },
+        extra: {
+          appointmentId,
+          paymentIntentId: paymentIntent.id,
+          depositCents,
+          dbError: apptErr.message,
+          dbCode: apptErr.code,
+        },
+      });
+    }
 
-    await supabase.from('transactions').insert({
+    const { error: txErr } = await supabase.from('transactions').insert({
       beautician_id: appt.beautician_id,
       appointment_id: appt.id,
       client_id: appt.client_id || null,
@@ -371,6 +432,21 @@ export async function chargeRescheduleDeposit(appointmentId, newStartIso) {
       stripe_payment_intent_id: paymentIntent.id,
       payment_method: 'card_online',
     });
+    if (txErr) {
+      logger.error({ err: txErr, appointmentId, paymentIntentId: paymentIntent.id, depositCents },
+        'CHARGED BUT NOT RECORDED: reschedule deposit taken from the card but the transaction insert failed');
+      Sentry.captureMessage('CHARGED BUT NOT RECORDED: reschedule deposit', {
+        level: 'error',
+        tags: { area: 'payments', check: 'transaction_insert' },
+        extra: {
+          appointmentId,
+          paymentIntentId: paymentIntent.id,
+          amountCents: depositCents,
+          dbError: txErr.message,
+          dbCode: txErr.code,
+        },
+      });
+    }
 
     logger.info({ appointmentId, depositCents, paymentIntentId: paymentIntent.id }, 'Reschedule deposit charged');
     return { charged: true, depositCents, paymentIntentId: paymentIntent.id };
@@ -427,7 +503,7 @@ export async function chargeRemainingBalance(appointmentId) {
       .from('transactions')
       .select('id')
       .eq('appointment_id', appt.id)
-      .in('type', ['payment', 'full_payment', 'payment_link'])
+      .in('type', PRICE_SETTLED_TYPES)
       .limit(1);
     // If the guard itself cannot be read, refuse to charge. Charging blind is
     // exactly the double-charge this guard exists to prevent.
