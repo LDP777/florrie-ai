@@ -5,6 +5,7 @@ import logger from '../lib/logger.js';
 import { sendOnChannel, shapeMessage } from '../services/messaging.js';
 import { generateReplySuggestions, replyIsOwed } from '../services/ai-front-desk.js';
 import { isMissingColumnError } from '../lib/junk-classifier.js';
+import { isSocialLead, clientsEverBooked } from '../lib/inbox-space.js';
 
 const router = Router();
 
@@ -167,35 +168,17 @@ const THREAD_BASE_COLUMNS = `
         clients ( id, first_name, last_name, phone, email, whatsapp_id, instagram_id )`;
 
 /**
- * Which of these client ids have ever had an appointment.
+ * The thread computation, extracted so /threads and /clear-social read the
+ * SAME buckets. If clear-social judged "Instagram stranger, not a lead" with
+ * its own logic, the two would drift and one day it would bulk-resolve a
+ * thread the inbox was showing as a lead. One copy of the rule, two callers.
  *
- * "Known client" is the difference between 'client' and 'new' in the segment
- * contract, and a booking is the strongest evidence there is. Fails soft to an
- * empty set: worst case a regular is labelled 'new' for one page load, which
- * is far better than the inbox failing to load at all.
+ * Returns { error } on failure, else { threads } where every thread still
+ * carries client_ids (all duplicate client records folded into it) so
+ * clear-social can target the whole person. /threads strips it before
+ * responding.
  */
-async function clientsWithAppointments(beauticianId, clientIds) {
-  const found = new Set();
-  if (!clientIds.length) return found;
-
-  const { data, error } = await supabase
-    .from('appointments')
-    .select('client_id')
-    .eq('beautician_id', beauticianId)
-    .in('client_id', Array.from(new Set(clientIds)));
-
-  if (error) {
-    logger.warn({ err: error }, 'inbox.threads appointment lookup failed');
-    return found;
-  }
-  for (const row of data || []) if (row.client_id) found.add(row.client_id);
-  return found;
-}
-
-router.get('/threads', requireAuth, async (req, res) => {
-  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
-
-  try {
+async function computeThreads(beauticianId, limit) {
     let { data, error } = await supabase
       .from('messages')
       .select(`
@@ -216,7 +199,7 @@ router.get('/threads', requireAuth, async (req, res) => {
         is_junk,
         clients ( id, first_name, last_name, phone, email, whatsapp_id, instagram_id, instagram_username )
       `)
-      .eq('beautician_id', req.beautician.id)
+      .eq('beautician_id', beauticianId)
       .order('created_at', { ascending: false })
       .limit(THREAD_FETCH_CAP);
 
@@ -225,14 +208,14 @@ router.get('/threads', requireAuth, async (req, res) => {
       ({ data, error } = await supabase
         .from('messages')
         .select(THREAD_BASE_COLUMNS)
-        .eq('beautician_id', req.beautician.id)
+        .eq('beautician_id', beauticianId)
         .order('created_at', { ascending: false })
         .limit(THREAD_FETCH_CAP));
     }
 
     if (error) {
       logger.error({ err: error }, 'inbox.threads supabase failed');
-      return res.status(500).json({ error: 'Failed to load threads' });
+      return { error };
     }
 
     // Bucket every message into exactly one thread. We key first on client_id,
@@ -387,10 +370,12 @@ router.get('/threads', requireAuth, async (req, res) => {
 
     // Someone who has ever been in the chair is a client, whatever contact
     // details are on the record. Asked only for the threads we are actually
-    // returning (at most 100 buckets), so it stays one small query.
+    // returning (at most 100 buckets), so it stays one small query. Fails
+    // soft to an empty set: worst case a regular is labelled 'new' for one
+    // page load, far better than the inbox failing to load at all.
     const idsInPlay = [];
     for (const t of threads) for (const id of t.client_ids) idsInPlay.push(id);
-    const everBooked = await clientsWithAppointments(req.beautician.id, idsInPlay);
+    const everBooked = (await clientsEverBooked(beauticianId, idsInPlay)) || new Set();
 
     for (const t of threads) {
       const isJunk = t._inbound > 0 && t._junkInbound === t._inbound;
@@ -409,7 +394,21 @@ router.get('/threads', requireAuth, async (req, res) => {
         instagramOnly: t._instagramOnly && !isKnownClient,
       });
 
-      delete t.client_ids;
+      // The two-space split, decided HERE so the page, the badge and
+      // clear-social all read one answer. A relationship of any kind puts the
+      // thread in Clients; only a stranger who exists purely as an Instagram
+      // DM lands in the Instagram space, and within that space is_social_lead
+      // marks the handful with actual buying intent.
+      const igStranger = t._instagramOnly && !isKnownClient;
+      t.space = igStranger ? 'instagram' : 'clients';
+      t.is_social_lead = igStranger && isSocialLead({
+        content: t.last_inbound_preview,
+        intent: t.last_inbound_intent,
+        isJunk,
+      });
+
+      // Kept (as a plain array) for clear-social; /threads strips it.
+      t.client_ids = Array.from(t.client_ids);
       delete t._hasInboundText;
       delete t._lastTextLocked;
       delete t._inbound;
@@ -418,10 +417,82 @@ router.get('/threads', requireAuth, async (req, res) => {
       delete t._instagramOnly;
     }
 
+    return { threads };
+}
+
+router.get('/threads', requireAuth, async (req, res) => {
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+
+  try {
+    const result = await computeThreads(req.beautician.id, limit);
+    if (result.error) return res.status(500).json({ error: 'Failed to load threads' });
+
+    const threads = result.threads;
+    for (const t of threads) delete t.client_ids;
     res.json({ threads, count: threads.length });
   } catch (err) {
     logger.error({ err }, 'inbox.threads threw');
     res.status(500).json({ error: 'Failed to load threads' });
+  }
+});
+
+/**
+ * POST /api/inbox/clear-social
+ *
+ * The one-tap "Clear all" under the Instagram space. Bulk-resolves the
+ * non-lead pile (compliments, story replies, sign-offs, junk) so Ellie never
+ * has to work through it thread by thread.
+ *
+ * Guard rails, in order of importance:
+ *   - targets come from the SAME computeThreads buckets the page renders, so
+ *     it can only touch threads in the 'instagram' space that are NOT leads
+ *   - a lead, or anyone with a booking or contact details on file, can never
+ *     be swept up, because those threads are never in that pile
+ *   - every write is scoped to this beautician
+ */
+router.post('/clear-social', requireAuth, async (req, res) => {
+  try {
+    // THREAD_FETCH_CAP as the limit: clear the whole pile, not just the page
+    // the UI happens to be showing.
+    const result = await computeThreads(req.beautician.id, THREAD_FETCH_CAP);
+    if (result.error) return res.status(500).json({ error: 'Could not load conversations' });
+
+    const targets = result.threads.filter(t => t.space === 'instagram' && !t.is_social_lead);
+    const clientIds = [];
+    for (const t of targets) for (const id of t.client_ids || []) clientIds.push(id);
+
+    if (!clientIds.length) return res.json({ cleared: 0, messages_resolved: 0 });
+
+    const nowIso = new Date().toISOString();
+    const { data: resolvedRows, error } = await supabase
+      .from('messages')
+      .update({ resolved: true, resolved_at: nowIso })
+      .eq('beautician_id', req.beautician.id)
+      .in('client_id', clientIds)
+      .eq('escalated', true)
+      .eq('resolved', false)
+      .select('id');
+
+    if (error) {
+      logger.error({ err: error }, 'inbox.clearSocial resolve failed');
+      return res.status(500).json({ error: 'Could not clear those messages' });
+    }
+
+    // Also mark their unread inbound as read, so the pile stops feeding the
+    // unread badges. Fail-soft: the resolve above is the part that matters.
+    const { error: readErr } = await supabase
+      .from('messages')
+      .update({ read_at: nowIso })
+      .eq('beautician_id', req.beautician.id)
+      .in('client_id', clientIds)
+      .eq('direction', 'inbound')
+      .is('read_at', null);
+    if (readErr) logger.warn({ err: readErr }, 'inbox.clearSocial mark-read failed');
+
+    res.json({ cleared: targets.length, messages_resolved: (resolvedRows || []).length });
+  } catch (err) {
+    logger.error({ err }, 'inbox.clearSocial threw');
+    res.status(500).json({ error: 'Could not clear those messages' });
   }
 });
 

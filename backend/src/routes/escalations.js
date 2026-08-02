@@ -6,17 +6,25 @@ import { requireAuth } from '../middleware/auth.js';
 import { learnFromCorrection } from '../services/ai-front-desk.js';
 import { sendSMS, sendInstagramDM, sendWhatsAppText } from '../services/notifications.js';
 import logger from '../lib/logger.js';
+import { isSocialLead, clientsEverBooked, hasContactIdentity } from '../lib/inbox-space.js';
 
 const router = Router();
 
 /**
  * GET /api/escalations
  * Messages that need the beautician's attention.
+ *
+ * This list IS the "for you" queue: the Hub approval card, the Outbox reply
+ * cards and the Notifications banner all read it. So it follows the two-space
+ * rule at the source: clients (anyone with a booking or contact details on
+ * file) plus Instagram LEADS. An IG stranger's story reply or compliment must
+ * never occupy one of those cards; the Instagram space's "Clear all" is where
+ * that pile lives and dies.
  */
 router.get('/', requireAuth, async (req, res) => {
   const { data, error } = await supabase
     .from('messages')
-    .select('*, clients(first_name, last_name, phone)')
+    .select('*, clients(first_name, last_name, phone, email, whatsapp_id)')
     .eq('beautician_id', req.beautician.id)
     .eq('escalated', true)
     .eq('resolved', false)
@@ -27,7 +35,28 @@ router.get('/', requireAuth, async (req, res) => {
     logger.error({ err: error }, 'Failed to fetch escalations');
     return res.status(500).json({ error: 'Something went wrong' });
   }
-  res.json({ escalations: data });
+
+  // Relationship test for the rows with no contact details, in one batched
+  // query. If the lookup fails we keep every row (the old behaviour): a noisy
+  // queue is annoying, a silently hidden client is dangerous.
+  const rows = data || [];
+  const unproven = rows
+    .filter(r => r.client_id && !hasContactIdentity(r.clients))
+    .map(r => r.client_id);
+  const everBooked = unproven.length
+    ? await clientsEverBooked(req.beautician.id, unproven)
+    : new Set();
+
+  const escalations = everBooked === null ? rows : rows.filter((r) => {
+    const known = hasContactIdentity(r.clients) || (r.client_id && everBooked.has(r.client_id));
+    if (known) return true;
+    // Strangers on her own channels (an email enquiry, say) still show.
+    // Only Instagram strangers get the lead gate.
+    if (r.channel !== 'instagram') return true;
+    return isSocialLead({ content: r.content, intent: r.ai_intent, isJunk: r.is_junk });
+  });
+
+  res.json({ escalations });
 });
 
 /**

@@ -1150,13 +1150,19 @@ router.get('/:id/manage-link', requireAuth, async (req, res) => {
 /** Does this client still have an unbooked patch test on file? */
 async function clientNeedsPatchTest(beauticianId, clientId) {
   if (!clientId) return false;
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('patch_tests')
     .select('id')
     .eq('client_id', clientId)
     .eq('beautician_id', beauticianId)
     .is('confirmed_at', null)
     .limit(1);
+  if (error) {
+    // Fail soft to "no": the sheet just keeps its generic booking-link label,
+    // which is a wording downgrade, not a broken card.
+    logger.warn({ err: error, clientId }, 'patch-test lookup failed');
+    return false;
+  }
   return (data || []).length > 0;
 }
 

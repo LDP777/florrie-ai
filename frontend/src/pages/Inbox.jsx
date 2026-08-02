@@ -260,6 +260,60 @@ function secondaryHandle(t) {
   return `@${handle}`;
 }
 
+/**
+ * The two spaces. Split by RELATIONSHIP, not channel: since Instagram DMs
+ * went live the single list was taken over by stranger noise, burying the
+ * WhatsApps and DMs from people who actually book. The backend decides the
+ * space per thread (thread.space) with the same evidence it uses for
+ * is_known_client, so an Instagram DM from a real client sits in Clients
+ * next to her WhatsApp messages.
+ *
+ *   clients   = anyone with a relationship: ever booked, or contact details
+ *               on file, whatever channel they used today
+ *   instagram = strangers who exist only as an Instagram DM
+ */
+const SPACE_KEY = 'florrie_inbox_space';
+
+function spaceOf(t) {
+  if (t.space === 'instagram' || t.space === 'clients') return t.space;
+  // Cached payload from before spaces existed: same rule, coarser evidence.
+  return (!t.is_known_client && t.last_channel === 'instagram') ? 'instagram' : 'clients';
+}
+
+// A LEAD is the narrow slice of the Instagram space worth her time: buying
+// intent, or an actual question, and not junk. The backend computes this
+// (is_social_lead); the fallback mirrors its rule for stale cached payloads.
+const LEAD_INTENTS = new Set(['booking_request', 'price_enquiry', 'availability_check']);
+function isLead(t) {
+  if (typeof t.is_social_lead === 'boolean') return t.is_social_lead;
+  if (t.is_junk) return false;
+  if (LEAD_INTENTS.has(t.last_inbound_intent)) return true;
+  return String(t.last_inbound_preview || t.last_message_preview || '').includes('?');
+}
+
+// Something outstanding = the thread would feed a badge somewhere. This is
+// what "Clear all" clears, so the count and the button read off the same test.
+function hasOutstanding(t) {
+  return t.unread_count > 0 || !!t.needs_attention;
+}
+
+// The last-open space survives app restarts: if she lives in Clients, the
+// Instagram pile should never greet her first.
+function readStoredSpace() {
+  try {
+    return localStorage.getItem(SPACE_KEY) === 'instagram' ? 'instagram' : 'clients';
+  } catch { return 'clients'; }
+}
+
+// Search matches the name AND the @handle, because half of her Instagram
+// contacts have no name to search for.
+function threadMatches(t, q) {
+  if (!q) return true;
+  const handle = handleOf(t);
+  return clientFullName(t).toLowerCase().includes(q)
+    || (handle ? handle.toLowerCase().includes(q) : false);
+}
+
 // Chip order, left to right, and the order the All view stacks its sections:
 // urgent first, then people she knows, then strangers, then the fluff.
 const SEGMENT_TABS = [
@@ -278,6 +332,14 @@ export default function Inbox() {
   // 'all' shows every segment as its own section, so nothing is hidden by
   // default. The other values narrow to one segment.
   const [segment, setSegment] = useState('all');
+  // Which space is open: Clients or Instagram. Persisted so the page reopens
+  // where she left it.
+  const [space, setSpaceState] = useState(readStoredSpace);
+  const [clearingSocial, setClearingSocial] = useState(false);
+  const setSpace = (next) => {
+    setSpaceState(next);
+    try { localStorage.setItem(SPACE_KEY, next); } catch { /* private mode */ }
+  };
   const [activeClientId, setActiveClientId] = useState(readClientFromUrl());
   const [isWide, setIsWide] = useState(typeof window !== 'undefined' ? window.innerWidth >= 768 : false);
 
@@ -312,26 +374,83 @@ export default function Inbox() {
   // Newest first within any group.
   const byRecency = (a, b) => new Date(b.last_message_at) - new Date(a.last_message_at);
 
-  // One pass: apply the search, drop each thread into its segment, sort each
-  // lane newest first. Search matches the name AND the @handle, because half
-  // of her Instagram contacts have no name to search for.
-  const grouped = useMemo(() => {
+  // Every thread lands in exactly one space first; everything below reads
+  // off its own space so the two lists can never bleed into each other.
+  const spaceThreads = useMemo(() => {
     if (!threads) return null;
+    const out = { clients: [], instagram: [] };
+    for (const t of threads) out[spaceOf(t)].push(t);
+    return out;
+  }, [threads]);
+
+  // The numbers on the two space tabs. Instagram deliberately shows its LEAD
+  // count, not its total: 4 leads is information, 61 messages is dread.
+  // Clients shows how many client threads are genuinely waiting on her.
+  const spaceCounts = useMemo(() => {
+    if (!spaceThreads) return { clients: 0, instagram: 0 };
+    return {
+      clients: spaceThreads.clients.filter(t => segmentOf(t) === 'needs').length,
+      instagram: spaceThreads.instagram.filter(isLead).length,
+    };
+  }, [spaceThreads]);
+
+  // Clients space: one pass, apply the search, drop each thread into its
+  // segment, sort each lane newest first. The segmented look Ellie likes,
+  // now scoped to people she has a relationship with.
+  const grouped = useMemo(() => {
+    if (!spaceThreads) return null;
     const out = { needs: [], client: [], new: [], social: [] };
     const q = search.trim().toLowerCase().replace(/^@/, '');
-    const match = (t) => {
-      if (!q) return true;
-      const handle = handleOf(t);
-      return clientFullName(t).toLowerCase().includes(q)
-        || (handle ? handle.toLowerCase().includes(q) : false);
-    };
-    for (const t of threads) {
-      if (!match(t)) continue;
+    for (const t of spaceThreads.clients) {
+      if (!threadMatches(t, q)) continue;
       out[segmentOf(t)].push(t);
     }
     for (const key of SEGMENTS) out[key].sort(byRecency);
     return out;
-  }, [threads, search]);
+  }, [spaceThreads, search]);
+
+  // Instagram space: pre-triaged, not a list to work through. Leads on top,
+  // everything else in one collapsed pile below.
+  const ig = useMemo(() => {
+    if (!spaceThreads) return null;
+    const q = search.trim().toLowerCase().replace(/^@/, '');
+    const leads = [];
+    const rest = [];
+    for (const t of spaceThreads.instagram) {
+      if (!threadMatches(t, q)) continue;
+      (isLead(t) ? leads : rest).push(t);
+    }
+    leads.sort(byRecency);
+    rest.sort(byRecency);
+    // The Clear-all count comes off the UNFILTERED pile. The backend clears
+    // the whole pile regardless of any search, so the dialog must not promise
+    // a smaller number than what actually happens.
+    const restOutstanding = spaceThreads.instagram
+      .filter(t => !isLead(t) && hasOutstanding(t)).length;
+    return { leads, rest, restOutstanding };
+  }, [spaceThreads, search]);
+
+  // One tap clears the non-lead pile: the backend re-derives which threads
+  // qualify (it never trusts this client to say), resolves their escalations
+  // and marks them read. Leads are untouched by definition.
+  async function clearSocial() {
+    const outstanding = ig?.restOutstanding || 0;
+    if (!outstanding || clearingSocial) return;
+    const ok = window.confirm(
+      `Clear ${outstanding} Instagram message${outstanding === 1 ? '' : 's'}? Leads stay.`
+    );
+    if (!ok) return;
+    setClearingSocial(true);
+    try {
+      await authFetch('/api/inbox/clear-social', { method: 'POST' });
+      await loadThreads();
+      bloom();
+    } catch (err) {
+      logger.error({ err }, 'inbox clear-social failed');
+    } finally {
+      setClearingSocial(false);
+    }
+  }
 
   // Counts come off the same buckets the list renders, and after the search,
   // so a chip can never claim 12 while its list shows nothing.
@@ -415,6 +534,12 @@ export default function Inbox() {
             onSegment={setSegment}
             counts={counts}
             totalCount={threads?.length || 0}
+            space={space}
+            onSpace={setSpace}
+            spaceCounts={spaceCounts}
+            ig={ig}
+            onClearSocial={clearSocial}
+            clearingSocial={clearingSocial}
           />
         </aside>
         <section style={S.paneConvo}>
@@ -442,6 +567,12 @@ export default function Inbox() {
         onSegment={setSegment}
         counts={counts}
         totalCount={threads?.length || 0}
+        space={space}
+        onSpace={setSpace}
+        spaceCounts={spaceCounts}
+        ig={ig}
+        onClearSocial={clearSocial}
+        clearingSocial={clearingSocial}
       />
     </div>
   );
@@ -463,12 +594,23 @@ function FilterChip({ active, onClick, label, count }) {
   );
 }
 
-function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, onDelete, activeId, segment, onSegment, counts, totalCount }) {
+function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, onDelete, activeId, segment, onSegment, counts, totalCount, space, onSpace, spaceCounts, ig, onClearSocial, clearingSocial }) {
   const loading = sections === null;
   // Social starts folded to one line; searching unfolds everything.
   const [expanded, setExpanded] = useState({});
+  // The Instagram "everything else" pile starts folded too, same rule.
+  const [igRestOpen, setIgRestOpen] = useState(false);
   const isCollapsed = (sec) => sec.collapsible && !expanded[sec.key] && !search.trim();
-  const isEmpty = !loading && visibleCount === 0;
+  const inClients = space !== 'instagram';
+  const igLeads = ig?.leads || [];
+  const igRest = ig?.rest || [];
+  // What "Clear all" would actually clear: threads still feeding a badge,
+  // counted off the unfiltered pile so the number matches what the tap does.
+  const igOutstanding = ig?.restOutstanding || 0;
+  const igRestExpanded = igRestOpen || !!search.trim();
+  const isEmpty = !loading && (inClients
+    ? visibleCount === 0
+    : igLeads.length + igRest.length === 0);
   // In the needs-you view the whole list is needs-you, so the per-row tag is
   // redundant. Hide it there; show the informative type label elsewhere.
   const hideTypeChip = segment === 'needs';
@@ -477,6 +619,42 @@ function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, o
     <>
       <div style={S.headerWrap}>
         <PageHeader title="Inbox" subtitle="One thread per client. Florrie keeps the quiet ones tidy." />
+      </div>
+
+      {/* The two spaces. Clients wears its waiting count; Instagram wears its
+          LEAD count on purpose, never the total, because "4 leads" is
+          information and "61 messages" is dread. */}
+      <div role="tablist" aria-label="Inbox spaces" style={S.spaceRow}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={inClients}
+          onClick={() => onSpace('clients')}
+          style={{ ...S.spaceTab, ...(inClients ? S.spaceTabActive : {}) }}
+        >
+          <span className="material-symbols-outlined" style={S.spaceTabIcon} aria-hidden>group</span>
+          Clients
+          {spaceCounts?.clients > 0 && (
+            <span style={{ ...S.spaceTabCount, ...(inClients ? S.spaceTabCountActive : {}) }}>
+              {spaceCounts.clients}
+            </span>
+          )}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={!inClients}
+          onClick={() => onSpace('instagram')}
+          style={{ ...S.spaceTab, ...(!inClients ? S.spaceTabActive : {}) }}
+        >
+          <span className="material-symbols-outlined" style={S.spaceTabIcon} aria-hidden>photo_camera</span>
+          Instagram
+          {spaceCounts?.instagram > 0 && (
+            <span style={{ ...S.spaceTabCount, ...(!inClients ? S.spaceTabCountActive : {}) }}>
+              {spaceCounts.instagram}
+            </span>
+          )}
+        </button>
       </div>
 
       <div style={S.searchWrap}>
@@ -490,19 +668,22 @@ function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, o
         />
       </div>
 
-      {/* Five chips do not fit a phone at once, so the row scrolls sideways
-          rather than wrapping into a second line that pushes the list down. */}
-      <div className="inbox-seg-row" style={S.filterRow}>
-        {SEGMENT_TABS.map(tab => (
-          <FilterChip
-            key={tab.key}
-            active={segment === tab.key}
-            onClick={() => onSegment(tab.key)}
-            label={tab.label}
-            count={counts?.[tab.key] || 0}
-          />
-        ))}
-      </div>
+      {/* Clients keeps the segmented chips Ellie likes. Instagram has no
+          chips: it is pre-triaged into leads and a foldaway pile, not a
+          filterable list to work through. */}
+      {inClients && (
+        <div className="inbox-seg-row" style={S.filterRow}>
+          {SEGMENT_TABS.map(tab => (
+            <FilterChip
+              key={tab.key}
+              active={segment === tab.key}
+              onClick={() => onSegment(tab.key)}
+              label={tab.label}
+              count={counts?.[tab.key] || 0}
+            />
+          ))}
+        </div>
+      )}
 
       {loading && <ThreadSkeleton />}
       {!loading && error && (
@@ -513,14 +694,16 @@ function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, o
       {!loading && !error && isEmpty && (
         search.trim()
           ? <NoMatches onClear={() => onSearch('')} />
-          : totalCount === 0
-            ? <EmptyInbox />
-            : segment === 'needs'
-              ? <CaughtUp onShowAll={() => onSegment('all')} />
-              : <SegmentEmpty segment={segment} onShowAll={() => onSegment('all')} />
+          : !inClients
+            ? <InstagramEmpty />
+            : totalCount === 0
+              ? <EmptyInbox />
+              : segment === 'needs'
+                ? <CaughtUp onShowAll={() => onSegment('all')} />
+                : <SegmentEmpty segment={segment} onShowAll={() => onSegment('all')} />
       )}
 
-      {!loading && !error && !isEmpty && sections.map(sec => (
+      {inClients && !loading && !error && !isEmpty && sections.map(sec => (
         <section key={sec.key} style={S.section}>
           {sec.header && (
             sec.collapsible ? (
@@ -564,6 +747,85 @@ function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, o
           )}
         </section>
       ))}
+
+      {/* Instagram space: leads first and loud, everything else folded away
+          behind a count and one Clear-all tap. */}
+      {!inClients && !loading && !error && !isEmpty && (
+        <>
+          <section style={S.section}>
+            <div style={S.sectionHead}>
+              <span style={S.sectionTitle}>Leads</span>
+              <span style={S.sectionCount}>{igLeads.length}</span>
+            </div>
+            {igLeads.length ? (
+              <ul style={S.list}>
+                {igLeads.map(t => (
+                  <ThreadRow
+                    key={t.client_id}
+                    thread={t}
+                    active={t.client_id === activeId}
+                    onOpen={onOpen}
+                    onDelete={onDelete}
+                  />
+                ))}
+              </ul>
+            ) : (
+              <p style={S.igNoLeads}>
+                No leads right now. Anyone asking about prices, times or booking in lands here.
+              </p>
+            )}
+          </section>
+
+          {igRest.length > 0 && (
+            <section style={S.section}>
+              <button
+                type="button"
+                onClick={() => setIgRestOpen(o => !o)}
+                style={S.sectionHeadBtn}
+                aria-expanded={igRestExpanded}
+              >
+                <span style={S.sectionTitle}>Everything else</span>
+                <span style={S.sectionCount}>{igRest.length}</span>
+                <span className="material-symbols-outlined" style={S.sectionChevron} aria-hidden>
+                  {igRestExpanded ? 'expand_less' : 'expand_more'}
+                </span>
+                {!igRestExpanded && (
+                  <span style={S.sectionQuietNote}>compliments, story replies, sign-offs</span>
+                )}
+              </button>
+              {igOutstanding > 0 && (
+                <div style={S.clearAllWrap}>
+                  <button
+                    type="button"
+                    onClick={onClearSocial}
+                    disabled={clearingSocial}
+                    style={{ ...S.clearAllBtn, opacity: clearingSocial ? 0.6 : 1 }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 17 }} aria-hidden>done_all</span>
+                    {clearingSocial ? 'Clearing\u2026' : `Clear all (${igOutstanding})`}
+                  </button>
+                  <span style={S.clearAllHint}>Marks them handled. Leads stay.</span>
+                </div>
+              )}
+              {igRestExpanded && (
+                <ul style={S.list}>
+                  {igRest.map(t => (
+                    <ThreadRow
+                      key={t.client_id}
+                      thread={t}
+                      active={t.client_id === activeId}
+                      onOpen={onOpen}
+                      onDelete={onDelete}
+                      muted
+                      quiet
+                    />
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
+        </>
+      )}
     </>
   );
 }
@@ -769,6 +1031,17 @@ function SegmentEmpty({ segment, onShowAll }) {
       <span className="material-symbols-outlined" style={S.emptyIcon}>{copy.icon}</span>
       <p style={S.emptyText}>{copy.text}</p>
       <button type="button" onClick={onShowAll} style={S.caughtUpBtn}>See all conversations</button>
+    </div>
+  );
+}
+
+function InstagramEmpty() {
+  return (
+    <div style={S.empty}>
+      <span className="material-symbols-outlined" style={S.emptyIcon}>photo_camera</span>
+      <p style={S.emptyText}>
+        No Instagram enquiries from new people. When a stranger DMs you, Florrie sorts the real leads to the top here.
+      </p>
     </div>
   );
 }
@@ -1475,6 +1748,45 @@ const S = {
     background: 'var(--accent-light, rgba(146,64,94,0.10))', color: 'var(--accent, #92405e)',
   },
   filterChipCountActive: { background: 'rgba(255,255,255,0.24)', color: '#fff' },
+
+  // The two space tabs. Bigger than the chips on purpose: this is the page's
+  // first decision, not another filter. 44px minimum stands.
+  spaceRow: {
+    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8,
+    padding: '0 18px', marginBottom: 12,
+  },
+  spaceTab: {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+    minHeight: 48, padding: '10px 12px', borderRadius: 14, border: 'none',
+    background: 'var(--tone-2, #f6e7dd)', color: 'var(--text-secondary, #867277)',
+    fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+    transition: 'background 0.15s ease, color 0.15s ease',
+    WebkitTapHighlightColor: 'transparent',
+  },
+  spaceTabActive: { background: 'var(--accent, #92405e)', color: '#fff' },
+  spaceTabIcon: { fontSize: 18, lineHeight: 1 },
+  spaceTabCount: {
+    fontSize: 11.5, fontWeight: 700, padding: '1px 8px', borderRadius: 999,
+    background: 'var(--accent-light, rgba(146,64,94,0.10))', color: 'var(--accent, #92405e)',
+  },
+  spaceTabCountActive: { background: 'rgba(255,255,255,0.24)', color: '#fff' },
+
+  igNoLeads: {
+    margin: 0, padding: '10px 18px', fontSize: 13,
+    color: 'var(--text-muted, #9B8A8E)', lineHeight: 1.5,
+  },
+  clearAllWrap: {
+    display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+    padding: '2px 18px 8px',
+  },
+  clearAllBtn: {
+    display: 'inline-flex', alignItems: 'center', gap: 6,
+    minHeight: 44, padding: '9px 16px', borderRadius: 999, border: 'none',
+    background: 'var(--accent, #92405e)', color: '#fff',
+    fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+    WebkitTapHighlightColor: 'transparent',
+  },
+  clearAllHint: { fontSize: 11.5, color: 'var(--text-muted, #9B8A8E)' },
 
   headerWrap: { padding: '0 18px' },
   caughtUpBtn: {

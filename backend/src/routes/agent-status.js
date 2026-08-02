@@ -17,6 +17,7 @@ import { replyIsOwed } from '../services/ai-front-desk.js';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { isMissingColumnError } from '../lib/junk-classifier.js';
+import { isSocialLead, clientsEverBooked, hasContactIdentity } from '../lib/inbox-space.js';
 import logger from '../lib/logger.js';
 
 const router = Router();
@@ -331,9 +332,14 @@ async function openEscalations(beauticianId, sinceIso) {
   //
   // The honest question is the same one the inbox asks: did the client have the
   // last word, and does that last word ask something of her?
+  //
+  // Two-space rule (2026-08-02): an Instagram stranger only earns a badge
+  // point as a LEAD (buying intent or an actual question, not junk). Story
+  // replies and compliments from people who have never booked were what put
+  // the count back at 99+ within a week of Instagram going live.
   const { data, error } = await supabase
     .from('messages')
-    .select('client_id, direction, content, ai_intent, is_junk, created_at')
+    .select('client_id, channel, direction, content, ai_intent, is_junk, created_at, clients ( phone, email, whatsapp_id )')
     .eq('beautician_id', beauticianId)
     .gte('created_at', sinceIso)
     .order('created_at', { ascending: false })
@@ -347,15 +353,37 @@ async function openEscalations(beauticianId, sinceIso) {
   // Rows arrive newest-first, so the first row seen per client IS their last
   // word. Anything after it is history and cannot make them waiting again.
   const seen = new Set();
-  const waiting = new Set();
+  const waiting = new Map(); // client_id -> their last-word row
   for (const row of data || []) {
     if (!row.client_id || seen.has(row.client_id)) continue;
     seen.add(row.client_id);
     if (row.is_junk) continue;
     if (row.direction !== 'inbound') continue;
-    if (replyIsOwed(row.content, { intent: row.ai_intent })) waiting.add(row.client_id);
+    if (replyIsOwed(row.content, { intent: row.ai_intent })) waiting.set(row.client_id, row);
   }
-  return waiting.size;
+  if (!waiting.size) return 0;
+
+  // Relationship test, batched. Contact details on file settle it without the
+  // lookup; only the rest need the ever-booked check. clientsEverBooked
+  // returns null on failure: for a badge the safe direction is the OLD
+  // behaviour (count everyone waiting) rather than silently hiding clients.
+  const unproven = [];
+  for (const [clientId, row] of waiting) {
+    if (!hasContactIdentity(row.clients)) unproven.push(clientId);
+  }
+  const everBooked = unproven.length ? await clientsEverBooked(beauticianId, unproven) : new Set();
+  if (everBooked === null) return waiting.size;
+
+  let count = 0;
+  for (const [clientId, row] of waiting) {
+    const known = hasContactIdentity(row.clients) || everBooked.has(clientId);
+    if (known) { count += 1; continue; }
+    // A stranger off Instagram (an email enquiry, say) still counts: they
+    // reached her on a channel she owns. Only IG strangers get the lead gate.
+    if (row.channel !== 'instagram') { count += 1; continue; }
+    if (isSocialLead({ content: row.content, intent: row.ai_intent, isJunk: row.is_junk })) count += 1;
+  }
+  return count;
 }
 
 /**
