@@ -137,11 +137,17 @@ export default function PatchTests() {
       const now = new Date();
       const in14 = new Date(now); in14.setDate(now.getDate() + 14);
 
-      const [rows, { data: upcoming }] = await Promise.all([
+      // The name comes off the joined treatments row. appointments has never
+      // had a column of its own for it: that name lives on booking_suggestions.
+      // Asking for it here made PostgREST reject the whole select, so upcoming
+      // was undefined, every alert was filtered out of an empty array, and the
+      // page said no bookings needed a patch test when some did. Nothing read
+      // the error, so it never said anything at all.
+      const [rows, { data: upcoming, error: upcomingErr }] = await Promise.all([
         fetchRows('patch_tests', beautician.id, { order: 'test_date', ascending: false }),
         supabase
           .from('appointments')
-          .select('id, starts_at, treatment_name, clients(first_name, last_name)')
+          .select('id, starts_at, treatments(name), clients(first_name, last_name)')
           .eq('beautician_id', beautician.id)
           .gte('starts_at', now.toISOString())
           .lte('starts_at', in14.toISOString())
@@ -149,12 +155,17 @@ export default function PatchTests() {
           .order('starts_at', { ascending: true }),
       ]);
 
+      // A silent empty alert list on a page about patch tests is the one
+      // outcome worth shouting about, so a failed query is an error here, not
+      // a quiet nothing.
+      if (upcomingErr) throw upcomingErr;
+
       setTests(rows);
 
       // Build alerts: upcoming appointments that need a patch test and don't have a valid one
       const expiryMs = settings.expiry_months * 30 * 24 * 60 * 60 * 1000;
       const alerts = (upcoming || [])
-        .filter(a => requiresPatchTest(a.treatment_name))
+        .filter(a => requiresPatchTest(a.treatments?.name))
         .map(a => {
           const clientName = a.clients
             ? `${a.clients.first_name || ''} ${a.clients.last_name || ''}`.trim()
@@ -174,7 +185,7 @@ export default function PatchTests() {
           return {
             client_name: clientName,
             appointment_date: a.starts_at.slice(0, 10),
-            treatment: a.treatment_name,
+            treatment: a.treatments?.name,
             status,
           };
         })
