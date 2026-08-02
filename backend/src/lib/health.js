@@ -27,8 +27,29 @@ const DEFAULT_TIMEOUT_MS = 3000;
 
 // A cron that claims a daily cadence but has not succeeded in a day and a half
 // has stopped, whether it is throwing or was never scheduled after the last
-// redeploy. 36h leaves room for one missed run plus deploy churn.
+// redeploy. 36h leaves room for one missed run plus deploy churn. Used only
+// when the caller gives a bare job name with no cadence.
 const STALE_JOB_MS = 36 * 60 * 60 * 1000;
+
+// When the caller passes a cadence (the scheduler knows all of them), judge
+// each job against its own clock instead. Two whole missed cycles plus an
+// hour of deploy churn: a 5 minute job goes stale after 70 minutes, a daily
+// one after 49 hours. One skipped run must never page anybody, because that
+// is how a monitor gets ignored.
+function staleAfterMs(intervalMs) {
+  if (!Number.isFinite(intervalMs) || intervalMs <= 0) return STALE_JOB_MS;
+  return intervalMs * 2 + 60 * 60 * 1000;
+}
+
+// Accepts either 'name' or { name, intervalMs }, so existing callers and
+// tests that pass plain strings keep working.
+function normaliseJobSpecs(specs) {
+  return (specs || []).map((spec) => (
+    typeof spec === 'string'
+      ? { name: spec, staleAfterMs: STALE_JOB_MS }
+      : { name: spec.name, staleAfterMs: staleAfterMs(spec.intervalMs) }
+  )).filter((spec) => spec.name);
+}
 
 const IG_EXPIRY_WARN_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -231,8 +252,9 @@ async function checkInstagramTokens() {
  * Cron heartbeats. Reads job_runs (migration 020). If the migration has not
  * been applied the answer is "unknown", never "failing".
  */
-async function checkJobs(jobNames) {
-  const { available, rows, reason } = await readJobRuns(jobNames);
+async function checkJobs(specs) {
+  const jobSpecs = normaliseJobSpecs(specs);
+  const { available, rows, reason } = await readJobRuns(jobSpecs.map((s) => s.name));
   if (!available) {
     return { ok: true, status: 'unknown', critical: false, detail: reason || 'job_runs unavailable' };
   }
@@ -241,7 +263,7 @@ async function checkJobs(jobNames) {
   const jobs = {};
   const stale = [];
 
-  for (const name of jobNames) {
+  for (const { name, staleAfterMs: threshold } of jobSpecs) {
     const row = byName.get(name);
     if (!row) {
       // No row yet means it has never run since the migration. On a fresh
@@ -250,7 +272,7 @@ async function checkJobs(jobNames) {
       continue;
     }
     const lastSuccessMs = Date.parse(row.last_success_at || '');
-    const isStale = !Number.isFinite(lastSuccessMs) || (Date.now() - lastSuccessMs) > STALE_JOB_MS;
+    const isStale = !Number.isFinite(lastSuccessMs) || (Date.now() - lastSuccessMs) > threshold;
     jobs[name] = {
       status: isStale ? 'stale' : 'ok',
       last_success_at: row.last_success_at || null,
@@ -276,10 +298,12 @@ async function checkJobs(jobNames) {
  * @param {object} [deps]
  * @param {object|null} [deps.stripe] a Stripe client, or null when unconfigured
  * @param {number} [deps.timeoutMs]
- * @param {string[]} [deps.jobNames] jobs whose heartbeat should be reported
+ * @param {Array<string|{name:string,intervalMs:number}>} [deps.jobs] jobs whose
+ *   heartbeat should be reported. Pass the scheduler registry so the names
+ *   here can never drift from the names that actually run.
  * @returns {Promise<{status:string, checks:object, failing:string[], warnings:string[]}>}
  */
-export async function runHealthChecks({ stripe = null, timeoutMs = DEFAULT_TIMEOUT_MS, jobNames = ['reconciliation'] } = {}) {
+export async function runHealthChecks({ stripe = null, timeoutMs = DEFAULT_TIMEOUT_MS, jobs: jobSpecs = ['reconciliation'] } = {}) {
   const startedAt = Date.now();
   const stripeConfigured = Boolean(stripe);
 
@@ -298,7 +322,7 @@ export async function runHealthChecks({ stripe = null, timeoutMs = DEFAULT_TIMEO
     guarded('stripe_webhook_secret', () => checkStripeWebhookSecret(stripeConfigured)),
     guarded('stripe_webhook_activity', () => checkStripeWebhookActivity(stripeConfigured)),
     guarded('instagram_tokens', checkInstagramTokens),
-    guarded('crons', () => checkJobs(jobNames)),
+    guarded('crons', () => checkJobs(jobSpecs)),
   ]);
 
   const checks = {
