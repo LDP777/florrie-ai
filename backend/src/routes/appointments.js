@@ -2,6 +2,7 @@ import { Router } from 'express';
 import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
+import { requireOwned } from '../lib/ownership.js';
 import { validate } from '../middleware/validate.js';
 import { updateClientIntelligence } from '../services/client-intelligence.js';
 import { triggerSequence } from '../services/email-sequences.js';
@@ -423,6 +424,15 @@ router.patch('/:id', requireAuth, async (req, res) => {
   for (const field of allowedFields) {
     if (req.body[field] !== undefined) updates[field] = req.body[field];
   }
+
+  // treatment_id comes straight from the body. Without this, a booking can be
+  // repointed at another salon's treatment, which then drives its price, its
+  // duration and the ends_at recomputed below. The backend uses the service
+  // key, so RLS is bypassed and this is the only check there is. 404 rather
+  // than 403, so the response does not confirm the treatment exists.
+  if (!await requireOwned(req, res, [
+    { table: 'treatments', id: req.body.treatment_id },
+  ])) return;
 
   // Validate status transition if status is being updated
   if (req.body.status !== undefined) {
