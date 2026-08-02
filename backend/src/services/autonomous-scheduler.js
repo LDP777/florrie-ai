@@ -113,22 +113,31 @@ async function runForBeautician(beautician) {
 async function checkRebookDueClients(beauticianId, threshold) {
   let actionsCount = 0;
 
-  // Get clients with predicted next visit that's overdue
-  const { data: clients } = await supabase
+  // Get clients with predicted next visit that's overdue.
+  //
+  // The column is next_expected_visit. This queried next_expected_visit,
+  // which has never existed on clients (it exists on client_intelligence),
+  // so PostgREST rejected the WHOLE select and this nudge found nobody, ever.
+  // The error was discarded, which is why nothing ever said so.
+  const { data: clients, error: clientsErr } = await supabase
     .from('clients')
-    .select('id, first_name, last_name, phone, email, whatsapp_id, last_whatsapp_inbound_at, next_predicted_visit')
+    .select('id, first_name, last_name, phone, email, whatsapp_id, last_whatsapp_inbound_at, next_expected_visit')
     .eq('beautician_id', beauticianId)
-    .not('next_predicted_visit', 'is', null)
-    .lt('next_predicted_visit', new Date().toISOString())
+    .not('next_expected_visit', 'is', null)
+    .lt('next_expected_visit', new Date().toISOString())
     .eq('status', 'active');
 
+  if (clientsErr) {
+    logger.error({ err: clientsErr, beauticianId }, 'rebook-due lookup failed');
+    return 0;
+  }
   if (!clients?.length) return 0;
 
   // Only process clients overdue by 3+ days (avoid nagging), and never nudge a
   // client who's already booked in for a future appointment.
   const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
   const booked = await getFutureBookedClientIds(beauticianId);
-  const overdue = clients.filter(c => c.next_predicted_visit < threeDaysAgo && !booked.has(c.id));
+  const overdue = clients.filter(c => c.next_expected_visit < threeDaysAgo && !booked.has(c.id));
 
   for (const client of overdue.slice(0, 5)) { // Max 5 per cycle
     // Check if we already nudged recently
