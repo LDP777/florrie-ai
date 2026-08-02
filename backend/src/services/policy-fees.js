@@ -1,4 +1,5 @@
 import Stripe from 'stripe';
+import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
 import { totalApplicationFee } from '../lib/platform-fees.js';
 import logger from '../lib/logger.js';
@@ -496,8 +497,24 @@ export async function chargeRemainingBalance(appointmentId) {
       payment_method: 'card_online',
     });
     if (txErr) {
+      // Money has left the client's card and the books do not know. This is
+      // the incident that ran for weeks: a CHECK constraint rejected the row,
+      // Supabase reported it in the result object, and the only trace was a
+      // log line nobody read. This row is also the double-charge guard, so a
+      // silent failure here can lead to charging the same person twice.
       logger.error({ err: txErr, appointmentId, paymentIntentId: paymentIntent.id, amountCents },
         'CHARGED BUT NOT RECORDED: balance taken from the card but the transaction insert failed');
+      Sentry.captureMessage('CHARGED BUT NOT RECORDED: remaining balance', {
+        level: 'error',
+        tags: { area: 'payments', check: 'transaction_insert' },
+        extra: {
+          appointmentId,
+          paymentIntentId: paymentIntent.id,
+          amountCents,
+          dbError: txErr.message,
+          dbCode: txErr.code,
+        },
+      });
     }
 
     logger.info({ appointmentId, amountCents, paymentIntentId: paymentIntent.id }, 'Remaining balance charged');
@@ -602,8 +619,22 @@ export async function chargeCardAmount(appointmentId, amountCents, reason = '') 
       description: reason || null,
     });
     if (txErr) {
+      // Same failure mode as chargeRemainingBalance above: the card was
+      // charged, the ledger write was rejected, and without this the loss is
+      // only discoverable by accident weeks later.
       logger.error({ err: txErr, appointmentId, paymentIntentId: paymentIntent.id, amount },
         'CHARGED BUT NOT RECORDED: card charged but the transaction insert failed');
+      Sentry.captureMessage('CHARGED BUT NOT RECORDED: manual card charge', {
+        level: 'error',
+        tags: { area: 'payments', check: 'transaction_insert' },
+        extra: {
+          appointmentId,
+          paymentIntentId: paymentIntent.id,
+          amountCents: amount,
+          dbError: txErr.message,
+          dbCode: txErr.code,
+        },
+      });
     }
 
     logger.info({ appointmentId, amount, reason, paymentIntentId: paymentIntent.id }, 'Manual card charge taken');

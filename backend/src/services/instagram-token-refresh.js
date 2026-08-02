@@ -9,6 +9,7 @@
  *
  * Runs daily from index.js. Fail-soft per beautician.
  */
+import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 import { fetchInstagramIdentity } from '../routes/instagram-webhooks.js';
@@ -46,10 +47,40 @@ export async function refreshInstagramTokens() {
           refreshed++;
         }
       } else {
-        // Common quiet case: token under 24h old. Real failures (expired,
-        // revoked) also land here and matter, so keep them visible.
+        // These two cases used to share one logger.info line, which is how a
+        // DEAD token looked identical to a perfectly healthy one. Ellie's
+        // token expired on 21 June; outbound Instagram was dead for five weeks
+        // while the app said "Connected" and this line said "not refreshed"
+        // at info level every single night. Split them.
         failed++;
-        logger.info({ beauticianId: b.id, err: d?.error?.message || res.status }, 'IG token refresh: not refreshed');
+        const message = d?.error?.message || '';
+        const code = d?.error?.code;
+        const type = d?.error?.type || '';
+
+        // Benign: Meta refuses to refresh a token younger than 24 hours. It
+        // succeeds on a later run and needs no attention at all.
+        const tooNew = /24 hours|too new|not .*old enough/i.test(message);
+
+        // Real death: Meta reports OAuthException / code 190 for an expired,
+        // revoked or invalidated token. Nothing here can fix it. Only the
+        // beautician reconnecting Instagram can, so a human has to be told.
+        const dead = !tooNew && (code === 190 || /OAuthException/i.test(type) || res.status === 401);
+
+        if (tooNew) {
+          logger.info({ beauticianId: b.id, reason: message }, 'IG token refresh: skipped, token under 24h old');
+        } else if (dead) {
+          logger.error({ beauticianId: b.id, code, type, reason: message },
+            'INSTAGRAM TOKEN DEAD: refresh rejected, this account cannot send until she reconnects');
+          Sentry.captureMessage('Instagram token dead, reconnection required', {
+            level: 'error',
+            tags: { area: 'instagram', check: 'token_refresh' },
+            extra: { beauticianId: b.id, metaCode: code, metaType: type, metaMessage: message, httpStatus: res.status },
+          });
+        } else {
+          // Unknown refusal. Not provably fatal, but not routine either.
+          logger.warn({ beauticianId: b.id, code, type, reason: message || res.status },
+            'IG token refresh: not refreshed, unrecognised response');
+        }
       }
     } catch (err) {
       failed++;

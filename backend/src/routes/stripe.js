@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import Stripe from 'stripe';
+import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
@@ -779,7 +780,20 @@ router.post('/webhook', async (req, res) => {
     // req.rawBody is set by Express raw body middleware (see index.js)
     event = stripe.webhooks.constructEvent(req.rawBody || req.body, sig, webhookSecret);
   } catch (err) {
+    // This exact line was logged on every Stripe event for SIX WEEKS and
+    // nobody knew: the secret in Railway did not match the endpoint's secret,
+    // so every payment, refund and dispute was rejected at the door. The log
+    // was there. The log was not enough. Sentry so a human hears about it.
     logger.error({ err }, 'Webhook signature verification failed');
+    Sentry.captureMessage('Stripe webhook signature verification failed', {
+      level: 'error',
+      tags: { area: 'payments', check: 'stripe_webhook' },
+      extra: {
+        reason: err?.message || 'unknown',
+        webhook_secret_present: Boolean(webhookSecret),
+        signature_header_present: Boolean(sig),
+      },
+    });
     return res.status(400).json({ error: 'Invalid signature' });
   }
 

@@ -43,6 +43,19 @@ import { processRetryQueue as processWhatsAppRetryQueue } from './services/whats
 import { runComeback } from './jobs/comeback.js';
 import { cleanupStripeEvents } from './services/stripe-cleanup.js';
 import { billMonthlySurplus } from './services/whatsapp-metering.js';
+import { runReconciliation } from './services/reconciliation.js';
+
+// Detection layer: heartbeats for the crons and a health endpoint that can
+// actually go red. See lib/health.js for why the old one was a lie.
+import { recordJobRun } from './lib/job-runs.js';
+import { runHealthChecks, reportDegraded } from './lib/health.js';
+import Stripe from 'stripe';
+
+// A client purely for the health check's authenticated Stripe call. Cheap to
+// construct; kept here so index.js does not have to import a route's internals.
+const healthStripe = process.env.STRIPE_SECRET_KEY
+  ? new Stripe(process.env.STRIPE_SECRET_KEY)
+  : null;
 
 // Routes
 import authRoutes from './routes/auth.js';
@@ -210,9 +223,44 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(sanitiseBody);
 app.use(locationScope);
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'florrie-api', version: '0.1.0' });
+// ── Liveness: is this process running at all? ──────────────────────────────
+// Railway restarts a container whose liveness probe fails. That MUST NOT be
+// wired to the dependency checks below: if Supabase has a wobble, killing and
+// restarting the API makes it worse, and a restart loop turns a five minute
+// dependency blip into a full outage. This endpoint answers 200 as long as the
+// event loop is turning, and nothing else.
+app.get('/health/live', (req, res) => {
+  res.json({ status: 'alive' });
+});
+
+// ── Readiness: is this service actually able to do its job? ────────────────
+// This used to be res.json({ status: 'ok' }), a literal that returned ok while
+// the Stripe webhook rejected every event for six weeks and while Instagram
+// outbound was dead for five. BetterStack monitors this URL, so it has to be
+// capable of going red. 200 = all critical checks passed, 503 = at least one
+// critical dependency is down. Never throws: an unanswered health check tells
+// a human nothing.
+app.get('/health', async (req, res) => {
+  try {
+    const result = await runHealthChecks({ stripe: healthStripe });
+    if (result.status === 'degraded') {
+      reportDegraded(result);
+      return res.status(503).json({
+        status: 'degraded',
+        failing: result.failing,
+        warnings: result.warnings,
+        checks: result.checks,
+        service: result.service,
+        checked_at: result.checked_at,
+      });
+    }
+    return res.json(result);
+  } catch (err) {
+    // The check harness itself failing is a degraded service, not a 500 with
+    // no information. Say what happened.
+    logger.error({ err }, 'Health check harness failed');
+    return res.status(503).json({ status: 'degraded', failing: ['health_check_harness'], error: err?.message || 'unknown' });
+  }
 });
 
 // API routes
@@ -546,4 +594,31 @@ app.listen(PORT, () => {
   setTimeout(() => {
     cleanupStripeEvents().catch(err => logger.error({ err }, 'Startup: stripe cleanup failed'));
   }, 180_000);
+
+  // ── Nightly money reconciliation ──────────────────────────────────────────
+  // Compares Stripe against the transactions ledger over the last 48h and
+  // reports what does not match. It exists because card charges failed to
+  // RECORD for weeks (a CHECK constraint rejected the insert, Supabase returns
+  // errors in the result object rather than throwing, nobody looked) and
+  // because auto-complete.js logs its takings failures into a void.
+  //
+  // It reports. It never repairs.
+  //
+  // Wrapped in recordJobRun so job_runs knows when it last actually worked,
+  // and so a throw lands in Sentry instead of a swallowed .catch. The startup
+  // kick is not optional: this service redeploys most days, and a bare 24h
+  // setInterval on a process that restarts every few hours never matures, so
+  // the job would appear to be scheduled while never once running.
+  const RECONCILIATION_INTERVAL = 24 * 60 * 60 * 1000;
+  setInterval(() => {
+    // recordJobRun never rejects, but an unhandled rejection here would kill
+    // the process on Node 18+, so the guard stays.
+    recordJobRun('reconciliation', runReconciliation).catch(() => {});
+  }, RECONCILIATION_INTERVAL);
+  // 4 minutes after boot: late enough that DB connections have settled and the
+  // deploy is not still thrashing, early enough that a container which only
+  // lives a few hours still runs it.
+  setTimeout(() => {
+    recordJobRun('reconciliation', runReconciliation).catch(() => {});
+  }, 4 * 60 * 1000);
 });

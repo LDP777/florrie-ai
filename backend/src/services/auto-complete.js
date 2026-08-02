@@ -28,6 +28,7 @@
  *  - Idempotent: the status update is guarded (.eq('status','confirmed')) and
  *    the takings insert is skipped if a payment row already exists.
  */
+import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 import { getTaxYear } from '../lib/time-utils.js';
@@ -124,7 +125,23 @@ export async function autoCompletePastAppointments() {
       description: `${appt.treatments?.name || 'Appointment'}${appt.clients?.first_name ? ` - ${appt.clients.first_name}` : ''}`,
     });
     if (txErr) {
+      // The appointment is now marked completed, so Ellie believes she was
+      // paid, and the Money tab counts nothing. This error WAS being checked
+      // and logged, and the money was still permanently lost, because nothing
+      // consumed the log. Sentry now does, and the nightly reconciliation
+      // (services/reconciliation.js, class c) catches any that slip past.
       logger.error({ err: txErr, id: appt.id }, 'auto-complete: takings insert failed');
+      Sentry.captureMessage('Takings lost: auto-complete transaction insert failed', {
+        level: 'error',
+        tags: { area: 'payments', check: 'transaction_insert' },
+        extra: {
+          appointmentId: appt.id,
+          beauticianId: appt.beautician_id,
+          takingsPence: takings,
+          dbError: txErr.message,
+          dbCode: txErr.code,
+        },
+      });
     }
   }
 
