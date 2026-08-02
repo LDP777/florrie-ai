@@ -59,11 +59,16 @@ export default function PriceList() {
     if (!beautician) return;
     setLoading(true);
     try {
+      // Two drifted names used to make this page fail outright: `is_popular`,
+      // which the treatments table has never had, and `active`, which is
+      // called `is_active`. PostgREST rejects a select naming an unknown
+      // column and a filter on an unknown column, so every load threw and the
+      // page only ever showed "Could not load treatments".
       const { data, error: fetchErr } = await supabase
         .from('treatments')
-        .select('id, name, price_cents, duration_minutes, description, category, is_popular')
+        .select('id, name, price_cents, duration_minutes, description, category')
         .eq('beautician_id', beautician.id)
-        .eq('active', true)
+        .eq('is_active', true)
         .order('name');
 
       if (fetchErr) throw fetchErr;
@@ -75,7 +80,6 @@ export default function PriceList() {
         price_cents: t.price_cents || 0,
         duration_minutes: t.duration_minutes || 0,
         description: t.description || null,
-        popular: t.is_popular || false,
       }));
       setItems(mapped);
 
@@ -214,7 +218,6 @@ export default function PriceList() {
                       <div style={S.priceLeft}>
                         <div style={S.priceNameRow}>
                           <span style={{ ...S.priceName, color: currentTheme.text }}>{item.name}</span>
-                          {item.popular && <span style={{ ...S.popularBadge, background: currentTheme.accent + '20', color: currentTheme.accent }}>Popular</span>}
                         </div>
                         {item.description && showNotes && <span style={{ ...S.priceDesc, color: currentTheme.muted }}>{item.description}</span>}
                       </div>
@@ -395,7 +398,6 @@ const S = {
   priceLeft: { flex: 1, display: 'flex', flexDirection: 'column', gap: 3 },
   priceNameRow: { display: 'flex', alignItems: 'center', gap: 8 },
   priceName: { fontSize: 14, fontWeight: 500 },
-  popularBadge: { padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600 },
   priceDesc: { fontSize: 12, lineHeight: 1.3 },
   priceRight: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 },
   priceAmount: { fontSize: 16, fontWeight: 700 },

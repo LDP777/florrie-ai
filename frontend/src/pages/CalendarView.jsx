@@ -1395,17 +1395,42 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
   // treatEditing so opening one closes the other and she is never looking at
   // two dropdowns wondering which does what.
   const [addingTreat, setAddingTreat] = useState(false);
+  // Set when the query itself failed. Without it an empty picker is
+  // indistinguishable from "you have no treatments", which is what this bug
+  // looked like from the salon floor.
+  const [treatLoadFailed, setTreatLoadFailed] = useState(false);
   async function loadTreatList() {
     if (treatList.length > 0) return treatList;
-    const { data } = await supabase
+    // No `hidden` in this select: the treatments table has never had that
+    // column. PostgREST rejects the entire select when one column is unknown,
+    // so data came back null and both pickers rendered empty on an account
+    // with a full price list.
+    //
+    // The filter is is_active only, deliberately. `booking_enabled` is the
+    // real column that means hidden, but it means hidden from the PUBLIC
+    // booking page. A treatment she does not sell online is still one she can
+    // add to a client sitting in front of her, so it belongs in this list.
+    const { data, error } = await supabase
       .from('treatments')
-      .select('id, name, duration_minutes, price_cents, is_active, hidden')
+      .select('id, name, duration_minutes, price_cents, is_active')
       .eq('beautician_id', beautician.id)
       .order('sort_order', { ascending: true });
-    const list = (data || []).filter(t => t.is_active !== false && !t.hidden);
+    if (error) {
+      console.error('Could not load treatments', error);
+      setTreatLoadFailed(true);
+      return [];
+    }
+    setTreatLoadFailed(false);
+    const list = (data || []).filter(t => t.is_active !== false);
     setTreatList(list);
     return list;
   }
+  // One line, shown wherever a picker would otherwise be silently empty.
+  const treatLoadNotice = treatLoadFailed ? (
+    <span style={{ fontSize: 12, color: '#B4453F', fontFamily: 'inherit', textAlign: 'right' }}>
+      Could not load your treatments just now. Close this and open it again.
+    </span>
+  ) : null;
   // Loaded as soon as the sheet opens, not on first tap: the extras are stored
   // as bare uuids, so without this the list would show "+ 1 more" style
   // nonsense until she happened to open a picker.
@@ -1913,6 +1938,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                         <option key={t.id} value={t.id}>{treatOptionLabel(t)}</option>
                       ))}
                     </select>
+                    {treatLoadNotice}
                     <button onClick={() => setTreatEditing(false)} style={quietBtnStyle}>Cancel</button>
                   </span>
                 ) : (
@@ -1954,6 +1980,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                         <option key={t.id} value={t.id}>{treatOptionLabel(t)}</option>
                       ))}
                     </select>
+                    {treatLoadNotice}
                     <button onClick={() => setAddingTreat(false)} style={quietBtnStyle}>Cancel</button>
                   </span>
                 ) : (
