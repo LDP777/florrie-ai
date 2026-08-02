@@ -1,0 +1,56 @@
+# CI: run the tests and prove the frontend still builds.
+#
+# WHY THIS EXISTS
+# A push to main is a full ship. Xcode Cloud builds it to TestFlight, Vercel
+# deploys the frontend, Railway deploys the backend. Until now nothing ran
+# between "git push" and Ellie's phone. The 110 unit tests only ran when
+# somebody remembered to type `npx -y vitest`.
+#
+# Deliberately small and fast. Two jobs, one Node version, npm cache on. If
+# this takes more than a couple of minutes people will start pushing round it.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A second push to the same branch makes the first run pointless. Cancel it.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-tests:
+    name: Backend unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test --workspace backend
+
+  frontend-build:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # The build is the test here. A broken import or a syntax error in any of
+      # the 64 pages fails the bundle, which is exactly the class of mistake
+      # that used to reach TestFlight.
+      - run: npm run build --workspace frontend
+        env:
+          # Vite inlines these at build time. Real values live in Vercel; CI
+          # only needs the build to complete, so placeholders are correct here
+          # and keep real keys out of the workflow.
+          VITE_API_URL: https://api.florrie.ai
+          VITE_SUPABASE_URL: https://placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: placeholder
