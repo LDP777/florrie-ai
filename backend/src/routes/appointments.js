@@ -7,6 +7,7 @@ import { triggerSequence } from '../services/email-sequences.js';
 import { scheduleReviewRequest } from '../services/review-requests.js';
 import { awardLoyaltyPoints } from '../services/loyalty.js';
 import { chargePolicyFee, chargeRemainingBalance, chargeCardAmount, getCardOnFile } from '../services/policy-fees.js';
+import { feePreview } from '../lib/platform-fees.js';
 import { logAssumedTakings } from '../lib/takings.js';
 import logger from '../lib/logger.js';
 import { parsePagination, buildPaginationMeta, handleQueryError } from '../lib/queries.js';
@@ -806,12 +807,28 @@ router.post('/:id/charge-balance', requireAuth, async (req, res) => {
 router.get('/:id/card', requireAuth, async (req, res) => {
   const { data: appt } = await supabase
     .from('appointments')
-    .select('id')
+    .select('id, price_cents, deposit_cents, deposit_paid, payment_type')
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id)
     .maybeSingle();
   if (!appt) return res.status(404).json({ error: 'Appointment not found' });
-  res.json(await getCardOnFile(req.params.id));
+
+  // Outstanding balance, IDENTICAL arithmetic to chargeRemainingBalance: a
+  // pay-in-full booking owes nothing regardless of what price minus deposit
+  // says, because deposit_cents still carries the standard deposit figure on
+  // those rows. Computed here so the sheet's breakdown, the collect button
+  // and the actual charge can never disagree with each other.
+  const outstandingCents = appt.payment_type === 'full'
+    ? 0
+    : Math.max(0, (appt.price_cents || 0) - (appt.deposit_paid ? (appt.deposit_cents || 0) : 0));
+
+  // Fee preview so the app can say what actually reaches the beautician.
+  // ?amount_cents previews a custom figure; default is the outstanding balance.
+  const q = Number.parseInt(req.query.amount_cents, 10);
+  const previewCents = Number.isFinite(q) && q > 0 ? q : outstandingCents;
+
+  const card = await getCardOnFile(req.params.id);
+  res.json({ ...card, outstanding_cents: outstandingCents, fees: feePreview(previewCents) });
 });
 
 /**

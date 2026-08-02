@@ -63,6 +63,11 @@ function formatWallTime(isoish) {
     : new Date(isoish).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
 }
 
+/** Minutes since midnight -> "HH:MM" for labels and stored wall-time strings. */
+function minToHHMM(min) {
+  return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+}
+
 /**
  * Google Calendar style collision layout. Each appointment becomes a pixel
  * rect (top from start time, height from duration with a content minimum).
@@ -239,6 +244,125 @@ export default function CalendarView({ initialView } = {}) {
   const [showNewAppt, setShowNewAppt] = useState(!!bookClient);
   // Day grid scroll container + once-per-day auto-scroll tracking
   const gridScrollRef = useRef(null);
+  // --- Drag-to-move (day view) ---------------------------------------------
+  // Press and hold a card until it lifts (haptic cue), slide it up or down the
+  // day, release to drop it on the new time, snapped to 5 minutes. The write
+  // is the exact PATCH the Reschedule sheet uses, so the backend's
+  // no-double-book guard keeps the final say: a 409 snaps the card back.
+  const [dragMove, setDragMove] = useState(null); // { id, top, startMin, durMin }
+  const dragRef = useRef(null);
+  const dragClickGuard = useRef(false);
+  useEffect(() => {
+    // While a card is lifted, stop iOS turning finger movement into a page
+    // scroll. Has to be a native passive:false listener; React's synthetic
+    // onTouchMove cannot reliably preventDefault a touchmove.
+    if (!dragMove) return;
+    const stop = e => e.preventDefault();
+    document.addEventListener('touchmove', stop, { passive: false });
+    return () => document.removeEventListener('touchmove', stop);
+  }, [dragMove]);
+  function beginCardDrag(e, appt) {
+    if (DEAD_STATUSES.includes(appt.status)) return; // a cancelled row has no time to move
+    const target = e.currentTarget;
+    const d = {
+      appt, target, pid: e.pointerId,
+      startX: e.clientX, startY: e.clientY,
+      active: false, moved: false, lastStartMin: null, timer: null,
+    };
+    dragRef.current = d;
+    d.timer = setTimeout(() => {
+      if (dragRef.current !== d || d.moved) return;
+      d.active = true;
+      const startMin = wallMinutes(d.appt.starts_at);
+      const endMin = d.appt.ends_at ? wallMinutes(d.appt.ends_at) : startMin + 30;
+      d.origStartMin = startMin;
+      d.durMin = Math.max(endMin - startMin, 15);
+      d.lastStartMin = startMin;
+      try { target.setPointerCapture(d.pid); } catch { /* older Safari: drag still works within the card */ }
+      hapticTap(); // the "picked up" cue
+      setDragMove({ id: d.appt.id, top: ((startMin - START_HOUR * 60) / 60) * HOUR_HEIGHT, startMin, durMin: d.durMin });
+    }, 400);
+  }
+  function onCardDragMove(e) {
+    const d = dragRef.current;
+    if (!d) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    if (!d.active) {
+      // Finger wandered before the hold registered: that's a scroll, not a lift.
+      if (Math.abs(dx) > 8 || Math.abs(dy) > 8) { d.moved = true; clearTimeout(d.timer); }
+      return;
+    }
+    const snapped = Math.round((d.origStartMin + (dy / HOUR_HEIGHT) * 60) / 5) * 5;
+    const clamped = Math.max(START_HOUR * 60, Math.min(snapped, END_HOUR * 60 - d.durMin));
+    if (clamped === d.lastStartMin) return;
+    d.lastStartMin = clamped;
+    setDragMove({ id: d.appt.id, top: ((clamped - START_HOUR * 60) / 60) * HOUR_HEIGHT, startMin: clamped, durMin: d.durMin });
+  }
+  function onCardDragEnd() {
+    const d = dragRef.current;
+    if (!d) return;
+    clearTimeout(d.timer);
+    dragRef.current = null;
+    if (!d.active) return; // never lifted: the click that follows opens the sheet as before
+    try { d.target.releasePointerCapture(d.pid); } catch { /* fine */ }
+    dragClickGuard.current = true; // swallow the click the browser fires after the drop
+    setDragMove(null);
+    if (d.lastStartMin == null || d.lastStartMin === d.origStartMin) return;
+    commitDragMove(d.appt, d.lastStartMin, d.origStartMin);
+  }
+  function onCardDragCancel() {
+    // Browser stole the gesture (incoming call, system swipe): snap back, no write.
+    const d = dragRef.current;
+    if (!d) return;
+    clearTimeout(d.timer);
+    dragRef.current = null;
+    if (d.active) { try { d.target.releasePointerCapture(d.pid); } catch { /* fine */ } }
+    setDragMove(null);
+  }
+  async function commitDragMove(appt, newStartMin, origStartMin) {
+    const day = String(appt.starts_at || '').slice(0, 10);
+    const startsAt = `${day}T${minToHHMM(newStartMin)}:00.000Z`; // wall time in the UTC slot, per convention
+    // Optimistic: paint the card at its new time while the PATCH runs, so a
+    // successful drop never visibly bounces. Restored wholesale on failure.
+    const before = appointments;
+    const delta = newStartMin - origStartMin;
+    setAppointments(prev => prev.map(a => {
+      if (a.id !== appt.id) return a;
+      const endMin = a.ends_at ? wallMinutes(a.ends_at) + delta : null;
+      return {
+        ...a,
+        starts_at: startsAt,
+        ends_at: endMin != null && endMin > 0 && endMin < 24 * 60
+          ? `${day}T${minToHHMM(endMin)}:00.000Z`
+          : a.ends_at,
+      };
+    }));
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/appointments/${appt.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ starts_at: startsAt }),
+      });
+      if (res.status === 409) {
+        setAppointments(before);
+        alert('That time is taken. Pick another slot.');
+        return;
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || 'Could not move the appointment');
+      }
+      hapticSuccess();
+      // Fold in the server's recomputed ends_at (treatment length + buffer).
+      loadAppointments({ keepScroll: true });
+    } catch (err) {
+      logger.error('Drag move error:', err);
+      setAppointments(before);
+      alert(err.message || 'Could not move the appointment. Please try again.');
+    }
+  }
   // Week strip swipe: start point + horizontal-intent lock, so a horizontal
   // flick moves a week without hijacking vertical page scrolling.
   const stripTouch = useRef(null);
@@ -630,13 +754,22 @@ export default function CalendarView({ initialView } = {}) {
               const compact = tiny || cols > 1 || height < 72;
               const showTreatment = height >= 60 && cols < 3;
               const showMeta = cols < 3 && !tiny;   // time is inlined with the name when tiny
+              const lifted = dragMove?.id === appt.id;
               return (
                 <button
                   key={appt.id}
-                  onClick={() => setSelectedAppointment(selectedAppointment?.id === appt.id ? null : appt)}
+                  onClick={() => {
+                    // A drop fires a click too; that click must not toggle the sheet.
+                    if (dragClickGuard.current) { dragClickGuard.current = false; return; }
+                    setSelectedAppointment(selectedAppointment?.id === appt.id ? null : appt);
+                  }}
+                  onPointerDown={e => beginCardDrag(e, appt)}
+                  onPointerMove={onCardDragMove}
+                  onPointerUp={onCardDragEnd}
+                  onPointerCancel={onCardDragCancel}
                   style={{
                     ...styles.appointmentCard,
-                    top,
+                    top: lifted ? dragMove.top : top,
                     height,
                     left: `calc(${(col / cols) * 100}% + 4px)`,
                     width: `calc(${100 / cols}% - 8px)`,
@@ -647,6 +780,10 @@ export default function CalendarView({ initialView } = {}) {
                     background: tint(treatColor, 0.1),
                     borderLeftColor: treatColor,
                     opacity: dead ? 0.55 : 1,
+                    // Kill the iOS long-press magnifier/text-selection so the
+                    // press-and-hold reads as "pick the card up", nothing else.
+                    WebkitUserSelect: 'none', userSelect: 'none', WebkitTouchCallout: 'none',
+                    ...(lifted ? { zIndex: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.25)', opacity: 0.95, transform: 'scale(1.02)' } : {}),
                   }}
                 >
                   <div style={styles.appointmentCardContent}>
@@ -671,6 +808,12 @@ export default function CalendarView({ initialView } = {}) {
                 </button>
               );
             })}
+            {/* While a card is lifted: the time it will land on, live */}
+            {dragMove && (
+              <div style={{ position: 'absolute', top: Math.max(0, dragMove.top - 26), right: 8, zIndex: 11, background: COLORS.primary, color: '#fff', borderRadius: 8, padding: '3px 9px', fontSize: 12, fontWeight: 700, pointerEvents: 'none', fontVariantNumeric: 'tabular-nums' }}>
+                {minToHHMM(dragMove.startMin)} – {minToHHMM(dragMove.startMin + dragMove.durMin)}
+              </div>
+            )}
             {/* Time block overlays */}
             {timeBlocks
               .filter(b => b.date === formatDate(currentDate))
@@ -1731,6 +1874,44 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               </div>
             )}
           </div>
+          {/* Payments, all in one place: the plain sum for THIS booking (total,
+              paid, left to collect) plus what card fees would take. Outstanding
+              and fees come from the same /card endpoint the charge buttons use,
+              so this panel can never disagree with what a tap would charge. */}
+          {(appointment.price_cents || 0) > 0 && !DEAD_STATUSES.includes(appointment.status) && (() => {
+            const paidInFull = appointment.payment_type === 'full';
+            const paidCents = paidInFull
+              ? (appointment.price_cents || 0)
+              : (appointment.deposit_paid ? (appointment.deposit_cents || 0) : 0);
+            const owed = cardInfo?.outstanding_cents
+              ?? (paidInFull ? 0 : Math.max(0, (appointment.price_cents || 0) - paidCents));
+            const fees = cardInfo?.fees;
+            return (
+              <div style={{ marginTop: 14, border: `1.5px solid ${COLORS.outlineVariant}`, borderRadius: 12, padding: '10px 12px' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #888)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Payments</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: 13 }}>
+                  <span>Total</span>
+                  <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>£{((appointment.price_cents || 0) / 100).toFixed(2)}</span>
+                </div>
+                {paidCents > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: 13, color: COLORS.stone400 }}>
+                    <span>{paidInFull ? 'Paid in full at booking' : 'Deposit paid'}</span>
+                    <span style={{ fontVariantNumeric: 'tabular-nums' }}>{'\u2212'}£{(paidCents / 100).toFixed(2)}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0 0', marginTop: 3, borderTop: `1px solid ${COLORS.outlineVariant}66`, fontSize: 14 }}>
+                  <span style={{ fontWeight: 700, color: owed > 0 ? COLORS.primary : 'var(--success, #5BA97B)' }}>{owed > 0 ? 'To collect' : 'Nothing to collect'}</span>
+                  {owed > 0 && <span style={{ fontWeight: 700, color: COLORS.primary, fontVariantNumeric: 'tabular-nums' }}>£{(owed / 100).toFixed(2)}</span>}
+                </div>
+                {owed > 0 && fees && fees.amount_cents > 0 && (
+                  <p style={{ fontSize: 11, color: COLORS.stone400, margin: '6px 0 0', lineHeight: 1.45 }}>
+                    On the card that's about £{((fees.estimated_net_cents || 0) / 100).toFixed(2)} to you after
+                    fees (Stripe + Florrie, estimate). Cash or bank transfer: the full £{(owed / 100).toFixed(2)}, no fees.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
           {/* Persistent notes - always visible, save without completing */}
           <div style={{ marginTop: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -1816,6 +1997,21 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                       style={{ flex: 1, minWidth: 0, padding: '10px', borderRadius: 8, border: `1px solid ${COLORS.outlineVariant}`, fontFamily: 'inherit', fontSize: 14 }}
                     />
                   </div>
+                  {/* Live "what reaches you" as she types. Mirrors the server's
+                      arithmetic using the model constants IT sent (ceil for the
+                      platform cut, min 5p, cap £5), so no round trip per key. */}
+                  {cardInfo?.fees?.model && parseFloat(chargeAmount) > 0 && (() => {
+                    const m = cardInfo.fees.model;
+                    const cents = Math.round(parseFloat(chargeAmount) * 100);
+                    const plat = Math.min(m.platform_max_cents, Math.max(m.platform_min_cents, Math.ceil(cents * m.platform_percent / 100)));
+                    const stripe = Math.round(cents * m.stripe_percent_estimate / 100) + m.stripe_fixed_cents_estimate;
+                    const net = Math.max(0, cents - plat - stripe);
+                    return (
+                      <p style={{ fontSize: 11, color: COLORS.stone400, margin: '0 0 8px' }}>
+                        You'd receive about £{(net / 100).toFixed(2)} after card fees (estimate).
+                      </p>
+                    );
+                  })()}
                   <input
                     value={chargeReason}
                     onChange={e => setChargeReason(e.target.value)}

@@ -479,17 +479,32 @@ export default function ClientManagePage() {
         {!isCancelled && payment && (payment.depositPaidCents > 0 || payment.paidInFull) && (
           <div style={{ ...S.policyCard, borderLeft: `3px solid ${brand}` }}>
             <p style={S.sectionLabel}>Payment</p>
-            <p style={S.policyText}>
-              <strong style={{ fontSize: 16, color: '#2D1B1B' }}>
-                {payment.paidInFull
-                  ? `Paid in full: £${(payment.depositPaidCents / 100).toFixed(2)}.`
-                  : payment.remainingCents > 0
-                  ? `Deposit paid: £${(payment.depositPaidCents / 100).toFixed(2)}. Remaining £${(payment.remainingCents / 100).toFixed(2)} due on the day.`
-                  : `Deposit paid: £${(payment.depositPaidCents / 100).toFixed(2)}.`}
-              </strong>
-            </p>
+            {/* One plain subtraction, same server figures the beautician sees
+                on her sheet: total, minus what was paid, equals what is left.
+                Clients kept assuming the deposit WAS the full amount (or the
+                other way round); a visible sum leaves no room for that. */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 14, color: '#2D1B1B' }}>
+              <span>Total</span>
+              <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>£{((payment.priceCents || 0) / 100).toFixed(2)}</span>
+            </div>
+            {payment.depositPaidCents > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 14, color: 'var(--text-muted, #8A8580)' }}>
+                <span>{payment.paidInFull ? 'Paid at booking' : 'Deposit paid'}</span>
+                <span style={{ fontVariantNumeric: 'tabular-nums' }}>{'\u2212'}£{(payment.depositPaidCents / 100).toFixed(2)}</span>
+              </div>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0 0', marginTop: 4, borderTop: '1px solid rgba(0,0,0,0.08)', fontSize: 15 }}>
+              {payment.paidInFull || payment.remainingCents === 0 ? (
+                <span style={{ fontWeight: 700, color: brand }}>Paid in full</span>
+              ) : (
+                <>
+                  <span style={{ fontWeight: 700, color: brand }}>Outstanding</span>
+                  <span style={{ fontWeight: 700, color: brand, fontVariantNumeric: 'tabular-nums' }}>£{(payment.remainingCents / 100).toFixed(2)}</span>
+                </>
+              )}
+            </div>
             {(payment.paidInFull || payment.remainingCents === 0) && !isCompleted && (
-              <p style={{ ...S.policyText, color: 'var(--text-muted)', marginTop: 4 }}>
+              <p style={{ ...S.policyText, color: 'var(--text-muted)', marginTop: 6 }}>
                 Nothing more to pay on the day.
               </p>
             )}

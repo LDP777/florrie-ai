@@ -857,13 +857,30 @@ export default function BookingPage() {
               <>
                 <p>{receipt?.paidInFull ? 'Your payment has been received and your appointment is confirmed.' : 'Your deposit has been received and your appointment is confirmed.'} You'll get a confirmation message shortly.</p>
                 {receipt && receipt.depositPaidCents > 0 && (
-                  <p style={{ color: brand, fontWeight: 600, marginTop: 12 }}>
-                    {receipt.paidInFull
-                      ? `Paid in full: £${(receipt.depositPaidCents / 100).toFixed(2)}.`
-                      : receipt.remainingCents > 0
-                      ? `Deposit paid: £${(receipt.depositPaidCents / 100).toFixed(2)}. Remaining £${(receipt.remainingCents / 100).toFixed(2)} due on the day.`
-                      : `Deposit paid: £${(receipt.depositPaidCents / 100).toFixed(2)}.`}
-                  </p>
+                  /* Same three-line sum as the manage page: total, minus what
+                     was just paid, equals what is left on the day. Spelled out
+                     because a single sentence kept reading as either "that was
+                     the whole price" or "I still owe the whole price". */
+                  <div style={{ marginTop: 12, textAlign: 'left', background: brandLight, borderRadius: 10, padding: '10px 14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 14 }}>
+                      <span>Total</span>
+                      <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>£{((receipt.priceCents || 0) / 100).toFixed(2)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 14, color: 'var(--text-secondary)' }}>
+                      <span>{receipt.paidInFull ? 'Paid now' : 'Deposit paid now'}</span>
+                      <span style={{ fontVariantNumeric: 'tabular-nums' }}>{'\u2212'}£{(receipt.depositPaidCents / 100).toFixed(2)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0 0', marginTop: 4, borderTop: '1px solid rgba(0,0,0,0.08)', fontSize: 15 }}>
+                      {receipt.paidInFull || receipt.remainingCents === 0 ? (
+                        <span style={{ fontWeight: 700, color: brand }}>Paid in full, nothing due on the day</span>
+                      ) : (
+                        <>
+                          <span style={{ fontWeight: 700, color: brand }}>To pay on the day</span>
+                          <span style={{ fontWeight: 700, color: brand, fontVariantNumeric: 'tabular-nums' }}>£{(receipt.remainingCents / 100).toFixed(2)}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 )}
               </>
             ) : success.depositPending ? (

@@ -859,15 +859,19 @@ export default function Settings({ onLogout }) {
             </div>
             <div style={styles.payoutRow}>
               <span style={styles.payoutLabel}>Card processing</span>
-              <span style={styles.payoutValue}>2.9% + 20p per card payment</span>
+              <span style={styles.payoutValue}>About 2.9% + 20p (Stripe 1.4% + 20p, Florrie 1.5%)</span>
             </div>
             <div style={styles.payoutRow}>
               <span style={styles.payoutLabel}>Account</span>
               <span style={styles.payoutValue}>{beautician.stripe_onboarding_complete ? 'Connected via Stripe' : 'Not linked'}</span>
             </div>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, marginBottom: 8 }}>
-              That's Stripe's 1.4% + 20p plus Florrie's 1.5% (never more than £5), and it only
-              applies to CARD payments. On a £10 card deposit you keep £9.51.
+              When a client pays by card through Florrie, two small fees come off before the
+              money reaches you. Stripe takes 1.4% + 20p to process the card, and Florrie takes
+              1.5% of the amount (at least 5p, never more than £5). Everything else lands in
+              your bank on the next payout. On a £10 deposit that is 34p to Stripe and 15p to
+              Florrie, so you keep £9.51. On a £45 balance you keep about £43.49. The app shows
+              you this figure before every charge, so there are never surprises.
             </p>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 0, marginBottom: 8 }}>
               Bank transfers and cash are always fee free. Add your bank details above and the

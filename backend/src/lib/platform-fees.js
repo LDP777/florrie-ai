@@ -34,6 +34,51 @@ export function calculatePlatformFee(amountCents) {
   return Math.min(MAX_FEE_PENCE, Math.max(MIN_FEE_PENCE, raw));
 }
 
+
+// Stripe's own processing charge for a standard UK consumer card, per the
+// header comment above: 1.4% + 20p. We cannot know the exact fee before the
+// charge (EU and international cards cost more), so everywhere this figure
+// surfaces it is labelled an ESTIMATE. Kept here, next to the platform fee,
+// so the two numbers that make up "what comes off a payment" live together.
+const STRIPE_PERCENT_ESTIMATE = 1.4;
+const STRIPE_FIXED_PENCE_ESTIMATE = 20;
+
+/**
+ * Estimated Stripe processing fee for a given amount (standard UK card).
+ * @param {number} amountCents - Payment in pence
+ * @returns {number} Estimated fee in pence
+ */
+export function estimateStripeFee(amountCents) {
+  if (!amountCents || amountCents <= 0) return 0;
+  return Math.round(amountCents * STRIPE_PERCENT_ESTIMATE / 100) + STRIPE_FIXED_PENCE_ESTIMATE;
+}
+
+/**
+ * Fee preview for the app: everything needed to say "you receive about
+ * £X after fees" BEFORE a charge is made. platform_fee_cents comes from the
+ * exact same calculatePlatformFee the charge paths use, so the preview can
+ * never drift from what is actually taken. The `model` constants let the app
+ * preview a custom typed amount without a round trip per keystroke.
+ */
+export function feePreview(amountCents) {
+  const amount = Number.isFinite(amountCents) && amountCents > 0 ? Math.round(amountCents) : 0;
+  const platform = calculatePlatformFee(amount);
+  const stripeEst = estimateStripeFee(amount);
+  return {
+    amount_cents: amount,
+    platform_fee_cents: platform,
+    estimated_stripe_fee_cents: stripeEst,
+    estimated_net_cents: Math.max(0, amount - platform - stripeEst),
+    model: {
+      platform_percent: PLATFORM_FEE_PERCENT,
+      platform_min_cents: MIN_FEE_PENCE,
+      platform_max_cents: MAX_FEE_PENCE,
+      stripe_percent_estimate: STRIPE_PERCENT_ESTIMATE,
+      stripe_fixed_cents_estimate: STRIPE_FIXED_PENCE_ESTIMATE,
+    },
+  };
+}
+
 /**
  * Return a human-readable fee description for the beautician.
  * Used in settings/onboarding to explain what Florrie charges.
