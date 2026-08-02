@@ -103,9 +103,13 @@ export default function DailyChecklist() {
       ]);
       // Parse checklist rows
       if (checklistRows && checklistRows.length > 0) {
+        // The column is list_type, not type (007_all_features.sql). Reading
+        // row.type gave undefined so every saved item fell into "custom", and
+        // every WRITE naming type was rejected outright, which is why the
+        // opening and closing lists reset to the factory defaults every day.
         const byType = { opening: [], closing: [], custom: [] };
         checklistRows.forEach(row => {
-          const t = row.type || 'custom';
+          const t = row.list_type || 'custom';
           if (byType[t]) byType[t].push(row);
           else byType.custom.push(row);
         });
@@ -166,7 +170,7 @@ export default function DailyChecklist() {
       seeded.opening.push(item);
       toInsert.push({
         beautician_id: beautician.id, label: t.label, done: false,
-        type: 'opening', date: td, sort_order: i,
+        list_type: 'opening', date: td, sort_order: i,
       });
     });
     closingTemplate.forEach((t, i) => {
@@ -177,18 +181,21 @@ export default function DailyChecklist() {
       seeded.closing.push(item);
       toInsert.push({
         beautician_id: beautician.id, label: t.label, done: false,
-        type: 'closing', date: td, sort_order: i,
+        list_type: 'closing', date: td, sort_order: i,
       });
     });
     setChecklists(seeded);
     // Bulk insert in background
     if (supabase && toInsert.length > 0) {
       try {
-        const { data } = await supabase.from('daily_checklists').insert(toInsert).select();
+        const { data, error } = await supabase.from('daily_checklists').insert(toInsert).select();
+        // Read the error. Silently ignoring it is how a rejected insert looked
+        // exactly like a saved checklist until the page was reloaded.
+        if (error) throw error;
         if (data) {
           const byType = { opening: [], closing: [], custom: [] };
           data.forEach(row => {
-            const t = row.type || 'custom';
+            const t = row.list_type || 'custom';
             if (byType[t]) byType[t].push(row);
           });
           setChecklists(prev => ({
@@ -205,13 +212,16 @@ export default function DailyChecklist() {
   async function computeStreak() {
     if (!supabase || !beautician) return;
     try {
-      const { data: recentDays } = await supabase
+      const { data: recentDays, error } = await supabase
         .from('daily_checklists')
-        .select('date, done, type')
+        .select('date, done, list_type')
         .eq('beautician_id', beautician.id)
-        .eq('type', 'opening')
+        .eq('list_type', 'opening')
         .order('date', { ascending: false })
         .limit(500);
+      // Naming `type` got the whole select rejected, recentDays came back null,
+      // and the streak counter has read zero for every user since day one.
+      if (error) { logger.error('Streak query failed:', error); return; }
       if (!recentDays) return;
       const dayMap = {};
       recentDays.forEach(r => {
@@ -286,7 +296,7 @@ export default function DailyChecklist() {
       try {
         const row = await insertRow('daily_checklists', {
           beautician_id: beautician.id, label, done: false,
-          type: targetTab, date: dueDate, sort_order: sortOrder,
+          list_type: targetTab, date: dueDate, sort_order: sortOrder,
         });
         if (row) {
           setChecklists(prev => ({
@@ -389,12 +399,13 @@ export default function DailyChecklist() {
     // Delete all of today's opening/closing items
     if (supabase && beautician) {
       try {
-        await supabase
+        const { error } = await supabase
           .from('daily_checklists')
           .delete()
           .eq('beautician_id', beautician.id)
           .eq('date', td)
-          .in('type', ['opening', 'closing']);
+          .in('list_type', ['opening', 'closing']);
+        if (error) throw error;
       } catch (err) {
         logger.error('Reset delete error:', err);
       }
@@ -411,16 +422,16 @@ export default function DailyChecklist() {
     if (supabase && beautician) {
       const toInsert = [];
       FACTORY_OPENING.forEach((t, i) => {
-        toInsert.push({ beautician_id: beautician.id, label: t.label, done: false, type: 'opening', date: td, sort_order: i });
+        toInsert.push({ beautician_id: beautician.id, label: t.label, done: false, list_type: 'opening', date: td, sort_order: i });
       });
       FACTORY_CLOSING.forEach((t, i) => {
-        toInsert.push({ beautician_id: beautician.id, label: t.label, done: false, type: 'closing', date: td, sort_order: i });
+        toInsert.push({ beautician_id: beautician.id, label: t.label, done: false, list_type: 'closing', date: td, sort_order: i });
       });
       try {
         const { data } = await supabase.from('daily_checklists').insert(toInsert).select();
         if (data) {
           const byType = { opening: [], closing: [] };
-          data.forEach(row => { if (byType[row.type]) byType[row.type].push(row); });
+          data.forEach(row => { if (byType[row.list_type]) byType[row.list_type].push(row); });
           setChecklists(prev => ({
             ...prev,
             opening: byType.opening.length ? byType.opening : prev.opening,

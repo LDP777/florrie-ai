@@ -35,20 +35,32 @@ router.get('/daily-checklists', requireAuth, async (req, res) => {
 
 /**
  * POST /api/features/daily-checklists
+ *
+ * daily_checklists holds one row PER ITEM: label, list_type, done, sort_order
+ * (supabase/migrations/007_all_features.sql). It has never had an `items`
+ * column, so the previous body shape ({ date, items }) could only ever 500.
+ * The shape below is the one the DailyChecklist page reads and writes.
  */
 router.post('/daily-checklists', requireAuth, async (req, res) => {
-  const { date, items } = req.body;
+  const { date, label, list_type, sort_order } = req.body;
 
   if (!date) {
     return res.status(400).json({ error: 'Date is required' });
   }
+  if (!label || !String(label).trim()) {
+    return res.status(400).json({ error: 'Label is required' });
+  }
+
+  const listType = ['opening', 'closing', 'custom'].includes(list_type) ? list_type : 'custom';
 
   const { data, error } = await supabase
     .from('daily_checklists')
     .insert({
       beautician_id: req.beautician.id,
       date,
-      items: items || [],
+      label: String(label).trim(),
+      list_type: listType,
+      sort_order: Number.isInteger(sort_order) ? sort_order : 0,
       done: false
     })
     .select()
@@ -63,14 +75,17 @@ router.post('/daily-checklists', requireAuth, async (req, res) => {
 
 /**
  * PATCH /api/features/daily-checklists/:id
- * Toggle done or update items
+ * Toggle done, rename the item, or reorder it.
  */
 router.patch('/daily-checklists/:id', requireAuth, async (req, res) => {
-  const { done, items } = req.body;
+  // Same reason as the POST above: there is no `items` column, so a body
+  // carrying one made PostgREST reject the whole update.
+  const { done, label, sort_order } = req.body;
   const updates = {};
 
   if (done !== undefined) updates.done = done;
-  if (items !== undefined) updates.items = items;
+  if (label !== undefined) updates.label = String(label).trim();
+  if (sort_order !== undefined && Number.isInteger(sort_order)) updates.sort_order = sort_order;
 
   const { data, error } = await supabase
     .from('daily_checklists')
@@ -1135,93 +1150,23 @@ router.patch('/referrals/:id', requireAuth, async (req, res) => {
 });
 
 // REVENUE GOALS
-
-/**
- * GET /api/features/revenue-goals
- */
-router.get('/revenue-goals', requireAuth, async (req, res) => {
-  const { data, error } = await supabase
-    .from('revenue_goals')
-    .select('*')
-    .eq('beautician_id', req.beautician.id)
-    .order('target_month', { ascending: false });
-
-  if (error) {
-    logger.error({ err: error }, 'Database operation failed');
-    return res.status(500).json({ error: 'Something went wrong' });
-  }
-  res.json({ revenueGoals: data });
-});
-
-/**
- * POST /api/features/revenue-goals
- */
-router.post('/revenue-goals', requireAuth, async (req, res) => {
-  const { target_month, target_amount, notes } = req.body;
-
-  if (!target_month || !target_amount) {
-    return res.status(400).json({ error: 'target_month and target_amount are required' });
-  }
-
-  const { data, error } = await supabase
-    .from('revenue_goals')
-    .insert({
-      beautician_id: req.beautician.id,
-      target_month,
-      target_amount,
-      notes: notes || null
-    })
-    .select()
-    .single();
-
-  if (error) {
-    logger.error({ err: error }, 'Database operation failed');
-    return res.status(500).json({ error: 'Something went wrong' });
-  }
-  res.status(201).json({ revenueGoal: data });
-});
-
-/**
- * PATCH /api/features/revenue-goals/:id
- */
-router.patch('/revenue-goals/:id', requireAuth, async (req, res) => {
-  const { target_amount, notes } = req.body;
-  const updates = {};
-
-  if (target_amount !== undefined) updates.target_amount = target_amount;
-  if (notes !== undefined) updates.notes = notes;
-
-  const { data, error } = await supabase
-    .from('revenue_goals')
-    .update(updates)
-    .eq('id', req.params.id)
-    .eq('beautician_id', req.beautician.id)
-    .select()
-    .single();
-
-  if (error) {
-    logger.error({ err: error }, 'Database operation failed');
-    return res.status(500).json({ error: 'Something went wrong' });
-  }
-  res.json({ revenueGoal: data });
-});
-
-/**
- * DELETE /api/features/revenue-goals/:id
- */
-router.delete('/revenue-goals/:id', requireAuth, async (req, res) => {
-  const { error } = await supabase
-    .from('revenue_goals')
-    .delete()
-    .eq('id', req.params.id)
-    .eq('beautician_id', req.beautician.id);
-
-  if (error) {
-    logger.error({ err: error }, 'Database operation failed');
-    return res.status(500).json({ error: 'Something went wrong' });
-  }
-  res.json({ success: true });
-});
+//
+// REMOVED 2026-08-03. Four handlers, none of which could ever have worked and
+// none of which anything called.
+//
+// The real revenue_goals table (supabase/migrations/007_all_features.sql) is
+// period / target_cents / start_date / end_date, and all four of those are NOT
+// NULL. These routes read and wrote target_month and target_amount, which do
+// not exist in production: the GET ordered by target_month so it always 500'd,
+// the POST supplied none of the NOT NULL columns so it could never have
+// inserted a row even with the names fixed, and the PATCH set target_amount.
+// Nothing in frontend/src, ios-widget or landing ever called any of them.
+//
+// Adding target_month and target_amount would have been adding columns to prop
+// up an endpoint with no caller and no UI. Rewriting them onto period /
+// target_cents / start_date / end_date would have meant inventing an API
+// contract for a feature that does not exist yet. So: deleted. If revenue goals
+// are ever built, build them against the columns that are really there.
 
 // MESSAGE TEMPLATES
 
@@ -1336,12 +1281,18 @@ router.get('/automation-rules', requireAuth, async (req, res) => {
  * POST /api/features/automation-rules
  */
 router.post('/automation-rules', requireAuth, async (req, res) => {
-  const { name, trigger_type, action_type, config, enabled } = req.body;
+  const { name, trigger_type, action_type, config, trigger_config, action_config, enabled } = req.body;
 
   if (!name || !trigger_type || !action_type) {
     return res.status(400).json({ error: 'name, trigger_type, and action_type are required' });
   }
 
+  // The real columns are is_active, trigger_config and action_config
+  // (supabase/migrations/007_all_features.sql). `enabled` and a single merged
+  // `config` have never existed, so this insert was rejected whole and no rule
+  // could ever be created through the API. `config` is still accepted as a
+  // legacy body field and lands in action_config, because every action handler
+  // in services/automations.js reads its settings from there.
   const { data, error } = await supabase
     .from('automation_rules')
     .insert({
@@ -1349,8 +1300,9 @@ router.post('/automation-rules', requireAuth, async (req, res) => {
       name,
       trigger_type,
       action_type,
-      config: config || {},
-      enabled: enabled !== undefined ? enabled : true
+      trigger_config: trigger_config || {},
+      action_config: action_config || config || {},
+      is_active: enabled !== undefined ? enabled : true
     })
     .select()
     .single();
@@ -1366,14 +1318,18 @@ router.post('/automation-rules', requireAuth, async (req, res) => {
  * PATCH /api/features/automation-rules/:id
  */
 router.patch('/automation-rules/:id', requireAuth, async (req, res) => {
-  const { name, trigger_type, action_type, config, enabled } = req.body;
+  const { name, trigger_type, action_type, config, trigger_config, action_config, enabled } = req.body;
   const updates = {};
 
   if (name !== undefined) updates.name = name;
   if (trigger_type !== undefined) updates.trigger_type = trigger_type;
   if (action_type !== undefined) updates.action_type = action_type;
-  if (config !== undefined) updates.config = config;
-  if (enabled !== undefined) updates.enabled = enabled;
+  // Same rename as the POST above: is_active / trigger_config / action_config
+  // are the columns that exist.
+  if (trigger_config !== undefined) updates.trigger_config = trigger_config;
+  if (action_config !== undefined) updates.action_config = action_config;
+  else if (config !== undefined) updates.action_config = config;
+  if (enabled !== undefined) updates.is_active = enabled;
 
   const { data, error } = await supabase
     .from('automation_rules')
@@ -1950,16 +1906,20 @@ router.patch('/reviews/:id', requireAuth, async (req, res) => {
 /**
  * GET /api/features/end-of-day-reports
  * Get by date (?date=YYYY-MM-DD)
+ *
+ * The column is `date`, not `report_date` (007_all_features.sql, and it is what
+ * the live EndOfDay page reads and writes). Ordering by a column that is not
+ * there made PostgREST reject the whole query, so this route only ever 500'd.
  */
 router.get('/end-of-day-reports', requireAuth, async (req, res) => {
   let query = supabase
     .from('end_of_day_reports')
     .select('*')
     .eq('beautician_id', req.beautician.id)
-    .order('report_date', { ascending: false });
+    .order('date', { ascending: false });
 
   if (req.query.date) {
-    query = query.eq('report_date', req.query.date);
+    query = query.eq('date', req.query.date);
   }
 
   const { data, error } = await query;
@@ -1970,36 +1930,23 @@ router.get('/end-of-day-reports', requireAuth, async (req, res) => {
   res.json({ endOfDayReports: data });
 });
 
-/**
- * POST/PUT /api/features/end-of-day-reports
- * Upsert by date
- */
-router.post('/end-of-day-reports', requireAuth, async (req, res) => {
-  const { report_date, summary, revenue, appointments_count, notes } = req.body;
-
-  if (!report_date) {
-    return res.status(400).json({ error: 'report_date is required' });
-  }
-
-  const { data, error } = await supabase
-    .from('end_of_day_reports')
-    .upsert({
-      beautician_id: req.beautician.id,
-      report_date,
-      summary: summary || null,
-      revenue: revenue || 0,
-      appointments_count: appointments_count || 0,
-      notes: notes || null
-    }, { onConflict: 'beautician_id,report_date' })
-    .select()
-    .single();
-
-  if (error) {
-    logger.error({ err: error }, 'Database operation failed');
-    return res.status(500).json({ error: 'Something went wrong' });
-  }
-  res.status(201).json({ endOfDayReport: data });
-});
+// POST /api/features/end-of-day-reports REMOVED 2026-08-03.
+//
+// It upserted report_date, summary, revenue and appointments_count. Not one of
+// those four is a real column: the date column is `date`, and 007 defines
+// cash_total_cents / card_total_cents / total_clients / total_appointments /
+// tips_cents / notes. The onConflict target named report_date too, so even the
+// conflict clause pointed at nothing. It has never written a row.
+//
+// It is not rewritten here because the live end-of-day feature
+// (frontend/src/pages/EndOfDay.jsx) writes a THIRD set of names again
+// (total_revenue_cents, appointments_total, appointments_completed,
+// appointments_noshow, appointments_cancelled, cash_expected_cents,
+// cash_counted_cents, card_taken_cents, closing_notes) which appears in no
+// migration in this directory, so production has clearly been extended by hand
+// and the true shape cannot be read off the repo. Nothing called this route.
+// Rebuilding it needs a look at the live table first, and guessing would have
+// put a second, conflicting write path over Ellie's real takings figures.
 
 // PORTAL SETTINGS
 

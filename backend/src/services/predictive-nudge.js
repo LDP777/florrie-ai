@@ -63,12 +63,25 @@ async function nudgeForBeautician(beautician) {
   const windowEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
   // Find clients with predicted visit in the window
-  const { data: intelligence } = await supabase
+  const { data: intelligence, error } = await supabase
     .from('client_intelligence')
-    .select('client_id, next_predicted_visit, favourite_treatment, avg_booking_gap_days, clients(id, first_name, last_name, phone, email, whatsapp_id, last_whatsapp_inbound_at, status)')
+    // favourite_treatment and avg_booking_gap_days were also in this select and
+    // are also not columns: the real ones are favourite_treatments (a UUID
+    // array) and rebooking_rhythm_days. Nothing below this line ever read
+    // either, so they are dropped rather than renamed. Left in, they would keep
+    // the whole select rejected even now next_predicted_visit exists.
+    .select('client_id, next_predicted_visit, clients(id, first_name, last_name, phone, email, whatsapp_id, last_whatsapp_inbound_at, status)')
     .eq('beautician_id', bid)
     .gte('next_predicted_visit', windowStart.toISOString())
     .lte('next_predicted_visit', windowEnd.toISOString());
+
+  // client_intelligence.next_predicted_visit did not exist, so PostgREST
+  // rejected this whole select and `intelligence` came back null every time.
+  // The nudge quietly returned 0 and looked like a quiet week.
+  if (error) {
+    logger.error({ err: error, beauticianId: bid }, 'Predictive nudge intelligence query failed');
+    return 0;
+  }
 
   if (!intelligence?.length) return 0;
 

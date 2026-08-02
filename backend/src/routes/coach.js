@@ -183,13 +183,26 @@ Generate a "warning" nudge about the gap revenue at risk. CTA should go to "/sma
       const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
 
+      // expenses stores the amount in `amount_cents`, not `amount_pence`.
+      // PostgREST rejects the whole select when one column name is unknown, so
+      // both of these returned null and every expense nudge quoted "spent £0
+      // this month, £0 last month, 0% change" no matter what she had spent.
       const [thisMonthRes, lastMonthRes] = await Promise.all([
-        supabase.from('expenses').select('amount_pence').eq('beautician_id', beauticianId).eq('category', category).gte('date', thisMonthStart.toISOString().slice(0, 10)),
-        supabase.from('expenses').select('amount_pence').eq('beautician_id', beauticianId).eq('category', category).gte('date', lastMonthStart.toISOString().slice(0, 10)).lte('date', lastMonthEnd.toISOString().slice(0, 10)),
+        supabase.from('expenses').select('amount_cents').eq('beautician_id', beauticianId).eq('category', category).gte('date', thisMonthStart.toISOString().slice(0, 10)),
+        supabase.from('expenses').select('amount_cents').eq('beautician_id', beauticianId).eq('category', category).gte('date', lastMonthStart.toISOString().slice(0, 10)).lte('date', lastMonthEnd.toISOString().slice(0, 10)),
       ]);
 
-      const thisMonthTotal = ((thisMonthRes.data || []).reduce((s, e) => s + Math.abs(e.amount_pence || 0), 0) / 100).toFixed(0);
-      const lastMonthTotal = ((lastMonthRes.data || []).reduce((s, e) => s + Math.abs(e.amount_pence || 0), 0) / 100).toFixed(0);
+      // Read the error. A silent null here is what hid the wrong column name
+      // for as long as this route has existed.
+      if (thisMonthRes.error || lastMonthRes.error) {
+        logger.warn(
+          { err: thisMonthRes.error || lastMonthRes.error, category },
+          'Coach: expense comparison query failed, nudge will use zeroes',
+        );
+      }
+
+      const thisMonthTotal = ((thisMonthRes.data || []).reduce((s, e) => s + Math.abs(e.amount_cents || 0), 0) / 100).toFixed(0);
+      const lastMonthTotal = ((lastMonthRes.data || []).reduce((s, e) => s + Math.abs(e.amount_cents || 0), 0) / 100).toFixed(0);
       const currentExpense = (Math.abs(amount_pence || 0) / 100).toFixed(0);
       const pctChange = lastMonthTotal > 0 ? Math.round(((thisMonthTotal - lastMonthTotal) / lastMonthTotal) * 100) : 0;
 

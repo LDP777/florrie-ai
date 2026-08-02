@@ -764,13 +764,26 @@ async function toolGetLapsedClients({ days_since_last_visit = 60, limit = 10 }, 
 
   const recentClientIds = new Set((recentAppts || []).map(a => a.client_id));
 
-  // Get all clients
-  const { data: clients } = await supabase
+  // Get all clients. There is no clients.is_active column and there never was:
+  // the flag this filter wanted is archived_at, which is how the rest of the
+  // codebase (routes/clients.js, routes/florrie-thinks.js) says "still on the
+  // books". Filtering on status = 'active' would have been wrong in the other
+  // direction, because a lapsed client is exactly the one whose status has
+  // already drifted to 'dormant'.
+  const { data: clients, error: clientsErr } = await supabase
     .from('clients')
     .select('id, first_name, last_name, phone, email')
     .eq('beautician_id', beautician.id)
-    .eq('is_active', true)
+    .is('archived_at', null)
     .limit(200);
+
+  // Read the error. With the unknown column name PostgREST rejected the whole
+  // select, clients came back null, and this tool answered "everyone's been in
+  // recently" every single time.
+  if (clientsErr) {
+    logger.error({ err: clientsErr, beauticianId: beautician.id }, 'Lapsed clients query failed');
+    return { result: 'I could not read your client list just now. Try again in a moment.' };
+  }
 
   const lapsed = (clients || []).filter(c => !recentClientIds.has(c.id)).slice(0, limit);
 
@@ -867,12 +880,18 @@ async function toolSendBulkMessage({ segment, date_from, date_to, message_templa
     clients = lapsedResult.data?.clients || [];
 
   } else if (segment === 'all_active') {
-    const { data } = await supabase
+    // Same non-existent is_active column as above. Archived clients are the
+    // ones to leave out of a bulk send; dormant ones are the whole point of it.
+    const { data, error: segErr } = await supabase
       .from('clients')
       .select('id, first_name, last_name, phone, email')
       .eq('beautician_id', beautician.id)
-      .eq('is_active', true)
+      .is('archived_at', null)
       .limit(500);
+    if (segErr) {
+      logger.error({ err: segErr, beauticianId: beautician.id }, 'Bulk-message segment query failed');
+      return { result: 'I could not read your client list just now, so I have sent nothing.' };
+    }
     clients = data || [];
   }
 
@@ -1085,12 +1104,34 @@ async function toolCreateExpense({ amount_pence, category, description, date }, 
 
 async function toolAddNote({ note }, beautician, supabase) {
   const today = new Date().toISOString().slice(0, 10);
-  await supabase.from('daily_checklists').insert({
+
+  // daily_checklists is one row PER ITEM (label / list_type / done / sort_order),
+  // not one row per day with an items array. There is no `items` column and no
+  // `type` column, so the old insert was rejected whole and every note spoken
+  // into Florrie was answered with "Added to today's checklist" and then thrown
+  // away. Written here in the shape the DailyChecklist page actually reads.
+  const { count } = await supabase
+    .from('daily_checklists')
+    .select('id', { count: 'exact', head: true })
+    .eq('beautician_id', beautician.id)
+    .eq('date', today)
+    .eq('list_type', 'custom');
+
+  const { error } = await supabase.from('daily_checklists').insert({
     beautician_id: beautician.id,
     date: today,
-    items: [{ text: note, done: false }],
+    list_type: 'custom',
+    label: note,
     done: false,
+    sort_order: count || 0,
   });
+
+  // Never claim it landed without checking. That claim is the bug.
+  if (error) {
+    logger.error({ err: error, beauticianId: beautician.id }, 'Add note to checklist failed');
+    return { result: 'I could not save that to your checklist just now. Say it again in a moment.' };
+  }
+
   return { result: `Added to today's checklist: "${note}"` };
 }
 

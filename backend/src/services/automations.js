@@ -299,10 +299,21 @@ export async function processReviewRequests() {
  * We track rule firings in automation_rule_logs to avoid duplicates.
  */
 export async function processAutomationRules() {
-  const { data: rules } = await supabase
+  // The column is is_active, not enabled (supabase/migrations/007_all_features.sql).
+  // PostgREST rejects the whole query when a filter names an unknown column, so
+  // this returned null on every run and the automation engine has never fired
+  // a single rule.
+  const { data: rules, error } = await supabase
     .from('automation_rules')
     .select('*')
-    .eq('enabled', true);
+    .eq('is_active', true);
+
+  // Read the error. A null here is indistinguishable from "no rules", which is
+  // why nobody noticed.
+  if (error) {
+    logger.error({ err: error }, 'Automation rules query failed');
+    return { fired: 0, total: 0 };
+  }
 
   if (!rules?.length) return { fired: 0, total: 0 };
 
@@ -460,12 +471,20 @@ async function executeRuleAction(rule, target) {
 
     case 'create_task': {
       const today = now.toISOString().slice(0, 10);
-      await supabase.from('daily_checklists').insert({
+      // One row per checklist ITEM. daily_checklists has label / list_type /
+      // done / sort_order and has never had an `items` array, so this insert
+      // was rejected whole: a create_task rule reported success and produced
+      // nothing on the checklist.
+      const { error: taskErr } = await supabase.from('daily_checklists').insert({
         beautician_id: rule.beautician_id,
         date: today,
-        items: [{ text: config.task_text || `Automation: ${rule.name}`, done: false }],
+        list_type: 'custom',
+        label: config.task_text || `Automation: ${rule.name}`,
         done: false,
       });
+      if (taskErr) {
+        logger.error({ err: taskErr, ruleId: rule.id }, 'Automation create_task insert failed');
+      }
       break;
     }
 

@@ -59,13 +59,22 @@ export async function scheduleReviewRequest(beauticianId, appointmentId, clientI
 export async function processReviewRequests() {
   const now = new Date().toISOString();
 
-  const { data: due } = await supabase
+  const { data: due, error } = await supabase
     .from('ai_actions')
     .select('*')
     .eq('action_type', 'review_requested')
     .eq('status', 'scheduled')
     .lte('details->>send_at', now)
     .limit(20);
+
+  // ai_actions.status did not exist, so PostgREST rejected this whole select
+  // and `due` came back null on every run. Indistinguishable from "nothing due",
+  // which is why nobody noticed the review requests were never going out.
+  // The column is added by supabase/migrations/20260803_schema_drift_columns.sql.
+  if (error) {
+    logger.error({ err: error }, 'Review request queue query failed');
+    return { sent: 0 };
+  }
 
   if (!due?.length) return { sent: 0 };
 

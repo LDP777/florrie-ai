@@ -118,7 +118,14 @@ export async function updateClientIntelligence(beauticianId, clientId) {
     // 9. Lifetime value = total spent
     const lifetimeValue = totalSpent;
 
-    // Upsert into client_intelligence
+    // Upsert into client_intelligence.
+    //
+    // next_predicted_visit is written here, not just returned. It is the only
+    // producer of that value, and services/predictive-nudge.js selects and
+    // filters on it: without this line the column stays NULL for every row and
+    // the comeback nudge finds nobody, which is the same silent nothing as the
+    // column being absent. The column itself is added by
+    // supabase/migrations/20260803_schema_drift_columns.sql.
     const { error: upsertError } = await supabase
       .from('client_intelligence')
       .upsert({
@@ -129,6 +136,7 @@ export async function updateClientIntelligence(beauticianId, clientId) {
         favourite_treatments: favouriteTreatments,
         avg_spend_cents: avgSpend,
         price_sensitivity: avgSpend < 2000 ? 'high' : avgSpend < 4000 ? 'normal' : 'low',
+        next_predicted_visit: nextPredictedVisit,
         updated_at: new Date().toISOString()
       }, { onConflict: 'client_id,beautician_id' });
 

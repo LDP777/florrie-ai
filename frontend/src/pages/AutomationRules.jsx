@@ -41,7 +41,17 @@ const conditionOptions = [
   { id: 'loyalty_tier', label: 'Loyalty tier', options: ['is', 'is above', 'is below'] },
 ];
 // Normalise a DB row to the shape this page renders.
-// Real columns: enabled, runs, last_run (or is_active, trigger_count, last_triggered_at).
+// The real columns are is_active, trigger_count and last_triggered_at. There is
+// no enabled / runs / last_run, and the ?? chain below was masking that.
+//
+// STILL BROKEN, needs a decision, not a rename: duplicateRule, useTemplate and
+// the create form all insert trigger, actions, conditions, delay_minutes, runs
+// and last_run. None of those are columns either, and the page's trigger ids
+// ('appointment_booked', 'payment_received', 'waitlist_match' and the rest) are
+// not in the trigger_type CHECK, so no rule can be created from this page at
+// all. That is why automation_rules is empty and the executor in
+// services/automations.js has never fired. Fixing it means agreeing what an
+// automation rule is, not guessing at column names.
 function normaliseRule(r) {
   return {
     ...r,
@@ -77,7 +87,10 @@ export default function AutomationRules() {
     const newEnabled = !rule.enabled;
     setRules(rules.map(r => r.id === id ? { ...r, enabled: newEnabled } : r));
     if (beautician) {
-      try { await updateRow('automation_rules', id, { enabled: newEnabled }); } catch (e) { logger.error(e); }
+      // The column is is_active, not enabled (007_all_features.sql). Sending
+      // `enabled` got the whole update rejected, so the toggle animated on and
+      // then silently snapped back on the next load.
+      try { await updateRow('automation_rules', id, { is_active: newEnabled }); } catch (e) { logger.error(e); }
     }
   };
   const deleteRule = async (id) => {
