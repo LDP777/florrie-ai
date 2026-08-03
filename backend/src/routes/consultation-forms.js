@@ -9,6 +9,13 @@ import { handleQueryError } from '../lib/queries.js';
 import { requireOwned } from '../lib/ownership.js';
 import { shapeResponse } from '../lib/consultation-answers.js';
 import {
+  DEFAULT_BOOKING_QUESTIONS,
+  DEFAULT_BOOKING_FORM_NAME,
+  groupAnswersByForm,
+  splitDefaultAnswers,
+  mapDefaultAnswersToFields,
+} from '../lib/client-notes.js';
+import {
   createConsultationFormSchema,
   submitConsultationFormSchema
 } from '../lib/schemas.js';
@@ -686,6 +693,224 @@ export async function sendConsultationFormSMS({
   // consultation form (special-category health data).
   logger.info({ clientId, formId }, 'Consultation form SMS sent');
   return response;
+}
+
+/**
+ * Find (or create) the form that backs the booking page's built in questions.
+ *
+ * The booking page asks five hard coded questions when a treatment needs a
+ * consultation but has no form linked to it, and it posts the answers keyed by
+ * short names rather than field ids. consultation_responses.form_id is NOT
+ * NULL and every reader pairs answers to questions through
+ * consultation_form_fields, so an answer with no form behind it cannot be
+ * displayed by anything. A real form is the only way those answers become
+ * readable, so one is created from the same list the page renders.
+ *
+ * It is a normal form afterwards: she can open it, edit it, add to it. The
+ * re-keying matches on label, so editing a label unhooks that one question
+ * rather than filing future answers under the wrong one.
+ *
+ * @param {string} beauticianId
+ * @returns {Promise<{formId: string, fields: Array<{id: string, label: string}>}|null>}
+ */
+async function ensureDefaultBookingForm(beauticianId) {
+  const { data: existing, error: findErr } = await supabase
+    .from('consultation_forms')
+    .select('id, consultation_form_fields(id, label)')
+    .eq('beautician_id', beauticianId)
+    .eq('name', DEFAULT_BOOKING_FORM_NAME)
+    .order('created_at', { ascending: true })
+    .limit(1);
+
+  // Checked, always. An unchecked lookup here reads as "no form yet" and
+  // quietly creates a second copy of the same form on every booking.
+  if (findErr) {
+    logger.error({ err: findErr, beauticianId }, 'Could not look up the booking questions form');
+    return null;
+  }
+
+  if ((existing || []).length > 0) {
+    return {
+      formId: existing[0].id,
+      fields: existing[0].consultation_form_fields || [],
+    };
+  }
+
+  const { data: form, error: formErr } = await supabase
+    .from('consultation_forms')
+    .insert({
+      beautician_id: beauticianId,
+      name: DEFAULT_BOOKING_FORM_NAME,
+      // Not the default form: is_default decides what gets texted to every
+      // first time client, and this one exists to hold answers already given,
+      // not to start sending anything new.
+      is_default: false,
+      is_active: true,
+    })
+    .select('id')
+    .single();
+
+  if (formErr || !form) {
+    logger.error({ err: formErr, beauticianId }, 'Could not create the booking questions form');
+    return null;
+  }
+
+  const fieldRows = DEFAULT_BOOKING_QUESTIONS.map((q, i) => ({
+    form_id: form.id,
+    type: q.type,
+    label: q.label,
+    options: [],
+    required: false,
+    sort_order: i,
+  }));
+
+  const { data: fields, error: fieldsErr } = await supabase
+    .from('consultation_form_fields')
+    .insert(fieldRows)
+    .select('id, label');
+
+  if (fieldsErr || !fields) {
+    logger.error({ err: fieldsErr, beauticianId }, 'Could not create the booking questions fields');
+    return null;
+  }
+
+  logger.info({ beauticianId, formId: form.id }, 'Created the booking questions form');
+  return { formId: form.id, fields };
+}
+
+/**
+ * Record consultation answers given during a booking.
+ *
+ * WHY THIS EXISTS
+ * Found while surfacing consultation forms. The public booking page collects
+ * consultation answers inline and used to store them as a JSON string in
+ * appointments.client_notes, which meant they never reached
+ * consultation_responses and no consultation surface could see them. This
+ * writes the same row POST /public/:token/submit writes, so a form filled in
+ * at booking and a form filled in from a text message end up as one readable
+ * thing.
+ *
+ * Never throws and never blocks a booking. A booking that fails because a
+ * consultation row could not be written would be a worse bug than the one
+ * being fixed, so the caller is told what was not recorded and keeps it.
+ *
+ * Nothing here logs an answer. Ids and counts only.
+ *
+ * @param {object} args
+ * @param {string} args.beauticianId
+ * @param {string} args.clientId
+ * @param {string} args.appointmentId
+ * @param {object|null} args.answers keyed by field id, or by the booking
+ *   page's built in question keys when no form is linked
+ * @param {string[]} [args.formIds] forms linked to the treatments booked
+ * @returns {Promise<{recorded: number, unrecorded: object, failed: boolean}>}
+ *   unrecorded holds any answer that could not be filed, so the caller can
+ *   keep it rather than lose it
+ */
+export async function recordBookingConsultation({
+  beauticianId, clientId, appointmentId, answers, formIds = [],
+}) {
+  const blob = (answers && typeof answers === 'object' && !Array.isArray(answers)) ? answers : {};
+  if (!beauticianId || !appointmentId || Object.keys(blob).length === 0) {
+    return { recorded: 0, unrecorded: {}, failed: false };
+  }
+
+  try {
+    // Idempotent: a booking that is retried, or a backfill run twice, must not
+    // leave the same client with two copies of the same medical answers.
+    const { data: already, error: alreadyErr } = await supabase
+      .from('consultation_responses')
+      .select('id')
+      .eq('appointment_id', appointmentId)
+      .eq('status', 'completed')
+      .limit(1);
+
+    if (alreadyErr) {
+      logger.error({ err: alreadyErr, appointmentId }, 'Could not check for an existing consultation response');
+      return { recorded: 0, unrecorded: blob, failed: true };
+    }
+    if ((already || []).length > 0) {
+      return { recorded: 0, unrecorded: {}, failed: false };
+    }
+
+    // Only forms this account owns. The ids arrive from treatments that were
+    // already scoped to her, but health data is not the place to assume that
+    // holds one refactor from now.
+    let forms = [];
+    const wanted = [...new Set((formIds || []).filter(Boolean).map(String))];
+    if (wanted.length > 0) {
+      const { data: formRows, error: formsErr } = await supabase
+        .from('consultation_forms')
+        .select('id, consultation_form_fields(id, type)')
+        .eq('beautician_id', beauticianId)
+        .in('id', wanted);
+
+      if (formsErr) {
+        logger.error({ err: formsErr, appointmentId }, 'Could not load consultation forms for a booking');
+        return { recorded: 0, unrecorded: blob, failed: true };
+      }
+      forms = (formRows || []).map(f => ({ id: f.id, fields: f.consultation_form_fields || [] }));
+    }
+
+    const { groups, unmatched } = groupAnswersByForm({ forms, answers: blob });
+    const { defaults, leftover } = splitDefaultAnswers(unmatched);
+    const unrecorded = { ...leftover };
+
+    if (Object.keys(defaults).length > 0) {
+      const backing = await ensureDefaultBookingForm(beauticianId);
+      if (!backing) {
+        Object.assign(unrecorded, defaults);
+      } else {
+        const mapped = mapDefaultAnswersToFields({ answers: defaults, fields: backing.fields });
+        Object.assign(unrecorded, mapped.unmapped);
+        if (Object.keys(mapped.answers).length > 0) {
+          groups.push({ form_id: backing.formId, answers: mapped.answers, signature: null });
+        }
+      }
+    }
+
+    if (groups.length === 0) {
+      return { recorded: 0, unrecorded, failed: false };
+    }
+
+    const completedAt = new Date().toISOString();
+    const rows = groups.map(g => ({
+      form_id: g.form_id,
+      beautician_id: beauticianId,
+      client_id: clientId || null,
+      appointment_id: appointmentId,
+      // token is UNIQUE NOT NULL and is the credential guarding the public
+      // form. This row is already completed, so the link it unlocks only ever
+      // says "you have already submitted this form".
+      token: crypto.randomUUID(),
+      answers: g.answers,
+      signature_data: g.signature || null,
+      status: 'completed',
+      completed_at: completedAt,
+      expires_at: null,
+    }));
+
+    const { data: inserted, error: insErr } = await supabase
+      .from('consultation_responses')
+      .insert(rows)
+      .select('id');
+
+    if (insErr) {
+      logger.error({ err: insErr, appointmentId }, 'Could not save consultation answers given at booking');
+      return { recorded: 0, unrecorded: blob, failed: true };
+    }
+
+    // Counts and ids. The answers themselves never reach a log line.
+    logger.info(
+      { appointmentId, clientId, responses: (inserted || []).length, unrecorded: Object.keys(unrecorded).length },
+      'Consultation answers from a booking saved to consultation_responses'
+    );
+
+    return { recorded: (inserted || []).length, unrecorded, failed: false };
+  } catch (err) {
+    logger.error({ err, appointmentId }, 'Consultation answer write threw');
+    return { recorded: 0, unrecorded: blob, failed: true };
+  }
 }
 
 export default router;

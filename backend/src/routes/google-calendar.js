@@ -3,6 +3,7 @@ import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { encrypt, decrypt, isEncrypted } from '../lib/crypto.js';
 import logger from '../lib/logger.js';
+import { calendarDescription } from '../lib/client-notes.js';
 
 const router = Router();
 
@@ -220,11 +221,22 @@ router.post('/sync', requireAuth, async (req, res) => {
       throw err;
     }
 
-    const { data: appt } = await supabase
+    // Named columns, not '*'. This route builds a body that goes to Google, so
+    // it should only ever hold what a diary entry needs. Selecting the whole
+    // row is how client_notes ended up in the event description in the first
+    // place, and a select nobody has to read twice is the cheapest guard
+    // against the next person putting it back.
+    const { data: appt, error: apptErr } = await supabase
       .from('appointments')
-      .select('*, clients(first_name, last_name), treatments(name)')
+      .select('id, starts_at, ends_at, status, duration_minutes, clients(first_name, last_name), treatments(name)')
       .eq('id', appointment_id)
-      .single();
+      .eq('beautician_id', req.beautician.id)
+      .maybeSingle();
+
+    if (apptErr) {
+      logger.error({ err: apptErr }, 'Failed to load the appointment for Google Calendar sync');
+      return res.status(500).json({ error: 'Something went wrong' });
+    }
 
     if (!appt) return res.status(404).json({ error: 'Appointment not found' });
 
@@ -235,7 +247,18 @@ router.post('/sync', requireAuth, async (req, res) => {
       summary: `${clientName} — ${appt.treatments?.name || 'Appointment'}`,
       start: { dateTime: appt.starts_at, timeZone: 'Europe/London' },
       end: { dateTime: appt.ends_at, timeZone: 'Europe/London' },
-      description: `Booked via Florrie\n${appt.client_notes || ''}`,
+      // client_notes used to be pasted in here verbatim. It is the column the
+      // public booking page filled with the JSON of a client's consultation
+      // answers, so a connected Google account would have received allergy and
+      // medication answers in a calendar event body. Found while surfacing
+      // consultation forms. A diary entry gets what it is, how long it takes
+      // and the way back into Florrie. Notes of any kind stay in Florrie.
+      description: calendarDescription({
+        treatmentName: appt.treatments?.name,
+        durationMinutes: appt.duration_minutes,
+        appointmentId: appt.id,
+        appUrl: FRONTEND_URL ? `${FRONTEND_URL}/calendar` : null,
+      }),
       colorId: appt.status === 'confirmed' ? '2' : '5', // Green or Yellow
     };
 
@@ -316,9 +339,9 @@ router.post('/sync-all', requireAuth, async (req, res) => {
         // Re-fetch full appointment for each sync
         const { data: fullAppt } = await supabase
           .from('appointments')
-          .select('*, clients(first_name, last_name), treatments(name)')
+          .select('id, starts_at, ends_at, status, duration_minutes, clients(first_name, last_name), treatments(name)')
           .eq('id', appt.id)
-          .single();
+          .maybeSingle();
 
         if (!fullAppt) continue;
 
@@ -329,7 +352,14 @@ router.post('/sync-all', requireAuth, async (req, res) => {
           summary: `${clientName} — ${fullAppt.treatments?.name || 'Appointment'}`,
           start: { dateTime: fullAppt.starts_at, timeZone: 'Europe/London' },
           end: { dateTime: fullAppt.ends_at, timeZone: 'Europe/London' },
-          description: `Booked via Florrie`,
+          // Same body as the single sync, from the same builder, so the two
+          // can never drift into one of them carrying a note again.
+          description: calendarDescription({
+            treatmentName: fullAppt.treatments?.name,
+            durationMinutes: fullAppt.duration_minutes,
+            appointmentId: fullAppt.id,
+            appUrl: FRONTEND_URL ? `${FRONTEND_URL}/calendar` : null,
+          }),
         };
 
         const gcalRes = await fetch(

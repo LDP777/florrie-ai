@@ -79,7 +79,10 @@ router.get('/', requireAuth, async (req, res) => {
 router.get('/deposits', requireAuth, async (req, res) => {
   const { data, error } = await supabase
     .from('appointments')
-    .select('id, starts_at, created_at, status, deposit_cents, deposit_paid, deposit_status, payment_method, client_notes, clients(first_name, last_name), treatments(name)')
+    // client_notes was selected here and never used. Dropped: it is the column
+    // the booking page filled with consultation answers, and a column pulled
+    // into a payload for no reason is the one that gets returned by accident.
+    .select('id, starts_at, created_at, status, deposit_cents, deposit_paid, deposit_status, payment_method, clients(first_name, last_name), treatments(name)')
     .eq('beautician_id', req.beautician.id)
     .gt('deposit_cents', 0)
     .order('created_at', { ascending: false })

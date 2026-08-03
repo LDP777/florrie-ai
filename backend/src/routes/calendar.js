@@ -198,7 +198,13 @@ router.get('/feed/:token.ics', async (req, res) => {
 
     const { data: appts, error: aErr } = await supabase
       .from('appointments')
-      .select('id, starts_at, ends_at, status, beautician_notes, client_notes, updated_at, clients(first_name, last_name), treatments(name)')
+      // client_notes is deliberately NOT selected. This feed is a URL anybody
+      // holding it can subscribe to, and the public booking page filled that
+      // column with the JSON of a client's consultation answers, so allergy
+      // and medication answers were being written into an event body that
+      // leaves Florrie. Found while surfacing consultation forms. Her own
+      // beautician_notes still travel: she writes those, for herself.
+      .select('id, starts_at, ends_at, status, beautician_notes, updated_at, clients(first_name, last_name), treatments(name)')
       .eq('beautician_id', beautician.id)
       .gte('starts_at', `${fromStr}T00:00:00`)
       .lte('starts_at', `${toStr}T23:59:59`)
@@ -226,7 +232,10 @@ router.get('/feed/:token.ics', async (req, res) => {
         : '';
       const treatment = a.treatments?.name || 'Appointment';
       const summary = client ? `${client} , ${treatment}` : treatment;
-      const notes = [a.beautician_notes, a.client_notes].filter(Boolean).join('\n');
+      // Her notes only. A note a client typed on a public page cannot be
+      // proven to be free of health data, and this feed goes to whatever
+      // calendar app holds the link, so it does not go.
+      const notes = a.beautician_notes || '';
       // Stable UID so re-polls update the same event instead of duplicating it.
       const uid = `appt-${a.id}@florrie.ai`;
       const start = toICalLocal(a.starts_at);

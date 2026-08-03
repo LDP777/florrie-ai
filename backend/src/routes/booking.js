@@ -7,7 +7,8 @@ import { isMissingColumnError } from '../lib/junk-classifier.js';
 import { notifyBookingConfirmed } from '../services/notifications.js';
 import { pushNewBooking, pushBookingConfirmed, pushReschedule, pushPatchTestBooked, pushClientCancelled, pushTeamUpdate } from '../services/push-notifications.js';
 import { refreshLiveActivity } from '../services/live-activity.js';
-import { sendConsultationFormSMS } from './consultation-forms.js';
+import { sendConsultationFormSMS, recordBookingConsultation } from './consultation-forms.js';
+import { splitBookingSubmission } from '../lib/client-notes.js';
 import { validate } from '../middleware/validate.js';
 import { requireAuth } from '../middleware/auth.js';
 import { totalApplicationFee } from '../lib/platform-fees.js';
@@ -2652,11 +2653,16 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     return res.status(400).json({ error: 'Please fill in the quick consultation form to book this treatment.' });
   }
 
-  // Build client_notes — combine free text notes + consultation form answers
-  let clientNotes = notes || null;
-  if (consultation && Object.keys(consultation).length > 0) {
-    clientNotes = JSON.stringify({ notes: notes || '', consultation });
-  }
+  // A free text note and a set of consultation answers stop sharing a column
+  // here. This used to store JSON.stringify({ notes, consultation }) in
+  // appointments.client_notes, which had two consequences, both found while
+  // surfacing consultation forms: the answers never reached
+  // consultation_responses so nothing could display them, and client_notes is
+  // pasted into third party calendars, so the raw JSON of a client's medical
+  // answers was one Google Calendar connection away from leaving Florrie.
+  // The note is not medical data and stays here as plain text. The answers go
+  // to consultation_responses once the appointment exists to attach them to.
+  const { plainNote: clientNotes, answers: consultationAnswers } = splitBookingSubmission({ notes, consultation });
 
   let discountCents = 0;
   let discountMeta = null;  // stored on appointment for audit trail
@@ -2841,6 +2847,42 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     }));
     const { error: aoErr } = await supabase.from('appointment_add_ons').insert(addOnRows);
     if (aoErr) logger.warn({ err: aoErr }, 'Add-on insert failed (non-fatal)');
+  }
+
+  // The answers become a real consultation_responses row, in the same shape
+  // POST /public/:token/submit writes, so a form filled in at booking and a
+  // form filled in from a text message read as one thing on her screens.
+  // Awaited rather than fired off, because she can open the booking the second
+  // it lands and the answers should already be there.
+  if (consultationAnswers) {
+    const { unrecorded, failed } = await recordBookingConsultation({
+      beauticianId: beautician.id,
+      clientId: client.id,
+      appointmentId: appointment.id,
+      answers: consultationAnswers,
+      formIds: allTreatments.map(t => t.consultation_form_id).filter(Boolean),
+    });
+
+    // Nothing is thrown away. If an answer could not be filed (the write
+    // failed, or the key belongs to no question anyone can name) it is kept on
+    // the appointment in the old shape, which is where it would have lived
+    // anyway. client_notes no longer leaves Florrie, so parking it there is
+    // containment rather than exposure, and a warning says it needs a look.
+    const leftovers = Object.keys(unrecorded || {}).length > 0;
+    if (failed || leftovers) {
+      const { error: keepErr } = await supabase
+        .from('appointments')
+        .update({ client_notes: JSON.stringify({ notes: clientNotes || '', consultation: unrecorded }) })
+        .eq('id', appointment.id);
+      if (keepErr) {
+        logger.error({ err: keepErr, appointmentId: appointment.id }, 'Could not keep the unfiled consultation answers on the appointment');
+      } else {
+        logger.warn(
+          { appointmentId: appointment.id, unfiled: Object.keys(unrecorded || {}).length, failed },
+          'Consultation answers kept on the appointment because they could not be filed'
+        );
+      }
+    }
   }
 
   // New client + patch-test treatment: the pending patch test is created WITH
