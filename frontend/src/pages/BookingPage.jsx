@@ -102,6 +102,9 @@ export default function BookingPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState(null);
+  // Only paint the missing questions red once she has actually tried to book.
+  // A form that is angry before you have touched it reads as broken.
+  const [showConsultationErrors, setShowConsultationErrors] = useState(false);
   const [error, setError] = useState(isCancelled ? 'Payment was cancelled. Your booking slot is held for 15 minutes, you can try again.' : null);
   const confirmedManageToken = new URLSearchParams(location.search).get('mt');
   const [success, setSuccess] = useState(isConfirmedReturn ? { depositPaid: true, manageUrl: confirmedManageToken ? `/book/${slug}/manage/${confirmedManageToken}` : null } : null);
@@ -198,6 +201,21 @@ export default function BookingPage() {
     { key: 'pregnant', label: 'Are you pregnant or breastfeeding?', type: 'yes_no' },
     { key: 'previous_reactions', label: 'Have you had any adverse reactions to beauty treatments before?', type: 'text' },
   ];
+  /**
+   * Has this question actually been answered?
+   *
+   * One shape per field type, because "answered" is different for each and a
+   * single truthiness test gets three of them wrong: an unticked checkbox is
+   * `false`, an untouched multi select is `[]`, and both are falsy while
+   * meaning opposite things.
+   */
+  function isAnswered(q, raw) {
+    if (raw === null || raw === undefined) return false;
+    if (q.type === 'checkbox') return raw === true;          // an "I confirm" tick must be ticked
+    if (q.type === 'multi_select') return Array.isArray(raw) && raw.some(v => String(v).trim() !== '');
+    return String(raw).trim() !== '';
+  }
+
   const needsConsultation = selectedTreatments.some(t => t.requires_consultation);
   const needsPatchTest = selectedTreatments.some(t => t.requires_patch_test);
   // The questions to render, dynamic form fields if available, else defaults
@@ -407,6 +425,29 @@ export default function BookingPage() {
       setRebookState('nomatch');
     }
   }
+
+  /**
+   * Every question still waiting on an answer.
+   *
+   * REQUIRED IS THE DEFAULT. The builder has a `required` flag and it has
+   * never been enforced anywhere: the page rendered it and the submit ignored
+   * it, so a client could book a lash lift having answered nothing about
+   * allergies or medication and Ellie only found out with them in the chair.
+   * Ellie has marked 36 of her 40 fields required, so this is her intent being
+   * honoured rather than a new rule. `required === false` is the only way out,
+   * which keeps the four multi selects she deliberately left optional optional.
+   * The built in questions carry no flag at all, so they are required too.
+   *
+   * A text_block is a paragraph to read, not a question, so it is never
+   * "unanswered". A signature is: it is the thing that makes the rest consent.
+   */
+  const missingConsultation = !needsConsultation || recognisedClient?.found
+    ? []
+    : consultationQuestions.filter(q =>
+        q.type !== 'text_block'
+        && q.required !== false
+        && !isAnswered(q, consultationAnswers[q.key]));
+
 
   function rebookSameAgain() {
     const lastId = rebookMatch?.lastTreatment?.id;
@@ -711,6 +752,21 @@ export default function BookingPage() {
   const canGoNext = calMonth ? !sameMonth(calMonth, horizonDate) && calMonth < startOfMonth(horizonDate) : false;
   // Submit booking via backend API (handles client creation, conflict checks, deposits)
   async function handleBook() {
+    // Refuse before anything is created. A booking that skips the medical
+    // questions is exactly the booking Ellie needs the answers for, and the
+    // required flag on her own form fields was being rendered and then ignored.
+    if (missingConsultation.length > 0) {
+      setShowConsultationErrors(true);
+      const n = missingConsultation.length;
+      setError(n === 1
+        ? 'One question on the consultation form still needs an answer.'
+        : `${n} questions on the consultation form still need an answer.`);
+      // Take them to the first one rather than making them hunt for it.
+      const first = document.getElementById(`consultation-q-${missingConsultation[0].key}`);
+      if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
     try {
@@ -1579,16 +1635,39 @@ export default function BookingPage() {
             </p>
             {/* Consent paragraph moved to just before the signature (below), matching what the form editor promises. */}
             <div style={styles.formFields}>
-              {consultationQuestions.map((q, qi) => (
-                <div key={q.key} style={{ marginBottom: 14 }}>
+              {consultationQuestions.map((q, qi) => {
+                const isMissing = showConsultationErrors && missingConsultation.some(m => m.key === q.key);
+                return (
+                <div
+                  key={q.key}
+                  id={`consultation-q-${q.key}`}
+                  style={{
+                    marginBottom: 14,
+                    // Marked, not shouted at: a thin rule down the side of the
+                    // question rather than a red box round the whole thing.
+                    ...(isMissing ? {
+                      borderLeft: '3px solid var(--danger, #DC2626)',
+                      paddingLeft: 10,
+                      marginLeft: -13,
+                    } : {}),
+                  }}
+                >
                   {q.section && (qi === 0 || consultationQuestions[qi - 1].section !== q.section) && (
                     <div style={{ fontSize: 14, fontWeight: 700, color: brand, margin: '18px 0 10px', paddingBottom: 6, borderBottom: '1px solid var(--border-light, #eee)' }}>
                       {q.section}
                     </div>
                   )}
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#444', marginBottom: 4 }}>
-                    {q.label}{q.required && <span style={{ color: 'var(--danger, #DC2626)' }}> *</span>}
+                    {q.label}
+                    {q.type !== 'text_block' && q.required !== false && (
+                      <span style={{ color: 'var(--danger, #DC2626)' }}> *</span>
+                    )}
                   </label>
+                  {isMissing && (
+                    <p style={{ margin: '0 0 6px', fontSize: 12, fontWeight: 600, color: 'var(--danger, #DC2626)' }}>
+                      {q.type === 'signature' ? 'Please sign to confirm' : 'Please answer this one'}
+                    </p>
+                  )}
                   {/* Yes/No toggle */}
                   {q.type === 'yes_no' && (
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -1692,14 +1771,36 @@ export default function BookingPage() {
                     />
                   )}
                 </div>
-              ))}
+                );
+              })}
             </div>
             {!consultationQuestions.some(q => q.type === 'signature') && [...new Set(consultationForms.map(cf => cf.consent_text).filter(Boolean))].map((txt, ci) => (
               <p key={`consent-fb-${ci}`} style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5, padding: '10px 12px', background: 'var(--bg-subtle, #FDFCFB)', borderRadius: 8, border: '1px solid var(--border-light)' }}>{txt}</p>
             ))}
+            {showConsultationErrors && missingConsultation.length > 0 && (
+              <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: 'var(--danger, #DC2626)', lineHeight: 1.5 }}>
+                {missingConsultation.length === 1
+                  ? 'One question still needs an answer.'
+                  : `${missingConsultation.length} questions still need an answer.`}
+              </p>
+            )}
             <div style={styles.buttonRow}>
               <button onClick={() => setStep(2)} style={styles.backBtn}>← Back</button>
-              <button onClick={() => setStep(3)} style={{ ...styles.primaryBtn, background: brand }}>
+              <button
+                onClick={() => {
+                  // Caught here rather than at Confirm. Sending someone to the
+                  // review screen and refusing there means walking them back
+                  // through a form they thought they had finished.
+                  if (missingConsultation.length > 0) {
+                    setShowConsultationErrors(true);
+                    const first = document.getElementById(`consultation-q-${missingConsultation[0].key}`);
+                    if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return;
+                  }
+                  setStep(3);
+                }}
+                style={{ ...styles.primaryBtn, background: brand }}
+              >
                 Review booking
               </button>
             </div>

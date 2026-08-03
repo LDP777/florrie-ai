@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
+import { verifyWebhook } from '../lib/stripe-webhook-secret.js';
 
 const router = Router();
 
@@ -222,19 +223,20 @@ router.post('/webhook', async (req, res) => {
   const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
   let event;
 
-  try {
-    if (endpointSecret && sig) {
-      event = stripe.webhooks.constructEvent(req.rawBody || req.body, sig, endpointSecret);
-    } else if (endpointSecret) {
-      // Secret configured but no signature: this is not a genuine Stripe call.
-      // Return 400 (not 5xx) so Stripe does not flag/disable the endpoint.
-      return res.status(400).json({ error: 'Missing Stripe signature' });
-    } else {
-      event = req.body;
+  if (endpointSecret) {
+    // Same multi-secret rule as /api/stripe/webhook: two endpoints, two
+    // secrets, one variable. See lib/stripe-webhook-secret.js.
+    const verified = verifyWebhook({
+      stripe, payload: req.rawBody || req.body, signature: sig, rawSecret: endpointSecret,
+    });
+    if (!verified.event) {
+      logger.error({ reason: verified.reason, secretsTried: verified.secretsTried }, 'Billing webhook signature verification failed');
+      // 400 not 5xx, so Stripe does not flag and disable the endpoint.
+      return res.status(400).json({ error: 'Webhook signature invalid' });
     }
-  } catch (err) {
-    logger.error({ err }, 'Webhook signature verification failed');
-    return res.status(400).json({ error: 'Webhook signature invalid' });
+    event = verified.event;
+  } else {
+    event = req.body;
   }
 
   // Idempotency: dedupe via the shared stripe_events table (same as

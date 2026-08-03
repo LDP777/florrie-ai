@@ -21,6 +21,7 @@
 import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
 import logger from './logger.js';
+import { parseWebhookSecrets } from './stripe-webhook-secret.js';
 import { readJobRuns } from './job-runs.js';
 
 const DEFAULT_TIMEOUT_MS = 3000;
@@ -129,10 +130,14 @@ function checkStripeWebhookSecret(stripeConfigured) {
   if (!stripeConfigured) {
     return { ok: true, status: 'skipped', critical: false, detail: 'Stripe not configured' };
   }
-  const present = Boolean(process.env.STRIPE_WEBHOOK_SECRET);
-  return present
-    ? { ok: true, status: 'ok', critical: true }
-    : { ok: false, status: 'fail', critical: true, detail: 'STRIPE_WEBHOOK_SECRET missing, every Stripe event will be rejected' };
+  // Count them. "present" read ok for months while every event was rejected,
+  // because the one value configured belonged to the other of the two
+  // endpoints pointed at this url. The number is the useful fact.
+  const secrets = parseWebhookSecrets(process.env.STRIPE_WEBHOOK_SECRET);
+  if (secrets.length === 0) {
+    return { ok: false, status: 'fail', critical: true, detail: 'STRIPE_WEBHOOK_SECRET missing, every Stripe event will be rejected' };
+  }
+  return { ok: true, status: 'ok', critical: true, secrets_configured: secrets.length };
 }
 
 /**

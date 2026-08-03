@@ -18,6 +18,7 @@ import {
 } from '../lib/money-guards.js';
 import { chargePolicyFee } from '../services/policy-fees.js';
 import logger from '../lib/logger.js';
+import { verifyWebhook } from '../lib/stripe-webhook-secret.js';
 
 const router = Router();
 const stripe = process.env.STRIPE_SECRET_KEY
@@ -933,22 +934,29 @@ router.post('/webhook', async (req, res) => {
   const sig = req.headers['stripe-signature'];
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
-  let event;
-  try {
-    // req.rawBody is set by Express raw body middleware (see index.js)
-    event = stripe.webhooks.constructEvent(req.rawBody || req.body, sig, webhookSecret);
-  } catch (err) {
-    // This exact line was logged on every Stripe event for SIX WEEKS and
-    // nobody knew: the secret in Railway did not match the endpoint's secret,
-    // so every payment, refund and dispute was rejected at the door. The log
-    // was there. The log was not enough. Sentry so a human hears about it.
-    logger.error({ err }, 'Webhook signature verification failed');
+  // Every configured secret gets a go. There are TWO endpoints on this url,
+  // one scoped to the platform account and one to connected accounts, and
+  // Stripe signs each with its own secret. Reading a single value meant one
+  // endpoint's events were rejected 100% of the time. See
+  // lib/stripe-webhook-secret.js.
+  const { event, secretsTried, reason } = verifyWebhook({
+    stripe,
+    payload: req.rawBody || req.body,   // the RAW bytes, set in index.js
+    signature: sig,
+    rawSecret: webhookSecret,
+  });
+
+  if (!event) {
+    // This exact line was logged on every Stripe event for MONTHS and nobody
+    // knew: stripe_events had zero rows in production, ever. The log was
+    // there. The log was not enough. Sentry so a human hears about it.
+    logger.error({ reason, secretsTried }, 'Webhook signature verification failed');
     Sentry.captureMessage('Stripe webhook signature verification failed', {
       level: 'error',
       tags: { area: 'payments', check: 'stripe_webhook' },
       extra: {
-        reason: err?.message || 'unknown',
-        webhook_secret_present: Boolean(webhookSecret),
+        reason: reason || 'unknown',
+        secrets_configured: secretsTried,
         signature_header_present: Boolean(sig),
       },
     });
