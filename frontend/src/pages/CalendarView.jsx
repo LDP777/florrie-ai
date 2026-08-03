@@ -1580,7 +1580,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
       .eq('beautician_id', beautician.id)
       .order('sort_order', { ascending: true });
     if (error) {
-      console.error('Could not load treatments', error);
+      logger.error('Could not load treatments', error);
       setTreatLoadFailed(true);
       return [];
     }
