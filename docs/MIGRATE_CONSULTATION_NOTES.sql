@@ -184,7 +184,18 @@ ORDER BY p.starts_at DESC;
 
 
 -- ───────────────────────────────────────────────────────────────────────────
--- STEP 2. COMMENTED OUT ON PURPOSE. Read STEP 1B first.
+-- STEP 2. DEAD. DO NOT RUN. Use docs/MIGRATE_CONSULTATION_NOTES_STEP2.sql.
+--
+-- Run against production on 3 August 2026 it moved nothing, and it could never
+-- have moved anything. Its `eligible` CTE below refuses any appointment that
+-- carries a signature field, spans two forms, or holds an unresolved key. All
+-- 14 rows failed at least one: 13 carry a signature (the booking page asks the
+-- client to type their name, so every consultation has one), 3 span two forms,
+-- 1 is keyed by the five short names. Those were not edge cases to defer to
+-- the script. They were the shape of the data.
+--
+-- Kept here so the reasoning is not lost, and because STEP 1B still calls a
+-- row 'sql_can_move' on exactly these terms. Treat that verdict as advisory.
 --
 -- Idempotent: the INSERT skips any appointment that already has a completed
 -- response, and the UPDATE only rewrites client_notes for appointments that
