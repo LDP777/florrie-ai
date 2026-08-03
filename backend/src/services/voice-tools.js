@@ -16,6 +16,14 @@
 
 import Stripe from 'stripe';
 import { sendMessage } from './notifications.js';
+import { sendConsultationFormSMS } from '../routes/consultation-forms.js';
+import {
+  consultationStatusForClient,
+  consultationsOutstanding,
+  patchTestStatusForClient,
+  patchTestsOutstanding,
+  resolveSendableForm,
+} from './voice-consultation.js';
 import { totalApplicationFee } from '../lib/platform-fees.js';
 import logger from '../lib/logger.js';
 
@@ -280,6 +288,63 @@ export const TOOL_DEFINITIONS = [
   },
 
   {
+    name: 'check_consultation_form',
+    description: "Whether a named client has a consultation form on file, when she filled it in, and how many answers are worth knowing before she sits down. Use for \"has Megan done her consultation form\", \"when did Sarah fill hers in\", \"is there anything I should know about Megan before she comes in\". Reports STATUS ONLY. The answers themselves appear on screen and are never spoken, because she is usually holding a client when she asks.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        client_name: { type: 'string' },
+      },
+      required: ['client_name'],
+    },
+  },
+  {
+    name: 'get_consultations_needed',
+    description: 'Who is booked in a date range whose treatment needs a consultation form and has nothing on file yet. Use for "does anyone tomorrow still need a consultation form", "who needs to fill one in this week", "is everyone booked in sorted for forms". Defaults to today plus the next seven days.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        start_date: { type: 'string', description: 'YYYY-MM-DD. Defaults to today.' },
+        end_date: { type: 'string', description: 'YYYY-MM-DD. Defaults to seven days after the start.' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'check_patch_test',
+    description: 'Whether a named client still owes a patch test. Use for "does Megan need a patch test", "is Sarah patch tested", "has Megan had hers done". There is no pass or fail recorded anywhere, so this answers outstanding or done and never claims someone passed.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        client_name: { type: 'string' },
+      },
+      required: ['client_name'],
+    },
+  },
+  {
+    name: 'get_patch_tests_needed',
+    description: 'Everyone booked in a date range who still owes a patch test. Use for "who needs a patch test this week", "is anyone in tomorrow not patch tested". Defaults to today plus the next seven days.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        start_date: { type: 'string', description: 'YYYY-MM-DD. Defaults to today.' },
+        end_date: { type: 'string', description: 'YYYY-MM-DD. Defaults to seven days after the start.' },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'send_consultation_form',
+    description: 'Text a client the link to fill in her consultation form. Use for "send Megan a consultation form", "get Sarah to fill her form in".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        client_name: { type: 'string' },
+      },
+      required: ['client_name'],
+    },
+  },
+  {
     name: 'get_top_clients',
     description: 'Get the top N clients by total spend.',
     input_schema: {
@@ -348,6 +413,11 @@ export async function executeTool(toolName, toolInput, beautician, supabase) {
       case 'get_top_clients':       return await toolGetTopClients(toolInput, beautician, supabase);
       case 'get_busiest_days':      return await toolGetBusiestDays(toolInput, beautician, supabase);
       case 'get_revenue_by_treatment': return await toolGetRevenueByTreatment(toolInput, beautician, supabase);
+      case 'check_consultation_form': return await toolCheckConsultationForm(toolInput, beautician, supabase);
+      case 'get_consultations_needed': return await toolConsultationsNeeded(toolInput, beautician, supabase);
+      case 'check_patch_test':      return await toolCheckPatchTest(toolInput, beautician, supabase);
+      case 'get_patch_tests_needed': return await toolPatchTestsNeeded(toolInput, beautician, supabase);
+      case 'send_consultation_form': return await toolSendConsultationForm(toolInput, beautician, supabase);
       default:
         return { result: `Unknown tool: ${toolName}` };
     }
@@ -1206,6 +1276,135 @@ async function toolGetRevenueByTreatment({ from_date, to_date }, beautician, sup
 
   const lines = sorted.map(([name, total]) => `${name}: £${(total / 100).toFixed(2)}`);
   return { result: `Revenue by treatment:\n${lines.join('\n')}`, data: { totals } };
+}
+
+// ═══════════════════════════════════════════════
+// CONSULTATION FORMS AND PATCH TESTS
+//
+// These five are the only tools here that touch health data. The rule they
+// all follow: what comes back in `result` is spoken out loud, what comes back
+// in `data` is only ever rendered on screen. So `result` carries the status
+// and a COUNT, and the answers themselves stay in `data`.
+//
+// See services/voice-consultation.js for why that is a shape rather than an
+// instruction in the prompt.
+// ═══════════════════════════════════════════════
+
+/**
+ * findClient is a substring match that takes the FIRST row and never counts.
+ * For "book Megan in" a wrong match is a booking she can move. For a medical
+ * record it puts one client's allergies on screen while a different client
+ * sits in the chair, so these two tools ask who else it could have been and
+ * refuse rather than guess.
+ */
+async function resolveOneClient(beauticianId, name, supabase) {
+  const client = await findClient(beauticianId, name, supabase);
+  if (!client) return { error: `Can't find a client called "${name}".` };
+
+  const cleaned = String(name || '').trim().replace(/\s+/g, ' ');
+  const { data: matches, error } = await supabase
+    .from('clients')
+    .select('id, first_name, last_name')
+    .eq('beautician_id', beauticianId)
+    .or(`first_name.ilike.%${cleaned}%,last_name.ilike.%${cleaned}%`)
+    .limit(5);
+
+  // A failed count must not silently become "only one match". Fall through to
+  // the single client findClient already resolved and say the full name aloud,
+  // which is what lets her catch it.
+  if (error) return { client };
+
+  const distinct = (matches || []).filter(m => m.id);
+  if (distinct.length > 1) {
+    const names = distinct.map(m => [m.first_name, m.last_name].filter(Boolean).join(' ')).join(', ');
+    return { error: `I have more than one match for "${name}": ${names}. Which one?` };
+  }
+  return { client };
+}
+
+async function toolCheckConsultationForm({ client_name }, beautician, supabase) {
+  const { client, error } = await resolveOneClient(beautician.id, client_name, supabase);
+  if (error) return { result: error };
+  return consultationStatusForClient({ supabase, beauticianId: beautician.id, client });
+}
+
+async function toolConsultationsNeeded({ start_date, end_date }, beautician, supabase) {
+  return consultationsOutstanding({ supabase, beauticianId: beautician.id, start_date, end_date });
+}
+
+async function toolCheckPatchTest({ client_name }, beautician, supabase) {
+  const { client, error } = await resolveOneClient(beautician.id, client_name, supabase);
+  if (error) return { result: error };
+  return patchTestStatusForClient({ supabase, beauticianId: beautician.id, client, logger });
+}
+
+async function toolPatchTestsNeeded({ start_date, end_date }, beautician, supabase) {
+  return patchTestsOutstanding({ supabase, beauticianId: beautician.id, start_date, end_date, logger });
+}
+
+/**
+ * Send the consultation form. Confirm-gated, so this only runs after she has
+ * tapped the card.
+ *
+ * The two refusals below are checked HERE rather than left to the sender,
+ * because the sender's failure arrives after the tap. She has three active
+ * forms and no default one today, which is exactly the case that would
+ * otherwise say "sending" and then not send.
+ */
+async function toolSendConsultationForm({ client_name }, beautician, supabase) {
+  const client = await findClient(beautician.id, client_name, supabase);
+  if (!client) return { result: `Can't find a client called "${client_name}".` };
+  if (!client.phone) {
+    return { result: `${client.first_name} has no mobile number on file, so there is nowhere to send it.` };
+  }
+
+  // Their next booking decides which form, the same way the booking flow does.
+  const { data: next } = await supabase
+    .from('appointments')
+    .select('id, treatment_id, starts_at')
+    .eq('beautician_id', beautician.id)
+    .eq('client_id', client.id)
+    // Wall-clock now, not midnight: an appointment that finished at 9am is not
+    // their next booking, and picking it picks that treatment's form.
+    .gte('starts_at', new Date().toISOString())
+    .in('status', ['confirmed', 'pending'])
+    .order('starts_at', { ascending: true })
+    .limit(1);
+  const appt = (next || [])[0] || null;
+
+  const { formId } = await resolveSendableForm({
+    supabase, beauticianId: beautician.id, treatmentId: appt?.treatment_id || null,
+  });
+  if (!formId) {
+    return {
+      result: 'There is no consultation form set up to send yet. Build one under More, then mark it as your default, and I can send it after that.',
+    };
+  }
+
+  try {
+    const sent = await sendConsultationFormSMS({
+      beauticianId: beautician.id,
+      clientId: client.id,
+      appointmentId: appt?.id || null,
+      clientPhone: client.phone,
+      clientFirstName: client.first_name || 'there',
+      treatmentId: appt?.treatment_id || null,
+      beauticianName: beautician.business_name || beautician.first_name || 'your beautician',
+    });
+    if (!sent) {
+      return { result: 'There is no consultation form set up to send yet. Build one under More and mark it as your default.' };
+    }
+    // Ids only. The token is the credential guarding the form, and the
+    // answers do not exist yet.
+    logger.info({ clientId: client.id }, 'Consultation form sent by voice');
+    return {
+      result: `Sent. ${client.first_name} has the form link on her phone.`,
+      data: { client_id: client.id, sent: true },
+    };
+  } catch (err) {
+    logger.error({ err, clientId: client.id }, 'Voice consultation form send failed');
+    return { result: `That did not send. Try again from ${client.first_name}'s profile.` };
+  }
 }
 
 export async function findClient(beauticianId, name, supabase) {

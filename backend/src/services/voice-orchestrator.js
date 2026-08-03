@@ -29,7 +29,7 @@ export const CONFIRM_REQUIRED = new Set([
   'book_appointment', 'reschedule_appointment', 'cancel_appointment',
   'block_date', 'block_date_range', 'clear_block',
   'send_message', 'send_bulk_message', 'send_payment_link', 'send_rebook_reminder',
-  'create_expense',
+  'create_expense', 'send_consultation_form',
 ]);
 import logger from '../lib/logger.js';
 import { cleanReply } from '../lib/text.js';
@@ -231,14 +231,19 @@ IMPORTANT RULES:
 9. NEVER mention tool names in your response to the user.
 10. NEVER use em dashes (—) or en dashes (–). Use commas, full stops, colons or line breaks instead.
 11. If the user asks for something you do NOT have a tool for (changing prices, editing settings, building a campaign, anything outside the actions below), never dead-end with a flat "I can't." Warmly acknowledge it, say it is not something you can do by voice just yet, then EITHER point them to where in the app they can do it (for example "you can set that under More") OR suggest the closest thing you CAN do. Always leave them a clear next step.
-12. What you can do by voice: check the schedule, book, reschedule or cancel appointments, block time off, look up a client, find lapsed clients, add a client note, send a message to one client or in bulk, send a payment link or rebook reminder, check revenue, check outstanding payments, and log an expense. When a request is out of scope, offer two or three of these as friendly alternatives.
+12. What you can do by voice: check the schedule, book, reschedule or cancel appointments, block time off, look up a client, find lapsed clients, add a client note, send a message to one client or in bulk, send a payment link or rebook reminder, check revenue, check outstanding payments, log an expense, check whether a client has done her consultation form or still owes a patch test, find who booked in still needs either, and send a consultation form. When a request is out of scope, offer two or three of these as friendly alternatives.
+13. HEALTH DATA. Consultation answers are medical information and ${name} is usually holding a client when she asks. Say the status and the number of things worth knowing. Never say what a client answered, never name a condition, an allergy, a medication or a medicine, and never read a question back. The answers are on the screen for her to read herself. If she asks you to read them out, tell her they are on screen below rather than saying them.
+14. A consultation form is not a test and nobody passes or fails one. A patch test records no result at all: the only things known are whether one is on record, whether a slot is booked, and whether she came in for it. Never say a client passed, failed, is cleared, is patch tested, or that a patch test is valid or expired. Say back exactly what the tool told you.
 
 Examples of good compound commands you should handle:
 - "Book Megan in for HD Brows next Thursday at 11 and send her a payment link for £20" → book_appointment + send_payment_link
 - "Block the 14th to 21st for a holiday and let everyone booked that week know" → block_date_range + send_bulk_message
 - "Cancel Sarah's appointment and message her with a rebook link" → cancel_appointment + send_rebook_reminder
 - "How much did I make last month and who are my top 5 clients?" → get_revenue_summary + get_top_clients
-- "Who haven't I seen in a while? Send them all a message saying I'd love to see them back" → get_lapsed_clients + send_bulk_message`;
+- "Who haven't I seen in a while? Send them all a message saying I'd love to see them back" → get_lapsed_clients + send_bulk_message
+- "Has Megan done her consultation form?" → check_consultation_form, then report the status only
+- "Does anyone in tomorrow still need a form? Send them one" → get_consultations_needed + send_consultation_form
+- "Who needs a patch test this week?" → get_patch_tests_needed`;
 }
 
 function computeRelativeDates(todayStr) {

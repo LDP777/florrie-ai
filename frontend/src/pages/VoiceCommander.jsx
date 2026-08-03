@@ -76,10 +76,12 @@ function ProposalCard({ prop, onDone }) {
       onDone && onDone(err.message || 'Could not do that. Try again.');
     }
   }
-  if (state === 'done') {
+  if (state === 'done' || state === 'dismissed') {
+    // "Leave it" used to set this to 'done', so declining a send told her it
+    // had happened. Two outcomes, two words.
     return (
-      <div style={{ marginTop: 8, padding: '10px 14px', borderRadius: 14, background: 'var(--tone-2, #f6e7dd)', fontSize: 13, fontWeight: 600, color: 'var(--accent, #92405e)' }}>
-        Done ✓
+      <div style={{ marginTop: 8, padding: '10px 14px', borderRadius: 14, background: 'var(--tone-2, #f6e7dd)', fontSize: 13, fontWeight: 600, color: state === 'done' ? 'var(--accent, #92405e)' : 'var(--text-secondary, #867277)' }}>
+        {state === 'done' ? 'Done ✓' : 'Left it'}
       </div>
     );
   }
@@ -97,13 +99,129 @@ function ProposalCard({ prop, onDone }) {
         </button>
         {state === 'idle' && (
           <button
-            onClick={() => setState('done')}
+            onClick={() => setState('dismissed')}
             style={{ minHeight: 42, padding: '0 16px', borderRadius: 12, border: 'none', background: 'var(--tone-2, #f6e7dd)', color: 'var(--text-secondary, #867277)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
           >
             Leave it
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+
+/**
+ * The consultation answers, on screen, because they are never said out loud.
+ *
+ * Voice tells her the status and how many things are worth knowing. This is
+ * where the actual answers live, silent, for her to read herself. She is
+ * usually holding a client when she asks, so a speaker is the wrong place for
+ * someone's medical history.
+ *
+ * Collapsed by default and opened on a tap: a phone lying face up on the
+ * trolley should not be showing a client's allergies to whoever walks past.
+ */
+function ConsultationCard({ consultation, count = 1, clientName }) {
+  const [open, setOpen] = useState(false);
+  if (!consultation) return null;
+
+  const flagged = consultation.worth_knowing || [];
+  // completed_at is a real instant, not the wall-time-in-a-UTC-slot that
+  // appointments.starts_at holds, so it is NOT forced to UTC. Forcing it shows
+  // a form submitted at 00.30 as the day before, and disagrees with the same
+  // date on the client profile.
+  const when = consultation.completed_at
+    ? new Date(consultation.completed_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    : null;
+
+  return (
+    <div style={{ marginTop: 8, borderRadius: 16, background: 'var(--tone-1, #fbf1ea)', border: '1px solid var(--tone-2, #f6e7dd)', overflow: 'hidden' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', minHeight: 44, padding: '10px 14px', border: 'none', background: 'transparent',
+          display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+        }}
+      >
+        <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--accent, #92405e)' }}>clinical_notes</span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary, #3d3438)' }}>
+            {/* Whose. Without it, two lookups in one breath leave her reading
+                somebody's allergies with no idea whose they are. */}
+            {clientName ? `${clientName} · ` : ''}{consultation.form_name || 'Consultation form'}
+          </span>
+          <span style={{ display: 'block', fontSize: 11.5, color: 'var(--text-secondary, #867277)' }}>
+            {when ? `Submitted ${when}` : 'Submitted'}
+            {count > 1 ? ` · ${count} on file` : ''}
+          </span>
+        </span>
+        {flagged.length > 0 && (
+          <span style={{
+            padding: '2px 8px', borderRadius: 999, background: 'var(--accent, #92405e)', color: '#fff',
+            fontSize: 10.5, fontWeight: 800, letterSpacing: '0.03em', whiteSpace: 'nowrap',
+          }}>
+            {flagged.length} worth knowing
+          </span>
+        )}
+        <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--text-secondary, #867277)' }}>
+          {open ? 'expand_less' : 'expand_more'}
+        </span>
+      </button>
+
+      {open && (
+        <div style={{ padding: '0 14px 12px' }}>
+          {/* The flagged answers are NOT listed separately above the form. They
+              are already in `pairs`, and printing the worth_knowing note as
+              well put the one thing she most needs to read on screen twice,
+              worded two different ways, three lines apart. pair.worth_knowing
+              carries the emphasis instead. */}
+          {(consultation.pairs || []).map(pair => (
+            <div key={pair.field_id} style={{
+              padding: pair.worth_knowing ? '7px 10px' : '7px 0',
+              borderTop: '1px solid var(--tone-2, #f6e7dd)',
+              ...(pair.worth_knowing ? {
+                background: 'var(--tone-2, #f6e7dd)',
+                borderLeft: '3px solid var(--accent, #92405e)',
+                borderRadius: 8,
+                marginTop: 4,
+              } : {}),
+            }}>
+              <p style={{ margin: 0, fontSize: 11.5, fontWeight: 600, color: 'var(--text-secondary, #867277)', lineHeight: 1.4 }}>
+                {pair.question}
+              </p>
+              <p style={{
+                margin: '2px 0 0', fontSize: 13, lineHeight: 1.45,
+                color: pair.answered ? 'var(--text-primary, #3d3438)' : 'var(--text-secondary, #867277)',
+                fontStyle: pair.answered ? 'normal' : 'italic',
+                fontWeight: pair.worth_knowing ? 700 : 400,
+              }}>
+                {pair.answered ? pair.answer : 'Not answered'}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The people a "who still needs one" answer named. Names and times only, so
+ * there is nothing here that has to stay off a speaker: it is a list, not a
+ * medical record.
+ */
+function NeededList({ needed = [], label }) {
+  if (!needed.length) return null;
+  return (
+    <div style={{ marginTop: 8, borderRadius: 16, background: 'var(--tone-1, #fbf1ea)', border: '1px solid var(--tone-2, #f6e7dd)', padding: '10px 14px' }}>
+      <p style={{ margin: '0 0 6px', fontSize: 10.5, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--accent, #92405e)' }}>{label}</p>
+      {needed.map(n => (
+        <div key={n.client_id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '5px 0' }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #3d3438)' }}>{n.name}</span>
+          <span style={{ fontSize: 12, color: 'var(--text-secondary, #867277)', whiteSpace: 'nowrap' }}>{n.when}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -123,6 +241,7 @@ function proposalSummary(tool, input = {}) {
     case 'send_payment_link': return `Send ${input.client_name || 'a client'} a payment link${input.amount ? ` for £${input.amount}` : ''}`;
     case 'send_rebook_reminder': return `Send ${input.client_name || 'a client'} a rebook nudge`;
     case 'create_expense': return `Log a £${input.amount || '?'} expense${input.description ? ` (${input.description})` : ''}`;
+    case 'send_consultation_form': return `Text ${input.client_name || 'a client'} her consultation form`;
     default: return tool.replace(/_/g, ' ');
   }
 }
@@ -150,6 +269,11 @@ const TOOL_TO_AGENT = {
   get_busiest_days: 'calendar',
   get_revenue_by_treatment: 'money',
   add_note: 'general',
+  check_consultation_form: 'clients',
+  get_consultations_needed: 'clients',
+  check_patch_test: 'clients',
+  get_patch_tests_needed: 'clients',
+  send_consultation_form: 'clients',
 };
 // Map tool names → a quick-action button to show after the response
 const TOOL_TO_ACTION = {
@@ -167,6 +291,10 @@ const TOOL_TO_ACTION = {
   get_lapsed_clients: { label: 'View Clients', path: '/clients' },
   get_top_clients: { label: 'View Clients', path: '/clients' },
   add_note: { label: 'View Checklist', path: '/checklist' },
+  check_consultation_form: { label: 'View Clients', path: '/clients' },
+  get_consultations_needed: { label: 'Open Calendar', path: '/calendar' },
+  check_patch_test: { label: 'View Clients', path: '/clients' },
+  get_patch_tests_needed: { label: 'Open Calendar', path: '/calendar' },
 };
 // Fallback prompts shown before real data loads
 const FALLBACK_PROMPTS = [
@@ -176,6 +304,8 @@ const FALLBACK_PROMPTS = [
   "Block tomorrow afternoon off",
   "What's my busiest day this week?",
   "Show me my top clients",
+  "Does anyone this week still need a consultation form?",
+  "Who needs a patch test this week?",
 ];
 
 // Build contextual suggestions from live data
@@ -398,9 +528,18 @@ export default function VoiceCommander() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
   // Persist the conversation (last 40 messages) so it survives navigating away.
+  //
+  // The consultation payload is stripped on the way out. This store is
+  // unencrypted, survives sign out, and is readable by anything on the origin,
+  // so writing a client's allergies into it would be a longer lived disclosure
+  // than the speaker this whole feature was built to keep them off. The card
+  // is worth a scroll back, not a permanent copy of a medical record.
   useEffect(() => {
     if (!messages.length) return;
-    try { localStorage.setItem('florrie_voice_chat', JSON.stringify(messages.slice(-40))); } catch {}
+    try {
+      const safe = messages.slice(-40).map(({ consultation, needed, ...rest }) => rest);
+      localStorage.setItem('florrie_voice_chat', JSON.stringify(safe));
+    } catch {}
   }, [messages]);
   // Auto-start listening when arrived via a hold gesture on the nav petal.
   // Fires once, and only if speech is supported.
@@ -533,6 +672,22 @@ export default function VoiceCommander() {
       const action = toolsUsed.reduce((found, t) => found || TOOL_TO_ACTION[t] || null, null);
       // Show tool count badge for multi-step commands
       const multiStep = toolsUsed.length > 1;
+      // What voice deliberately did not say. The backend keeps consultation
+      // answers out of the spoken string and puts them here instead, so this
+      // is the only place they appear.
+      // One card per lookup, not the first one. "Has Megan or Sarah done hers?"
+      // is two tool calls, and a single unlabelled card of somebody's allergies
+      // is worse than none.
+      const consultationCards = (data.actions || [])
+        .filter(a => a.tool === 'check_consultation_form' && a.data?.consultation)
+        .map(a => ({
+          consultation: a.data.consultation,
+          count: a.data.count || 1,
+          clientName: [a.data.client?.first_name, a.data.client?.last_name].filter(Boolean).join(' '),
+        }));
+      const neededAction = (data.actions || []).find(
+        a => (a.tool === 'get_consultations_needed' || a.tool === 'get_patch_tests_needed') && (a.data?.needed || []).length > 0,
+      );
       const aiMsg = {
         id: crypto.randomUUID(),
         role: 'assistant',
@@ -544,6 +699,9 @@ export default function VoiceCommander() {
         // Consequential actions come back as proposals: nothing has happened
         // yet, the confirm card below is what makes it real.
         proposals: Array.isArray(data.proposals) ? data.proposals : [],
+        consultation: consultationCards,
+        needed: neededAction?.data?.needed || [],
+        neededLabel: neededAction?.tool === 'get_patch_tests_needed' ? 'Patch test still to book' : 'Still need a consultation form',
         timestamp: new Date().toISOString(),
       };
       setMessages(prev => [...prev, aiMsg]);
@@ -675,6 +833,12 @@ export default function VoiceCommander() {
                 >
                   {msg.action.label} →
                 </button>
+              )}
+              {(msg.consultation || []).map((c, ci) => (
+                <ConsultationCard key={ci} consultation={c.consultation} count={c.count} clientName={c.clientName} />
+              ))}
+              {(msg.needed || []).length > 0 && (
+                <NeededList needed={msg.needed} label={msg.neededLabel} />
               )}
               {(msg.proposals || []).map((prop, pi) => (
                 <ProposalCard key={pi} prop={prop} onDone={(resultText) => {

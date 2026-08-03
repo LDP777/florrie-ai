@@ -264,11 +264,38 @@ const RESPONSE_SELECT =
  * riding on it is whether a "Send a form" button appears, and a missing
  * button is a far better failure than a button that sends nothing.
  */
-async function hasSendableForm(beauticianId) {
+async function hasSendableForm(beauticianId, treatmentIds = []) {
+  // Must agree with sendConsultationFormSMS, which sends the form linked to
+  // THE TREATMENT IT IS GIVEN, or the account's DEFAULT active one, and
+  // nothing else. "Any active form" was a different question and in production
+  // gives a different answer: Ellie has three active forms and no default one,
+  // so the button appeared and the send came back "no form set up yet".
+  //
+  // The treatment ids matter. The client profile has no appointment, so it
+  // passes none and the sender can only use the default. Asking "does any
+  // treatment anywhere have a form" there would move the same bug to a
+  // different screen rather than fix it.
+  const ids = (treatmentIds || []).filter(Boolean);
+  if (ids.length > 0) {
+    const { data: linked, error: lErr } = await supabase
+      .from('treatments')
+      .select('id')
+      .eq('beautician_id', beauticianId)
+      .in('id', ids)
+      .not('consultation_form_id', 'is', null)
+      .limit(1);
+    if (lErr) {
+      logger.warn({ err: lErr }, 'Could not check for a treatment linked consultation form');
+      return false;
+    }
+    if ((linked || []).length > 0) return true;
+  }
+
   const { data, error } = await supabase
     .from('consultation_forms')
     .select('id')
     .eq('beautician_id', beauticianId)
+    .eq('is_default', true)
     .eq('is_active', true)
     .limit(1);
   if (error) {
@@ -413,7 +440,7 @@ router.get('/for-appointment/:appointmentId', requireAuth, async (req, res) => {
   res.json({
     requires_consultation: requiresConsultation,
     response,
-    form_available: response ? false : await hasSendableForm(req.beautician.id),
+    form_available: response ? false : await hasSendableForm(req.beautician.id, treatmentIds),
   });
 });
 

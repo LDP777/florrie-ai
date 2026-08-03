@@ -14,6 +14,7 @@ import { logAssumedTakings } from '../lib/takings.js';
 import { onlyFlipped } from '../lib/money-guards.js';
 import { recomputeTotals, endsAtWall, parseExtraTreatmentIds } from '../lib/appointment-treatments.js';
 import logger from '../lib/logger.js';
+import { needsPatchTest } from '../lib/patch-test-status.js';
 import { parsePagination, buildPaginationMeta, handleQueryError } from '../lib/queries.js';
 import { completeDaySchema, manualAppointmentSchema } from '../lib/schemas.js';
 import { notifyBookingConfirmed, sendWhatsApp, sendSMS } from '../services/notifications.js';
@@ -1346,21 +1347,10 @@ router.get('/:id/manage-link', requireAuth, async (req, res) => {
  * the Florrie-thinks feed grounds its patch-test card in the same rule the
  * appointment sheet uses, rather than growing a second definition. */
 export async function clientNeedsPatchTest(beauticianId, clientId) {
-  if (!clientId) return false;
-  const { data, error } = await supabase
-    .from('patch_tests')
-    .select('id')
-    .eq('client_id', clientId)
-    .eq('beautician_id', beauticianId)
-    .is('confirmed_at', null)
-    .limit(1);
-  if (error) {
-    // Fail soft to "no": the sheet just keeps its generic booking-link label,
-    // which is a wording downgrade, not a broken card.
-    logger.warn({ err: error, clientId }, 'patch-test lookup failed');
-    return false;
-  }
-  return (data || []).length > 0;
+  // The rule itself lives in lib/patch-test-status.js now: the Florrie-thinks
+  // feed and the voice tools ask the same question, and a rule with three
+  // callers that lives inside an HTTP route grows a second copy.
+  return needsPatchTest(supabase, beauticianId, clientId, logger);
 }
 
 /**
