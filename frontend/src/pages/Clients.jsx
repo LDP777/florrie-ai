@@ -372,12 +372,25 @@ export default function Clients() {
         if (res.ok) payments = await res.json();
       } catch { /* payments card is optional, never block the panel */ }
 
+      // Consultation submissions. Health data, so it comes ONLY from the
+      // authenticated, beautician-scoped endpoint, never from a direct table
+      // read in the browser. Fail-soft: no card rather than a broken panel.
+      let consultations = null;
+      try {
+        const token = getToken();
+        const res = await fetch(`${API_BASE}/api/consultation-forms/responses/list?client_id=${encodeURIComponent(id)}`, {
+          headers: { Authorization: token ? `Bearer ${token}` : '' },
+        });
+        if (res.ok) consultations = await res.json();
+      } catch { /* the consultation card is optional, never block the panel */ }
+
       setClientDetail({
         client: clientRes.data,
         appointments: apptsRes.data || [],
         messages: msgsRes.data || [],
         loyalty,
         payments,
+        consultations,
       });
       setSelected(id);
     } catch (err) {
@@ -1140,6 +1153,11 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
               </div>
             )}
 
+            {/* Consultation forms. She has been collecting allergy and medical
+                answers since April with nowhere to read them: the only
+                consultation screen in the app edits BLANK templates. */}
+            <ConsultationSection clientId={client?.id} data={detail.consultations} />
+
             {daysSinceVisit !== null && (
               <div style={styles.lastVisitCard}>
                 <span style={styles.lastVisitLabel}>Last visit</span>
@@ -1392,6 +1410,175 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
 }
 
 /**
+ * The consultation section on a client's profile.
+ *
+ * WHY IT EXISTS: clients have been filling these in since April and no screen
+ * in the app has ever shown a submission. The only consultation page is the
+ * form BUILDER, which edits blank templates. So the answer to "where do I find
+ * a client's consultation form?" was, until now, nowhere.
+ *
+ * Collapsed by default, showing the date of the most recent submission and a
+ * count of anything worth knowing. A wall of medical questions every time she
+ * opens a client is not readable, it is wallpaper.
+ *
+ * Every answer here arrives from the authenticated, beautician-scoped endpoint.
+ * Nothing is fetched by token, nothing goes in a URL, nothing is logged.
+ */
+function ConsultationSection({ clientId, data }) {
+  const [open, setOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState(null);
+  const [signatures, setSignatures] = useState({}); // response id -> data url
+
+  // The endpoint failed or was never reached. Show nothing rather than
+  // "no consultation form yet", which would be a lie about medical records.
+  if (!data) return null;
+
+  const responses = data.responses || [];
+  const latest = responses[0] || null;
+  const flagged = latest ? (latest.worth_knowing || []) : [];
+
+  // completed_at is a real UTC instant (the moment they hit submit), not an
+  // appointment wall time, so it is safe to format with the local formatter.
+  // The slice(11,16) rule is for appointments.starts_at, not for this.
+  const dateLabel = ts => (ts
+    ? new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    : 'date unknown');
+
+  async function handleSend() {
+    setSending(true);
+    setSendResult(null);
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE}/api/consultation-forms/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ client_id: clientId }),
+      });
+      const body = await res.json().catch(() => ({}));
+      setSendResult(res.ok ? 'Sent. They get a text with the link.' : (body.error || 'Could not send it just now.'));
+    } catch {
+      setSendResult('Could not send it just now.');
+    } finally {
+      setSending(false);
+    }
+  }
+
+  // The signature is a base64 image, so it is fetched only when she asks to
+  // see one, never shipped with the list.
+  async function loadSignature(responseId) {
+    if (signatures[responseId]) return;
+    try {
+      const token = getToken();
+      const res = await fetch(`${API_BASE}/api/consultation-forms/responses/${responseId}`, {
+        headers: { Authorization: token ? `Bearer ${token}` : '' },
+      });
+      if (!res.ok) return;
+      const body = await res.json();
+      if (body.response?.signature_data) {
+        setSignatures(prev => ({ ...prev, [responseId]: body.response.signature_data }));
+      }
+    } catch { /* the signature just does not appear */ }
+  }
+
+  if (responses.length === 0) {
+    return (
+      <div style={styles.paymentsCard}>
+        <h4 style={{ ...styles.sectionLabel, margin: 0 }}>Consultation</h4>
+        <p style={{ ...styles.noHistory, marginTop: 8 }}>No consultation form yet</p>
+        {data.form_available && (
+          <>
+            <button
+              onClick={handleSend}
+              disabled={sending}
+              style={{ ...styles.consultSendBtn, opacity: sending ? 0.6 : 1 }}
+            >
+              {sending ? 'Sending...' : 'Send them a form'}
+            </button>
+            {sendResult && <p style={styles.consultSendResult}>{sendResult}</p>}
+          </>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div style={styles.paymentsCard}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        aria-expanded={open}
+        style={styles.consultHeader}
+      >
+        <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, minWidth: 0 }}>
+          <span style={styles.sectionLabel}>Consultation</span>
+          <span style={styles.consultDate}>
+            {latest.form_name} · {dateLabel(latest.completed_at)}
+          </span>
+        </span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {flagged.length > 0 && (
+            <span style={styles.worthKnowingChip}>
+              {flagged.length} worth knowing
+            </span>
+          )}
+          <span style={styles.consultChevron}>{open ? '▲' : '▼'}</span>
+        </span>
+      </button>
+
+      {/* Anything flagged stays visible collapsed. The point of the flag is
+          that she does not have to go looking for it. */}
+      {!open && flagged.map((note, i) => (
+        <p key={i} style={styles.worthKnowingNote}>{note}</p>
+      ))}
+
+      {open && responses.map(r => (
+        <div key={r.id} style={styles.consultSubmission}>
+          <div style={styles.consultSubmissionHead}>
+            <span style={styles.consultFormName}>{r.form_name}</span>
+            <span style={styles.consultDate}>{dateLabel(r.completed_at)}</span>
+          </div>
+
+          {r.pairs.length === 0 && (
+            <p style={styles.noHistory}>This form came back empty.</p>
+          )}
+
+          {r.pairs.map(pair => (
+            <div key={pair.field_id} style={styles.consultPair}>
+              <span style={styles.consultQuestion}>{pair.question}</span>
+              <span style={{
+                ...styles.consultAnswer,
+                color: pair.answered ? 'var(--text-primary)' : 'var(--text-muted)',
+                fontStyle: pair.answered ? 'normal' : 'italic',
+              }}>
+                {pair.answered ? pair.answer : 'Not answered'}
+              </span>
+              {pair.worth_knowing && (
+                <span style={{ ...styles.worthKnowingChip, marginTop: 4, alignSelf: 'flex-start' }}>
+                  Worth knowing
+                </span>
+              )}
+              {pair.type === 'signature' && r.has_signature && (
+                signatures[r.id] ? (
+                  <img src={signatures[r.id]} alt="Client signature" style={styles.consultSignature} />
+                ) : (
+                  <button onClick={() => loadSignature(r.id)} style={styles.consultLinkBtn}>
+                    See the signature
+                  </button>
+                )
+              )}
+            </div>
+          ))}
+
+          {r.consent_text && (
+            <p style={styles.consultConsent}>{r.consent_text}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
  * Day 5: chat bubble inside the client detail Messages tab. Mirrors the
  * styling on /inbox so the experience feels like one conversation regardless
  * of where the user opens it from.
@@ -1618,6 +1805,53 @@ const styles = {
   paymentTreatment: { display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   paymentDate: { display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 1 },
   paymentStatus: { fontSize: 12, fontWeight: 600, textAlign: 'right', flexShrink: 0, maxWidth: '58%' },
+
+  // Consultation section. Maroon is the only accent on this screen, so a
+  // flagged answer stands out without inventing an alarm colour that would
+  // read as a medical warning Florrie is in no position to give.
+  consultHeader: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+    width: '100%', minHeight: 44, padding: 0, background: 'none', border: 'none',
+    cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+  },
+  consultChevron: { fontSize: 10, color: 'var(--text-muted)' },
+  consultDate: { fontSize: 12, color: 'var(--text-muted)' },
+  consultFormName: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
+  worthKnowingChip: {
+    display: 'inline-block', fontSize: 11, fontWeight: 700, letterSpacing: '0.02em',
+    color: '#92405e', background: 'rgba(146, 64, 94, 0.10)',
+    border: '1px solid rgba(146, 64, 94, 0.25)', borderRadius: 999, padding: '3px 9px',
+  },
+  worthKnowingNote: {
+    fontSize: 12, color: '#92405e', lineHeight: 1.45, margin: '8px 0 0',
+  },
+  consultSubmission: {
+    marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--bg)',
+  },
+  consultSubmissionHead: {
+    display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 6,
+  },
+  consultPair: {
+    display: 'flex', flexDirection: 'column', gap: 2, padding: '8px 0',
+    borderBottom: '1px solid var(--bg)',
+  },
+  consultQuestion: { fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 },
+  consultAnswer: { fontSize: 13, fontWeight: 500, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
+  consultSignature: {
+    marginTop: 6, maxWidth: '100%', height: 'auto', borderRadius: 8,
+    border: '1px solid var(--border, #E5E0DA)', background: '#fff',
+  },
+  consultLinkBtn: {
+    alignSelf: 'flex-start', minHeight: 44, padding: '0 2px', background: 'none', border: 'none',
+    color: '#92405e', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+  },
+  consultSendBtn: {
+    display: 'block', width: '100%', minHeight: 44, marginTop: 10, padding: '11px 14px',
+    borderRadius: 10, border: 'none', background: '#92405e', color: '#fff',
+    fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+  },
+  consultSendResult: { fontSize: 12, color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.45 },
+  consultConsent: { fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.6, margin: '10px 0 0' },
   lastVisitLabel: { fontSize: 12, color: 'var(--text-muted)' },
   lastVisitValue: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' },
   aiInsight: {

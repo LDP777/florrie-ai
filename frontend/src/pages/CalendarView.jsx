@@ -1697,6 +1697,56 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
       setDurSaving(false);
     }
   }
+  // The consultation form for this client, plus whether anything booked today
+  // requires one. This is the screen she has open with the client in front of
+  // her, so a flagged allergy has to be readable here, not two taps away in a
+  // profile she would have to leave the calendar to reach.
+  //
+  // One call: the endpoint is beautician-scoped and takes only the appointment
+  // id, so no answer ever travels in a query string. Fail-soft, and silence
+  // means silence: a failed call renders nothing rather than implying that
+  // there is no form and nothing to worry about.
+  const [consultation, setConsultation] = useState(null);
+  const [consultOpen, setConsultOpen] = useState(false);
+  const [consultSending, setConsultSending] = useState(false);
+  const [consultSendResult, setConsultSendResult] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    setConsultation(null);
+    setConsultOpen(false);
+    (async () => {
+      try {
+        const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+        const res = await fetch(`${API_BASE}/api/consultation-forms/for-appointment/${appointment.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const d = await res.json();
+        if (!cancelled) setConsultation(d);
+      } catch { /* the consultation panel just does not appear */ }
+    })();
+    return () => { cancelled = true; };
+  }, [appointment.id]);
+
+  async function handleSendConsultationForm() {
+    setConsultSending(true);
+    setConsultSendResult(null);
+    try {
+      const token = (await supabase.auth.getSession())?.data?.session?.access_token;
+      const res = await fetch(`${API_BASE}/api/consultation-forms/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ client_id: appointment.client_id, appointment_id: appointment.id }),
+      });
+      const body = await res.json().catch(() => ({}));
+      setConsultSendResult(res.ok ? 'Sent. They get a text with the link.' : (body.error || 'Could not send it just now.'));
+    } catch {
+      setConsultSendResult('Could not send it just now.');
+    } finally {
+      setConsultSending(false);
+    }
+  }
+
   // Anything this client still owes from previous visits (unpaid no-show or
   // late-cancel fee, or an unsettled remainder). Shown as a line on the sheet
   // so Ellie knows before they arrive. Fail-soft: any error hides the line.
@@ -2295,6 +2345,91 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               </div>
             )}
           </div>
+          {/* Consultation form. Two states worth a line on this sheet: there
+              is one on file (read it here, in place), or the treatment needs
+              one and there is nothing (say so BEFORE the client arrives). */}
+          {consultation && (consultation.response || consultation.requires_consultation) && (
+            <div style={{ marginTop: 14, border: `1.5px solid ${COLORS.outlineVariant}`, borderRadius: 12, padding: '10px 12px' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #888)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Consultation</div>
+
+              {consultation.response ? (
+                <>
+                  <button
+                    onClick={() => { hapticTap(); setConsultOpen(v => !v); }}
+                    aria-expanded={consultOpen}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, width: '100%', minHeight: TAP, padding: 0, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
+                  >
+                    <span style={{ fontSize: 13, color: 'var(--text-primary)', minWidth: 0 }}>
+                      {/* completed_at is a real instant, not an appointment wall
+                          time, so it formats normally. slice(11,16) is for
+                          appointments.starts_at and nothing else. */}
+                      Consultation form, submitted {consultation.response.completed_at
+                        ? new Date(consultation.response.completed_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+                        : 'date unknown'}
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.primary, flexShrink: 0 }}>
+                      {consultOpen ? 'Hide' : 'Read it'}
+                    </span>
+                  </button>
+
+                  {/* Flagged answers stay on screen whether or not she opens
+                      the form. That is the whole point of flagging them. */}
+                  {(consultation.response.worth_knowing || []).map((note, i) => (
+                    <p key={i} style={{ fontSize: 12, color: COLORS.primary, fontWeight: 600, margin: '6px 0 0', lineHeight: 1.45 }}>
+                      {note}
+                    </p>
+                  ))}
+
+                  {consultOpen && (
+                    <div style={{ marginTop: 10, borderTop: `1px solid ${COLORS.outlineVariant}66`, paddingTop: 8 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
+                        {consultation.response.form_name}
+                      </div>
+                      {consultation.response.pairs.map(pair => (
+                        <div key={pair.field_id} style={{ padding: '7px 0', borderBottom: `1px solid ${COLORS.outlineVariant}44` }}>
+                          <div style={{ fontSize: 11, color: COLORS.stone400, lineHeight: 1.4 }}>{pair.question}</div>
+                          <div style={{
+                            fontSize: 13,
+                            fontWeight: 500,
+                            lineHeight: 1.45,
+                            whiteSpace: 'pre-wrap',
+                            wordBreak: 'break-word',
+                            color: pair.answered ? 'var(--text-primary)' : COLORS.stone400,
+                            fontStyle: pair.answered ? 'normal' : 'italic',
+                          }}>
+                            {pair.answered ? pair.answer : 'Not answered'}
+                          </div>
+                          {pair.worth_knowing && (
+                            <span style={{ display: 'inline-block', marginTop: 4, fontSize: 11, fontWeight: 700, color: '#92405e', background: 'rgba(146, 64, 94, 0.10)', border: '1px solid rgba(146, 64, 94, 0.25)', borderRadius: 999, padding: '3px 9px' }}>
+                              Worth knowing
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p style={{ fontSize: 13, color: COLORS.primary, fontWeight: 600, margin: 0, lineHeight: 1.45 }}>
+                    This treatment needs a consultation form and there is nothing on file for {appointment.clients?.first_name || 'this client'}.
+                  </p>
+                  {consultation.form_available && appointment.client_id && (
+                    <button
+                      onClick={() => { hapticTap(); handleSendConsultationForm(); }}
+                      disabled={consultSending}
+                      style={{ width: '100%', minHeight: TAP, marginTop: 8, padding: '10px 12px', borderRadius: 10, border: 'none', background: '#92405e', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', opacity: consultSending ? 0.6 : 1 }}
+                    >
+                      {consultSending ? 'Sending...' : 'Send them the form'}
+                    </button>
+                  )}
+                  {consultSendResult && (
+                    <p style={{ fontSize: 11, color: COLORS.stone400, margin: '6px 0 0', lineHeight: 1.45 }}>{consultSendResult}</p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
           {/* Payments, all in one place: the plain sum for THIS booking (total,
               paid, left to collect) plus what card fees would take. Outstanding
               and fees come from the same /card endpoint the charge buttons use,

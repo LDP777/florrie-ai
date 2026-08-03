@@ -5,6 +5,9 @@ import { requireAuth } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { sendSMS } from '../services/notifications.js';
 import logger from '../lib/logger.js';
+import { handleQueryError } from '../lib/queries.js';
+import { requireOwned } from '../lib/ownership.js';
+import { shapeResponse } from '../lib/consultation-answers.js';
 import {
   createConsultationFormSchema,
   submitConsultationFormSchema
@@ -237,15 +240,63 @@ router.delete('/:id', requireAuth, async (req, res) => {
 });
 
 /**
- * GET /api/consultation-forms/responses
- * List responses for the beautician (optionally filtered by client).
+ * The join that makes a submission readable.
+ *
+ * The answers blob is keyed by field id, so without the field definitions it
+ * is a wall of uuids. signature_data is selected only so the row knows whether
+ * one exists: the blob itself never leaves in a list payload.
+ */
+const RESPONSE_SELECT =
+  'id, form_id, client_id, appointment_id, status, completed_at, created_at, answers, signature_data, ' +
+  'consultation_forms(name, consent_text, consultation_form_fields(id, type, label, options, sort_order))';
+
+/**
+ * Does this account have a form it could actually send?
+ *
+ * Returns false when the lookup fails rather than throwing: the only thing
+ * riding on it is whether a "Send a form" button appears, and a missing
+ * button is a far better failure than a button that sends nothing.
+ */
+async function hasSendableForm(beauticianId) {
+  const { data, error } = await supabase
+    .from('consultation_forms')
+    .select('id')
+    .eq('beautician_id', beauticianId)
+    .eq('is_active', true)
+    .limit(1);
+  if (error) {
+    logger.warn({ err: error }, 'Could not check for a sendable consultation form');
+    return false;
+  }
+  return (data || []).length > 0;
+}
+
+/**
+ * GET /api/consultation-forms/responses/list?client_id=&appointment_id=
+ *
+ * Every completed submission, newest first, already paired up with the
+ * questions that produced it. The pairing happens here rather than in the app
+ * so the flagging rules are tested once, server side, instead of living in a
+ * component nobody can run in isolation.
+ *
+ * Health data, so: authenticated, scoped to this beautician on the query
+ * itself, and any id that arrived in the request is checked against this
+ * account before a single answer is read.
  */
 router.get('/responses/list', requireAuth, async (req, res) => {
   const { client_id, appointment_id } = req.query;
 
+  // The ids come from the request, so they are somebody's guess until proven
+  // otherwise. A wrong-tenant client_id must not return that tenant's
+  // allergies.
+  if (!await requireOwned(req, res, [
+    { table: 'clients', id: client_id },
+    { table: 'appointments', id: appointment_id },
+  ])) return;
+
   let query = supabase
     .from('consultation_responses')
-    .select('*, consultation_forms(name), clients(first_name, last_name)')
+    .select(RESPONSE_SELECT)
     .eq('beautician_id', req.beautician.id)
     .eq('status', 'completed')
     .order('completed_at', { ascending: false });
@@ -254,27 +305,179 @@ router.get('/responses/list', requireAuth, async (req, res) => {
   if (appointment_id) query = query.eq('appointment_id', appointment_id);
 
   const { data, error } = await query;
-  if (error) {
-    logger.error({ err: error }, 'Failed to fetch consultation responses');
-    return res.status(500).json({ error: 'Something went wrong' });
-  }
-  res.json({ responses: data || [] });
+  // Checked, always. An unchecked select here returns null on one wrong
+  // column name and the section renders "no consultation form yet" for a
+  // client who filled one in, which is the worst possible lie on this screen.
+  if (handleQueryError(error, res, 'fetch consultation responses')) return;
+
+  res.json({
+    responses: (data || []).map(shapeResponse),
+    form_available: await hasSendableForm(req.beautician.id),
+  });
 });
 
 /**
  * GET /api/consultation-forms/responses/:id
- * Get a single response with form fields for display.
+ *
+ * One submission, including the signature image. Fetched on demand rather
+ * than shipped with every list, because a base64 png per row turns a client
+ * profile into a megabyte of scribble she did not ask to download.
  */
 router.get('/responses/:id', requireAuth, async (req, res) => {
   const { data, error } = await supabase
     .from('consultation_responses')
-    .select('*, consultation_forms(name, consultation_form_fields(*))')
+    .select(RESPONSE_SELECT)
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id)
-    .single();
+    .maybeSingle();
 
-  if (error || !data) return res.status(404).json({ error: 'Response not found' });
-  res.json({ response: data });
+  if (error) {
+    logger.error({ err: error }, 'Failed to fetch consultation response');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+  if (!data) return res.status(404).json({ error: 'Response not found' });
+
+  res.json({
+    response: { ...shapeResponse(data), signature_data: data.signature_data || null },
+  });
+});
+
+/**
+ * GET /api/consultation-forms/for-appointment/:appointmentId
+ *
+ * Everything the appointment sheet needs in one call: does anything booked
+ * today require a consultation, is there a form on file for this client, and
+ * what did they answer that is worth knowing before they sit down.
+ *
+ * The form is looked up by CLIENT, not by appointment. A regular fills one in
+ * once, at their first booking, and it is still the form on file two years
+ * later. Scoping to appointment_id would tell her "nothing on file" for every
+ * client she has.
+ */
+router.get('/for-appointment/:appointmentId', requireAuth, async (req, res) => {
+  const { data: appt, error: apptErr } = await supabase
+    .from('appointments')
+    .select('id, client_id, treatment_id, extra_treatment_ids')
+    .eq('id', req.params.appointmentId)
+    .eq('beautician_id', req.beautician.id)
+    .maybeSingle();
+
+  if (apptErr) {
+    logger.error({ err: apptErr }, 'Failed to fetch appointment for consultation lookup');
+    return res.status(500).json({ error: 'Something went wrong' });
+  }
+  if (!appt) return res.status(404).json({ error: 'Appointment not found' });
+
+  // Extras count. A brow tint added on the day can be the treatment that
+  // needs the consultation, and it lives in extra_treatment_ids, not
+  // treatment_id.
+  const treatmentIds = [
+    appt.treatment_id,
+    ...(Array.isArray(appt.extra_treatment_ids) ? appt.extra_treatment_ids : []),
+  ].filter(Boolean);
+
+  let requiresConsultation = false;
+  if (treatmentIds.length > 0) {
+    const { data: treats, error: tErr } = await supabase
+      .from('treatments')
+      .select('id, requires_consultation')
+      .in('id', treatmentIds)
+      .eq('beautician_id', req.beautician.id);
+    // A failed lookup must not read as "no consultation needed". Better to
+    // fail the call and show her nothing than to quietly reassure her.
+    if (handleQueryError(tErr, res, 'fetch treatments for consultation lookup')) return;
+    requiresConsultation = (treats || []).some(t => t.requires_consultation === true);
+  }
+
+  let response = null;
+  if (appt.client_id) {
+    const { data: rows, error: rErr } = await supabase
+      .from('consultation_responses')
+      .select(RESPONSE_SELECT)
+      .eq('beautician_id', req.beautician.id)
+      .eq('client_id', appt.client_id)
+      .eq('status', 'completed')
+      .order('completed_at', { ascending: false })
+      .limit(1);
+    if (handleQueryError(rErr, res, 'fetch consultation response for appointment')) return;
+    if ((rows || []).length > 0) response = shapeResponse(rows[0]);
+  }
+
+  res.json({
+    requires_consultation: requiresConsultation,
+    response,
+    form_available: response ? false : await hasSendableForm(req.beautician.id),
+  });
+});
+
+/**
+ * POST /api/consultation-forms/send
+ * Body: { client_id, appointment_id? }
+ *
+ * Sends the client the same form link the booking flow sends, using the same
+ * sender. There is deliberately no second implementation of "text them a
+ * form": one sender means one set of rules about which form, how long the
+ * link lives, and what gets logged.
+ */
+router.post('/send', requireAuth, async (req, res) => {
+  const { client_id, appointment_id } = req.body || {};
+  if (!client_id) return res.status(400).json({ error: 'Which client?' });
+
+  if (!await requireOwned(req, res, [
+    { table: 'clients', id: client_id },
+    { table: 'appointments', id: appointment_id },
+  ])) return;
+
+  const { data: client, error: cErr } = await supabase
+    .from('clients')
+    .select('id, first_name, phone')
+    .eq('id', client_id)
+    .eq('beautician_id', req.beautician.id)
+    .maybeSingle();
+
+  if (handleQueryError(cErr, res, 'fetch client for consultation form send')) return;
+  if (!client) return res.status(404).json({ error: 'Not found' });
+  if (!client.phone) {
+    return res.status(400).json({ error: 'No mobile number on file for this client, so there is nowhere to send it.' });
+  }
+
+  // The treatment decides which form: a treatment-specific one wins over the
+  // default, and that rule lives in the sender.
+  let treatmentId = null;
+  if (appointment_id) {
+    const { data: appt, error: aErr } = await supabase
+      .from('appointments')
+      .select('id, treatment_id')
+      .eq('id', appointment_id)
+      .eq('beautician_id', req.beautician.id)
+      .maybeSingle();
+    if (handleQueryError(aErr, res, 'fetch appointment for consultation form send')) return;
+    treatmentId = appt?.treatment_id || null;
+  }
+
+  try {
+    const sent = await sendConsultationFormSMS({
+      beauticianId: req.beautician.id,
+      clientId: client.id,
+      appointmentId: appointment_id || null,
+      clientPhone: client.phone,
+      clientFirstName: client.first_name || 'there',
+      treatmentId,
+      beauticianName: req.beautician.business_name || req.beautician.first_name || 'your beautician',
+    });
+
+    if (!sent) {
+      return res.status(400).json({
+        error: 'No consultation form set up yet. Build one and mark it as your default, then you can send it.',
+      });
+    }
+    // Ids only. The answers do not exist yet, and the token never gets logged.
+    logger.info({ clientId: client.id }, 'Consultation form sent from the app');
+    res.json({ sent: true });
+  } catch (err) {
+    logger.error({ err }, 'Failed to send consultation form');
+    res.status(500).json({ error: 'Could not send the form just now. Try again in a moment.' });
+  }
 });
 
 // ═══════════════════════════════════════════════
@@ -287,12 +490,16 @@ router.get('/responses/:id', requireAuth, async (req, res) => {
  * Returns the form structure + client name for personalisation.
  */
 router.get('/public/:token', async (req, res) => {
-  const { data: response } = await supabase
+  const { data: response, error } = await supabase
     .from('consultation_responses')
     .select('id, status, expires_at, form_id, consultation_forms(name, consent_text, consultation_form_fields(*)), clients(first_name), beauticians(business_name, first_name, brand_color, logo_url)')
     .eq('token', req.params.token)
-    .single();
+    .maybeSingle();
 
+  // Logged, never with the token: the token IS the credential guarding this
+  // form. The client still sees the same "not found", because an unreadable
+  // token and a wrong token must look identical from outside.
+  if (error) logger.warn({ err: error }, 'Public consultation form lookup failed');
   if (!response) return res.status(404).json({ error: 'Form not found or link has expired' });
 
   // Check expiry
