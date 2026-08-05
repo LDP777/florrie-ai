@@ -24,9 +24,16 @@
 // "4.30", "4:30", "16:30", "4pm", "half four". Deliberately greedy: a false
 // positive costs a holding reply, a false negative costs a client turning up
 // to a locked door.
+// The lookbehind on the second pattern is load bearing. Without it "3.15pm"
+// matches TWICE: once in full as 15:15, and again as the fragment "15pm",
+// which normalises to 15:00. A reply offering a genuinely free quarter past
+// was therefore refused for naming a time nobody wrote, and quarter past is
+// one slot in four. This narrows the token, it does not widen the check: the
+// only matches it drops are ones already consumed whole by the pattern above,
+// because no standalone time is ever preceded by a digit, a dot or a colon.
 const DIGIT_TIME_TOKENS = [
   /\b\d{1,2}\s*[.:]\s*\d{2}\s*(?:am|pm)?\b/gi,
-  /\b\d{1,2}\s*(?:am|pm)\b/gi,
+  /(?<![\d.:])\b\d{1,2}\s*(?:am|pm)\b/gi,
 ];
 
 const SPOKEN_TIME_TOKENS = [

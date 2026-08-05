@@ -36,12 +36,17 @@ export function nowInSalonWall(timezone = 'Europe/London') {
  * book a patch test straight over a block. Load them once, in the wall frame.
  */
 export async function loadBlocks(beauticianId, fromWall, toWall) {
-  const { data: rows } = await supabase
+  const { data: rows, error } = await supabase
     .from('hours_exceptions')
     .select('date, type, start_time, end_time')
     .eq('beautician_id', beauticianId)
     .gte('date', fromWall.toISOString().slice(0, 10))
     .lte('date', toWall.toISOString().slice(0, 10));
+
+  // A failed block lookup used to come back as `rows = null`, which reads as
+  // "she has no days off" and offers her holiday to a client. Throw instead:
+  // every caller already treats a thrown lookup as "I could not check".
+  if (error) throw new Error(`hours_exceptions lookup failed: ${error.message}`);
 
   const closedDays = new Set();
   const intervals = [];
@@ -108,7 +113,7 @@ export async function getFreeSlots(beauticianId, {
   // long still blocks this afternoon, and filtering on starts_at alone misses it.
   const busyFrom = new Date(startWall.getTime() - 24 * 60 * 60 * 1000);
 
-  const { data: existing } = await supabase
+  const { data: existing, error: busyError } = await supabase
     .from('appointments')
     .select('starts_at, ends_at')
     .eq('beautician_id', beauticianId)
@@ -116,6 +121,14 @@ export async function getFreeSlots(beauticianId, {
     .gte('starts_at', busyFrom.toISOString())
     .lte('starts_at', scanEnd.toISOString())
     .order('starts_at', { ascending: true });
+
+  // THE DANGEROUS FAILURE. PostgREST returns its errors in the result object
+  // rather than throwing, so an unchecked destructure leaves `existing` null,
+  // `busy` empty, and EVERY hour of the day looking free. That does not fail
+  // quietly, it fails loudly at the client: Florrie offers a time somebody is
+  // already sitting in the chair for. A thrown error becomes "let me check my
+  // book and come back to you", which is always safe.
+  if (busyError) throw new Error(`appointments lookup failed: ${busyError.message}`);
 
   const busy = (existing || [])
     .filter(a => a.starts_at && a.ends_at)

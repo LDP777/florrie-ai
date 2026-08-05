@@ -20,6 +20,7 @@ import { nowInSalonWall, loadBlocks, hitsBlock, wallDayHours } from '../lib/free
 import { getOutstandingBalanceCents } from '../services/outstanding-balance.js';
 import { autoUnarchiveClient } from '../lib/client-archive.js';
 import { BOOKING_MONEY_LOGGED_TYPES } from '../lib/money-guards.js';
+import { combineTreatments, resolveDepositCents } from '../lib/booking-rules.js';
 
 const router = Router();
 const FRONTEND_URL = process.env.FRONTEND_URL;
@@ -2429,9 +2430,15 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
     }
   }
   const allTreatments = [treatment, ...extraTreatments];
-  const combinedDuration = allTreatments.reduce((sum, t) => sum + (t.duration_minutes || 0), 0);
-  const combinedBuffer = Math.max(...allTreatments.map(t => t.buffer_minutes || 0)); // use longest buffer, not sum
-  const combinedPriceCents = allTreatments.reduce((sum, t) => sum + (t.price_cents || 0), 0);
+  // Durations add up, buffers do not (the longest wins, it is cleanup after the
+  // whole visit). Moved to lib/booking-rules.js so the conversational booking
+  // flow lengths a visit identically: two implementations of this would drift,
+  // and a drift here books a client over the top of the next one.
+  const {
+    durationMinutes: combinedDuration,
+    bufferMinutes: combinedBuffer,
+    priceCents: combinedPriceCents,
+  } = combineTreatments(allTreatments);
 
   // Block appointments in the past
   const startsAtCheck = new Date(starts_at);
@@ -2755,32 +2762,16 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   const isOfflinePayment = payment_method === 'cash' || payment_method === 'bank_transfer';
 
   if (!isPackageRedemption) {
-    // Calculate deposit: sum deposits across all treatments (multi-treatment aware)
-    depositCents = allTreatments.reduce((sum, t) => {
-      if (t.deposit_percent > 0 && t.price_cents > 0) {
-        return sum + Math.round(t.price_cents * t.deposit_percent / 100);
-      }
-      return sum + (t.deposit_cents || 0);
-    }, 0);
-
-    // Every booking secures a deposit by card, no matter how the balance is
-    // paid. If a treatment has no deposit of its own, fall back to the salon's
-    // configured deposit amount. A salon that truly wants no deposit sets it to
-    // £0. The payment method (card / cash / bank) only governs the BALANCE.
-    const paySettings = beautician.payment_settings || {};
-    if (depositCents === 0 && combinedPriceCents > 0) {
-      // Parse the deposit amount setting (e.g. '£10', '£15', '50%')
-      const dAmt = paySettings.deposit_amount || '£10';
-      if (dAmt.endsWith('%')) {
-        depositCents = Math.round(combinedPriceCents * parseInt(dAmt) / 100);
-      } else {
-        depositCents = Math.round(parseFloat(dAmt.replace('£', '')) * 100);
-      }
-    }
-
-    // Safety: a deposit can never exceed the total price (guards against a
-    // misconfigured fixed deposit or percent that's larger than the treatment).
-    if (combinedPriceCents > 0) depositCents = Math.min(depositCents, combinedPriceCents);
+    // The deposit rules (per-treatment percent beats flat amount, the salon's
+    // own configured deposit as the fallback, never more than the price) now
+    // live in lib/booking-rules.js. Every booking secures a deposit by card
+    // whatever the balance is paid with; the payment method only governs the
+    // BALANCE. A salon that truly wants no deposit sets it to £0.
+    depositCents = resolveDepositCents({
+      treatments: allTreatments,
+      paymentSettings: beautician.payment_settings || {},
+      combinedPriceCents,
+    });
 
     // Full payment up front only applies to card. Cash/bank pay the balance
     // offline, so those only ever pay the DEPOSIT by card here.

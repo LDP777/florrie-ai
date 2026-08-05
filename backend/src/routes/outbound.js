@@ -15,6 +15,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { sendOnChannel } from '../services/messaging.js';
 import logger from '../lib/logger.js';
 import { deDash } from '../lib/text.js';
+import { heldBookingClaimContext } from '../services/conversational-booking.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -100,7 +101,13 @@ async function deliverQueued(row, beauticianId) {
     logger.warn({ err, beauticianId }, 'outbound send: diary read failed, refusing any named time');
   }
 
-  const guarded = safeReply(row.body, { allowedTimes });
+  // Same reason as routes/escalations.js: a slot Florrie holds for this client
+  // is no longer free, so it has to be named from the appointment row instead.
+  const held = await heldBookingClaimContext(beauticianId, row.client_id);
+  const guarded = safeReply(row.body, {
+    allowedTimes: [...allowedTimes, ...held.allowedTimes],
+    actionPerformed: held.actionPerformed,
+  });
   if (guarded.rejected) {
     logger.warn({
       beauticianId, rowId: row.id, reason: guarded.reason, offending: guarded.offending,

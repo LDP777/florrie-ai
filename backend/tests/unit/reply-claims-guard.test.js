@@ -121,6 +121,21 @@ describe('the leaks the first version missed', () => {
     }
   });
 
+  it('reads a quarter past as ONE time, not two', () => {
+    // "3.15pm" used to match twice, once whole and once as the fragment
+    // "15pm", so a genuinely free quarter past was refused for naming 15:00,
+    // a time nobody wrote. Quarter past is one slot in four.
+    expect(timesMentionedIn('3.15pm')).toEqual(['15:15']);
+    expect(timesMentionedIn('9.15am')).toEqual(['09:15']);
+    expect(checkReplyClaims('I can do 3.15pm', { allowedTimes: ['15:15'] }).ok).toBe(true);
+  });
+
+  it('still catches a standalone hour after a real time', () => {
+    // The narrowing above must not swallow a second, genuine time.
+    expect(timesMentionedIn('either 4.30 or 6pm').sort()).toEqual(['16:30', '18:00']);
+    expect(checkReplyClaims('either 4.30 or 6pm', { allowedTimes: ['16:30'] }).ok).toBe(false);
+  });
+
   it('still lets ordinary replies through', () => {
     // Over-blocking would make Florrie useless, which is its own failure.
     for (const fine of [
