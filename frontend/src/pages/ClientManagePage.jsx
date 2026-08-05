@@ -391,7 +391,14 @@ export default function ClientManagePage() {
             </span>
           </div>
 
-          <h2 style={S.treatmentName}>{appointment.treatment?.name}</h2>
+          {/* Everything she booked. Sasha booked brows and a Korean lash lift
+              and this line said "Signature brows" while charging her for both,
+              so she messaged Ellie to check the time was right. A confirmation
+              that leaves half the booking off is worse than no confirmation. */}
+          <h2 style={S.treatmentName}>
+            {(appointment.treatments?.length ? appointment.treatments : [appointment.treatment])
+              .filter(Boolean).map(t => t.name).join(' + ')}
+          </h2>
 
           <div style={S.metaGrid}>
             <MetaRow icon="calendar_today" label="Date"
@@ -399,9 +406,9 @@ export default function ClientManagePage() {
             <MetaRow icon="schedule" label="Time"
               value={apptDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} />
             <MetaRow icon="timer" label="Duration"
-              value={`${appointment.treatment?.duration_minutes} min`} />
+              value={`${appointment.totalDurationMinutes || appointment.treatment?.duration_minutes || 0} min`} />
             <MetaRow icon="payments" label="Price"
-              value={`£${((appointment.treatment?.price_cents || 0) / 100).toFixed(2)}`} />
+              value={`£${((appointment.totalPriceCents || appointment.treatment?.price_cents || 0) / 100).toFixed(2)}`} />
           </div>
 
           {/* Change treatment. Ellie's case: booked a full lamination weeks

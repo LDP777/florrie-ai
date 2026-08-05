@@ -15,6 +15,8 @@ import ErrorCard from '../components/ErrorCard.jsx';
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 
 const TYPE_CONFIG = {
+  // Not the client's doing, so it does not wear the client's badge.
+  unpaid: { label: 'Deposit unpaid', icon: '\u{1F4B3}', bg: 'var(--bg-hover, #F5F2EF)', color: 'var(--text-secondary, #7A756F)' },
   'no-show': { label: 'No Show', bg: '#FFEBEE', color: '#F44336', icon: '✗' },
   'late-cancel': { label: 'Late Cancel', bg: '#FFF5E6', color: '#B8860B', icon: '⏰' },
   'cancelled': { label: 'Cancelled', bg: '#F0ECE8', color: '#8B6F5E', icon: '↩' },
@@ -36,22 +38,39 @@ export default function CancellationLog() {
     setLoading(true);
     setError('');
 
-    fetchRows('appointments', beautician.id, { order: 'starts_at', ascending: false })
+    // The names are the whole point of this screen, and it never had them:
+    // `client_name` and `treatment_name` are not columns on appointments, so
+    // every row read "Client" with no treatment. Ellie went looking for who had
+    // been cancelled and the list could not tell her. Join for them.
+    fetchRows('appointments', beautician.id, {
+      order: 'starts_at',
+      ascending: false,
+      select: '*, clients(first_name, last_name), treatments(name)',
+    })
       .then(appts => {
         const cancelled = appts.filter(a => a.status && (a.status.startsWith('cancelled') || a.status === 'no_show'));
-        setCancellations(cancelled.map(a => ({
-          id: a.id,
-          client: a.client_name || 'Client',
-          treatment: a.treatment_name || '',
-          date: a.starts_at?.slice(0, 10) || '',
-          time: a.starts_at?.slice(11, 16) || '',
-          type: a.status === 'no_show' ? 'no-show' : a.cancellation_reason ? 'late-cancel' : 'cancelled',
-          reason: a.cancellation_reason || '',
-          revenue_lost: a.price_cents || 0,
-          deposit: a.deposit_cents || 0,
-          notice: computeNotice(a.cancelled_at, a.starts_at),
-          rebooked: a.rebooked_at ? true : false,
-        })));
+        setCancellations(cancelled.map(a => {
+          const name = [a.clients?.first_name, a.clients?.last_name].filter(Boolean).join(' ').trim();
+          // A deposit that was never paid was never kept. This showed
+          // "Deposit kept: GBP 17" against bookings released BECAUSE no deposit
+          // arrived, which is how the money stopped making sense.
+          const depositActuallyKept = a.deposit_paid === true ? (a.deposit_cents || 0) : 0;
+          return {
+            id: a.id,
+            client: name || 'Client',
+            treatment: a.treatments?.name || '',
+            date: a.starts_at?.slice(0, 10) || '',
+            time: a.starts_at?.slice(11, 16) || '',
+            type: cancellationType(a),
+            reason: humanReason(a.cancellation_reason),
+            // Nothing was lost on a booking that was never paid for and never
+            // happened: the slot went back in the diary.
+            revenue_lost: a.status === 'no_show' || a.deposit_paid === true ? (a.price_cents || 0) : 0,
+            deposit: depositActuallyKept,
+            notice: computeNotice(a.cancelled_at, a.starts_at),
+            rebooked: a.rebooked_at ? true : false,
+          };
+        }));
         setLoading(false);
       })
       .catch(err => {
@@ -159,7 +178,7 @@ export default function CancellationLog() {
       {tab === 'log' && (
         <>
           <div style={S.filterRow}>
-            {['all', 'no-show', 'late-cancel', 'cancelled'].map(f => (
+            {['all', 'no-show', 'late-cancel', 'cancelled', 'unpaid'].map(f => (
               <button key={f} onClick={() => setFilterType(f)} style={{ ...S.filterChip, ...(filterType === f ? S.filterActive : {}) }}>
                 {f === 'all' ? 'All' : TYPE_CONFIG[f]?.label || f}
               </button>
@@ -293,6 +312,37 @@ function formatDate(dateStr) {
 
 // Notice given = hours between the cancellation and the appointment start.
 // Returns null when we can't tell (e.g. no-shows have no cancelled_at).
+
+/**
+ * What kind of cancellation was this, really?
+ *
+ * Anything carrying a reason used to be badged "Late Cancel", which put that
+ * label on bookings the system itself released for non payment. It read as the
+ * client letting her down at short notice when in fact nobody had turned up to
+ * let her down: the deposit never arrived.
+ */
+function cancellationType(a) {
+  if (a.status === 'no_show') return 'no-show';
+  if (a.cancellation_reason === 'auto_cancelled_unpaid') return 'unpaid';
+  if (a.cancellation_reason === 'client_abandoned_booking') return 'cancelled';
+  return a.cancellation_reason ? 'late-cancel' : 'cancelled';
+}
+
+/**
+ * Reasons are internal identifiers. Showing her `"auto_cancelled_unpaid"` in
+ * quotation marks tells her nothing and looks broken.
+ */
+const REASON_TEXT = {
+  auto_cancelled_unpaid: 'Deposit was never paid, so the slot was released',
+  client_abandoned_booking: 'They changed their mind mid booking',
+  ai_hold_no_payment_link: 'We could not raise a payment link',
+  ai_hold_state_unwritable: 'Something went wrong holding the slot',
+};
+function humanReason(reason) {
+  if (!reason) return '';
+  return REASON_TEXT[reason] || reason.replace(/_/g, ' ');
+}
+
 function computeNotice(cancelledAt, startsAt) {
   if (!cancelledAt || !startsAt) return null;
   const diffMs = new Date(startsAt) - new Date(cancelledAt);

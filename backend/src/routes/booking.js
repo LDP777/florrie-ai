@@ -628,7 +628,7 @@ router.get('/:slug/manage/:token', async (req, res) => {
       .from('appointments')
       .select(`
         id, starts_at, ends_at, status, management_token, rescheduled_at,
-        payment_expires_at, policy_snapshot, client_email,
+        payment_expires_at, policy_snapshot, client_email, extra_treatment_ids,
         price_cents, deposit_cents, deposit_amount_cents, deposit_paid, deposit_status,
         payment_type, stripe_payment_intent_id, stripe_payment_method_id,
         treatments(id, name, duration_minutes, price_cents, category, requires_patch_test),
@@ -692,6 +692,38 @@ router.get('/:slug/manage/:token', async (req, res) => {
     const needsPatchTest = treatmentRequiresPatchTest && !hasValidPatchTest && !hasPendingPatchTest;
     const blockBooking = needsPatchTest && (appt.beauticians?.patch_test_block_booking === true);
 
+    // EVERYTHING SHE BOOKED, not just the first thing.
+    //
+    // Two of Ellie's clients messaged her about this within a week. Sasha
+    // booked brows AND a Korean lash lift and her page said "Signature brows,
+    // 30 min, GBP 30" while charging her the GBP 80 for both. Anastasia booked
+    // two and saw one. Ellie had to reassure them by hand that the diary was
+    // right, which is the opposite of what a confirmation is for: it made her
+    // look disorganised for a bug that was ours.
+    //
+    // The extras have always been in extra_treatment_ids, and the diary and
+    // the money both use them. This page just never asked for them.
+    let extraTreatments = [];
+    if (Array.isArray(appt.extra_treatment_ids) && appt.extra_treatment_ids.length > 0) {
+      const { data: extras, error: extrasErr } = await supabase
+        .from('treatments')
+        .select('id, name, duration_minutes, price_cents, category, requires_patch_test')
+        .eq('beautician_id', beauticianId)
+        .in('id', appt.extra_treatment_ids);
+      // Checked: an unchecked error here silently reproduces the exact bug
+      // this code was written to fix.
+      if (extrasErr) {
+        logger.error({ err: extrasErr, appointmentId: appt.id }, 'Could not load the extra treatments for the manage page');
+      } else {
+        // Keep her booking order rather than whatever PostgREST returned.
+        const byId = new Map((extras || []).map(t => [t.id, t]));
+        extraTreatments = appt.extra_treatment_ids.map(id => byId.get(id)).filter(Boolean);
+      }
+    }
+
+    const allTreatments = [appt.treatments, ...extraTreatments].filter(Boolean);
+    const combined = combineTreatments(allTreatments);
+
     const policy = appt.policy_snapshot || appt.beauticians?.booking_policy || {};
     const now = new Date();
     const apptStart = new Date(appt.starts_at);
@@ -713,6 +745,12 @@ router.get('/:slug/manage/:token', async (req, res) => {
         depositPaid: !!appt.deposit_paid,
         paymentExpiresAt: appt.payment_expires_at,
         treatment: appt.treatments,
+        // The full list, plus the totals that go with it. `treatment` stays as
+        // it was so nothing that reads it breaks; anything showing the client
+        // what she booked should use these.
+        treatments: allTreatments,
+        totalDurationMinutes: combined.durationMinutes || appt.treatments?.duration_minutes || 0,
+        totalPriceCents: appt.price_cents || combined.priceCents || 0,
         client: {
           name: `${appt.clients?.first_name} ${appt.clients?.last_name || ''}`.trim(),
           email: appt.clients?.email || appt.client_email,
