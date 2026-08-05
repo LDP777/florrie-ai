@@ -473,6 +473,17 @@ router.post('/refresh-intelligence', requireAuth, async (req, res) => {
  * then the duplicate is deleted. This is the cure for split threads (an IG
  * DM creating a second record next to the imported one, etc).
  */
+/**
+ * Tables where a duplicate's row may be dropped to resolve a unique clash,
+ * because the primary already has the same thing and a second copy means
+ * nothing. Everything NOT in here is either a booking, money, or a record of
+ * something that happened, and those get reported rather than deleted.
+ */
+const DROPPABLE_ON_CONFLICT = new Set([
+  'client_tag_assignments', 'waitlist', 'client_intelligence',
+  'client_portal_tokens', 'follow_up_enrollments', 'loyalty_points',
+]);
+
 const CLIENT_REF_TABLES = [
   'ai_actions', 'appointments', 'booking_suggestions', 'client_intelligence',
   'client_packages', 'client_portal_tokens', 'client_tag_assignments',
@@ -509,8 +520,22 @@ router.post('/:id/merge', requireAuth, async (req, res) => {
         .update({ client_id: primaryId })
         .eq('client_id', duplicateId);
       if (error && error.code === '23505') {
-        // The primary already has an identical row (same tag, same waitlist
-        // entry...): the duplicate's copy is redundant, so drop it.
+        // A unique clash means the primary already has an equivalent row. For a
+        // tag or a waitlist entry the duplicate's copy is genuinely redundant
+        // and dropping it is right.
+        //
+        // For a booking or a payment it is NEVER right. This loop used to
+        // delete from whichever table raised the clash, which meant a merge
+        // could quietly destroy appointments and transactions: real
+        // appointments somebody had paid for, and the record of them paying.
+        // Charlotte Scott's GBP 80 booking is missing and this is the only
+        // code in the product that could have done it silently. Even if it did
+        // not, resolving a conflict by deleting money is not a thing we do.
+        if (!DROPPABLE_ON_CONFLICT.has(table)) {
+          logger.error({ table, primaryId, duplicateId }, 'Merge refused: a unique clash on this table would mean deleting bookings or money');
+          failed.push({ table, code: '23505', refused: true });
+          continue;
+        }
         const { error: delErr } = await supabase.from(table).delete().eq('client_id', duplicateId);
         if (delErr) failed.push({ table, code: delErr.code });
       } else if (error) {
