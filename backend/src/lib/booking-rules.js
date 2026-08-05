@@ -472,7 +472,23 @@ export function matchSlotChoice(text, offered, { fromWall = null } = {}) {
 
   const times = timeCandidates(body);
   if (times.length) {
-    const byTime = pool.filter(s => times.includes(s.time));
+    let byTime = pool.filter(s => times.includes(s.time));
+
+    // "the 3 one" when the offer was 3.30pm. A bare hour reads as o'clock, so
+    // an exact match finds nothing, and Florrie used to ask again. She is not
+    // wrong to be careful, but a person offered "3.30pm, 4pm or 7pm" who says
+    // "the 3 one" means the 3.30, and being asked twice reads as not listening.
+    //
+    // Only when the hour lands on exactly ONE offered slot. Offer both 3pm and
+    // 3.30pm and this stays ambiguous, because at that point "the 3 one"
+    // genuinely is, and booking the wrong half hour and taking a deposit for it
+    // is the same class of harm as naming a time that was never free.
+    if (!byTime.length) {
+      const hours = new Set(times.map(t => t.slice(0, 2)));
+      const withinHour = pool.filter(s => hours.has(s.time.slice(0, 2)));
+      if (withinHour.length === 1) byTime = withinHour;
+    }
+
     if (!byTime.length) return { unclear: true, wantedTimes: times };
     pool = byTime;
   } else if (!days?.length) {
