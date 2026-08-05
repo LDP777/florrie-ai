@@ -1,10 +1,16 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { buildVoiceGuide } from './voice-profile.js';
 import { z } from 'zod';
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 import { cleanReply } from '../lib/text.js';
-import { safeReply } from '../lib/reply-claims-guard.js';
+import { safeReply, checkReplyClaims } from '../lib/reply-claims-guard.js';
+import {
+  renderVoiceSection,
+  NEUTRAL_VOICE_SECTION,
+  styleFit,
+  regenerationHint,
+  AUTHOR,
+} from '../lib/idiolect.js';
 import { getFreeSlots } from '../lib/free-slots.js';
 import { retrieveKnowledge, renderKnowledgeBlock } from '../lib/knowledge.js';
 import { createBookingSuggestion } from './automations.js';
@@ -14,6 +20,7 @@ import { refreshLiveActivity } from './live-activity.js';
 import { isKnownClient, clientAutonomyOverride } from '../lib/outbound-guard.js';
 import { getLoyaltyConfig, getClientPoints, loyaltyProximity } from './loyalty.js';
 import { getActivePromos, describePromo } from '../lib/promos.js';
+import { authorship } from '../lib/authorship.js';
 
 /**
  * AI Front Desk — The core agentic service.
@@ -596,23 +603,20 @@ async function generateResponseAndAct(message, classification, context, beautici
       actionPrompt = 'Respond helpfully based on what you know about the business.';
   }
 
-  // Get tone model
-  const toneGuide = buildToneGuide(beautician.tone_model);
+  const voiceSection = buildVoiceInstructions(beautician, message);
+  const style = beautician.voice_profile?.style || null;
 
-  const response = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 300,
-    system: `You are replying to a client on behalf of a beautician called ${context.beautician.name}.
+  // The system prompt is a function of one extra instruction so the length
+  // retry below can re-run the SAME prompt with a hard word cap bolted on,
+  // rather than a second, subtly different prompt.
+  const systemPrompt = (extra = '') => `You are replying to a client on behalf of a beautician called ${context.beautician.name}.
 
-${toneGuide}
-
-${buildVoiceGuide(beautician.voice_profile)}
+${voiceSection}
 
 RULES:
-- Keep it short. This is WhatsApp, not email. 1-3 sentences max.
+- Keep it short. This is WhatsApp, not email.
 - Never say you're an AI, bot, or assistant. You ARE the beautician.
 - Use the beautician's name style (first name only, never "I am [Business Name]").
-- Match their likely communication style: professional but warm, not overly casual.
 - Include specific details (treatment names, prices, times) when relevant.
 - If directing to booking, include the link: florrie.ai/book/${context.beautician.bookingSlug || 'book'}
 - Never make up availability. Only reference times from the context provided.
@@ -629,18 +633,39 @@ ${context.patchTest ? `PATCH TEST: These treatments need a patch test at least 2
 ${context.offers?.length ? `OFFERS: ${context.offers.join('; ')}. Only mention an offer if the client asks about price or offers, or is hesitating on cost. Never volunteer it otherwise, and never invent a code.` : `OFFERS: none running right now. If the client asks about offers or discounts, tell them there is nothing on at the moment. Never invent an offer, discount, or code.`}
 ${renderKnowledgeBlock(context.knowledge)}
 ${buildTranscript(context, message) ? `\nConversation so far (oldest first). Continue it naturally, do not repeat yourself or reintroduce yourself:\n${buildTranscript(context, message)}` : ''}
+${extra}
+Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`;
 
-Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`,
-    messages: [{ role: 'user', content: message }]
-  });
+  const callModel = async (extra) => {
+    const r = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 300,
+      system: systemPrompt(extra),
+      messages: [{ role: 'user', content: message }],
+    });
+    return cleanReply(r.content[0].text.trim());
+  };
 
-  // The prompt now holds real slots, so a named time is checkable: anything off
-  // the verified list is invented and gets refused. Nothing in this path can
-  // move a booking, so actionPerformed stays false and any "you're moved" claim
-  // is still refused outright. See lib/reply-claims-guard.js and the 28 Jul incident.
-  const guarded = safeReply(cleanReply(response.content[0].text.trim()), {
-    allowedTimes: (context.freeSlots || []).map(s => s.time),
-  });
+  // Length is the one voice failure an edit cannot fix, so it is the one worth
+  // paying a second Haiku call for. Everything else (her sign off, her emoji,
+  // her lower case start, the missing full stop) is repaired mechanically.
+  let fit = styleFit(await callModel(''), style);
+  if (fit.tooLong) {
+    logger.info({ beauticianId: beautician?.id, band: fit.band }, 'reply was longer than she writes, regenerating once');
+    fit = styleFit(await callModel(regenerationHint(fit.band)), style);
+  }
+  if (!fit.ok) {
+    logger.info({ beauticianId: beautician?.id, problems: fit.problems }, 'reply still off her voice after repair');
+  }
+
+  const allowedTimes = (context.freeSlots || []).map(s => s.time);
+  // The prompt holds real slots, so a named time is checkable: anything off the
+  // verified list is invented and gets refused. Nothing in this path can move a
+  // booking, so actionPerformed stays false and any "you're moved" claim is
+  // still refused outright. See lib/reply-claims-guard.js and the 28 Jul incident.
+  // Style repair runs BEFORE this on purpose: the guard gets the last word.
+  const guarded = safeReply(fit.text, { allowedTimes });
+  let replyText = guarded.text;
   if (guarded.rejected) {
     logger.warn({
       beauticianId: beautician?.id,
@@ -648,8 +673,15 @@ Respond with the WhatsApp message only. No quotes, no JSON, no explanation.`,
       reason: guarded.reason,
       offending: guarded.offending,
     }, 'AI Front Desk BLOCKED an unverifiable claim in an auto-send reply');
+
+    // The holding reply is safe but it is not hers, and "let me check my book"
+    // in flat prose is exactly the tell we are fixing. repairDraft only adds or
+    // removes her sign off, her emoji, her capital and her final full stop, so
+    // it cannot introduce a time or a claim. Re-checked anyway: if the styled
+    // version fails for any reason the plain one goes instead.
+    const styledFallback = styleFit(replyText, style).text;
+    if (checkReplyClaims(styledFallback, { allowedTimes }).ok) replyText = styledFallback;
   }
-  const replyText = guarded.text;
 
   // Calculate tone match score by comparing against beautician's correction history
   const toneScore = await calculateToneScore(beautician, replyText);
@@ -737,16 +769,12 @@ Respond with ONLY a number between 0.0 and 1.0 (e.g., 0.78). No explanation.`,
 // STEP 4b: GENERATE SUGGESTED RESPONSE (for escalated messages)
 
 async function generateSuggestedResponse(message, classification, context, beautician) {
-  const toneGuide = buildToneGuide(beautician.tone_model);
+  const voiceSection = buildVoiceInstructions(beautician, message);
+  const style = beautician.voice_profile?.style || null;
 
-  const response = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 300,
-    system: `You are ${context.beautician.name}, a beautician, replying to your client${context.client?.name ? ' ' + context.client.name : ''} on WhatsApp. Write the message you would send them, ready to send word for word.
+  const systemPrompt = (extra = '') => `You are ${context.beautician.name}, a beautician, replying to your client${context.client?.name ? ' ' + context.client.name : ''} on WhatsApp. Write the message you would send them, ready to send word for word.
 
-${toneGuide}
-
-${buildVoiceGuide(beautician.voice_profile)}
+${voiceSection}
 
 Hard rules:
 - Output ONLY the message to the client, exactly as it should be sent. Nothing else.
@@ -754,7 +782,7 @@ Hard rules:
 - Never write a note, a placeholder, or anything in square brackets. It must be sendable as is.
 - Never invent specifics you are unsure of, like a time, a price, or availability. If you are not certain, send a warm holding reply instead, for example that you will check your book and come straight back to them.
 - If their last message is just a thank you, a sign off, or a quick acknowledgement, reply with a short warm closer.
-- Keep it short and natural, WhatsApp style, 1 to 3 sentences. Use their first name where it feels natural.
+- Keep it short and natural, WhatsApp style. Length and sign off come from the voice notes above, not from what reads as complete.
 
 Never use em dashes (—) or en dashes (–). Use commas, full stops, colons or line breaks instead.
 
@@ -765,21 +793,33 @@ ${context.patchTest ? `Patch test: these treatments need one at least 24h before
 ${context.offers?.length ? `Offers: ${context.offers.join('; ')}. Mention only if they ask about price or offers, or hesitate on cost. Never volunteer, never invent a code.` : `Offers: none running right now. If they ask about offers, say there is nothing on at the moment. Never invent an offer, discount, or code.`}
 ${renderKnowledgeBlock(context.knowledge)}
 ${buildTranscript(context, message) ? `\nConversation so far (oldest first), so your draft fits the thread:\n${buildTranscript(context, message)}` : ''}
+${extra}
+Write only the message to send.`;
 
-Write only the message to send.`,
-    messages: [{ role: 'user', content: message }]
-  });
+  const callModel = async (extra) => {
+    const r = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 300,
+      system: systemPrompt(extra),
+      messages: [{ role: 'user', content: message }],
+    });
+    return cleanReply(r.content[0].text.trim());
+  };
 
+  let fit = styleFit(await callModel(''), style);
+  if (fit.tooLong) fit = styleFit(await callModel(regenerationHint(fit.band)), style);
+
+  const allowedTimes = (context.freeSlots || []).map(s => s.time);
   // Ellie sends this from a card without opening the thread, so it has to be
   // safe on its own. Same guard, same verified list, as the auto path.
-  const guarded = safeReply(cleanReply(response.content[0].text.trim()), {
-    allowedTimes: (context.freeSlots || []).map(s => s.time),
-  });
+  const guarded = safeReply(fit.text, { allowedTimes });
   if (guarded.rejected) {
     logger.warn({
       reason: guarded.reason,
       offending: guarded.offending,
     }, 'AI Front Desk BLOCKED an unverifiable claim in a drafted reply');
+    const styledFallback = styleFit(guarded.text, style).text;
+    if (checkReplyClaims(styledFallback, { allowedTimes }).ok) return styledFallback;
   }
   return guarded.text;
 }
@@ -829,16 +869,32 @@ move it themselves and see the real availability.`;
 
 // TONE MODEL
 
+/**
+ * The voice block every reply prompt gets, in strict order of evidence.
+ *
+ * 1. Her MEASURED idiolect plus four of her real messages (lib/idiolect.js).
+ * 2. Failing that, whatever her own corrections have taught us.
+ * 3. Failing that, plain and neutral.
+ *
+ * These are alternatives, never a stack. The old code emitted the hardcoded
+ * default tone AND the voice profile together, so a prompt could carry
+ * 'Use "Hi [name]" not "Hey [name]"' and 'she opens with "hey lovely"' in the
+ * same breath, plus "no emojis unless the client uses them first" over the top
+ * of her measured emoji habit. Handed a contradiction, a model splits the
+ * difference, and the difference is the generic message her clients spotted.
+ */
+function buildVoiceInstructions(beautician, incomingMessage) {
+  const measured = renderVoiceSection(beautician?.voice_profile, incomingMessage);
+  if (measured) return measured;
+  const learned = buildToneGuide(beautician?.tone_model);
+  return learned || NEUTRAL_VOICE_SECTION;
+}
+
 function buildToneGuide(toneModel) {
-  if (!toneModel || Object.keys(toneModel).length === 0) {
-    // Default tone based on Ellie validation data
-    return `TONE: Professional but warm. Like a friendly colleague, not a corporate bot.
-- Use "Hi [name]" not "Hello [name]" or "Hey [name]"
-- End with something helpful, not a formal sign-off
-- Keep punctuation natural (one exclamation mark max)
-- No emojis unless the client uses them first
-- British English spelling`;
-  }
+  // No corrections on file: say nothing here and let the caller fall through to
+  // the neutral block. A confident description of a voice nobody has measured
+  // is worse than admitting we do not know it yet.
+  if (!toneModel || Object.keys(toneModel).length === 0) return '';
 
   // Use learned tone patterns
   const guide = ['TONE (learned from corrections):'];
@@ -1019,6 +1075,9 @@ async function sendResponse(beautician, client, responseText, classification, me
       content: responseText,
       ai_handled: true,
       ai_confidence: 1.0,
+      // Florrie's sentences, start to finish. This row must never come back as
+      // training data for Florrie: see migration 20260805.
+      ...authorship(AUTHOR.AI),
       digital_employee: 'front_desk'
     });
   } else {
@@ -1113,7 +1172,8 @@ export async function generateReplySuggestions(beautician, client, lastInboundMe
   if (!lastInboundMessage || !process.env.ANTHROPIC_API_KEY) return [];
 
   const context = await gatherContext(beautician, client, lastInboundMessage);
-  const toneGuide = buildToneGuide(beautician.tone_model);
+  const voiceSection = buildVoiceInstructions(beautician, lastInboundMessage);
+  const style = beautician.voice_profile?.style || null;
   const firstName = context.client?.name || 'the client';
 
   const response = await anthropic.messages.create({
@@ -1121,13 +1181,11 @@ export async function generateReplySuggestions(beautician, client, lastInboundMe
     max_tokens: 400,
     system: `You draft 3 SHORT candidate replies for ${context.beautician.name} to choose from, written in her voice. She taps one to load into her reply box, then sends or edits it. Write as her, to her client ${firstName}.
 
-${buildVoiceGuide(beautician.voice_profile)}
-
-${toneGuide}
+${voiceSection}
 
 Rules:
 - Give 3 genuinely DIFFERENT useful options for this exact message (for example: a direct confirm, an alternative or offer, and an info/aftercare reply). No near-duplicates.
-- WhatsApp style, 1 to 2 sentences each.
+- WhatsApp style. Each option the length SHE writes, per the voice notes above.
 - British English. Never use em dashes or en dashes; use commas, full stops or line breaks.
 - Each option needs a 2 to 3 word chip label summarising it (for example "Confirm Friday", "Offer alt time", "Send price").
 - Use the client's real first name (${firstName}) where natural, not a placeholder.
@@ -1155,7 +1213,9 @@ Respond with ONLY a JSON array of exactly 3 objects: [{"label":"...","text":"...
   return parsed.slice(0, 3).map((sug, i) => ({
     id: `sg_${i}`,
     label: String(sug.label || `Option ${i + 1}`).replace(/[\u2013\u2014]/g, '-').slice(0, 28),
-    text: String(sug.text || '').replace(/[\u2013\u2014]/g, '-').trim(),
+    // Repaired, not regenerated: three chips are not worth three retries, and
+    // the repairs are the audible half anyway (her kiss, her emoji, her case).
+    text: styleFit(String(sug.text || '').replace(/[\u2013\u2014]/g, '-').trim(), style).text,
   })).filter(s => s.text && !safeReply(s.text, {
     allowedTimes: (context.freeSlots || []).map(s2 => s2.time),
   }).rejected);
