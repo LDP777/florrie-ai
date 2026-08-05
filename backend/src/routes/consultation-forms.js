@@ -19,6 +19,7 @@ import {
   createConsultationFormSchema,
   submitConsultationFormSchema
 } from '../lib/schemas.js';
+import { authorship } from '../lib/authorship.js';
 
 const router = Router();
 const FRONTEND_URL = process.env.FRONTEND_URL;
@@ -714,6 +715,7 @@ export async function sendConsultationFormSMS({
     direction: 'outbound',
     channel: 'sms',
     content: smsBody,
+    ...authorship('template'),
   }).catch(() => {}); // non-fatal
 
   // Do not log the token: it is the only credential guarding the public

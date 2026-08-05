@@ -23,6 +23,7 @@ import { pushMessagesWaiting } from '../services/push-notifications.js';
 import { classifyInboundMessage, looksLikeKnownClient } from '../lib/junk-classifier.js';
 import logger from '../lib/logger.js';
 import { autoUnarchiveClient } from '../lib/client-archive.js';
+import { authorship } from '../lib/authorship.js';
 
 const router = Router();
 
@@ -350,6 +351,7 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
       content: messageText,
       external_message_id: messageId,
       ai_handled: false,
+      ...authorship('client'),
       escalated: false,
     })
     .select()
@@ -398,6 +400,7 @@ async function processInstagramDM(beautician, senderId, messageText, messageId) 
           direction: 'outbound',
           content: redirectMsg,
           ai_handled: true,
+          ...authorship('template'),
           escalated: false,
         });
 

@@ -43,6 +43,7 @@ import { getAppSecret } from '../lib/env.js';
 import { requireAuth } from '../middleware/auth.js';
 import { getMonthlyUsage } from '../services/whatsapp-metering.js';
 import { starterPack, exampleValuesFor } from '../lib/whatsapp-templates.js';
+import { authorship } from '../lib/authorship.js';
 
 const router = express.Router();
 router.use(requireAuth);
@@ -1485,6 +1486,7 @@ router.post('/webhook-self-test', async (req, res) => {
         content: message.text.body,
         external_message_id: message.id,
         ai_handled: false,
+        ...authorship('client'),
         escalated: false,
       })
       .select()

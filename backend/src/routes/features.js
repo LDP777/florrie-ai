@@ -5,6 +5,7 @@ import logger from '../lib/logger.js';
 import { guardedSend } from '../lib/outbound-guard.js';
 import { sendNudge } from '../services/notifications.js';
 import { requireOwned } from '../lib/ownership.js';
+import { authorship } from '../lib/authorship.js';
 
 const router = Router();
 
@@ -2354,8 +2355,14 @@ router.post('/messages', requireAuth, async (req, res) => {
     .insert({
       beautician_id: req.beautician.id,
       client_id,
-      message_text,
-      direction: direction || 'outbound'
+      // The column is `content`. `message_text` belongs to aftercare_messages,
+      // and messages.content is NOT NULL, so every call to this endpoint has
+      // failed on a constraint violation since it was written. Found while
+      // sweeping every writer to messages for authorship.
+      content: message_text,
+      channel: 'internal',
+      direction: direction || 'outbound',
+      ...authorship((direction || 'outbound') === 'inbound' ? 'client' : 'human'),
     })
     .select('*, clients(first_name, last_name, email)')
     .single();

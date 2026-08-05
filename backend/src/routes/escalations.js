@@ -8,6 +8,7 @@ import { sendSMS, sendInstagramDM, sendWhatsAppText } from '../services/notifica
 import logger from '../lib/logger.js';
 import { isSocialLead, clientsEverBooked, hasContactIdentity } from '../lib/inbox-space.js';
 import { heldBookingClaimContext } from '../services/conversational-booking.js';
+import { authorship } from '../lib/authorship.js';
 
 const router = Router();
 
@@ -195,6 +196,11 @@ router.post('/:messageId/resolve', requireAuth, async (req, res) => {
     direction: 'outbound',
     content: finalResponse,
     ai_handled: action === 'send_as_is',
+    // 'ai_edited' is not a euphemism for hers. She moved a few words inside
+    // Florrie's sentence; the rhythm, the length and most of the vocabulary are
+    // still Florrie's, so it is not safe to learn her voice from. It keeps its
+    // own value so learnFromCorrection can go on using it.
+    ...authorship(action === 'send_as_is' ? 'ai' : 'ai_edited'),
     digital_employee: 'front_desk',
   });
 

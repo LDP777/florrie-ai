@@ -12,7 +12,9 @@
  */
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
+import { AUTHOR } from '../lib/idiolect.js';
 import { sendSMS, sendEmail } from './notifications.js';
+import { authorship } from '../lib/authorship.js';
 
 const WA_TOKEN = process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN;
 const API_VER = process.env.WHATSAPP_API_VERSION || 'v21.0';
@@ -113,7 +115,16 @@ async function sendInstagramText({ token, recipientId, body }) {
  * row into the messages table on success. Returns the inserted message
  * row (or an error envelope).
  */
-export async function sendOnChannel({ beautician, clientId, channel, body }) {
+/**
+ * @param {string} [authoredBy] whose words these are, from lib/idiolect.js
+ *        AUTHOR. Defaults to 'system', which is the safe direction: this
+ *        function is called by the inbox (her), the outbox approvals
+ *        (Florrie's drafts) and the auto-cancel notice (canned copy), and a
+ *        caller that forgets to say must not have its text mistaken for hers
+ *        and fed back into the voice profile. That mistake is the bug this
+ *        parameter exists to end.
+ */
+export async function sendOnChannel({ beautician, clientId, channel, body, authoredBy = AUTHOR.SYSTEM }) {
   if (!beautician?.id) return { ok: false, status: 401, error: 'Missing beautician' };
   if (!clientId) return { ok: false, status: 400, error: 'client_id required' };
   if (!['whatsapp', 'sms', 'email', 'instagram'].includes(channel)) {
@@ -198,7 +209,7 @@ export async function sendOnChannel({ beautician, clientId, channel, body }) {
     try {
       const { data: fr } = await supabase
         .from('messages')
-        .insert({ beautician_id: beautician.id, client_id: client.id, direction: 'outbound', channel, content: trimmed, send_status: 'failed' })
+        .insert({ beautician_id: beautician.id, client_id: client.id, direction: 'outbound', channel, content: trimmed, send_status: 'failed', ...authorship(authoredBy) })
         .select('id, beautician_id, client_id, channel, direction, content, created_at, ai_handled, media_url, media_type, external_message_id, whatsapp_message_id, delivered_at, read_at, send_status')
         .single();
       failMessage = shapeMessage(fr);
@@ -221,6 +232,7 @@ export async function sendOnChannel({ beautician, clientId, channel, body }) {
     direction: 'outbound',
     channel,
     content: trimmed,
+    ...authorship(authoredBy),
   };
   if (channel === 'whatsapp' && extId) insert.whatsapp_message_id = extId;
   if (extId) insert.external_message_id = extId;

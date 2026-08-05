@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { processReminders, sendSMS, sendEmail } from '../services/notifications.js';
 import { getSMSUsage } from '../services/sms-metering.js';
 import logger from '../lib/logger.js';
+import { authorship } from '../lib/authorship.js';
 
 const router = Router();
 
@@ -78,6 +79,9 @@ router.post('/send-reminder', requireAuth, async (req, res) => {
         direction: 'outbound',
         channel: 'sms',
         content: body,
+        // Reminder copy is assembled from a fixed shape a few lines above,
+        // not typed by her.
+        ...authorship('template'),
       }).catch(() => {});
 
       return res.json({ success: !!result, channel: 'sms' });
@@ -136,6 +140,8 @@ router.post('/send-sms', requireAuth, async (req, res) => {
       direction: 'outbound',
       channel: 'sms',
       content: message,
+      // She typed this into the app and pressed send. Training data.
+      ...authorship('human'),
     });
 
     if (logError) {
@@ -185,6 +191,10 @@ router.post('/send-email', requireAuth, async (req, res) => {
       direction: 'outbound',
       channel: 'email',
       content: text || subject,
+      // Hers, but email is a different register from a text: lib/idiolect.js
+      // measures length and sign off across everything she writes, so this is
+      // recorded honestly and the channel mix is a known limitation.
+      ...authorship('human'),
     });
 
     if (logError) {

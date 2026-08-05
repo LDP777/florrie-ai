@@ -111,8 +111,14 @@ export const JOBS = [
     handler: runWeekInReview,
   },
   {
-    name: 'voice-profile-refresh',
-    description: 'distil each beautician own writing style',
+    // Renamed from 'voice-profile-refresh' on purpose. The scheduler keys off
+    // job_runs by NAME and only reruns a job a week after its last success, so
+    // under the old name every profile would stay in the v1 shape (adjectives,
+    // trained on Florrie's own output) for up to seven days after this deploy.
+    // A new name has no history, so it runs at startup and every profile is
+    // rebuilt from her real messages on the first boot after the migration.
+    name: 'voice-profile-refresh-v2',
+    description: 'measure each beautician own writing style from her own messages',
     intervalMs: 7 * DAY,
     handler: runVoiceProfileRefresh,
     startupDelayMs: 5 * MINUTE,
