@@ -70,8 +70,28 @@ old numbers.
 - `20260331_waitlist_signups.sql` is the same signup table under a different
   name, and is a no-op for the same reason.
 
+- `067_instagram_page_token_rename.sql` and `067_last_visit_accuracy.sql` share
+  a number. They do not share a name, and the name is the only thing that
+  matters: `schema_migrations.name` is the primary key, and `loadFiles()` sorts
+  by filename, so the two files are two distinct ledger rows applied in a
+  deterministic order. **Do not renumber either one.** A rename makes the
+  runner see a filename it has never recorded, so it treats an already-applied
+  migration as pending and runs it again against production, and it leaves the
+  old name behind as an orphan row. The duplicate number costs nothing; fixing
+  it costs a re-run.
+
 Neither is worth rewriting. Rewriting history is how the record of what
 actually ran gets lost.
+
+## The gaps in the numbering are not missing files
+
+`013`, `014`, `047`, `049`, `062` and `075` have never existed in this
+directory, in any commit. Nothing was deleted, and there is no ledger row
+waiting for them. Contiguity is not a thing the runner checks or needs: it
+sorts whatever `.sql` files it finds and applies the ones the ledger has not
+seen. A gap is a number somebody skipped, nothing more.
+
+New migrations use the date form anyway, so the `0NN_` series will not grow.
 
 ## Why `docs/*.sql` is not a migration source
 

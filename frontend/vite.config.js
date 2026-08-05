@@ -37,7 +37,10 @@ export default defineConfig({
           sentry: ['@sentry/react'],
           // PostHog ~70 KB
           posthog: ['posthog-js'],
-          // spreadsheet parser, only loads on the migration page
+          // Spreadsheet parser. ClientImport imports this dynamically, so the
+          // chunk is only fetched once someone actually drops an .xls/.xlsx on
+          // the migration page. Kept as a named chunk so it cannot get inlined
+          // back into a route chunk by a future rollup heuristic change.
           xlsx: ['exceljs'],
           // React + React-DOM + react-router-dom into a stable vendor chunk
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],

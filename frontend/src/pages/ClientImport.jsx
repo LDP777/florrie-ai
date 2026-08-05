@@ -1,6 +1,5 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import ExcelJS from 'exceljs';
 import { useBeautician } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 
@@ -14,7 +13,7 @@ import { API_BASE } from '../lib/config.js';
  *   4. User can inline-edit any row before importing
  *   5. After import, user lands on /clients?just_imported=<batch_id>
  *
- * XLSX is decoded in the browser via SheetJS, converted to CSV, then sent
+ * XLSX is decoded in the browser by ExcelJS, converted to CSV, then sent
  * through the existing /api/migrate/preview endpoint. This avoids a separate
  * multipart route on the backend.
  */
@@ -82,6 +81,11 @@ function csvEscape(s) {
  * read an uploaded sheet and hand the rows to the existing CSV parser.
  */
 async function xlsxToCsv(arrayBuffer) {
+  // Loaded here rather than at module scope because ExcelJS is 940 KB minified,
+  // roughly three times the whole app shell. Most imports are a CSV export from
+  // Fresha or Vagaro, which never touches this function, so a static import made
+  // every visitor to /import pay for a parser they were not going to use.
+  const { default: ExcelJS } = await import('exceljs');
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(arrayBuffer);
 
