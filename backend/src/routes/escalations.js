@@ -7,6 +7,7 @@ import { learnFromCorrection } from '../services/ai-front-desk.js';
 import { sendSMS, sendInstagramDM, sendWhatsAppText } from '../services/notifications.js';
 import logger from '../lib/logger.js';
 import { isSocialLead, clientsEverBooked, hasContactIdentity } from '../lib/inbox-space.js';
+import { heldBookingClaimContext } from '../services/conversational-booking.js';
 
 const router = Router();
 
@@ -112,7 +113,17 @@ router.post('/:messageId/resolve', requireAuth, async (req, res) => {
       logger.warn({ err }, 'escalation send: diary read failed, refusing any named time');
     }
 
-    const guarded = safeReply(finalResponse, { allowedTimes });
+    // A slot Florrie has already HELD for this client is not in the free list
+    // any more, by definition. Without this, the one draft in the system that
+    // is fully backed by a real appointment row would be the one refused at
+    // the send boundary. It does not loosen the guard: the time is read back
+    // off the appointment and actionPerformed is true only while that row is
+    // still live, so a hold released by the cleanup goes back to being refused.
+    const held = await heldBookingClaimContext(req.beautician.id, message.client_id);
+    const guarded = safeReply(finalResponse, {
+      allowedTimes: [...allowedTimes, ...held.allowedTimes],
+      actionPerformed: held.actionPerformed,
+    });
     if (guarded.rejected) {
       logger.warn({
         beauticianId: req.beautician.id,

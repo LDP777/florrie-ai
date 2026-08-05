@@ -14,6 +14,7 @@ import { refreshLiveActivity } from './live-activity.js';
 import { isKnownClient, clientAutonomyOverride } from '../lib/outbound-guard.js';
 import { getLoyaltyConfig, getClientPoints, loyaltyProximity } from './loyalty.js';
 import { getActivePromos, describePromo } from '../lib/promos.js';
+import { advanceBookingConversation } from './conversational-booking.js';
 
 /**
  * AI Front Desk — The core agentic service.
@@ -170,6 +171,24 @@ export async function processInboundMessage(messageId, beautician, client, messa
     // 2. Classify intent
     const classification = await classifyIntent(messageContent, context);
 
+    // 2b. THE BOOKING CONVERSATION.
+    // Booking someone in end to end is the one thing a prompt cannot do: it
+    // needs to read the real diary, hold the slot under the same database
+    // guards the booking page uses, and take a deposit. When this owns the
+    // reply it returns finished text that has already been through the claims
+    // guard with the verified slot list, so the generators below are skipped
+    // rather than second-guessed. It returns null for everything that is not a
+    // booking, which is most messages.
+    let convo = null;
+    try {
+      convo = await advanceBookingConversation({ beautician, client, message: messageContent, classification, context });
+    } catch (err) {
+      // Belt and braces: the module already catches its own failures and hands
+      // over. If it somehow throws, the normal reply path still runs.
+      logger.error({ err, beauticianId: beautician.id }, 'Booking conversation threw, falling back to the normal reply path');
+      convo = null;
+    }
+
     // 3. Decide: act or escalate?
     let shouldAct = canActAutonomously(classification, beautician.confidence_threshold);
 
@@ -192,11 +211,17 @@ export async function processInboundMessage(messageId, beautician, client, messa
       shouldAct = false;
     }
 
+    // A booking conversation that gave up (could not read the diary, nothing
+    // free, asked twice already) is exactly the case where Ellie should see it.
+    if (convo?.handOver) shouldAct = false;
+
     if (shouldAct) {
       // 4a. Generate response and take action
-      const result = await generateResponseAndAct(
-        messageContent, classification, context, beautician, client
-      );
+      const result = convo
+        ? { response: convo.reply, toneScore: null, actions: [], intent: classification.intent }
+        : await generateResponseAndAct(
+          messageContent, classification, context, beautician, client
+        );
 
       // 5a. Try to deliver. Returns true ONLY if the message was actually sent.
       // Florrie never silently auto-sends a phantom message; if delivery does not
@@ -223,7 +248,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
       logger.info({ handled: sent, drafted: !sent, intent: classification.intent }, sent ? 'AI Front Desk sent reply' : 'AI Front Desk drafted reply for one-tap send');
       return { handled: sent, drafted: !sent, intent: classification.intent, response: result.response };
 
-    } else if (!replyIsOwed(messageContent, classification)) {
+    } else if (!convo && !replyIsOwed(messageContent, classification)) {
       // 4c. Nothing is owed. She said thanks, or see you Tuesday, or sent a
       // heart. Florrie reads it, records what it was, and stays quiet. No
       // escalation, no badge, no draft for Ellie to approve. This is the single
@@ -240,10 +265,15 @@ export async function processInboundMessage(messageId, beautician, client, messa
       return { handled: false, drafted: false, quiet: true, intent: classification.intent };
 
     } else {
-      // 4b. Escalate — still generate a suggested response
-      const suggestion = await generateSuggestedResponse(
-        messageContent, classification, context, beautician
-      );
+      // 4b. Escalate — still generate a suggested response. When the booking
+      // conversation produced one it wins outright: it is the only text in
+      // this file backed by a real diary read and, once a slot is held, a real
+      // appointment row.
+      const suggestion = convo
+        ? convo.reply
+        : await generateSuggestedResponse(
+          messageContent, classification, context, beautician
+        );
 
       // 5b. Mark as escalated
       await supabase.from('messages').update({
@@ -307,9 +337,14 @@ async function gatherContext(beautician, client, messageContent = '') {
   // Parallel fetches for speed
   const [treatments, upcomingAppointments, clientHistory, clientIntelligence, conversation, loyaltyConfig, clientPoints, patchTests, activePromos, freeSlots, knowledge] = await Promise.all([
     // Treatment menu
+    // deposit_percent, buffer_minutes and requires_consultation are here
+    // because lib/booking-rules.js needs them to price and length a booking
+    // exactly as the booking page does. All three exist in production; the
+    // error is checked below, because a mistyped column makes PostgREST reject
+    // the WHOLE select and an empty menu reads as "this salon does nothing".
     supabase
       .from('treatments')
-      .select('id, name, duration_minutes, price_cents, deposit_cents, category, contraindications, requires_patch_test')
+      .select('id, name, duration_minutes, buffer_minutes, price_cents, deposit_cents, deposit_percent, category, contraindications, requires_patch_test, requires_consultation, consultation_form_id')
       .eq('beautician_id', beautician.id)
       .eq('is_active', true)
       .eq('booking_enabled', true),
@@ -433,8 +468,15 @@ async function gatherContext(beautician, client, messageContent = '') {
 
   const offers = (activePromos || []).map(describePromo).filter(Boolean);
 
+  if (treatments.error) {
+    logger.error({ err: treatments.error, beauticianId: beautician.id }, 'Treatment menu read failed; Florrie must not claim she does not offer something');
+  }
+
   return {
     treatments: treatments.data || [],
+    // Carried so the booking flow can tell "she has no treatments" apart from
+    // "I could not read her treatments". Those need different replies.
+    treatmentsError: treatments.error || null,
     upcomingAppointments: upcomingAppointments.data || [],
     clientHistory: clientHistory.data || [],
     clientIntelligence: clientIntelligence.data,
