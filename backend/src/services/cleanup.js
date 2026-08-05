@@ -171,7 +171,7 @@ async function sendSlotReleasedMessage(appt, getBeautician) {
     client,
     body,
     send: async () => {
-      const result = await sendOnChannel({ beautician, clientId: client.id, channel, body });
+      const result = await sendOnChannel({ beautician, clientId: client.id, channel, body, authoredBy: 'system' });
       return !!result?.ok;
     },
   });

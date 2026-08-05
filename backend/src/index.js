@@ -38,6 +38,7 @@ import { startScheduler, listJobs } from './lib/scheduler.js';
 // Detection layer: heartbeats for the crons and a health endpoint that can
 // actually go red. See lib/health.js for why the old one was a lie.
 import { runHealthChecks, reportDegraded } from './lib/health.js';
+import { probeAuthorshipColumn } from './lib/authorship.js';
 import Stripe from 'stripe';
 
 // A client purely for the health check's authenticated Stripe call. Cheap to
@@ -373,4 +374,10 @@ app.listen(PORT, () => {
   const registered = registerAllJobs();
   startScheduler();
   logger.info({ jobs: registered }, 'Background jobs registered');
+
+  // Ask once whether messages.authored_by exists. If the migration has not been
+  // run (or PgBouncer has not seen it yet) every insert into messages would be
+  // rejected whole for one unknown column, and Ellie's inbox would stop
+  // recording. See lib/authorship.js.
+  probeAuthorshipColumn();
 });

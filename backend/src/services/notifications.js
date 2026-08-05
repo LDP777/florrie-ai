@@ -18,6 +18,7 @@ import {
   paramFieldsFor,
   specFor,
 } from '../lib/whatsapp-templates.js';
+import { authorship } from '../lib/authorship.js';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM_EMAIL = process.env.FROM_EMAIL || 'Florrie <noreply@florrie.ai>';
@@ -412,6 +413,9 @@ async function logOutboundToThread({ beauticianId, to, clientId, channel, templa
       channel,
       content,
       ai_handled: true,
+      // An approved WhatsApp template when we sent one, otherwise product
+      // prose. Either way it is not her writing and must never train her voice.
+      ...authorship(templateName ? 'template' : 'system'),
     });
   } catch (err) {
     logger.warn({ err }, 'logOutboundToThread failed (send already succeeded)');
@@ -928,6 +932,8 @@ async function logComms(beauticianId, clientId, channel, direction, content) {
       direction,
       content,
       ai_handled: true,
+      // Nudges and check-ins: composed by the product, not typed by her.
+      ...authorship(direction === 'inbound' ? 'client' : 'system'),
     });
   } catch (err) {
     logger.warn({ err }, 'Failed to log comms');

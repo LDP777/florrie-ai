@@ -13,6 +13,7 @@ import { getFreeSlots } from '../lib/free-slots.js';
 import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { sendOnChannel } from '../services/messaging.js';
+import { AUTHOR } from '../lib/idiolect.js';
 import logger from '../lib/logger.js';
 import { deDash } from '../lib/text.js';
 
@@ -118,6 +119,12 @@ async function deliverQueued(row, beauticianId) {
     clientId: row.client_id,
     channel: row.channel || 'whatsapp',
     body: row.body,
+    // Everything in this queue was written by Florrie. Approving it is not
+    // authoring it, and the PATCH above overwrites body in place, so an edited
+    // row is indistinguishable from an untouched one. Marked 'ai' either way:
+    // losing a rewritten sample costs nothing, learning from a machine draft
+    // costs her voice.
+    authoredBy: AUTHOR.AI,
   });
   if (!result.ok) return { ok: false, error: result.error || 'Send failed' };
 

@@ -25,6 +25,7 @@ import { processInboundMessage } from '../services/ai-front-desk.js';
 import { twilioValidateSignature } from '../services/whatsapp-twilio.js';
 import logger from '../lib/logger.js';
 import { autoUnarchiveClient } from '../lib/client-archive.js';
+import { authorship } from '../lib/authorship.js';
 
 const router = Router();
 
@@ -103,6 +104,7 @@ router.post('/whatsapp', async (req, res) => {
         media_type: mediaType,
         external_message_id: MessageSid,
         ai_handled: false,
+        ...authorship('client'),
         escalated: false,
       })
       .select()

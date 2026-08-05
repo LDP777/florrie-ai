@@ -3,6 +3,7 @@ import { supabase } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import logger from '../lib/logger.js';
 import { sendOnChannel, shapeMessage } from '../services/messaging.js';
+import { authorshipForSend } from '../lib/idiolect.js';
 import { generateReplySuggestions, replyIsOwed } from '../services/ai-front-desk.js';
 import { isMissingColumnError } from '../lib/junk-classifier.js';
 import { isSocialLead, clientsEverBooked } from '../lib/inbox-space.js';
@@ -645,11 +646,20 @@ router.get('/thread/:client_id', requireAuth, async (req, res) => {
 router.post('/send', requireAuth, async (req, res) => {
   const { client_id, channel, body, draft_text } = req.body || {};
 
+  // THE ONLY RELIABLE SOURCE OF HER OWN WRITING.
+  // The inbox already knows whether it handed her a Florrie draft, so this is
+  // measured rather than assumed: send the draft untouched and it is Florrie's
+  // message, rewrite it and it is hers, and the middle band (she moved a few
+  // words) counts as Florrie's too. Learning her voice from a lightly edited
+  // machine draft is how the system taught itself to sound like itself.
+  const authoredBy = authorshipForSend({ draft: draft_text, sent: body });
+
   const result = await sendOnChannel({
     beautician: req.beautician,
     clientId: client_id,
     channel,
     body,
+    authoredBy,
   });
 
   if (!result.ok) {

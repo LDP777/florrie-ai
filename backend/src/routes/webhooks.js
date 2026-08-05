@@ -9,6 +9,7 @@ import logger from '../lib/logger.js';
 import { getAppSecret, getWhatsAppVerifyToken } from '../lib/env.js';
 import { autoUnarchiveClient } from '../lib/client-archive.js';
 import Anthropic from '@anthropic-ai/sdk';
+import { authorship } from '../lib/authorship.js';
 
 const router = Router();
 
@@ -326,6 +327,7 @@ router.post('/whatsapp', async (req, res) => {
         media_type: mediaType,
         external_message_id: message.id,
         ai_handled: false,
+        ...authorship('client'),
         escalated: false
       })
       .select()
@@ -487,6 +489,7 @@ router.post('/twilio-sms', async (req, res) => {
         media_type: mediaType,
         external_message_id: MessageSid,
         ai_handled: false,
+        ...authorship('client'),
         escalated: false
       })
       .select()
@@ -718,6 +721,7 @@ router.post('/bird-sms', async (req, res) => {
         content: messageBody,
         external_message_id: externalId,
         ai_handled: false,
+        ...authorship('client'),
         escalated: false,
       })
       .select()
