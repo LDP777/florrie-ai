@@ -4,11 +4,88 @@
  * Runs on an interval from index.js. Each function is idempotent
  * and safe to call multiple times.
  */
+import Stripe from 'stripe';
+import * as Sentry from '@sentry/node';
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
 import { guardedSend } from '../lib/outbound-guard.js';
 import { sendOnChannel } from './messaging.js';
 import { pushTeamUpdate } from './push-notifications.js';
+
+
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
+
+/**
+ * IS THE PAYMENT NEWS ACTUALLY REACHING US?
+ *
+ * On 5 August two of Ellie's clients turned up for appointments this thing had
+ * released. Both had paid. The money had left their accounts. One of them
+ * showed her the receipt on her phone.
+ *
+ * Nothing here was wrong on its own terms. It cancels bookings whose deposit is
+ * not marked paid, and theirs was not marked paid, because
+ * `checkout.session.completed` never arrived: two webhook endpoints sat on one
+ * url with one signing secret between them, so every payment event failed
+ * signature verification. stripe_events had ZERO rows for the life of the
+ * account. Every deposit anybody paid looked unpaid, and this loop dutifully
+ * gave their slots away.
+ *
+ * That is the bug worth fixing, not the four rows. `deposit_paid = false` means
+ * two completely different things, "she did not pay" and "we never heard", and
+ * this treated them as one. So before anything is cancelled, we ask whether we
+ * are hearing from Stripe at all. If we are not, we cancel nothing and shout,
+ * because a slot released in error costs a client their appointment and Ellie
+ * her afternoon, while a slot held too long costs a few hours of diary.
+ *
+ * @returns {Promise<{trustworthy: boolean, reason: string|null}>}
+ */
+async function paymentNewsIsArriving() {
+  if (!stripe) return { trustworthy: true, reason: null };  // nothing to miss
+
+  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  const [events, payments] = await Promise.all([
+    supabase.from('stripe_events').select('id', { count: 'exact', head: true }).gte('processed_at', dayAgo),
+    supabase.from('transactions').select('id', { count: 'exact', head: true })
+      .in('payment_method', ['card', 'card_online']).gte('created_at', dayAgo),
+  ]);
+
+  // Cannot tell: refuse to cancel rather than guess. An unreadable check is
+  // exactly the state this incident happened in.
+  if (events.error) return { trustworthy: false, reason: `stripe_events unreadable: ${events.error.message}` };
+
+  if ((events.count || 0) > 0) return { trustworthy: true, reason: null };
+
+  // No events in 24 hours. Quiet day, or deaf? Card money still landing with no
+  // events alongside it is the signature of the outage.
+  if (!payments.error && (payments.count || 0) > 0) {
+    return { trustworthy: false, reason: `${payments.count} card payment(s) recorded in the last 24h but ZERO Stripe webhook events, so deposit_paid cannot be trusted` };
+  }
+
+  return { trustworthy: true, reason: null };
+}
+
+/**
+ * Ask Stripe directly whether this one was paid.
+ *
+ * Only reachable when the appointment carries a payment intent, which is the
+ * case the booking page creates. Returns true only on a definite yes; anything
+ * unreadable returns null so the caller can hold rather than guess.
+ *
+ * @returns {Promise<boolean|null>} true paid, false definitely not, null unknown
+ */
+async function stripeSaysPaid(paymentIntentId) {
+  if (!stripe || !paymentIntentId) return null;
+  try {
+    const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+    if (pi?.status === 'succeeded') return true;
+    if (['canceled', 'requires_payment_method'].includes(pi?.status)) return false;
+    return null;
+  } catch (err) {
+    logger.warn({ err, paymentIntentId }, 'Could not ask Stripe whether the deposit was paid');
+    return null;
+  }
+}
 
 /**
  * Find appointments that are 'pending' (waiting for deposit payment)
@@ -31,7 +108,7 @@ export async function cleanupStaleBookings() {
   // NOTE: the column is google_event_id in prod. The old select named a
   // nonexistent google_calendar_event_id, PostgREST errored, and the error
   // was swallowed, so this cleanup NEVER cancelled anything since launch.
-  const SELECT = 'id, beautician_id, client_id, starts_at, deposit_cents, deposit_paid, payment_expires_at, google_event_id, treatments(name), clients(first_name)';
+  const SELECT = 'id, beautician_id, client_id, starts_at, deposit_cents, deposit_paid, payment_expires_at, google_event_id, stripe_payment_intent_id, treatments(name), clients(first_name)';
   const unpaid = q => q.eq('status', 'pending').gt('deposit_cents', 0).or('deposit_paid.is.null,deposit_paid.eq.false');
   const [expiredRes, agedRes] = await Promise.all([
     unpaid(supabase.from('appointments').select(SELECT)).lt('payment_expires_at', now),
@@ -52,6 +129,18 @@ export async function cleanupStaleBookings() {
     return { cancelled: 0 };
   }
 
+  // Nothing gets released while we are deaf to Stripe. See paymentNewsIsArriving.
+  const trust = await paymentNewsIsArriving();
+  if (!trust.trustworthy) {
+    logger.error({ reason: trust.reason, wouldHaveCancelled: stale.length }, 'Cleanup HELD: cannot trust deposit_paid, no bookings released');
+    Sentry.captureMessage('Stale booking cleanup held: payment news is not arriving', {
+      level: 'error',
+      tags: { area: 'payments', check: 'stale_cleanup_breaker' },
+      extra: { reason: trust.reason, wouldHaveCancelled: stale.length },
+    });
+    return { cancelled: 0, held: true, reason: trust.reason };
+  }
+
   // Beautician rows (slug, business name, channel creds) cached per run.
   const beauticianCache = new Map();
   async function getBeautician(id) {
@@ -63,7 +152,35 @@ export async function cleanupStaleBookings() {
   }
 
   let cancelled = 0;
+  let rescued = 0;
   for (const appt of stale) {
+    // One last question before her slot goes. If Stripe says this was paid, the
+    // booking is real and our copy of it was wrong: repair it instead, and do
+    // not message the client to say a booking they paid for has been released.
+    if (appt.stripe_payment_intent_id) {
+      const paid = await stripeSaysPaid(appt.stripe_payment_intent_id);
+      if (paid === true) {
+        const { error: fixErr } = await supabase
+          .from('appointments')
+          .update({ deposit_paid: true, deposit_status: 'paid', status: 'confirmed' })
+          .eq('id', appt.id)
+          .eq('status', 'pending');
+        logger.error({ appointmentId: appt.id, err: fixErr || undefined }, 'Cleanup RESCUED a paid booking that our records had as unpaid');
+        Sentry.captureMessage('Stale cleanup found a paid deposit recorded as unpaid', {
+          level: 'error',
+          tags: { area: 'payments', check: 'stale_cleanup_rescue' },
+          extra: { appointmentId: appt.id },
+        });
+        if (!fixErr) rescued++;
+        continue;
+      }
+      if (paid === null) {
+        // Could not tell. Leave it alone and come back in five minutes.
+        logger.warn({ appointmentId: appt.id }, 'Cleanup skipped: Stripe could not confirm whether the deposit was paid');
+        continue;
+      }
+    }
+
     const { error: updateErr } = await supabase
       .from('appointments')
       .update({
@@ -129,7 +246,7 @@ export async function cleanupStaleBookings() {
     }
   }
 
-  return { cancelled, checked: stale.length };
+  return { cancelled, rescued, checked: stale.length };
 }
 
 /**
