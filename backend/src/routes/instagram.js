@@ -64,8 +64,20 @@ function igConfigured() {
 // Returns the Instagram OAuth URL the frontend should open.
 router.get('/connect', requireAuth, (req, res) => {
   if (!igConfigured()) {
-    return res.status(503).json({ error: 'Instagram integration not configured — contact support' });
+    return res.status(503).json({ error: 'Instagram integration not configured, contact support' });
   }
+
+  // The app has to tell us where it is running, because the two cases need
+  // different endings. Instagram will not render its login inside an embedded
+  // WKWebView, so the iOS app hands the url to Safari; that means the callback
+  // lands in a browser tab with no Florrie session, and redirecting it to
+  // /settings would drop her on a login screen. She gets a plain "done, go
+  // back to the app" page instead. On the web the redirect is still right.
+  //
+  // Carried in `state` rather than a query parameter because state is the only
+  // thing Instagram gives back to us, and it is already round-tripping.
+  const native = req.query.platform === 'native';
+  const state = native ? `${req.beautician.id}|native` : String(req.beautician.id);
 
   const url =
     `https://www.instagram.com/oauth/authorize` +
@@ -73,21 +85,52 @@ router.get('/connect', requireAuth, (req, res) => {
     `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
     `&response_type=code` +
     `&scope=${encodeURIComponent(SCOPES)}` +
-    `&state=${encodeURIComponent(req.beautician.id)}`;
+    `&state=${encodeURIComponent(state)}`;
 
   res.json({ url });
 });
 
+/**
+ * The page a phone lands on after finishing in Safari.
+ *
+ * Self contained on purpose: this tab has no Florrie session and no app shell,
+ * so it must not link anywhere that needs a login. It says what happened and
+ * tells her to go back to the app, which re-checks the connection when it comes
+ * back to the foreground.
+ */
+function nativeReturnPage(ok, detail) {
+  const title = ok ? 'Instagram connected' : 'That did not connect';
+  const body = ok
+    ? 'You can close this tab and go back to Florrie. Your Instagram card will turn green.'
+    : `Close this tab, go back to Florrie and tap Reconnect Instagram to try again.${detail ? ` (${detail})` : ''}`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>${title}</title></head>
+<body style="margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#FBF6F1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#241B17">
+<div style="max-width:22rem;padding:2rem;text-align:center">
+<div style="font-size:2.5rem;line-height:1;margin-bottom:1rem">${ok ? '\u2713' : '\u26A0'}</div>
+<h1 style="font-size:1.25rem;margin:0 0 .75rem;color:${ok ? '#92405E' : '#241B17'}">${title}</h1>
+<p style="font-size:.95rem;line-height:1.6;margin:0;color:#6b5a55">${body}</p>
+</div></body></html>`;
+}
+
 // GET /api/instagram/callback
 // Instagram redirects here after the user approves.
 router.get('/callback', async (req, res) => {
-  const { code: rawCode, state: beauticianId, error: oauthError, error_description } = req.query;
+  const { code: rawCode, state: rawState, error: oauthError, error_description } = req.query;
 
+  const [beauticianId, platform] = String(rawState || '').split('|');
+  const isNative = platform === 'native';
   const redirectBase = `${FRONTEND_URL}/settings?section=ai`;
+
+  // One place decides how this request ends, so no branch below can forget.
+  const finish = (ok, detail) => (isNative
+    ? res.status(200).type('html').send(nativeReturnPage(ok, detail))
+    : res.redirect(`${redirectBase}&ig=${ok ? 'success' : 'error'}`));
 
   if (oauthError || !rawCode || !beauticianId) {
     logger.warn({ oauthError, error_description, hasCode: !!rawCode }, 'Instagram OAuth callback rejected');
-    return res.redirect(`${redirectBase}&ig=error`);
+    return finish(false, error_description || oauthError || null);
   }
 
   // Instagram appends a trailing "#_" fragment to the code on web redirects; the
@@ -116,7 +159,7 @@ router.get('/callback', async (req, res) => {
 
     if (!shortToken) {
       logger.error({ tokenData }, 'Instagram: code exchange failed');
-      return res.redirect(`${redirectBase}&ig=error`);
+      return finish(false, 'the login could not be completed');
     }
 
     // Step 2 — exchange for a long-lived (60-day) Instagram user token.
@@ -149,7 +192,7 @@ router.get('/callback', async (req, res) => {
 
     if (!accountId) {
       logger.error({ beauticianId }, 'Instagram: could not determine account id');
-      return res.redirect(`${redirectBase}&ig=error`);
+      return finish(false, 'we could not read your account');
     }
 
     // Step 4 — store on the beautician row.
@@ -165,7 +208,7 @@ router.get('/callback', async (req, res) => {
 
     if (updateErr) {
       logger.error({ err: updateErr }, 'Instagram: failed to save credentials');
-      return res.redirect(`${redirectBase}&ig=error`);
+      return finish(false, 'we could not save the connection');
     }
 
     // Step 5 — subscribe this account to the app's message webhooks so inbound
@@ -189,11 +232,11 @@ router.get('/callback', async (req, res) => {
     }
 
     logger.info({ beauticianId, accountId, username }, 'Instagram account connected (Instagram Login flow)');
-    res.redirect(`${redirectBase}&ig=success`);
+    finish(true);
 
   } catch (err) {
     logger.error({ err }, 'Instagram OAuth callback error');
-    res.redirect(`${redirectBase}&ig=error`);
+    finish(false);
   }
 });
 
@@ -201,11 +244,21 @@ router.get('/callback', async (req, res) => {
 // Returns connection status for the current beautician.
 router.get('/status', requireAuth, async (req, res) => {
   try {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('beauticians')
       .select('instagram_page_id, instagram_page_name, instagram_page_token')
       .eq('id', req.beautician.id)
       .single();
+
+    // Checked, because the alternative is the worst answer this endpoint can
+    // give. PostgREST rejects the whole select if one column name is unknown,
+    // and one of these columns has already been renamed once (migration 067).
+    // An unchecked read would leave data null and report "not connected" for an
+    // account that is connected, sending her round a reconnect she does not need.
+    if (error) {
+      logger.error({ err: error, beauticianId: req.beautician.id }, 'Instagram status lookup failed');
+      return res.status(503).json({ error: 'Could not check Instagram just now' });
+    }
 
     if (!data?.instagram_page_id) return res.json({ connected: false });
 

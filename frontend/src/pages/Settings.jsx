@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useBeautician, updateRow, supabase } from '../lib/supabase.js';
 import { useTheme } from '../lib/theme.jsx';
 import { API_BASE } from '../lib/config.js';
+import { isNativeApp } from '../lib/platform.js';
 import SMSUsageWidget from '../components/SMSUsageWidget.jsx';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
@@ -37,6 +38,11 @@ export default function Settings({ onLogout }) {
   const [stripeBanner, setStripeBanner] = useState(null); // 'success' | 'refresh' | 'pending' | null
   const [igConnecting, setIgConnecting] = useState(false);
   const [igBanner, setIgBanner] = useState(null); // 'success' | 'error' | 'no_page' | 'no_ig_account' | null
+  // Native only: the OAuth is finishing in Safari, so this screen is waiting
+  // for her to come back rather than for a redirect that will never arrive.
+  const [igAwaitingReturn, setIgAwaitingReturn] = useState(false);
+  // Bumping this re-runs the status check without touching the OAuth banner.
+  const [igRecheck, setIgRecheck] = useState(0);
   // null = still checking; object = /api/instagram/status result;
   // { check_failed: true } = the check itself failed (network, 500).
   const [igStatus, setIgStatus] = useState(null);
@@ -94,7 +100,23 @@ export default function Settings({ onLogout }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [beautician?.instagram_page_id, igBanner]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [beautician?.instagram_page_id, igBanner, igRecheck]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The native flow ends in Safari, so nothing navigates this screen when she
+  // finishes. Coming back to the foreground is the only signal we get, and it
+  // is enough: re-check then, and the card turns green on its own.
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    function onVisible() {
+      if (document.visibilityState !== 'visible') return;
+      setIgAwaitingReturn(false);
+      setIgConnecting(false);
+      setIgRecheck(n => n + 1);
+      refresh();
+    }
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Detect Stripe Connect return (?stripe=success|refresh)
   useEffect(() => {
@@ -207,19 +229,43 @@ export default function Settings({ onLogout }) {
     }
   }
 
+  /**
+   * Start the Instagram OAuth.
+   *
+   * THIS IS WHY THE RECONNECT BUTTON DID NOTHING ON HER PHONE. It used to do
+   * `window.location.href = data.url`, which points the app's own WKWebView at
+   * instagram.com. Instagram refuses to render its login inside an embedded
+   * webview: the page half draws, shows a "Loading" bar and a row of grey
+   * placeholder cards, and stops there for ever. No error, no way back except
+   * force quitting. That is exactly the screen Ellie sent.
+   *
+   * On native it has to leave the app. Capacitor's iOS shell hands a
+   * `target="_blank"` window to the system browser, so this needs no new plugin
+   * and no native rebuild. The callback then renders its own "you are done, go
+   * back to Florrie" page, because that Safari tab has no Florrie session.
+   */
   async function handleConnectInstagram() {
+    const native = isNativeApp();
     setIgConnecting(true);
     try {
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/instagram/connect`, {
+      const res = await fetch(`${API_BASE}/api/instagram/connect${native ? '?platform=native' : ''}`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
+      if (!data.url) {
         setIgBanner('error');
         setIgConnecting(false);
+        return;
+      }
+      if (native) {
+        // Opened before any await returns elsewhere, so iOS still counts this
+        // as a user gesture and does not swallow it as a popup.
+        window.open(data.url, '_blank');
+        setIgAwaitingReturn(true);
+        setIgConnecting(false);
+      } else {
+        window.location.href = data.url;
       }
     } catch (err) {
       logger.error('Instagram connect error:', err);
@@ -1614,6 +1660,28 @@ export default function Settings({ onLogout }) {
                   ? 'Florrie reads and replies to your Instagram DMs in your voice, and Content Studio can post to your account.'
                   : 'Connect your Instagram so Florrie can read and reply to your DMs (and post for you). You just need a professional Instagram account, no Facebook Page required.'}
               </p>
+            )}
+            {/* Native only. Safari is in front of her now, so this card is what
+                she comes back to. It exists because a screen that still says
+                "Reconnect" after she has just reconnected reads as a failure. */}
+            {igAwaitingReturn && (
+              <div style={{
+                marginTop: 12, padding: '12px 14px', borderRadius: 12,
+                background: 'var(--tone-1, #FBF6F1)', border: '1px solid var(--border)',
+              }}>
+                <p style={{ fontSize: 13, fontWeight: 700, margin: '0 0 4px' }}>
+                  Finish in Safari
+                </p>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
+                  Instagram will not let you log in inside an app, so it opened in your browser. Sign in, tap Allow, then come back here. This card updates on its own.
+                </p>
+                <button
+                  onClick={() => { setIgAwaitingReturn(false); setIgRecheck(n => n + 1); refresh(); }}
+                  style={{ ...styles.connectBtn, width: '100%', minHeight: 44, background: 'var(--bg-hover)', color: 'var(--text-primary)', border: '1.5px solid var(--border)' }}
+                >
+                  I have done it, check again
+                </button>
+              </div>
             )}
             {igBanner === 'success' && (
               <p style={{ fontSize: 12, color: 'var(--success)', marginTop: 8, marginBottom: 0 }}>✓ Instagram connected, Content Studio can now post directly</p>
