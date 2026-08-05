@@ -120,7 +120,15 @@ const CATEGORIES = [
 
 /*
  * PARKED from the menu 2026-06-10 (pages still live at their URLs, nothing
- * deleted; restore by adding the line back):
+ * deleted; restore by adding the line back).
+ *
+ * Since Dashboard was archived these have NO inbound link anywhere in the app,
+ * not even a search hit: the old SpotlightSearch index was the last thing
+ * pointing at them and it went with Dashboard. They are reachable by typing the
+ * URL and nothing else. That is fine for the ones whose job moved elsewhere
+ * (/integrations is duplicated by the connection cards in Settings), but if any
+ * of them is ever needed again, it needs a line in CATEGORIES above, not a
+ * search index:
  *   /messaging (Overview), /business (Business), /templates (internal copy
  *   library, replaced by /whatsapp/templates in the menu), /integrations,
  *   /checklist (daily opening), /ai-insights (Biz), /client-intel (Client),

@@ -13,6 +13,11 @@ import { useNavigate } from 'react-router-dom';
  * Pages that adopt this should NOT also render the global FloatingBack/More
  * (App.jsx suppresses those on own-header routes).
  *
+ * NOTHING IMPORTS THIS YET, ON PURPOSE. It landed with the design tokens ahead
+ * of the screen-by-screen rollout, so a dead-code scan will keep flagging it.
+ * It is the target shape, not an orphan: delete it and the next person fixes
+ * the same nav-overlap bug a fourth time.
+ *
  * Props:
  *   title     screen title (string)
  *   onBack    if set, shows a back button (defaults to history back)
