@@ -495,10 +495,19 @@ export function checkDraftStyle(draft, style) {
 /**
  * Fix what can be fixed without a second model call.
  *
- * Every operation here is additive or subtractive at the very start or the very
- * end of the message, or removes a character. Nothing rewrites a sentence, so
- * this can never introduce a claim, a price or a time, which is what keeps the
- * reply-claims guard downstream meaningful.
+ * Nothing here rewrites a sentence. Every operation either adds or removes a
+ * sign-off at the very end, or deletes characters from a fixed, ASCII-safe set:
+ * emoji, '!', and a trailing full stop. It cannot introduce a claim, a price, a
+ * time or a url, which is what keeps the reply-claims guard downstream
+ * meaningful, and it cannot damage one either: none of those characters appear
+ * inside a Stripe url, a clock time, a date or a price.
+ *
+ * Some of those deletions are global rather than end-anchored, so this comment
+ * says "characters" and not "at the ends". That distinction matters: a future
+ * repair that touched WORDS globally would break the guarantee, and the guard
+ * would then be reading a message the styler had already changed.
+ *
+ * Runs BEFORE the guard at every call site. Never after.
  */
 export function repairDraft(draft, style) {
   let text = String(draft || '').trim();
@@ -642,4 +651,55 @@ export function looksAutomated(text) {
   if (/reply\s+stop\b/i.test(t)) return true;                   // PECR footer, only ever automated
   if (words(t).length > 60) return true;                        // nobody thumbs 60 words between clients
   return false;
+}
+
+/**
+ * Wording that means a message is about someone's body, not about her style.
+ *
+ * These examples are shown to a model that is writing to a DIFFERENT client, so
+ * a message discussing one woman's reaction, medication or patch test result
+ * must never be one of them. It costs a handful of samples out of forty and it
+ * is the difference between learning how she writes and quoting a medical note
+ * at a stranger.
+ */
+const CLINICAL_IN_EXAMPLE = /allerg|reaction|irritat|infection|medicat|prescri|antibiotic|pregnan|breastfe|patch\s*test|swell|sore|eczema|psoria|dermatit|diabet|epilep|chemo|thyroid|cold\s*sore|herpes|shingle|doctor|gp\b|hospital|surgery|steroid|accutane|roaccutane/i;
+
+/**
+ * Capitalised words that are not somebody's name. Days and months because she
+ * writes them constantly, and the handful of words a text actually opens with.
+ */
+const CAPITALISED_NOT_A_NAME = new Set([
+  'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
+  'january', 'february', 'march', 'april', 'may', 'june', 'july',
+  'august', 'september', 'october', 'november', 'december',
+  'hey', 'hiya', 'hello', 'morning', 'afternoon', 'evening', 'thanks', 'thank',
+  'sorry', 'yes', 'yeah', 'nope', 'lovely', 'perfect', 'brilliant', 'amazing',
+  'see', 'let', 'just', 'that', 'this', 'they', 'them', 'the', 'and', 'but',
+  'florrie', 'instagram', 'whatsapp', 'xmas', 'christmas', 'easter',
+]);
+
+/** Anything that identifies a person or a place, or reaches outside the text. */
+const CONTACT_IN_EXAMPLE = /https?:\/\/|www\.|\S+@\S+\.\S+|\+?\d[\d\s()-]{8,}|\b[A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2}\b/;
+
+/**
+ * Is this message safe to keep as a style example?
+ *
+ * The style features we actually want (length, sign-off, emoji habit, kisses,
+ * capitalisation) survive dropping these messages completely, because they are
+ * measured across the whole corpus and only the verbatim EXAMPLES go into a
+ * prompt. So the filter is deliberately blunt: when in doubt, drop it.
+ */
+export function safeAsExample(text) {
+  const t = String(text || '');
+  if (!t.trim()) return false;
+  if (CLINICAL_IN_EXAMPLE.test(t)) return false;
+  if (CONTACT_IN_EXAMPLE.test(t)) return false;
+  // A message naming a second person is a message about somebody who is not in
+  // the conversation it would be quoted into. Two or more capitalised words is
+  // the cheap tell, once days, months and the words people actually start a
+  // text with are taken out. It over-drops, which is the right direction: the
+  // measured style comes from the whole corpus, only the quotes come from here.
+  const caps = (t.match(/\b[A-Z][a-z]{2,}\b/g) || []).filter(w => !CAPITALISED_NOT_A_NAME.has(w.toLowerCase()));
+  if (caps.length >= 2) return false;
+  return true;
 }

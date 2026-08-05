@@ -359,7 +359,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   logger.info({ port: PORT }, 'Florrie API started');
 
   // One scheduler, one ledger, one leader.
@@ -379,5 +379,8 @@ app.listen(PORT, () => {
   // run (or PgBouncer has not seen it yet) every insert into messages would be
   // rejected whole for one unknown column, and Ellie's inbox would stop
   // recording. See lib/authorship.js.
-  probeAuthorshipColumn();
+  // Awaited: until this answers, authorship is off, and an insert that guesses
+  // wrong fails the whole row. A few hundred milliseconds at boot is cheaper
+  // than a blank inbox.
+  await probeAuthorshipColumn();
 });

@@ -150,7 +150,7 @@ vi.mock('../../src/services/notifications.js', () => ({
   notifyBookingConfirmed: async () => true,
 }));
 
-const { advanceBookingConversation, heldBookingClaimContext, HOLD_MINUTES } =
+const { advanceBookingConversation, heldBookingClaimContext, HOLD_MINUTES, SESSION_GRACE_MINUTES } =
   await import('../../src/services/conversational-booking.js');
 
 // ---------------------------------------------------------------------------
@@ -356,8 +356,14 @@ describe('step 4 and 5: she picks, the slot is held, the deposit link goes out',
     expect(session.payment_intent_data.transfer_data.destination).toBe('acct_1');
     // The existing checkout.session.completed handler keys off this.
     expect(session.metadata.appointment_id).toBe(held()[0].id);
-    // The link dies exactly when the hold does.
-    expect(session.expires_at).toBe(Math.floor(Date.now() / 1000) + HOLD_MINUTES * 60);
+    // Stripe rejects anything under 30 minutes from when IT receives the call,
+    // so asking for exactly HOLD_MINUTES loses the race to network latency and
+    // the session, and therefore the deposit link, never exists. The hold is
+    // extended by the same grace so a released slot still cannot be paid for.
+    expect(session.expires_at).toBe(
+      Math.floor(Date.now() / 1000) + (HOLD_MINUTES + SESSION_GRACE_MINUTES) * 60,
+    );
+    expect(session.expires_at - Math.floor(Date.now() / 1000)).toBeGreaterThan(30 * 60);
   });
 
   it('uses the percentage deposit when the treatment has one', async () => {

@@ -178,24 +178,6 @@ export async function processInboundMessage(messageId, beautician, client, messa
     // 2. Classify intent
     const classification = await classifyIntent(messageContent, context);
 
-    // 2b. THE BOOKING CONVERSATION.
-    // Booking someone in end to end is the one thing a prompt cannot do: it
-    // needs to read the real diary, hold the slot under the same database
-    // guards the booking page uses, and take a deposit. When this owns the
-    // reply it returns finished text that has already been through the claims
-    // guard with the verified slot list, so the generators below are skipped
-    // rather than second-guessed. It returns null for everything that is not a
-    // booking, which is most messages.
-    let convo = null;
-    try {
-      convo = await advanceBookingConversation({ beautician, client, message: messageContent, classification, context });
-    } catch (err) {
-      // Belt and braces: the module already catches its own failures and hands
-      // over. If it somehow throws, the normal reply path still runs.
-      logger.error({ err, beauticianId: beautician.id }, 'Booking conversation threw, falling back to the normal reply path');
-      convo = null;
-    }
-
     // 3. Decide: act or escalate?
     let shouldAct = canActAutonomously(classification, beautician.confidence_threshold);
 
@@ -216,6 +198,34 @@ export async function processInboundMessage(messageId, beautician, client, messa
     if (shouldAct && autonomyOverride !== 'florrie'
         && await isKnownClient(beautician.id, client?.id, client)) {
       shouldAct = false;
+    }
+
+    // 3b. THE BOOKING CONVERSATION, and it runs HERE for a reason.
+    //
+    // Booking someone in end to end is the one thing a prompt cannot do: it
+    // reads the real diary, holds the slot under the same database guards the
+    // booking page uses, and takes a deposit. Those are WRITES. It used to run
+    // above the three gates, which meant that for a client Ellie had set to
+    // "just me", or for any client she already knows, or with her autonomy dial
+    // where it is today, Florrie would still hold a slot out of her diary and
+    // open a Stripe session while the reply itself sat unsent in her queue.
+    // The slot then expired thirty minutes later and the cleanup texted the
+    // client that a booking they had never been offered had been released.
+    //
+    // So the machine only turns over when the reply is actually going out. If
+    // Florrie may not speak in this thread, she may not touch the diary in it
+    // either. Everything else falls through to the ordinary draft Ellie already
+    // gets, which is what she has today, not a regression.
+    let convo = null;
+    if (shouldAct) {
+      try {
+        convo = await advanceBookingConversation({ beautician, client, message: messageContent, classification, context });
+      } catch (err) {
+        // Belt and braces: the module already catches its own failures and
+        // hands over. If it somehow throws, the normal reply path still runs.
+        logger.error({ err, beauticianId: beautician.id }, 'Booking conversation threw, falling back to the normal reply path');
+        convo = null;
+      }
     }
 
     // A booking conversation that gave up (could not read the diary, nothing
@@ -272,7 +282,7 @@ export async function processInboundMessage(messageId, beautician, client, messa
       return { handled: false, drafted: false, quiet: true, intent: classification.intent };
 
     } else {
-      // 4b. Escalate — still generate a suggested response. When the booking
+      // 4b. Escalate, still generating a suggested response. When the booking
       // conversation produced one it wins outright: it is the only text in
       // this file backed by a real diary read and, once a slot is held, a real
       // appointment row.
@@ -1156,7 +1166,12 @@ async function sendResponse(beautician, client, responseText, classification, me
 
 async function logAiAction(beauticianId, clientId, messageId, classification, result) {
   const actionTypeMap = {
-    booking_request: 'booking_created',
+    // NOT 'booking_created'. This path replies to a booking enquiry; it does
+    // not create a booking. Only conversational-booking.js writes an
+    // appointment row, and it logs its own action when it does, so leaving this
+    // as 'booking_created' told Ellie a booking had been made every time
+    // somebody merely asked, and told her twice when one really was.
+    booking_request: 'message_replied',
     price_enquiry: 'message_replied',
     availability_check: 'message_replied',
     // NOT 'booking_rescheduled'. Nothing in this path moves a booking, so

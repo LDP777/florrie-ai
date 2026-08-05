@@ -18,29 +18,44 @@ import { supabase } from '../config.js';
 import logger from './logger.js';
 import { isMissingColumnError } from './junk-classifier.js';
 
-let available = true;
+// Starts FALSE, and that is the whole point. Optimistic plus an unawaited probe
+// means any webhook landing in the millisecond before the probe resolves writes
+// authored_by into a table that may not have the column, and PostgREST fails
+// the whole insert. That is her inbox going blank to record a nice-to-have.
+// Pessimistic costs at most a few unlabelled messages at boot.
+let available = false;
 
-/** Call once at startup. Never throws: a failed probe leaves us optimistic. */
+/** Call once at startup. Never throws: a failed probe leaves us pessimistic. */
 export async function probeAuthorshipColumn() {
   try {
     const { error } = await supabase.from('messages').select('authored_by').limit(1);
-    if (error && isMissingColumnError(error)) {
+    if (!error) {
+      available = true;
+      return true;
+    }
+    if (isMissingColumnError(error)) {
       available = false;
       logger.error('messages.authored_by is missing. Message authorship will not be recorded and the voice profile cannot learn her writing. Run supabase/migrations/20260805_message_authorship.sql, then RESTART (not redeploy).');
       return false;
     }
-    if (error) {
-      // Transient. Assuming the column is gone on a network blip would quietly
-      // disable authorship for the life of the process.
-      logger.warn({ err: error }, 'authorship probe failed, assuming the column is present');
-      return available;
-    }
-    available = true;
-    return true;
+    // Anything else is transient (a network blip, a cold pool). Do not decide
+    // either way: retry shortly, because sitting disabled for the life of the
+    // process would silently stop the voice profile ever learning again.
+    logger.warn({ err: error }, 'authorship probe failed, retrying shortly');
+    scheduleRetry();
+    return false;
   } catch (err) {
-    logger.warn({ err }, 'authorship probe threw, assuming the column is present');
-    return available;
+    logger.warn({ err }, 'authorship probe threw, retrying shortly');
+    scheduleRetry();
+    return false;
   }
+}
+
+let retryTimer = null;
+function scheduleRetry() {
+  if (retryTimer) return;
+  retryTimer = setTimeout(() => { retryTimer = null; probeAuthorshipColumn(); }, 30_000);
+  retryTimer.unref?.();   // never hold the process open for this
 }
 
 /** Spread into any insert into messages: `...authorship(AUTHOR.HUMAN)`. */

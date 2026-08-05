@@ -39,6 +39,7 @@ import {
   extractStyleProfile,
   looksAutomated,
   maskName,
+  safeAsExample,
   MIN_SAMPLES_FOR_ANY_PROFILE,
   AUTHOR,
 } from '../lib/idiolect.js';
@@ -244,6 +245,12 @@ export async function buildVoiceProfile(beauticianId) {
   const withContext = attachRepliedTo(samples, history);
   const examples = withContext
     .filter(s => s.text.length > 8 && s.text.length <= EXAMPLE_MAX_CHARS)
+    // These go verbatim into a prompt written for a DIFFERENT client, so a
+    // message about one woman's reaction, or carrying a number, an address or
+    // a second person's name, is dropped rather than masked. Masking the
+    // recipient's first name was never enough. The measured style survives it:
+    // the features come from the whole corpus, only the examples are quoted.
+    .filter(s => safeAsExample(s.text) && (!s.repliedTo || safeAsExample(s.repliedTo)))
     .slice(0, EXAMPLES_KEPT)
     .map(s => ({
       // Masked before storage, not just before display: one client's name has

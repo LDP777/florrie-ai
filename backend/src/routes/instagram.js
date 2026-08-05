@@ -100,9 +100,16 @@ router.get('/connect', requireAuth, (req, res) => {
  */
 function nativeReturnPage(ok, detail) {
   const title = ok ? 'Instagram connected' : 'That did not connect';
+  // `detail` originates in req.query and this endpoint is unauthenticated by
+  // design, so anyone can craft a callback url that reaches this page. Without
+  // escaping, error_description is reflected script on api.florrie.ai.
+  const safeDetail = String(detail || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+    .slice(0, 200);
   const body = ok
     ? 'You can close this tab and go back to Florrie. Your Instagram card will turn green.'
-    : `Close this tab, go back to Florrie and tap Reconnect Instagram to try again.${detail ? ` (${detail})` : ''}`;
+    : `Close this tab, go back to Florrie and tap Reconnect Instagram to try again.${safeDetail ? ` (${safeDetail})` : ''}`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${title}</title></head>

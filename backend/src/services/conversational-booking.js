@@ -51,6 +51,8 @@ export const OFFER_TTL_MINUTES = 24 * 60;
 // and if the link outlived the hold someone could pay for a slot that had
 // already been released to somebody else.
 export const HOLD_MINUTES = 30;
+/** Headroom over Stripe's 30 minute floor for a Checkout session expiry. */
+export const SESSION_GRACE_MINUTES = 2;
 
 // How far ahead to look for something to offer. Two weeks is enough to answer
 // "any chance of lashes friday?" without turning the reply into a timetable.
@@ -175,6 +177,17 @@ async function clearState(beauticianId, clientId) {
  * the appointment row, and actionPerformed is true only because that row
  * exists and is still live. If the hold was released while the draft sat in
  * her inbox, this returns nothing and the guard refuses, which is correct.
+ *
+ * NARROW ON PURPOSE, and it was not narrow enough first time round. The window
+ * has to be exactly the one draft that is about this hold, because whatever it
+ * covers gets `actionPerformed: true`, which is the check that exists because
+ * Florrie once told a client an appointment had moved when it had not. Two
+ * things went wrong: `confirmed` was in the accepted status list, and the
+ * conversation row lives for 24 hours, so for a whole day after a client paid,
+ * any queued message to them (a comeback nudge, a gap-fill offer) inherited
+ * permission to claim an action. Now it is `pending` only, and only while the
+ * payment window is still open, which is the thirty-odd minutes the deposit
+ * draft is actually worth sending in.
  */
 export async function heldBookingClaimContext(beauticianId, clientId) {
   const empty = { allowedTimes: [], actionPerformed: false };
@@ -182,10 +195,13 @@ export async function heldBookingClaimContext(beauticianId, clientId) {
 
   const state = await loadState(beauticianId, clientId);
   if (!state?.appointment_id) return empty;
+  // Only the step that produced the deposit draft. Any other step has no
+  // action to claim.
+  if (state.step !== 'held') return empty;
 
   const { data: appt, error } = await supabase
     .from('appointments')
-    .select('id, starts_at, status')
+    .select('id, starts_at, status, payment_expires_at')
     .eq('id', state.appointment_id)
     .eq('beautician_id', beauticianId)
     .maybeSingle();
@@ -193,7 +209,12 @@ export async function heldBookingClaimContext(beauticianId, clientId) {
     logger.warn({ err: error, beauticianId }, 'held booking lookup failed, refusing the claim');
     return empty;
   }
-  if (!appt || !['pending', 'confirmed', 'in_progress'].includes(appt.status)) return empty;
+  // 'pending' only. A confirmed booking needs no deposit draft, and the hold it
+  // came from is spent.
+  if (!appt || appt.status !== 'pending') return empty;
+  // payment_expires_at is a real instant, not a wall-time slot, so it is
+  // compared as one.
+  if (appt.payment_expires_at && new Date(appt.payment_expires_at) <= new Date()) return empty;
 
   // Wall-time convention: the salon clock is already in the string.
   return { allowedTimes: [String(appt.starts_at).slice(11, 16)], actionPerformed: true };
@@ -253,6 +274,11 @@ export async function advanceBookingConversation({ beautician, client: inbound, 
   const intent = classification?.intent;
 
   if (state && ABANDON_INTENTS.has(intent)) {
+    // Give the slot back. Dropping the state alone left a real pending
+    // appointment sitting in her diary until the five minute cleanup noticed,
+    // and if the client said "actually cancel it" the moment after the hold,
+    // that is a slot blocked by a booking both parties have already abandoned.
+    if (state.appointment_id) await releaseHold(state.appointment_id, 'client_abandoned_booking');
     await clearState(beautician.id, client.id);
     return null;
   }
@@ -371,14 +397,21 @@ function needsPatchTest(treatment, context) {
   return (context?.patchTest?.status || 'none') !== 'completed';
 }
 
-async function hasConsultationOnRecord(beauticianId, clientId) {
-  const { data, error } = await supabase
+async function hasConsultationOnRecord(beauticianId, clientId, treatment) {
+  // Scoped to the form THIS treatment asks for, because "any completed form,
+  // ever" is not a consultation. A client who filled in a brow tint form in
+  // April would have sailed through a lash lift booking with no allergy answers
+  // on file for it. The booking page keys on treatments.consultation_form_id
+  // and so does this.
+  let query = supabase
     .from('consultation_responses')
     .select('id')
     .eq('beautician_id', beauticianId)
     .eq('client_id', clientId)
-    .eq('status', 'completed')
-    .limit(1);
+    .eq('status', 'completed');
+  if (treatment?.consultation_form_id) query = query.eq('form_id', treatment.consultation_form_id);
+
+  const { data, error } = await query.limit(1);
   if (error) {
     logger.warn({ err: error, beauticianId, clientId }, 'consultation lookup failed, treating as not on record');
     return false;
@@ -558,7 +591,7 @@ async function holdAndCharge({ beautician, client, treatment, slot, state, conte
   // A treatment that needs consultation answers is not something to take a
   // deposit for over a DM. The booking page already collects the form properly,
   // so the client goes there, with the real time named.
-  if (treatment.requires_consultation && !(await hasConsultationOnRecord(beautician.id, client.id))) {
+  if (treatment.requires_consultation && !(await hasConsultationOnRecord(beautician.id, client.id, treatment))) {
     await clearState(beautician.id, client.id);
     const link = beautician.booking_slug ? `${FRONTEND_URL}/book/${beautician.booking_slug}` : null;
     const when = describeSlot(slot, today);
@@ -592,7 +625,7 @@ async function holdAndCharge({ beautician, client, treatment, slot, state, conte
   const startsAt = slot.iso;
   const endsAt = new Date(new Date(slot.iso).getTime() + (totalMinutes || 60) * 60 * 1000).toISOString();
   const paymentExpiresAt = depositCents > 0
-    ? new Date(Date.now() + HOLD_MINUTES * 60 * 1000).toISOString()
+    ? new Date(Date.now() + (HOLD_MINUTES + SESSION_GRACE_MINUTES) * 60 * 1000).toISOString()
     : null;
 
   const { data: appointment, error: insertError } = await supabase
@@ -847,7 +880,14 @@ async function createDepositCheckout({ beautician, client, treatment, appointmen
     customer: customerId,
     // The link dies exactly when the hold does, so nobody can pay for a slot
     // the cleanup has already given back to somebody else.
-    expires_at: Math.floor(Date.now() / 1000) + HOLD_MINUTES * 60,
+    // Stripe requires this to be at LEAST 30 minutes after it RECEIVES the
+    // request, judged on Stripe's clock. Asking for exactly HOLD_MINUTES spends
+    // the network latency getting there and lands under the floor, so any
+    // positive latency or backwards clock skew rejects the session outright and
+    // the deposit link, the whole point of this feature, never exists.
+    // SESSION_GRACE_MINUTES of headroom, and the hold is extended to match so a
+    // released slot can still never be paid for.
+    expires_at: Math.floor(Date.now() / 1000) + (HOLD_MINUTES + SESSION_GRACE_MINUTES) * 60,
     line_items: [{
       price_data: {
         currency: 'gbp',
@@ -880,6 +920,20 @@ async function createDepositCheckout({ beautician, client, treatment, appointmen
       payment_type: 'deposit',
     },
   });
+
+  // Pin the payment intent on the appointment the way the booking page does
+  // (routes/booking.js). Without it the nightly Stripe reconciliation and the
+  // refund path have no way back from a charge to the booking it paid for, so
+  // an AI booked appointment would look like money with no counterpart.
+  // Non-fatal: the deposit link is already valid and the webhook confirms on
+  // metadata.appointment_id, not on this.
+  if (session.payment_intent) {
+    const { error: pinErr } = await supabase
+      .from('appointments')
+      .update({ stripe_payment_intent_id: session.payment_intent })
+      .eq('id', appointment.id);
+    if (pinErr) logger.warn({ err: pinErr, appointmentId: appointment.id }, 'could not pin the payment intent to the held appointment');
+  }
 
   return session.url || null;
 }
