@@ -515,3 +515,55 @@ export function isLive(row, now = new Date()) {
   if (!row?.expires_at) return false;
   return new Date(row.expires_at).getTime() > now.getTime();
 }
+
+// ---------------------------------------------------------------------------
+// Is this really somebody asking to book?
+// ---------------------------------------------------------------------------
+
+/**
+ * The classifier's confidence is NOT evidence that a message is about booking.
+ *
+ * Checked against Ellie's real inbound history, and this is the finding that
+ * matters. `booking_request` at 0.95 includes "Amazing!x". At 0.85 it includes
+ * "Yes that's perfect thank you!xx" and "If that works? X".
+ * `availability_check` at 0.85 includes "Round about 515 xx". They are
+ * mid-conversation fragments, and the model is confidently wrong about them,
+ * because confidence measures how sure it is of the LABEL, not whether the
+ * label is the right question to be asking.
+ *
+ * Left alone, opening the booking machine on "Amazing!x" auto-sends "is it
+ * Classic Lash Extensions or Lash Lift?" into the middle of a warm exchange.
+ * That is the same failure as a client knowing it was not Ellie writing, only
+ * louder.
+ *
+ * So OPENING a booking conversation needs evidence in the words themselves.
+ * Continuing one does not: once an offer is on the table, "the 4 one" is a
+ * perfectly good answer and the state is the context.
+ */
+const ASKS_TO_BOOK = /\b(?:book|books|booking|bookings|rebook|appointments?|appts?|availab|free|slots?|openings?|spaces?|fit me in|squeeze|get me in|come in|pencil me in|get in)\b/i;
+
+/**
+ * About a booking they ALREADY have. "What time is my appointment on Friday"
+ * contains the word appointment and is not a request for a new one.
+ */
+const ABOUT_AN_EXISTING_BOOKING = /\b(?:my|our)\s+(?:appointment|appt|booking|slot)\b|\bwhat time (?:is|am|are)\b|\bi'?m\s+booked\b|\balready booked\b/i;
+
+/**
+ * Should a brand new booking conversation start from this message?
+ *
+ * @param {string} text the client's message
+ * @param {Array<{name?: string}>} treatments her real treatment list
+ * @returns {boolean}
+ */
+export function looksLikeABookingOpening(text, treatments = []) {
+  const body = String(text || '').trim();
+  if (body.length < 3) return false;
+  if (ABOUT_AN_EXISTING_BOOKING.test(body)) return false;
+  if (ASKS_TO_BOOK.test(body)) return true;
+
+  // No booking words, but she named something on the menu: "oh and waxing".
+  // matchTreatment already knows how to read her list, so the naming rule lives
+  // in one place rather than two that can drift.
+  const m = matchTreatment(body, treatments);
+  return Boolean(m?.treatment || m?.ambiguous);
+}

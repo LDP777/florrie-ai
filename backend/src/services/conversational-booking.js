@@ -28,6 +28,7 @@
 import Stripe from 'stripe';
 import { supabase } from '../config.js';
 import logger from '../lib/logger.js';
+import * as Sentry from '@sentry/node';
 import { getFreeSlots, nowInSalonWall } from '../lib/free-slots.js';
 import { safeReply, HOLDING_REPLY } from '../lib/reply-claims-guard.js';
 import { totalApplicationFee } from '../lib/platform-fees.js';
@@ -35,6 +36,7 @@ import {
   combineTreatments, resolveDepositCents, formatWallTime, describeSlot,
   matchTreatment, dayPreferenceFrom, chooseOffers, matchSlotChoice,
   isLive, looksLikeRejection,
+  looksLikeABookingOpening,
 } from '../lib/booking-rules.js';
 
 const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
@@ -292,6 +294,15 @@ export async function advanceBookingConversation({ beautician, client: inbound, 
     logger.error({ err: context.treatmentsError, beauticianId: beautician.id }, 'Treatment menu unreadable, refusing to book');
     return handOver(HOLDING_REPLY);
   }
+
+  // OPENING needs evidence in the words, not just a confident label. Checked
+  // against Ellie's real history: the classifier calls "Amazing!x" a
+  // booking_request at 0.95, and "Round about 515 xx" an availability_check at
+  // 0.85, so the autonomy dial alone would start a booking machine on somebody
+  // saying thanks. Continuing an existing conversation is exempt: once an offer
+  // is on the table, "the 4 one" is a complete answer and the state is context.
+  // See looksLikeABookingOpening in lib/booking-rules.js.
+  if (!state && !looksLikeABookingOpening(message, bookableTreatments(context))) return null;
 
   const salonNow = nowInSalonWall(beautician.timezone || 'Europe/London');
 
@@ -875,19 +886,19 @@ async function createDepositCheckout({ beautician, client, treatment, appointmen
     if (error) logger.warn({ err: error, clientId: client.id }, 'Could not store stripe_customer_id (non-fatal)');
   }
 
-  const session = await stripe.checkout.sessions.create({
+  const buildSession = (graceMinutes) => ({
     mode: 'payment',
     customer: customerId,
     // The link dies exactly when the hold does, so nobody can pay for a slot
     // the cleanup has already given back to somebody else.
-    // Stripe requires this to be at LEAST 30 minutes after it RECEIVES the
-    // request, judged on Stripe's clock. Asking for exactly HOLD_MINUTES spends
-    // the network latency getting there and lands under the floor, so any
-    // positive latency or backwards clock skew rejects the session outright and
-    // the deposit link, the whole point of this feature, never exists.
-    // SESSION_GRACE_MINUTES of headroom, and the hold is extended to match so a
-    // released slot can still never be paid for.
-    expires_at: Math.floor(Date.now() / 1000) + (HOLD_MINUTES + SESSION_GRACE_MINUTES) * 60,
+    // Stripe: "It can be anywhere from 30 minutes to 24 hours after Checkout
+    // Session creation", judged on STRIPE's clock when it receives the request.
+    // Asking for exactly HOLD_MINUTES spends the network latency getting there
+    // and lands under the floor, so any positive latency or backwards clock
+    // skew rejects the session outright and the deposit link, which is the
+    // whole point of this feature, never exists. The hold is extended by the
+    // same grace so a released slot still cannot be paid for.
+    expires_at: Math.floor(Date.now() / 1000) + (HOLD_MINUTES + graceMinutes) * 60,
     line_items: [{
       price_data: {
         currency: 'gbp',
@@ -920,6 +931,36 @@ async function createDepositCheckout({ beautician, client, treatment, appointmen
       payment_type: 'deposit',
     },
   });
+
+  // I could not reach Stripe from where this was written, so the expiry above
+  // is reasoned from their documented range rather than watched. That is not a
+  // good enough reason to let the one parameter I could not test take the
+  // feature down silently, so it recovers: if Stripe complains about
+  // expires_at, ask again with more room and stretch the hold to match, and
+  // shout either way so a human hears about it the first time rather than the
+  // hundredth.
+  let session;
+  try {
+    session = await stripe.checkout.sessions.create(buildSession(SESSION_GRACE_MINUTES));
+  } catch (err) {
+    if (!/expires_at/i.test(err?.message || '')) throw err;
+
+    const wider = SESSION_GRACE_MINUTES + 10;
+    logger.error({ err, appointmentId: appointment.id, retryGraceMinutes: wider }, 'Stripe refused the Checkout expiry, retrying with more room');
+    Sentry.captureMessage('Stripe rejected the conversational booking Checkout expiry', {
+      level: 'error',
+      tags: { area: 'payments', check: 'checkout_expires_at' },
+      extra: { reason: err?.message, graceMinutes: SESSION_GRACE_MINUTES },
+    });
+
+    session = await stripe.checkout.sessions.create(buildSession(wider));
+    // The link must never outlive the hold, so the hold moves with it.
+    const { error: holdErr } = await supabase
+      .from('appointments')
+      .update({ payment_expires_at: new Date(Date.now() + (HOLD_MINUTES + wider) * 60 * 1000).toISOString() })
+      .eq('id', appointment.id);
+    if (holdErr) logger.error({ err: holdErr, appointmentId: appointment.id }, 'Checkout expiry widened but the hold did not follow');
+  }
 
   // Pin the payment intent on the appointment the way the booking page does
   // (routes/booking.js). Without it the nightly Stripe reconciliation and the

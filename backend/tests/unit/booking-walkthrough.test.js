@@ -97,12 +97,17 @@ function makeBuilder(table) {
 vi.mock('../../src/config.js', () => ({ supabase: { from: (t) => makeBuilder(t) } }));
 
 const stripeCalls = { sessions: [], customers: [] };
+const refuseExpiryOnce = { value: false };
 vi.mock('stripe', () => ({
   default: class {
     constructor() {
       this.customers = { create: async (a) => { stripeCalls.customers.push(a); return { id: 'cus_fake' }; } };
       this.checkout = { sessions: { create: async (a) => {
         stripeCalls.sessions.push(a);
+        if (refuseExpiryOnce.value) {
+          refuseExpiryOnce.value = false;
+          throw new Error('Invalid timestamp: expires_at must be at least 30 minutes in the future');
+        }
         return { url: 'https://checkout.stripe.com/c/pay/cs_live_a1B2c3D4', payment_intent: 'pi_fake' };
       } } };
     }
@@ -148,7 +153,7 @@ function seed() {
     db.hours_exceptions.push({ beautician_id: 'b1', date: d, type: 'closed', start_time: null, end_time: null });
   }
   failing.clear(); insertErrorOnce.clear(); writes.length = 0;
-  stripeCalls.sessions.length = 0; stripeCalls.customers.length = 0;
+  stripeCalls.sessions.length = 0; stripeCalls.customers.length = 0; refuseExpiryOnce.value = false;
 }
 
 const say = (message, intent = 'booking_request') =>
@@ -359,5 +364,118 @@ describe('a bare hour that could mean two things stays a question', () => {
     if (!(offered.includes('15:00') && offered.includes('15:30'))) return; // diary did not produce the pair
     await say('the 3 one');
     expect(db.appointments.filter(a => a.booked_via === 'ai_front_desk')).toHaveLength(0);
+  });
+});
+
+/**
+ * The dial is not enough, and this is the evidence.
+ *
+ * Every string below is a REAL message from Ellie's inbox, with the intent and
+ * confidence the live classifier actually gave it. The fragments are not
+ * hypothetical: at 0.85 they clear the autonomy dial, and without a second
+ * check Florrie would open a booking negotiation on somebody saying thank you
+ * and auto-send "is it Classic Lash Extensions or Lash Lift?" into it.
+ */
+describe('a confident label is not evidence that somebody wants to book', () => {
+  const REAL_FRAGMENTS = [
+    ['Amazing!x', 'booking_request', 0.95],
+    ["Yes that's perfect thank you!xx", 'booking_request', 0.85],
+    ['If that works? X', 'booking_request', 0.85],
+    ['Round about 515 xx', 'availability_check', 0.85],
+    ['Perfect xx', 'booking_request', 0.75],
+    ['15th love x', 'booking_request', 0.65],
+  ];
+
+  for (const [text, intent, conf] of REAL_FRAGMENTS) {
+    it(`does not start a booking on "${text}" (${intent} at ${conf})`, async () => {
+      freezeSalonClock();
+      const r = await advanceBookingConversation({
+        beautician: BEAUTICIAN, client: CLIENT, message: text,
+        classification: { intent, confidence: conf },
+        context: { treatments: TREATMENTS, treatmentsError: null, patchTest: null },
+      });
+      expect(r, `"${text}" opened a booking conversation`).toBeNull();
+      expect(db.booking_conversations).toHaveLength(0);
+    });
+  }
+
+  const REAL_ENQUIRIES = [
+    ['Can i book in thursday 5pm', 'booking_request', 0.95],
+    ['hiya do you do lash lifts', 'booking_request', 0.9],
+    ['hey do you have any appointments this week?', 'booking_request', 0.9],
+    ['any chance you could squeeze me in friday', 'booking_request', 0.9],
+    // Names something on her menu with no booking word at all.
+    ['Oh and brow lamination', 'booking_request', 0.85],
+  ];
+
+  for (const [text, intent, conf] of REAL_ENQUIRIES) {
+    it(`still opens on "${text}"`, async () => {
+      freezeSalonClock();
+      const r = await advanceBookingConversation({
+        beautician: BEAUTICIAN, client: CLIENT, message: text,
+        classification: { intent, confidence: conf },
+        context: { treatments: TREATMENTS, treatmentsError: null, patchTest: null },
+      });
+      expect(r, `"${text}" was ignored and should not have been`).not.toBeNull();
+    });
+  }
+
+  // A question about a booking they already have is not a request for a new one.
+  it('does not start a booking on "What time is my appointment on Friday please"', async () => {
+    freezeSalonClock();
+    const r = await advanceBookingConversation({
+      beautician: BEAUTICIAN, client: CLIENT,
+      message: 'Hi lovely. What time is my appointment on Friday please?',
+      classification: { intent: 'availability_check', confidence: 0.95 },
+      context: { treatments: TREATMENTS, treatmentsError: null, patchTest: null },
+    });
+    expect(r).toBeNull();
+  });
+
+  // Once an offer is on the table a fragment IS the answer, so the gate must
+  // not apply to a conversation already under way.
+  it('still accepts "the 4 one" mid-conversation, which is a fragment by design', async () => {
+    freezeSalonClock();
+    await say('classic lashes today please');
+    const r = await say('the 4 one');
+    expect(r).not.toBeNull();
+    expect(db.appointments.filter(a => a.booked_via === 'ai_front_desk')).toHaveLength(1);
+  });
+});
+
+/**
+ * The one parameter I could not test against the real Stripe.
+ *
+ * Their documented range is 30 minutes to 24 hours from creation, judged on
+ * their clock when the request lands. Ours sits just inside the bottom of that,
+ * on purpose, so the deposit link dies with the hold. Both ends are asserted
+ * because "at least 30 minutes" and "at most 24 hours" are equally able to
+ * reject the session, and a rejected session means no deposit link at all.
+ */
+describe('the deposit link expiry', () => {
+  it('sits inside the range Stripe documents', async () => {
+    freezeSalonClock();
+    await say('classic lashes today please');
+    await say('the 4 one');
+    const s = stripeCalls.sessions[0];
+    const seconds = s.expires_at - Math.floor(Date.now() / 1000);
+    expect(seconds).toBeGreaterThan(30 * 60);
+    expect(seconds).toBeLessThan(24 * 60 * 60);
+  });
+
+  it('asks again with more room if Stripe refuses, and the hold follows', async () => {
+    freezeSalonClock();
+    refuseExpiryOnce.value = true;
+    await say('classic lashes today please');
+    const r = await say('the 4 one');
+
+    expect(stripeCalls.sessions).toHaveLength(2);
+    expect(stripeCalls.sessions[1].expires_at).toBeGreaterThan(stripeCalls.sessions[0].expires_at);
+    expect(r.reply).toContain('https://checkout.stripe.com/');
+
+    // The link must never outlive the hold, so the hold moved with it.
+    const appt = db.appointments.find(a => a.booked_via === 'ai_front_desk');
+    expect(new Date(appt.payment_expires_at).getTime() / 1000)
+      .toBeGreaterThanOrEqual(stripeCalls.sessions[1].expires_at);
   });
 });

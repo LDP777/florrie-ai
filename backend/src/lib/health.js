@@ -240,7 +240,33 @@ async function checkInstagramTokens() {
     }).length;
   }
 
-  const problem = invalid + expiringSoon;
+  // THE BLIND SPOT THIS CHECK USED TO HAVE. It only ever looked at accounts
+  // that HAVE an instagram_page_id, so an account with none looked like a clean
+  // bill of health: zero connected, zero invalid, ok. On 5 August Ellie
+  // disconnected Instagram while trying to fix a reconnect button that could
+  // not work, and nothing anywhere said her DMs had stopped arriving. That is
+  // the same shape as the token dying on 21 June and nobody noticing for five
+  // weeks, which is the outage this whole file was written for.
+  //
+  // So: an account whose DM mode expects Instagram, with nothing connected, is
+  // a warning. Not critical, because the API is fine and restarting it would
+  // help nobody, but it belongs in the nightly report and on the monitor.
+  const expectsInstagram = await supabase
+    .from('beauticians')
+    .select('id, instagram_dm_mode, instagram_page_id')
+    .in('instagram_dm_mode', ['ai', 'redirect']);
+
+  let disconnected = 0;
+  if (!expectsInstagram.error) {
+    disconnected = (expectsInstagram.data || []).filter(b => !b.instagram_page_id).length;
+  }
+
+  const problem = invalid + expiringSoon + disconnected;
+  const detail = [
+    invalid || expiringSoon ? 'one or more Instagram connections need reconnecting, outbound Instagram is dead for those accounts' : null,
+    disconnected ? `${disconnected} account(s) are set to handle Instagram DMs with no Instagram connected, so no DMs are arriving at all` : null,
+  ].filter(Boolean).join('; ');
+
   return {
     ok: problem === 0,
     status: problem === 0 ? 'ok' : 'warn',
@@ -248,8 +274,9 @@ async function checkInstagramTokens() {
     connected_accounts: connected.length,
     invalid,
     expiring_within_7d: expiringSoon,
+    disconnected_but_expected: disconnected,
     expiry_tracked: expiryTracked,
-    ...(problem === 0 ? {} : { detail: 'one or more Instagram connections need reconnecting, outbound Instagram is dead for those accounts' }),
+    ...(problem === 0 ? {} : { detail }),
   };
 }
 
