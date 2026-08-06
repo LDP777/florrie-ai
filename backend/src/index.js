@@ -1,4 +1,18 @@
 // v0.1.1 , 2026-04-10 redeploy
+
+// THE PROCESS RUNS ON UTC, AND THAT IS NOT AN ACCIDENT ANY MORE.
+//
+// appointments.starts_at stores SALON WALL TIME inside a UTC slot, and several
+// paths read it back with plain `new Date(...)` arithmetic. Those are correct
+// only while the process clock is UTC, which until now was true purely because
+// nothing had ever set TZ on Railway. Setting TZ=Europe/London there, or a base
+// image shipping a different default, would have shifted reschedules and
+// working-hours checks by an hour in BST without a line of code changing.
+//
+// Set here rather than in Railway's variables so it lives with the code that
+// depends on it, and before any import can construct a Date and cache the zone.
+process.env.TZ = 'UTC';
+
 import * as Sentry from '@sentry/node';
 import express from 'express';
 import cors from 'cors';

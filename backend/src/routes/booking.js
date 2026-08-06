@@ -1146,9 +1146,18 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
     const { new_starts_at } = req.body;
     if (!new_starts_at) return res.status(400).json({ error: 'new_starts_at is required' });
 
-    const newStart = new Date(new_starts_at);
+    // Wall frame, explicitly. The client sends "2026-08-10T14:00:00" meaning
+    // 2pm in the salon, and every check below compares it against starts_at
+    // values that are stored the same way. Parsing it without the Z made the
+    // runtime's zone decide what 2pm meant, which was only ever correct
+    // because nothing had set TZ. Compared against the salon's own now, not
+    // the server's.
+    if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(String(new_starts_at))) {
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
+    const newStart = new Date(`${new_starts_at}${String(new_starts_at).length === 16 ? ':00' : ''}Z`);
     if (isNaN(newStart.getTime())) return res.status(400).json({ error: 'Invalid date format' });
-    if (newStart <= new Date()) return res.status(400).json({ error: 'New time must be in the future' });
+    if (newStart <= nowInSalonWall()) return res.status(400).json({ error: 'New time must be in the future' });
 
     // Load current appointment
     const { data: appt } = await supabase
@@ -2650,7 +2659,10 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   }
 
   if (beauticianHours?.working_hours) {
-    const dayKey = startsAtCheck.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
+    // getUTCDay, not a locale conversion. startsAtCheck is a wall-time Date
+    // whose UTC fields ARE the salon clock, so asking the runtime which day it
+    // is in ITS zone is only right while that zone happens to be UTC.
+    const dayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][startsAtCheck.getUTCDay()];
     const hours = beauticianHours.working_hours[dayKey];
 
     if (!hours) {

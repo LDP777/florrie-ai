@@ -150,6 +150,12 @@ export default function BookingPage() {
   const [rebookState, setRebookState] = useState('idle'); // idle | looking | matched | nomatch
   const [rebookMatch, setRebookMatch] = useState(null);   // lookup payload when matched
   const [calLoading, setCalLoading] = useState(false);
+  // Which month the data in monthAppointments/Closures/Blocks is FOR, and
+  // whether the last attempt to fetch it failed. Without these the grid cannot
+  // tell "she has space" from "we never found out", and it drew them the same.
+  const [monthDataFor, setMonthDataFor] = useState(null);
+  const [monthError, setMonthError] = useState(false);
+  const [monthRetryNonce, setMonthRetryNonce] = useState(0);
   // User selections, multi-treatment support
   const [selectedTreatments, setSelectedTreatments] = useState([]);
   // Which treatment's description is expanded (via the little info button).
@@ -645,26 +651,39 @@ export default function BookingPage() {
     let cancelled = false;
     setCalLoading(true);
     (async () => {
+      const monthKey = `${calMonth.getFullYear()}-${calMonth.getMonth()}`;
       try {
         const res = await fetch(`${API_BASE}/api/booking/${slug}/availability-range?from=${from}&to=${to}`);
         // On failure KEEP whatever we already have rather than clearing to
         // "everything free". Clearing made day states flicker between free
         // and booked while someone was picking (rate limits, weak signal),
         // which read as "the dates keep moving around".
-        if (!res.ok) return;
+        //
+        // But keeping stale data is only honest when the data is FOR THIS
+        // MONTH. On a first load there is nothing to keep, and an empty diary
+        // renders as a month with space on every single day. Somebody picks a
+        // date that is not free, the server refuses, and from where they are
+        // standing the booking page is simply broken. So the grid now knows
+        // which month it actually has, and says so when it has nothing.
+        if (!res.ok) throw new Error(`availability-range ${res.status}`);
         const data = await res.json();
         if (cancelled) return;
         setMonthAppointments(data.appointments || []);
         setMonthClosures(data.closures || []);
         setMonthBlocks(data.blocks || []);
-      } catch {
-        /* keep previous month data */
+        setMonthDataFor(monthKey);
+        setMonthError(false);
+      } catch (err) {
+        if (cancelled) return;
+        logger.debug('Month availability failed:', err);
+        // Only an error if we have nothing trustworthy to show for this month.
+        setMonthError(monthDataFor !== monthKey);
       } finally {
         if (!cancelled) setCalLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [step, calMonth, selectedTreatments, beautician, slug]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [step, calMonth, selectedTreatments, beautician, slug, monthRetryNonce]); // eslint-disable-line react-hooks/exhaustive-deps
   // Group the month's booked blocks by their LOCAL date so per-day status is cheap.
   const apptsByDay = useMemo(() => {
     const map = {};
@@ -713,6 +732,9 @@ export default function BookingPage() {
     const day = new Date(d); day.setHours(0, 0, 0, 0);
     if (day < earliestBookable) return 'past';
     if (day > horizonDate) return 'beyond';
+    // No diary for this month means no opinion about it. Saying 'open' here is
+    // saying she is free on a day we have not looked at.
+    if (calMonth && monthDataFor !== `${calMonth.getFullYear()}-${calMonth.getMonth()}`) return 'unknown';
     const dayKey = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][day.getDay()];
     const hours = beautician?.working_hours?.[dayKey];
     if (!hours || !hours.start || !hours.end) return 'off';
@@ -1409,7 +1431,7 @@ export default function BookingPage() {
                   const iso = isoLocal(d);
                   const status = dayStatus(d);
                   const isSelected = selectedDate === iso;
-                  const tappable = status === 'open';
+                  const tappable = status === 'open';   // never 'unknown'
                   let bg = 'var(--bg-card)';
                   let color = 'var(--text-primary)';
                   let border = '1px solid transparent';
@@ -1429,7 +1451,7 @@ export default function BookingPage() {
                       type="button"
                       disabled={!tappable}
                       onClick={() => { if (tappable) { setSelectedDate(iso); setFieldErrors({}); } }}
-                      title={status === 'closed' ? 'Closed' : status === 'full' ? 'Fully booked' : undefined}
+                      title={status === 'closed' ? 'Closed' : status === 'full' ? 'Fully booked' : status === 'unknown' ? 'Could not load this month' : undefined}
                       style={{
                         ...styles.calCell,
                         background: bg,
@@ -1452,6 +1474,21 @@ export default function BookingPage() {
               {calLoading && (
                 <div style={styles.calLoadingRow}>
                   <span style={{ ...styles.calSpinner, borderTopColor: brand }} />
+                </div>
+              )}
+              {/* Says out loud that it could not check, rather than drawing an
+                  empty diary and letting somebody pick a day that is taken. */}
+              {monthError && (
+                <div style={{ textAlign: 'center', padding: '14px 0 4px' }}>
+                  <p style={{ ...styles.noSlots, padding: 0, marginBottom: 10 }}>
+                    Couldn't load this month just now, so these dates may not be right. Try again in a moment.
+                  </p>
+                  <button
+                    onClick={() => setMonthRetryNonce(n => n + 1)}
+                    style={{ padding: '10px 22px', borderRadius: 10, border: `1.5px solid ${brand}`, background: 'var(--bg-card)', color: brand, fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    Try again
+                  </button>
                 </div>
               )}
               {/* Legend */}

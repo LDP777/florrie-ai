@@ -14,8 +14,7 @@ import {
   refundDeltaCents,
   disputeTag,
   disputeWonTag,
-  hasTag,
-} from '../lib/money-guards.js';
+  hasTag, BOOKING_MONEY_LOGGED_TYPES} from '../lib/money-guards.js';
 import { chargePolicyFee } from '../services/policy-fees.js';
 import logger from '../lib/logger.js';
 import { verifyWebhook } from '../lib/stripe-webhook-secret.js';
@@ -1062,17 +1061,49 @@ router.post('/webhook', async (req, res) => {
             .update({ deposit_status: 'paid', deposit_paid: true, status: 'confirmed' })
             .eq('id', appointmentId);
 
-          // Log the transaction with correct type
-          await supabase.from('transactions').insert({
-            beautician_id: beauticianId,
-            appointment_id: appointmentId,
-            client_id: clientId || null,
-            amount_cents: session.amount_total,
-            type: paymentType === 'full' ? 'full_payment' : 'deposit',
-            status: 'completed',
-            stripe_payment_intent_id: session.payment_intent,
-            payment_method: 'card_online',
-          });
+          // Log the transaction, ONCE. The confirmation redirect
+          // (GET /api/booking/confirm/:sessionId) logs the same deposit and has
+          // always guarded against a repeat; this one never did, so whichever
+          // arrived second wrote a duplicate. That was invisible while the
+          // webhook was dead, and the moment it started working again it
+          // became one deposit showing as two in her takings. Same guard, same
+          // canonical type list, and refusing when the guard cannot be read
+          // rather than logging money twice.
+          const { data: alreadyLogged, error: loggedErr } = await supabase
+            .from('transactions')
+            .select('id')
+            .eq('appointment_id', appointmentId)
+            .in('type', BOOKING_MONEY_LOGGED_TYPES)
+            .limit(1);
+
+          if (loggedErr) {
+            logger.error({ err: loggedErr, appointmentId }, 'webhook: deposit guard unreadable, not logging');
+            Sentry.captureMessage('Deposit not logged: guard unreadable', {
+              level: 'warning',
+              tags: { area: 'payments', check: 'deposit_guard' },
+              extra: { appointmentId, amountPence: session.amount_total ?? null, dbCode: loggedErr.code },
+            });
+          } else if (!alreadyLogged?.length) {
+            const { error: txErr } = await supabase.from('transactions').insert({
+              beautician_id: beauticianId,
+              appointment_id: appointmentId,
+              client_id: clientId || null,
+              amount_cents: session.amount_total,
+              type: paymentType === 'full' ? 'full_payment' : 'deposit',
+              status: 'completed',
+              stripe_payment_intent_id: session.payment_intent,
+              payment_method: 'card_online',
+            });
+            if (txErr) {
+              // Money that reached Stripe and never reached her books.
+              logger.error({ err: txErr, appointmentId }, 'PAID BUT NOT RECORDED: webhook deposit insert failed');
+              Sentry.captureMessage('PAID BUT NOT RECORDED: webhook deposit', {
+                level: 'error',
+                tags: { area: 'payments', check: 'transaction_insert' },
+                extra: { appointmentId, beauticianId, amountPence: session.amount_total ?? null, dbCode: txErr.code },
+              });
+            }
+          }
 
           // If client paid, store their Stripe customer for faster future payments
           if (session.customer && clientId) {

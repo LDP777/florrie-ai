@@ -98,9 +98,14 @@ export const importClientsSchema = z.object({
 export const bookingSchema = z.object({
   treatment_id: z.string().uuid('Invalid treatment ID'),
   extra_treatment_ids: z.array(z.string().uuid()).optional().default([]),
+  // ANCHORED, and no offset allowed. The old pattern was unanchored, so
+  // "2026-08-10T14:00:00+01:00" passed: every wall-time guard in the route
+  // would read 14:00 while Postgres stored 13:00, and the client would arrive
+  // an hour after the diary expected her. A booking time is a salon wall clock
+  // reading, not an instant, so it must arrive with no zone attached.
   starts_at: z.string().refine(
-    v => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(v) && !isNaN(Date.parse(v)),
-    { message: 'Invalid date/time format — expected ISO 8601 (e.g. 2026-03-28T14:00:00)' }
+    v => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(v) && !isNaN(Date.parse(`${v}Z`)),
+    { message: 'Invalid date/time format, expected 2026-03-28T14:00:00 with no timezone' }
   ),
   client_name: z.string().min(1, 'Name is required').max(200).trim(),
   client_email: z.preprocess(

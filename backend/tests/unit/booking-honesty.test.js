@@ -282,7 +282,7 @@ describe('a client cannot move herself into a day the salon is shut', () => {
     const sunday = nextWeekday(0);
 
     const out = await run(bookingRouter, 'post', '/:slug/manage/:token/reschedule', {
-      params: { slug: 'ellindigo', token: 'mt1' }, body: { new_starts_at: `${sunday}.000Z` },
+      params: { slug: 'ellindigo', token: 'mt1' }, body: { new_starts_at: `${sunday}` },
     });
 
     expect(out.status).toBe(409);
@@ -296,7 +296,7 @@ describe('a client cannot move herself into a day the salon is shut', () => {
     db.hours_exceptions.push({ beautician_id: 'b1', date: target.slice(0, 10), type: 'closed', start_time: null, end_time: null });
 
     const out = await run(bookingRouter, 'post', '/:slug/manage/:token/reschedule', {
-      params: { slug: 'ellindigo', token: 'mt1' }, body: { new_starts_at: `${target}.000Z` },
+      params: { slug: 'ellindigo', token: 'mt1' }, body: { new_starts_at: `${target}` },
     });
 
     expect(out.status).toBe(409);
@@ -308,7 +308,7 @@ describe('a client cannot move herself into a day the salon is shut', () => {
     const late = `${nextWeekday(4).slice(0, 11)}19:00:00`;
 
     const out = await run(bookingRouter, 'post', '/:slug/manage/:token/reschedule', {
-      params: { slug: 'ellindigo', token: 'mt1' }, body: { new_starts_at: `${late}.000Z` },
+      params: { slug: 'ellindigo', token: 'mt1' }, body: { new_starts_at: `${late}` },
     });
 
     expect(out.status).toBe(409);
@@ -320,7 +320,7 @@ describe('a client cannot move herself into a day the salon is shut', () => {
     const target = nextWeekday(4);
 
     const out = await run(bookingRouter, 'post', '/:slug/manage/:token/reschedule', {
-      params: { slug: 'ellindigo', token: 'mt1' }, body: { new_starts_at: `${target}.000Z` },
+      params: { slug: 'ellindigo', token: 'mt1' }, body: { new_starts_at: `${target}` },
     });
 
     expect(out.status).toBe(200);
