@@ -17,9 +17,35 @@ import logger from '../lib/logger.js';
 import { needsPatchTest } from '../lib/patch-test-status.js';
 import { parsePagination, buildPaginationMeta, handleQueryError } from '../lib/queries.js';
 import { completeDaySchema, manualAppointmentSchema } from '../lib/schemas.js';
-import { notifyBookingConfirmed, sendWhatsApp, sendSMS } from '../services/notifications.js';
+import { notifyBookingConfirmed, sendWhatsApp, sendSMS, sendMessage, pickChannel } from '../services/notifications.js';
+import { guardedSend } from '../lib/outbound-guard.js';
+import Stripe from 'stripe';
 
 const router = Router();
+
+const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SECRET_KEY) : null;
+
+/**
+ * Did money actually move on this payment intent?
+ *
+ * Returns true only on a definite yes and false only on a definite no, so a
+ * caller can treat null as "assume money" rather than "assume none". The whole
+ * reason this exists is that our own columns lie when the webhook is down.
+ *
+ * @returns {Promise<boolean|null>} true paid, false definitely not, null unknown
+ */
+async function stripeSaysPaid(paymentIntentId) {
+  if (!stripe || !paymentIntentId) return null;
+  try {
+    const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+    if (pi?.status === 'succeeded') return true;
+    if (['canceled', 'requires_payment_method'].includes(pi?.status)) return false;
+    return null;
+  } catch (err) {
+    logger.warn({ err, paymentIntentId }, 'Could not ask Stripe whether this booking was paid');
+    return null;
+  }
+}
 
 /**
  * GET /api/appointments
@@ -408,6 +434,66 @@ router.post('/manual', requireAuth, validate(manualAppointmentSchema), async (re
 });
 
 /**
+ * HER APPOINTMENT MOVED AND NOBODY TOLD HER.
+ *
+ * Dragging a card to a new time on the calendar comes through PATCH, and it
+ * changed a client's appointment in silence: Ellie's diary said one thing and
+ * the client had another in her head, so she arrived at the old time. The voice
+ * assistant has told the client since it was written (voice-tools toolReschedule);
+ * this is the same sentence, sent the same way, so there is one wording for
+ * "your appointment has moved" wherever the move came from.
+ *
+ * Goes through the outbound guard like every other message Florrie sends on
+ * Ellie's behalf, and obeys the master pause.
+ */
+async function notifyAppointmentMoved(beauticianId, appt) {
+  const { data: biz, error: bizErr } = await supabase
+    .from('beauticians')
+    .select('client_reminder_prefs')
+    .eq('id', beauticianId)
+    .maybeSingle();
+  if (bizErr) {
+    logger.error({ err: bizErr, appointmentId: appt.id }, 'appointment moved: could not read messaging preferences');
+    return;
+  }
+  const prefs = biz?.client_reminder_prefs || {};
+
+  // Master pause: Florrie says nothing on her behalf while it is on.
+  if (prefs.paused) {
+    logger.info({ appointmentId: appt.id }, 'appointment moved: client not told, messages are paused');
+    return;
+  }
+
+  const { data: client } = await supabase
+    .from('clients')
+    .select('id, first_name, phone, email, whatsapp_id, instagram_id')
+    .eq('id', appt.client_id)
+    .maybeSingle();
+  if (!client) return;
+
+  // Wall-time convention: starts_at holds salon wall time inside a UTC slot, so
+  // it is read with timeZone UTC. Intl-converting this is the BST hour drift.
+  const when = new Date(`${String(appt.starts_at).slice(0, 19)}Z`);
+  if (isNaN(when.getTime())) return;
+  const dateLabel = when.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+  const timeLabel = when.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+  const treatmentName = appt.treatments?.name || 'appointment';
+  const body = `Hi ${client.first_name || 'there'}! Quick update, your ${treatmentName} has been moved to ${dateLabel} at ${timeLabel}. See you then!`;
+
+  // 'reschedule' is transactional, so the guard passes it through rather than
+  // holding it for approval, and it is still what records the send.
+  await guardedSend({
+    beauticianId,
+    clientId: client.id,
+    messageType: 'reschedule',
+    channel: pickChannel(client, prefs) || 'sms',
+    client,
+    body,
+    send: async () => !!(await sendMessage({ client, body, beauticianId, beauticianPrefs: prefs })),
+  });
+}
+
+/**
  * PATCH /api/appointments/:id
  * Update appointment status, reschedule, add notes.
  */
@@ -496,6 +582,7 @@ router.patch('/:id', requireAuth, async (req, res) => {
   // first 16 chars (YYYY-MM-DDTHH:MM) and rebuild as a plain wall-clock string,
   // exactly how manual-create stores it. Never toISOString() here - that would
   // convert to UTC and shift the day/hour under British Summer Time.
+  let movedFromStartsAt = null;  // set only when this request actually moves it
   if (req.body.starts_at) {
     const m = String(req.body.starts_at).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
     if (!m) {
@@ -504,14 +591,21 @@ router.patch('/:id', requireAuth, async (req, res) => {
     const [, yy, mo, dd, hh, mi] = m;
     updates.starts_at = `${yy}-${mo}-${dd}T${hh}:${mi}:00`;
 
+    // Read the current start before it is overwritten. Comparing on the wall
+    // minute, so re-saving a sheet without touching the time does not text the
+    // client to tell her nothing has changed.
+    const { data: existing } = await supabase
+      .from('appointments')
+      .select('starts_at, duration_minutes, buffer_minutes, extra_padding_minutes')
+      .eq('id', req.params.id)
+      .single();
+
+    if (existing && String(existing.starts_at || '').slice(0, 16) !== updates.starts_at.slice(0, 16)) {
+      movedFromStartsAt = existing.starts_at;
+    }
+
     // Recompute ends_at unless the caller passed one explicitly.
     if (!req.body.ends_at) {
-      const { data: existing } = await supabase
-        .from('appointments')
-        .select('duration_minutes, buffer_minutes, extra_padding_minutes')
-        .eq('id', req.params.id)
-        .single();
-
       if (existing) {
         const total = (existing.duration_minutes || 0) + (existing.buffer_minutes || 0) + (existing.extra_padding_minutes || 0);
         // UTC arithmetic on the wall-clock parts, then read the parts straight
@@ -735,6 +829,18 @@ router.patch('/:id', requireAuth, async (req, res) => {
     return res.status(500).json({ error: 'Something went wrong' });
   }
 
+  // The move is saved, so tell the client where to turn up. Fire and forget:
+  // a messaging failure must not fail a change that has already happened, and
+  // it must not happen at all if the write did not (this sits below the error
+  // return above on purpose). Only for a booking that is still going to happen:
+  // tidying the time on something already cancelled, completed or no-showed is
+  // bookkeeping, and texting somebody about it would be nonsense.
+  const stillHappening = ['pending', 'confirmed', 'in_progress'].includes(String(data?.status || ''));
+  if (movedFromStartsAt && data?.client_id && stillHappening) {
+    notifyAppointmentMoved(req.beautician.id, data).catch(err =>
+      logger.error({ err, appointmentId: data.id }, 'appointment moved: client was not told'));
+  }
+
   // Fire-and-forget: award loyalty points when marked completed (idempotent)
   if (req.body.status === 'completed') {
     awardLoyaltyPoints(req.beautician.id, data).catch(() => {});
@@ -825,7 +931,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
 
   const { data: appt, error: fetchErr } = await supabase
     .from('appointments')
-    .select('id, deposit_paid, deposit_cents, policy_fee_charged_at, status, starts_at')
+    .select('id, deposit_paid, deposit_cents, policy_fee_charged_at, status, starts_at, stripe_payment_intent_id')
     .eq('id', req.params.id)
     .eq('beautician_id', req.beautician.id)
     .single();
@@ -834,14 +940,46 @@ router.delete('/:id', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Appointment not found' });
   }
 
-  const { data: paidTx } = await supabase
+  const { data: paidTx, error: txErr } = await supabase
     .from('transactions')
     .select('id')
     .eq('appointment_id', appt.id)
     .or('stripe_payment_intent_id.not.is.null,stripe_charge_id.not.is.null')
     .limit(1);
+
+  // An unreadable money check is not an empty money check. PostgREST returns
+  // its errors in the result object, so the old unchecked destructure left
+  // paidTx null and read as "no payment on this booking", which is the one
+  // answer that lets a paid booking be deleted without so much as a warning.
+  // Refuse, and refuse even with force, because the warning she would be
+  // confirming could not be written truthfully.
+  if (txErr) {
+    logger.error({ err: txErr, appointmentId: appt.id }, 'delete refused: could not read the payments on this booking');
+    return res.status(503).json({
+      error: "I couldn't check whether this booking has been paid for, so nothing has been deleted. Try again in a moment.",
+      code: 'payment_check_failed',
+    });
+  }
+
   const hasCardPayment = !!(paidTx && paidTx.length);
-  const hasMoney = appt.deposit_paid === true || !!appt.policy_fee_charged_at || hasCardPayment;
+
+  // CHARLOTTE'S EIGHTY POUNDS.
+  //
+  // On 5 August she had paid in full and both `deposit_paid` and her
+  // transactions row said otherwise, because the webhook that writes them had
+  // been dead since launch. Everything this guard consulted was downstream of
+  // the same broken pipe, so the booking she had paid for was one tap from
+  // being deleted with no warning at all.
+  //
+  // A pinned payment intent is upstream of that pipe: it is written when the
+  // Checkout session is created, whether or not any event ever comes back. So
+  // its mere presence means money may exist, and we ask Stripe itself. Only a
+  // definite "no" from Stripe clears a booking that carries one; unknown
+  // counts as money, because the cost of being wrong is asymmetric.
+  const intentPaid = appt.stripe_payment_intent_id ? await stripeSaysPaid(appt.stripe_payment_intent_id) : false;
+  const hasIntentMoney = !!appt.stripe_payment_intent_id && intentPaid !== false;
+
+  const hasMoney = appt.deposit_paid === true || !!appt.policy_fee_charged_at || hasCardPayment || hasIntentMoney;
 
   if (hasMoney && !force) {
     const bits = [];
@@ -849,6 +987,11 @@ router.delete('/:id', requireAuth, async (req, res) => {
     else if (appt.deposit_paid) bits.push('a paid deposit');
     if (appt.policy_fee_charged_at) bits.push('a charged policy fee');
     if (hasCardPayment && !bits.length) bits.push('a card payment');
+    if (hasIntentMoney && !bits.length) {
+      bits.push(intentPaid === true
+        ? 'a card payment Stripe has confirmed'
+        : 'a card payment we cannot rule out');
+    }
     const what = bits.join(' and ');
 
     return res.status(409).json({
@@ -895,7 +1038,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
   }
 
   if (hasMoney) {
-    logger.warn({ id: appt.id, beauticianId: req.beautician.id, hasCardPayment }, 'Appointment with payment force-deleted');
+    logger.warn({ id: appt.id, beauticianId: req.beautician.id, hasCardPayment, hasIntentMoney, intentPaid }, 'Appointment with payment force-deleted');
   }
 
   const { error } = await supabase

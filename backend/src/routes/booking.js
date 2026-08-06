@@ -384,7 +384,7 @@ router.get('/:slug/availability', async (req, res) => {
   if (!salon) return res.status(404).json({ error: 'not_found' });
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.json({ appointments: [] });
 
-  const { data: appts } = await supabase
+  const { data: appts, error: apptErr } = await supabase
     .from('appointments')
     .select('starts_at, duration_minutes, buffer_minutes')
     .eq('beautician_id', salon.id)
@@ -392,14 +392,30 @@ router.get('/:slug/availability', async (req, res) => {
     .lte('starts_at', `${date}T23:59:59`)
     .not('status', 'in', '(cancelled,cancelled_by_client,cancelled_by_beautician,rescheduled)');
 
+  // PostgREST puts its errors in the result object, so an unchecked destructure
+  // leaves this null, the picker greys nothing out and every hour of a full day
+  // looks free. An error here has to be an error on the page, not a diary with
+  // no bookings in it.
+  if (apptErr) {
+    logger.error({ err: apptErr, beauticianId: salon.id, date }, 'availability: could not read the diary');
+    return res.status(500).json({ error: 'Could not load availability. Please try again.' });
+  }
+
   // Blocked-off time for the day: partial (amended) blocks come back with
   // their time range so the picker can grey those slots out; anything
   // without a usable range is treated as a full-day closure.
-  const { data: exceptionRows } = await supabase
+  const { data: exceptionRows, error: exceptionErr } = await supabase
     .from('hours_exceptions')
     .select('type, start_time, end_time')
     .eq('beautician_id', salon.id)
     .eq('date', date);
+
+  // Same failure, worse consequence: unread exceptions show a closed day as
+  // bookable, so a client picks a time in the middle of Ellie's holiday.
+  if (exceptionErr) {
+    logger.error({ err: exceptionErr, beauticianId: salon.id, date }, 'availability: could not read the blocked time');
+    return res.status(500).json({ error: 'Could not load availability. Please try again.' });
+  }
 
   const blocks = [];
   let dayClosed = false;
@@ -434,7 +450,7 @@ router.get('/:slug/availability-range', async (req, res) => {
     .maybeSingle();
   if (!salon) return res.status(404).json({ error: 'not_found' });
 
-  const { data: appts } = await supabase
+  const { data: appts, error: apptErr } = await supabase
     .from('appointments')
     .select('starts_at, duration_minutes, buffer_minutes')
     .eq('beautician_id', salon.id)
@@ -442,15 +458,27 @@ router.get('/:slug/availability-range', async (req, res) => {
     .lte('starts_at', `${to}T23:59:59`)
     .not('status', 'in', '(cancelled,cancelled_by_client,cancelled_by_beautician,rescheduled)');
 
+  // An unread month reads as an empty month: every day in the grid shows space.
+  if (apptErr) {
+    logger.error({ err: apptErr, beauticianId: salon.id, from, to }, 'availability-range: could not read the diary');
+    return res.status(500).json({ error: 'Could not load availability. Please try again.' });
+  }
+
   // Blocked-off time: full-day closures AND partial-day (amended) blocks.
   // Previously only type='closed' was returned, so a client could book
   // straight into an hour the beautician had blocked out.
-  const { data: exceptionRows } = await supabase
+  const { data: exceptionRows, error: exceptionErr } = await supabase
     .from('hours_exceptions')
     .select('date, type, start_time, end_time')
     .eq('beautician_id', salon.id)
     .gte('date', from)
     .lte('date', to);
+
+  // And an unread exception list reads as "she never takes a day off".
+  if (exceptionErr) {
+    logger.error({ err: exceptionErr, beauticianId: salon.id, from, to }, 'availability-range: could not read the blocked time');
+    return res.status(500).json({ error: 'Could not load availability. Please try again.' });
+  }
 
   const closures = [];
   const blocks = [];
@@ -834,7 +862,10 @@ router.post('/:slug/manage/:token/cancel', async (req, res) => {
   try {
     const { data: appt } = await supabase
       .from('appointments')
-      .select('id, starts_at, status, policy_snapshot, client_id, price_cents, deposit_cents, deposit_paid, stripe_payment_method_id, clients(first_name, stripe_customer_id), beauticians(booking_policy, booking_slug)')
+      // beautician_id is here because the cancellation push below passes it.
+      // It was not in the select, so it was always undefined, pushClientCancelled
+      // had nobody to send to, and Ellie was never told a client had cancelled.
+      .select('id, starts_at, status, policy_snapshot, client_id, beautician_id, price_cents, deposit_cents, deposit_paid, stripe_payment_method_id, clients(first_name, stripe_customer_id), beauticians(booking_policy, booking_slug)')
       .eq('management_token', req.params.token)
       .single();
 
@@ -1028,7 +1059,7 @@ router.post('/:slug/manage/:token/change-treatment', async (req, res) => {
     // or into one of Ellie's blocks.
     const startD = new Date(`${String(appt.starts_at).slice(0, 19)}Z`);
     const endD = new Date(`${newEnds}Z`);
-    const { data: clash } = await supabase
+    const { data: clash, error: clashErr } = await supabase
       .from('appointments')
       .select('id')
       .eq('beautician_id', appt.beauticians.id)
@@ -1036,6 +1067,13 @@ router.post('/:slug/manage/:token/change-treatment', async (req, res) => {
       .in('status', ['confirmed', 'pending', 'in_progress'])
       .lt('starts_at', endD.toISOString())
       .gt('ends_at', startD.toISOString());
+    // A longer treatment that cannot be checked is a longer treatment that does
+    // not get swapped in. Unchecked, this let the new length run over the next
+    // client.
+    if (clashErr) {
+      logger.error({ err: clashErr, appointmentId: appt.id }, 'change-treatment: overrun check failed');
+      return res.status(500).json({ error: 'Could not check that just then. Nothing has been changed, please try again.' });
+    }
     if (clash && clash.length) {
       return res.status(409).json({ error: 'That treatment takes longer and would run into the next appointment. Please pick a shorter one, or message me to move your time.' });
     }
@@ -1176,7 +1214,7 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
     const totalMinutes = (appt.duration_minutes || 60) + (appt.buffer_minutes || 0) + (appt.extra_padding_minutes || 0);
     const newEnd = new Date(newStart.getTime() + totalMinutes * 60 * 1000);
 
-    const { data: conflicts } = await supabase
+    const { data: conflicts, error: conflictErr } = await supabase
       .from('appointments')
       .select('id')
       .eq('beautician_id', appt.beautician_id)
@@ -1185,8 +1223,53 @@ router.post('/:slug/manage/:token/reschedule', async (req, res) => {
       .lt('starts_at', newEnd.toISOString())
       .gt('ends_at', newStart.toISOString());
 
+    // Cannot read the diary means cannot move the booking. Unchecked, a failed
+    // read let a client reschedule herself on top of somebody else.
+    if (conflictErr) {
+      logger.error({ err: conflictErr, appointmentId: appt.id }, 'reschedule: conflict check failed');
+      return res.status(500).json({ error: 'Could not check that time just then. Nothing has been changed, please try again.' });
+    }
+
     if (conflicts && conflicts.length > 0) {
       return res.status(409).json({ error: 'That time slot is not available. Please choose another time.' });
+    }
+
+    // IS THE SALON EVEN OPEN THEN?
+    //
+    // This route checked the future, the notice period, the booking horizon,
+    // the once-only rule and the diary, and never once asked whether Ellie
+    // works that day. It selected working_hours at the top and then ignored
+    // it, so a client could move herself onto a Sunday, into a closed day, or
+    // into the middle of Ellie's holiday, and the first anyone knew was the
+    // knock at the door. Same three checks the change-treatment route runs.
+    //
+    // Wall frame throughout: starts_at stores salon wall time inside a UTC
+    // slot, so the comparison Dates are built from the string and read with
+    // UTC accessors. Never Intl-convert here, that is the BST hour drift.
+    const wallStart = new Date(`${String(new_starts_at).slice(0, 19)}Z`);
+    const wallEnd = new Date(wallStart.getTime() + totalMinutes * 60 * 1000);
+    if (isNaN(wallStart.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
+
+    // loadBlocks throws when it cannot read hours_exceptions, which the outer
+    // catch turns into a 500. That is the right way round: an unreadable block
+    // list must not read as "she has no days off".
+    const rsBlocks = await loadBlocks(appt.beautician_id, wallStart, wallEnd);
+    if (hitsBlock(wallStart, wallEnd, rsBlocks)) {
+      return res.status(409).json({ error: 'That time is not available. Please choose another time.' });
+    }
+
+    const rsHours = wallDayHours(appt.beauticians?.working_hours || {}, wallStart);
+    if (!rsHours) {
+      return res.status(409).json({ error: 'We are closed that day. Please choose another date.' });
+    }
+    const [rsOpenH, rsOpenM] = rsHours.start.split(':').map(Number);
+    const [rsShutH, rsShutM] = rsHours.end.split(':').map(Number);
+    const rsOpen = new Date(wallStart); rsOpen.setUTCHours(rsOpenH, rsOpenM, 0, 0);
+    const rsShut = new Date(wallStart); rsShut.setUTCHours(rsShutH, rsShutM, 0, 0);
+    if (wallStart < rsOpen || wallEnd > rsShut) {
+      return res.status(409).json({ error: 'That time is outside opening hours. Please choose another time.' });
     }
 
     // "Only between existing appointments" — keep Ellie's days tightly packed.
@@ -1549,6 +1632,10 @@ router.post('/:slug/manage/:token/resend-payment', async (req, res) => {
     const timeLabel = startsDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
     const beauticianName = b.business_name || b.first_name;
 
+    // Public base of THIS backend, so the checkout success redirect lands on
+    // our confirm endpoint rather than the SPA (see success_url below).
+    const apiBase = `${req.headers['x-forwarded-proto'] || 'https'}://${req.get('host')}`;
+
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       ...(appt.clients?.stripe_customer_id ? { customer: appt.clients.stripe_customer_id } : {}),
@@ -1575,10 +1662,44 @@ router.post('/:slug/manage/:token/resend-payment', async (req, res) => {
           payment_type: 'deposit_resend',
         },
       },
-      success_url: `${FRONTEND_URL}/book/${req.params.slug}/confirmed?resent=true&mt=${req.params.token}`,
+      // Land on OUR confirm endpoint, not straight back on the SPA. That route
+      // retrieves the session, checks payment_status server side and marks the
+      // booking paid before forwarding. Pointing at the frontend meant a resent
+      // deposit was never verified anywhere, so the only thing that could have
+      // confirmed it was the webhook, which is the very thing that had died.
+      success_url: `${apiBase}/api/booking/confirm/{CHECKOUT_SESSION_ID}?slug=${req.params.slug}&mt=${req.params.token}`,
       cancel_url: `${FRONTEND_URL}/book/${req.params.slug}/manage/${req.params.token}`,
       metadata: { appointment_id: appt.id, payment_type: 'deposit_resend' },
     });
+
+    // Move the appointment onto the intent the client is about to pay with.
+    // It was still carrying the intent from the abandoned first attempt, which
+    // sits at 'requires_payment_method' forever, so the stale cleanup asked
+    // Stripe about the wrong charge, read a definite "not paid" and released a
+    // slot the client had just paid for. Guarded for null the way
+    // conversational-booking.js does: writing a null would erase the old intent
+    // and tell the cleanup nothing at all.
+    if (session.payment_intent) {
+      const { error: pinErr } = await supabase
+        .from('appointments')
+        .update({ stripe_payment_intent_id: session.payment_intent })
+        .eq('id', appt.id);
+      if (pinErr) {
+        logger.error({ err: pinErr, appointmentId: appt.id }, 'Resent deposit link created but the payment intent did not move onto the booking');
+        Sentry.captureMessage('Resent deposit left pointing at the stale payment intent', {
+          level: 'error',
+          tags: { area: 'payments', check: 'resend_pin_payment_intent' },
+          extra: { appointmentId: appt.id, sessionId: session.id },
+        });
+      }
+    } else {
+      logger.error({ appointmentId: appt.id, sessionId: session.id }, 'Resent deposit session came back with no payment intent');
+      Sentry.captureMessage('Resent deposit session created with no payment intent', {
+        level: 'error',
+        tags: { area: 'payments', check: 'resend_pin_payment_intent' },
+        extra: { appointmentId: appt.id, sessionId: session.id },
+      });
+    }
 
     // Email the link to the client
     const { sendEmail } = await import('../services/notifications.js');
@@ -1780,13 +1901,19 @@ router.post('/:slug/manage/:token/patch-test/confirm', async (req, res) => {
       return res.status(400).json({ error: 'That time is outside opening hours, please pick another.' });
     }
 
-    const { data: conflicts } = await supabase
+    const { data: conflicts, error: conflictErr } = await supabase
       .from('appointments')
       .select('id')
       .eq('beautician_id', beautician.id)
       .in('status', ['confirmed', 'pending', 'in_progress'])
       .lt('starts_at', slotEnd.toISOString())
       .gt('ends_at', slotTime.toISOString());
+
+    // Unchecked, a failed read booked the patch test on top of a real client.
+    if (conflictErr) {
+      logger.error({ err: conflictErr, beauticianId: beautician.id }, 'patch test: conflict check failed');
+      return res.status(500).json({ error: 'Could not check that time just then. Nothing has been booked, please try again.' });
+    }
 
     if (conflicts && conflicts.length > 0) {
       return res.status(409).json({ error: 'This slot is no longer available' });
@@ -2509,11 +2636,18 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   }
 
   // Validate appointment falls within working hours
-  const { data: beauticianHours } = await supabase
+  const { data: beauticianHours, error: hoursErr } = await supabase
     .from('beauticians')
     .select('working_hours')
     .eq('id', beautician.id)
     .single();
+
+  // Unread hours skip the whole check below, so a Sunday booking sails through.
+  // Refuse the booking instead: not knowing when she works is not permission.
+  if (hoursErr) {
+    logger.error({ err: hoursErr, beauticianId: beautician.id }, 'book: could not read working hours');
+    return res.status(500).json({ error: 'Could not check availability just then. Nothing has been booked, please try again.' });
+  }
 
   if (beauticianHours?.working_hours) {
     const dayKey = startsAtCheck.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
@@ -2632,14 +2766,22 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   const startsDate = new Date(starts_at);
   const endsDate = new Date(startsDate.getTime() + totalMinutes * 60 * 1000);
 
-  // Conflict check
-  const { data: conflicts } = await supabase
+  // Conflict check. THE one that decides whether two people are sat in the
+  // chair at once, and it was reading `data` without reading `error`: any
+  // PostgREST failure came back as null, `conflicts` was falsy, and the double
+  // booking went straight in. Fail closed, always.
+  const { data: conflicts, error: conflictErr } = await supabase
     .from('appointments')
     .select('id')
     .eq('beautician_id', beautician.id)
     .in('status', ['confirmed', 'pending'])
     .lt('starts_at', endsDate.toISOString())
     .gt('ends_at', startsDate.toISOString());
+
+  if (conflictErr) {
+    logger.error({ err: conflictErr, beauticianId: beautician.id }, 'book: conflict check failed');
+    return res.status(500).json({ error: 'Could not check that time just then. Nothing has been booked, please try again.' });
+  }
 
   if (conflicts && conflicts.length > 0) {
     return res.status(409).json({ error: 'This time slot is no longer available' });
@@ -2651,11 +2793,18 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
   // starts_at from the public picker is salon-local wall time ('...THH:MM:00',
   // no Z), and exception times are salon-local too, so compare wall minutes.
   const bookDate = String(starts_at).slice(0, 10);
-  const { data: dayExceptions } = await supabase
+  const { data: dayExceptions, error: dayExceptionErr } = await supabase
     .from('hours_exceptions')
     .select('type, start_time, end_time')
     .eq('beautician_id', beautician.id)
     .eq('date', bookDate);
+
+  // An unreadable exception list is not an empty one. Read as empty, this guard
+  // waves a client straight into a closed day or a blocked-out hour.
+  if (dayExceptionErr) {
+    logger.error({ err: dayExceptionErr, beauticianId: beautician.id, date: bookDate }, 'book: blocked-time check failed');
+    return res.status(500).json({ error: 'Could not check that time just then. Nothing has been booked, please try again.' });
+  }
 
   if (dayExceptions && dayExceptions.length > 0) {
     const wall = /T(\d{2}):(\d{2})/.exec(String(starts_at));
@@ -3144,12 +3293,43 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
         },
       });
 
-      // Store payment intent on the appointment
-      await supabase.from('appointments').update({
-        stripe_payment_intent_id: session.payment_intent,
-        deposit_amount_cents: depositCents,
-        deposit_status: 'pending',
-      }).eq('id', appointment.id);
+      // Pin the payment intent to the booking. This is the only thread back
+      // from a charge to the appointment it paid for, so it is what lets the
+      // stale cleanup ask Stripe "was this one actually paid?" before taking
+      // the slot away. An unchecked write here leaves the cleanup blind, which
+      // is precisely the state that gave away paid slots on 5 August, so the
+      // error is read and reported rather than dropped.
+      //
+      // session.payment_intent is null for a Checkout session Stripe has not
+      // attached one to yet; writing that null would erase a pinned intent
+      // rather than record one, so it is skipped and shouted about instead.
+      if (session.payment_intent) {
+        const { error: pinErr } = await supabase.from('appointments').update({
+          stripe_payment_intent_id: session.payment_intent,
+          deposit_amount_cents: depositCents,
+          deposit_status: 'pending',
+        }).eq('id', appointment.id);
+        if (pinErr) {
+          logger.error({ err: pinErr, appointmentId: appointment.id }, 'Could not pin the payment intent to the booking');
+          Sentry.captureMessage('Payment intent not pinned to a deposit booking', {
+            level: 'error',
+            tags: { area: 'payments', check: 'booking_pin_payment_intent' },
+            extra: { appointmentId: appointment.id, sessionId: session.id },
+          });
+        }
+      } else {
+        const { error: depErr } = await supabase.from('appointments').update({
+          deposit_amount_cents: depositCents,
+          deposit_status: 'pending',
+        }).eq('id', appointment.id);
+        if (depErr) logger.error({ err: depErr, appointmentId: appointment.id }, 'Could not record the pending deposit on the booking');
+        logger.error({ appointmentId: appointment.id, sessionId: session.id }, 'Checkout session came back with no payment intent, the cleanup cannot verify this one');
+        Sentry.captureMessage('Checkout session created with no payment intent', {
+          level: 'error',
+          tags: { area: 'payments', check: 'booking_pin_payment_intent' },
+          extra: { appointmentId: appointment.id, sessionId: session.id },
+        });
+      }
 
       // Don't fire confirmation here. The booking is still 'pending' until the Stripe webhook
       // (checkout.session.completed) marks the deposit paid and triggers notifyBookingConfirmed.
@@ -3197,13 +3377,68 @@ router.post('/:slug/book', validate(bookingSchema), verifyTurnstile, async (req,
         checkout_url: session.url,
       });
     } catch (err) {
-      logger.error({ err }, 'Stripe checkout creation failed');
-      // Booking was created but payment setup failed — still return the booking
-      // The beautician can send a payment link manually
+      // THE FALL-THROUGH THAT TOLD A CLIENT SHE WAS BOOKED.
+      //
+      // This used to log and carry on, so execution dropped into the
+      // "no deposit, confirmed immediately" tail below: notifyBookingConfirmed
+      // fired a full "you're booked in for X at Y", and the route answered 201
+      // with no checkout_url, which the booking page renders as a green tick.
+      // Meanwhile the row sat 'pending' with no payment intent, so the stale
+      // cleanup had nothing to ask Stripe about and quietly cancelled it later.
+      // A hold nobody can pay for is a slot out of Ellie's diary and a client
+      // who believes she has an appointment. conversational-booking.js has
+      // given the slot back on this failure since it was written; so does this.
+      logger.error({ err, appointmentId: appointment.id }, 'Stripe checkout creation failed, releasing the hold');
+      Sentry.captureException(err, {
+        tags: { area: 'payments', check: 'booking_checkout_create' },
+        extra: { appointmentId: appointment.id, beauticianId: beautician.id },
+      });
+
+      const { error: releaseErr } = await supabase
+        .from('appointments')
+        .update({
+          status: 'cancelled',
+          cancellation_reason: 'checkout_creation_failed',
+          cancelled_at: new Date().toISOString(),
+        })
+        .eq('id', appointment.id)
+        .eq('status', 'pending');
+      if (releaseErr) {
+        // Worst case of all: a slot held by a booking nobody can pay for and
+        // nobody cancelled. Somebody has to hear about this one.
+        logger.error({ err: releaseErr, appointmentId: appointment.id }, 'Could not release the hold after a failed checkout');
+        Sentry.captureMessage('Booking hold left in the diary after a failed checkout', {
+          level: 'error',
+          tags: { area: 'payments', check: 'booking_checkout_release' },
+          extra: { appointmentId: appointment.id },
+        });
+      }
+
+      return res.status(502).json({
+        error: "We couldn't open the payment page just then, so nothing has been booked. Please try again in a moment.",
+        code: 'checkout_unavailable',
+      });
     }
   }
 
-  // No deposit or Stripe not configured — booking is confirmed immediately
+  // Belt and braces. Both deposit branches above return, so a booking that
+  // needs a deposit can no longer reach the confirmation tail; if one ever
+  // does again it is a bug, and a bug must not be resolved by telling a client
+  // she is booked in for something she has not paid for.
+  if (depositRequired) {
+    logger.error({ appointmentId: appointment.id }, 'Deposit booking reached the confirmed-immediately tail');
+    Sentry.captureMessage('Deposit booking fell through to the confirmed-immediately tail', {
+      level: 'error',
+      tags: { area: 'payments', check: 'booking_deposit_fallthrough' },
+      extra: { appointmentId: appointment.id },
+    });
+    return res.status(500).json({
+      error: "Something went wrong setting up your payment, so nothing has been booked. Please try again.",
+      code: 'checkout_unavailable',
+    });
+  }
+
+  // No deposit required: the booking is confirmed outright.
   // Fire confirmation notification (non-blocking)
   notifyBookingConfirmed(appointment.id).catch(err =>
     logger.warn({ err }, 'Booking confirmation notification failed (non-fatal)')

@@ -12,9 +12,12 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-const db = { appointments: [], stripe_events: [], transactions: [], beauticians: [], ai_actions: [] };
+const db = { appointments: [], stripe_events: [], transactions: [], beauticians: [], ai_actions: [], clients: [] };
 const counts = { stripe_events: 0, transactions: 0 };
 let eventsError = null;
+// What STRIPE says it has sent in the last 24h, which is the only witness
+// independent of the pipe that broke. 'THROW' = we could not even ask.
+let stripeRecentEvents = 0;
 const piStatus = new Map();
 const updates = [];
 
@@ -62,12 +65,22 @@ vi.mock('stripe', () => ({
         if (st === 'THROW') throw new Error('stripe unreachable');
         return { id, status: st || 'requires_payment_method' };
       } };
+      this.events = { list: async () => {
+        if (stripeRecentEvents === 'THROW') throw new Error('stripe unreachable');
+        return { data: stripeRecentEvents > 0 ? [{ id: 'evt_1' }] : [] };
+      } };
     }
   },
 }));
-vi.mock('../../src/lib/outbound-guard.js', () => ({ guardedSend: async () => ({ sent: false }) }));
+const toldClient = [];
+const toldEllie = [];
+vi.mock('../../src/lib/outbound-guard.js', () => ({
+  guardedSend: async (args) => { toldClient.push(args); return { delivered: true }; },
+}));
 vi.mock('../../src/services/messaging.js', () => ({ sendOnChannel: async () => true }));
-vi.mock('../../src/services/push-notifications.js', () => ({ pushTeamUpdate: async () => true }));
+vi.mock('../../src/services/push-notifications.js', () => ({
+  pushTeamUpdate: async (...args) => { toldEllie.push(args); return true; },
+}));
 vi.mock('@sentry/node', () => ({ captureMessage: () => {}, captureException: () => {} }));
 
 process.env.STRIPE_SECRET_KEY = 'sk_test_x';
@@ -85,7 +98,10 @@ beforeEach(() => {
   for (const t of Object.keys(db)) db[t] = [];
   db.beauticians.push({ id: 'b1', business_name: 'Ellindigo', booking_slug: 'ellindigo' });
   counts.stripe_events = 5; counts.transactions = 3;
+  stripeRecentEvents = 0;
   eventsError = null; piStatus.clear(); updates.length = 0;
+  toldClient.length = 0; toldEllie.length = 0;
+  db.clients.push({ id: 'c1', first_name: 'Charlotte', phone: '07700900123', email: 'charlotte@example.com', whatsapp_id: null });
 });
 
 describe('the breaker: do not release anything while we are deaf to Stripe', () => {
@@ -109,13 +125,48 @@ describe('the breaker: do not release anything while we are deaf to Stripe', () 
     expect(r.cancelled).toBe(0);
   });
 
-  // A genuinely quiet day is not an outage: no events AND no money is fine.
+  // A genuinely quiet day is not an outage: nothing from Stripe, nothing in our
+  // own books, nothing recorded. Only then may the sweep run.
   it('still runs on a quiet day with no events and no payments', async () => {
     db.appointments.push(stale());
     counts.stripe_events = 0; counts.transactions = 0;
+    stripeRecentEvents = 0;
     const r = await cleanupStaleBookings();
     expect(r.held).toBeUndefined();
     expect(r.cancelled).toBe(1);
+  });
+
+  // THE 5 AUGUST SHAPE, asked of the right witness.
+  //
+  // "Quiet day or deaf?" used to be answered from our own transactions table,
+  // but almost every row in there is written BY the webhook, so killing the
+  // webhook took both readings to zero together and the breaker called it a
+  // quiet day. Bookings taken through conversational booking or a resent
+  // payment link leave no transaction row at all until the webhook lands, so
+  // there was nothing to see. Stripe is the only party that knows.
+  it('holds when Stripe has been sending events and we have recorded none of them', async () => {
+    db.appointments.push(stale());
+    counts.stripe_events = 0;   // stripe_events had ZERO rows for the life of the account
+    counts.transactions = 0;    // and nothing in our own books to hint at it
+    stripeRecentEvents = 12;    // while Stripe was firing away
+
+    const r = await cleanupStaleBookings();
+    expect(r.held).toBe(true);
+    expect(r.cancelled).toBe(0);
+    expect(r.reason).toMatch(/stripe_events/i);
+    expect(db.appointments[0].status).toBe('pending');
+    expect(updates.filter(u => u.payload.status === 'cancelled')).toHaveLength(0);
+  });
+
+  it('holds when Stripe cannot be asked at all, rather than reading silence as consent', async () => {
+    db.appointments.push(stale());
+    counts.stripe_events = 0; counts.transactions = 0;
+    stripeRecentEvents = 'THROW';
+
+    const r = await cleanupStaleBookings();
+    expect(r.held).toBe(true);
+    expect(r.cancelled).toBe(0);
+    expect(db.appointments[0].status).toBe('pending');
   });
 });
 
@@ -146,5 +197,48 @@ describe('asking Stripe before taking a slot away', () => {
     const r = await cleanupStaleBookings();
     expect(r.cancelled).toBe(1);
     expect(db.appointments[0].status).toBe('cancelled');
+  });
+});
+
+/**
+ * An auto-cancellation nobody hears about.
+ *
+ * Both the "your slot was released" message and the push to Ellie sat inside a
+ * freshness window keyed on payment_expires_at, and that column is only ever
+ * written when booking_policy.payment_buffer_enabled is on, which it is not by
+ * default. So on an ordinary booking the window was never satisfied: the slot
+ * vanished, the client carried on believing she had an appointment, and Ellie
+ * was never told the time was free again.
+ */
+describe('somebody is always told when a slot is released', () => {
+  const settle = () => new Promise(r => setTimeout(r, 0));
+
+  it('tells the client and Ellie even with no payment_expires_at on the row', async () => {
+    db.appointments.push(stale({
+      payment_expires_at: null,
+      created_at: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+    }));
+
+    const r = await cleanupStaleBookings();
+    await settle();
+
+    expect(r.cancelled).toBe(1);
+    expect(toldClient, 'the client was not told her slot had gone').toHaveLength(1);
+    expect(toldClient[0].messageType).toBe('payment_link');
+    expect(toldEllie, 'Ellie was not told the slot was free again').toHaveLength(1);
+  });
+
+  it('still stays quiet about a day-old backlog row being swept up', async () => {
+    db.appointments.push(stale({
+      payment_expires_at: null,
+      created_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    }));
+
+    const r = await cleanupStaleBookings();
+    await settle();
+
+    expect(r.cancelled).toBe(1);
+    expect(toldClient).toHaveLength(0);
+    expect(toldEllie).toHaveLength(0);
   });
 });

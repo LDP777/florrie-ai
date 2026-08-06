@@ -680,7 +680,20 @@ async function toolCancelAppointment({ client_name, appointment_date, notify_cli
   const appt = found.appt;
   if (!appt) return { result: appointment_date ? `${client.first_name} has nothing booked on ${appointment_date}.` : `${client.first_name} has no upcoming appointments to cancel.` };
 
-  await supabase.from('appointments').update({ status: 'cancelled' }).eq('id', appt.id);
+  const { error: cancelError } = await supabase
+    .from('appointments')
+    .update({ status: 'cancelled' })
+    .eq('id', appt.id);
+
+  // Nothing below may claim the cancellation happened unless the write did.
+  // Unchecked, a failed write still told the client "your appointment has been
+  // cancelled": she stops coming, the booking sits live in the diary, and Ellie
+  // waits in for somebody who is not turning up. toolReschedule above already
+  // learned this lesson.
+  if (cancelError) {
+    logger.error({ err: cancelError, appointmentId: appt.id }, 'Voice cancel FAILED to write');
+    return { result: "I could not cancel that one, so nothing has changed. Worth checking the diary." };
+  }
 
   const treatmentName = appt.treatments?.name || 'appointment';
   const friendlyDate = new Date(appt.starts_at).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });

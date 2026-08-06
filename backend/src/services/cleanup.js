@@ -37,12 +37,27 @@ const stripe = process.env.STRIPE_SECRET_KEY ? new Stripe(process.env.STRIPE_SEC
  * because a slot released in error costs a client their appointment and Ellie
  * her afternoon, while a slot held too long costs a few hours of diary.
  *
+ * "Quiet day or deaf?" was originally answered from our own `transactions`
+ * table, which cannot answer it: almost every row in there is written BY the
+ * webhook. Kill the webhook and both readings go to zero together, the breaker
+ * calls it a quiet day, and it releases paid bookings exactly as it did on
+ * 5 August. Bookings taken through conversational booking or a resent payment
+ * link leave no transaction row at all until the webhook lands, so the blind
+ * spot is not hypothetical.
+ *
+ * The only witness that is independent of us is Stripe. So we ask Stripe
+ * whether it has emitted anything in the last 24 hours. Stripe has events and
+ * our `stripe_events` table has none of them is the outage signature, and it is
+ * the exact shape the account was in for its entire life. Anything we cannot
+ * read fails closed.
+ *
  * @returns {Promise<{trustworthy: boolean, reason: string|null}>}
  */
 async function paymentNewsIsArriving() {
   if (!stripe) return { trustworthy: true, reason: null };  // nothing to miss
 
-  const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const dayAgoMs = Date.now() - 24 * 60 * 60 * 1000;
+  const dayAgo = new Date(dayAgoMs).toISOString();
 
   const [events, payments] = await Promise.all([
     supabase.from('stripe_events').select('id', { count: 'exact', head: true }).gte('processed_at', dayAgo),
@@ -54,14 +69,31 @@ async function paymentNewsIsArriving() {
   // exactly the state this incident happened in.
   if (events.error) return { trustworthy: false, reason: `stripe_events unreadable: ${events.error.message}` };
 
+  // Events are landing. The webhook is alive, so deposit_paid means what it says.
   if ((events.count || 0) > 0) return { trustworthy: true, reason: null };
 
-  // No events in 24 hours. Quiet day, or deaf? Card money still landing with no
-  // events alongside it is the signature of the outage.
+  // Kept as a cheap second signal even though it cannot be relied on alone:
+  // card money in our books with no events beside it is still the outage.
   if (!payments.error && (payments.count || 0) > 0) {
     return { trustworthy: false, reason: `${payments.count} card payment(s) recorded in the last 24h but ZERO Stripe webhook events, so deposit_paid cannot be trusted` };
   }
 
+  // Nothing of ours says anything. Ask the one party that knows.
+  try {
+    const recent = await stripe.events.list({ limit: 1, created: { gte: Math.floor(dayAgoMs / 1000) } });
+    if (Array.isArray(recent?.data) && recent.data.length > 0) {
+      return {
+        trustworthy: false,
+        reason: 'Stripe has emitted events in the last 24h and stripe_events recorded none of them, so the webhook is not reaching us and deposit_paid cannot be trusted',
+      };
+    }
+  } catch (err) {
+    // We could not even ask. That is not permission to start cancelling.
+    logger.error({ err }, 'Cleanup breaker could not ask Stripe whether it has been sending events');
+    return { trustworthy: false, reason: `could not ask Stripe for recent events: ${err?.message || 'unknown error'}` };
+  }
+
+  // Stripe has sent nothing either. Genuinely quiet, so the sweep may run.
   return { trustworthy: true, reason: null };
 }
 
@@ -108,7 +140,7 @@ export async function cleanupStaleBookings() {
   // NOTE: the column is google_event_id in prod. The old select named a
   // nonexistent google_calendar_event_id, PostgREST errored, and the error
   // was swallowed, so this cleanup NEVER cancelled anything since launch.
-  const SELECT = 'id, beautician_id, client_id, starts_at, deposit_cents, deposit_paid, payment_expires_at, google_event_id, stripe_payment_intent_id, treatments(name), clients(first_name)';
+  const SELECT = 'id, beautician_id, client_id, starts_at, created_at, deposit_cents, deposit_paid, payment_expires_at, google_event_id, stripe_payment_intent_id, treatments(name), clients(first_name)';
   const unpaid = q => q.eq('status', 'pending').gt('deposit_cents', 0).or('deposit_paid.is.null,deposit_paid.eq.false');
   const [expiredRes, agedRes] = await Promise.all([
     unpaid(supabase.from('appointments').select(SELECT)).lt('payment_expires_at', now),
@@ -222,10 +254,19 @@ export async function cleanupStaleBookings() {
       // Retention message: tell the client their slot was released and hand
       // them the rebook link, instead of leaving them thinking they booked.
       // Transactional (their own abandoned checkout), goes via the guard.
-      // Only for FRESH expiries (last 2h): old backlog rows being swept up
+      // Only for FRESH cancellations (last 2h): old backlog rows being swept up
       // must not fire day-old "your slot was released" texts.
-      const expiredAtMs = appt.payment_expires_at ? new Date(appt.payment_expires_at).getTime() : 0;
-      if (expiredAtMs && Date.now() - expiredAtMs < 2 * 60 * 60 * 1000) {
+      //
+      // This used to key off payment_expires_at alone, which is only written
+      // when booking_policy.payment_buffer_enabled is on, and it is off by
+      // default. So on a normal booking the window was never satisfied and an
+      // auto-cancellation was completely silent: the client kept believing she
+      // had an appointment and Ellie never learned the slot was free again.
+      // created_at is on every row, so it is the fallback.
+      const releasedFromMs = appt.payment_expires_at
+        ? new Date(appt.payment_expires_at).getTime()
+        : (appt.created_at ? new Date(appt.created_at).getTime() : 0);
+      if (releasedFromMs && Date.now() - releasedFromMs < 2 * 60 * 60 * 1000) {
         sendSlotReleasedMessage(appt, getBeautician).catch(err =>
           logger.warn({ err, appointmentId: appt.id }, 'Slot-released message failed (non-fatal)')
         );
