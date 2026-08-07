@@ -35,7 +35,7 @@ export default function StatusPage({ kind = 'card_saved' }) {
 
   return (
     <div style={{ minHeight: 'var(--shell-viewport)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: '#fef8f4', padding: 24, boxSizing: 'border-box',
+      background: '#FBF6F1', padding: 24, boxSizing: 'border-box',
       fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
     }}>
       <div style={{ maxWidth: 380, width: '100%', textAlign: 'center', background: '#fff',

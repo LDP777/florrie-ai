@@ -275,7 +275,7 @@ const MC = {
     bottom: 0,
     left: 0,
     right: 0,
-    background: '#fef8f4',
+    background: '#FBF6F1',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     padding: '12px 20px calc(96px + env(safe-area-inset-bottom, 0px))',

@@ -724,7 +724,7 @@ function NavTab({ tab, onNav }) {
             background: '#E85D75', color: '#fff',
             fontSize: 9, fontWeight: 700, lineHeight: '16px',
             textAlign: 'center', padding: '0 3px',
-            border: '1.5px solid #fef8f4',
+            border: '1.5px solid #FBF6F1',
             fontFamily: 'inherit',
           }}>
             {tab.badge > 99 ? '99+' : tab.badge}
@@ -867,7 +867,7 @@ const styles = {
     justifyContent: 'center',
     alignItems: 'center',
     minHeight: '100vh',
-    background: '#fef8f4',
+    background: '#FBF6F1',
     gap: 8,
     animation: 'fadeIn 0.6s ease',
   },
@@ -969,7 +969,7 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     boxShadow: '0 4px 12px rgba(146, 64, 94, 0.35)',
-    border: '3px solid #fef8f4',
+    border: '3px solid #FBF6F1',
     marginTop: -20,
   },
   navPetalLabel: {

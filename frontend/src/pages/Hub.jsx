@@ -551,7 +551,7 @@ function nextClientName(appt) {
 const S = {
   page: {
     minHeight: 'var(--shell-viewport)',
-    background: '#fef8f4',
+    background: '#FBF6F1',
     fontFamily: "'Plus Jakarta Sans', sans-serif",
     padding: '16px 16px var(--scroll-pad-bottom)',
     maxWidth: 480,

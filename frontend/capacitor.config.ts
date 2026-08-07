@@ -12,11 +12,16 @@ const config: CapacitorConfig = {
     androidScheme: 'https',
   },
   plugins: {
+    // The native chrome must be the brand cream. It was #fef8f4, the value
+    // theme.jsx used to override the palette with, so once the web view renders
+    // #FBF6F1 the splash, the status bar and the area behind the web view are a
+    // different cream from the app: a visible seam at the top on iOS only, which
+    // never shows up in a browser.
     SplashScreen: {
       launchShowDuration: 2000,
       launchAutoHide: true,
       launchFadeOutDuration: 300,
-      backgroundColor: '#fef8f4',
+      backgroundColor: '#FBF6F1',
       showSpinner: false,
       androidSplashResourceName: 'splash',
       androidScaleType: 'CENTER_CROP',
@@ -28,7 +33,7 @@ const config: CapacitorConfig = {
     },
     StatusBar: {
       style: 'DARK',
-      backgroundColor: '#fef8f4',
+      backgroundColor: '#FBF6F1',
     },
   },
   ios: {
@@ -39,10 +44,10 @@ const config: CapacitorConfig = {
     // Inbox/Money/Content. The CSS owns the safe area (viewport-fit=cover).
     contentInset: 'never',
     preferredContentMode: 'mobile',
-    backgroundColor: '#fef8f4',
+    backgroundColor: '#FBF6F1',
   },
   android: {
-    backgroundColor: '#fef8f4',
+    backgroundColor: '#FBF6F1',
     allowMixedContent: false,
     captureInput: true,
   },
