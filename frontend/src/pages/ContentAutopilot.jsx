@@ -1387,7 +1387,7 @@ const DEV_DRAFTS = [
 ];
 const styles = {
   page: {
-    minHeight: '100vh',
+    minHeight: 'var(--shell-viewport)',
     background: 'transparent',
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
     padding: '0 16px var(--scroll-pad-bottom)',

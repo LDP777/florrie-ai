@@ -344,7 +344,7 @@ export default function TrainingBooking() {
 
 const styles = {
   page: {
-    minHeight: '100vh',
+    minHeight: 'var(--shell-viewport)',
     background: '#fef8f4',
     fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
     padding: '20px 16px 40px',

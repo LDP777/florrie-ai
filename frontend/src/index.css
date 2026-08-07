@@ -21,6 +21,11 @@ body {
 .app-shell {
   height: 100vh;
   height: 100dvh;
+  /* Inside the shell the page gets the viewport MINUS what the shell reserves.
+     Scoping it here means `minHeight: var(--shell-viewport)` is correct on a
+     page whether it renders inside the shell or outside it. */
+  --shell-viewport: calc(100dvh - var(--shell-top) - var(--shell-bottom));
+  --shell-viewport-nav: calc(100dvh - var(--shell-top) - var(--shell-bottom-nav));
 }
 
 /* Smooth page transitions */
@@ -99,12 +104,15 @@ body {
      pushes its own header up under the status bar. */
   --shell-top:env(safe-area-inset-top,0px);
   --shell-bottom:calc(env(safe-area-inset-bottom,8px) + 146px);
-  --shell-viewport:calc(100dvh - var(--shell-top) - var(--shell-bottom));
+  /* Outside the app shell (the booking page, the login screen, a consultation
+     form) there is no nav and no notch padding above, so a full viewport IS the
+     right answer. The shell overrides these below. */
+  --shell-viewport:100dvh;
   /* The mic hides itself on some routes (the Inbox thread, where you are typing).
      There the shell only has to clear the nav, so the composer sits just above it
      instead of 68px of cream. */
   --shell-bottom-nav:calc(env(safe-area-inset-bottom,8px) + 92px);
-  --shell-viewport-nav:calc(100dvh - var(--shell-top) - var(--shell-bottom-nav));
+  --shell-viewport-nav:100dvh;
   /* The app shell (#app-scroll) now reserves the whole floating stack for every
      page, so a page adds nothing of its own. Pages that still set this stay
      correct instead of double-padding to ~150px of dead space. */

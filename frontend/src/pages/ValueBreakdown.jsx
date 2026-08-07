@@ -167,9 +167,9 @@ function Part({ amount, label }) {
 
 const S = {
   page: {
-    minHeight: '100vh', background: 'var(--bg)', color: 'var(--text-primary)',
+    minHeight: 'var(--shell-viewport)', background: 'var(--bg)', color: 'var(--text-primary)',
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)",
-    padding: 'calc(env(safe-area-inset-top, 0px) + 12px) 16px calc(env(safe-area-inset-bottom, 0px) + 96px)',
+    padding: '12px 16px 24px',
     boxSizing: 'border-box', maxWidth: 560, margin: '0 auto',
   },
   header: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 },

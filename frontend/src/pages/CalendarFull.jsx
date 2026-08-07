@@ -508,7 +508,7 @@ function PrintStyles() {
 
 /* ============================ STYLES ============================ */
 const S = {
-  page: { minHeight: '100vh', background: C.bg, color: C.text, fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)", padding: 'calc(env(safe-area-inset-top, 0px) + 16px) clamp(12px, 4vw, 40px) calc(env(safe-area-inset-bottom, 0px) + 96px)', boxSizing: 'border-box' },
+  page: { minHeight: 'var(--shell-viewport)', background: C.bg, color: C.text, fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)", padding: '16px clamp(12px, 4vw, 40px) 24px', boxSizing: 'border-box' },
 
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 14 },
   headerLeft: { display: 'flex', alignItems: 'center', gap: 10 },
@@ -538,7 +538,7 @@ const S = {
   weekHeadDow: { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: C.muted },
   weekHeadNum: { fontSize: 16, fontWeight: 700, color: C.text },
   weekHeadNumToday: { color: '#fff', background: C.accent, width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  weekBody: { maxHeight: 'calc(100dvh - 220px)', overflowY: 'auto', WebkitOverflowScrolling: 'touch' },
+  weekBody: { maxHeight: 'calc(var(--shell-viewport) - 220px)', overflowY: 'auto', WebkitOverflowScrolling: 'touch' },
   weekGridInner: { display: 'grid', gridTemplateColumns: '52px repeat(7, 1fr)', position: 'relative' },
   timeCol: { position: 'relative' },
   timeLabel: { position: 'absolute', right: 6, fontSize: 10, fontWeight: 700, color: C.muted, transform: 'translateY(-6px)' },

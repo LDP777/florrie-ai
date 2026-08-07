@@ -34,7 +34,7 @@ export default function StatusPage({ kind = 'card_saved' }) {
   }[kind] || {};
 
   return (
-    <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    <div style={{ minHeight: 'var(--shell-viewport)', display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: '#fef8f4', padding: 24, boxSizing: 'border-box',
       fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
     }}>

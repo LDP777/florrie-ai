@@ -253,7 +253,7 @@ const DEV_ESCALATIONS = [
 
 const styles = {
   page: {
-    minHeight: '100vh',
+    minHeight: 'var(--shell-viewport)',
     background: 'var(--bg)',
     fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
     padding: '0 16px var(--scroll-pad-bottom)',

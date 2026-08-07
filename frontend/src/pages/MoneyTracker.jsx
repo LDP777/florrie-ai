@@ -2399,7 +2399,7 @@ export default function MoneyTracker() {
 
 const S = {
   page: {
-    minHeight: '100vh',
+    minHeight: 'var(--shell-viewport)',
     background: 'var(--bg)',
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
     padding: '16px 24px 120px',

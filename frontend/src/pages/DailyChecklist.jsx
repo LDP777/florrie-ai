@@ -801,7 +801,7 @@ function formatDate(dateStr) {
 }
 const S = {
   page: {
-    minHeight: '100vh',
+    minHeight: 'var(--shell-viewport)',
     background: 'var(--bg, #FBF6F1)',
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
     padding: '16px 24px 120px',

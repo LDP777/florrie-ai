@@ -2292,7 +2292,7 @@ const DEV_BOOKING_BEAUTICIAN = {
 };
 const styles = {
   page: {
-    minHeight: '100vh',
+    minHeight: 'var(--shell-viewport)',
     background: 'var(--bg)',
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)",
     padding: '0 16px 40px',
@@ -2302,7 +2302,7 @@ const styles = {
     animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
   },
   loadingContainer: {
-    minHeight: '100vh',
+    minHeight: 'var(--shell-viewport)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',

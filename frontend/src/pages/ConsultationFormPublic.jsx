@@ -411,7 +411,7 @@ const styles = {
     padding: 0,
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     background: '#faf9f7',
-    minHeight: '100vh',
+    minHeight: 'var(--shell-viewport)',
   },
   brandHeader: {
     padding: '28px 24px',

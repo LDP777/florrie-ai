@@ -1127,7 +1127,7 @@ function PatchTestPicker({ slots, duration, onPick, confirming, error, onBack, b
 
 const S = {
   page: {
-    minHeight: '100vh',
+    minHeight: 'var(--shell-viewport)',
     background: 'var(--bg)',
     fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
     display: 'flex',

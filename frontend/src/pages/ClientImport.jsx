@@ -995,7 +995,7 @@ function TimelyAppointmentsImport() {
 
 const styles = {
   page: {
-    minHeight: '100vh',
+    minHeight: 'var(--shell-viewport)',
     background: 'var(--bg, #FBF6F1)',
     fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
     padding: '0 16px var(--scroll-pad-bottom)',
@@ -1003,7 +1003,7 @@ const styles = {
     margin: '0 auto',
     color: 'var(--text-primary, #241B17)',
   },
-  header: { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 52px)', paddingBottom: 8 },
+  header: { paddingTop: 8, paddingBottom: 8 },
   title: {
     fontSize: 24,
     fontWeight: 700,

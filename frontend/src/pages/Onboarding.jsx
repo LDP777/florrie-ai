@@ -995,7 +995,7 @@ export default function Onboarding({ onComplete }) {
 }
 const styles = {
   page: {
-    minHeight: '100vh',
+    minHeight: 'var(--shell-viewport)',
     background: 'var(--bg)',
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)",
     padding: '0 20px 60px',

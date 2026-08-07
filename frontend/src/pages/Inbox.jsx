@@ -1649,7 +1649,7 @@ function Bubble({ msg, threadChannel, onRetry }) {
 
 const S = {
   page: {
-    minHeight: '100vh',
+    minHeight: 'var(--shell-viewport)',
     background: 'var(--bg, #FBF6F1)',
     fontFamily: "'Plus Jakarta Sans', sans-serif",
     padding: '0 0 24px',
@@ -1658,7 +1658,7 @@ const S = {
     color: 'var(--text-primary, #241B17)',
   },
   pageWide: {
-    minHeight: '100vh',
+    minHeight: 'var(--shell-viewport)',
     background: 'var(--bg, #FBF6F1)',
     fontFamily: "'Plus Jakarta Sans', sans-serif",
     display: 'grid',
@@ -1673,7 +1673,7 @@ const S = {
     background: 'var(--tone-1, #fbf1ea)',
     borderRadius: 20,
     padding: '4px 0 14px',
-    maxHeight: 'calc(100vh - 32px)',
+    maxHeight: 'var(--shell-viewport)',
     overflowY: 'auto',
     marginTop: 16,
   },
@@ -1682,7 +1682,7 @@ const S = {
     borderRadius: 20,
     display: 'flex',
     flexDirection: 'column',
-    minHeight: 'calc(100vh - 32px)',
+    minHeight: 'var(--shell-viewport)',
     overflow: 'hidden',
     marginTop: 16,
   },

@@ -926,7 +926,7 @@ const s = {
     padding: 24,
   },
   deckClose: {
-    position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 16px)', right: 20,
+    position: 'absolute', top: 16, right: 20,
     width: 44, height: 44, background: 'none', border: 'none',
     fontSize: 26, color: 'var(--text-muted, #6B5D54)', cursor: 'pointer',
   },

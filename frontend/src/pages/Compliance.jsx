@@ -195,7 +195,7 @@ const S = {
     maxWidth: 480, margin: '0 auto',
     fontFamily: "'Plus Jakarta Sans', sans-serif",
     color: 'var(--text-primary, #241B17)',
-    minHeight: '100vh',
+    minHeight: 'var(--shell-viewport)',
     background: 'var(--bg, #FBF6F1)',
   },
 

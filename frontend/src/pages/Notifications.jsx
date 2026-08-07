@@ -258,7 +258,7 @@ export default function Notifications() {
 
 const styles = {
   page: {
-    minHeight: '100vh', background: 'var(--bg, var(--bg, #FBF6F1))',
+    minHeight: 'var(--shell-viewport)', background: 'var(--bg, var(--bg, #FBF6F1))',
     fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
     padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #241B17)',
   },

@@ -14,10 +14,9 @@ import Icon, { iconName } from './ui/Icon';
  * Pages that adopt this should NOT also render the global FloatingBack/More
  * (App.jsx suppresses those on own-header routes).
  *
- * NOTHING IMPORTS THIS YET, ON PURPOSE. It landed with the design tokens ahead
- * of the screen-by-screen rollout, so a dead-code scan will keep flagging it.
- * It is the target shape, not an orphan: delete it and the next person fixes
- * the same nav-overlap bug a fourth time.
+ * The shell (#app-scroll in App.jsx) owns the notch inset and the bottom
+ * clearance for every page. This component must NOT pad either again, which is
+ * the mistake it existed to prevent and was quietly making itself.
  *
  * Props:
  *   title     screen title (string)
@@ -51,8 +50,9 @@ const S = {
   shell: { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 },
   header: {
     flexShrink: 0,
-    paddingTop: 'var(--safe-top, env(safe-area-inset-top, 0px))',
-    background: '#fef8f4',
+    // The shell owns the notch. Padding it again here is the exact bug this
+    // component exists to prevent, so it must not commit it itself.
+    background: 'var(--bg)',
     zIndex: 'var(--z-header, 30)',
   },
   headerRow: {
@@ -61,18 +61,23 @@ const S = {
   },
   backBtn: {
     width: 44, height: 44, marginLeft: -8, borderRadius: 999, border: 'none',
-    background: 'transparent', color: '#92405e', cursor: 'pointer',
+    background: 'transparent', color: 'var(--accent)', cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   title: {
     flex: 1, minWidth: 0, margin: 0,
-    fontFamily: "'Playfair Display', 'Playfair Display', Georgia, serif",
-    fontSize: 26, fontWeight: 600, color: '#1d1b19',
+    fontFamily: "'Playfair Display', Georgia, serif",
+    fontStyle: 'italic',
+    fontSize: 26, fontWeight: 600, color: 'var(--text-primary)',
+    letterSpacing: '-0.02em',
     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
   },
   actions: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flexShrink: 0 },
   scroll: {
+    // The shell reserves the floating nav and mic for every page, so this
+    // region adds nothing. --scroll-pad-bottom is 0 and kept only so the pages
+    // that already reference it stay correct.
     flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch',
-    paddingBottom: 'var(--scroll-pad-bottom, calc(56px + env(safe-area-inset-bottom, 0px) + 16px))',
+    paddingBottom: 'var(--scroll-pad-bottom, 0px)',
   },
 };
