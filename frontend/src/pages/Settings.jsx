@@ -332,7 +332,7 @@ export default function Settings({ onLogout }) {
     <div style={{ ...styles.page, animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' }}>
       <div style={styles.header}>
         <h1 style={styles.title}>Settings</h1>
-        {saved && <span style={styles.savedBadge}>Saved ✓</span>}
+        {saved && <span style={styles.savedBadge}>Saved</span>}
         {saveError && <span style={{ ...styles.savedBadge, background: 'var(--danger, #E57373)', color: '#fff' }}>{saveError}</span>}
       </div>
 
@@ -409,7 +409,7 @@ export default function Settings({ onLogout }) {
             onClick={() => navigate('/business')}
             style={styles.brandingLinkBtn}
           >
-            <span style={styles.brandingLinkIcon}>🎨</span>
+            <span style={styles.brandingLinkIcon}><Icon name="palette" size={19} /></span>
             <div style={{ flex: 1 }}>
               <span style={styles.brandingLinkTitle}>Branding &amp; business profile</span>
               <span style={styles.brandingLinkDesc}>Logo, brand colour, tagline, social links and email sign-off</span>
@@ -521,7 +521,7 @@ export default function Settings({ onLogout }) {
               onClick={() => { window.location.href = '/hours'; }}
               style={styles.blockLinkBtn}
             >
-              <span style={styles.blockLinkIcon}>📅</span>
+              <span style={styles.blockLinkIcon}><Icon name="calendar" size={19} /></span>
               <div>
                 <span style={styles.blockLinkTitle}>Full days &amp; exceptions</span>
                 <span style={styles.blockLinkDesc}>Close for a holiday, change hours for a specific date</span>
@@ -532,7 +532,7 @@ export default function Settings({ onLogout }) {
               onClick={() => { window.location.href = '/calendar'; }}
               style={styles.blockLinkBtn}
             >
-              <span style={styles.blockLinkIcon}>🚫</span>
+              <span style={styles.blockLinkIcon}><Icon name="x" size={19} /></span>
               <div>
                 <span style={styles.blockLinkTitle}>Block a time slot</span>
                 <span style={styles.blockLinkDesc}>Lunch break, rest of day, or any custom window</span>
@@ -868,10 +868,10 @@ export default function Settings({ onLogout }) {
           <div style={styles.card}>
             <div style={styles.cardTitle}>Accepted payment methods</div>
             {[
-              { key: 'card_online', label: 'Card online', desc: 'Clients pay when booking', icon: '💳', requiresStripe: true },
-              { key: 'tap_to_pay', label: 'Tap to Pay', desc: 'Use your phone as a card terminal', icon: '📱', requiresStripe: true },
-              { key: 'cash', label: 'Cash', desc: 'Record cash payments manually', icon: '💵', requiresStripe: false },
-              { key: 'bank_transfer', label: 'Bank transfer', desc: 'BACS or faster payment', icon: '🏦', requiresStripe: false },
+              { key: 'card_online', label: 'Card online', desc: 'Clients pay when booking', icon: 'card', requiresStripe: true },
+              { key: 'tap_to_pay', label: 'Tap to Pay', desc: 'Use your phone as a card terminal', icon: 'phone', requiresStripe: true },
+              { key: 'cash', label: 'Cash', desc: 'Record cash payments manually', icon: 'pound', requiresStripe: false },
+              { key: 'bank_transfer', label: 'Bank transfer', desc: 'BACS or faster payment', icon: 'wallet', requiresStripe: false },
             ].map(method => {
               const isEnabled = (paySettings.accepted_methods || ['cash']).includes(method.key);
               const canToggle = !method.requiresStripe || beautician.stripe_onboarding_complete;
@@ -995,7 +995,7 @@ export default function Settings({ onLogout }) {
           {/* Google Calendar */}
           <div style={styles.card}>
             <div style={styles.calendarProviderRow}>
-              <span style={{ fontSize: 22 }}>📅</span>
+              <Icon name="calendar" size={21} style={{ color: 'var(--accent)' }} />
               <div style={{ flex: 1 }}>
                 <span style={styles.calProviderLabel}>Google Calendar</span>
                 <span style={{
@@ -1033,7 +1033,7 @@ export default function Settings({ onLogout }) {
           {/* Apple / iPhone, use ICS feed */}
           <div style={styles.card}>
             <div style={styles.calendarProviderRow}>
-              <span style={{ fontSize: 22 }}>🍎</span>
+              <Icon name="calendar" size={21} style={{ color: 'var(--accent)' }} />
               <div style={{ flex: 1 }}>
                 <span style={styles.calProviderLabel}>Apple Calendar</span>
                 <span style={styles.calProviderStatus}>Subscribe using the ICS feed below</span>
@@ -1318,7 +1318,7 @@ export default function Settings({ onLogout }) {
                       color: (beautician.client_reminder_prefs?.channel || 'whatsapp') === ch ? '#fff' : '#8A8580'
                     }}
                   >
-                    {ch === 'whatsapp' ? '💬 WhatsApp' : ch === 'email' ? '📧 Email' : '📱 SMS'}
+                    {ch === 'whatsapp' ? 'WhatsApp' : ch === 'email' ? 'Email' : 'SMS'}
                   </button>
                 ))}
               </div>
@@ -1333,7 +1333,7 @@ export default function Settings({ onLogout }) {
             {/* WhatsApp row */}
             <div style={styles.msgChannelRow}>
               <div style={styles.msgChannelInfo}>
-                <span style={styles.msgChannelIcon} aria-hidden>💬</span>
+                <span style={styles.msgChannelIcon} aria-hidden><Icon name="message" size={18} /></span>
                 <div>
                   <div style={styles.msgChannelName}>WhatsApp Business</div>
                   <div style={{
@@ -2129,6 +2129,7 @@ function ClientReminderRow({ label, enabled, onChange }) {
 }
 
 import { bookingUrl as publicBookingUrl } from '../lib/booking.js';
+import Icon from '../components/ui/Icon';
 
 function BookingLinkCard({ slug }) {
   const [copied, setCopied] = useState(false);
@@ -2173,10 +2174,12 @@ function BookingLinkCard({ slug }) {
       </div>
       <div style={styles.bookingLinkActions}>
         <button onClick={handleCopy} style={styles.bookingLinkBtn}>
-          {copied ? '✓ Copied!' : '📋 Copy link'}
+          <Icon name={copied ? 'check' : 'copy'} size={16} />
+          {copied ? 'Copied' : 'Copy link'}
         </button>
         <button onClick={handleShare} style={{ ...styles.bookingLinkBtn, background: 'var(--accent)', color: 'var(--bg-card)' }}>
-          📤 Share
+          <Icon name="share" size={16} />
+          Share
         </button>
       </div>
       <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>
@@ -2209,7 +2212,7 @@ const styles = {
   bookingLinkHeader: { marginBottom: 8 },
   bookingLinkUrl: { background: 'var(--bg-card)', borderRadius: 8, padding: '10px 12px', marginBottom: 10 },
   bookingLinkActions: { display: 'flex', gap: 8 },
-  bookingLinkBtn: { flex: 1, padding: '12px 0', minHeight: 44, borderRadius: 10, border: '1.5px solid rgba(146,64,94,0.35)', background: 'var(--bg-card)', color: 'var(--accent)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  bookingLinkBtn: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, flex: 1, padding: '12px 0', minHeight: 44, borderRadius: 10, border: '1.5px solid rgba(146,64,94,0.35)', background: 'var(--bg-card)', color: 'var(--accent)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   slugDisplay: { display: 'flex', alignItems: 'center', gap: 2 },
   slugPrefix: { fontSize: 12, color: 'var(--text-muted)' },
   slugValue: { fontSize: 13, fontWeight: 600, color: 'var(--accent)' },
@@ -2274,7 +2277,7 @@ const styles = {
     background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', cursor: 'pointer',
     fontFamily: 'inherit', textAlign: 'left', width: '100%',
   },
-  brandingLinkIcon: { fontSize: 22, flexShrink: 0 },
+  brandingLinkIcon: { display: 'inline-flex', flexShrink: 0, color: 'var(--accent)' },
   brandingLinkTitle: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 },
   brandingLinkDesc: { display: 'block', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4 },
 

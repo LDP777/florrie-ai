@@ -427,7 +427,7 @@ const S = {
   stockFill: { height: '100%', borderRadius: 3, transition: 'width .3s' },
   actionRow: { display: 'flex', gap: 8 },
   actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
-  fab: { position: 'fixed', bottom: 80, right: 20, width: 52, height: 52, borderRadius: 26, background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 26, border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(199,107,138,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit', zIndex: 50 },
+  fab: { position: 'fixed', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)', left: 20, width: 52, height: 52, borderRadius: 26, background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 26, border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(199,107,138,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit', zIndex: 50 },
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
   modal: { background: 'var(--bg, var(--bg, #FAF8F5))', borderRadius: '18px 18px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', overflow: 'auto', padding: '20px 16px 32px' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },

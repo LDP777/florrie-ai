@@ -558,7 +558,7 @@ const S = {
   empty: { textAlign: 'center', color: 'var(--text-muted, #AAA5A0)', fontSize: 14, padding: 32 },
 
   // Modal
-  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
+  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 960, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
   modal: { background: 'var(--bg-card, #fff)', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480 },
   modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 16px' },
   fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #8B6F5E)', marginBottom: 6, marginTop: 12 },

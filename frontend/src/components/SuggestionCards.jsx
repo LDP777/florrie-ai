@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
+import Icon, { iconName } from './ui/Icon';
 
 /**
  * SuggestionCards: the "Florrie thinks" feed on the Today page, rebuilt on
@@ -145,7 +146,7 @@ function SuggestionCard({ card, onOpen, onEvidence, onDismiss }) {
   return (
     <article style={SC.card}>
       <div style={SC.cardHead}>
-        <span style={SC.icon} aria-hidden>{card.icon || '🌷'}</span>
+        <span style={SC.icon} aria-hidden><Icon name={iconName(card.icon)} size={17} /></span>
         {impact && <span style={SC.impact}>{impact}</span>}
       </div>
 
@@ -207,7 +208,8 @@ const SC = {
   cardHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 6 },
   icon: {
     width: 30, height: 30, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 18, lineHeight: 1, borderRadius: 10, background: '#ffd9e2',
+    lineHeight: 1, borderRadius: 10,
+    background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405E)',
   },
   impact: {
     fontSize: 13, fontWeight: 800, color: 'var(--accent)', background: 'rgba(146,64,94,0.08)',

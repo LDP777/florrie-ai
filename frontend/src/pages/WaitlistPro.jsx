@@ -494,7 +494,7 @@ const S = {
   chipRow: { display: 'flex', gap: 8, flexWrap: 'wrap' },
   chip: { padding: '8px 14px', borderRadius: 10, border: '1px solid var(--border, #EDE9E4)', background: 'var(--bg-card, #FFFFFF)', color: 'var(--text-secondary, #7A756F)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
   chipActive: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #fff)', border: '1px solid var(--accent, #92405e)' },
-  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
+  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 960, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
   modal: { background: 'var(--bg-card, #FFFFFF)', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
   modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: '0 0 16px', fontFamily: "var(--font-heading, 'Playfair Display', serif)" },
   select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #EDE9E4)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', background: 'var(--bg-card, #FFFFFF)', outline: 'none', boxSizing: 'border-box' },

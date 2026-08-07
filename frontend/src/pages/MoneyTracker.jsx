@@ -11,6 +11,8 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 import { hapticTap, hapticSuccess } from '../lib/native.js';
 import { useCountUp } from '../lib/useCountUp.js';
 import { todayLocal, localDateStr } from '../lib/dates.js';
+import Icon from '../components/ui/Icon';
+import Money from '../components/ui/Money';
 
 /**
  * Money & Revenue - Stitch reference rebuild.
@@ -39,16 +41,16 @@ const fmtShort = (cents) => {
 };
 
 const CATEGORIES = [
-  { value: 'products', label: 'Products', icon: '🧴', color: 'var(--primary-fixed)' },
-  { value: 'rent', label: 'Rent', icon: '🏠', color: 'var(--tertiary-fixed)' },
-  { value: 'training', label: 'Training', icon: '📚', color: 'var(--secondary-container)' },
-  { value: 'travel', label: 'Travel', icon: '🚗', color: 'var(--success-bg)' },
-  { value: 'equipment', label: 'Equipment', icon: '🔧', color: 'var(--tertiary-fixed)' },
-  { value: 'insurance', label: 'Insurance', icon: '🛡️', color: 'var(--info-bg)' },
-  { value: 'marketing', label: 'Marketing', icon: '📣', color: 'var(--primary-fixed)' },
-  { value: 'software', label: 'Software', icon: '💻', color: 'var(--gold-light)' },
-  { value: 'utilities', label: 'Utilities', icon: '⚡', color: 'var(--warning-bg)' },
-  { value: 'other', label: 'Other', icon: '📌', color: 'var(--surface-container-high)' },
+  { value: 'products', label: 'Products', icon: 'flower', color: 'var(--primary-fixed)' },
+  { value: 'rent', label: 'Rent', icon: 'map-pin', color: 'var(--tertiary-fixed)' },
+  { value: 'training', label: 'Training', icon: 'file', color: 'var(--secondary-container)' },
+  { value: 'travel', label: 'Travel', icon: 'map-pin', color: 'var(--success-bg)' },
+  { value: 'equipment', label: 'Equipment', icon: 'sliders', color: 'var(--tertiary-fixed)' },
+  { value: 'insurance', label: 'Insurance', icon: 'shield', color: 'var(--info-bg)' },
+  { value: 'marketing', label: 'Marketing', icon: 'send', color: 'var(--primary-fixed)' },
+  { value: 'software', label: 'Software', icon: 'link', color: 'var(--gold-light)' },
+  { value: 'utilities', label: 'Utilities', icon: 'sparkles', color: 'var(--warning-bg)' },
+  { value: 'other', label: 'Other', icon: 'map-pin', color: 'var(--surface-container-high)' },
 ];
 
 const getCategoryMeta = (val) => CATEGORIES.find(c => c.value === val) || CATEGORIES[CATEGORIES.length - 1];
@@ -1043,7 +1045,7 @@ export default function MoneyTracker() {
       }}>
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.85 }}>Revenue today</div>
-          <div style={{ fontSize: 32, fontWeight: 800, lineHeight: 1.1, marginTop: 2, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em' }}>{fmt(Math.round(animatedToday))}</div>
+          <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 38, fontWeight: 600, lineHeight: 1.05, marginTop: 2, fontVariantNumeric: 'tabular-nums', fontFeatureSettings: '"tnum" 1', letterSpacing: '-0.03em' }}>{fmt(Math.round(animatedToday))}</div>
           {todayRevenue === 0 && (
             <div style={{ fontSize: 11.5, opacity: 0.85, marginTop: 4, maxWidth: 220 }}>
               Tap a client and Mark complete to log their takings here.
@@ -1334,7 +1336,7 @@ export default function MoneyTracker() {
                   <button onClick={() => setTab('income')} style={S.seeAll}>See All</button>
                 </div>
                 {recentTx.length === 0 ? (
-                  <EmptyState message="No transactions yet" icon="💰" />
+                  <EmptyState message="No transactions yet" icon="wallet" />
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {recentTx.map(tx => {
@@ -1403,7 +1405,7 @@ export default function MoneyTracker() {
               </section>
             </>
           ) : (
-            <EmptyState message="Complete appointments and log expenses to see your pulse." icon="📊" />
+            <EmptyState message="Complete appointments and log expenses to see your pulse." icon="chart" />
           )}
         </div>
       )}
@@ -1471,7 +1473,7 @@ export default function MoneyTracker() {
                         cursor: 'pointer', fontFamily: 'inherit',
                       }}
                     >
-                      <span>{c.icon}</span>
+                      <span><Icon name={c.icon} size={16} /></span>
                       <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{c.label}</span>
                     </button>
                   ))}
@@ -1533,7 +1535,7 @@ export default function MoneyTracker() {
                   background: newExpense.ocr_confidence >= 0.8 ? 'var(--success-bg, #E8F5E9)' : 'var(--gold-light, #FDF8EE)',
                   fontSize: 12, color: newExpense.ocr_confidence >= 0.8 ? 'var(--success, #5BA97B)' : 'var(--gold-text, #8A7245)',
                 }}>
-                  <span>{newExpense.ocr_confidence >= 0.8 ? '✓' : '⚠'}</span>
+                  <Icon name={newExpense.ocr_confidence >= 0.8 ? 'check' : 'alert-triangle'} size={14} />
                   <span>
                     Auto-filled from receipt ({Math.round(newExpense.ocr_confidence * 100)}% confident)
                     {newExpense.ocr_confidence < 0.8 ? ' - double-check the details' : ''}
@@ -1660,7 +1662,7 @@ export default function MoneyTracker() {
                             cursor: 'pointer', fontFamily: 'inherit',
                           }}
                         >
-                          <span>{c.icon}</span>
+                          <span><Icon name={c.icon} size={16} /></span>
                           <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{c.label}</span>
                         </button>
                       ))}
@@ -1765,7 +1767,7 @@ export default function MoneyTracker() {
                   return (
                     <div key={rule.id} style={{ ...S.txRow, opacity: rule.active ? 1 : 0.55 }}>
                       <div style={{ ...S.catBubble, background: meta.color }}>
-                        <span style={{ fontSize: 16 }}>{meta.icon}</span>
+                        <span><Icon name={meta.icon} size={16} /></span>
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
@@ -1809,7 +1811,7 @@ export default function MoneyTracker() {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {expenses.length === 0 && (
-              <EmptyState message="No expenses logged. Tap + Add Expense to start tracking." icon="🧾" />
+              <EmptyState message="No expenses logged. Tap + Add Expense to start tracking." icon="file" />
             )}
             {expenses.length > 0 && (
               <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 2px', textAlign: 'center' }}>
@@ -1831,7 +1833,7 @@ export default function MoneyTracker() {
                   onContextMenu={e => { e.preventDefault(); cancelPress(); setConfirmDeleteExp(exp); }}
                 >
                   <div style={{ ...S.catBubble, background: catMeta.color }}>
-                    <span style={{ fontSize: 16 }}>{catMeta.icon}</span>
+                    <span><Icon name={catMeta.icon} size={16} /></span>
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>{exp.vendor || catMeta.label}</p>
@@ -1840,7 +1842,7 @@ export default function MoneyTracker() {
                       {new Date(exp.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
                       {' · '}{catMeta.label}
                       {exp.hmrc_category && ` · ${HMRC_LABELS[exp.hmrc_category] || exp.hmrc_category}`}
-                      {exp.tax_deductible && ' · Tax ✓'}
+                      {exp.tax_deductible && ' · Tax deductible'}
                     </p>
                   </div>
                   <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--danger)', marginLeft: 12, whiteSpace: 'nowrap' }}>
@@ -1932,7 +1934,7 @@ export default function MoneyTracker() {
           )}
 
           {ledger && ledger.rows.length === 0 && !ledgerLoading && (
-            <EmptyState message="Nothing on the books for that filter yet." icon="📒" />
+            <EmptyState message="Nothing on the books for that filter yet." icon="file" />
           )}
 
           {/* Category totals, so "where did it go" is one glance rather than
@@ -1975,7 +1977,7 @@ export default function MoneyTracker() {
                     ...S.catBubble,
                     background: isExpense ? meta.color : 'rgba(91, 169, 123, 0.15)',
                   }}>
-                    <span style={{ fontSize: 16 }}>{isExpense ? meta.icon : '💷'}</span>
+                    <span><Icon name={isExpense ? meta.icon : 'pound'} size={16} /></span>
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1988,13 +1990,15 @@ export default function MoneyTracker() {
                     </p>
                   </div>
                   <div style={{ textAlign: 'right', marginLeft: 10 }}>
-                    <span style={{
-                      display: 'block', fontSize: 14, fontWeight: 700,
-                      color: row.amount_cents < 0 ? 'var(--danger)' : 'var(--success)',
-                      fontVariantNumeric: 'tabular-nums',
-                    }}>
-                      {row.amount_cents < 0 ? '' : '+'}{fmtNeat(row.amount_cents)}
-                    </span>
+                    <Money
+                      pence={row.amount_cents}
+                      signed
+                      size={15}
+                      style={{
+                        display: 'block',
+                        color: row.amount_cents < 0 ? 'var(--danger)' : 'var(--success)',
+                      }}
+                    />
                     <span style={{ fontSize: 10, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
                       {fmtNeat(row.running_total_cents)}
                     </span>
@@ -2037,7 +2041,7 @@ export default function MoneyTracker() {
       {tab === 'income' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {transactions.length === 0 && (
-            <EmptyState message="Payments from completed appointments will show here." icon="💳" />
+            <EmptyState message="Payments from completed appointments will show here." icon="card" />
           )}
           {transactions.map(tx => {
             const isTipOrSale = tx.type === 'tip' || tx.type === 'product_sale';
@@ -2521,10 +2525,11 @@ const S = {
     fontWeight: 700, opacity: 0.8,
   },
   heroValue: {
-    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
-    fontSize: 38, fontStyle: 'normal', fontWeight: 800,
-    lineHeight: 1.15, margin: '0 0 8px', letterSpacing: '-0.02em',
+    fontFamily: "'Playfair Display', Georgia, serif",
+    fontSize: 44, fontStyle: 'normal', fontWeight: 600,
+    lineHeight: 1.05, margin: '0 0 8px', letterSpacing: '-0.03em',
     fontVariantNumeric: 'tabular-nums',
+    fontFeatureSettings: '"tnum" 1, "lnum" 1',
   },
   changeBadge: {
     display: 'inline-block', padding: '3px 10px', borderRadius: 12,
@@ -2698,7 +2703,8 @@ const S = {
     color: 'var(--text-muted)', fontWeight: 600,
   },
   ytdValue: {
-    fontSize: 19, fontWeight: 700, color: 'var(--text-primary)',
+    fontFamily: "'Playfair Display', Georgia, serif",
+    fontSize: 22, fontWeight: 600, color: 'var(--text-primary)',
     fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.01em',
   },
   ytdCompare: {

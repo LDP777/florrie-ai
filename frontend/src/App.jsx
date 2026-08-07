@@ -13,6 +13,7 @@ import { isVoiceEnabled } from './lib/voicePref.js';
 import { CoachProvider } from './contexts/CoachContext.jsx';
 import { isIOSNative } from './lib/platform.js';
 import { hapticTap } from './lib/native.js';
+import Icon from './components/ui/Icon';
 
 // Lazy-loaded pages (code splitting , each becomes its own chunk)
 const CalendarView = lazy(() => import('./pages/CalendarView.jsx'));
@@ -206,7 +207,9 @@ function TrialExpiredScreen({ onSignOut }) {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg, #FAF8F6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{ maxWidth: 440, width: '100%', background: '#fff', borderRadius: 20, padding: '48px 40px', textAlign: 'center', boxShadow: '0 4px 32px rgba(0,0,0,0.08)' }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>🌸</div>
+        <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center', color: 'var(--accent, #92405E)' }}>
+          <Icon name="flower" size={44} strokeWidth={1.3} />
+        </div>
         <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, fontWeight: 700, color: 'var(--text-primary, #2C2825)', marginBottom: 8 }}>
           Your free trial has ended
         </h1>
@@ -891,7 +894,10 @@ const styles = {
     // The shell owns the notch: with ios contentInset 'never', pages start
     // at y=0 and custom headers (Hub greeting) sat under the front camera.
     paddingTop: 'env(safe-area-inset-top, 0px)',
-    paddingBottom: 'calc(env(safe-area-inset-bottom, 8px) + 80px)',
+    // The shell also owns bottom clearance, for every page, in one place.
+    // 80px cleared the nav but not the mic, which floats to safe+130 (and its
+    // satellites to safe+194 when open), so the last row of a page sat under it.
+    paddingBottom: 'calc(env(safe-area-inset-bottom, 8px) + 146px)',
   },
 
   // Bottom nav , Stitch glass morphism

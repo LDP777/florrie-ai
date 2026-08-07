@@ -434,7 +434,7 @@ const S = {
   segTagChip: { padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600 },
   matchLabel: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)', fontStyle: 'italic' },
 
-  fab: { position: 'fixed', bottom: 80, right: 20, width: 52, height: 52, borderRadius: 26, background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 26, border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(199,107,138,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit', zIndex: 50 },
+  fab: { position: 'fixed', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)', left: 20, width: 52, height: 52, borderRadius: 26, background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 26, border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(199,107,138,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit', zIndex: 50 },
 
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
   modal: { background: 'var(--bg-card, #fff)', borderRadius: '18px 18px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', overflow: 'auto', padding: '20px 16px 32px' },

@@ -614,7 +614,7 @@ const styles = {
   // Redeem modal
   modalOverlay: {
     position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
-    zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+    zIndex: 960, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
   },
   modalContent: {
     background: 'var(--bg-card, #FFFFFF)', borderRadius: 16, padding: 20, width: '100%', maxWidth: 360,

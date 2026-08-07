@@ -568,7 +568,7 @@ function SequencesPanel({ beautician }) {
       })}
       {/* Create modal */}
       {showCreate && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'flex-end', zIndex: 200 }} onClick={() => setShowCreate(false)}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'flex-end', zIndex: 960 }} onClick={() => setShowCreate(false)}>
           <div style={{ background: 'var(--bg-card, #fff)', borderRadius: '20px 20px 0 0', padding: '20px 16px 40px', width: '100%', maxHeight: '85vh', overflowY: 'auto', boxSizing: 'border-box' }} onClick={e => e.stopPropagation()}>
             <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 16px' }}>New Sequence</h2>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#8B8580', marginBottom: 6 }}>Name</div>

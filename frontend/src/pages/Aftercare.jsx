@@ -598,7 +598,7 @@ const styles = {
   // Preview modal
   previewOverlay: {
     position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
-    zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center',
+    zIndex: 960, display: 'flex', alignItems: 'center', justifyContent: 'center',
     padding: 20,
   },
   previewModal: {

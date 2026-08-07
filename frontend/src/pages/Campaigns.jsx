@@ -685,7 +685,7 @@ const styles = {
   },
 
   // Detail modal
-  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', justifyContent: 'center', alignItems: 'flex-end' },
+  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 960, display: 'flex', justifyContent: 'center', alignItems: 'flex-end' },
   detailPanel: {
     background: 'var(--bg, #FAF8F5)', borderRadius: '20px 20px 0 0', width: '100%',
     maxWidth: 480, maxHeight: '85vh', overflowY: 'auto',

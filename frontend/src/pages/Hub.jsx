@@ -10,6 +10,7 @@ import UsagePanel from '../components/UsagePanel.jsx';
 import ValueReceipt from '../components/ValueReceipt.jsx';
 import SetupNudge from '../components/SetupNudge.jsx';
 import { milestoneBloom } from '../lib/bloom.js';
+import Icon from '../components/ui/Icon';
 
 const CalendarView = lazy(() => import('./CalendarView.jsx'));
 const SmartSchedule = lazy(() => import('./SmartSchedule.jsx'));
@@ -446,7 +447,7 @@ function TodaySummary({ beautician, onNav }) {
                 onClick={() => onNav(`/calendar/week?date=${data.todayIso}&appt=${a.id}`)}
                 style={{ ...TS.clientChip, ...(done ? TS.clientChipDone : {}) }}
               >
-                <span style={TS.clientChipTime}>{done ? '✓' : formatTime(a.starts_at)}</span>
+                <span style={TS.clientChipTime}>{done ? <Icon name="check" size={13} /> : formatTime(a.starts_at)}</span>
                 <span style={TS.clientChipName}>{nextClientName(a)}</span>
                 {(a.treatments?.name || a.treatment_name) && (
                   <span style={TS.clientChipTreat}>{a.treatments?.name || a.treatment_name}</span>
@@ -729,11 +730,14 @@ const TS = {
     letterSpacing: '0.08em',
   },
   statValue: {
-    fontSize: 23,
-    fontWeight: 700,
+    fontFamily: "'Playfair Display', Georgia, serif",
+    fontSize: 27,
+    fontWeight: 600,
     color: '#fff',
-    lineHeight: 1.15,
+    lineHeight: 1.05,
+    letterSpacing: '-0.02em',
     fontVariantNumeric: 'tabular-nums',
+    fontFeatureSettings: '"tnum" 1, "lnum" 1',
   },
   statSub: {
     fontSize: 11,

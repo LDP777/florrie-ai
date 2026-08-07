@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { API_BASE } from '../lib/config.js';
+import Icon from './ui/Icon';
 
 /**
  * MorningCatchup, Day 4 of the 2026-05-28 refactor.
@@ -97,17 +98,17 @@ export default function MorningCatchup({ beautician }) {
 
         <div style={MC.rows}>
           <Row
-            icon="📅"
+            icon="calendar"
             label="Yesterday"
             line={yesterdayLine(data)}
           />
           <Row
-            icon="🌷"
+            icon="flower"
             label="Today"
             line={todayLine(data)}
           />
           <Row
-            icon="👀"
+            icon="eye"
             label="Heads-up"
             line={headsUpLine(data)}
             onClick={data?.suggestionCount > 0 ? goToSuggestions : null}
@@ -129,7 +130,7 @@ function Row({ icon, label, line, onClick }) {
       role={clickable ? 'button' : undefined}
       tabIndex={clickable ? 0 : undefined}
     >
-      <span style={MC.rowIcon} aria-hidden>{icon}</span>
+      <span style={MC.rowIcon} aria-hidden><Icon name={icon} size={19} /></span>
       <div style={MC.rowText}>
         <div style={MC.rowLabel}>{label}</div>
         <div style={MC.rowLine}>{line}</div>
@@ -336,8 +337,8 @@ const MC = {
     flexShrink: 0,
   },
   rowIcon: {
-    fontSize: 20,
     lineHeight: 1,
+    color: 'var(--accent, #92405E)',
     flexShrink: 0,
     marginTop: 2,
   },

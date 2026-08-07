@@ -1733,7 +1733,7 @@ const styles = {
   clientName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' },
   clientMeta: { fontSize: 11, color: 'var(--text-muted)' },
   chevron: { fontSize: 18, color: 'var(--text-muted)', flexShrink: 0 },
-  detailOverlay: { position: 'fixed', inset: 0, background: 'var(--overlay)', zIndex: 200, display: 'flex', justifyContent: 'center', alignItems: 'flex-end' },
+  detailOverlay: { position: 'fixed', inset: 0, background: 'var(--overlay)', zIndex: 960, display: 'flex', justifyContent: 'center', alignItems: 'flex-end' },
   detailPanel: { background: 'var(--bg)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto', padding: '20px 16px 40px', position: 'relative' },
   closeBtn: { position: 'absolute', top: 12, right: 16, background: 'none', border: 'none', fontSize: 24, color: 'var(--text-muted)', cursor: 'pointer' },
   detailHeader: { textAlign: 'center', paddingTop: 8, paddingBottom: 16 },

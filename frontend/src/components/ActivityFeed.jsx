@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
 import { deDash } from '../lib/text.js';
+import Icon from './ui/Icon';
 
 /**
  * ActivityFeed , Day 1 of the 2026-05-28 refactor.
@@ -24,31 +25,31 @@ function getToken() {
 }
 
 const TYPE_ICONS = {
-  message_replied:         '💬',
-  message_escalated:       '⚠️',
-  booking_created:         '📅',
-  booking_rescheduled:     '🔄',
-  cancellation_filled:     '✨',
-  waitlist_offered:        '🎟️',
-  client_reactivated:      '💕',
-  content_drafted:         '✍️',
-  content_posted:          '📣',
-  expense_logged:          '🧾',
-  review_requested:        '⭐',
-  campaign_drafted:        '📝',
-  campaign_sent:           '📨',
-  price_suggestion:        '💷',
-  voice_note_processed:    '🎙️',
-  client_profile_updated:  '👤',
-  dormant_detected:        '👀',
-  quiet_week_detected:     '🌙',
-  contraindication_flagged:'🚨',
-  appointment_padded:      '⏱️',
-  bundle_suggested:        '🎁',
+  message_replied:         'message',
+  message_escalated:       'alert-triangle',
+  booking_created:         'calendar',
+  booking_rescheduled:     'refresh',
+  cancellation_filled:     'sparkles',
+  waitlist_offered:        'tag',
+  client_reactivated:      'heart',
+  content_drafted:         'edit',
+  content_posted:          'send',
+  expense_logged:          'file',
+  review_requested:        'star',
+  campaign_drafted:        'edit',
+  campaign_sent:           'send',
+  price_suggestion:        'pound',
+  voice_note_processed:    'mic',
+  client_profile_updated:  'user',
+  dormant_detected:        'eye',
+  quiet_week_detected:     'moon',
+  contraindication_flagged:'alert-triangle',
+  appointment_padded:      'clock',
+  bundle_suggested:        'gift',
 };
 
 function iconFor(type) {
-  return TYPE_ICONS[type] || '🌷';
+  return TYPE_ICONS[type] || 'flower';
 }
 
 // --- Daily receipt ---------------------------------------------------------
@@ -73,7 +74,7 @@ export function buildReceipt(rows) {
   if (wins.length) {
     const money = wins.reduce((sum, r) => sum + moneyFrom(r.summary), 0);
     const moneyStr = money ? ` (+£${money % 1 ? money.toFixed(2) : money})` : '';
-    lines.push({ icon: '✨', text: `Closed ${plural(wins.length, 'gap')}${moneyStr}` });
+    lines.push({ icon: 'sparkles', text: `Closed ${plural(wins.length, 'gap')}${moneyStr}` });
   }
 
   // Pending gap offers, collapsed to distinct clients x distinct slots.
@@ -81,32 +82,32 @@ export function buildReceipt(rows) {
   if (offers.length) {
     const clients = new Set(offers.map(r => r.client_id || r.id)).size;
     const slots = new Set(offers.map(r => (/→\s*(.+?)\s*\(/.exec(r.summary || '') || [])[1] || 'slot')).size;
-    lines.push({ icon: '🌷', text: `Invited ${plural(clients, 'client')} to fill ${slots === 1 ? 'an open slot' : `${slots} open slots`}` });
+    lines.push({ icon: 'flower', text: `Invited ${plural(clients, 'client')} to fill ${slots === 1 ? 'an open slot' : `${slots} open slots`}` });
   }
 
   const replied = by('message_replied').length;
-  if (replied) lines.push({ icon: '💬', text: `Replied to ${plural(replied, 'client message')}` });
+  if (replied) lines.push({ icon: 'message', text: `Replied to ${plural(replied, 'client message')}` });
 
   const held = by('message_escalated').length;
-  if (held) lines.push({ icon: '✋', text: `Queued ${plural(held, 'reply', 'replies')} for your yes or no` });
+  if (held) lines.push({ icon: 'pause', text: `Queued ${plural(held, 'reply', 'replies')} for your yes or no` });
 
   const booked = by('booking_created').length;
-  if (booked) lines.push({ icon: '📅', text: `Took ${plural(booked, 'booking')}` });
+  if (booked) lines.push({ icon: 'calendar', text: `Took ${plural(booked, 'booking')}` });
 
   const moved = by('booking_rescheduled').length;
-  if (moved) lines.push({ icon: '🔄', text: `Moved ${plural(moved, 'booking')}` });
+  if (moved) lines.push({ icon: 'refresh', text: `Moved ${plural(moved, 'booking')}` });
 
   const reminders = by('appointment_reminder').length + by('prearrival_reminder').length;
-  if (reminders) lines.push({ icon: '⏰', text: `Sent ${plural(reminders, 'reminder')}` });
+  if (reminders) lines.push({ icon: 'clock', text: `Sent ${plural(reminders, 'reminder')}` });
 
   const nudges = by('predictive_nudge').length + by('rebook_nudge').length + by('client_reactivated').length;
-  if (nudges) lines.push({ icon: '💕', text: `Nudged ${plural(nudges, 'client')} to rebook` });
+  if (nudges) lines.push({ icon: 'heart', text: `Nudged ${plural(nudges, 'client')} to rebook` });
 
   const released = by('booking_auto_cancelled').length;
-  if (released) lines.push({ icon: '🧹', text: `Released ${plural(released, 'unpaid slot')}` });
+  if (released) lines.push({ icon: 'sparkles', text: `Released ${plural(released, 'unpaid slot')}` });
 
   const reviews = by('review_requested').length;
-  if (reviews) lines.push({ icon: '⭐', text: `Asked ${plural(reviews, 'client')} for a review` });
+  if (reviews) lines.push({ icon: 'star', text: `Asked ${plural(reviews, 'client')} for a review` });
 
   // Cap the length: a receipt, not a scroll.
   return lines.slice(0, 5);
@@ -218,7 +219,7 @@ export default function ActivityFeed({ limit = 50 }) {
           <span style={F.title}>What Florrie did</span>
         </div>
         <div style={F.emptyState}>
-          <div style={F.emptyIcon}>🌷</div>
+          <div style={F.emptyIcon}><Icon name="flower" size={30} /></div>
           <p style={F.emptyText}>
             Florrie just started. Once she sends a message or spots a gap,
             you'll see it here.
@@ -248,7 +249,7 @@ export default function ActivityFeed({ limit = 50 }) {
             <ul style={F.list}>
               {receipt.map((l, i) => (
                 <li key={i} style={F.receiptLine}>
-                  <span style={F.icon} aria-hidden>{l.icon}</span>
+                  <span style={F.icon} aria-hidden><Icon name={l.icon} size={17} /></span>
                   <span style={F.receiptText}>{l.text}</span>
                 </li>
               ))}
@@ -309,7 +310,7 @@ function ActivityRow({ row, now, navigate }) {
           opacity: clickable ? 1 : 0.95,
         }}
       >
-        <span style={F.icon} aria-hidden>{iconFor(row.type)}</span>
+        <span style={F.icon} aria-hidden><Icon name={iconFor(row.type)} size={17} /></span>
         <span style={F.summary}>{deDash(row.summary)}</span>
         <span style={F.time}>{relativeTime(row.created_at, now)}</span>
         {clickable && (
@@ -399,9 +400,11 @@ const F = {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: 16,
     lineHeight: 1,
     borderRadius: 8,
+    // One accent marks agent activity, so Ellie can tell what came from Florrie
+    // without reading a word.
+    color: 'var(--accent, #92405E)',
   },
   receiptLine: { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 4px', fontSize: 14, color: 'var(--text-primary, #3D3438)' },
   receiptText: { flex: 1, lineHeight: 1.4, fontWeight: 500 },
@@ -431,7 +434,7 @@ const F = {
     textAlign: 'center',
     gap: 10,
   },
-  emptyIcon: { fontSize: 28, lineHeight: 1 },
+  emptyIcon: { lineHeight: 1, color: 'var(--accent, #92405E)', opacity: .5 },
   emptyText: {
     fontSize: 13,
     color: '#867277',

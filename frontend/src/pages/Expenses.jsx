@@ -13,18 +13,19 @@ import PageLoader from '../components/PageLoader.jsx';
 import { todayLocal } from '../lib/dates.js';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import Icon from '../components/ui/Icon';
 
 const CATEGORIES = [
-  { value: 'products', label: 'Products', icon: '🧴', color: 'var(--accent, #C76B8A)' },
-  { value: 'rent', label: 'Rent', icon: '🏠', color: 'var(--text-secondary, #8B6F5E)' },
-  { value: 'training', label: 'Training', icon: '📚', color: 'var(--success, #6B8F7B)' },
-  { value: 'travel', label: 'Travel', icon: '🚗', color: 'var(--gold, #C9A96E)' },
-  { value: 'equipment', label: 'Equipment', icon: '🔧', color: 'var(--info, #7B6B8F)' },
-  { value: 'insurance', label: 'Insurance', icon: '🛡️', color: 'var(--info, #5E8B8B)' },
-  { value: 'marketing', label: 'Marketing', icon: '📣', color: 'var(--accent-dark, #8F6B7B)' },
-  { value: 'software', label: 'Software', icon: '💻', color: 'var(--info, #6B7B8F)' },
-  { value: 'utilities', label: 'Utilities', icon: '⚡', color: 'var(--warning, #8F8B6B)' },
-  { value: 'other', label: 'Other', icon: '📌', color: 'var(--text-muted, #B5AFA8)' },
+  { value: 'products', label: 'Products', icon: 'flower', color: 'var(--accent, #C76B8A)' },
+  { value: 'rent', label: 'Rent', icon: 'map-pin', color: 'var(--text-secondary, #8B6F5E)' },
+  { value: 'training', label: 'Training', icon: 'file', color: 'var(--success, #6B8F7B)' },
+  { value: 'travel', label: 'Travel', icon: 'map-pin', color: 'var(--gold, #C9A96E)' },
+  { value: 'equipment', label: 'Equipment', icon: 'sliders', color: 'var(--info, #7B6B8F)' },
+  { value: 'insurance', label: 'Insurance', icon: 'shield', color: 'var(--info, #5E8B8B)' },
+  { value: 'marketing', label: 'Marketing', icon: 'send', color: 'var(--accent-dark, #8F6B7B)' },
+  { value: 'software', label: 'Software', icon: 'link', color: 'var(--info, #6B7B8F)' },
+  { value: 'utilities', label: 'Utilities', icon: 'sparkles', color: 'var(--warning, #8F8B6B)' },
+  { value: 'other', label: 'Other', icon: 'map-pin', color: 'var(--text-muted, #B5AFA8)' },
 ];
 
 const getCat = (v) => CATEGORIES.find(c => c.value === v) || CATEGORIES[9];
@@ -237,7 +238,7 @@ export default function Expenses() {
               return (
                 <div key={cat} style={S.catRow}>
                   <div style={S.catLeft}>
-                    <span style={{ ...S.catIcon, background: meta.color + '22' }}>{meta.icon}</span>
+                    <span style={{ ...S.catIcon, background: meta.color + '22' }}><Icon name={meta.icon} size={17} /></span>
                     <div style={S.catInfo}>
                       <span style={S.catName}>{meta.label}</span>
                       <span style={S.catPct}>{pct}%</span>
@@ -273,7 +274,7 @@ export default function Expenses() {
           </div>
 
           {/* Export */}
-          <button style={S.exportBtn} onClick={exportCSV}>📥 Export {monthLabel()} as CSV</button>
+          <button style={S.exportBtn} onClick={exportCSV}><Icon name="download" size={16} /> Export {monthLabel()} as CSV</button>
         </>
       )}
 
@@ -286,14 +287,14 @@ export default function Expenses() {
             return (
               <div key={e.id} style={S.expenseCard}>
                 <div style={S.expenseLeft}>
-                  <span style={{ ...S.catIcon, background: meta.color + '22' }}>{meta.icon}</span>
+                  <span style={{ ...S.catIcon, background: meta.color + '22' }}><Icon name={meta.icon} size={17} /></span>
                   <div style={S.expenseInfo}>
                     <span style={S.expenseVendor}>{e.vendor}</span>
                     <span style={S.expenseDesc}>{e.description}</span>
                     <div style={S.expenseTags}>
                       <span style={S.tagDate}>{formatDate(e.date)}</span>
-                      {e.recurring && <span style={S.tagRecurring}>↻ {e.recurring_interval}</span>}
-                      {e.tax_deductible && <span style={S.tagTax}>Tax ✓</span>}
+                      {e.recurring && <span style={S.tagRecurring}><Icon name="repeat" size={12} /> {e.recurring_interval}</span>}
+                      {e.tax_deductible && <span style={S.tagTax}>Tax deductible</span>}
                     </div>
                   </div>
                 </div>
@@ -320,7 +321,7 @@ export default function Expenses() {
               return (
                 <div key={b.category} style={S.budgetCard}>
                   <div style={S.budgetHeader}>
-                    <span style={S.budgetCat}>{meta.icon} {meta.label}</span>
+                    <span style={S.budgetCat}><Icon name={meta.icon} size={15} />{meta.label}</span>
                     <span style={{ ...S.budgetPct, color: overBudget ? 'var(--accent, #C76B8A)' : 'var(--success, #6B8F7B)' }}>{b.pct}%</span>
                   </div>
                   <div style={S.budgetBarBg}>
@@ -341,7 +342,7 @@ export default function Expenses() {
             <div style={S.budgetForm}>
               <select style={S.select} value={editBudget?.category || ''} onChange={e => setEditBudget({ category: e.target.value, amount: '' })}>
                 <option value="">Select category</option>
-                {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.icon} {c.label}</option>)}
+                {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
               {editBudget && (
                 <>
@@ -373,7 +374,7 @@ export default function Expenses() {
             <div style={S.catGrid}>
               {CATEGORIES.map(c => (
                 <button key={c.value} onClick={() => setForm(f => ({ ...f, category: c.value }))} style={{ ...S.catChip, ...(form.category === c.value ? { background: c.color, color: '#fff' } : {}) }}>
-                  {c.icon} {c.label}
+                  <Icon name={c.icon} size={15} /> {c.label}
                 </button>
               ))}
             </div>
@@ -529,7 +530,7 @@ const S = {
   budgetForm: { display: 'flex', flexDirection: 'column', gap: 8 },
 
   // Modal
-  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
+  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 960, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
   modal: { background: 'var(--bg-card, #fff)', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
   modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: '0 0 16px' },
   fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #8B6F5E)', marginBottom: 6, marginTop: 12 },

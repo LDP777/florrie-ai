@@ -1,9 +1,10 @@
 import { memo } from 'react';
+import Icon, { iconName } from './ui/Icon';
 
-function EmptyState({ icon = '📋', title = 'Nothing here yet', subtitle, actionLabel, onAction }) {
+function EmptyState({ icon = 'inbox', title = 'Nothing here yet', subtitle, actionLabel, onAction }) {
   return (
     <div style={S.wrap}>
-      <span style={S.icon}>{icon}</span>
+      <span style={S.icon}><Icon name={iconName(icon, 'inbox')} size={34} strokeWidth={1.3} /></span>
       <h3 style={S.title}>{title}</h3>
       {subtitle && <p style={S.subtitle}>{subtitle}</p>}
       {actionLabel && onAction && (
@@ -24,9 +25,10 @@ const S = {
     animation: 'fadeIn 0.3s ease',
   },
   icon: {
-    fontSize: 36,
     lineHeight: 1,
-    marginBottom: 12,
+    marginBottom: 14,
+    color: 'var(--accent, #92405E)',
+    opacity: 0.45,
   },
   title: {
     fontSize: 16,
