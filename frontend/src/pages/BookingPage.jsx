@@ -1239,7 +1239,7 @@ export default function BookingPage() {
                       )}
                       <span style={styles.treatmentDuration}>{t.duration_minutes} min</span>
                     </div>
-                    <span style={{ ...styles.treatmentPrice, color: brand }}>
+                    <span style={styles.treatmentPrice}>
                       £{(t.price_cents / 100).toFixed(2)}
                     </span>
                   </button>
@@ -2382,7 +2382,14 @@ const styles = {
   treatmentName: { fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' },
   treatmentDesc: { fontSize: 13, color: 'var(--text-secondary)' },
   treatmentDuration: { fontSize: 12, color: 'var(--text-muted)' },
-  treatmentPrice: { fontSize: 16, fontWeight: 700 },
+  treatmentPrice: {
+    fontSize: 19,
+    fontWeight: 600,
+    fontFamily: "'Playfair Display', Georgia, serif",
+    fontVariantNumeric: 'tabular-nums',
+    letterSpacing: '-0.01em',
+    color: 'var(--text-primary)',
+  },
   calWrap: { marginBottom: 22 },
   calHeader: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',

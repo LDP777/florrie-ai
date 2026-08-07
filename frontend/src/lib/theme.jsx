@@ -45,36 +45,36 @@ function applyTheme(dark) {
 
 const lightTokens = {
   // Backgrounds - Stitch surface scale
-  '--bg': '#fef8f4',
+  '--bg': '#FBF6F1',            // brand cream
   // Tonal layers (Aesop-style): structure from tone, not borders/shadows.
   // Trialled on Money first; roll out if it lands.
   '--tone-1': '#fbf1ea',
   '--tone-2': '#f6e7dd',
-  '--bg-card': '#FFFFFF',
-  '--bg-elevated': '#FFFFFF',
+  '--bg-card': '#FFFCF9',       // a lift off cream, never stark white
+  '--bg-elevated': '#FFFCF9',
   '--bg-hover': '#f3ede9',
   '--bg-input': '#f8f2ef',
   '--bg-warm': '#f8f2ef',
   '--bg-subtle': '#ede7e3',
 
   // Stitch surface containers
-  '--surface': '#fef8f4',
-  '--surface-container-lowest': '#FFFFFF',
+  '--surface': '#FBF6F1',
+  '--surface-container-lowest': '#FFFCF9',
   '--surface-container-low': '#f8f2ef',
   '--surface-container': '#f3ede9',
   '--surface-container-high': '#ede7e3',
   '--surface-container-highest': '#e7e1de',
 
   // Text - Stitch on-surface
-  '--text-primary': '#1d1b19',
-  '--text-secondary': '#534247',
-  '--text-muted': '#867277',
+  '--text-primary': '#241B17',  // brand ink
+  '--text-secondary': '#574A42',
+  '--text-muted': '#6B5D54',    // was 4.48:1, failed AA on every real surface
   '--text-inverse': '#FFFFFF',
 
   // Brand accent - Stitch primary (#92405e)
   '--accent': '#92405e',
   '--accent-hover': '#782b49',
-  '--accent-light': '#ffd9e2',
+  '--accent-light': '#F6E7EC',  // rose wash, not bubblegum
   '--accent-bg': 'rgba(146, 64, 94, 0.08)',
   '--accent-text': '#3e001d',
   // Brand rose (the lighter end of the hero gradient) + the hero gradient itself
@@ -83,11 +83,12 @@ const lightTokens = {
 
   // Primary scale
   '--primary-container': '#b05877',
-  '--primary-fixed': '#ffd9e2',
+  '--primary-fixed': '#F6E7EC',
   '--primary-fixed-dim': '#ffb1c8',
 
   // Gold - Stitch secondary (#745a27)
-  '--gold': '#745a27',
+  '--gold': '#8A6420',          // readable gold, 4.98:1 on cream
+  '--gold-fill': '#C9A96E',     // brand gold: fills and rules only, never text or icons
   '--gold-hover': '#5a4312',
   '--gold-light': '#ffdea4',
   '--gold-bg': 'rgba(116, 90, 39, 0.1)',
@@ -130,8 +131,24 @@ const lightTokens = {
   // Nav - glass morphism
   '--nav-bg': 'rgba(254, 248, 244, 0.9)',
   '--nav-border': 'rgba(146, 64, 94, 0.1)',
+// Aliases. These names are used across the app but were never defined, so every
+  // call site was rendering its own hardcoded fallback and dark mode could not invert.
+  '--text': '#241B17',
+  '--card': '#FFFCF9',
+  '--card-bg': '#FFFCF9',
+  '--card-border': '#d8c1c6',
+  '--accent-wash': '#FBF2F5',
+  '--accent-dark': '#782b49',
+  '--primary': '#92405e',
+  '--bg-secondary': '#f8f2ef',
+  '--surface-2': '#f3ede9',
+  '--info': '#4A6C82',
+  '--info-bg': '#EAF0F4',
+  '--danger-light': '#ffdad6',
+  '--danger-border': '#f5c6c0',
   '--overlay': 'rgba(29, 27, 25, 0.18)',
 };
+
 
 const darkTokens = {
   // Backgrounds - Stitch inverse
@@ -156,7 +173,7 @@ const darkTokens = {
   // Text - Stitch inverse-on-surface
   '--text-primary': '#f5f0ec',
   '--text-secondary': '#d6c3b7',
-  '--text-muted': '#867277',
+  '--text-muted': '#a89890',
   '--text-inverse': '#1d1b19',
 
   // Brand accent - Stitch inverse-primary
@@ -211,6 +228,22 @@ const darkTokens = {
   '--shadow-glow': '0 0 0 3px rgba(255, 177, 200, 0.15)',
   '--shadow-gold': '0 0 0 3px rgba(228, 194, 133, 0.12)',
   '--shadow-editorial': '0 10px 30px rgba(0, 0, 0, 0.2)',
+
+// Aliases (see light map)
+  '--text': '#f5f0ec',
+  '--card': '#1E1D1B',
+  '--card-bg': '#1E1D1B',
+  '--card-border': '#302E2C',
+  '--accent-wash': '#2A1620',
+  '--accent-dark': '#ffd9e2',
+  '--primary': '#ffb1c8',
+  '--bg-secondary': '#1A1918',
+  '--surface-2': '#1E1D1B',
+  '--info': '#8FB4C9',
+  '--info-bg': '#18222A',
+  '--danger-light': '#2A1A1A',
+  '--danger-border': '#4A2A2A',
+  '--gold-fill': '#C9A96E',
 
   // Nav
   '--nav-bg': 'rgba(30, 29, 27, 0.9)',
