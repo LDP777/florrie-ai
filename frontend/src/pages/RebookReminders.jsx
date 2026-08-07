@@ -195,15 +195,15 @@ export default function RebookReminders() {
 
       {/* Summary stats */}
       <div style={s.statsRow}>
-        <div style={{ ...s.statCard, borderLeft: '3px solid var(--warning, #D4943A)' }}>
+        <div style={{ ...s.statCard, borderLeft: '3px solid var(--warning, #8A6420)' }}>
           <span style={s.statValue}>{due.length}</span>
           <span style={s.statLabel}>Due soon</span>
         </div>
-        <div style={{ ...s.statCard, borderLeft: '3px solid var(--danger, #D4605C)' }}>
+        <div style={{ ...s.statCard, borderLeft: '3px solid var(--danger, #9E2B32)' }}>
           <span style={s.statValue}>{overdue.length}</span>
           <span style={s.statLabel}>Overdue</span>
         </div>
-        <div style={{ ...s.statCard, borderLeft: '3px solid var(--text-muted, #9E9E9E)' }}>
+        <div style={{ ...s.statCard, borderLeft: '3px solid var(--text-muted, #6B5D54)' }}>
           <span style={s.statValue}>{dormant.length}</span>
           <span style={s.statLabel}>Dormant</span>
         </div>
@@ -216,7 +216,7 @@ export default function RebookReminders() {
             key={t.key}
             onClick={() => setTab(t.key)}
             style={{ ...s.tab,
-              color: tab === t.key ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #7a7470)',
+              color: tab === t.key ? 'var(--accent, #92405e)' : 'var(--text-muted, #6B5D54)',
               borderBottom: tab === t.key ? '2px solid var(--accent)' : '2px solid transparent',
               fontWeight: tab === t.key ? 600 : 400,
             }}
@@ -239,9 +239,9 @@ export default function RebookReminders() {
                   key={t.id}
                   onClick={() => setSelectedTemplate(t.id)}
                   style={{ ...s.templateChip,
-                    background: selectedTemplate === t.id ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                    color: selectedTemplate === t.id ? 'var(--bg-card, #fff)' : 'var(--text, #2D2A26)',
-                    border: selectedTemplate === t.id ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, #E8E4E0)',
+                    background: selectedTemplate === t.id ? 'var(--accent, #92405e)' : 'var(--card-bg, #FFFCF9)',
+                    color: selectedTemplate === t.id ? 'var(--bg-card, #FFFCF9)' : 'var(--text, #241B17)',
+                    border: selectedTemplate === t.id ? '1px solid var(--accent, #92405e)' : '1px solid var(--border, #E8DDD4)',
                   }}
                 >
                   {t.name}
@@ -263,9 +263,9 @@ export default function RebookReminders() {
                   key={ch.key}
                   onClick={() => setSendChannel(ch.key)}
                   style={{ ...s.templateChip,
-                    background: sendChannel === ch.key ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
-                    color: sendChannel === ch.key ? 'var(--bg-card, #fff)' : 'var(--text, #2D2A26)',
-                    border: sendChannel === ch.key ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, #E8E4E0)',
+                    background: sendChannel === ch.key ? 'var(--accent, #92405e)' : 'var(--card-bg, #FFFCF9)',
+                    color: sendChannel === ch.key ? 'var(--bg-card, #FFFCF9)' : 'var(--text, #241B17)',
+                    border: sendChannel === ch.key ? '1px solid var(--accent, #92405e)' : '1px solid var(--border, #E8DDD4)',
                   }}
                 >
                   {ch.label}
@@ -363,12 +363,12 @@ const s = {
     fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
   },
   header: { marginBottom: 16 },
-  title: { fontSize: 24, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },
-  sub: { fontSize: 13, color: 'var(--text-muted, #7a7470)', margin: '4px 0 0' },
+  title: { fontSize: 24, fontWeight: 700, color: 'var(--text, #241B17)', margin: 0 },
+  sub: { fontSize: 13, color: 'var(--text-muted, #6B5D54)', margin: '4px 0 0' },
   statsRow: { display: 'flex', gap: 8, marginBottom: 16 },
   statCard: {
     flex: 1,
-    background: 'var(--card-bg, #fff)',
+    background: 'var(--card-bg, #FFFCF9)',
     borderRadius: 12,
     padding: '12px 10px',
     display: 'flex',
@@ -376,22 +376,22 @@ const s = {
     alignItems: 'center',
     gap: 2,
   },
-  statValue: { fontSize: 20, fontWeight: 700, color: 'var(--text, #2D2A26)' },
-  statLabel: { fontSize: 10, color: 'var(--text-muted, #7a7470)', textTransform: 'uppercase', letterSpacing: '0.03em' },
-  tabBar: { display: 'flex', borderBottom: '1px solid var(--border, #F0ECE8)', marginBottom: 14 },
+  statValue: { fontSize: 20, fontWeight: 700, color: 'var(--text, #241B17)' },
+  statLabel: { fontSize: 10, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', letterSpacing: '0.03em' },
+  tabBar: { display: 'flex', borderBottom: '1px solid var(--border, #E8DDD4)', marginBottom: 14 },
   tab: {
     flex: 1, padding: '10px 0', background: 'none', border: 'none',
     cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', textAlign: 'center',
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
   },
   tabBadge: {
-    fontSize: 10, fontWeight: 700, background: 'var(--border, #F0ECE8)',
+    fontSize: 10, fontWeight: 700, background: 'var(--border, #E8DDD4)',
     borderRadius: 8, padding: '1px 6px',
   },
   templateRow: {
     display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap',
   },
-  templateLabel: { fontSize: 12, color: 'var(--text-muted, #7a7470)', fontWeight: 500 },
+  templateLabel: { fontSize: 12, color: 'var(--text-muted, #6B5D54)', fontWeight: 500 },
   templateChips: { display: 'flex', gap: 6, flexWrap: 'wrap' },
   templateChip: {
     padding: '5px 12px', borderRadius: 16, fontSize: 12, fontWeight: 500,
@@ -399,8 +399,8 @@ const s = {
   },
   clientList: { display: 'flex', flexDirection: 'column', gap: 10 },
   clientCard: {
-    background: 'var(--card-bg, #fff)', borderRadius: 14, padding: 14,
-    border: '1px solid var(--border, #F0ECE8)',
+    background: 'var(--card-bg, #FFFCF9)', borderRadius: 14, padding: 14,
+    border: '1px solid var(--border, #E8DDD4)',
   },
   clientTop: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10,
@@ -410,76 +410,76 @@ const s = {
     width: 38, height: 38, borderRadius: 19,
     background: 'linear-gradient(135deg, #C76B8A22, #C76B8A44)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 14, fontWeight: 700, color: 'var(--accent, #C76B8A)', flexShrink: 0,
+    fontSize: 14, fontWeight: 700, color: 'var(--accent, #92405e)', flexShrink: 0,
   },
-  clientName: { display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  clientMeta: { display: 'block', fontSize: 11, color: 'var(--text-muted, #7a7470)' },
+  clientName: { display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text, #241B17)' },
+  clientMeta: { display: 'block', fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
   clientRight: {},
   urgencyBadge: {
     fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 6,
   },
   messagePreview: {
     padding: '10px 12px', borderRadius: 10,
-    background: 'var(--bg, var(--bg, #FAF8F5))', marginBottom: 10,
+    background: 'var(--bg, var(--bg, #FBF6F1))', marginBottom: 10,
   },
   messageText: {
-    fontSize: 12, color: 'var(--text, #5A5550)', lineHeight: 1.5, margin: 0,
+    fontSize: 12, color: 'var(--text, #241B17)', lineHeight: 1.5, margin: 0,
   },
   cardActions: { display: 'flex', gap: 8 },
   sendBtn: {
     flex: 1, padding: '9px 0', borderRadius: 10, border: 'none',
-    background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 13, fontWeight: 600,
+    background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   editBtn: {
-    padding: '9px 16px', borderRadius: 10, border: '1px solid var(--border, #E8E4E0)',
-    background: 'var(--card-bg, #fff)', color: 'var(--text, #2D2A26)',
+    padding: '9px 16px', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)',
+    background: 'var(--card-bg, #FFFCF9)', color: 'var(--text, #241B17)',
     fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
   },
   sentBadge: {
-    fontSize: 13, fontWeight: 600, color: 'var(--success, #5BA97B)',
+    fontSize: 13, fontWeight: 600, color: 'var(--success, #3F7D5C)',
     display: 'flex', alignItems: 'center', gap: 4,
   },
   bulkBtn: {
     width: '100%', padding: '13px 0', marginTop: 16, borderRadius: 12,
-    border: 'none', background: 'linear-gradient(135deg, var(--accent, #C76B8A), var(--accent-hover, #B85D7B))',
-    color: 'var(--bg-card, #fff)', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+    border: 'none', background: 'linear-gradient(135deg, var(--accent, #92405e), var(--accent-hover, #782b49))',
+    color: 'var(--bg-card, #FFFCF9)', fontSize: 14, fontWeight: 700, cursor: 'pointer',
     fontFamily: 'inherit', boxShadow: '0 4px 14px rgba(199,107,138,0.3)',
   },
   empty: { textAlign: 'center', padding: '32px 20px' },
-  emptyText: { fontSize: 13, color: 'var(--text-muted, #7a7470)' },
+  emptyText: { fontSize: 13, color: 'var(--text-muted, #6B5D54)' },
   // Settings
   settingsSection: { display: 'flex', flexDirection: 'column', gap: 12 },
   toggleRow: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    padding: '14px 16px', background: 'var(--card-bg, #fff)', borderRadius: 14,
-    border: '1px solid var(--border, #F0ECE8)',
+    padding: '14px 16px', background: 'var(--card-bg, #FFFCF9)', borderRadius: 14,
+    border: '1px solid var(--border, #E8DDD4)',
   },
-  toggleLabel: { display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  toggleDesc: { display: 'block', fontSize: 12, color: 'var(--text-muted, #7a7470)', marginTop: 2 },
+  toggleLabel: { display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text, #241B17)' },
+  toggleDesc: { display: 'block', fontSize: 12, color: 'var(--text-muted, #6B5D54)', marginTop: 2 },
   toggle: {
     width: 44, height: 26, borderRadius: 13, border: 'none',
-    cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s', background: 'var(--accent, #C76B8A)',
+    cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background 0.2s', background: 'var(--accent, #92405e)',
   },
   toggleThumb: {
-    width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #fff)',
+    width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #FFFCF9)',
     position: 'absolute', top: 2, transition: 'transform 0.2s',
     boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
   },
   settingCard: {
-    background: 'var(--card-bg, #fff)', borderRadius: 14, padding: 16,
-    border: '1px solid var(--border, #F0ECE8)',
+    background: 'var(--card-bg, #FFFCF9)', borderRadius: 14, padding: 16,
+    border: '1px solid var(--border, #E8DDD4)',
   },
-  settingLabel: { display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)', marginBottom: 4 },
-  settingDesc: { display: 'block', fontSize: 12, color: 'var(--text-muted, #7a7470)', marginBottom: 10 },
+  settingLabel: { display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text, #241B17)', marginBottom: 4 },
+  settingDesc: { display: 'block', fontSize: 12, color: 'var(--text-muted, #6B5D54)', marginBottom: 10 },
   chipRow: { display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 },
   intervalChip: {
     padding: '8px 14px', borderRadius: 10, fontSize: 13, fontWeight: 500,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   templatePreview: {
-    padding: '10px 0', borderBottom: '1px solid var(--border, #F0ECE8)',
+    padding: '10px 0', borderBottom: '1px solid var(--border, #E8DDD4)',
   },
-  templatePreviewName: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--accent, #C76B8A)', marginBottom: 4 },
-  templatePreviewBody: { fontSize: 12, color: 'var(--text, #5A5550)', lineHeight: 1.5, margin: 0 },
+  templatePreviewName: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--accent, #92405e)', marginBottom: 4 },
+  templatePreviewBody: { fontSize: 12, color: 'var(--text, #241B17)', lineHeight: 1.5, margin: 0 },
 };

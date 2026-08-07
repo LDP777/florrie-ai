@@ -91,7 +91,7 @@ export default function SMSUsageWidget() {
         <h3 style={styles.title}>SMS this month</h3>
         <span style={{ ...styles.badge,
           color: usage.isSurplus ? 'var(--danger)' : 'var(--accent)',
-          background: usage.isSurplus ? 'var(--danger-light, #fee2e2)' : 'var(--accent-light)',
+          background: usage.isSurplus ? 'var(--danger-light, #F7E4E4)' : 'var(--accent-light)',
         }}>
           {usage.messagesSent}/{MONTHLY_LIMIT}
         </span>

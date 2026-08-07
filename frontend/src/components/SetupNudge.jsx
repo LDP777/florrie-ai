@@ -107,7 +107,7 @@ const S = {
     flex: 1,
     fontSize: 13,
     fontWeight: 600,
-    color: 'var(--text-secondary, #4D423D)',
+    color: 'var(--text-secondary, #574A42)',
     minWidth: 0,
   },
   cta: {
@@ -119,7 +119,7 @@ const S = {
     background: 'none',
     fontSize: 20,
     lineHeight: 1,
-    color: 'var(--text-muted, #8A7A72)',
+    color: 'var(--text-muted, #6B5D54)',
     cursor: 'pointer',
     padding: '2px 6px',
     flexShrink: 0,

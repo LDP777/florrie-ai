@@ -116,13 +116,13 @@ function PageLoader() {
     }}>
       <div style={{ width: 32,
         height: 32,
-        border: '2.5px solid var(--border, #EDE9E4)',
-        borderTopColor: 'var(--accent, #C76B8A)',
+        border: '2.5px solid var(--border, #E8DDD4)',
+        borderTopColor: 'var(--accent, #92405e)',
         borderRadius: '50%',
         animation: 'spin 0.8s linear infinite',
       }} />
       <span style={{ fontSize: 12,
-        color: 'var(--text-muted, #B5AFA8)',
+        color: 'var(--text-muted, #6B5D54)',
         fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
         letterSpacing: '0.04em',
       }}>Loading...</span>
@@ -202,15 +202,15 @@ function TrialExpiredScreen({ onSignOut }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg, #FAF8F6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg, #FBF6F1)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div style={{ maxWidth: 440, width: '100%', background: '#fff', borderRadius: 20, padding: '48px 40px', textAlign: 'center', boxShadow: '0 4px 32px rgba(0,0,0,0.08)' }}>
         <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center', color: 'var(--accent, #92405E)' }}>
           <Icon name="flower" size={44} strokeWidth={1.3} />
         </div>
-        <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, fontWeight: 700, color: 'var(--text-primary, #2C2825)', marginBottom: 8 }}>
+        <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 26, fontWeight: 700, color: 'var(--text-primary, #241B17)', marginBottom: 8 }}>
           Your free trial has ended
         </h1>
-        <p style={{ color: 'var(--text-secondary, #6B6460)', fontSize: 15, lineHeight: 1.6, marginBottom: 32 }}>
+        <p style={{ color: 'var(--text-secondary, #574A42)', fontSize: 15, lineHeight: 1.6, marginBottom: 32 }}>
           {iosNative
             ? 'Your trial is no longer active on this account.'
             : 'Your diary, your clients and your messages are all still here. Start your plan and pick up where you left off.'}
@@ -220,21 +220,21 @@ function TrialExpiredScreen({ onSignOut }) {
             <button
               onClick={startCheckout}
               disabled={starting}
-              style={{ display: 'block', width: '100%', background: 'var(--accent, #C76B8A)', color: '#fff', border: 'none', borderRadius: 12, padding: '14px 24px', fontSize: 15, fontWeight: 600, cursor: starting ? 'default' : 'pointer', opacity: starting ? 0.7 : 1, marginBottom: 12 }}
+              style={{ display: 'block', width: '100%', background: 'var(--accent, #92405e)', color: '#fff', border: 'none', borderRadius: 12, padding: '14px 24px', fontSize: 15, fontWeight: 600, cursor: starting ? 'default' : 'pointer', opacity: starting ? 0.7 : 1, marginBottom: 12 }}
             >
               {starting ? 'Opening checkout...' : 'Continue for £29 a month'}
             </button>
             {error && (
-              <p style={{ color: 'var(--danger, #C0392B)', fontSize: 13, lineHeight: 1.5, marginBottom: 12 }}>{error}</p>
+              <p style={{ color: 'var(--danger, #9E2B32)', fontSize: 13, lineHeight: 1.5, marginBottom: 12 }}>{error}</p>
             )}
-            <a href="/pricing" style={{ display: 'block', color: 'var(--text-secondary, #6B6460)', fontSize: 13, textDecoration: 'underline', marginBottom: 12 }}>
+            <a href="/pricing" style={{ display: 'block', color: 'var(--text-secondary, #574A42)', fontSize: 13, textDecoration: 'underline', marginBottom: 12 }}>
               See all plans
             </a>
           </>
         )}
         <button
           onClick={onSignOut}
-          style={{ background: 'none', border: 'none', color: 'var(--text-muted, #9E9790)', fontSize: 13, cursor: 'pointer', padding: 8 }}
+          style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6B5D54)', fontSize: 13, cursor: 'pointer', padding: 8 }}
         >
           Sign out
         </button>
@@ -350,8 +350,8 @@ export default function App() {
     return (
       <div style={styles.loadingScreen}>
         <img src="/florrie-petal.svg" alt="" style={{ width: 48, height: 48, animation: 'spin 2.5s ease-in-out infinite' }} />
-        <span style={styles.loadingLogo}>florrie<span style={{ color: 'var(--gold, #C9A96E)', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 500 }}>.ai</span></span>
-        <span style={{ fontSize: 11, color: 'var(--text-muted, #B5AFA8)', fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '0.08em', textTransform: 'uppercase' }}>your AI team</span>
+        <span style={styles.loadingLogo}>florrie<span style={{ color: 'var(--gold, #8A6420)', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 500 }}>.ai</span></span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted, #6B5D54)', fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '0.08em', textTransform: 'uppercase' }}>your AI team</span>
       </div>
     );
   }
@@ -440,7 +440,7 @@ export default function App() {
       <CoachProvider>
       <div style={styles.appShell} className="app-shell">
         {showTrialWarning && !isIOSNative() && (
-          <div style={{ background: 'var(--gold, #C9A96E)', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 13, fontWeight: 500 }}>
+          <div style={{ background: 'var(--gold, #8A6420)', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 13, fontWeight: 500 }}>
             ⏳ Your free trial ends in {daysLeft} day{daysLeft === 1 ? '' : 's'}.{' '}
             {/* Points at the real checkout, not a mailto. A beautician who
                 wants to keep Florrie should be able to pay in two taps. */}
@@ -887,7 +887,7 @@ const styles = {
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
-    background: 'var(--bg, #fef8f4)',
+    background: 'var(--bg, #FBF6F1)',
   },
   pageContainer: {
     flex: 1,
@@ -977,7 +977,7 @@ const styles = {
     lineHeight: 1,
     letterSpacing: '0.01em',
     fontWeight: 500,
-    color: '#867277',
+    color: 'var(--text-muted)',
   },
 
 };

@@ -222,7 +222,7 @@ export default function StaffRota() {
       {/* Stats */}
       <div style={S.statsRow}>
         <div style={S.statCard}>
-          <span style={{ ...S.statValue, color: 'var(--accent, #C76B8A)' }}>{staff.length}</span>
+          <span style={{ ...S.statValue, color: 'var(--accent, #92405e)' }}>{staff.length}</span>
           <span style={S.statLabel}>Team</span>
         </div>
         <div style={S.statCard}>
@@ -339,7 +339,7 @@ export default function StaffRota() {
                           return (
                             <div key={d} style={S.scheduleItem}>
                               <span style={S.schedDay}>{DAYS[i]}</span>
-                              <span style={{ ...S.schedTime, color: hrs ? 'var(--text, #2D2A26)' : '#AAA5A0' }}>
+                              <span style={{ ...S.schedTime, color: hrs ? 'var(--text, #241B17)' : '#AAA5A0' }}>
                                 {hrs ? `${hrs.start}–${hrs.end}` : 'Off'}
                               </span>
                             </div>
@@ -369,7 +369,7 @@ export default function StaffRota() {
               <div key={ex.id} style={S.exCard}>
                 <div style={S.exHeader}>
                   <div style={S.exLeft}>
-                    <div style={{ ...S.staffDot, background: 'var(--accent, #C76B8A)' }} />
+                    <div style={{ ...S.staffDot, background: 'var(--accent, #92405e)' }} />
                     <span style={S.exName}>Salon closed</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -448,7 +448,7 @@ export default function StaffRota() {
             <div style={S.fieldLabel}>Hours by Day</div>
             {DAY_KEYS.map((d, i) => (
               <div key={d} style={S.dayEditRow}>
-                <span style={{ width: 50, fontWeight: 600, color: 'var(--text, #2D2A26)' }}>{DAYS[i]}</span>
+                <span style={{ width: 50, fontWeight: 600, color: 'var(--text, #241B17)' }}>{DAYS[i]}</span>
                 <input style={{ ...S.input, flex: 1, fontSize: 12 }} type="time" placeholder="Start" value={shiftForm.hours[d]?.start || ''} onChange={e => {
                   const newHours = { ...shiftForm.hours };
                   if (e.target.value) {
@@ -463,7 +463,7 @@ export default function StaffRota() {
                   }
                   setShiftForm(f => ({ ...f, hours: newHours }));
                 }} />
-                <button style={{ ...S.input, flex: 0.3, fontSize: 12, color: 'var(--accent, #C76B8A)', cursor: 'pointer' }} onClick={() => {
+                <button style={{ ...S.input, flex: 0.3, fontSize: 12, color: 'var(--accent, #92405e)', cursor: 'pointer' }} onClick={() => {
                   const newHours = { ...shiftForm.hours };
                   newHours[d] = null;
                   setShiftForm(f => ({ ...f, hours: newHours }));
@@ -484,91 +484,91 @@ export default function StaffRota() {
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },
-  addBtn: { background: 'var(--accent, #C76B8A)', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  errorBox: { background: 'var(--danger-bg, #FDF0EF)', borderRadius: 10, padding: '10px 12px', color: 'var(--danger, #D4605C)', fontSize: 13, fontWeight: 500 },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #241B17)', margin: 0 },
+  addBtn: { background: 'var(--accent, #92405e)', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  errorBox: { background: 'var(--danger-bg, #F7E4E4)', borderRadius: 10, padding: '10px 12px', color: 'var(--danger, #9E2B32)', fontSize: 13, fontWeight: 500 },
 
   statsRow: { display: 'flex', gap: 10, marginBottom: 16 },
-  statCard: { flex: 1, background: 'var(--card, #fff)', borderRadius: 12, padding: '12px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
+  statCard: { flex: 1, background: 'var(--card, #FFFCF9)', borderRadius: 12, padding: '12px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   statValue: { fontSize: 18, fontWeight: 700 },
-  statLabel: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
+  statLabel: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
 
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
-  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: 'var(--text-muted, #AAA5A0)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #FFFCF9)', color: 'var(--text-muted, #6B5D54)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive: { background: 'var(--accent, #92405e)', color: '#fff' },
 
   // Week view
   weekNav: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, marginBottom: 12 },
-  weekArrow: { background: 'none', border: 'none', fontSize: 22, color: 'var(--text-muted, #AAA5A0)', cursor: 'pointer', padding: '4px 8px' },
-  weekLabel: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
+  weekArrow: { background: 'none', border: 'none', fontSize: 22, color: 'var(--text-muted, #6B5D54)', cursor: 'pointer', padding: '4px 8px' },
+  weekLabel: { fontSize: 14, fontWeight: 600, color: 'var(--text, #241B17)' },
 
-  grid: { background: 'var(--card, #fff)', borderRadius: 14, overflow: 'hidden' },
-  gridHeader: { display: 'grid', gridTemplateColumns: '80px repeat(6, 1fr)', borderBottom: '1px solid var(--border, #F0ECE8)' },
+  grid: { background: 'var(--card, #FFFCF9)', borderRadius: 14, overflow: 'hidden' },
+  gridHeader: { display: 'grid', gridTemplateColumns: '80px repeat(6, 1fr)', borderBottom: '1px solid var(--border, #E8DDD4)' },
   gridCorner: { padding: 8 },
   gridDayHeader: { padding: '8px 4px', textAlign: 'center' },
-  todayHeader: { background: 'var(--accent-light, #FFF0F3)' },
-  dayName: { fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)', display: 'block' },
-  dayNum: { fontSize: 14, fontWeight: 700, color: 'var(--text, #2D2A26)' },
+  todayHeader: { background: 'var(--accent-light, #F6E7EC)' },
+  dayName: { fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #6B5D54)', display: 'block' },
+  dayNum: { fontSize: 14, fontWeight: 700, color: 'var(--text, #241B17)' },
 
-  gridRow: { display: 'grid', gridTemplateColumns: '80px repeat(6, 1fr)', borderBottom: '1px solid var(--border, #F0ECE8)', minHeight: 56 },
+  gridRow: { display: 'grid', gridTemplateColumns: '80px repeat(6, 1fr)', borderBottom: '1px solid var(--border, #E8DDD4)', minHeight: 56 },
   gridStaff: { display: 'flex', alignItems: 'center', gap: 6, padding: '8px 8px 8px 10px' },
   staffDot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
   staffInfo: { display: 'flex', flexDirection: 'column' },
-  staffName: { fontSize: 12, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  staffRole: { fontSize: 10, color: 'var(--text-muted, #AAA5A0)' },
+  staffName: { fontSize: 12, fontWeight: 600, color: 'var(--text, #241B17)' },
+  staffRole: { fontSize: 10, color: 'var(--text-muted, #6B5D54)' },
 
   gridCell: { padding: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  todayCell: { background: 'var(--bg, #FAF8F5)' },
+  todayCell: { background: 'var(--bg, #FBF6F1)' },
   shiftBlock: { width: '100%', borderRadius: 6, padding: '4px 3px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 },
-  shiftTime: { fontSize: 10, fontWeight: 500, color: 'var(--text, #2D2A26)' },
-  offLabel: { fontSize: 10, color: 'var(--text-muted, #AAA5A0)' },
+  shiftTime: { fontSize: 10, fontWeight: 500, color: 'var(--text, #241B17)' },
+  offLabel: { fontSize: 10, color: 'var(--text-muted, #6B5D54)' },
 
   // Staff tab
   staffList: { display: 'flex', flexDirection: 'column', gap: 10 },
-  staffCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 14, cursor: 'pointer' },
+  staffCard: { background: 'var(--card, #FFFCF9)', borderRadius: 14, padding: 14, cursor: 'pointer' },
   staffCardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   staffCardLeft: { display: 'flex', gap: 10, alignItems: 'center' },
   staffAvatar: { width: 36, height: 36, borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600 },
-  staffCardName: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)', display: 'block' },
-  staffCardRole: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)' },
-  hoursTag: { padding: '4px 10px', borderRadius: 8, background: 'var(--border, #F0ECE8)', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #8B6F5E)' },
+  staffCardName: { fontSize: 14, fontWeight: 600, color: 'var(--text, #241B17)', display: 'block' },
+  staffCardRole: { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
+  hoursTag: { padding: '4px 10px', borderRadius: 8, background: 'var(--border, #E8DDD4)', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #574A42)' },
 
-  staffDetail: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, #F0ECE8)' },
-  sectionLabel: { fontSize: 11, fontWeight: 700, color: 'var(--text-muted, #AAA5A0)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 8, marginTop: 12 },
+  staffDetail: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, #E8DDD4)' },
+  sectionLabel: { fontSize: 11, fontWeight: 700, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 8, marginTop: 12 },
   scheduleGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 },
-  scheduleItem: { display: 'flex', flexDirection: 'column', background: 'var(--bg-hover, #F5F2EF)', borderRadius: 8, padding: '6px 8px' },
-  schedDay: { fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)' },
+  scheduleItem: { display: 'flex', flexDirection: 'column', background: 'var(--bg-hover, #f3ede9)', borderRadius: 8, padding: '6px 8px' },
+  schedDay: { fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #6B5D54)' },
   schedTime: { fontSize: 13, fontWeight: 600 },
   timeOffItem: { display: 'flex', justifyContent: 'space-between', padding: '6px 0' },
-  timeOffDate: { fontSize: 12, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  timeOffReason: { fontSize: 12, color: 'var(--gold-text, #8A7245)' },
+  timeOffDate: { fontSize: 12, fontWeight: 600, color: 'var(--text, #241B17)' },
+  timeOffReason: { fontSize: 12, color: 'var(--gold-text, #795f2b)' },
   staffActions: { display: 'flex', gap: 8, marginTop: 12 },
-  staffActionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, #F0ECE8)', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text, #2D2A26)' },
+  staffActionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, #E8DDD4)', background: 'var(--card, #FFFCF9)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text, #241B17)' },
 
   // Exceptions
   exceptionList: { display: 'flex', flexDirection: 'column', gap: 10 },
-  exCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 14 },
+  exCard: { background: 'var(--card, #FFFCF9)', borderRadius: 14, padding: 14 },
   exHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   exLeft: { display: 'flex', alignItems: 'center', gap: 8 },
-  exName: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
+  exName: { fontSize: 14, fontWeight: 600, color: 'var(--text, #241B17)' },
   exTypeBadge: { padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600 },
-  exReason: { fontSize: 13, color: 'var(--text-secondary, #8B6F5E)', margin: '0 0 4px' },
-  exDate: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)' },
-  deleteBtn: { background: 'none', border: 'none', fontSize: 22, color: 'var(--text-muted, #AAA5A0)', cursor: 'pointer', padding: '0 4px', lineHeight: 1 },
-  empty: { textAlign: 'center', color: 'var(--text-muted, #AAA5A0)', fontSize: 14, padding: 32 },
+  exReason: { fontSize: 13, color: 'var(--text-secondary, #574A42)', margin: '0 0 4px' },
+  exDate: { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
+  deleteBtn: { background: 'none', border: 'none', fontSize: 22, color: 'var(--text-muted, #6B5D54)', cursor: 'pointer', padding: '0 4px', lineHeight: 1 },
+  empty: { textAlign: 'center', color: 'var(--text-muted, #6B5D54)', fontSize: 14, padding: 32 },
 
   // Modal
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 960, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
-  modal: { background: 'var(--bg-card, #fff)', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480 },
-  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 16px' },
-  fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #8B6F5E)', marginBottom: 6, marginTop: 12 },
-  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #F0ECE8)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', outline: 'none', boxSizing: 'border-box' },
-  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #F0ECE8)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', background: 'var(--bg-card, #fff)', outline: 'none', boxSizing: 'border-box' },
+  modal: { background: 'var(--bg-card, #FFFCF9)', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480 },
+  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text, #241B17)', margin: '0 0 16px' },
+  fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #574A42)', marginBottom: 6, marginTop: 12 },
+  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #241B17)', outline: 'none', boxSizing: 'border-box' },
+  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #241B17)', background: 'var(--bg-card, #FFFCF9)', outline: 'none', boxSizing: 'border-box' },
   toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
-  toggleLabel: { fontSize: 14, fontWeight: 500, color: 'var(--text, #2D2A26)' },
+  toggleLabel: { fontSize: 14, fontWeight: 500, color: 'var(--text, #241B17)' },
   toggle: { width: 44, height: 26, borderRadius: 13, border: 'none', padding: 0, cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 },
-  toggleDot: { width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #fff)', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
+  toggleDot: { width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #FFFCF9)', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
   timeRow: { display: 'flex', gap: 12 },
-  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
+  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
   dayEditRow: { display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 },
 };

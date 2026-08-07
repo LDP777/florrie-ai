@@ -870,7 +870,7 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, quiet = fa
         onClick={() => onOpen(thread.client_id)}
         style={{ ...S.row,
           ...((automated || muted) && !owed ? S.rowMuted : {}),
-          background: active ? 'var(--accent-wash, #fbe9f0)' : 'transparent',
+          background: active ? 'var(--accent-wash, #FBF2F5)' : 'transparent',
         }}
       >
         <span style={S.avatarWrap}>
@@ -905,7 +905,7 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, quiet = fa
           <span style={S.rowBottom}>
             <span style={{ ...S.rowPreview,
               ...((automated || muted) && !owed ? S.rowPreviewMuted : {}),
-              color: loud ? 'var(--text-primary, #1d1b19)' : 'var(--text-muted, #9B8A8E)',
+              color: loud ? 'var(--text-primary, #241B17)' : 'var(--text-muted, #6B5D54)',
               fontWeight: loud ? 600 : 400,
             }}>
               {previewPrefix}{previewText}
@@ -969,7 +969,7 @@ function ThreadSkeleton() {
       {[0, 1, 2, 3].map(i => (
         <li key={i}>
           <div style={{ ...S.row, cursor: 'default' }}>
-            <span style={{ ...S.avatar, background: 'var(--border-light, #F0ECE8)', color: 'transparent' }}>·</span>
+            <span style={{ ...S.avatar, background: 'var(--border-light, #ede7e3)', color: 'transparent' }}>·</span>
             <span style={S.rowBody}>
               <span style={S.skelLine} />
               <span style={S.skelLineShort} />
@@ -1050,7 +1050,7 @@ function EmptyConvoPlaceholder() {
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
           background: 'linear-gradient(135deg, #ffe7ee 0%, #fdeef3 100%)',
           boxShadow: 'inset 0 0 0 1px rgba(146,64,94,0.08)' }} />
-      <div style={{ fontSize: 16, color: 'var(--text-secondary, #867277)', fontFamily: "'Playfair Display', Georgia, serif", fontStyle: 'italic' }}>
+      <div style={{ fontSize: 16, color: 'var(--text-secondary, #574A42)', fontFamily: "'Playfair Display', Georgia, serif", fontStyle: 'italic' }}>
         Pick a conversation
       </div>
     </div>
@@ -1293,9 +1293,9 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
                   aria-selected={on}
                   onClick={() => setChannel(c)}
                   style={{ ...S.channelPill,
-                    background: on ? 'var(--accent, #92405e)' : 'var(--bg-card, #fff)',
+                    background: on ? 'var(--accent, #92405e)' : 'var(--bg-card, #FFFCF9)',
                     color: on ? '#fff' : 'var(--accent, #92405e)',
-                    borderColor: on ? 'var(--accent, #92405e)' : 'var(--border-light, #f0d2dd)',
+                    borderColor: on ? 'var(--accent, #92405e)' : 'var(--border-light, #ede7e3)',
                   }}
                 >
                   <Icon name={iconName(meta.icon)} size={15} inline style={{ color: on ? '#fff' : meta.tint }} />
@@ -1389,7 +1389,7 @@ function ClientControls({ clientId, initialAutonomy = null }) {
             onClick={seg.set}
             style={{ ...S.driverSeg,
               background: seg.on ? 'var(--accent, #92405e)' : 'transparent',
-              color: seg.on ? '#fff' : 'var(--text-secondary, #867277)',
+              color: seg.on ? '#fff' : 'var(--text-secondary, #574A42)',
             }}
           >
             {seg.label}
@@ -1410,7 +1410,7 @@ function ClientControls({ clientId, initialAutonomy = null }) {
                 onClick={() => save(on ? null : o.key)}
                 style={{ ...S.finePill,
                   background: on ? 'var(--tone-2, #f6e7dd)' : 'transparent',
-                  color: on ? 'var(--accent, #92405e)' : 'var(--text-muted, #9B8A8E)',
+                  color: on ? 'var(--accent, #92405e)' : 'var(--text-muted, #6B5D54)',
                   fontWeight: on ? 700 : 500,
                 }}
               >
@@ -1418,7 +1418,7 @@ function ClientControls({ clientId, initialAutonomy = null }) {
               </button>
             );
           })}
-          {value === null && <span style={{ fontSize: 11, color: 'var(--text-muted, #9B8A8E)' }}>Auto</span>}
+          {value === null && <span style={{ fontSize: 11, color: 'var(--text-muted, #6B5D54)' }}>Auto</span>}
         </div>
       )}
     </div>
@@ -1603,7 +1603,7 @@ function Bubble({ msg, threadChannel, onRetry }) {
   // (maroon), Florrie right (quiet tonal). No loud per-bubble stamp any more.
   const florrieSent = out && (type === 'auto_reply' || type === 'proactive' || msg.ai_generated);
   const bubbleBg = failed ? '#fdeceb' : !out ? 'var(--bg-card, #FFFCF9)' : florrieSent ? 'var(--tone-2, #f6e7dd)' : 'var(--accent, #92405e)';
-  const bubbleFg = failed ? '#9a2a22' : out && !florrieSent ? '#fff' : 'var(--text-primary, #1d1b19)';
+  const bubbleFg = failed ? '#9a2a22' : out && !florrieSent ? '#fff' : 'var(--text-primary, #241B17)';
   const metaFg = failed ? '#c0665e' : out && !florrieSent ? 'rgba(255,255,255,0.78)' : '#9B8A8E';
 
   const mediaStub = !msg.body && !msg.image_url
@@ -1650,16 +1650,16 @@ function Bubble({ msg, threadChannel, onRetry }) {
 const S = {
   page: {
     minHeight: '100vh',
-    background: 'var(--bg, #fef8f4)',
+    background: 'var(--bg, #FBF6F1)',
     fontFamily: "'Plus Jakarta Sans', sans-serif",
     padding: '0 0 24px',
     maxWidth: 480,
     margin: '0 auto',
-    color: 'var(--text-primary, #1d1b19)',
+    color: 'var(--text-primary, #241B17)',
   },
   pageWide: {
     minHeight: '100vh',
-    background: 'var(--bg, #fef8f4)',
+    background: 'var(--bg, #FBF6F1)',
     fontFamily: "'Plus Jakarta Sans', sans-serif",
     display: 'grid',
     gridTemplateColumns: 'minmax(320px, 392px) 1fr',
@@ -1667,7 +1667,7 @@ const S = {
     padding: '0 16px 24px',
     maxWidth: 1120,
     margin: '0 auto',
-    color: 'var(--text-primary, #1d1b19)',
+    color: 'var(--text-primary, #241B17)',
   },
   paneList: {
     background: 'var(--tone-1, #fbf1ea)',
@@ -1690,14 +1690,14 @@ const S = {
   searchWrap: { position: 'relative', marginBottom: 10, padding: '0 18px' },
   searchIcon: {
     position: 'absolute', left: 32, top: '50%', transform: 'translateY(-50%)',
-    fontSize: 18, color: 'var(--text-muted, #B5AFA8)',
+    fontSize: 18, color: 'var(--text-muted, #6B5D54)',
   },
   searchInput: {
     width: '100%', boxSizing: 'border-box',
     padding: '11px 12px 11px 40px',
     border: 'none',
     borderRadius: 16, background: 'var(--tone-2, #f6e7dd)',
-    fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #1d1b19)', outline: 'none',
+    fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #241B17)', outline: 'none',
     transition: 'border-color 0.15s ease, background 0.15s ease',
   },
 
@@ -1710,7 +1710,7 @@ const S = {
     display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap',
     padding: '8px 14px', minHeight: 44, borderRadius: 999,
     border: 'none',
-    background: 'var(--tone-2, #f6e7dd)', color: 'var(--text-secondary, #867277)',
+    background: 'var(--tone-2, #f6e7dd)', color: 'var(--text-secondary, #574A42)',
     fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease',
   },
@@ -1730,7 +1730,7 @@ const S = {
   spaceTab: {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
     minHeight: 48, padding: '10px 12px', borderRadius: 14, border: 'none',
-    background: 'var(--tone-2, #f6e7dd)', color: 'var(--text-secondary, #867277)',
+    background: 'var(--tone-2, #f6e7dd)', color: 'var(--text-secondary, #574A42)',
     fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
     transition: 'background 0.15s ease, color 0.15s ease',
     WebkitTapHighlightColor: 'transparent',
@@ -1745,7 +1745,7 @@ const S = {
 
   igNoLeads: {
     margin: 0, padding: '10px 18px', fontSize: 13,
-    color: 'var(--text-muted, #9B8A8E)', lineHeight: 1.5,
+    color: 'var(--text-muted, #6B5D54)', lineHeight: 1.5,
   },
   clearAllWrap: {
     display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
@@ -1758,7 +1758,7 @@ const S = {
     fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
     WebkitTapHighlightColor: 'transparent',
   },
-  clearAllHint: { fontSize: 11.5, color: 'var(--text-muted, #9B8A8E)' },
+  clearAllHint: { fontSize: 11.5, color: 'var(--text-muted, #6B5D54)' },
 
   headerWrap: { padding: '0 18px' },
   caughtUpBtn: {
@@ -1776,15 +1776,15 @@ const S = {
     width: '100%', background: 'none', border: 'none', cursor: 'pointer',
     fontFamily: 'inherit', textAlign: 'left', minHeight: 44,
   },
-  sectionChevron: { fontSize: 18, color: 'var(--text-muted, #B5AFA8)' },
-  sectionQuietNote: { fontSize: 11.5, color: 'var(--text-muted, #B5AFA8)', fontStyle: 'italic', marginLeft: 'auto' },
+  sectionChevron: { fontSize: 18, color: 'var(--text-muted, #6B5D54)' },
+  sectionQuietNote: { fontSize: 11.5, color: 'var(--text-muted, #6B5D54)', fontStyle: 'italic', marginLeft: 'auto' },
   waitChip: {
     fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
     background: '#fdf0e3', color: '#b3602f', letterSpacing: '0.02em',
   },
   petalNote: { fontSize: 11, color: 'var(--accent, #92405e)', fontWeight: 600 },
   metaLine: {
-    display: 'block', fontSize: 11.5, color: 'var(--text-muted, #9B8A8E)',
+    display: 'block', fontSize: 11.5, color: 'var(--text-muted, #6B5D54)',
     lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   },
   headerActions: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
@@ -1805,7 +1805,7 @@ const S = {
     fontSize: 11.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
     WebkitTapHighlightColor: 'transparent', transition: 'background 0.15s ease',
   },
-  driverCaption: { fontSize: 10.5, color: 'var(--text-muted, #9B8A8E)', padding: '0 10px 0 4px' },
+  driverCaption: { fontSize: 10.5, color: 'var(--text-muted, #6B5D54)', padding: '0 10px 0 4px' },
   pillRow: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' },
   finePill: {
     padding: '4px 10px', minHeight: 26, borderRadius: 999, border: 'none',
@@ -1817,19 +1817,19 @@ const S = {
   },
   handledLine: { flex: 1, height: 1, background: 'rgba(146,64,94,0.12)' },
   handledText: {
-    fontSize: 11, color: 'var(--text-muted, #9B8A8E)', fontWeight: 600,
+    fontSize: 11, color: 'var(--text-muted, #6B5D54)', fontWeight: 600,
     whiteSpace: 'nowrap',
   },
   draftBubble: {
     maxWidth: 'min(78%, 420px)', padding: '10px 14px', borderRadius: 20,
     borderBottomRightRadius: 6, background: 'rgba(146,64,94,0.04)',
-    border: '1.5px dashed rgba(146,64,94,0.45)', color: 'var(--text-primary, #1d1b19)',
+    border: '1.5px dashed rgba(146,64,94,0.45)', color: 'var(--text-primary, #241B17)',
     boxSizing: 'border-box',
   },
   draftEdit: {
     width: '100%', boxSizing: 'border-box', border: '1px solid rgba(146,64,94,0.25)',
     borderRadius: 10, padding: '8px 10px', fontSize: 14, fontFamily: 'inherit',
-    background: '#fff', color: 'var(--text-primary, #1d1b19)', resize: 'vertical', outline: 'none',
+    background: '#fff', color: 'var(--text-primary, #241B17)', resize: 'vertical', outline: 'none',
   },
   draftActions: { display: 'flex', gap: 6, marginTop: 8 },
   draftSend: {
@@ -1839,7 +1839,7 @@ const S = {
   },
   draftGhost: {
     padding: '6px 12px', minHeight: 32, borderRadius: 999, border: 'none',
-    background: 'var(--tone-2, #f6e7dd)', color: 'var(--text-secondary, #867277)',
+    background: 'var(--tone-2, #f6e7dd)', color: 'var(--text-secondary, #574A42)',
     fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     WebkitTapHighlightColor: 'transparent',
   },
@@ -1848,10 +1848,10 @@ const S = {
   },
   sectionTitle: {
     fontSize: 11, fontWeight: 700, letterSpacing: '0.13em', textTransform: 'uppercase',
-    color: 'var(--text-muted, #B5AFA8)',
+    color: 'var(--text-muted, #6B5D54)',
   },
   sectionCount: {
-    fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted, #9a8f93)',
+    fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted, #6B5D54)',
     background: 'rgba(146,64,94,0.06)', borderRadius: 999, padding: '1px 7px', minWidth: 16, textAlign: 'center',
   },
   // Each row is a slice of an open list, not a card. A single hairline warm
@@ -1883,19 +1883,19 @@ const S = {
   rowMenuBtn: {
     position: 'absolute', top: '50%', transform: 'translateY(-50%)', right: 8,
     width: 44, height: 44, borderRadius: 22,
-    background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted, #C4BBB6)',
+    background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted, #6B5D54)',
     display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit',
     transition: 'color 0.15s ease, background 0.15s ease', zIndex: 3,
   },
   rowMenu: {
     position: 'absolute', top: 38, right: 6, zIndex: 5,
-    background: 'var(--bg-card, #fff)', border: '1px solid var(--border-light, #F0ECE8)',
+    background: 'var(--bg-card, #FFFCF9)', border: '1px solid var(--border-light, #ede7e3)',
     borderRadius: 14, boxShadow: '0 10px 28px rgba(146,64,94,0.16)', padding: 5, minWidth: 188,
   },
   rowMenuItem: {
     display: 'flex', alignItems: 'center', gap: 8, width: '100%',
     padding: '9px 11px', borderRadius: 9, border: 'none', background: 'transparent',
-    color: 'var(--danger, #c2410c)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+    color: 'var(--danger, #9E2B32)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
     fontFamily: 'inherit', textAlign: 'left',
   },
   avatarWrap: { position: 'relative', flexShrink: 0 },
@@ -1908,20 +1908,20 @@ const S = {
   },
   avatarMuted: {
     width: 38, height: 38, borderRadius: 19, fontSize: 15,
-    background: 'var(--border-light, #F0ECE8)',
-    color: 'var(--text-muted, #9a8f93)',
+    background: 'var(--border-light, #ede7e3)',
+    color: 'var(--text-muted, #6B5D54)',
   },
   // The channel mark rides the avatar's bottom-right corner so the row reads
   // cleanly, with a cream ring punching it off the photo. Uses ChannelMark.
   avatarChannel: {
     position: 'absolute', right: -3, bottom: -3, borderRadius: 8,
-    padding: 2, background: 'var(--bg-card, #fff)',
+    padding: 2, background: 'var(--bg-card, #FFFCF9)',
     display: 'inline-flex', lineHeight: 0,
     boxShadow: '0 1px 2px rgba(146,64,94,0.16)',
   },
   flagDot: {
     position: 'absolute', top: -1, left: -1, width: 12, height: 12,
-    borderRadius: 6, background: '#c2410c', border: '2px solid var(--bg-card, #fff)', zIndex: 2,
+    borderRadius: 6, background: '#c2410c', border: '2px solid var(--bg-card, #FFFCF9)', zIndex: 2,
   },
   rowBody: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 },
   rowTop: { display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
@@ -1929,19 +1929,19 @@ const S = {
   // real name truncates before the handle disappears entirely.
   rowNameWrap: { display: 'flex', alignItems: 'baseline', gap: 5, minWidth: 0, overflow: 'hidden' },
   rowHandle: {
-    fontSize: 11.5, color: 'var(--text-muted, #9B8A8E)', fontWeight: 500, flexShrink: 0,
+    fontSize: 11.5, color: 'var(--text-muted, #6B5D54)', fontWeight: 500, flexShrink: 0,
     maxWidth: '46%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   },
-  rowName: { fontSize: 15, color: 'var(--text-primary, #1d1b19)', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 },
-  rowTime: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)', flexShrink: 0, fontWeight: 500, letterSpacing: '0.01em' },
+  rowName: { fontSize: 15, color: 'var(--text-primary, #241B17)', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 },
+  rowTime: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', flexShrink: 0, fontWeight: 500, letterSpacing: '0.01em' },
   rowBottom: { display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 },
   rowPreview: {
     fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0,
     letterSpacing: '-0.003em', lineHeight: 1.35,
   },
   // Quieter type ramp for the Earlier (handled) section so it visibly recedes.
-  rowNameMuted: { fontSize: 13.5, color: 'var(--text-secondary, #867277)' },
-  rowTimeMuted: { color: 'var(--text-muted, #B5AFA8)' },
+  rowNameMuted: { fontSize: 13.5, color: 'var(--text-secondary, #574A42)' },
+  rowTimeMuted: { color: 'var(--text-muted, #6B5D54)' },
   rowPreviewMuted: { fontSize: 12.5 },
   rowBadge: {
     fontSize: 10.5, fontWeight: 700, color: '#fff', background: 'var(--accent, #92405e)',
@@ -1950,7 +1950,7 @@ const S = {
   },
   // Social lane: still countable, never urgent. No accent, no shadow.
   rowBadgeQuiet: {
-    fontSize: 10.5, fontWeight: 600, color: 'var(--text-muted, #9a8f93)',
+    fontSize: 10.5, fontWeight: 600, color: 'var(--text-muted, #6B5D54)',
     background: 'rgba(146,64,94,0.06)',
     padding: '1px 7px', borderRadius: 20, minWidth: 17, textAlign: 'center', flexShrink: 0,
     lineHeight: 1.5,
@@ -1958,7 +1958,7 @@ const S = {
   rowMetaRow: { display: 'flex', alignItems: 'center', gap: 6, marginTop: 1 },
   typeChip: {
     display: 'inline-flex', alignItems: 'center', gap: 5,
-    fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #9a8f93)',
+    fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #6B5D54)',
     letterSpacing: '0.01em',
   },
   typeDot: { width: 6, height: 6, borderRadius: 3, flexShrink: 0 },
@@ -1974,12 +1974,12 @@ const S = {
     background: 'linear-gradient(135deg, #ffe7ee 0%, #fdeef3 100%)',
     boxShadow: 'inset 0 0 0 1px rgba(146,64,94,0.08)', marginBottom: 6,
   },
-  emptyText: { fontSize: 14.5, color: 'var(--text-secondary, #867277)', lineHeight: 1.5, margin: 0, maxWidth: 280 },
+  emptyText: { fontSize: 14.5, color: 'var(--text-secondary, #574A42)', lineHeight: 1.5, margin: 0, maxWidth: 280 },
   emptyCta: {
     marginTop: 6, padding: '10px 18px', background: 'var(--accent, #92405e)', color: '#fff',
     borderRadius: 999, fontSize: 13, fontWeight: 600, textDecoration: 'none', fontFamily: 'inherit',
   },
-  emptyHint: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)', margin: 0, maxWidth: 260 },
+  emptyHint: { fontSize: 12, color: 'var(--text-muted, #6B5D54)', margin: 0, maxWidth: 260 },
   errorCard: {
     margin: '12px 18px', padding: 14, background: '#FFF8F0', border: '1px solid #FFE8CC',
     borderRadius: 12, fontSize: 13, color: '#7B5E00', lineHeight: 1.5,
@@ -1990,7 +1990,7 @@ const S = {
   convoFull: {
     height: 'var(--shell-viewport-nav)', overflow: 'hidden', background: 'var(--bg, #FBF6F1)',
     fontFamily: "'Plus Jakarta Sans', sans-serif",
-    display: 'flex', flexDirection: 'column', color: 'var(--text-primary, #1d1b19)',
+    display: 'flex', flexDirection: 'column', color: 'var(--text-primary, #241B17)',
   },
   convoEmbedded: { flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 },
   convoHeader: {
@@ -2013,7 +2013,7 @@ const S = {
   convoNameWrap: { display: 'flex', flexDirection: 'column', gap: 1, flex: 1, minWidth: 0 },
   convoNameRow: { display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 },
   convoName: {
-    fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #1d1b19)',
+    fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #241B17)',
     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0,
   },
   viewProfileBtn: {
@@ -2031,8 +2031,8 @@ const S = {
   // text. DateDivider was also never rendered at all until now.
   dateDivider: { display: 'flex', justifyContent: 'center', margin: '14px 0 8px' },
   dateChip: {
-    fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #8A7F79)',
-    background: 'var(--surface-2, #F6F1EC)', borderRadius: 999, padding: '3px 12px',
+    fontSize: 11, fontWeight: 600, color: 'var(--text-muted, #6B5D54)',
+    background: 'var(--surface-2, #f3ede9)', borderRadius: 999, padding: '3px 12px',
     letterSpacing: '0.02em',
   },
   failedNote: {
@@ -2073,16 +2073,16 @@ const S = {
   },
   suggestionRow: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 },
   suggestionChip: {
-    background: 'var(--surface-container-low, #F4EDE6)', border: '1px solid rgba(146,64,94,0.14)', color: 'var(--accent, #92405e)',
+    background: 'var(--surface-container-low, #f8f2ef)', border: '1px solid rgba(146,64,94,0.14)', color: 'var(--accent, #92405e)',
     borderRadius: 999, padding: '13px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     lineHeight: 1.2, maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
     transition: 'background 0.15s ease',
   },
   composerRow: { display: 'flex', alignItems: 'flex-end', gap: 8 },
   composerInput: {
-    flex: 1, padding: '11px 15px', border: '1px solid var(--border-light, #F0ECE8)', borderRadius: 20,
-    background: 'var(--bg, #fef8f4)', fontSize: 14, fontFamily: 'inherit', resize: 'none', maxHeight: 140,
-    color: 'var(--text-primary, #1d1b19)', outline: 'none', lineHeight: 1.4,
+    flex: 1, padding: '11px 15px', border: '1px solid var(--border-light, #ede7e3)', borderRadius: 20,
+    background: 'var(--bg, #FBF6F1)', fontSize: 14, fontFamily: 'inherit', resize: 'none', maxHeight: 140,
+    color: 'var(--text-primary, #241B17)', outline: 'none', lineHeight: 1.4,
     transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
   },
   sendBtn: {
@@ -2094,8 +2094,8 @@ const S = {
     fontSize: 12, color: '#8A2A1C', background: '#FDECEA', border: '1px solid #F5C6C0', borderRadius: 10, padding: '6px 10px',
   },
 
-  skelLine: { height: 12, width: '60%', borderRadius: 6, background: 'var(--border-light, #F0ECE8)', display: 'block' },
-  skelLineShort: { height: 10, width: '40%', borderRadius: 5, background: 'var(--border-light, #F0ECE8)', display: 'block', marginTop: 4 },
+  skelLine: { height: 12, width: '60%', borderRadius: 6, background: 'var(--border-light, #ede7e3)', display: 'block' },
+  skelLineShort: { height: 10, width: '40%', borderRadius: 5, background: 'var(--border-light, #ede7e3)', display: 'block', marginTop: 4 },
 };
 
 if (typeof document !== 'undefined' && !document.getElementById('inbox-bold-css')) {
@@ -2106,7 +2106,7 @@ if (typeof document !== 'undefined' && !document.getElementById('inbox-bold-css'
     .inbox-row-li { border-bottom: 1px solid rgba(146,64,94,0.07); }
     .inbox-row-li:last-child { border-bottom: none; }
     .inbox-row:hover { background: rgba(146,64,94,0.045) !important; }
-    .inbox-row-active, .inbox-row-active:hover { background: var(--accent-wash, #fbe9f0) !important; }
+    .inbox-row-active, .inbox-row-active:hover { background: var(--accent-wash, #FBF2F5) !important; }
   `;
   document.head.appendChild(s);
 }

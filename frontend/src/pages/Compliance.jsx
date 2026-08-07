@@ -108,7 +108,7 @@ export default function Compliance() {
       {/* Patch Tests card */}
       <button style={S.pillarCard} onClick={() => navigate('/patch-tests')}>
         <div style={S.pillarHeader}>
-          <div style={{ ...S.pillarIcon, background: 'var(--success-bg, #EDF7F0)' }}>
+          <div style={{ ...S.pillarIcon, background: 'var(--success-bg, #E9F0EB)' }}>
             <Icon name={iconName('vaccines')} size={22} inline color="#5BA97B" />
           </div>
           <div style={S.pillarInfo}>
@@ -123,7 +123,7 @@ export default function Compliance() {
         ) : (
           <div style={S.statsRow}>
             <div style={S.statItem}>
-              <span style={{ ...S.statNum, color: patchStats?.pending > 0 ? '#E85D75' : 'var(--success, #5BA97B)' }}>
+              <span style={{ ...S.statNum, color: patchStats?.pending > 0 ? '#E85D75' : 'var(--success, #3F7D5C)' }}>
                 {patchStats?.pending ?? '-'}
               </span>
               <span style={S.statLabel}>Pending</span>
@@ -135,7 +135,7 @@ export default function Compliance() {
             </div>
             <div style={S.statDivider} />
             <div style={S.statItem}>
-              <span style={{ ...S.statNum, color: patchStats?.expired > 0 ? '#F59E0B' : 'var(--success, #5BA97B)' }}>
+              <span style={{ ...S.statNum, color: patchStats?.expired > 0 ? '#F59E0B' : 'var(--success, #3F7D5C)' }}>
                 {patchStats?.expired ?? '-'}
               </span>
               <span style={S.statLabel}>Expired</span>
@@ -194,9 +194,9 @@ const S = {
     padding: '16px 16px var(--scroll-pad-bottom)',
     maxWidth: 480, margin: '0 auto',
     fontFamily: "'Plus Jakarta Sans', sans-serif",
-    color: 'var(--text-primary, #1d1b19)',
+    color: 'var(--text-primary, #241B17)',
     minHeight: '100vh',
-    background: 'var(--bg, #fef8f4)',
+    background: 'var(--bg, #FBF6F1)',
   },
 
   hero: {
@@ -211,9 +211,9 @@ const S = {
   heroTitle: {
     fontSize: 22, fontWeight: 700, margin: '0 0 4px',
     fontFamily: "'Playfair Display', Georgia, serif", fontStyle: 'italic',
-    color: 'var(--text-primary, #1d1b19)',
+    color: 'var(--text-primary, #241B17)',
   },
-  heroSub: { fontSize: 13, color: 'var(--text-muted, #867277)', margin: 0, lineHeight: 1.5 },
+  heroSub: { fontSize: 13, color: 'var(--text-muted, #6B5D54)', margin: 0, lineHeight: 1.5 },
   pendingBadge: {
     position: 'absolute', top: 14, right: 14,
     fontSize: 11, fontWeight: 700, color: '#fff',
@@ -226,11 +226,11 @@ const S = {
     border: '1px solid rgba(201,169,110,0.2)',
     padding: '12px 14px', marginBottom: 14,
   },
-  explainerText: { margin: 0, fontSize: 12, color: 'var(--text-muted, #867277)', lineHeight: 1.55 },
+  explainerText: { margin: 0, fontSize: 12, color: 'var(--text-muted, #6B5D54)', lineHeight: 1.55 },
 
   pillarCard: {
     width: '100%', textAlign: 'left',
-    background: 'var(--bg-card, #fff)', borderRadius: 18,
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 18,
     border: '1px solid rgba(199,107,138,0.1)',
     padding: '16px 14px', marginBottom: 12,
     cursor: 'pointer', fontFamily: 'inherit',
@@ -247,15 +247,15 @@ const S = {
     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   pillarInfo: { flex: 1 },
-  pillarTitle: { fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #1d1b19)', marginBottom: 2 },
-  pillarDesc:  { fontSize: 12, color: 'var(--text-muted, #B5AFA8)', lineHeight: 1.4 },
+  pillarTitle: { fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #241B17)', marginBottom: 2 },
+  pillarDesc:  { fontSize: 12, color: 'var(--text-muted, #6B5D54)', lineHeight: 1.4 },
 
   statsRow: { display: 'flex', alignItems: 'center', gap: 0, marginBottom: 4 },
   statItem: { flex: 1, textAlign: 'center' },
-  statNum:  { display: 'block', fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #1d1b19)', lineHeight: 1.1 },
-  statLabel:{ display: 'block', fontSize: 10, color: 'var(--text-muted, #B5AFA8)', marginTop: 3, lineHeight: 1.3 },
-  statDivider: { width: 1, height: 36, background: 'var(--border-light, #EDE9E4)', flexShrink: 0 },
-  statsLoading: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)', padding: '8px 0' },
+  statNum:  { display: 'block', fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #241B17)', lineHeight: 1.1 },
+  statLabel:{ display: 'block', fontSize: 10, color: 'var(--text-muted, #6B5D54)', marginTop: 3, lineHeight: 1.3 },
+  statDivider: { width: 1, height: 36, background: 'var(--border-light, #ede7e3)', flexShrink: 0 },
+  statsLoading: { fontSize: 12, color: 'var(--text-muted, #6B5D54)', padding: '8px 0' },
 
   alertBanner: {
     display: 'flex', alignItems: 'center', gap: 8,
@@ -269,5 +269,5 @@ const S = {
     border: '1px solid rgba(201,169,110,0.15)',
     padding: '12px 14px', marginTop: 4,
   },
-  tipText: { margin: 0, fontSize: 12, color: 'var(--text-muted, #867277)', lineHeight: 1.55 },
+  tipText: { margin: 0, fontSize: 12, color: 'var(--text-muted, #6B5D54)', lineHeight: 1.55 },
 };

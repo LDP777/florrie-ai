@@ -235,7 +235,7 @@ export default function Integrations() {
     connected: { bg: 'var(--success-bg)', color: 'var(--success)', label: 'Connected' },
     available: { bg: 'var(--accent-light)', color: 'var(--accent)', label: 'Available' },
     coming_soon: { bg: 'var(--bg-subtle)', color: 'var(--text-muted)', label: 'Coming Soon' },
-    needs_reconnect: { bg: 'var(--danger-bg, #FDECEC)', color: 'var(--danger)', label: 'Reconnect needed' },
+    needs_reconnect: { bg: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger)', label: 'Reconnect needed' },
   };
 
   return (
@@ -256,7 +256,7 @@ export default function Integrations() {
           padding: '14px 16px',
           borderRadius: 12,
           border: '1px solid var(--border)',
-          background: 'var(--bg-card, #fff)',
+          background: 'var(--bg-card, #FFFCF9)',
           color: 'var(--text-primary)',
           cursor: 'pointer',
           fontFamily: 'inherit',
@@ -306,7 +306,7 @@ export default function Integrations() {
         {categories.map(c => (
           <button key={c} onClick={() => setFilter(c)} style={{ ...ds.btnGhost, fontSize: 11, padding: '6px 12px', whiteSpace: 'nowrap',
             background: filter === c ? 'var(--accent)' : 'var(--bg-subtle)',
-            color: filter === c ? 'var(--bg-card, #fff)' : 'var(--text-secondary)',
+            color: filter === c ? 'var(--bg-card, #FFFCF9)' : 'var(--text-secondary)',
           }}>{c}</button>
         ))}
       </div>

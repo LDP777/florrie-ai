@@ -16,16 +16,16 @@ import ErrorCard from '../components/ErrorCard.jsx';
 import Icon from '../components/ui/Icon';
 
 const CATEGORIES = [
-  { value: 'products', label: 'Products', icon: 'flower', color: 'var(--accent, #C76B8A)' },
-  { value: 'rent', label: 'Rent', icon: 'map-pin', color: 'var(--text-secondary, #8B6F5E)' },
-  { value: 'training', label: 'Training', icon: 'file', color: 'var(--success, #6B8F7B)' },
-  { value: 'travel', label: 'Travel', icon: 'map-pin', color: 'var(--gold, #C9A96E)' },
-  { value: 'equipment', label: 'Equipment', icon: 'sliders', color: 'var(--info, #7B6B8F)' },
-  { value: 'insurance', label: 'Insurance', icon: 'shield', color: 'var(--info, #5E8B8B)' },
-  { value: 'marketing', label: 'Marketing', icon: 'send', color: 'var(--accent-dark, #8F6B7B)' },
-  { value: 'software', label: 'Software', icon: 'link', color: 'var(--info, #6B7B8F)' },
-  { value: 'utilities', label: 'Utilities', icon: 'sparkles', color: 'var(--warning, #8F8B6B)' },
-  { value: 'other', label: 'Other', icon: 'map-pin', color: 'var(--text-muted, #B5AFA8)' },
+  { value: 'products', label: 'Products', icon: 'flower', color: 'var(--accent, #92405e)' },
+  { value: 'rent', label: 'Rent', icon: 'map-pin', color: 'var(--text-secondary, #574A42)' },
+  { value: 'training', label: 'Training', icon: 'file', color: 'var(--success, #3F7D5C)' },
+  { value: 'travel', label: 'Travel', icon: 'map-pin', color: 'var(--gold, #8A6420)' },
+  { value: 'equipment', label: 'Equipment', icon: 'sliders', color: 'var(--info, #4A6C82)' },
+  { value: 'insurance', label: 'Insurance', icon: 'shield', color: 'var(--info, #4A6C82)' },
+  { value: 'marketing', label: 'Marketing', icon: 'send', color: 'var(--accent-dark, #782b49)' },
+  { value: 'software', label: 'Software', icon: 'link', color: 'var(--info, #4A6C82)' },
+  { value: 'utilities', label: 'Utilities', icon: 'sparkles', color: 'var(--warning, #8A6420)' },
+  { value: 'other', label: 'Other', icon: 'map-pin', color: 'var(--text-muted, #6B5D54)' },
 ];
 
 const getCat = (v) => CATEGORIES.find(c => c.value === v) || CATEGORIES[9];
@@ -203,15 +203,15 @@ export default function Expenses() {
       {/* Summary cards */}
       <div style={S.summaryGrid}>
         <div style={S.summaryCard}>
-          <span style={{ ...S.summaryValue, color: 'var(--accent, #C76B8A)' }}>{fmt(totalMonth)}</span>
+          <span style={{ ...S.summaryValue, color: 'var(--accent, #92405e)' }}>{fmt(totalMonth)}</span>
           <span style={S.summaryLabel}>Total</span>
         </div>
         <div style={S.summaryCard}>
-          <span style={{ ...S.summaryValue, color: 'var(--text-secondary, #8B6F5E)' }}>{fmt(recurringTotal)}</span>
+          <span style={{ ...S.summaryValue, color: 'var(--text-secondary, #574A42)' }}>{fmt(recurringTotal)}</span>
           <span style={S.summaryLabel}>Recurring</span>
         </div>
         <div style={S.summaryCard}>
-          <span style={{ ...S.summaryValue, color: 'var(--success, #6B8F7B)' }}>{fmt(deductibleTotal)}</span>
+          <span style={{ ...S.summaryValue, color: 'var(--success, #3F7D5C)' }}>{fmt(deductibleTotal)}</span>
           <span style={S.summaryLabel}>Deductible</span>
         </div>
       </div>
@@ -301,8 +301,8 @@ export default function Expenses() {
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                   <span style={S.expenseAmount}>{fmt(e.amount_cents)}</span>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => handleEditExpense(e)} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--success, #6B8F7B)', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Edit</button>
-                    <button onClick={() => handleDeleteExpense(e.id)} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Delete</button>
+                    <button onClick={() => handleEditExpense(e)} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--success, #3F7D5C)', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Edit</button>
+                    <button onClick={() => handleDeleteExpense(e.id)} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--text-muted, var(--text-muted, #6B5D54))', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Delete</button>
                   </div>
                 </div>
               </div>
@@ -322,10 +322,10 @@ export default function Expenses() {
                 <div key={b.category} style={S.budgetCard}>
                   <div style={S.budgetHeader}>
                     <span style={S.budgetCat}><Icon name={meta.icon} size={15} />{meta.label}</span>
-                    <span style={{ ...S.budgetPct, color: overBudget ? 'var(--accent, #C76B8A)' : 'var(--success, #6B8F7B)' }}>{b.pct}%</span>
+                    <span style={{ ...S.budgetPct, color: overBudget ? 'var(--accent, #92405e)' : 'var(--success, #3F7D5C)' }}>{b.pct}%</span>
                   </div>
                   <div style={S.budgetBarBg}>
-                    <div style={{ ...S.budgetBarFill, width: `${b.pct}%`, background: overBudget ? 'var(--accent, #C76B8A)' : meta.color }} />
+                    <div style={{ ...S.budgetBarFill, width: `${b.pct}%`, background: overBudget ? 'var(--accent, #92405e)' : meta.color }} />
                   </div>
                   <div style={S.budgetFooter}>
                     <span style={S.budgetSpent}>{fmt(b.spent)} spent</span>
@@ -384,14 +384,14 @@ export default function Expenses() {
 
             <div style={S.toggleRow}>
               <span style={S.toggleLabel}>Tax deductible</span>
-              <button style={{ ...S.toggle, background: form.tax_deductible ? 'var(--accent, #C76B8A)' : 'var(--border, #EDE9E4)' }} onClick={() => setForm(f => ({ ...f, tax_deductible: !f.tax_deductible }))}>
+              <button style={{ ...S.toggle, background: form.tax_deductible ? 'var(--accent, #92405e)' : 'var(--border, #E8DDD4)' }} onClick={() => setForm(f => ({ ...f, tax_deductible: !f.tax_deductible }))}>
                 <div style={{ ...S.toggleDot, transform: form.tax_deductible ? 'translateX(18px)' : 'translateX(2px)' }} />
               </button>
             </div>
 
             <div style={S.toggleRow}>
               <span style={S.toggleLabel}>Recurring</span>
-              <button style={{ ...S.toggle, background: form.recurring ? 'var(--accent, #C76B8A)' : 'var(--border, #EDE9E4)' }} onClick={() => setForm(f => ({ ...f, recurring: !f.recurring }))}>
+              <button style={{ ...S.toggle, background: form.recurring ? 'var(--accent, #92405e)' : 'var(--border, #E8DDD4)' }} onClick={() => setForm(f => ({ ...f, recurring: !f.recurring }))}>
                 <div style={{ ...S.toggleDot, transform: form.recurring ? 'translateX(18px)' : 'translateX(2px)' }} />
               </button>
             </div>
@@ -459,92 +459,92 @@ function formatDate(dateStr) {
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, var(--text-primary, #2D2A26))', margin: 0 },
-  addBtn: { background: 'var(--accent, #C76B8A)', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, var(--text-primary, #241B17))', margin: 0 },
+  addBtn: { background: 'var(--accent, #92405e)', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   monthNav: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 20, marginBottom: 16 },
-  monthArrow: { background: 'none', border: 'none', fontSize: 22, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', cursor: 'pointer', padding: '4px 8px' },
-  monthLabel: { fontSize: 16, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
+  monthArrow: { background: 'none', border: 'none', fontSize: 22, color: 'var(--text-muted, var(--text-muted, #6B5D54))', cursor: 'pointer', padding: '4px 8px' },
+  monthLabel: { fontSize: 16, fontWeight: 600, color: 'var(--text, var(--text-primary, #241B17))' },
 
   summaryGrid: { display: 'flex', gap: 10, marginBottom: 16 },
-  summaryCard: { flex: 1, background: 'var(--card, #fff)', borderRadius: 12, padding: '12px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
+  summaryCard: { flex: 1, background: 'var(--card, #FFFCF9)', borderRadius: 12, padding: '12px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   summaryValue: { fontSize: 17, fontWeight: 700 },
-  summaryLabel: { fontSize: 11, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
+  summaryLabel: { fontSize: 11, color: 'var(--text-muted, var(--text-muted, #6B5D54))' },
 
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
-  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #FFFCF9)', color: 'var(--text-muted, var(--text-muted, #6B5D54))', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive: { background: 'var(--accent, #92405e)', color: '#fff' },
 
-  card: { background: 'var(--card, #fff)', borderRadius: 14, padding: 16, marginBottom: 12 },
-  cardTitle: { fontSize: 15, fontWeight: 700, color: 'var(--text, var(--text-primary, #2D2A26))', margin: '0 0 12px' },
-  empty: { textAlign: 'center', color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontSize: 14, padding: 20 },
+  card: { background: 'var(--card, #FFFCF9)', borderRadius: 14, padding: 16, marginBottom: 12 },
+  cardTitle: { fontSize: 15, fontWeight: 700, color: 'var(--text, var(--text-primary, #241B17))', margin: '0 0 12px' },
+  empty: { textAlign: 'center', color: 'var(--text-muted, var(--text-muted, #6B5D54))', fontSize: 14, padding: 20 },
 
   // Category breakdown
-  catRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border, var(--border, #EDE9E4))' },
+  catRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border, var(--border, #E8DDD4))' },
   catLeft: { display: 'flex', gap: 10, alignItems: 'center' },
   catIcon: { width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 },
   catInfo: { display: 'flex', flexDirection: 'column', gap: 1 },
-  catName: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
-  catPct: { fontSize: 11, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
+  catName: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #241B17))' },
+  catPct: { fontSize: 11, color: 'var(--text-muted, var(--text-muted, #6B5D54))' },
   catRight: { display: 'flex', alignItems: 'center', gap: 10 },
-  catBarBg: { width: 60, height: 6, borderRadius: 3, background: 'var(--border, var(--border, #EDE9E4))' },
+  catBarBg: { width: 60, height: 6, borderRadius: 3, background: 'var(--border, var(--border, #E8DDD4))' },
   catBarFill: { height: 6, borderRadius: 3 },
-  catAmount: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))', minWidth: 60, textAlign: 'right' },
+  catAmount: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #241B17))', minWidth: 60, textAlign: 'right' },
 
   // Recurring
-  recurringRow: { display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border, var(--border, #EDE9E4))' },
+  recurringRow: { display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border, var(--border, #E8DDD4))' },
   recurringInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
-  recurringVendor: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
-  recurringDesc: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
+  recurringVendor: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #241B17))' },
+  recurringDesc: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #6B5D54))' },
   recurringRight: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 },
-  recurringAmount: { fontSize: 14, fontWeight: 600, color: 'var(--accent, #C76B8A)' },
-  recurringInterval: { fontSize: 11, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', textTransform: 'capitalize' },
+  recurringAmount: { fontSize: 14, fontWeight: 600, color: 'var(--accent, #92405e)' },
+  recurringInterval: { fontSize: 11, color: 'var(--text-muted, var(--text-muted, #6B5D54))', textTransform: 'capitalize' },
 
-  exportBtn: { width: '100%', padding: '12px 0', borderRadius: 12, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--card, #fff)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', marginTop: 4 },
+  exportBtn: { width: '100%', padding: '12px 0', borderRadius: 12, border: '1px solid var(--border, var(--border, #E8DDD4))', background: 'var(--card, #FFFCF9)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #241B17)', marginTop: 4 },
 
   // List
   list: { display: 'flex', flexDirection: 'column', gap: 8 },
-  expenseCard: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card, #fff)', borderRadius: 12, padding: 12 },
+  expenseCard: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--card, #FFFCF9)', borderRadius: 12, padding: 12 },
   expenseLeft: { display: 'flex', gap: 10, alignItems: 'flex-start', flex: 1 },
   expenseInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
-  expenseVendor: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
-  expenseDesc: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
+  expenseVendor: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #241B17))' },
+  expenseDesc: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #6B5D54))' },
   expenseTags: { display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' },
-  tagDate: { fontSize: 10, color: 'var(--text-secondary, #8B6F5E)', padding: '2px 6px', borderRadius: 4, background: 'var(--border, var(--border, #EDE9E4))' },
+  tagDate: { fontSize: 10, color: 'var(--text-secondary, #574A42)', padding: '2px 6px', borderRadius: 4, background: 'var(--border, var(--border, #E8DDD4))' },
   tagRecurring: { fontSize: 10, color: '#7B6B8F', padding: '2px 6px', borderRadius: 4, background: '#F0E6F4' },
-  tagTax: { fontSize: 10, color: '#6B8F7B', padding: '2px 6px', borderRadius: 4, background: 'var(--success-bg, #E8F5E9)' },
-  expenseAmount: { fontSize: 15, fontWeight: 700, color: 'var(--accent, #C76B8A)', whiteSpace: 'nowrap' },
+  tagTax: { fontSize: 10, color: '#6B8F7B', padding: '2px 6px', borderRadius: 4, background: 'var(--success-bg, #E9F0EB)' },
+  expenseAmount: { fontSize: 15, fontWeight: 700, color: 'var(--accent, #92405e)', whiteSpace: 'nowrap' },
 
   // Budgets
   budgetList: { display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 },
-  budgetCard: { background: 'var(--card, #fff)', borderRadius: 12, padding: 14 },
+  budgetCard: { background: 'var(--card, #FFFCF9)', borderRadius: 12, padding: 14 },
   budgetHeader: { display: 'flex', justifyContent: 'space-between', marginBottom: 8 },
-  budgetCat: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
+  budgetCat: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #241B17))' },
   budgetPct: { fontSize: 14, fontWeight: 700 },
-  budgetBarBg: { height: 8, borderRadius: 4, background: 'var(--border, var(--border, #EDE9E4))', marginBottom: 6 },
+  budgetBarBg: { height: 8, borderRadius: 4, background: 'var(--border, var(--border, #E8DDD4))', marginBottom: 6 },
   budgetBarFill: { height: 8, borderRadius: 4, transition: 'width 0.3s' },
   budgetFooter: { display: 'flex', justifyContent: 'space-between' },
-  budgetSpent: { fontSize: 12, color: 'var(--text-secondary, #8B6F5E)' },
-  budgetLimit: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
+  budgetSpent: { fontSize: 12, color: 'var(--text-secondary, #574A42)' },
+  budgetLimit: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #6B5D54))' },
 
   budgetForm: { display: 'flex', flexDirection: 'column', gap: 8 },
 
   // Modal
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 960, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
-  modal: { background: 'var(--bg-card, #fff)', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
-  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: '0 0 16px' },
-  fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #8B6F5E)', marginBottom: 6, marginTop: 12 },
-  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', outline: 'none', boxSizing: 'border-box' },
-  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', background: 'var(--bg-card, #fff)', outline: 'none', boxSizing: 'border-box' },
+  modal: { background: 'var(--bg-card, #FFFCF9)', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
+  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary, #241B17)', margin: '0 0 16px' },
+  fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #574A42)', marginBottom: 6, marginTop: 12 },
+  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, #E8DDD4))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #241B17)', outline: 'none', boxSizing: 'border-box' },
+  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, #E8DDD4))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #241B17)', background: 'var(--bg-card, #FFFCF9)', outline: 'none', boxSizing: 'border-box' },
   catGrid: { display: 'flex', flexWrap: 'wrap', gap: 6 },
-  catChip: { padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--card, #fff)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
+  catChip: { padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border, var(--border, #E8DDD4))', background: 'var(--card, #FFFCF9)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #241B17)' },
   toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
-  toggleLabel: { fontSize: 14, fontWeight: 500, color: 'var(--text, var(--text-primary, #2D2A26))' },
+  toggleLabel: { fontSize: 14, fontWeight: 500, color: 'var(--text, var(--text-primary, #241B17))' },
   toggle: { width: 44, height: 26, borderRadius: 13, border: 'none', padding: 0, cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 },
   toggleDot: { width: 22, height: 22, borderRadius: 11, background: '#fff', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
   intervalRow: { display: 'flex', gap: 8, marginTop: 8 },
-  intervalChip: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--bg-card, #fff)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', textTransform: 'capitalize' },
-  intervalActive: { background: 'var(--accent, #C76B8A)', color: '#fff', border: '1px solid var(--accent, #C76B8A)' },
-  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
-  saveBudgetBtn: { padding: '10px 0', borderRadius: 10, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  intervalChip: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid var(--border, var(--border, #E8DDD4))', background: 'var(--bg-card, #FFFCF9)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #241B17)', textTransform: 'capitalize' },
+  intervalActive: { background: 'var(--accent, #92405e)', color: '#fff', border: '1px solid var(--accent, #92405e)' },
+  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
+  saveBudgetBtn: { padding: '10px 0', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 };

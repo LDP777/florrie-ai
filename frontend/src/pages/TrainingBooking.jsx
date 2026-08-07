@@ -353,12 +353,12 @@ const styles = {
   },
   loadingWrap: { textAlign: 'center', padding: '80px 0' },
   spinner: { width: 32, height: 32, border: '3px solid #E8E4E0', borderTopColor: '#92405e', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' },
-  loadingText: { fontSize: 14, color: '#AAA5A0' },
+  loadingText: { fontSize: 14, color: 'var(--text-muted)' },
 
   trainerHeader: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 },
   trainerAvatar: { width: 44, height: 44, borderRadius: 22, objectFit: 'cover' },
   trainerName: { fontSize: 16, fontWeight: 700, color: '#1d1b19' },
-  trainerSub: { fontSize: 12, color: '#AAA5A0' },
+  trainerSub: { fontSize: 12, color: 'var(--text-muted)' },
 
   courseCard: { background: '#ffffff', borderRadius: 16, padding: 20, marginBottom: 16, border: '1px solid #efe2e5' },
   courseName: { fontSize: 22, fontWeight: 700, color: '#1d1b19', margin: '0 0 16px' },
@@ -371,7 +371,7 @@ const styles = {
   courseDesc: { fontSize: 14, color: '#6B6560', lineHeight: 1.6, margin: '0 0 16px' },
 
   includesSection: { marginBottom: 16, paddingTop: 16, borderTop: '1px solid #F0ECE8' },
-  includesTitle: { fontSize: 13, fontWeight: 600, color: '#AAA5A0', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.04em' },
+  includesTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.04em' },
   includesWrap: { display: 'flex', flexWrap: 'wrap', gap: 6 },
   includeTag: { fontSize: 13, background: '#fef8f4', border: '1px solid #efe2e5', borderRadius: 8, padding: '5px 10px', color: '#4A4540' },
 
@@ -381,11 +381,11 @@ const styles = {
 
   formCard: { background: '#ffffff', borderRadius: 16, padding: 20, marginBottom: 16, border: '1px solid #efe2e5' },
   formTitle: { fontSize: 18, fontWeight: 700, color: '#1d1b19', margin: '0 0 16px' },
-  label: { display: 'block', fontSize: 12, fontWeight: 600, color: '#AAA5A0', marginBottom: 6, marginTop: 14, textTransform: 'uppercase', letterSpacing: '0.04em' },
+  label: { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, marginTop: 14, textTransform: 'uppercase', letterSpacing: '0.04em' },
   input: { width: '100%', padding: '11px 14px', borderRadius: 10, border: '1.5px solid #efe2e5', fontSize: 15, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: '#fef8f4', color: '#1d1b19' },
 
   submitBtn: { width: '100%', padding: '15px 0', borderRadius: 12, border: 'none', color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
-  depositNote: { fontSize: 12, color: '#AAA5A0', textAlign: 'center', marginTop: 10, lineHeight: 1.5 },
+  depositNote: { fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', marginTop: 10, lineHeight: 1.5 },
 
   errorBanner: { background: '#FDEDF0', color: '#C62828', padding: '10px 14px', borderRadius: 10, fontSize: 13, marginTop: 12, fontWeight: 500 },
   cancelledBanner: { background: '#FFF3E0', color: '#E65100', padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 500, marginBottom: 16, textAlign: 'center' },

@@ -350,7 +350,7 @@ export default function Courses() {
             key={t}
             onClick={() => setTab(t)}
             style={{ ...s.tab,
-              color: tab === t ? 'var(--accent, #92405e)' : 'var(--text-muted, #B5AFA8)',
+              color: tab === t ? 'var(--accent, #92405e)' : 'var(--text-muted, #6B5D54)',
               borderBottom: tab === t ? '2px solid var(--accent, #92405e)' : '2px solid transparent',
               fontWeight: tab === t ? 600 : 400,
             }}
@@ -421,11 +421,11 @@ export default function Courses() {
                   <div
                     style={{ ...s.spotsBarFill,
                       width: `${Math.min(100, ((course.enrolled || 0) / (course.max_students || 1)) * 100)}%`,
-                      background: isFull(course) ? 'var(--warning, #E8A838)' : 'var(--accent, #92405e)',
+                      background: isFull(course) ? 'var(--warning, #8A6420)' : 'var(--accent, #92405e)',
                     }}
                   />
                 </div>
-                <span style={{ ...s.spotsLabel, color: isFull(course) ? 'var(--warning, #E8A838)' : 'var(--text-muted, #B5AFA8)' }}>
+                <span style={{ ...s.spotsLabel, color: isFull(course) ? 'var(--warning, #8A6420)' : 'var(--text-muted, #6B5D54)' }}>
                   {isFull(course) ? 'Full' : `${spotsLeft(course)} spot${spotsLeft(course) !== 1 ? 's' : ''} left`}
                   {' '}({course.enrolled || 0}/{course.max_students})
                 </span>
@@ -440,7 +440,7 @@ export default function Courses() {
                 </div>
                 <button
                   onClick={() => copyLink(course)}
-                  style={{ ...s.copyBtn, background: copiedId === course.id ? 'var(--success, #5BA97B)' : 'var(--accent, #92405e)' }}
+                  style={{ ...s.copyBtn, background: copiedId === course.id ? 'var(--success, #3F7D5C)' : 'var(--accent, #92405e)' }}
                 >
                   {copiedId === course.id ? '✓ Copied' : 'Copy link'}
                 </button>
@@ -455,14 +455,14 @@ export default function Courses() {
                 >
                   {expandedCourse === course.id ? 'Hide' : `Enrolled (${course.enrolled || 0})`}
                 </button>
-                <button onClick={() => handleDelete(course.id)} style={{ ...s.actionBtn, color: 'var(--danger-text, #C62828)' }}>Delete</button>
+                <button onClick={() => handleDelete(course.id)} style={{ ...s.actionBtn, color: 'var(--danger-text, #9E2B32)' }}>Delete</button>
               </div>
 
               {/* Inline enrollment list */}
               {expandedCourse === course.id && (
                 <div style={s.enrollList}>
                   {courseEnrollments(course.id).length === 0 ? (
-                    <p style={{ fontSize: 13, color: 'var(--text-muted, #B5AFA8)', textAlign: 'center', padding: '12px 0' }}>
+                    <p style={{ fontSize: 13, color: 'var(--text-muted, #6B5D54)', textAlign: 'center', padding: '12px 0' }}>
                       No enrollments yet - share the link to get sign-ups.
                     </p>
                   ) : courseEnrollments(course.id).map(e => (
@@ -473,8 +473,8 @@ export default function Courses() {
                         <div style={s.enrollContact}>{e.email || e.phone || ''}</div>
                       </div>
                       <span style={{ ...s.enrollStatus,
-                        background: e.payment_status === 'paid' ? 'var(--success-bg, #E8F5E9)' : e.payment_status === 'deposit_paid' ? 'var(--warning-bg, #FFF8E1)' : 'var(--bg, #FAF8F5)',
-                        color: e.payment_status === 'paid' ? 'var(--success, #5BA97B)' : e.payment_status === 'deposit_paid' ? '#E8A838' : 'var(--text-muted, #B5AFA8)',
+                        background: e.payment_status === 'paid' ? 'var(--success-bg, #E9F0EB)' : e.payment_status === 'deposit_paid' ? 'var(--warning-bg, #F7EEDD)' : 'var(--bg, #FBF6F1)',
+                        color: e.payment_status === 'paid' ? 'var(--success, #3F7D5C)' : e.payment_status === 'deposit_paid' ? '#E8A838' : 'var(--text-muted, #6B5D54)',
                       }}>
                         {e.payment_status === 'paid' ? 'Paid in full' : e.payment_status === 'deposit_paid' ? 'Deposit paid' : 'Unpaid'}
                       </span>
@@ -510,8 +510,8 @@ export default function Courses() {
                     {course && <div style={s.enrollCourse}>{course.name}</div>}
                   </div>
                   <span style={{ ...s.enrollStatus,
-                    background: e.payment_status === 'paid' ? 'var(--success-bg, #E8F5E9)' : e.payment_status === 'deposit_paid' ? 'var(--warning-bg, #FFF8E1)' : 'var(--bg, #FAF8F5)',
-                    color: e.payment_status === 'paid' ? 'var(--success, #5BA97B)' : e.payment_status === 'deposit_paid' ? '#E8A838' : 'var(--text-muted, #B5AFA8)',
+                    background: e.payment_status === 'paid' ? 'var(--success-bg, #E9F0EB)' : e.payment_status === 'deposit_paid' ? 'var(--warning-bg, #F7EEDD)' : 'var(--bg, #FBF6F1)',
+                    color: e.payment_status === 'paid' ? 'var(--success, #3F7D5C)' : e.payment_status === 'deposit_paid' ? '#E8A838' : 'var(--text-muted, #6B5D54)',
                   }}>
                     {e.payment_status === 'paid' ? 'Paid in full' : e.payment_status === 'deposit_paid' ? 'Deposit paid' : 'Unpaid'}
                   </span>
@@ -535,74 +535,74 @@ export default function Courses() {
 const s = {
   page:         { padding: '16px 16px 40px', maxWidth: 480, margin: '0 auto', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif" },
   header:       { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
-  title:        { fontSize: 24, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: 0 },
-  sub:          { fontSize: 13, color: 'var(--text-muted, #B5AFA8)', margin: '4px 0 0' },
+  title:        { fontSize: 24, fontWeight: 700, color: 'var(--text-primary, #241B17)', margin: 0 },
+  sub:          { fontSize: 13, color: 'var(--text-muted, #6B5D54)', margin: '4px 0 0' },
   addBtn:       { padding: '8px 16px', borderRadius: 10, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
 
   statsRow:     { display: 'flex', gap: 8, marginBottom: 16 },
-  statCard:     { flex: 1, background: 'var(--card-bg, #fff)', borderRadius: 12, padding: '12px 10px', textAlign: 'center', border: '1px solid var(--border, #EDE9E4)' },
-  statValue:    { display: 'block', fontSize: 20, fontWeight: 700, color: 'var(--text-primary, #2D2A26)' },
-  statLabel:    { display: 'block', fontSize: 10, color: 'var(--text-muted, #B5AFA8)', textTransform: 'uppercase', letterSpacing: '0.03em' },
+  statCard:     { flex: 1, background: 'var(--card-bg, #FFFCF9)', borderRadius: 12, padding: '12px 10px', textAlign: 'center', border: '1px solid var(--border, #E8DDD4)' },
+  statValue:    { display: 'block', fontSize: 20, fontWeight: 700, color: 'var(--text-primary, #241B17)' },
+  statLabel:    { display: 'block', fontSize: 10, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', letterSpacing: '0.03em' },
 
-  formCard:     { background: 'var(--card-bg, #fff)', borderRadius: 16, padding: 18, marginBottom: 16, border: '1px solid var(--border, #EDE9E4)' },
+  formCard:     { background: 'var(--card-bg, #FFFCF9)', borderRadius: 16, padding: 18, marginBottom: 16, border: '1px solid var(--border, #E8DDD4)' },
   formHeader:   { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  formTitle:    { fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #2D2A26)' },
-  closeBtn:     { background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted, #B5AFA8)', padding: '0 4px' },
-  label:        { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted, #B5AFA8)', marginBottom: 6, marginTop: 12, textTransform: 'uppercase', letterSpacing: '0.04em' },
-  input:        { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border, #EDE9E4)', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: 'var(--bg, #FAF8F5)', color: 'var(--text-primary, #2D2A26)', display: 'block' },
+  formTitle:    { fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #241B17)' },
+  closeBtn:     { background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text-muted, #6B5D54)', padding: '0 4px' },
+  label:        { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-muted, #6B5D54)', marginBottom: 6, marginTop: 12, textTransform: 'uppercase', letterSpacing: '0.04em' },
+  input:        { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border, #E8DDD4)', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: 'var(--bg, #FBF6F1)', color: 'var(--text-primary, #241B17)', display: 'block' },
   row2:         { display: 'flex', gap: 10 },
   chipWrap:     { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 4 },
-  chip:         { padding: '7px 12px', borderRadius: 8, border: '1.5px solid var(--border, #EDE9E4)', background: 'transparent', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
-  chipActive:   { background: 'var(--accent-light, #FFF0F3)', border: '1.5px solid var(--accent, #92405e)', color: 'var(--accent, #92405e)', fontWeight: 600 },
-  depositNote:  { background: 'var(--accent-light, #FFF0F3)', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: 'var(--text-primary, #2D2A26)', marginTop: 8, marginBottom: 4, lineHeight: 1.5 },
+  chip:         { padding: '7px 12px', borderRadius: 8, border: '1.5px solid var(--border, #E8DDD4)', background: 'transparent', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #241B17)' },
+  chipActive:   { background: 'var(--accent-light, #F6E7EC)', border: '1.5px solid var(--accent, #92405e)', color: 'var(--accent, #92405e)', fontWeight: 600 },
+  depositNote:  { background: 'var(--accent-light, #F6E7EC)', borderRadius: 10, padding: '10px 12px', fontSize: 13, color: 'var(--text-primary, #241B17)', marginTop: 8, marginBottom: 4, lineHeight: 1.5 },
   formActions:  { display: 'flex', gap: 10, marginTop: 16 },
   saveBtn:      { flex: 1, padding: '12px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  cancelBtn:    { padding: '12px 20px', borderRadius: 12, border: '1.5px solid var(--border, #EDE9E4)', background: 'transparent', color: 'var(--text-muted, #B5AFA8)', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' },
+  cancelBtn:    { padding: '12px 20px', borderRadius: 12, border: '1.5px solid var(--border, #E8DDD4)', background: 'transparent', color: 'var(--text-muted, #6B5D54)', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' },
 
-  tabBar:       { display: 'flex', borderBottom: '1px solid var(--border, #EDE9E4)', marginBottom: 14 },
+  tabBar:       { display: 'flex', borderBottom: '1px solid var(--border, #E8DDD4)', marginBottom: 14 },
   tab:          { flex: 1, padding: '10px 0', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 },
   badge:        { background: 'var(--accent, #92405e)', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 10, padding: '1px 6px', minWidth: 16, textAlign: 'center' },
 
   list:         { display: 'flex', flexDirection: 'column', gap: 12 },
 
-  courseCard:   { background: 'var(--card-bg, #fff)', borderRadius: 16, padding: 16, border: '1px solid var(--border, #EDE9E4)' },
+  courseCard:   { background: 'var(--card-bg, #FFFCF9)', borderRadius: 16, padding: 16, border: '1px solid var(--border, #E8DDD4)' },
   courseTop:    { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 8 },
-  courseName:   { fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', marginBottom: 4 },
-  courseMeta:   { fontSize: 12, color: 'var(--text-muted, #B5AFA8)', lineHeight: 1.6 },
+  courseName:   { fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #241B17)', marginBottom: 4 },
+  courseMeta:   { fontSize: 12, color: 'var(--text-muted, #6B5D54)', lineHeight: 1.6 },
   coursePrice:  { textAlign: 'right', flexShrink: 0 },
   coursePriceMain: { display: 'block', fontSize: 18, fontWeight: 700, color: 'var(--accent, #92405e)' },
-  courseDeposit:{ display: 'block', fontSize: 11, color: 'var(--text-muted, #B5AFA8)', marginTop: 2 },
-  courseDesc:   { fontSize: 13, color: 'var(--text-secondary, #6B6460)', lineHeight: 1.6, marginBottom: 10 },
+  courseDeposit:{ display: 'block', fontSize: 11, color: 'var(--text-muted, #6B5D54)', marginTop: 2 },
+  courseDesc:   { fontSize: 13, color: 'var(--text-secondary, #574A42)', lineHeight: 1.6, marginBottom: 10 },
 
   includesRow:  { display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 10 },
-  includeTag:   { fontSize: 11, background: 'var(--bg, #FAF8F5)', border: '1px solid var(--border, #EDE9E4)', borderRadius: 6, padding: '3px 7px', color: 'var(--text-secondary, #6B6460)' },
+  includeTag:   { fontSize: 11, background: 'var(--bg, #FBF6F1)', border: '1px solid var(--border, #E8DDD4)', borderRadius: 6, padding: '3px 7px', color: 'var(--text-secondary, #574A42)' },
 
   spotsRow:     { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 },
-  spotsBar:     { flex: 1, height: 5, borderRadius: 3, background: 'var(--border, #EDE9E4)', overflow: 'hidden' },
+  spotsBar:     { flex: 1, height: 5, borderRadius: 3, background: 'var(--border, #E8DDD4)', overflow: 'hidden' },
   spotsBarFill: { height: '100%', borderRadius: 3, transition: 'width 0.3s' },
   spotsLabel:   { fontSize: 11, fontWeight: 500, whiteSpace: 'nowrap' },
 
   linkRow:      { display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center' },
-  linkBox:      { flex: 1, background: 'var(--bg, #FAF8F5)', border: '1px solid var(--border, #EDE9E4)', borderRadius: 8, padding: '8px 10px', overflow: 'hidden' },
-  linkText:     { fontSize: 11, color: 'var(--text-muted, #B5AFA8)', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' },
+  linkBox:      { flex: 1, background: 'var(--bg, #FBF6F1)', border: '1px solid var(--border, #E8DDD4)', borderRadius: 8, padding: '8px 10px', overflow: 'hidden' },
+  linkText:     { fontSize: 11, color: 'var(--text-muted, #6B5D54)', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' },
   copyBtn:      { padding: '8px 14px', borderRadius: 8, border: 'none', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'background 0.2s' },
 
-  courseActions:{ display: 'flex', gap: 8, paddingTop: 10, borderTop: '1px solid var(--border, #EDE9E4)' },
-  actionBtn:    { flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border, #EDE9E4)', background: 'transparent', color: 'var(--accent, #92405e)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  courseActions:{ display: 'flex', gap: 8, paddingTop: 10, borderTop: '1px solid var(--border, #E8DDD4)' },
+  actionBtn:    { flex: 1, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border, #E8DDD4)', background: 'transparent', color: 'var(--accent, #92405e)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
-  enrollList:   { marginTop: 10, borderTop: '1px solid var(--border, #EDE9E4)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 8 },
+  enrollList:   { marginTop: 10, borderTop: '1px solid var(--border, #E8DDD4)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 8 },
   enrollRow:    { display: 'flex', alignItems: 'center', gap: 10 },
-  enrollCard:   { background: 'var(--card-bg, #fff)', borderRadius: 14, padding: 14, border: '1px solid var(--border, #EDE9E4)' },
+  enrollCard:   { background: 'var(--card-bg, #FFFCF9)', borderRadius: 14, padding: 14, border: '1px solid var(--border, #E8DDD4)' },
   enrollCardTop:{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 },
   enrollAvatar: { width: 34, height: 34, borderRadius: 17, background: 'linear-gradient(135deg, #92405e22, #92405e44)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: 'var(--accent, #92405e)', flexShrink: 0 },
-  enrollName:   { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
-  enrollContact:{ fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },
+  enrollName:   { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
+  enrollContact:{ fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
   enrollCourse: { fontSize: 11, color: 'var(--accent, #92405e)', fontWeight: 500, marginTop: 2 },
-  enrollMeta:   { fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },
+  enrollMeta:   { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
   enrollStatus: { fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 6, whiteSpace: 'nowrap' },
 
   empty:        { textAlign: 'center', padding: '40px 20px' },
   emptyIcon:    { fontSize: 40, marginBottom: 12 },
-  emptyTitle:   { fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', marginBottom: 6 },
-  emptyText:    { fontSize: 13, color: 'var(--text-muted, #B5AFA8)', lineHeight: 1.6, maxWidth: 280, margin: '0 auto' },
+  emptyTitle:   { fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #241B17)', marginBottom: 6 },
+  emptyText:    { fontSize: 13, color: 'var(--text-muted, #6B5D54)', lineHeight: 1.6, maxWidth: 280, margin: '0 auto' },
 };

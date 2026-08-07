@@ -23,10 +23,10 @@ import Icon, { iconName } from '../components/ui/Icon';
 
 const CATEGORIES = {
   booking: { label: 'Bookings', icon: '📅', color: '#E3F2FD', textColor: '#1565C0' },
-  payment: { label: 'Payments', icon: '💷', color: 'var(--success-bg, #E8F5E9)', textColor: '#2E7D32' },
-  ai: { label: 'florrie.ai', icon: '✨', color: 'var(--accent-light, #FFF0F3)', textColor: 'var(--accent, #C76B8A)' },
+  payment: { label: 'Payments', icon: '💷', color: 'var(--success-bg, #E9F0EB)', textColor: '#2E7D32' },
+  ai: { label: 'florrie.ai', icon: '✨', color: 'var(--accent-light, #F6E7EC)', textColor: 'var(--accent, #92405e)' },
   client: { label: 'Clients', icon: '👤', color: '#FFF3E0', textColor: '#E65100' },
-  system: { label: 'System', icon: '⚙️', color: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', textColor: '#5A5550' },
+  system: { label: 'System', icon: '⚙️', color: 'var(--bg-hover, var(--bg-subtle, #ede7e3))', textColor: '#5A5550' },
 };
 
 function timeAgo(isoString) {
@@ -167,7 +167,7 @@ export default function Notifications() {
           aria-label={`${approvals.count} messages waiting for your OK`}
         >
           <div style={styles.approvalIcon}>
-            <Icon name={iconName('how_to_reg')} size={20} inline style={{ color: 'var(--accent, #C76B8A)' }} />
+            <Icon name={iconName('how_to_reg')} size={20} inline style={{ color: 'var(--accent, #92405e)' }} />
           </div>
           <div style={styles.approvalBody}>
             <span style={styles.approvalTitle}>
@@ -175,7 +175,7 @@ export default function Notifications() {
             </span>
             {approvals.snippet && (
               <span style={styles.approvalPreview}>
-                <span style={{ fontWeight: 600, color: 'var(--accent, #C76B8A)' }}>{approvals.name}:</span> {approvals.snippet}
+                <span style={{ fontWeight: 600, color: 'var(--accent, #92405e)' }}>{approvals.name}:</span> {approvals.snippet}
               </span>
             )}
           </div>
@@ -188,8 +188,8 @@ export default function Notifications() {
         <button
           onClick={() => setFilter('all')}
           style={{ ...styles.filterChip,
-            background: filter === 'all' ? 'var(--text-primary, #2D2A26)' : 'var(--bg-card, #fff)',
-            color: filter === 'all' ? 'var(--bg-card, #fff)' : '#5A5550',
+            background: filter === 'all' ? 'var(--text-primary, #241B17)' : 'var(--bg-card, #FFFCF9)',
+            color: filter === 'all' ? 'var(--bg-card, #FFFCF9)' : '#5A5550',
           }}
         >
           All
@@ -199,9 +199,9 @@ export default function Notifications() {
             key={key}
             onClick={() => setFilter(key)}
             style={{ ...styles.filterChip,
-              background: filter === key ? cat.color : 'var(--bg-card, #fff)',
+              background: filter === key ? cat.color : 'var(--bg-card, #FFFCF9)',
               color: filter === key ? cat.textColor : '#5A5550',
-              borderColor: filter === key ? cat.textColor : 'var(--border, var(--border, var(--border, #EDE9E4)))',
+              borderColor: filter === key ? cat.textColor : 'var(--border, var(--border, var(--border, #E8DDD4)))',
             }}
           >
             {cat.icon} {cat.label}
@@ -225,7 +225,7 @@ export default function Notifications() {
                   <div
                     key={n.id}
                     style={{ ...styles.notifCard,
-                      background: n.read ? 'var(--bg-card, #fff)' : '#FFFBF9',
+                      background: n.read ? 'var(--bg-card, #FFFCF9)' : '#FFFBF9',
                       borderLeft: n.read ? '3px solid transparent' : `3px solid ${cat.textColor}`,
                     }}
                     onClick={() => markRead(n.id)}
@@ -258,19 +258,19 @@ export default function Notifications() {
 
 const styles = {
   page: {
-    minHeight: '100vh', background: 'var(--bg, var(--bg, #FAF8F5))',
+    minHeight: '100vh', background: 'var(--bg, var(--bg, #FBF6F1))',
     fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
-    padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)',
+    padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #241B17)',
   },
   header: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     paddingTop: 28, paddingBottom: 8,
   },
   title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
-  subtitle: { fontSize: 13, color: 'var(--accent, #C76B8A)', margin: 0, fontWeight: 500 },
+  subtitle: { fontSize: 13, color: 'var(--accent, #92405e)', margin: 0, fontWeight: 500 },
   markAllBtn: {
     padding: '6px 14px', borderRadius: 8, border: 'none',
-    background: 'var(--accent-light, #FFF0F3)', color: 'var(--accent, #C76B8A)', fontSize: 11, fontWeight: 600,
+    background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)', fontSize: 11, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
 
@@ -280,7 +280,7 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: 11,
-    background: 'var(--bg-card, #fff)',
+    background: 'var(--bg-card, #FFFCF9)',
     border: '1px solid rgba(146,64,94,0.14)',
     borderRadius: 14,
     padding: '12px 12px',
@@ -293,16 +293,16 @@ const styles = {
   },
   approvalIcon: {
     width: 36, height: 36, borderRadius: 10,
-    background: 'var(--accent-light, #FFF0F3)',
+    background: 'var(--accent-light, #F6E7EC)',
     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   approvalBody: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 },
-  approvalTitle: { fontSize: 13, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', lineHeight: 1.25 },
+  approvalTitle: { fontSize: 13, fontWeight: 700, color: 'var(--text-primary, #241B17)', lineHeight: 1.25 },
   approvalPreview: {
-    fontSize: 11.5, color: '#8A8580', lineHeight: 1.3,
+    fontSize: 11.5, color: 'var(--text-muted)', lineHeight: 1.3,
     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
   },
-  approvalChev: { fontSize: 20, color: 'var(--text-muted, #B5AFA8)', flexShrink: 0 },
+  approvalChev: { fontSize: 20, color: 'var(--text-muted, #6B5D54)', flexShrink: 0 },
 
   // Filters
   filterRow: {
@@ -310,7 +310,7 @@ const styles = {
     scrollbarWidth: 'none',
   },
   filterChip: {
-    padding: '7px 12px', borderRadius: 8, border: '1.5px solid var(--border, var(--border, var(--border, #EDE9E4)))',
+    padding: '7px 12px', borderRadius: 8, border: '1.5px solid var(--border, var(--border, var(--border, #E8DDD4)))',
     fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     whiteSpace: 'nowrap', flexShrink: 0,
   },
@@ -318,7 +318,7 @@ const styles = {
   // Feed
   feed: { display: 'flex', flexDirection: 'column', gap: 0 },
   dateLabel: {
-    fontSize: 11, fontWeight: 600, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', textTransform: 'uppercase',
+    fontSize: 11, fontWeight: 600, color: 'var(--text-muted, var(--text-muted, #6B5D54))', textTransform: 'uppercase',
     letterSpacing: '0.04em', padding: '12px 0 6px',
   },
   notifCard: {
@@ -334,17 +334,17 @@ const styles = {
   },
   notifBody: { flex: 1, minWidth: 0 },
   notifHeaderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
-  notifTitle: { fontSize: 13, color: 'var(--text-primary, #2D2A26)' },
-  notifTime: { fontSize: 10, color: 'var(--text-muted, #B5AFA8)', flexShrink: 0, marginLeft: 8 },
-  notifText: { fontSize: 12, color: '#8A8580', margin: 0, lineHeight: 1.4 },
+  notifTitle: { fontSize: 13, color: 'var(--text-primary, #241B17)' },
+  notifTime: { fontSize: 10, color: 'var(--text-muted, #6B5D54)', flexShrink: 0, marginLeft: 8 },
+  notifText: { fontSize: 12, color: 'var(--text-muted)', margin: 0, lineHeight: 1.4 },
   unreadDot: {
-    width: 8, height: 8, borderRadius: 4, background: 'var(--accent, #C76B8A)',
+    width: 8, height: 8, borderRadius: 4, background: 'var(--accent, #92405e)',
     position: 'absolute', top: 14, right: 10, flexShrink: 0,
   },
 
   // Empty
-  loadingText: { textAlign: 'center', color: 'var(--text-muted, var(--text-muted, #B5AFA8))', padding: 40, fontSize: 14 },
+  loadingText: { textAlign: 'center', color: 'var(--text-muted, var(--text-muted, #6B5D54))', padding: 40, fontSize: 14 },
   emptyState: { textAlign: 'center', padding: '40px 20px' },
-  emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 4px', color: 'var(--text-primary, #2D2A26)' },
-  emptyDesc: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', margin: 0, lineHeight: 1.5 },
+  emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 4px', color: 'var(--text-primary, #241B17)' },
+  emptyDesc: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #6B5D54))', margin: 0, lineHeight: 1.5 },
 };

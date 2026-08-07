@@ -728,11 +728,11 @@ export default function Onboarding({ onComplete }) {
           <p style={styles.stepDesc}>
             Your booking page is live. Share this link and clients can book you in seconds.
           </p>
-          <div style={{ background: 'var(--tone-1, #FBF3EC)', borderRadius: 16, padding: '14px 16px', margin: '0 0 14px', textAlign: 'left' }}>
+          <div style={{ background: 'var(--tone-1, #fbf1ea)', borderRadius: 16, padding: '14px 16px', margin: '0 0 14px', textAlign: 'left' }}>
             <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary, #241B17)', margin: '0 0 4px' }}>
               Connect Instagram (recommended)
             </p>
-            <p style={{ fontSize: 12.5, color: 'var(--text-secondary, #8B6F5E)', margin: '0 0 10px', lineHeight: 1.45 }}>
+            <p style={{ fontSize: 12.5, color: 'var(--text-secondary, #574A42)', margin: '0 0 10px', lineHeight: 1.45 }}>
               Most booking chats start in your DMs. Connect and Florrie answers them,
               takes bookings, and posts for you. WhatsApp can come later, no phone
               number wrangling needed today.
@@ -744,7 +744,7 @@ export default function Onboarding({ onComplete }) {
             >
               Connect Instagram
             </button>
-            {igNote && <p style={{ fontSize: 12, color: 'var(--text-secondary, #8B6F5E)', margin: '8px 0 0' }}>{igNote}</p>}
+            {igNote && <p style={{ fontSize: 12, color: 'var(--text-secondary, #574A42)', margin: '8px 0 0' }}>{igNote}</p>}
           </div>
           {(() => {
             const bookingSlug = (slug || '').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
@@ -775,17 +775,17 @@ export default function Onboarding({ onComplete }) {
             Add your card to start your 14-day trial. You won't be charged today, and you can cancel any time before day 14.
           </p>
           <div style={{ ...styles.planCard,
-            border: '1.5px solid var(--accent, #C76B8A)',
+            border: '1.5px solid var(--accent, #92405e)',
             boxShadow: '0 2px 12px rgba(199, 107, 138, 0.12)',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <div style={styles.planName}>{PLAN.name}</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent, #C76B8A)' }}>{PLAN.monthlyLabel}</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent, #92405e)' }}>{PLAN.monthlyLabel}</div>
             </div>
             <ul style={styles.planFeatures}>
               {PLAN.features.map((f, i) => (
                 <li key={i} style={styles.planFeature}>
-                  <span style={{ color: 'var(--success, #5BA97B)' }}>✓</span> {f}
+                  <span style={{ color: 'var(--success, #3F7D5C)' }}>✓</span> {f}
                 </li>
               ))}
             </ul>
@@ -964,8 +964,8 @@ export default function Onboarding({ onComplete }) {
             </div>
             {pushGranted ? (
               <div style={styles.pushGrantedRow}>
-                <span style={{ color: 'var(--success, #5BA97B)', fontSize: 16 }}>✓</span>
-                <span style={{ fontSize: 13, color: 'var(--success, #5BA97B)', fontWeight: 600 }}>Notifications on</span>
+                <span style={{ color: 'var(--success, #3F7D5C)', fontSize: 16 }}>✓</span>
+                <span style={{ fontSize: 13, color: 'var(--success, #3F7D5C)', fontWeight: 600 }}>Notifications on</span>
               </div>
             ) : (
               <button
@@ -1216,21 +1216,21 @@ const styles = {
     marginBottom: 16,
   },
   planCard: {
-    background: 'var(--bg-card, #fff)',
+    background: 'var(--bg-card, #FFFCF9)',
     border: '1.5px solid var(--border)',
     borderRadius: 14,
     padding: '16px 18px',
     position: 'relative',
   },
   planCardPopular: {
-    border: '1.5px solid var(--accent, #C76B8A)',
+    border: '1.5px solid var(--accent, #92405e)',
     boxShadow: '0 2px 12px rgba(199, 107, 138, 0.12)',
   },
   popularBadge: {
     position: 'absolute',
     top: -10,
     right: 14,
-    background: 'var(--accent, #C76B8A)',
+    background: 'var(--accent, #92405e)',
     color: '#fff',
     fontSize: 10,
     fontWeight: 600,
@@ -1266,14 +1266,14 @@ const styles = {
   },
   trialNote: {
     fontSize: 12,
-    color: 'var(--accent, #C76B8A)',
+    color: 'var(--accent, #92405e)',
     textAlign: 'center',
     margin: '0 0 16px',
     fontWeight: 500,
   },
   // Push notification card (step 6)
   pushCard: {
-    background: 'var(--bg-card, #fff)',
+    background: 'var(--bg-card, #FFFCF9)',
     border: '1.5px solid var(--border)',
     borderRadius: 14,
     padding: '16px 18px',
@@ -1307,9 +1307,9 @@ const styles = {
     width: '100%',
     padding: '11px 0',
     borderRadius: 10,
-    border: '1.5px solid var(--accent, #C76B8A)',
+    border: '1.5px solid var(--accent, #92405e)',
     background: 'transparent',
-    color: 'var(--accent, #C76B8A)',
+    color: 'var(--accent, #92405e)',
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
@@ -1323,7 +1323,7 @@ const styles = {
   },
   // Messaging card (step 6). WhatsApp-first with inline Connect button. SMS sits below as reassurance.
   messagingCard: {
-    background: 'linear-gradient(180deg, rgba(37, 211, 102, 0.06) 0%, var(--bg-card, #fff) 60%)',
+    background: 'linear-gradient(180deg, rgba(37, 211, 102, 0.06) 0%, var(--bg-card, #FFFCF9) 60%)',
     border: '1.5px solid rgba(37, 211, 102, 0.25)',
     borderRadius: 14,
     padding: '16px 18px',
@@ -1338,7 +1338,7 @@ const styles = {
   channelCheck: {
     fontSize: 16,
     lineHeight: 1,
-    color: 'var(--success, #5BA97B)',
+    color: 'var(--success, #3F7D5C)',
     flexShrink: 0,
     marginTop: 2,
     fontWeight: 700,
@@ -1361,7 +1361,7 @@ const styles = {
   channelBadgeOn: {
     fontSize: 10,
     fontWeight: 700,
-    color: 'var(--success, #5BA97B)',
+    color: 'var(--success, #3F7D5C)',
     background: 'rgba(91, 169, 123, 0.12)',
     padding: '3px 8px',
     borderRadius: 6,
@@ -1442,7 +1442,7 @@ const styles = {
     padding: '12px 14px',
     borderRadius: 12,
     border: '1px solid var(--border)',
-    background: 'var(--bg, #fff)',
+    background: 'var(--bg, #FBF6F1)',
     color: 'var(--text-primary)',
     cursor: 'pointer',
     fontFamily: 'inherit',
@@ -1479,7 +1479,7 @@ const styles = {
   },
   // SMS fork (step 6) - expanded panel
   smsForkPanel: {
-    background: 'var(--bg-card, #fff)',
+    background: 'var(--bg-card, #FFFCF9)',
     border: '1px solid var(--border)',
     borderRadius: 12,
     padding: '14px 14px 16px',
@@ -1536,7 +1536,7 @@ const styles = {
     padding: '10px 12px',
     borderRadius: 9,
     border: '1px solid var(--border)',
-    background: 'var(--bg, #fff)',
+    background: 'var(--bg, #FBF6F1)',
     color: 'var(--text-primary)',
     fontSize: 13,
     fontFamily: 'inherit',
@@ -1557,7 +1557,7 @@ const styles = {
     padding: '10px 12px',
     borderRadius: 9,
     border: '1px solid var(--border)',
-    background: 'var(--bg, #fff)',
+    background: 'var(--bg, #FBF6F1)',
     color: 'var(--text-primary)',
     fontSize: 12,
     fontWeight: 700,
@@ -1574,7 +1574,7 @@ const styles = {
   },
   smsForkError: {
     fontSize: 12,
-    color: 'var(--danger-text, #B43C3C)',
+    color: 'var(--danger-text, #9E2B32)',
     background: 'var(--danger-bg, rgba(180, 60, 60, 0.08))',
     border: '1px solid var(--danger-border, rgba(180, 60, 60, 0.25))',
     borderRadius: 8,
@@ -1591,7 +1591,7 @@ const styles = {
     padding: '11px 14px',
     borderRadius: 10,
     border: 'none',
-    background: 'var(--accent, #C76B8A)',
+    background: 'var(--accent, #92405e)',
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: 700,

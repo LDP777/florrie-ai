@@ -264,8 +264,8 @@ export default function Pricing() {
 
 const S = {
   page: { padding: '20px 16px 100px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 4px' },
-  subtitle: { fontSize: 13, color: 'var(--text-muted, #B5AFA8)', margin: '0 0 20px' },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #241B17)', margin: '0 0 4px' },
+  subtitle: { fontSize: 13, color: 'var(--text-muted, #6B5D54)', margin: '0 0 20px' },
 
   banner: {
     background: 'linear-gradient(135deg, #2D2D3F 0%, #1A1A2E 40%, #C76B8A 100%)',
@@ -283,90 +283,90 @@ const S = {
   },
 
   error: {
-    background: 'var(--danger-bg, #FDF0EF)', color: 'var(--danger, #D4605C)',
+    background: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger, #9E2B32)',
     padding: '10px 14px', borderRadius: 10, fontSize: 13, marginBottom: 16,
   },
 
   toggleWrap: {
     display: 'flex', gap: 0, marginBottom: 16,
-    background: 'var(--bg-subtle, #F5F2EF)', borderRadius: 12, padding: 3,
+    background: 'var(--bg-subtle, #ede7e3)', borderRadius: 12, padding: 3,
   },
   toggleBtn: {
     flex: 1, padding: '10px 0', borderRadius: 10, border: 'none',
-    background: 'transparent', color: 'var(--text-muted, #B5AFA8)',
+    background: 'transparent', color: 'var(--text-muted, #6B5D54)',
     fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
   },
   toggleActive: {
-    background: 'var(--card, #fff)', color: 'var(--text, #2D2A26)',
+    background: 'var(--card, #FFFCF9)', color: 'var(--text, #241B17)',
     boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
   },
   saveBadge: {
-    background: 'var(--success, #5BA97B)', color: '#fff',
+    background: 'var(--success, #3F7D5C)', color: '#fff',
     fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 6,
   },
 
   card: {
-    background: 'var(--card, #fff)', borderRadius: 16, padding: 18,
-    border: '2px solid var(--accent, #C76B8A)', marginBottom: 12,
+    background: 'var(--card, #FFFCF9)', borderRadius: 16, padding: 18,
+    border: '2px solid var(--accent, #92405e)', marginBottom: 12,
     boxShadow: '0 4px 16px rgba(199,107,138,0.12)',
   },
   cardHeader: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4,
   },
-  planName: { fontSize: 20, fontWeight: 700, color: 'var(--text, #2D2A26)' },
-  planPrice: { fontSize: 20, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
+  planName: { fontSize: 20, fontWeight: 700, color: 'var(--text, #241B17)' },
+  planPrice: { fontSize: 20, fontWeight: 700, color: 'var(--accent, #92405e)' },
   annualNote: {
-    fontSize: 11, color: 'var(--text-muted, #B5AFA8)', marginBottom: 14,
+    fontSize: 11, color: 'var(--text-muted, #6B5D54)', marginBottom: 14,
   },
 
   featureList: { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16, marginTop: 14 },
   feature: { display: 'flex', alignItems: 'center', gap: 8 },
-  featureCheck: { color: 'var(--success, #5BA97B)', fontSize: 13, fontWeight: 700, flexShrink: 0 },
-  featureText: { fontSize: 13, color: 'var(--text-secondary, #7A756F)' },
+  featureCheck: { color: 'var(--success, #3F7D5C)', fontSize: 13, fontWeight: 700, flexShrink: 0 },
+  featureText: { fontSize: 13, color: 'var(--text-secondary, #574A42)' },
 
   currentLabel: {
     textAlign: 'center', padding: '10px 0', fontSize: 13, fontWeight: 600,
-    color: 'var(--text-muted, #B5AFA8)', borderTop: '1px solid var(--border, #EDE9E4)',
+    color: 'var(--text-muted, #6B5D54)', borderTop: '1px solid var(--border, #E8DDD4)',
   },
   upgradeBtn: {
     width: '100%', padding: '12px 0', borderRadius: 12, border: 'none',
-    background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 14, fontWeight: 600,
+    background: 'var(--accent, #92405e)', color: '#fff', fontSize: 14, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
 
   teamCard: {
-    background: 'var(--card, #fff)', borderRadius: 16, padding: 18,
-    border: '1px solid var(--border, #EDE9E4)', marginBottom: 20,
+    background: 'var(--card, #FFFCF9)', borderRadius: 16, padding: 18,
+    border: '1px solid var(--border, #E8DDD4)', marginBottom: 20,
   },
   teamHeader: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6,
   },
-  teamTitle: { fontSize: 16, fontWeight: 700, color: 'var(--text, #2D2A26)' },
-  teamPrice: { fontSize: 13, fontWeight: 600, color: 'var(--accent, #C76B8A)' },
+  teamTitle: { fontSize: 16, fontWeight: 700, color: 'var(--text, #241B17)' },
+  teamPrice: { fontSize: 13, fontWeight: 600, color: 'var(--accent, #92405e)' },
   teamDesc: {
-    fontSize: 13, color: 'var(--text-secondary, #7A756F)', lineHeight: 1.4, marginBottom: 4,
+    fontSize: 13, color: 'var(--text-secondary, #574A42)', lineHeight: 1.4, marginBottom: 4,
   },
   teamBtn: {
-    background: 'var(--bg-subtle, #F5F2EF)', color: 'var(--text, #2D2A26)',
-    border: '1px solid var(--border, #EDE9E4)',
+    background: 'var(--bg-subtle, #ede7e3)', color: 'var(--text, #241B17)',
+    border: '1px solid var(--border, #E8DDD4)',
   },
   teamNote: {
     textAlign: 'center', padding: '10px 0', fontSize: 12,
-    color: 'var(--text-muted, #B5AFA8)', fontStyle: 'italic',
+    color: 'var(--text-muted, #6B5D54)', fontStyle: 'italic',
   },
 
   urgency: {
     background: 'linear-gradient(135deg, rgba(199,107,138,0.08), rgba(199,107,138,0.15))',
     borderRadius: 12, padding: 14, marginBottom: 20,
-    fontSize: 13, color: 'var(--text, #2D2A26)', lineHeight: 1.4,
+    fontSize: 13, color: 'var(--text, #241B17)', lineHeight: 1.4,
     border: '1px solid rgba(199,107,138,0.2)',
   },
 
   faq: { display: 'flex', flexDirection: 'column', gap: 12 },
-  faqItem: { background: 'var(--card, #fff)', borderRadius: 12, padding: 14 },
-  faqQ: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)', marginBottom: 4 },
-  faqA: { fontSize: 13, color: 'var(--text-secondary, #7A756F)', lineHeight: 1.4 },
+  faqItem: { background: 'var(--card, #FFFCF9)', borderRadius: 12, padding: 14 },
+  faqQ: { fontSize: 14, fontWeight: 600, color: 'var(--text, #241B17)', marginBottom: 4 },
+  faqA: { fontSize: 13, color: 'var(--text-secondary, #574A42)', lineHeight: 1.4 },
 
   // iOS-only placeholder styles (App Store Guideline 3.1.3(b) compliant)
   iosWrap: {
@@ -380,23 +380,23 @@ const S = {
     justifyContent: 'center',
   },
   iosCard: {
-    background: 'var(--card, #fff)',
+    background: 'var(--card, #FFFCF9)',
     borderRadius: 16,
     padding: '32px 24px',
     textAlign: 'center',
-    border: '1px solid var(--border, #EDE9E4)',
+    border: '1px solid var(--border, #E8DDD4)',
     width: '100%',
   },
   iosTitle: {
     fontSize: 20,
     fontWeight: 700,
-    color: 'var(--text, #2D2A26)',
+    color: 'var(--text, #241B17)',
     marginBottom: 12,
     fontFamily: '"Playfair Display", Georgia, serif',
   },
   iosBody: {
     fontSize: 14,
-    color: 'var(--text-secondary, #7A756F)',
+    color: 'var(--text-secondary, #574A42)',
     lineHeight: 1.5,
     margin: 0,
   },

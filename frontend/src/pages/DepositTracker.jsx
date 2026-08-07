@@ -24,12 +24,12 @@ import PageLoader from '../components/PageLoader.jsx';
 const fmt = (cents) => `£${(Math.abs(cents) / 100).toFixed(2)}`;
 
 const STATUS_CONFIG = {
-  held: { label: 'Held', bg: '#FFF5E6', color: 'var(--gold, #C9A96E)', icon: '⏳' },
+  held: { label: 'Held', bg: '#FFF5E6', color: 'var(--gold, #8A6420)', icon: '⏳' },
   awaiting: { label: 'Awaiting payment', bg: '#FDF8EE', color: '#8A7245', icon: '·' },
-  applied: { label: 'Applied', bg: 'var(--success-bg, #E8F5E9)', color: 'var(--success, #5BA97B)', icon: '✓' },
+  applied: { label: 'Applied', bg: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #3F7D5C)', icon: '✓' },
   refunded: { label: 'Refunded', bg: '#E3F2FD', color: '#2196F3', icon: '↩' },
-  forfeited: { label: 'Kept (policy)', bg: 'var(--danger-bg, #FDF0EF)', color: '#F44336', icon: '✗' },
-  lapsed: { label: 'Lapsed', bg: 'var(--bg-subtle, #F9F7F4)', color: 'var(--text-muted, #B5AFA8)', icon: '—' },
+  forfeited: { label: 'Kept (policy)', bg: 'var(--danger-bg, #F7E4E4)', color: '#F44336', icon: '✗' },
+  lapsed: { label: 'Lapsed', bg: 'var(--bg-subtle, #ede7e3)', color: 'var(--text-muted, #6B5D54)', icon: '—' },
 };
 
 export default function DepositTracker() {
@@ -119,7 +119,7 @@ export default function DepositTracker() {
         </div>
         <div style={S.summaryBreakdown}>
           {[
-            { label: 'Applied', value: totalApplied, colour: 'var(--success, #5BA97B)' },
+            { label: 'Applied', value: totalApplied, colour: 'var(--success, #3F7D5C)' },
             { label: 'Refunded', value: totalRefunded, colour: '#2196F3' },
             { label: 'Kept', value: totalForfeited, colour: '#F44336' },
           ].map(s => (
@@ -224,48 +224,48 @@ function formatDate(dateStr) {
 
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, var(--text-primary, #2D2A26))', margin: '0 0 16px' },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, var(--text-primary, #241B17))', margin: '0 0 16px' },
 
-  errorBanner: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--danger-bg, #FDF0EF)', borderRadius: 10, padding: '10px 12px', marginBottom: 16, color: 'var(--danger-text, #C62828)', fontSize: 13 },
-  errorClose: { background: 'none', border: 'none', color: 'var(--danger-text, #C62828)', cursor: 'pointer', fontSize: 16, fontWeight: 600, padding: 0 },
+  errorBanner: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--danger-bg, #F7E4E4)', borderRadius: 10, padding: '10px 12px', marginBottom: 16, color: 'var(--danger-text, #9E2B32)', fontSize: 13 },
+  errorClose: { background: 'none', border: 'none', color: 'var(--danger-text, #9E2B32)', cursor: 'pointer', fontSize: 16, fontWeight: 600, padding: 0 },
 
-  summaryCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 16, marginBottom: 16 },
-  summaryMain: { display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border, #EDE9E4)' },
-  summaryLabel: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)', fontWeight: 500 },
-  summaryValue: { fontSize: 28, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
-  summaryCount: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },
+  summaryCard: { background: 'var(--card, #FFFCF9)', borderRadius: 14, padding: 16, marginBottom: 16 },
+  summaryMain: { display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid var(--border, #E8DDD4)' },
+  summaryLabel: { fontSize: 12, color: 'var(--text-muted, #6B5D54)', fontWeight: 500 },
+  summaryValue: { fontSize: 28, fontWeight: 700, color: 'var(--accent, #92405e)' },
+  summaryCount: { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
   summaryBreakdown: { display: 'flex', gap: 8 },
   summaryItem: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   summaryItemVal: { fontSize: 15, fontWeight: 700 },
-  summaryItemLabel: { fontSize: 10, color: 'var(--text-muted, #B5AFA8)' },
+  summaryItemLabel: { fontSize: 10, color: 'var(--text-muted, #6B5D54)' },
 
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
-  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: 'var(--text-muted, #B5AFA8)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)' },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #FFFCF9)', color: 'var(--text-muted, #6B5D54)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)' },
 
   list: { display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 },
-  empty: { textAlign: 'center', color: 'var(--text-muted, #B5AFA8)', fontSize: 14, padding: 32 },
+  empty: { textAlign: 'center', color: 'var(--text-muted, #6B5D54)', fontSize: 14, padding: 32 },
 
-  depositCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 14, cursor: 'pointer' },
+  depositCard: { background: 'var(--card, #FFFCF9)', borderRadius: 14, padding: 14, cursor: 'pointer' },
   depositHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
   depositLeft: { display: 'flex', gap: 10, alignItems: 'center' },
-  avatar: { width: 36, height: 36, borderRadius: 18, background: 'var(--accent-light, #F0E6ED)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: 'var(--accent, #C76B8A)', flexShrink: 0 },
+  avatar: { width: 36, height: 36, borderRadius: 18, background: 'var(--accent-light, #F6E7EC)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: 'var(--accent, #92405e)', flexShrink: 0 },
   depositInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
-  depositClient: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
-  depositTreatment: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },
+  depositClient: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #241B17))' },
+  depositTreatment: { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
   depositRight: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 },
-  depositAmount: { fontSize: 16, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
+  depositAmount: { fontSize: 16, fontWeight: 700, color: 'var(--accent, #92405e)' },
   statusBadge: { padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600 },
 
-  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, #EDE9E4)' },
+  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, #E8DDD4)' },
   detailGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 10 },
   detailItem: { display: 'flex', flexDirection: 'column', gap: 2 },
-  detailLabel: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)', fontWeight: 600 },
-  detailValue: { fontSize: 13, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
-  depositHint: { fontSize: 12, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.5, margin: '4px 0 0' },
+  detailLabel: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', fontWeight: 600 },
+  detailValue: { fontSize: 13, fontWeight: 600, color: 'var(--text, var(--text-primary, #241B17))' },
+  depositHint: { fontSize: 12, color: 'var(--text-secondary, #574A42)', lineHeight: 1.5, margin: '4px 0 0' },
 
-  policyCard: { background: 'var(--bg-subtle, #F9F7F4)', borderRadius: 12, padding: 14 },
-  policyTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
-  policyText: { fontSize: 12, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.4, margin: '6px 0' },
-  policyLink: { background: 'none', border: 'none', color: 'var(--accent, #C76B8A)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0, fontFamily: 'inherit' },
+  policyCard: { background: 'var(--bg-subtle, #ede7e3)', borderRadius: 12, padding: 14 },
+  policyTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text, var(--text-primary, #241B17))' },
+  policyText: { fontSize: 12, color: 'var(--text-secondary, #574A42)', lineHeight: 1.4, margin: '6px 0' },
+  policyLink: { background: 'none', border: 'none', color: 'var(--accent, #92405e)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0, fontFamily: 'inherit' },
 };

@@ -315,13 +315,13 @@ const S = {
   subtitle: {
     fontSize: 13.5,
     lineHeight: 1.55,
-    color: 'var(--text-secondary, #4D423D)',
+    color: 'var(--text-secondary, #574A42)',
     margin: '6px 0 0',
     maxWidth: 460,
   },
 
   progressWrap: {
-    background: 'var(--bg-card, #fff)',
+    background: 'var(--bg-card, #FFFCF9)',
     border: '1px solid var(--border-light, #ede7e3)',
     borderRadius: 16,
     padding: '12px 16px 14px',
@@ -335,7 +335,7 @@ const S = {
     marginBottom: 8,
   },
   progressLabel: { fontSize: 13, fontWeight: 700 },
-  progressPct: { fontSize: 12, fontWeight: 600, color: 'var(--text-muted, #8A7A72)' },
+  progressPct: { fontSize: 12, fontWeight: 600, color: 'var(--text-muted, #6B5D54)' },
   progressTrack: {
     height: 6,
     borderRadius: 999,
@@ -350,7 +350,7 @@ const S = {
   },
 
   sectionCard: {
-    background: 'var(--bg-card, #fff)',
+    background: 'var(--bg-card, #FFFCF9)',
     border: '1px solid var(--border-light, #ede7e3)',
     borderRadius: 16,
     padding: '14px 8px 6px',
@@ -384,7 +384,7 @@ const S = {
     width: 20,
     height: 20,
     borderRadius: '50%',
-    background: 'var(--success, #2E7D6B)',
+    background: 'var(--success, #3F7D5C)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -416,7 +416,7 @@ const S = {
   itemWhy: {
     fontSize: 12,
     lineHeight: 1.45,
-    color: 'var(--text-muted, #8A7A72)',
+    color: 'var(--text-muted, #6B5D54)',
   },
   itemExtra: {
     fontSize: 12.5,
@@ -430,14 +430,14 @@ const S = {
   },
   chevron: {
     fontSize: 20,
-    color: 'var(--text-muted, #8A7A72)',
+    color: 'var(--text-muted, #6B5D54)',
     opacity: 0.7,
     flexShrink: 0,
     marginTop: 1,
   },
 
   retryCard: {
-    background: 'var(--bg-card, #fff)',
+    background: 'var(--bg-card, #FFFCF9)',
     border: '1px solid var(--border-light, #ede7e3)',
     borderRadius: 16,
     padding: '24px 20px',
@@ -447,7 +447,7 @@ const S = {
   retryTitle: { fontSize: 15, fontWeight: 700, marginBottom: 4 },
   retryText: {
     fontSize: 13,
-    color: 'var(--text-secondary, #4D423D)',
+    color: 'var(--text-secondary, #574A42)',
     marginBottom: 14,
   },
   retryBtn: {
@@ -465,7 +465,7 @@ const S = {
   footerNote: {
     fontSize: 12.5,
     lineHeight: 1.55,
-    color: 'var(--text-muted, #8A7A72)',
+    color: 'var(--text-muted, #6B5D54)',
     textAlign: 'center',
     margin: '18px auto 0',
     maxWidth: 380,

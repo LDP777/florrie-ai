@@ -113,7 +113,7 @@ const S = {
     fontWeight: 800,
     letterSpacing: '0.14em',
     textTransform: 'uppercase',
-    color: 'var(--text-muted, #8A7A72)',
+    color: 'var(--text-muted, #6B5D54)',
     marginBottom: 4,
   },
   headline: {
@@ -129,7 +129,7 @@ const S = {
     alignItems: 'center',
     gap: 8,
     fontSize: 13,
-    color: 'var(--text-secondary, #4D423D)',
+    color: 'var(--text-secondary, #574A42)',
   },
   dot: {
     width: 5,

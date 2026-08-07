@@ -428,7 +428,7 @@ const styles = {
     margin: '0 0 4px', letterSpacing: '-0.03em',
     fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)"
   },
-  goldBar: { width: 40, height: 2, background: 'var(--gold, #C9A96E)', margin: '12px auto 0', borderRadius: 1 },
+  goldBar: { width: 40, height: 2, background: 'var(--gold, #8A6420)', margin: '12px auto 0', borderRadius: 1 },
   tagline: { fontSize: 14, color: 'var(--text-muted)', margin: 0 },
   form: {
     background: 'var(--bg-card)', borderRadius: 20, padding: 24,
@@ -466,7 +466,7 @@ const styles = {
   },
   info: {
     fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 10px',
-    padding: '8px 12px', background: 'var(--bg-subtle, #F5F2EF)', borderRadius: 8
+    padding: '8px 12px', background: 'var(--bg-subtle, #ede7e3)', borderRadius: 8
   },
   submitBtn: {
     width: '100%', padding: '14px 0', borderRadius: 12, border: 'none',

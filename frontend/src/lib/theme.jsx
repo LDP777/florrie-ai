@@ -53,7 +53,7 @@ const lightTokens = {
   '--bg-card': '#FFFCF9',       // a lift off cream, never stark white
   '--bg-elevated': '#FFFCF9',
   '--bg-hover': '#f3ede9',
-  '--bg-input': '#f8f2ef',
+  '--bg-input': '#F4EDE6',        // the one sunken surface
   '--bg-warm': '#f8f2ef',
   '--bg-subtle': '#ede7e3',
 
@@ -102,22 +102,24 @@ const lightTokens = {
   '--tertiary-fixed': '#f3dfd3',
 
   // Semantic
-  '--success': '#5BA97B',
-  '--success-bg': '#EDF7F0',
-  '--success-text': '#2D6B45',
-  '--warning': '#D4943A',
-  '--warning-bg': '#FEF5E7',
-  '--warning-text': '#8B5E1A',
-  '--danger': '#ba1a1a',
-  '--danger-bg': '#ffdad6',
-  '--danger-text': '#93000a',
+  // Brand-tinted semantics. The old values were stock Material defaults
+  // (#4caf50 / #f44336 / #2196f3) sitting next to brand tones.
+  '--success': '#3F7D5C',
+  '--success-bg': '#E9F0EB',
+  '--success-text': '#3F7D5C',
+  '--warning': '#8A6420',
+  '--warning-bg': '#F7EEDD',
+  '--warning-text': '#8A6420',
+  '--danger': '#9E2B32',
+  '--danger-bg': '#F7E4E4',
+  '--danger-text': '#9E2B32',
 
   // Borders - Stitch outline
-  '--border': '#d8c1c6',
+  '--border': '#E8DDD4',          // was a pink-grey, so every rule read mauve
   '--border-light': '#ede7e3',
   '--border-focus': 'rgba(146, 64, 94, 0.4)',
-  '--outline': '#867277',
-  '--outline-variant': '#d8c1c6',
+  '--outline': '#6B5D54',
+  '--outline-variant': '#E8DDD4',
 
   // Shadows - rose-tinted editorial
   '--shadow-xs': '0 1px 2px rgba(146, 64, 94, 0.04)',
@@ -136,7 +138,7 @@ const lightTokens = {
   '--text': '#241B17',
   '--card': '#FFFCF9',
   '--card-bg': '#FFFCF9',
-  '--card-border': '#d8c1c6',
+  '--card-border': '#E8DDD4',
   '--accent-wash': '#FBF2F5',
   '--accent-dark': '#782b49',
   '--primary': '#92405e',
@@ -144,8 +146,8 @@ const lightTokens = {
   '--surface-2': '#f3ede9',
   '--info': '#4A6C82',
   '--info-bg': '#EAF0F4',
-  '--danger-light': '#ffdad6',
-  '--danger-border': '#f5c6c0',
+  '--danger-light': '#F7E4E4',
+  '--danger-border': '#EFCFCF',
   '--overlay': 'rgba(29, 27, 25, 0.18)',
 };
 
@@ -203,21 +205,21 @@ const darkTokens = {
   '--tertiary-fixed': '#51443c',
 
   // Semantic
-  '--success': '#6FCF97',
-  '--success-bg': '#1A2A20',
-  '--success-text': '#8EE0AE',
-  '--warning': '#F2C94C',
+  '--success': '#7FC79E',
+  '--success-bg': '#1B2A22',
+  '--success-text': '#9BD8B4',
+  '--warning': '#DCB463',
   '--warning-bg': '#2A2418',
-  '--warning-text': '#F5D76E',
-  '--danger': '#EB5757',
+  '--warning-text': '#E8C87F',
+  '--danger': '#E07A7A',
   '--danger-bg': '#2A1A1A',
-  '--danger-text': '#F08080',
+  '--danger-text': '#EE9A9A',
 
   // Borders
   '--border': '#302E2C',
   '--border-light': '#242321',
   '--border-focus': 'rgba(255, 177, 200, 0.3)',
-  '--outline': '#867277',
+  '--outline': '#a89890',
   '--outline-variant': '#534247',
 
   // Shadows

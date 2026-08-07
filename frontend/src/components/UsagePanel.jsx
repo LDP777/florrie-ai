@@ -125,7 +125,7 @@ const S = {
     textOverflow: 'ellipsis',
   },
   count: { color: '#1d1b19', fontWeight: 700 },
-  muted: { color: '#9B8A8E' },
+  muted: { color: 'var(--text-muted)' },
   bar: {
     position: 'relative',
     height: 6,

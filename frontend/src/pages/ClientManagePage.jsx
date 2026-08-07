@@ -491,7 +491,7 @@ export default function ClientManagePage() {
               <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>£{((payment.priceCents || 0) / 100).toFixed(2)}</span>
             </div>
             {payment.depositPaidCents > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 14, color: 'var(--text-muted, #8A8580)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 14, color: 'var(--text-muted, #6B5D54)' }}>
                 <span>{payment.paidInFull ? 'Paid at booking' : 'Deposit paid'}</span>
                 <span style={{ fontVariantNumeric: 'tabular-nums' }}>{'\u2212'}£{(payment.depositPaidCents / 100).toFixed(2)}</span>
               </div>

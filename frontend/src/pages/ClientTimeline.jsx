@@ -47,10 +47,10 @@ const DEV_EVENTS = {
   ],
 };
 const TYPE_CONFIG = {
-  appointment: { icon: '📅', colour: 'var(--accent, #C76B8A)', bg: 'var(--accent-light, #FFF0F3)' },
-  note: { icon: '📝', colour: 'var(--text-secondary, #8B6F5E)', bg: 'var(--border, #F0ECE8)' },
-  feedback: { icon: '⭐', colour: 'var(--gold, #C9A96E)', bg: 'var(--gold-light, #FDF8EE)' },
-  payment: { icon: '💰', colour: 'var(--success, #5BA97B)', bg: 'var(--success-bg, #E8F5E9)' },
+  appointment: { icon: '📅', colour: 'var(--accent, #92405e)', bg: 'var(--accent-light, #F6E7EC)' },
+  note: { icon: '📝', colour: 'var(--text-secondary, #574A42)', bg: 'var(--border, #E8DDD4)' },
+  feedback: { icon: '⭐', colour: 'var(--gold, #8A6420)', bg: 'var(--gold-light, #ffdea4)' },
+  payment: { icon: '💰', colour: 'var(--success, #3F7D5C)', bg: 'var(--success-bg, #E9F0EB)' },
   message: { icon: '💬', colour: '#2196F3', bg: '#E3F2FD' },
   consent: { icon: '📋', colour: '#7B6B8F', bg: '#F0E6F4' },
   referral: { icon: '🤝', colour: '#5E8B8B', bg: '#E0F2F1' },
@@ -172,7 +172,7 @@ export default function ClientTimeline() {
       <div style={S.clientRow}>
         {clients.map(c => (
           <button key={c.id} onClick={() => { setSelectedClient(c.id); setExpanded(null); }} style={{ ...S.clientChip, ...(selectedClient === c.id ? S.clientActive : {}) }}>
-            <div style={{ ...S.clientAvatar, background: selectedClient === c.id ? 'var(--bg-card, #fff)' : 'var(--accent-light, #FFF0F3)', color: selectedClient === c.id ? 'var(--accent, #C76B8A)' : 'var(--accent, #C76B8A)' }}>{c.name[0]}</div>
+            <div style={{ ...S.clientAvatar, background: selectedClient === c.id ? 'var(--bg-card, #FFFCF9)' : 'var(--accent-light, #F6E7EC)', color: selectedClient === c.id ? 'var(--accent, #92405e)' : 'var(--accent, #92405e)' }}>{c.name[0]}</div>
             <span>{c.name}</span>
           </button>
         ))}
@@ -279,7 +279,7 @@ export default function ClientTimeline() {
                           <p style={S.eventDetail}>{evt.detail}</p>
                         )}
                         {evt.status && (
-                          <span style={{ ...S.eventStatus, background: evt.status === 'completed' ? 'var(--success-bg, #E8F5E9)' : 'var(--gold-light, #FDF8EE)', color: evt.status === 'completed' ? 'var(--success, #5BA97B)' : 'var(--gold, #C9A96E)' }}>
+                          <span style={{ ...S.eventStatus, background: evt.status === 'completed' ? 'var(--success-bg, #E9F0EB)' : 'var(--gold-light, #ffdea4)', color: evt.status === 'completed' ? 'var(--success, #3F7D5C)' : 'var(--gold, #8A6420)' }}>
                             {evt.status}
                           </span>
                         )}
@@ -303,50 +303,50 @@ function formatDate(dateStr) {
 }
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 16px' },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #241B17)', margin: '0 0 16px' },
   clientRow: { display: 'flex', gap: 8, marginBottom: 16, overflowX: 'auto' },
-  clientChip: { display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px 6px 6px', borderRadius: 20, border: '1px solid var(--border-light, #F0ECE8)', background: 'var(--card, #fff)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', whiteSpace: 'nowrap' },
-  clientActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', border: '1px solid var(--accent, #C76B8A)' },
+  clientChip: { display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px 6px 6px', borderRadius: 20, border: '1px solid var(--border-light, #ede7e3)', background: 'var(--card, #FFFCF9)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #241B17)', whiteSpace: 'nowrap' },
+  clientActive: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', border: '1px solid var(--accent, #92405e)' },
   clientAvatar: { width: 26, height: 26, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 600, flexShrink: 0 },
-  profileCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 16, marginBottom: 16 },
+  profileCard: { background: 'var(--card, #FFFCF9)', borderRadius: 14, padding: 16, marginBottom: 16 },
   profileTop: { display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 },
-  profileAvatar: { width: 44, height: 44, borderRadius: 22, background: 'var(--accent-light, #FFF0F3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, color: 'var(--accent, #C76B8A)', flexShrink: 0 },
+  profileAvatar: { width: 44, height: 44, borderRadius: 22, background: 'var(--accent-light, #F6E7EC)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, color: 'var(--accent, #92405e)', flexShrink: 0 },
   profileInfo: { display: 'flex', flexDirection: 'column', gap: 3 },
-  profileName: { fontSize: 17, fontWeight: 700, color: 'var(--text, #2D2A26)' },
-  profileSince: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },
+  profileName: { fontSize: 17, fontWeight: 700, color: 'var(--text, #241B17)' },
+  profileSince: { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
   tagRow: { display: 'flex', gap: 6 },
-  tag: { padding: '2px 8px', borderRadius: 6, background: 'var(--accent-light, #FFF0F3)', color: 'var(--accent, #C76B8A)', fontSize: 10, fontWeight: 600 },
+  tag: { padding: '2px 8px', borderRadius: 6, background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)', fontSize: 10, fontWeight: 600 },
   profileStats: { display: 'flex', gap: 12 },
-  profileStat: { flex: 1, background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', borderRadius: 10, padding: '8px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
-  profileStatVal: { fontSize: 15, fontWeight: 700, color: 'var(--text, #2D2A26)' },
-  profileStatLabel: { fontSize: 10, color: 'var(--text-muted, #B5AFA8)' },
+  profileStat: { flex: 1, background: 'var(--bg-hover, var(--bg-subtle, #ede7e3))', borderRadius: 10, padding: '8px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
+  profileStatVal: { fontSize: 15, fontWeight: 700, color: 'var(--text, #241B17)' },
+  profileStatLabel: { fontSize: 10, color: 'var(--text-muted, #6B5D54)' },
   filterRow: { display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', paddingBottom: 2 },
-  filterChip: { padding: '6px 12px', borderRadius: 16, border: '1px solid var(--border, #F0ECE8)', background: 'var(--card, #fff)', color: 'var(--text-secondary, #8B6F5E)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
-  filterActive: { background: 'var(--text-primary, #2D2A26)', color: 'var(--bg-card, #fff)', border: '1px solid var(--text-primary, #2D2A26)' },
-  addNoteBtn: { width: '100%', padding: '10px 0', borderRadius: 10, border: '1px dashed var(--border, #F0ECE8)', background: 'transparent', color: 'var(--accent, #C76B8A)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 12 },
-  addNoteCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 14, marginBottom: 12 },
-  noteInput: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #F0ECE8)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
+  filterChip: { padding: '6px 12px', borderRadius: 16, border: '1px solid var(--border, #E8DDD4)', background: 'var(--card, #FFFCF9)', color: 'var(--text-secondary, #574A42)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  filterActive: { background: 'var(--text-primary, #241B17)', color: 'var(--bg-card, #FFFCF9)', border: '1px solid var(--text-primary, #241B17)' },
+  addNoteBtn: { width: '100%', padding: '10px 0', borderRadius: 10, border: '1px dashed var(--border, #E8DDD4)', background: 'transparent', color: 'var(--accent, #92405e)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginBottom: 12 },
+  addNoteCard: { background: 'var(--card, #FFFCF9)', borderRadius: 14, padding: 14, marginBottom: 12 },
+  noteInput: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #241B17)', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
   noteActions: { display: 'flex', gap: 8, marginTop: 8, justifyContent: 'flex-end' },
-  noteCancelBtn: { padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border, #F0ECE8)', background: 'transparent', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-secondary, #8B6F5E)' },
-  noteSaveBtn: { padding: '8px 16px', borderRadius: 8, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  noteCancelBtn: { padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border, #E8DDD4)', background: 'transparent', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-secondary, #574A42)' },
+  noteSaveBtn: { padding: '8px 16px', borderRadius: 8, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   timeline: {},
-  monthHeader: { fontSize: 13, fontWeight: 700, color: 'var(--text-muted, #B5AFA8)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '12px 0 8px' },
+  monthHeader: { fontSize: 13, fontWeight: 700, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '12px 0 8px' },
   eventRow: { display: 'flex', gap: 0, marginBottom: 2, cursor: 'pointer' },
   eventLeft: { display: 'flex', gap: 8, width: 80, flexShrink: 0 },
   eventDate: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', width: 50 },
-  eventDay: { fontSize: 11, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  eventTime: { fontSize: 10, color: 'var(--text-muted, #B5AFA8)' },
+  eventDay: { fontSize: 11, fontWeight: 600, color: 'var(--text, #241B17)' },
+  eventTime: { fontSize: 10, color: 'var(--text-muted, #6B5D54)' },
   dotCol: { display: 'flex', flexDirection: 'column', alignItems: 'center', width: 12, paddingTop: 4 },
   dot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
-  line: { width: 2, flex: 1, background: 'var(--border, #F0ECE8)', marginTop: 2 },
-  eventCard: { flex: 1, background: 'var(--card, #fff)', borderRadius: 10, padding: '10px 12px', marginBottom: 6 },
+  line: { width: 2, flex: 1, background: 'var(--border, #E8DDD4)', marginTop: 2 },
+  eventCard: { flex: 1, background: 'var(--card, #FFFCF9)', borderRadius: 10, padding: '10px 12px', marginBottom: 6 },
   eventHeader: { display: 'flex', alignItems: 'center', gap: 6 },
   eventIcon: { fontSize: 14 },
-  eventTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text, #2D2A26)', flex: 1 },
+  eventTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text, #241B17)', flex: 1 },
   eventAmount: { fontSize: 13, fontWeight: 700 },
-  eventPreview: { fontSize: 12, color: 'var(--text-secondary, #8B6F5E)', margin: '4px 0 0', lineHeight: 1.3 },
-  eventDetail: { fontSize: 13, color: 'var(--text-secondary, #8B6F5E)', margin: '6px 0 0', lineHeight: 1.5 },
+  eventPreview: { fontSize: 12, color: 'var(--text-secondary, #574A42)', margin: '4px 0 0', lineHeight: 1.3 },
+  eventDetail: { fontSize: 13, color: 'var(--text-secondary, #574A42)', margin: '6px 0 0', lineHeight: 1.5 },
   eventStatus: { display: 'inline-block', padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600, marginTop: 6, textTransform: 'capitalize' },
   channelTag: { display: 'inline-block', padding: '2px 8px', borderRadius: 6, background: '#E3F2FD', color: '#2196F3', fontSize: 10, fontWeight: 500, marginTop: 6 },
-  empty: { textAlign: 'center', color: 'var(--text-muted, #B5AFA8)', fontSize: 14, padding: 32 },
+  empty: { textAlign: 'center', color: 'var(--text-muted, #6B5D54)', fontSize: 14, padding: 32 },
 };

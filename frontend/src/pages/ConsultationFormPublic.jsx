@@ -434,7 +434,7 @@ const styles = {
   formTitle: {
     fontSize: 22,
     fontWeight: 600,
-    color: 'var(--text-primary, #2d2a26)',
+    color: 'var(--text-primary, #241B17)',
     margin: '0 0 6px',
   },
   greeting: {
@@ -450,7 +450,7 @@ const styles = {
     gap: 12,
   },
   fieldCard: {
-    background: 'var(--bg-card, #fff)',
+    background: 'var(--bg-card, #FFFCF9)',
     border: '1px solid #e8e5e0',
     borderRadius: 12,
     padding: '18px 16px',
@@ -463,7 +463,7 @@ const styles = {
     display: 'block',
     fontSize: 15,
     fontWeight: 500,
-    color: 'var(--text-primary, #2d2a26)',
+    color: 'var(--text-primary, #241B17)',
     marginBottom: 10,
     lineHeight: 1.4,
   },
@@ -478,7 +478,7 @@ const styles = {
     border: '1px solid #e8e5e0',
     borderRadius: 8,
     fontFamily: 'inherit',
-    color: 'var(--text-primary, #2d2a26)',
+    color: 'var(--text-primary, #241B17)',
     background: '#faf9f7',
     outline: 'none',
     boxSizing: 'border-box',
@@ -496,7 +496,7 @@ const styles = {
     borderRadius: 8,
     cursor: 'pointer',
     fontSize: 15,
-    color: 'var(--text-primary, #2d2a26)',
+    color: 'var(--text-primary, #241B17)',
     flex: 1,
     justifyContent: 'center',
     transition: 'border-color 0.15s, background 0.15s',
@@ -522,7 +522,7 @@ const styles = {
     borderRadius: 8,
     cursor: 'pointer',
     fontSize: 15,
-    color: 'var(--text-primary, #2d2a26)',
+    color: 'var(--text-primary, #241B17)',
     transition: 'border-color 0.15s, background 0.15s',
   },
   checkOptionSelected: {
@@ -541,7 +541,7 @@ const styles = {
   },
   checkboxText: {
     fontSize: 15,
-    color: 'var(--text-primary, #2d2a26)',
+    color: 'var(--text-primary, #241B17)',
   },
   textBlock: {
     fontSize: 14,
@@ -552,7 +552,7 @@ const styles = {
   consentBlock: {
     margin: '16px 20px',
     padding: '16px 18px',
-    background: 'var(--bg-card, #fff)',
+    background: 'var(--bg-card, #FFFCF9)',
     border: '1px solid #e8e5e0',
     borderRadius: 12,
   },
@@ -639,7 +639,7 @@ const styles = {
     textAlign: 'center',
     padding: '48px 24px',
     margin: '40px 20px',
-    background: 'var(--bg-card, #fff)',
+    background: 'var(--bg-card, #FFFCF9)',
     borderRadius: 16,
     border: '1px solid #e8e5e0',
   },
@@ -652,7 +652,7 @@ const styles = {
     textAlign: 'center',
     padding: '48px 24px',
     margin: '40px 20px',
-    background: 'var(--bg-card, #fff)',
+    background: 'var(--bg-card, #FFFCF9)',
     borderRadius: 16,
     border: '1px solid #e8e5e0',
     borderTop: '4px solid',
@@ -660,7 +660,7 @@ const styles = {
   successTitle: {
     fontSize: 22,
     fontWeight: 600,
-    color: 'var(--text-primary, #2d2a26)',
+    color: 'var(--text-primary, #241B17)',
     margin: '0 0 8px',
   },
   successText: {

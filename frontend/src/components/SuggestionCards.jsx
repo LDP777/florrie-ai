@@ -221,7 +221,7 @@ const SC = {
   evidence: {
     background: 'transparent', border: 'none', padding: 0, margin: '0 0 2px',
     minHeight: 44, display: 'inline-flex', alignItems: 'center', alignSelf: 'flex-start',
-    fontSize: 11.5, color: '#867277', fontWeight: 500, fontFamily: 'inherit',
+    fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 500, fontFamily: 'inherit',
     textDecoration: 'underline', textDecorationColor: 'rgba(134,114,119,0.4)',
     cursor: 'pointer', WebkitTapHighlightColor: 'transparent', textAlign: 'left',
   },
@@ -231,5 +231,5 @@ const SC = {
     fontFamily: 'inherit', cursor: 'pointer', WebkitTapHighlightColor: 'transparent', transition: 'transform 0.1s ease',
   },
   btnYes: { background: 'var(--accent)', color: '#fff' },
-  btnNo: { background: '#f3ede9', color: '#867277' },
+  btnNo: { background: '#f3ede9', color: 'var(--text-muted)' },
 };

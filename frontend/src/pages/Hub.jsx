@@ -852,7 +852,7 @@ const AC = {
   sub: { fontSize: 13, color: '#6e5a60', fontWeight: 500, lineHeight: 1.3 },
   preview: {
     fontSize: 12,
-    color: '#867277',
+    color: 'var(--text-muted)',
     lineHeight: 1.35,
     overflow: 'hidden',
     textOverflow: 'ellipsis',

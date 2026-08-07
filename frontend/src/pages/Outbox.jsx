@@ -543,7 +543,7 @@ function ReviewDeck({ replies, batches, holds, onReply, onReplySkip, onBatch, on
       {done ? (
         <div style={{ textAlign: 'center' }} onClick={onClose}>
           <p style={s.deckDone}>All caught up 🌸</p>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary, #867277)', marginTop: 8 }}>Florrie handles the rest. Tap to close.</p>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary, #574A42)', marginTop: 8 }}>Florrie handles the rest. Tap to close.</p>
         </div>
       ) : (
         <>
@@ -562,7 +562,7 @@ function ReviewDeck({ replies, batches, holds, onReply, onReplySkip, onBatch, on
               }}
             >
               <p style={{ margin: 0, fontSize: 15.5, fontWeight: 700 }}>{items[idx].title}</p>
-              <p style={{ margin: '4px 0 10px', fontSize: 12, color: 'var(--text-secondary, #867277)' }}>{items[idx].why}</p>
+              <p style={{ margin: '4px 0 10px', fontSize: 12, color: 'var(--text-secondary, #574A42)' }}>{items[idx].why}</p>
               <div style={{ ...s.bodyBox, maxHeight: 180, overflowY: 'auto' }}>{items[idx].body}</div>
             </div>
           </div>
@@ -709,7 +709,7 @@ const s = {
     maxWidth: 480,
     margin: '0 auto',
     fontFamily: "'Plus Jakarta Sans', 'DM Sans', -apple-system, sans-serif",
-    color: 'var(--text-primary, #1d1b19)',
+    color: 'var(--text-primary, #241B17)',
   },
 
   topBar: {
@@ -722,7 +722,7 @@ const s = {
   waitingLabel: {
     fontSize: 13,
     fontWeight: 600,
-    color: 'var(--text-secondary, #867277)',
+    color: 'var(--text-secondary, #574A42)',
   },
   approveAllBtn: {
     padding: '9px 16px',
@@ -754,12 +754,12 @@ const s = {
   sectionTitle: {
     fontSize: 15,
     fontWeight: 700,
-    color: 'var(--text-primary, #1d1b19)',
+    color: 'var(--text-primary, #241B17)',
     lineHeight: 1.25,
   },
   sectionHint: {
     fontSize: 12,
-    color: 'var(--text-secondary, #867277)',
+    color: 'var(--text-secondary, #574A42)',
     lineHeight: 1.4,
     marginTop: 2,
   },
@@ -796,7 +796,7 @@ const s = {
   clientName: {
     fontSize: 15,
     fontWeight: 700,
-    color: 'var(--text-primary, #1d1b19)',
+    color: 'var(--text-primary, #241B17)',
     lineHeight: 1.2,
   },
   regularPill: {
@@ -813,7 +813,7 @@ const s = {
   typeLabel: {
     fontSize: 12,
     fontWeight: 500,
-    color: 'var(--text-secondary, #867277)',
+    color: 'var(--text-secondary, #574A42)',
   },
   channelChip: {
     flexShrink: 0,
@@ -825,14 +825,14 @@ const s = {
     letterSpacing: '0.01em',
     padding: '4px 9px',
     borderRadius: 999,
-    background: 'var(--accent-light, #ffd9e2)',
+    background: 'var(--accent-light, #F6E7EC)',
     color: 'var(--accent, #92405e)',
   },
   channelChipIcon: { fontSize: 13 },
 
   why: {
     fontSize: 12.5,
-    color: 'var(--text-secondary, #867277)',
+    color: 'var(--text-secondary, #574A42)',
     lineHeight: 1.45,
     margin: '0 0 10px',
     fontWeight: 500,
@@ -842,22 +842,22 @@ const s = {
     display: 'flex',
     flexDirection: 'column',
     gap: 3,
-    background: 'var(--bg, #fef8f4)',
+    background: 'var(--bg, #FBF6F1)',
     borderRadius: 12,
     padding: '9px 12px',
     marginBottom: 10,
-    borderLeft: '3px solid var(--accent-light, #ffd9e2)',
+    borderLeft: '3px solid var(--accent-light, #F6E7EC)',
   },
   inboundLabel: {
     fontSize: 10,
     fontWeight: 700,
     textTransform: 'uppercase',
     letterSpacing: '0.05em',
-    color: 'var(--text-muted, #B5AFA8)',
+    color: 'var(--text-muted, #6B5D54)',
   },
   inboundText: {
     fontSize: 13,
-    color: 'var(--text-primary, #1d1b19)',
+    color: 'var(--text-primary, #241B17)',
     lineHeight: 1.45,
   },
 
@@ -870,7 +870,7 @@ const s = {
     borderRadius: 12,
     border: 'none',
     background: 'var(--tone-2, #f6e7dd)',
-    color: 'var(--text-primary, #1d1b19)',
+    color: 'var(--text-primary, #241B17)',
     fontSize: 13,
     lineHeight: 1.5,
     fontFamily: 'inherit',
@@ -896,7 +896,7 @@ const s = {
     borderRadius: 12,
     border: 'none',
     background: 'var(--tone-2, #f6e7dd)',
-    color: 'var(--text-secondary, #867277)',
+    color: 'var(--text-secondary, #574A42)',
     fontSize: 14,
     fontWeight: 600,
     cursor: 'pointer',
@@ -907,7 +907,7 @@ const s = {
   bodyBox: {
     background: 'var(--tone-2, #f6e7dd)', borderRadius: 12,
     padding: '10px 12px', fontSize: 13, lineHeight: 1.5,
-    color: 'var(--text-primary, #3d3438)', whiteSpace: 'pre-wrap',
+    color: 'var(--text-primary, #241B17)', whiteSpace: 'pre-wrap',
   },
   chooseWho: {
     width: '100%', minHeight: 40, padding: '9px 0', marginTop: 4,
@@ -928,9 +928,9 @@ const s = {
   deckClose: {
     position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 16px)', right: 20,
     width: 44, height: 44, background: 'none', border: 'none',
-    fontSize: 26, color: 'var(--text-muted, #9B8A8E)', cursor: 'pointer',
+    fontSize: 26, color: 'var(--text-muted, #6B5D54)', cursor: 'pointer',
   },
-  deckProg: { fontSize: 12.5, fontWeight: 600, color: 'var(--text-muted, #9B8A8E)', marginBottom: 14 },
+  deckProg: { fontSize: 12.5, fontWeight: 600, color: 'var(--text-muted, #6B5D54)', marginBottom: 14 },
   deckBehind: { position: 'absolute', left: '8%', right: '8%', bottom: -10, height: 16, background: 'var(--tone-2, #f6e7dd)', borderRadius: 16, zIndex: 0 },
   deckCard: {
     position: 'relative', zIndex: 1,
@@ -946,7 +946,7 @@ const s = {
   skelLine: {
     height: 13,
     borderRadius: 6,
-    background: 'var(--border-light, #F0ECE8)',
+    background: 'var(--border-light, #ede7e3)',
   },
   skelBlock: {
     height: 70,
@@ -963,18 +963,18 @@ const s = {
   },
   stateIcon: {
     fontSize: 44,
-    color: 'var(--text-muted, #B5AFA8)',
+    color: 'var(--text-muted, #6B5D54)',
     marginBottom: 12,
   },
   stateTitle: {
     fontSize: 16,
     fontWeight: 700,
-    color: 'var(--text-primary, #1d1b19)',
+    color: 'var(--text-primary, #241B17)',
     margin: '0 0 6px',
   },
   stateSub: {
     fontSize: 13,
-    color: 'var(--text-secondary, #867277)',
+    color: 'var(--text-secondary, #574A42)',
     lineHeight: 1.5,
     margin: 0,
     maxWidth: 280,
@@ -997,7 +997,7 @@ const s = {
     left: '50%',
     bottom: 'calc(env(safe-area-inset-bottom, 8px) + 92px)',
     transform: 'translateX(-50%)',
-    background: 'var(--text-primary, #1d1b19)',
+    background: 'var(--text-primary, #241B17)',
     color: '#fff',
     fontSize: 13,
     fontWeight: 500,

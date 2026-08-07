@@ -22,20 +22,20 @@ import ErrorCard from '../components/ErrorCard.jsx';
  */
 
 const TYPE_CONFIG = {
-  reactivation: { label: 'Comeback', icon: '💌', color: 'var(--accent, #C76B8A)', desc: 'Win back clients who haven\'t visited in a while' },
-  rescue: { label: 'Rescue', icon: '🆘', color: 'var(--danger, #D4605C)', desc: 'Save a cancellation with a quick rebook offer' },
-  weather: { label: 'Weather', icon: '🌧️', color: 'var(--info, #4A90D9)', desc: 'Bad weather = pamper day. Triggered by forecast' },
-  bank_holiday: { label: 'Bank Holiday', icon: '🎉', color: 'var(--warning, #D4943A)', desc: 'Promo blast before long weekends' },
-  event: { label: 'Seasonal', icon: '🎄', color: 'var(--success, #5BA97B)', desc: 'Christmas, Valentine\'s, Mother\'s Day specials' },
-  custom: { label: 'Custom', icon: '✏️', color: 'var(--text-secondary, #8A8580)', desc: 'Write your own campaign from scratch' },
+  reactivation: { label: 'Comeback', icon: '💌', color: 'var(--accent, #92405e)', desc: 'Win back clients who haven\'t visited in a while' },
+  rescue: { label: 'Rescue', icon: '🆘', color: 'var(--danger, #9E2B32)', desc: 'Save a cancellation with a quick rebook offer' },
+  weather: { label: 'Weather', icon: '🌧️', color: 'var(--info, #4A6C82)', desc: 'Bad weather = pamper day. Triggered by forecast' },
+  bank_holiday: { label: 'Bank Holiday', icon: '🎉', color: 'var(--warning, #8A6420)', desc: 'Promo blast before long weekends' },
+  event: { label: 'Seasonal', icon: '🎄', color: 'var(--success, #3F7D5C)', desc: 'Christmas, Valentine\'s, Mother\'s Day specials' },
+  custom: { label: 'Custom', icon: '✏️', color: 'var(--text-secondary, #574A42)', desc: 'Write your own campaign from scratch' },
 };
 
 const STATUS_LABELS = {
-  draft: { label: 'Draft', color: 'var(--warning, #D4943A)', bg: 'var(--warning-bg, #FFF8E1)' },
-  approved: { label: 'Ready', color: 'var(--info, #4A90D9)', bg: 'var(--info-bg, #EEF4FC)' },
-  sending: { label: 'Sending', color: 'var(--accent, #C76B8A)', bg: 'var(--accent-light, #FFF0F3)' },
-  sent: { label: 'Sent', color: 'var(--success, #5BA97B)', bg: 'var(--success-bg, #EDF7F0)' },
-  cancelled: { label: 'Cancelled', color: 'var(--text-muted, #AAA5A0)', bg: 'var(--bg-subtle, #F5F2EF)' },
+  draft: { label: 'Draft', color: 'var(--warning, #8A6420)', bg: 'var(--warning-bg, #F7EEDD)' },
+  approved: { label: 'Ready', color: 'var(--info, #4A6C82)', bg: 'var(--info-bg, #EAF0F4)' },
+  sending: { label: 'Sending', color: 'var(--accent, #92405e)', bg: 'var(--accent-light, #F6E7EC)' },
+  sent: { label: 'Sent', color: 'var(--success, #3F7D5C)', bg: 'var(--success-bg, #E9F0EB)' },
+  cancelled: { label: 'Cancelled', color: 'var(--text-muted, #6B5D54)', bg: 'var(--bg-subtle, #ede7e3)' },
 };
 
 // Message templates per type (Ellie's tone)
@@ -243,8 +243,8 @@ export default function Campaigns() {
             key={t.key}
             onClick={() => { setTab(t.key); setCreating(false); }}
             style={{ ...styles.tab,
-              borderBottomColor: tab === t.key || (tab === 'create' && t.key === 'active') ? 'var(--accent, #C76B8A)' : 'transparent',
-              color: tab === t.key || (tab === 'create' && t.key === 'active') ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #AAA5A0)',
+              borderBottomColor: tab === t.key || (tab === 'create' && t.key === 'active') ? 'var(--accent, #92405e)' : 'transparent',
+              color: tab === t.key || (tab === 'create' && t.key === 'active') ? 'var(--accent, #92405e)' : 'var(--text-muted, #6B5D54)',
             }}
           >
             {t.label}
@@ -471,7 +471,7 @@ export default function Campaigns() {
                   </p>
                 </div>
                 <div style={styles.resultGrid}>
-                  <PerfStat label="Sent" value={sendResult.sent} color="var(--accent, #C76B8A)" />
+                  <PerfStat label="Sent" value={sendResult.sent} color="var(--accent, #92405e)" />
                   <PerfStat label="Held for you" value={sendResult.held} />
                   <PerfStat label="Blocked" value={sendResult.blocked} />
                   <PerfStat label="Skipped" value={sendResult.skipped} />
@@ -575,12 +575,12 @@ function PerfStat({ label, value, color }) {
 }
 
 const styles = {
-  page: { minHeight: '100vh', background: 'var(--bg, #FAF8F5)', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text, #2D2A26)' },
+  page: { minHeight: '100vh', background: 'var(--bg, #FBF6F1)', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text, #241B17)' },
   header: { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 52px)', paddingBottom: 8 },
   title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
-  subtitle: { fontSize: 13, color: 'var(--accent, #C76B8A)', margin: 0, fontWeight: 500 },
+  subtitle: { fontSize: 13, color: 'var(--accent, #92405e)', margin: 0, fontWeight: 500 },
 
-  tabs: { display: 'flex', gap: 24, borderBottom: '1px solid var(--border, #F0ECE8)', marginBottom: 16 },
+  tabs: { display: 'flex', gap: 24, borderBottom: '1px solid var(--border, #E8DDD4)', marginBottom: 16 },
   tab: { padding: '10px 0', background: 'none', border: 'none', borderBottom: '2px solid transparent', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   body: { display: 'flex', flexDirection: 'column', gap: 12 },
@@ -589,135 +589,135 @@ const styles = {
   typeGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 },
   typeCard: {
     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-    padding: '14px 8px', borderRadius: 12, background: 'var(--bg-card, #fff)',
+    padding: '14px 8px', borderRadius: 12, background: 'var(--bg-card, #FFFCF9)',
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)', border: 'none',
     cursor: 'pointer', fontFamily: 'inherit',
   },
-  typeLabel: { fontSize: 11, fontWeight: 600, color: 'var(--text-secondary, #8A8580)' },
+  typeLabel: { fontSize: 11, fontWeight: 600, color: 'var(--text-secondary, #574A42)' },
 
   // AI suggestion
-  aiCard: { background: 'linear-gradient(135deg, var(--accent-light, #FFF0F3) 0%, #F5EFFC 100%)', borderRadius: 14, padding: 16 },
+  aiCard: { background: 'linear-gradient(135deg, var(--accent-light, #F6E7EC) 0%, #F5EFFC 100%)', borderRadius: 14, padding: 16 },
   aiCardHeader: { display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 },
-  aiCardTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  aiCardText: { fontSize: 13, color: 'var(--text-secondary, #8A8580)', margin: '0 0 12px', lineHeight: 1.5 },
+  aiCardTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text, #241B17)' },
+  aiCardText: { fontSize: 13, color: 'var(--text-secondary, #574A42)', margin: '0 0 12px', lineHeight: 1.5 },
   aiCardBtn: {
     padding: '8px 16px', borderRadius: 8, border: 'none',
-    background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 12, fontWeight: 600,
+    background: 'var(--accent, #92405e)', color: '#fff', fontSize: 12, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
 
   // Campaign cards
   campaignCard: {
-    background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16,
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 16,
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)', cursor: 'pointer',
     marginBottom: 2,
   },
   campaignCardTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 },
   campaignCardLeft: { display: 'flex', gap: 10, alignItems: 'flex-start' },
-  campaignName: { display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  campaignMeta: { display: 'block', fontSize: 11, color: 'var(--text-muted, #AAA5A0)', marginTop: 2 },
-  campaignPreview: { fontSize: 13, color: 'var(--text-secondary, #8A8580)', margin: '0 0 10px', lineHeight: 1.5 },
-  miniStats: { display: 'flex', gap: 12, paddingTop: 8, borderTop: '1px solid var(--bg-hover, #F5F2EF)' },
-  miniStat: { fontSize: 12, color: 'var(--text-secondary, #8A8580)' },
-  cardActions: { display: 'flex', gap: 8, paddingTop: 10, borderTop: '1px solid var(--bg-hover, #F5F2EF)' },
+  campaignName: { display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text, #241B17)' },
+  campaignMeta: { display: 'block', fontSize: 11, color: 'var(--text-muted, #6B5D54)', marginTop: 2 },
+  campaignPreview: { fontSize: 13, color: 'var(--text-secondary, #574A42)', margin: '0 0 10px', lineHeight: 1.5 },
+  miniStats: { display: 'flex', gap: 12, paddingTop: 8, borderTop: '1px solid var(--bg-hover, #f3ede9)' },
+  miniStat: { fontSize: 12, color: 'var(--text-secondary, #574A42)' },
+  cardActions: { display: 'flex', gap: 8, paddingTop: 10, borderTop: '1px solid var(--bg-hover, #f3ede9)' },
   approveBtn: {
     flex: 1, padding: '10px 0', borderRadius: 10, border: 'none',
-    background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 13, fontWeight: 600,
+    background: 'var(--accent, #92405e)', color: '#fff', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   cancelCardBtn: {
     padding: '10px 16px', borderRadius: 10, border: 'none',
-    background: 'var(--bg-hover, #F5F2EF)', color: 'var(--text-muted, #AAA5A0)', fontSize: 13,
+    background: 'var(--bg-hover, #f3ede9)', color: 'var(--text-muted, #6B5D54)', fontSize: 13,
     cursor: 'pointer', fontFamily: 'inherit',
   },
 
   section: { marginTop: 4 },
-  sectionTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 10px', color: 'var(--text, #2D2A26)' },
+  sectionTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 10px', color: 'var(--text, #241B17)' },
 
   // Create flow
   createFlow: { display: 'flex', flexDirection: 'column', gap: 12 },
   typeHeader: {
     display: 'flex', gap: 12, alignItems: 'center',
-    padding: 14, borderRadius: 12, background: 'var(--bg-card, #fff)',
-    borderLeft: '4px solid var(--accent, #C76B8A)',
+    padding: 14, borderRadius: 12, background: 'var(--bg-card, #FFFCF9)',
+    borderLeft: '4px solid var(--accent, #92405e)',
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
   },
-  typeHeaderLabel: { display: 'block', fontSize: 15, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  typeHeaderDesc: { display: 'block', fontSize: 12, color: 'var(--text-secondary, #8A8580)', marginTop: 2 },
+  typeHeaderLabel: { display: 'block', fontSize: 15, fontWeight: 600, color: 'var(--text, #241B17)' },
+  typeHeaderDesc: { display: 'block', fontSize: 12, color: 'var(--text-secondary, #574A42)', marginTop: 2 },
   nameInput: {
     width: '100%', padding: '12px 14px', borderRadius: 12,
-    border: '1.5px solid var(--border, #F0ECE8)', fontSize: 14, fontFamily: 'inherit',
+    border: '1.5px solid var(--border, #E8DDD4)', fontSize: 14, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box',
   },
   msgSection: { display: 'flex', flexDirection: 'column', gap: 8 },
-  fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)', textTransform: 'uppercase', letterSpacing: '0.04em' },
+  fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', letterSpacing: '0.04em' },
   msgTextarea: {
     width: '100%', padding: 14, borderRadius: 12,
-    border: '1.5px solid var(--border, #F0ECE8)', fontSize: 14, fontFamily: 'inherit',
+    border: '1.5px solid var(--border, #E8DDD4)', fontSize: 14, fontFamily: 'inherit',
     resize: 'vertical', outline: 'none', lineHeight: 1.6, boxSizing: 'border-box',
   },
   shuffleBtn: {
     alignSelf: 'flex-start', padding: '6px 14px', borderRadius: 8,
-    border: '1.5px solid var(--border, #E0DBD5)', background: 'transparent',
-    color: 'var(--text-secondary, #8A8580)', fontSize: 12, fontWeight: 500,
+    border: '1.5px solid var(--border, #E8DDD4)', background: 'transparent',
+    color: 'var(--text-secondary, #574A42)', fontSize: 12, fontWeight: 500,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   targetCard: {
     display: 'flex', gap: 12, alignItems: 'center',
-    padding: 14, borderRadius: 12, background: 'var(--bg-card, #fff)',
+    padding: 14, borderRadius: 12, background: 'var(--bg-card, #FFFCF9)',
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
   },
   targetIcon: { fontSize: 20, flexShrink: 0 },
-  targetLabel: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  targetHint: { display: 'block', fontSize: 11, color: 'var(--text-muted, #AAA5A0)', marginTop: 2 },
+  targetLabel: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text, #241B17)' },
+  targetHint: { display: 'block', fontSize: 11, color: 'var(--text-muted, #6B5D54)', marginTop: 2 },
   createActions: { display: 'flex', gap: 8, marginTop: 4 },
   primaryBtn: {
     flex: 1, padding: '14px 0', borderRadius: 12, border: 'none',
-    background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600,
+    background: 'var(--accent, #92405e)', color: '#fff', fontSize: 15, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit',
   },
   cancelBtn: {
     padding: '14px 20px', borderRadius: 12, border: 'none',
-    background: 'var(--bg-hover, #F5F2EF)', color: 'var(--text-secondary, #8A8580)', fontSize: 15,
+    background: 'var(--bg-hover, #f3ede9)', color: 'var(--text-secondary, #574A42)', fontSize: 15,
     cursor: 'pointer', fontFamily: 'inherit',
   },
 
   // Detail modal
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 960, display: 'flex', justifyContent: 'center', alignItems: 'flex-end' },
   detailPanel: {
-    background: 'var(--bg, #FAF8F5)', borderRadius: '20px 20px 0 0', width: '100%',
+    background: 'var(--bg, #FBF6F1)', borderRadius: '20px 20px 0 0', width: '100%',
     maxWidth: 480, maxHeight: '85vh', overflowY: 'auto',
     padding: '20px 16px 40px', position: 'relative',
   },
-  closeBtn: { position: 'absolute', top: 12, right: 16, background: 'none', border: 'none', fontSize: 24, color: 'var(--text-muted, #AAA5A0)', cursor: 'pointer' },
+  closeBtn: { position: 'absolute', top: 12, right: 16, background: 'none', border: 'none', fontSize: 24, color: 'var(--text-muted, #6B5D54)', cursor: 'pointer' },
   detailHeader: { textAlign: 'center', paddingTop: 8, paddingBottom: 16 },
-  detailName: { fontSize: 18, fontWeight: 700, margin: '8px 0', color: 'var(--text, #2D2A26)' },
-  detailMsgCard: { background: 'var(--bg-card, #fff)', borderRadius: 12, padding: 14, marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
-  detailMsgLabel: { display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 },
-  detailMsgText: { fontSize: 13, color: 'var(--text-secondary, #8A8580)', margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap' },
+  detailName: { fontSize: 18, fontWeight: 700, margin: '8px 0', color: 'var(--text, #241B17)' },
+  detailMsgCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: 14, marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  detailMsgLabel: { display: 'block', fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 },
+  detailMsgText: { fontSize: 13, color: 'var(--text-secondary, #574A42)', margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap' },
   perfGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, marginBottom: 12 },
-  perfStatBox: { background: 'var(--bg-card, #fff)', borderRadius: 10, padding: '10px 6px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  perfStatBox: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 10, padding: '10px 6px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
   perfStatValue: { display: 'block', fontSize: 18, fontWeight: 700 },
-  perfStatLabel: { display: 'block', fontSize: 9, color: 'var(--text-muted, #AAA5A0)', textTransform: 'uppercase', marginTop: 2 },
+  perfStatLabel: { display: 'block', fontSize: 9, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', marginTop: 2 },
   revenueRecovered: {
-    background: 'linear-gradient(135deg, var(--accent, #C76B8A) 0%, #D4899F 100%)',
+    background: 'linear-gradient(135deg, var(--accent, #92405e) 0%, #D4899F 100%)',
     borderRadius: 12, padding: 14, textAlign: 'center', color: '#fff', marginBottom: 12,
   },
   recoveredLabel: { display: 'block', fontSize: 10, opacity: 0.7, textTransform: 'uppercase', letterSpacing: '0.04em' },
   recoveredAmount: { display: 'block', fontSize: 26, fontWeight: 700, marginTop: 2 },
   detailMeta: { textAlign: 'center', padding: '8px 0' },
-  detailMetaText: { display: 'block', fontSize: 11, color: 'var(--text-muted, #C4BDB6)' },
+  detailMetaText: { display: 'block', fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
 
   // Empty states
   emptyHint: { textAlign: 'center', padding: '20px 16px' },
-  emptyText: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', margin: 0, lineHeight: 1.5 },
+  emptyText: { fontSize: 13, color: 'var(--text-muted, #6B5D54)', margin: 0, lineHeight: 1.5 },
   emptyState: { textAlign: 'center', padding: '40px 20px' },
   emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 6px' },
-  emptyDesc: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', margin: 0, lineHeight: 1.5 },
+  emptyDesc: { fontSize: 13, color: 'var(--text-muted, #6B5D54)', margin: 0, lineHeight: 1.5 },
 
   // Send result
   resultHeader: { textAlign: 'center', paddingTop: 8, paddingBottom: 12 },
-  resultSubtle: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', margin: '4px 0 0' },
+  resultSubtle: { fontSize: 13, color: 'var(--text-muted, #6B5D54)', margin: '4px 0 0' },
   resultGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, marginBottom: 12 },
-  resultNote: { fontSize: 12, color: 'var(--text-secondary, #8A8580)', margin: '0 0 8px', lineHeight: 1.5, background: 'var(--bg-card, #fff)', borderRadius: 10, padding: '10px 12px' },
+  resultNote: { fontSize: 12, color: 'var(--text-secondary, #574A42)', margin: '0 0 8px', lineHeight: 1.5, background: 'var(--bg-card, #FFFCF9)', borderRadius: 10, padding: '10px 12px' },
 };

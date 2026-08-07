@@ -34,7 +34,7 @@ const SORT_OPTIONS = [
 ];
 
 const TREND_ICONS = { up: '📈', down: '📉', stable: '➡️' };
-const TREND_COLORS = { up: 'var(--success, #5BA97B)', down: 'var(--danger, #E57373)', stable: 'var(--text-muted, #B5AFA8)' };
+const TREND_COLORS = { up: 'var(--success, #3F7D5C)', down: 'var(--danger, #9E2B32)', stable: 'var(--text-muted, #6B5D54)' };
 
 export default function Analytics() {
   const { beautician } = useBeautician();
@@ -295,8 +295,8 @@ export default function Analytics() {
             key={t.key}
             onClick={() => setTab(t.key)}
             style={{ ...styles.tabBtn,
-              background: tab === t.key ? 'var(--accent, #C76B8A)' : 'var(--bg-subtle, #F5F2EF)',
-              color: tab === t.key ? '#fff' : 'var(--text-secondary, #8A8580)',
+              background: tab === t.key ? 'var(--accent, #92405e)' : 'var(--bg-subtle, #ede7e3)',
+              color: tab === t.key ? '#fff' : 'var(--text-secondary, #574A42)',
             }}
           >
             {t.label}
@@ -312,9 +312,9 @@ export default function Analytics() {
               key={p.key}
               onClick={() => setPeriod(p.key)}
               style={{ ...styles.periodTab,
-                background: period === p.key ? 'var(--text-secondary, #6B6560)' : 'transparent',
-                color: period === p.key ? '#fff' : 'var(--text-muted, #AAA5A0)',
-                border: period === p.key ? 'none' : '1.5px solid var(--border, #E8E4E0)',
+                background: period === p.key ? 'var(--text-secondary, #574A42)' : 'transparent',
+                color: period === p.key ? '#fff' : 'var(--text-muted, #6B5D54)',
+                border: period === p.key ? 'none' : '1.5px solid var(--border, #E8DDD4)',
               }}
             >
               {p.label}
@@ -355,14 +355,14 @@ export default function Analytics() {
             </div>
 
             <div style={styles.statsGrid}>
-              <StatCard label="No-show rate" value={`${stats.noShowRate}%`} sub={`${stats.noShowCount} no-shows`} color={stats.noShowRate > 10 ? 'var(--danger, #E57373)' : 'var(--success, #5BA97B)'} />
-              <StatCard label="New clients" value={stats.newClients} sub={`of ${stats.totalClients} total`} color="var(--accent, #C76B8A)" />
+              <StatCard label="No-show rate" value={`${stats.noShowRate}%`} sub={`${stats.noShowCount} no-shows`} color={stats.noShowRate > 10 ? 'var(--danger, #9E2B32)' : 'var(--success, #3F7D5C)'} />
+              <StatCard label="New clients" value={stats.newClients} sub={`of ${stats.totalClients} total`} color="var(--accent, #92405e)" />
               {stats.utilizationRate === null ? (
-                <StatCard label="Utilisation" value="-" sub="set your hours to see this" color="var(--text-secondary, #6B6560)" />
+                <StatCard label="Utilisation" value="-" sub="set your hours to see this" color="var(--text-secondary, #574A42)" />
               ) : (
-                <StatCard label="Utilisation" value={`${stats.utilizationRate}%`} sub="of available hours" color={stats.utilizationRate > 70 ? 'var(--success, #5BA97B)' : 'var(--warning, #F57C00)'} />
+                <StatCard label="Utilisation" value={`${stats.utilizationRate}%`} sub="of available hours" color={stats.utilizationRate > 70 ? 'var(--success, #3F7D5C)' : 'var(--warning, #8A6420)'} />
               )}
-              <StatCard label="Expenses" value={`£${(stats.totalExpenses / 100).toFixed(0)}`} sub="total spend" color="var(--text-secondary, #6B6560)" />
+              <StatCard label="Expenses" value={`£${(stats.totalExpenses / 100).toFixed(0)}`} sub="total spend" color="var(--text-secondary, #574A42)" />
             </div>
 
             {stats.busiestDay && stats.busiestDay.count > 0 && (
@@ -430,8 +430,8 @@ export default function Analytics() {
                   key={s.key}
                   onClick={() => setSortBy(s.key)}
                   style={{ ...styles.filterChip,
-                    background: sortBy === s.key ? 'var(--accent, #C76B8A)' : 'var(--bg-subtle, #F5F2EF)',
-                    color: sortBy === s.key ? '#fff' : 'var(--text-secondary, #6B6560)',
+                    background: sortBy === s.key ? 'var(--accent, #92405e)' : 'var(--bg-subtle, #ede7e3)',
+                    color: sortBy === s.key ? '#fff' : 'var(--text-secondary, #574A42)',
                   }}
                 >
                   {s.label}
@@ -447,9 +447,9 @@ export default function Analytics() {
                     key={cat}
                     onClick={() => setCatFilter(cat)}
                     style={{ ...styles.filterChip,
-                      background: catFilter === cat ? 'var(--text-secondary, #6B6560)' : 'transparent',
-                      color: catFilter === cat ? '#fff' : 'var(--text-muted, #AAA5A0)',
-                      border: catFilter === cat ? 'none' : '1.5px solid var(--border, #E8E4E0)',
+                      background: catFilter === cat ? 'var(--text-secondary, #574A42)' : 'transparent',
+                      color: catFilter === cat ? '#fff' : 'var(--text-muted, #6B5D54)',
+                      border: catFilter === cat ? 'none' : '1.5px solid var(--border, #E8DDD4)',
                     }}
                   >
                     {cat === 'all' ? 'All' : cat}
@@ -530,7 +530,7 @@ export default function Analytics() {
           />
 
           <div style={styles.exportNote}>
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted, #AAA5A0)', lineHeight: 1.6 }}>
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted, #6B5D54)', lineHeight: 1.6 }}>
               All figures in pounds sterling. Appointment data includes completed and cancelled appointments.
               Treatment data covers the last 90 days.
             </p>
@@ -566,9 +566,9 @@ function DayBarChart({ data }) {
           <div key={k} style={styles.barCol}>
             <span style={styles.barValue}>{val}</span>
             <div style={styles.barTrack}>
-              <div style={{ ...styles.barFill, height: `${Math.max(pct, 4)}%`, background: val === max ? 'var(--accent, #C76B8A)' : 'var(--border, #E8E4E0)' }} />
+              <div style={{ ...styles.barFill, height: `${Math.max(pct, 4)}%`, background: val === max ? 'var(--accent, #92405e)' : 'var(--border, #E8DDD4)' }} />
             </div>
-            <span style={{ ...styles.barLabel, color: val === max ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #AAA5A0)' }}>
+            <span style={{ ...styles.barLabel, color: val === max ? 'var(--accent, #92405e)' : 'var(--text-muted, #6B5D54)' }}>
               {days[i]}
             </span>
           </div>
@@ -581,8 +581,8 @@ function DayBarChart({ data }) {
 function SkeletonCard({ height = 80 }) {
   return (
     <div style={{ ...styles.card, height, display: 'flex', flexDirection: 'column', gap: 10, justifyContent: 'center' }}>
-      <div style={{ height: 14, width: '40%', borderRadius: 7, background: 'var(--border-light, #F0ECE8)' }} />
-      <div style={{ height: 14, width: '65%', borderRadius: 7, background: 'var(--bg-subtle, #F5F2EF)' }} />
+      <div style={{ height: 14, width: '40%', borderRadius: 7, background: 'var(--border-light, #ede7e3)' }} />
+      <div style={{ height: 14, width: '65%', borderRadius: 7, background: 'var(--bg-subtle, #ede7e3)' }} />
     </div>
   );
 }
@@ -665,7 +665,7 @@ function getInsights(stats) {
 
 // Styles
 const styles = {
-  page: { minHeight: '100vh', background: 'var(--bg, #FAF8F5)', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)' },
+  page: { minHeight: '100vh', background: 'var(--bg, #FBF6F1)', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #241B17)' },
   header: { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 52px)', paddingBottom: 8 },
   title: { fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "'Playfair Display', Georgia, serif", letterSpacing: '-0.02em' },
 
@@ -686,62 +686,62 @@ const styles = {
   heroDivider: { width: 1, background: 'rgba(255,255,255,0.2)', margin: '0 4px' },
 
   statsGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 },
-  statCard: { background: 'var(--bg-card, #fff)', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
-  statLabel: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)', fontWeight: 500 },
+  statCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 2, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  statLabel: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', fontWeight: 500 },
   statValue: { fontSize: 22, fontWeight: 700, letterSpacing: '-0.01em' },
-  statSub: { fontSize: 11, color: 'var(--text-muted, #C4BDB6)' },
+  statSub: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
 
-  insightCard: { display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, background: 'var(--warning-bg, #FFF8E1)', marginBottom: 12 },
+  insightCard: { display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 12, background: 'var(--warning-bg, #F7EEDD)', marginBottom: 12 },
   insightIcon: { fontSize: 24, flexShrink: 0 },
   insightContent: { display: 'flex', flexDirection: 'column', gap: 2 },
-  insightTitle: { fontSize: 12, fontWeight: 600, color: 'var(--warning, #F57C00)' },
-  insightText: { fontSize: 13, color: 'var(--text-secondary, #8A8580)' },
+  insightTitle: { fontSize: 12, fontWeight: 600, color: 'var(--warning, #8A6420)' },
+  insightText: { fontSize: 13, color: 'var(--text-secondary, #574A42)' },
 
-  card: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16, marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
-  cardTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: 'var(--text-primary, #2D2A26)' },
+  card: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 16, marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  cardTitle: { fontSize: 14, fontWeight: 600, margin: '0 0 12px', color: 'var(--text-primary, #241B17)' },
 
-  clientRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border-light, #FAF8F5)' },
-  clientRank: { width: 24, height: 24, borderRadius: 12, background: 'var(--bg-subtle, #F5F2EF)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: 'var(--text-muted, #AAA5A0)', flexShrink: 0 },
+  clientRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--border-light, #ede7e3)' },
+  clientRank: { width: 24, height: 24, borderRadius: 12, background: 'var(--bg-subtle, #ede7e3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: 'var(--text-muted, #6B5D54)', flexShrink: 0 },
   clientInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 1 },
-  clientName: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
-  clientVisits: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
-  clientSpend: { fontSize: 14, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
+  clientName: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
+  clientVisits: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
+  clientSpend: { fontSize: 14, fontWeight: 700, color: 'var(--accent, #92405e)' },
 
   barChart: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: 120, gap: 4, paddingTop: 8 },
   barCol: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flex: 1 },
-  barValue: { fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #AAA5A0)' },
-  barTrack: { width: '100%', height: 80, borderRadius: 4, background: 'var(--bg, #FAF8F5)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', overflow: 'hidden' },
+  barValue: { fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #6B5D54)' },
+  barTrack: { width: '100%', height: 80, borderRadius: 4, background: 'var(--bg, #FBF6F1)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', overflow: 'hidden' },
   barFill: { width: '100%', borderRadius: 4, transition: 'height 0.4s ease', minHeight: 3 },
   barLabel: { fontSize: 10, fontWeight: 600 },
 
   insightsList: { display: 'flex', flexDirection: 'column', gap: 8 },
   aiInsight: { display: 'flex', alignItems: 'flex-start', gap: 8 },
   aiInsightIcon: { fontSize: 16, flexShrink: 0, marginTop: 1 },
-  aiInsightText: { fontSize: 13, color: 'var(--text-secondary, #5A5550)', lineHeight: 1.5 },
+  aiInsightText: { fontSize: 13, color: 'var(--text-secondary, #574A42)', lineHeight: 1.5 },
 
   // Treatments tab
   filterRow: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 },
   filterChip: { padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s' },
 
-  treatmentCard: { background: 'var(--bg-card, #fff)', borderRadius: 12, padding: 14, marginBottom: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  treatmentCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: 14, marginBottom: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
   treatmentHeader: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 },
-  treatmentRankBadge: { width: 28, height: 28, borderRadius: 8, background: 'var(--accent-light, rgba(199,107,138,0.08))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: 'var(--accent, #C76B8A)', flexShrink: 0 },
+  treatmentRankBadge: { width: 28, height: 28, borderRadius: 8, background: 'var(--accent-light, rgba(199,107,138,0.08))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: 'var(--accent, #92405e)', flexShrink: 0 },
   treatmentMeta: { flex: 1, display: 'flex', flexDirection: 'column', gap: 1 },
-  treatmentName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
-  treatmentCat: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)', textTransform: 'capitalize' },
-  treatmentStats: { display: 'flex', gap: 0, borderTop: '1px solid var(--border-light, #F0ECE8)', paddingTop: 10 },
+  treatmentName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
+  treatmentCat: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', textTransform: 'capitalize' },
+  treatmentStats: { display: 'flex', gap: 0, borderTop: '1px solid var(--border-light, #ede7e3)', paddingTop: 10 },
   treatmentStat: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 },
-  treatmentStatValue: { fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #2D2A26)' },
-  treatmentStatLabel: { fontSize: 10, color: 'var(--text-muted, #AAA5A0)', fontWeight: 500 },
+  treatmentStatValue: { fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #241B17)' },
+  treatmentStatLabel: { fontSize: 10, color: 'var(--text-muted, #6B5D54)', fontWeight: 500 },
 
   // Export tab
-  exportDesc: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', margin: '0 0 16px', lineHeight: 1.5 },
-  exportCard: { background: 'var(--bg-card, #fff)', borderRadius: 12, padding: 14, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
+  exportDesc: { fontSize: 13, color: 'var(--text-muted, #6B5D54)', margin: '0 0 16px', lineHeight: 1.5 },
+  exportCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: 14, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' },
   exportCardLeft: { display: 'flex', alignItems: 'center', gap: 12, flex: 1 },
-  exportCardTitle: { display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
-  exportCardDesc: { display: 'block', fontSize: 11, color: 'var(--text-muted, #AAA5A0)', marginTop: 2 },
-  exportBtn: { padding: '8px 16px', borderRadius: 8, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', flexShrink: 0 },
-  exportNote: { background: 'var(--bg-subtle, #F5F2EF)', borderRadius: 10, padding: 12, marginTop: 8 },
+  exportCardTitle: { display: 'block', fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
+  exportCardDesc: { display: 'block', fontSize: 11, color: 'var(--text-muted, #6B5D54)', marginTop: 2 },
+  exportBtn: { padding: '8px 16px', borderRadius: 8, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 12, fontWeight: 700, fontFamily: 'inherit', flexShrink: 0 },
+  exportNote: { background: 'var(--bg-subtle, #ede7e3)', borderRadius: 10, padding: 12, marginTop: 8 },
 
   skeletonGroup: { display: 'flex', flexDirection: 'column', gap: 10 },
 };

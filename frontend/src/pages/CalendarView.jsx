@@ -904,14 +904,14 @@ export default function CalendarView({ initialView } = {}) {
           onClick={() => navigate('/calendar/full')}
           title="Open full calendar"
           aria-label="Open full calendar"
-          style={{ height: 36, width: 36, borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #fff)', color: COLORS.stone400, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+          style={{ height: 36, width: 36, borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #FFFCF9)', color: COLORS.stone400, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
         >
           <Icon name={iconName('open_in_full')} size={18} inline style={{ }} />
         </button>
         <button
           onClick={() => setShowBlockModal(true)}
           title="Block time"
-          style={{ height: 36, padding: '0 12px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #fff)', color: COLORS.stone400, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit' }}
+          style={{ height: 36, padding: '0 12px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #FFFCF9)', color: COLORS.stone400, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit' }}
         >
           <Icon name={iconName('event_busy')} size={15} inline style={{ }} />
           Block
@@ -921,7 +921,7 @@ export default function CalendarView({ initialView } = {}) {
             onClick={handleMarkAllDone}
             disabled={markingAllDone}
             title="Mark all done"
-            style={{ height: 36, padding: '0 12px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #fff)', color: '#5BA67F', cursor: markingAllDone ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', opacity: markingAllDone ? 0.6 : 1 }}
+            style={{ height: 36, padding: '0 12px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #FFFCF9)', color: '#5BA67F', cursor: markingAllDone ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', opacity: markingAllDone ? 0.6 : 1 }}
           >
             <Icon name={iconName('done_all')} size={15} inline style={{ }} />
             {markingAllDone ? '…' : 'All done'}
@@ -2346,7 +2346,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               one and there is nothing (say so BEFORE the client arrives). */}
           {consultation && (consultation.response || consultation.requires_consultation) && (
             <div style={{ marginTop: 14, border: `1.5px solid ${COLORS.outlineVariant}`, borderRadius: 12, padding: '10px 12px' }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #888)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Consultation</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #574A42)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Consultation</div>
 
               {consultation.response ? (
                 <>
@@ -2439,7 +2439,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
             const fees = cardInfo?.fees;
             return (
               <div style={{ marginTop: 14, border: `1.5px solid ${COLORS.outlineVariant}`, borderRadius: 12, padding: '10px 12px' }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #888)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Payments</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #574A42)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 }}>Payments</div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0', fontSize: 13 }}>
                   <span>Total</span>
                   <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>£{((appointment.price_cents || 0) / 100).toFixed(2)}</span>
@@ -2479,15 +2479,15 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
           {/* Persistent notes - always visible, save without completing */}
           <div style={{ marginTop: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #888)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Notes</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #574A42)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Notes</span>
               {notes !== (appointment.beautician_notes || '') && (
                 <button onClick={handleSaveNote}
-                  style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: noteSaved ? 'var(--success-bg, #E8F5E9)' : 'var(--accent)', color: noteSaved ? 'var(--success, #5BA97B)' : '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'all 0.15s' }}>
+                  style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: noteSaved ? 'var(--success-bg, #E9F0EB)' : 'var(--accent)', color: noteSaved ? 'var(--success, #3F7D5C)' : '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'all 0.15s' }}>
                   {noteSaved ? '✓ Saved' : 'Save'}
                 </button>
               )}
               {noteSaved && notes === (appointment.beautician_notes || '') && (
-                <span style={{ fontSize: 11, color: 'var(--success, #5BA97B)', fontWeight: 600 }}>✓ Saved</span>
+                <span style={{ fontSize: 11, color: 'var(--success, #3F7D5C)', fontWeight: 600 }}>✓ Saved</span>
               )}
             </div>
             <textarea
@@ -2495,10 +2495,10 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               onChange={e => setNotes(e.target.value)}
               placeholder="Colour mix, skin notes, preferences, anything worth remembering..."
               rows={3}
-              style={{ width: '100%', padding: '9px 11px', borderRadius: 8, border: '1.5px solid var(--border, #E5E5E5)', fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', color: 'var(--text, #333)', background: 'var(--bg-input, #FAFAFA)' }}
+              style={{ width: '100%', padding: '9px 11px', borderRadius: 8, border: '1.5px solid var(--border, #E8DDD4)', fontSize: 13, fontFamily: 'inherit', outline: 'none', resize: 'vertical', boxSizing: 'border-box', color: 'var(--text, #241B17)', background: 'var(--bg-input, #F4EDE6)' }}
               onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); handleSaveNote(); } }}
             />
-            <p style={{ fontSize: 11, color: 'var(--text-muted, #aaa)', margin: '4px 0 0' }}>⌘S to save · notes shown next time this client books</p>
+            <p style={{ fontSize: 11, color: 'var(--text-muted, #6B5D54)', margin: '4px 0 0' }}>⌘S to save · notes shown next time this client books</p>
           </div>
           {canComplete && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
@@ -2518,7 +2518,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               {/* Reschedule: move the client to another day/time instead of
                   marking them a no-show (traffic, swapped to Friday, etc.). */}
               <button onClick={openTimeEdit} disabled={saving}
-                style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--bg-input, #FAFAFA)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--bg-input, #F4EDE6)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                 <Icon name={iconName('event_repeat')} size={16} inline />
                 Reschedule
               </button>
@@ -2532,7 +2532,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               {appointment.payment_type !== 'full'
                 && (((appointment.price_cents || 0) - (appointment.deposit_paid ? (appointment.deposit_cents || 0) : 0)) >= 30) && (
                 <button onClick={() => { hapticTap(); handleChargeBalance(); }} disabled={chargingBalance}
-                  style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--bg-input, #FAFAFA)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--bg-input, #F4EDE6)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                   <Icon name={iconName('credit_card')} size={16} inline />
                   {chargingBalance ? 'Charging...' : `Charge £${(((appointment.price_cents || 0) - (appointment.deposit_paid ? (appointment.deposit_cents || 0) : 0)) / 100).toFixed(2)} balance to card`}
                 </button>
@@ -2541,7 +2541,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                   it will work, or says plainly why it won't. */}
               {cardInfo?.hasCard && !chargeOpen && (
                 <button onClick={() => { hapticTap(); setChargeOpen(true); }}
-                  style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--bg-input, #FAFAFA)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--bg-input, #F4EDE6)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
                   <Icon name={iconName('payments')} size={16} inline />
                   Charge their card{cardInfo.last4 ? ` \u00b7\u00b7\u00b7\u00b7 ${cardInfo.last4}` : ''}
                 </button>
@@ -2612,7 +2612,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 </div>
               )}
               <button onClick={() => setMode('completing')}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted, #9E9790)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '2px 0' }}>
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6B5D54)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', padding: '2px 0' }}>
                 Add payment method or photo
               </button>
             </div>
@@ -2723,12 +2723,12 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               no-show at the end of the day - the backend reverses the takings
               and charges the policy fee, so the Money tab updates. */}
           {isCompleted && (
-            <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: 'var(--success-bg, #F0FBF4)', textAlign: 'center' }}>
-              <span style={{ fontSize: 13, color: 'var(--success-text, #2F7A4F)', fontWeight: 600 }}>
+            <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: 'var(--success-bg, #E9F0EB)', textAlign: 'center' }}>
+              <span style={{ fontSize: 13, color: 'var(--success-text, #3F7D5C)', fontWeight: 600 }}>
                 {appointment.payment_method ? 'Completed' : 'Done (assumed)'}
               </span>
               <button onClick={() => { hapticTap(); handleMarkNoShow(); }} disabled={saving}
-                style={{ ...styles.completeBtn, marginTop: 8, background: 'var(--bg-input, #FAFAFA)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 12, padding: '8px 0' }}>
+                style={{ ...styles.completeBtn, marginTop: 8, background: 'var(--bg-input, #F4EDE6)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 12, padding: '8px 0' }}>
                 Actually a no-show
               </button>
             </div>
@@ -2835,7 +2835,7 @@ const styles = {
   dateTitle: { fontSize: 17, fontWeight: 600, margin: 0, textAlign: 'center', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
   todayBtn: { background: 'none', border: `1px solid ${COLORS.outlineVariant}`, borderRadius: 8, padding: '4px 12px', minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: COLORS.stone400, cursor: 'pointer', fontFamily: 'inherit' },
   navBtn: { background: 'none', border: 'none', fontSize: 28, color: COLORS.stone400, cursor: 'pointer', padding: '0 8px', minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
-  viewToggle: { display: 'flex', gap: 3, background: 'var(--card-bg, #fff)', borderRadius: 12, padding: 3, border: `1px solid ${COLORS.outlineVariant}` },
+  viewToggle: { display: 'flex', gap: 3, background: 'var(--card-bg, #FFFCF9)', borderRadius: 12, padding: 3, border: `1px solid ${COLORS.outlineVariant}` },
   toggleBtn: { flex: 1, padding: '6px 14px', minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'inherit' },
   // Weekly Date Strip. The month label and the made-up "WEEK 5" that used to
   // sit above it are gone: the title directly above already says the date, and
@@ -3410,7 +3410,7 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
                 style={{ padding: '8px 12px', borderRadius: 999, fontSize: 13, fontWeight: 600,
                   cursor: 'pointer', fontFamily: 'inherit',
                   border: `1.5px solid ${on ? COLORS.primary : COLORS.outlineVariant}`,
-                  background: on ? COLORS.primary : 'var(--bg-card, #fff)',
+                  background: on ? COLORS.primary : 'var(--bg-card, #FFFCF9)',
                   color: on ? '#fff' : COLORS.onSurface,
                 }}
               >

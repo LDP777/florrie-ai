@@ -55,7 +55,7 @@ export default function Support() {
               <div
                 key={faq.id}
                 style={{ ...s.faqItem,
-                  borderBottom: '1px solid var(--border, #EDE9E4)',
+                  borderBottom: '1px solid var(--border, #E8DDD4)',
                 }}
               >
                 <button
@@ -106,12 +106,12 @@ const s = {
   h1: {
     fontSize: 28,
     fontWeight: 700,
-    color: 'var(--text, #2D2A26)',
+    color: 'var(--text, #241B17)',
     margin: '0 0 8px',
   },
   subtitle: {
     fontSize: 15,
-    color: 'var(--text-secondary, #7A756F)',
+    color: 'var(--text-secondary, #574A42)',
     margin: '0 0 32px',
   },
   section: {
@@ -120,16 +120,16 @@ const s = {
   h2: {
     fontSize: 18,
     fontWeight: 600,
-    color: 'var(--text, #2D2A26)',
+    color: 'var(--text, #241B17)',
     margin: '0 0 16px',
   },
   p: {
     fontSize: 15,
-    color: 'var(--text-secondary, #7A756F)',
+    color: 'var(--text-secondary, #574A42)',
     margin: '0 0 12px',
   },
   faqList: {
-    background: 'var(--card, #fff)',
+    background: 'var(--card, #FFFCF9)',
     borderRadius: 12,
     overflow: 'hidden',
   },
@@ -143,7 +143,7 @@ const s = {
     background: 'none',
     fontSize: 15,
     fontWeight: 600,
-    color: 'var(--text, #2D2A26)',
+    color: 'var(--text, #241B17)',
     cursor: 'pointer',
     display: 'flex',
     justifyContent: 'space-between',
@@ -156,7 +156,7 @@ const s = {
   },
   faqToggle: {
     fontSize: 10,
-    color: 'var(--text-muted, #B5AFA8)',
+    color: 'var(--text-muted, #6B5D54)',
     marginLeft: 12,
     flexShrink: 0,
     transition: 'transform 0.2s',
@@ -164,12 +164,12 @@ const s = {
   faqA: {
     padding: '0 16px 14px',
     fontSize: 14,
-    color: 'var(--text-secondary, #7A756F)',
+    color: 'var(--text-secondary, #574A42)',
     margin: 0,
     lineHeight: 1.5,
   },
   link: {
-    color: 'var(--accent, #C76B8A)',
+    color: 'var(--accent, #92405e)',
     textDecoration: 'none',
     fontWeight: 500,
   },

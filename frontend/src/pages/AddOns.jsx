@@ -15,9 +15,9 @@ import ErrorCard from '../components/ErrorCard.jsx';
 const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 
 const CATEGORIES = [
-  { value: 'treatment', label: 'Treatment', colour: 'var(--accent, #C76B8A)' },
-  { value: 'waxing', label: 'Waxing', colour: 'var(--text-secondary, #8B6F5E)' },
-  { value: 'retail', label: 'Retail Product', colour: 'var(--success, #6B8F7B)' },
+  { value: 'treatment', label: 'Treatment', colour: 'var(--accent, #92405e)' },
+  { value: 'waxing', label: 'Waxing', colour: 'var(--text-secondary, #574A42)' },
+  { value: 'retail', label: 'Retail Product', colour: 'var(--success, #3F7D5C)' },
 ];
 
 const EMPTY_FORM = { name: '', price: '', duration: '', category: 'treatment', suggestWith: [], autoSuggest: true };
@@ -160,9 +160,9 @@ export default function AddOns() {
       {/* Stats */}
       <div style={S.statsRow}>
         {[
-          { label: 'Total', value: addons.length, colour: 'var(--text-secondary, #8B6F5E)' },
-          { label: 'Active', value: active.length, colour: 'var(--accent, #C76B8A)' },
-          { label: 'Categories', value: [...new Set(addons.map(a => a.category))].length, colour: 'var(--success, #6B8F7B)' },
+          { label: 'Total', value: addons.length, colour: 'var(--text-secondary, #574A42)' },
+          { label: 'Active', value: active.length, colour: 'var(--accent, #92405e)' },
+          { label: 'Categories', value: [...new Set(addons.map(a => a.category))].length, colour: 'var(--success, #3F7D5C)' },
         ].map(s => (
           <div key={s.label} style={S.statCard}>
             <span style={{ ...S.statValue, color: s.colour }}>{s.value}</span>
@@ -197,7 +197,7 @@ export default function AddOns() {
               <div key={addon.id} style={{ ...S.addonCard, opacity: addon.is_active ? 1 : 0.55 }} onClick={() => setExpanded(isExp ? null : addon.id)}>
                 <div style={S.addonHeader}>
                   <div style={S.addonLeft}>
-                    <div style={{ ...S.catDot, background: cat?.colour || 'var(--text-muted, #AAA5A0)' }} />
+                    <div style={{ ...S.catDot, background: cat?.colour || 'var(--text-muted, #6B5D54)' }} />
                     <div style={S.addonInfo}>
                       <span style={S.addonName}>{addon.name}</span>
                       <span style={S.addonMeta}>
@@ -230,7 +230,7 @@ export default function AddOns() {
                       <button style={S.actionBtn} onClick={(e) => handleToggleActive(addon, e)}>
                         {addon.is_active ? 'Disable' : 'Enable'}
                       </button>
-                      <button style={{ ...S.actionBtn, color: 'var(--accent, #C76B8A)', borderColor: 'var(--accent-light, #FFF0F3)' }} onClick={(e) => handleDelete(addon, e)}>
+                      <button style={{ ...S.actionBtn, color: 'var(--accent, #92405e)', borderColor: 'var(--accent-light, #F6E7EC)' }} onClick={(e) => handleDelete(addon, e)}>
                         Delete
                       </button>
                     </div>
@@ -258,7 +258,7 @@ export default function AddOns() {
                   <div style={S.rankInfo}>
                     <span style={S.rankName}>{addon.name}</span>
                     <div style={S.rankBarBg}>
-                      <div style={{ ...S.rankBarFill, width: `${pct}%`, background: cat?.colour || 'var(--accent, #C76B8A)' }} />
+                      <div style={{ ...S.rankBarFill, width: `${pct}%`, background: cat?.colour || 'var(--accent, #92405e)' }} />
                     </div>
                   </div>
                   <span style={S.rankValue}>{fmt(addon.price_cents || addon.price || 0)}</span>
@@ -316,7 +316,7 @@ export default function AddOns() {
 
             <div style={S.toggleRow}>
               <span style={S.toggleLabel}>Auto-suggest at booking</span>
-              <button style={{ ...S.toggle, background: form.autoSuggest ? 'var(--accent, #C76B8A)' : 'var(--border, #E0DCD8)' }} onClick={() => setForm(f => ({ ...f, autoSuggest: !f.autoSuggest }))}>
+              <button style={{ ...S.toggle, background: form.autoSuggest ? 'var(--accent, #92405e)' : 'var(--border, #E8DDD4)' }} onClick={() => setForm(f => ({ ...f, autoSuggest: !f.autoSuggest }))}>
                 <div style={{ ...S.toggleDot, transform: form.autoSuggest ? 'translateX(18px)' : 'translateX(2px)' }} />
               </button>
             </div>
@@ -334,70 +334,70 @@ export default function AddOns() {
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto', animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0, fontFamily: 'var(--font-display, "Playfair Display", Georgia, serif)' },
-  createBtn: { background: 'var(--accent, #C76B8A)', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #241B17)', margin: 0, fontFamily: 'var(--font-display, "Playfair Display", Georgia, serif)' },
+  createBtn: { background: 'var(--accent, #92405e)', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 
   statsRow: { display: 'flex', gap: 10, marginBottom: 16 },
-  statCard: { flex: 1, background: 'var(--card, #fff)', borderRadius: 12, padding: '12px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
+  statCard: { flex: 1, background: 'var(--card, #FFFCF9)', borderRadius: 12, padding: '12px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   statValue: { fontSize: 17, fontWeight: 700 },
-  statLabel: { fontSize: 11, color: 'var(--text-muted, #AAA5A0)' },
+  statLabel: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
 
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
-  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: 'var(--text-muted, #AAA5A0)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #FFFCF9)', color: 'var(--text-muted, #6B5D54)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive: { background: 'var(--accent, #92405e)', color: '#fff' },
 
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
-  emptyState: { textAlign: 'center', padding: '40px 20px', background: 'var(--card, #fff)', borderRadius: 14 },
-  emptyTitle: { display: 'block', fontSize: 16, fontWeight: 600, color: 'var(--text, #2D2A26)', marginBottom: 6 },
-  emptyText: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)' },
-  addonCard: { background: 'var(--card, #fff)', borderRadius: 14, padding: 14, cursor: 'pointer', transition: 'opacity 0.2s' },
+  emptyState: { textAlign: 'center', padding: '40px 20px', background: 'var(--card, #FFFCF9)', borderRadius: 14 },
+  emptyTitle: { display: 'block', fontSize: 16, fontWeight: 600, color: 'var(--text, #241B17)', marginBottom: 6 },
+  emptyText: { fontSize: 13, color: 'var(--text-muted, #6B5D54)' },
+  addonCard: { background: 'var(--card, #FFFCF9)', borderRadius: 14, padding: 14, cursor: 'pointer', transition: 'opacity 0.2s' },
   addonHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   addonLeft: { display: 'flex', gap: 10, alignItems: 'center' },
   catDot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
   addonInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
-  addonName: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  addonMeta: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)' },
+  addonName: { fontSize: 14, fontWeight: 600, color: 'var(--text, #241B17)' },
+  addonMeta: { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
   addonRight: { display: 'flex', alignItems: 'center', gap: 8 },
-  addonPrice: { fontSize: 15, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
-  autoTag: { padding: '2px 6px', borderRadius: 4, background: 'var(--success-bg, #E8F5E9)', color: 'var(--success, #4CAF50)', fontSize: 10, fontWeight: 600 },
+  addonPrice: { fontSize: 15, fontWeight: 700, color: 'var(--accent, #92405e)' },
+  autoTag: { padding: '2px 6px', borderRadius: 4, background: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #3F7D5C)', fontSize: 10, fontWeight: 600 },
 
-  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, #F0ECE8)' },
-  sectionLabel: { fontSize: 11, fontWeight: 700, color: 'var(--text-muted, #AAA5A0)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 },
+  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, #E8DDD4)' },
+  sectionLabel: { fontSize: 11, fontWeight: 700, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 },
   treatmentTags: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
-  treatmentTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--accent-light, #FFF0F3)', color: 'var(--accent, #C76B8A)', fontSize: 11 },
+  treatmentTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)', fontSize: 11 },
   actionRow: { display: 'flex', gap: 8 },
-  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, #F0ECE8)', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text, #2D2A26)' },
+  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, #E8DDD4)', background: 'var(--card, #FFFCF9)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text, #241B17)' },
 
   // Performance
   perfContainer: { display: 'flex', flexDirection: 'column', gap: 12 },
-  card: { background: 'var(--card, #fff)', borderRadius: 14, padding: 16 },
-  cardTitle: { fontSize: 15, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 12px' },
+  card: { background: 'var(--card, #FFFCF9)', borderRadius: 14, padding: 16 },
+  cardTitle: { fontSize: 15, fontWeight: 700, color: 'var(--text, #241B17)', margin: '0 0 12px' },
   rankRow: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 },
-  rankNum: { fontSize: 14, fontWeight: 700, color: 'var(--text-muted, #AAA5A0)', width: 20, textAlign: 'center' },
+  rankNum: { fontSize: 14, fontWeight: 700, color: 'var(--text-muted, #6B5D54)', width: 20, textAlign: 'center' },
   rankInfo: { flex: 1 },
-  rankName: { fontSize: 13, fontWeight: 600, color: 'var(--text, #2D2A26)', display: 'block', marginBottom: 3 },
-  rankBarBg: { height: 6, borderRadius: 3, background: 'var(--border, #F0ECE8)' },
+  rankName: { fontSize: 13, fontWeight: 600, color: 'var(--text, #241B17)', display: 'block', marginBottom: 3 },
+  rankBarBg: { height: 6, borderRadius: 3, background: 'var(--border, #E8DDD4)' },
   rankBarFill: { height: 6, borderRadius: 3 },
-  rankValue: { fontSize: 13, fontWeight: 700, color: 'var(--text, #2D2A26)', width: 55, textAlign: 'right' },
-  tipCard: { background: 'var(--gold-light, #FFF9F0)', borderRadius: 12, padding: 14 },
-  tipTitle: { fontSize: 13, fontWeight: 600, color: 'var(--gold-text, #B8860B)' },
-  tipText: { fontSize: 12, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.4, margin: '6px 0 0' },
+  rankValue: { fontSize: 13, fontWeight: 700, color: 'var(--text, #241B17)', width: 55, textAlign: 'right' },
+  tipCard: { background: 'var(--gold-light, #ffdea4)', borderRadius: 12, padding: 14 },
+  tipTitle: { fontSize: 13, fontWeight: 600, color: 'var(--gold-text, #795f2b)' },
+  tipText: { fontSize: 12, color: 'var(--text-secondary, #574A42)', lineHeight: 1.4, margin: '6px 0 0' },
 
   // Modal
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 960, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
-  modal: { background: 'var(--bg-card, #fff)', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
-  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 16px' },
-  errorBanner: { background: 'var(--danger-bg, #FDF0EF)', color: 'var(--accent, #C76B8A)', padding: '8px 12px', borderRadius: 8, fontSize: 13, marginBottom: 12 },
-  fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #8B6F5E)', marginBottom: 6, marginTop: 12 },
-  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #F0ECE8)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', outline: 'none', boxSizing: 'border-box' },
+  modal: { background: 'var(--bg-card, #FFFCF9)', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
+  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text, #241B17)', margin: '0 0 16px' },
+  errorBanner: { background: 'var(--danger-bg, #F7E4E4)', color: 'var(--accent, #92405e)', padding: '8px 12px', borderRadius: 8, fontSize: 13, marginBottom: 12 },
+  fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #574A42)', marginBottom: 6, marginTop: 12 },
+  input: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #241B17)', outline: 'none', boxSizing: 'border-box' },
   chipRow: { display: 'flex', gap: 8 },
-  chip: { flex: 1, padding: '8px 0', borderRadius: 10, border: '1px solid var(--border, #F0ECE8)', background: 'var(--bg-card, #fff)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text, #2D2A26)', textAlign: 'center' },
+  chip: { flex: 1, padding: '8px 0', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', background: 'var(--bg-card, #FFFCF9)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text, #241B17)', textAlign: 'center' },
   treatmentPicker: { display: 'flex', flexWrap: 'wrap', gap: 6 },
-  treatmentPickChip: { padding: '5px 10px', borderRadius: 8, border: '1px solid var(--border, #F0ECE8)', background: 'var(--bg-card, #fff)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-secondary, #8B6F5E)' },
-  treatmentPickActive: { background: 'var(--accent, #C76B8A)', color: '#fff', border: '1px solid var(--accent, #C76B8A)' },
+  treatmentPickChip: { padding: '5px 10px', borderRadius: 8, border: '1px solid var(--border, #E8DDD4)', background: 'var(--bg-card, #FFFCF9)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-secondary, #574A42)' },
+  treatmentPickActive: { background: 'var(--accent, #92405e)', color: '#fff', border: '1px solid var(--accent, #92405e)' },
   toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
-  toggleLabel: { fontSize: 14, fontWeight: 500, color: 'var(--text, #2D2A26)' },
+  toggleLabel: { fontSize: 14, fontWeight: 500, color: 'var(--text, #241B17)' },
   toggle: { width: 44, height: 26, borderRadius: 13, border: 'none', padding: 0, cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 },
-  toggleDot: { width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #fff)', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
-  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20, transition: 'opacity 0.2s' },
+  toggleDot: { width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #FFFCF9)', position: 'absolute', top: 2, transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' },
+  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20, transition: 'opacity 0.2s' },
 };

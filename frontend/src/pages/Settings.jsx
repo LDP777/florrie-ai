@@ -333,7 +333,7 @@ export default function Settings({ onLogout }) {
       <div style={styles.header}>
         <h1 style={styles.title}>Settings</h1>
         {saved && <span style={styles.savedBadge}>Saved</span>}
-        {saveError && <span style={{ ...styles.savedBadge, background: 'var(--danger, #E57373)', color: '#fff' }}>{saveError}</span>}
+        {saveError && <span style={{ ...styles.savedBadge, background: 'var(--danger, #9E2B32)', color: '#fff' }}>{saveError}</span>}
       </div>
 
       {/* Setup guide banner */}
@@ -705,7 +705,7 @@ export default function Settings({ onLogout }) {
                     </span>
                   </div>
                   {noShowPercent > 0 && !(beautician.payment_settings?.require_deposit || beautician.payment_settings?.deposit_required) && (
-                    <p style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--warning-text, #92400E)', background: 'var(--warning-bg, #FEF6E7)', border: '1px solid #F0D9A8', borderRadius: 8, padding: '8px 10px', margin: '10px 0 0' }}>
+                    <p style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--warning-text, #8A6420)', background: 'var(--warning-bg, #F7EEDD)', border: '1px solid #F0D9A8', borderRadius: 8, padding: '8px 10px', margin: '10px 0 0' }}>
                       Heads up: you can only charge a card you actually hold. Cards are saved when
                       deposits are on (Settings &gt; Payments). With deposits off, a no-show fee has
                       nothing to charge against.
@@ -957,7 +957,7 @@ export default function Settings({ onLogout }) {
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{ display: 'inline-block', padding: '8px 16px', borderRadius: 8,
-                  background: 'var(--bg-secondary, #f5f2ef)', border: '1px solid var(--border)',
+                  background: 'var(--bg-secondary, #f8f2ef)', border: '1px solid var(--border)',
                   fontSize: 13, fontWeight: 500, color: 'var(--text-primary)',
                   textDecoration: 'none',
                 }}
@@ -1017,7 +1017,7 @@ export default function Settings({ onLogout }) {
               <p style={{ fontSize: 12, color: 'var(--success)', marginTop: 8, marginBottom: 0 }}>✓ Google Calendar connected</p>
             )}
             {gcalBanner === 'error' && (
-              <p style={{ fontSize: 12, color: 'var(--danger, #E57373)', marginTop: 8, marginBottom: 0 }}>Connection failed, check your Google credentials and try again</p>
+              <p style={{ fontSize: 12, color: 'var(--danger, #9E2B32)', marginTop: 8, marginBottom: 0 }}>Connection failed, check your Google credentials and try again</p>
             )}
           </div>
 
@@ -1200,7 +1200,7 @@ export default function Settings({ onLogout }) {
                     const np = { ...(beautician.notification_prefs || {}), quiet_hours: { ...qh, enabled: true, start: e.target.value } };
                     saveProfile({ notification_prefs: np });
                   }}
-                  style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border, #EDE9E4)', fontFamily: 'inherit', fontSize: 13 }}
+                  style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border, #E8DDD4)', fontFamily: 'inherit', fontSize: 13 }}
                 />
                 <label style={{ fontSize: 13, color: 'var(--text-secondary)' }}>to</label>
                 <input
@@ -1211,7 +1211,7 @@ export default function Settings({ onLogout }) {
                     const np = { ...(beautician.notification_prefs || {}), quiet_hours: { ...qh, enabled: true, end: e.target.value } };
                     saveProfile({ notification_prefs: np });
                   }}
-                  style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border, #EDE9E4)', fontFamily: 'inherit', fontSize: 13 }}
+                  style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border, #E8DDD4)', fontFamily: 'inherit', fontSize: 13 }}
                 />
               </div>
             )}
@@ -1324,7 +1324,7 @@ export default function Settings({ onLogout }) {
                 <div>
                   <div style={styles.msgChannelName}>WhatsApp Business</div>
                   <div style={{ ...styles.msgChannelStatus,
-                    color: beautician.whatsapp_connected ? 'var(--success, #16a34a)' : 'var(--text-muted)',
+                    color: beautician.whatsapp_connected ? 'var(--success, #3F7D5C)' : 'var(--text-muted)',
                   }}>
                     {beautician.whatsapp_connected
                       ? `● Connected${beautician.whatsapp_phone ? ` · ${beautician.whatsapp_phone}` : ''}`
@@ -1352,7 +1352,7 @@ export default function Settings({ onLogout }) {
                 <div>
                   <div style={styles.msgChannelName}>SMS</div>
                   <div style={{ ...styles.msgChannelStatus,
-                    color: beautician.sms_enabled ? 'var(--success, #16a34a)' : 'var(--text-muted)',
+                    color: beautician.sms_enabled ? 'var(--success, #3F7D5C)' : 'var(--text-muted)',
                   }}>
                     {beautician.sms_enabled
                       ? `● On${beautician.sms_originator ? ` · sending from ${beautician.sms_originator}` : ''}`
@@ -1606,7 +1606,7 @@ export default function Settings({ onLogout }) {
               <div style={{ marginTop: 12,
                 padding: '12px 14px',
                 borderRadius: 12,
-                background: 'var(--danger-bg, #FDECEC)',
+                background: 'var(--danger-bg, #F7E4E4)',
               }}>
                 <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--danger)', margin: '0 0 4px' }}>
                   Instagram needs reconnecting
@@ -1643,7 +1643,7 @@ export default function Settings({ onLogout }) {
                 "Reconnect" after she has just reconnected reads as a failure. */}
             {igAwaitingReturn && (
               <div style={{ marginTop: 12, padding: '12px 14px', borderRadius: 12,
-                background: 'var(--tone-1, #FBF6F1)', border: '1px solid var(--border)',
+                background: 'var(--tone-1, #fbf1ea)', border: '1px solid var(--border)',
               }}>
                 <p style={{ fontSize: 13, fontWeight: 700, margin: '0 0 4px' }}>
                   Finish in Safari
@@ -1663,13 +1663,13 @@ export default function Settings({ onLogout }) {
               <p style={{ fontSize: 12, color: 'var(--success)', marginTop: 8, marginBottom: 0 }}>✓ Instagram connected, Content Studio can now post directly</p>
             )}
             {igBanner === 'error' && (
-              <p style={{ fontSize: 12, color: 'var(--danger, #E57373)', marginTop: 8, marginBottom: 0 }}>Connection failed, try again or contact support</p>
+              <p style={{ fontSize: 12, color: 'var(--danger, #9E2B32)', marginTop: 8, marginBottom: 0 }}>Connection failed, try again or contact support</p>
             )}
             {igBanner === 'no_page' && (
-              <p style={{ fontSize: 12, color: 'var(--warning, #F59E0B)', marginTop: 8, marginBottom: 0 }}>No Facebook Page found. You need a Facebook Page with an Instagram Business account connected.</p>
+              <p style={{ fontSize: 12, color: 'var(--warning, #8A6420)', marginTop: 8, marginBottom: 0 }}>No Facebook Page found. You need a Facebook Page with an Instagram Business account connected.</p>
             )}
             {igBanner === 'no_ig_account' && (
-              <p style={{ fontSize: 12, color: 'var(--warning, #F59E0B)', marginTop: 8, marginBottom: 0 }}>Instagram Business account not found. Make sure your Instagram account is set to Business and linked to your Facebook Page.</p>
+              <p style={{ fontSize: 12, color: 'var(--warning, #8A6420)', marginTop: 8, marginBottom: 0 }}>Instagram Business account not found. Make sure your Instagram account is set to Business and linked to your Facebook Page.</p>
             )}
           </div>
 
@@ -1863,7 +1863,7 @@ export default function Settings({ onLogout }) {
                   />
                   <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>
                     Leave blank to use the default. Sent once per client, then not again for 7 days.
-                    {!waLink && <span style={{ color: 'var(--warning, #d97706)', fontWeight: 500 }}> · Add your phone number in Profile to auto-include your WhatsApp link.</span>}
+                    {!waLink && <span style={{ color: 'var(--warning, #8A6420)', fontWeight: 500 }}> · Add your phone number in Profile to auto-include your WhatsApp link.</span>}
                   </p>
                   {/* Preview */}
                   <div style={{ marginTop: 12, background: 'var(--border-light)', borderRadius: 10, padding: '10px 12px' }}>
@@ -2205,7 +2205,7 @@ const styles = {
   toneLabel: { fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 },
   toneValue: { fontSize: 13, color: 'var(--text-primary)', textAlign: 'right', maxWidth: '60%' },
   logoutBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: '1.5px solid var(--danger)', background: 'transparent', color: 'var(--danger)', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 8 },
-  deleteAccountBtn: { width: '100%', padding: '10px 0', borderRadius: 12, border: 'none', background: 'transparent', color: 'var(--danger, #ba1a1a)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 6, textDecoration: 'underline', textUnderlineOffset: 3 },
+  deleteAccountBtn: { width: '100%', padding: '10px 0', borderRadius: 12, border: 'none', background: 'transparent', color: 'var(--danger, #9E2B32)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 6, textDecoration: 'underline', textUnderlineOffset: 3 },
 
   // Notification styles
   notifRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border-light)' },
@@ -2233,7 +2233,7 @@ const styles = {
   blockLinkBtn: {
     display: 'flex', alignItems: 'center', gap: 12,
     padding: '12px 14px', borderRadius: 12, border: '1px solid var(--border)',
-    background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', cursor: 'pointer',
+    background: 'var(--bg-hover, var(--bg-subtle, #ede7e3))', cursor: 'pointer',
     fontFamily: 'inherit', textAlign: 'left', width: '100%',
   },
   blockLinkIcon: { fontSize: 22, flexShrink: 0 },
@@ -2243,7 +2243,7 @@ const styles = {
   brandingLinkBtn: {
     display: 'flex', alignItems: 'center', gap: 12,
     padding: '12px 14px', marginTop: 12, borderRadius: 12, border: '1px solid var(--border)',
-    background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', cursor: 'pointer',
+    background: 'var(--bg-hover, var(--bg-subtle, #ede7e3))', cursor: 'pointer',
     fontFamily: 'inherit', textAlign: 'left', width: '100%',
   },
   brandingLinkIcon: { display: 'inline-flex', flexShrink: 0, color: 'var(--accent)' },

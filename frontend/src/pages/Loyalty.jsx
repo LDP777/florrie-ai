@@ -236,7 +236,7 @@ export default function Loyalty() {
             onClick={toggleActive}
             disabled={saving}
             style={{ ...styles.toggle,
-              background: isActive ? 'var(--accent, #92405e)' : 'var(--border, #ECD5DD)',
+              background: isActive ? 'var(--accent, #92405e)' : 'var(--border, #E8DDD4)',
               opacity: saving ? 0.6 : 1,
             }}
           >
@@ -339,7 +339,7 @@ export default function Loyalty() {
             onClick={() => setTab(t.key)}
             style={{ ...styles.tab,
               borderBottomColor: tab === t.key ? 'var(--accent, #92405e)' : 'transparent',
-              color: tab === t.key ? 'var(--accent, #92405e)' : 'var(--text-muted, #8A7A72)',
+              color: tab === t.key ? 'var(--accent, #92405e)' : 'var(--text-muted, #6B5D54)',
             }}
           >
             {t.label}
@@ -376,7 +376,7 @@ export default function Loyalty() {
                         <div
                           style={{ ...styles.progressFill,
                             width: `${progress}%`,
-                            background: reached ? 'var(--success, #2E7D6B)' : 'var(--accent, #92405e)',
+                            background: reached ? 'var(--success, #3F7D5C)' : 'var(--accent, #92405e)',
                           }}
                         />
                       </div>
@@ -449,13 +449,13 @@ const styles = {
   subtitle: {
     fontSize: 13.5,
     lineHeight: 1.55,
-    color: 'var(--text-secondary, #4D423D)',
+    color: 'var(--text-secondary, #574A42)',
     margin: '6px 0 0',
     maxWidth: 440,
   },
 
   card: {
-    background: 'var(--bg-card, #fff)',
+    background: 'var(--bg-card, #FFFCF9)',
     borderRadius: 16,
     border: '1px solid var(--border-light, #ede7e3)',
     padding: 16,
@@ -471,7 +471,7 @@ const styles = {
     borderBottom: '1px solid var(--border-light, #ede7e3)',
   },
   settingLabel: { display: 'block', fontSize: 14, fontWeight: 700 },
-  settingHint: { display: 'block', fontSize: 12, color: 'var(--text-muted, #8A7A72)', marginTop: 2 },
+  settingHint: { display: 'block', fontSize: 12, color: 'var(--text-muted, #6B5D54)', marginTop: 2 },
 
   toggle: {
     width: 40,
@@ -503,8 +503,8 @@ const styles = {
     width: 32,
     height: 32,
     borderRadius: 10,
-    border: '1.5px solid var(--border, #ECD5DD)',
-    background: 'var(--bg-input, #f8f2ef)',
+    border: '1.5px solid var(--border, #E8DDD4)',
+    background: 'var(--bg-input, #F4EDE6)',
     color: 'var(--text-primary, #241B17)',
     fontSize: 16,
     fontWeight: 700,
@@ -524,30 +524,30 @@ const styles = {
     display: 'block',
     fontSize: 12,
     fontWeight: 700,
-    color: 'var(--text-secondary, #4D423D)',
+    color: 'var(--text-secondary, #574A42)',
     marginBottom: 6,
   },
   input: {
     width: '100%',
     padding: '11px 12px',
     borderRadius: 10,
-    border: '1.5px solid var(--border, #ECD5DD)',
+    border: '1.5px solid var(--border, #E8DDD4)',
     fontSize: 14,
     fontFamily: 'inherit',
     color: 'var(--text-primary, #241B17)',
-    background: 'var(--bg-input, #f8f2ef)',
+    background: 'var(--bg-input, #F4EDE6)',
     outline: 'none',
     boxSizing: 'border-box',
   },
   rewardPreview: {
     fontSize: 11.5,
-    color: 'var(--text-muted, #8A7A72)',
+    color: 'var(--text-muted, #6B5D54)',
     lineHeight: 1.5,
     margin: '8px 0 12px',
   },
 
   errorBox: {
-    background: 'var(--danger-bg, #ffdad6)',
+    background: 'var(--danger-bg, #F7E4E4)',
     border: '1px solid #F5C6C0',
     borderRadius: 10,
     padding: 10,
@@ -570,9 +570,9 @@ const styles = {
   retryBtn: {
     padding: '10px 16px',
     borderRadius: 10,
-    border: '1px solid var(--border, #ECD5DD)',
-    background: 'var(--bg-card, #fff)',
-    color: 'var(--text-secondary, #4D423D)',
+    border: '1px solid var(--border, #E8DDD4)',
+    background: 'var(--bg-card, #FFFCF9)',
+    color: 'var(--text-secondary, #574A42)',
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
@@ -582,7 +582,7 @@ const styles = {
 
   howStrip: {
     background: 'var(--accent-light, #F6E7EC)',
-    border: '1px solid var(--border, #ECD5DD)',
+    border: '1px solid var(--border, #E8DDD4)',
     borderRadius: 16,
     padding: '14px 16px',
     marginBottom: 18,
@@ -596,7 +596,7 @@ const styles = {
     alignItems: 'flex-start',
     fontSize: 13,
     lineHeight: 1.5,
-    color: 'var(--text-secondary, #4D423D)',
+    color: 'var(--text-secondary, #574A42)',
   },
   howNum: {
     width: 20,
@@ -634,7 +634,7 @@ const styles = {
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
 
   memberCard: {
-    background: 'var(--bg-card, #fff)',
+    background: 'var(--bg-card, #FFFCF9)',
     borderRadius: 16,
     border: '1px solid var(--border-light, #ede7e3)',
     padding: 14,
@@ -677,7 +677,7 @@ const styles = {
   memberPointsLabel: {
     display: 'block',
     fontSize: 9.5,
-    color: 'var(--text-muted, #8A7A72)',
+    color: 'var(--text-muted, #6B5D54)',
     textTransform: 'uppercase',
     letterSpacing: '0.08em',
   },
@@ -685,14 +685,14 @@ const styles = {
   progressTrack: {
     height: 5,
     borderRadius: 3,
-    background: 'var(--bg-input, #f8f2ef)',
+    background: 'var(--bg-input, #F4EDE6)',
     overflow: 'hidden',
   },
   progressFill: { height: '100%', borderRadius: 3, transition: 'width 0.3s ease' },
   progressHint: {
     display: 'block',
     fontSize: 11,
-    color: 'var(--text-muted, #8A7A72)',
+    color: 'var(--text-muted, #6B5D54)',
     marginTop: 5,
   },
 
@@ -701,9 +701,9 @@ const styles = {
     width: '100%',
     padding: '10px 14px',
     borderRadius: 10,
-    border: '1.5px solid var(--success, #2E7D6B)',
-    background: 'var(--success-bg, #EDF7F0)',
-    color: 'var(--success, #2E7D6B)',
+    border: '1.5px solid var(--success, #3F7D5C)',
+    background: 'var(--success-bg, #E9F0EB)',
+    color: 'var(--success, #3F7D5C)',
     fontSize: 13,
     fontWeight: 700,
     cursor: 'pointer',
@@ -711,7 +711,7 @@ const styles = {
   },
 
   activityCard: {
-    background: 'var(--bg-card, #fff)',
+    background: 'var(--bg-card, #FFFCF9)',
     borderRadius: 16,
     border: '1px solid var(--border-light, #ede7e3)',
     padding: '4px 14px',
@@ -725,5 +725,5 @@ const styles = {
     borderBottom: '1px solid var(--border-light, #ede7e3)',
   },
   activityText: { fontSize: 13.5, lineHeight: 1.45 },
-  activityDate: { fontSize: 11.5, color: 'var(--text-muted, #8A7A72)', flexShrink: 0 },
+  activityDate: { fontSize: 11.5, color: 'var(--text-muted, #6B5D54)', flexShrink: 0 },
 };

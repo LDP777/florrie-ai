@@ -27,9 +27,9 @@ const S = {
   title: {
     fontSize: 26, fontWeight: 600, fontStyle: 'italic',
     fontFamily: "'Playfair Display', Georgia, serif",
-    color: 'var(--text-primary, #2b1d22)', margin: 0, lineHeight: 1.2,
+    color: 'var(--text-primary, #241B17)', margin: 0, lineHeight: 1.2,
     letterSpacing: '-0.01em',
   },
-  subtitle: { fontSize: 13, color: 'var(--text-secondary, #6e5a60)', margin: 0, fontWeight: 500 },
+  subtitle: { fontSize: 13, color: 'var(--text-secondary, #574A42)', margin: 0, fontWeight: 500 },
   action: { flexShrink: 0 },
 };

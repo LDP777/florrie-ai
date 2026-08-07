@@ -149,7 +149,7 @@ export default function ClientPortal() {
         </div>
         <button
           onClick={() => savePortal({ enabled: !portal.enabled })}
-          style={{ ...s.toggle, background: portal.enabled ? 'var(--accent, #C76B8A)' : '#E8E4E0' }}
+          style={{ ...s.toggle, background: portal.enabled ? 'var(--accent, #92405e)' : '#E8E4E0' }}
         >
           <div style={{ ...s.toggleDot, transform: portal.enabled ? 'translateX(18px)' : 'translateX(0)' }} />
         </button>
@@ -256,7 +256,7 @@ export default function ClientPortal() {
               <span style={{ fontSize: 14, color: 'var(--text-primary)' }}>Show logo on booking page</span>
               <button
                 onClick={() => savePortal({ showLogo: !portal.showLogo })}
-                style={{ ...s.toggle, background: portal.showLogo ? 'var(--accent, #C76B8A)' : '#E8E4E0' }}
+                style={{ ...s.toggle, background: portal.showLogo ? 'var(--accent, #92405e)' : '#E8E4E0' }}
               >
                 <div style={{ ...s.toggleDot, transform: portal.showLogo ? 'translateX(18px)' : 'translateX(0)' }} />
               </button>
@@ -274,7 +274,7 @@ export default function ClientPortal() {
                 {portal.showLogo && !beautician.logo_url && (
                   <div style={{ fontSize: 20, fontWeight: 700, color: portal.accentColour, marginBottom: 8 }}>{beautician.business_name || 'florrie'}</div>
                 )}
-                <div style={{ fontSize: 13, color: 'var(--text-primary, #2D2A26)', marginBottom: 16 }}>{portal.welcomeMessage}</div>
+                <div style={{ fontSize: 13, color: 'var(--text-primary, #241B17)', marginBottom: 16 }}>{portal.welcomeMessage}</div>
                 <div style={{ background: portal.accentColour, color: '#fff', padding: '12px 24px', borderRadius: 10, fontSize: 13, fontWeight: 600 }}>Book Now</div>
               </div>
             </div>
@@ -297,7 +297,7 @@ export default function ClientPortal() {
               </div>
               <button
                 onClick={() => toggleFeature(f.key)}
-                style={{ ...s.toggle, background: portal.features[f.key] ? 'var(--accent, #C76B8A)' : '#E8E4E0' }}
+                style={{ ...s.toggle, background: portal.features[f.key] ? 'var(--accent, #92405e)' : '#E8E4E0' }}
               >
                 <div style={{ ...s.toggleDot, transform: portal.features[f.key] ? 'translateX(18px)' : 'translateX(0)' }} />
               </button>
@@ -314,7 +314,7 @@ const s = {
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', margin: 0 },
   subtitle: { fontSize: 13, color: 'var(--text-muted)', marginTop: 2 },
-  savedBanner: { background: 'var(--success, #4CAF50)', color: '#fff', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 600, marginBottom: 12, textAlign: 'center' },
+  savedBanner: { background: 'var(--success, #3F7D5C)', color: '#fff', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 600, marginBottom: 12, textAlign: 'center' },
 
   linkCard: { background: 'linear-gradient(135deg, #C76B8A 0%, #A85575 100%)', borderRadius: 14, padding: 16, marginBottom: 16, color: '#fff' },
   linkLabel: { fontSize: 11, opacity: 0.8, marginBottom: 6 },
@@ -326,19 +326,19 @@ const s = {
 
   tabs: { display: 'flex', gap: 4, marginBottom: 16, background: '#F0ECE8', borderRadius: 12, padding: 4 },
   tab: { flex: 1, padding: '8px 0', fontSize: 12, fontWeight: 500, border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', background: 'none', color: '#6B6560' },
-  tabActive: { background: 'var(--bg-card, #fff)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' },
+  tabActive: { background: 'var(--bg-card, #FFFCF9)', color: 'var(--text-primary)', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' },
 
   statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 },
-  statCard: { background: 'var(--bg-card, #fff)', borderRadius: 12, padding: 16, border: '1px solid var(--border, #F0ECE8)', textAlign: 'center' },
+  statCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: 16, border: '1px solid var(--border, #E8DDD4)', textAlign: 'center' },
   statValue: { fontSize: 28, fontWeight: 700, color: 'var(--text-primary)' },
   statLabel: { fontSize: 11, color: 'var(--text-muted)', marginTop: 2 },
 
-  card: { background: 'var(--bg-card, #fff)', borderRadius: 14, padding: 16, border: '1px solid var(--border, #F0ECE8)', marginBottom: 12 },
+  card: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 16, border: '1px solid var(--border, #E8DDD4)', marginBottom: 12 },
   cardTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 10 },
-  apptRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border-light, #F5F2EF)' },
+  apptRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '1px solid var(--border-light, #ede7e3)' },
   statusChip: { fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 6, textTransform: 'capitalize' },
 
-  textInput: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border, #E8E4E0)', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: 'var(--bg, #FAF8F5)', color: 'var(--text-primary)' },
+  textInput: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid var(--border, #E8DDD4)', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: 'var(--bg, #FBF6F1)', color: 'var(--text-primary)' },
   colourRow: { display: 'flex', gap: 8 },
   colourChip: { width: 32, height: 32, borderRadius: 8, cursor: 'pointer', flexShrink: 0 },
   toggleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
@@ -347,8 +347,8 @@ const s = {
   toggleDot: { width: 20, height: 20, borderRadius: 10, background: '#fff', position: 'absolute', top: 2, left: 2, transition: 'transform 0.2s', boxShadow: '0 1px 2px rgba(0,0,0,0.15)' },
 
   previewLabel: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 10, marginTop: 4 },
-  phoneFrame: { background: 'var(--text-primary, #2D2A26)', borderRadius: 24, padding: 8, maxWidth: 240, margin: '0 auto 16px' },
-  phoneScreen: { background: 'var(--bg, #FAF8F5)', borderRadius: 18, minHeight: 220, overflow: 'hidden' },
+  phoneFrame: { background: 'var(--text-primary, #241B17)', borderRadius: 24, padding: 8, maxWidth: 240, margin: '0 auto 16px' },
+  phoneScreen: { background: 'var(--bg, #FBF6F1)', borderRadius: 18, minHeight: 220, overflow: 'hidden' },
 
-  featureRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border-light, #F0ECE8)' },
+  featureRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid var(--border-light, #ede7e3)' },
 };

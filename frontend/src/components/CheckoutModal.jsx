@@ -118,7 +118,7 @@ export default function CheckoutModal({ plan, interval, authToken, onClose, onSu
             },
             rules: {
               '.Input': {
-                border: '1.5px solid #d8c1c6',
+                border: '1.5px solid var(--border)',
                 boxShadow: 'none',
                 padding: '12px 14px',
                 fontSize: '14px',
@@ -146,7 +146,7 @@ export default function CheckoutModal({ plan, interval, authToken, onClose, onSu
                 marginTop: '4px',
               },
               '.Tab': {
-                border: '1.5px solid #d8c1c6',
+                border: '1.5px solid var(--border)',
                 boxShadow: 'none',
                 borderRadius: '10px',
               },
@@ -358,10 +358,10 @@ const S = {
     color: '#fff', fontSize: 16, fontWeight: 700, flexShrink: 0,
   },
   headerTitle: { fontSize: 15, fontWeight: 700, color: '#1d1b19' },
-  headerSub: { fontSize: 12, color: '#867277', marginTop: 2 },
+  headerSub: { fontSize: 12, color: 'var(--text-muted)', marginTop: 2 },
   closeBtn: {
     background: 'none', border: 'none', cursor: 'pointer',
-    fontSize: 14, color: '#867277', padding: '6px 8px',
+    fontSize: 14, color: 'var(--text-muted)', padding: '6px 8px',
     borderRadius: 8, fontFamily: 'inherit', lineHeight: 1,
   },
 
@@ -374,7 +374,7 @@ const S = {
     border: '3px solid #ede7e3', borderTopColor: '#92405e',
     animation: 'spin 0.75s linear infinite',
   },
-  dimText: { fontSize: 13, color: '#867277' },
+  dimText: { fontSize: 13, color: 'var(--text-muted)' },
   errorIcon: { fontSize: 28, color: '#ba1a1a' },
   errorBig: { fontSize: 14, color: '#ba1a1a', lineHeight: 1.5, maxWidth: 320 },
   successIcon: {
@@ -386,7 +386,7 @@ const S = {
   successText: { fontSize: 18, fontWeight: 700, color: '#1d1b19' },
   ghostBtn: {
     marginTop: 8, padding: '10px 28px', borderRadius: 10,
-    border: '1px solid #d8c1c6', background: '#fff',
+    border: '1px solid var(--border)', background: '#fff',
     cursor: 'pointer', fontSize: 14, fontWeight: 600,
     fontFamily: 'inherit', color: '#1d1b19',
   },
@@ -419,7 +419,7 @@ const S = {
   },
 
   secureNote: {
-    textAlign: 'center', fontSize: 11, color: '#B5AFA8',
+    textAlign: 'center', fontSize: 11, color: 'var(--text-muted)',
     marginTop: 12, lineHeight: 1.4,
   },
 };

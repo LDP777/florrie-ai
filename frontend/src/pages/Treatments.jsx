@@ -354,7 +354,7 @@ export default function Treatments() {
                 onClick={() => setForm(p => ({ ...p, requires_consultation: !p.requires_consultation }))}
                 style={{ ...styles.toggleBtn,
                   background: form.requires_consultation ? 'var(--accent)' : 'var(--border)',
-                  color: form.requires_consultation ? '#fff' : 'var(--text-secondary, #888)'
+                  color: form.requires_consultation ? '#fff' : 'var(--text-secondary, #574A42)'
                 }}
               >
                 {form.requires_consultation ? 'Required' : 'Not needed'}
@@ -377,9 +377,9 @@ export default function Treatments() {
                 )
               )}
               {form.requires_consultation && (
-                <div style={{ marginTop: 8, padding: '8px 10px', background: 'var(--accent-wash, #fdeef3)', borderRadius: 8, display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+                <div style={{ marginTop: 8, padding: '8px 10px', background: 'var(--accent-wash, #FBF2F5)', borderRadius: 8, display: 'flex', gap: 6, alignItems: 'flex-start' }}>
                   <Icon name={iconName('verified')} size={16} inline style={{ color: 'var(--accent)', flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, color: 'var(--text, #1d1b19)', lineHeight: 1.45 }}>
+                  <span style={{ fontSize: 12, color: 'var(--text, #241B17)', lineHeight: 1.45 }}>
                     New clients booking this online get {(() => { const n = forms.find(f => f.id === form.consultation_form_id)?.name; return n ? `the "${n}" form` : 'your questions'; })()} to complete first. Returning clients are not asked again.
                   </span>
                 </div>
@@ -402,7 +402,7 @@ export default function Treatments() {
                 onClick={() => setForm(p => ({ ...p, requires_patch_test: !p.requires_patch_test }))}
                 style={{ ...styles.toggleBtn,
                   background: form.requires_patch_test ? 'var(--accent)' : 'var(--border)',
-                  color: form.requires_patch_test ? '#fff' : 'var(--text-secondary, #888)'
+                  color: form.requires_patch_test ? '#fff' : 'var(--text-secondary, #574A42)'
                 }}
               >
                 {form.requires_patch_test ? 'Required' : 'Not needed'}
@@ -442,7 +442,7 @@ export default function Treatments() {
                 onClick={() => setForm(p => ({ ...p, booking_enabled: !p.booking_enabled }))}
                 style={{ ...styles.toggleBtn,
                   background: form.booking_enabled !== false ? 'var(--accent)' : 'var(--border)',
-                  color: form.booking_enabled !== false ? '#fff' : 'var(--text-secondary, #888)'
+                  color: form.booking_enabled !== false ? '#fff' : 'var(--text-secondary, #574A42)'
                 }}
               >
                 {form.booking_enabled !== false ? 'Visible' : 'Hidden'}
@@ -490,7 +490,7 @@ export default function Treatments() {
                       <span style={styles.consultBadge}>📋 Consultation required</span>
                     )}
                     {t.requires_patch_test && (
-                      <span style={{ ...styles.consultBadge, background: 'rgba(201,169,110,0.12)', color: 'var(--gold, #C9A96E)' }}>⚗️ Patch test required</span>
+                      <span style={{ ...styles.consultBadge, background: 'rgba(201,169,110,0.12)', color: 'var(--gold, #8A6420)' }}>⚗️ Patch test required</span>
                     )}
                     {t.description && (
                       <span style={styles.treatmentDesc}>{t.description}</span>
@@ -585,7 +585,7 @@ export default function Treatments() {
                   {previewQuestions.map(q => (
                     <div key={q.key} style={{ marginBottom: 16 }}>
                       <label style={styles.previewQLabel}>
-                        {q.label}{q.required && <span style={{ color: 'var(--danger, #DC2626)' }}> *</span>}
+                        {q.label}{q.required && <span style={{ color: 'var(--danger, #9E2B32)' }}> *</span>}
                       </label>
 
                       {/* Yes / No */}
@@ -775,7 +775,7 @@ const styles = {
   },
   previewSheet: {
     width: '100%', maxWidth: 480, maxHeight: '88vh',
-    background: 'var(--bg, #fef8f4)', borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    background: 'var(--bg, #FBF6F1)', borderTopLeftRadius: 20, borderTopRightRadius: 20,
     display: 'flex', flexDirection: 'column', overflow: 'hidden',
     boxShadow: '0 -8px 40px rgba(0,0,0,0.18)',
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)"
@@ -785,7 +785,7 @@ const styles = {
     gap: 12, padding: '18px 18px 14px', borderBottom: '1px solid var(--border-light)'
   },
   previewTitle: {
-    margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text-primary, #1d1b19)',
+    margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text-primary, #241B17)',
     fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)"
   },
   previewSub: { margin: '4px 0 0', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 },
@@ -801,24 +801,24 @@ const styles = {
   },
   previewConsent: {
     fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.5,
-    padding: '10px 12px', background: 'var(--bg-card, #fff)', borderRadius: 8,
+    padding: '10px 12px', background: 'var(--bg-card, #FFFCF9)', borderRadius: 8,
     border: '1px solid var(--border-light)'
   },
-  previewQLabel: { display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-primary, #444)', marginBottom: 6 },
+  previewQLabel: { display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-primary, #241B17)', marginBottom: 6 },
   previewChoice: {
-    padding: '8px 14px', borderRadius: 8, background: 'var(--bg-card, #fff)',
+    padding: '8px 14px', borderRadius: 8, background: 'var(--bg-card, #FFFCF9)',
     border: '1px solid var(--border)', fontSize: 13, color: 'var(--text-secondary)'
   },
   previewCheckbox: {
     width: 18, height: 18, borderRadius: 4, border: '1.5px solid var(--border)',
-    background: 'var(--bg-card, #fff)', display: 'inline-block', flexShrink: 0
+    background: 'var(--bg-card, #FFFCF9)', display: 'inline-block', flexShrink: 0
   },
   previewInputGhost: {
     width: '100%', padding: '10px 12px', borderRadius: 8,
-    border: '1.5px solid var(--border)', background: 'var(--bg-card, #fff)',
+    border: '1.5px solid var(--border)', background: 'var(--bg-card, #FFFCF9)',
     boxSizing: 'border-box', display: 'flex', alignItems: 'flex-start'
   },
-  previewGhostText: { fontSize: 14, color: 'var(--text-muted, #a8a29e)' },
+  previewGhostText: { fontSize: 14, color: 'var(--text-muted, #6B5D54)' },
   previewMuted: { fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: '20px 0' },
   previewMutedSmall: { fontSize: 11, color: 'var(--text-muted)' },
   previewFooter: {

@@ -5,10 +5,10 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 const STATUS_COLORS = {
-  active: { bg: 'var(--success-bg, #E8F5E9)', color: 'var(--success, #5BA97B)' },
-  paused: { bg: 'var(--warning-bg, #FFF3E0)', color: 'var(--warning-text, #E65100)' },
-  cancelled: { bg: 'var(--danger-bg, #FDF0EF)', color: 'var(--danger, #D4605C)' },
-  expired: { bg: 'var(--danger-bg, #FDF0EF)', color: 'var(--danger, #D4605C)' },
+  active: { bg: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #3F7D5C)' },
+  paused: { bg: 'var(--warning-bg, #F7EEDD)', color: 'var(--warning-text, #8A6420)' },
+  cancelled: { bg: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger, #9E2B32)' },
+  expired: { bg: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger, #9E2B32)' },
 };
 
 const PLAN_COLORS = ['#C76B8A', '#E8A838', '#7C4DFF', '#26A69A', '#5BA97B'];
@@ -119,10 +119,10 @@ export default function ClientMemberships() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', marginBottom: 4 }}>Monthly Recurring</div>
-            <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--bg-card, #fff)' }}>£{Math.round(monthlyRecurring)}<span style={{ fontSize: 14, fontWeight: 400, opacity: 0.7 }}>/mo</span></div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: 'var(--bg-card, #FFFCF9)' }}>£{Math.round(monthlyRecurring)}<span style={{ fontSize: 14, fontWeight: 400, opacity: 0.7 }}>/mo</span></div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--bg-card, #fff)' }}>{activeMembers}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--bg-card, #FFFCF9)' }}>{activeMembers}</div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>active members</div>
           </div>
         </div>
@@ -153,12 +153,12 @@ export default function ClientMemberships() {
             <div key={plan.id} style={{ ...s.planCard, borderTop: `3px solid ${plan.color}` }}>
               <div style={s.planHeader}>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 17, color: 'var(--text, #2D2A26)' }}>{plan.name}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)' }}>{members.filter(m => m.plan === plan.id && m.status === 'active').length} members</div>
+                  <div style={{ fontWeight: 700, fontSize: 17, color: 'var(--text, #241B17)' }}>{plan.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted, #6B5D54)' }}>{members.filter(m => m.plan === plan.id && m.status === 'active').length} members</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <span style={{ fontSize: 24, fontWeight: 700, color: plan.color }}>£{plan.price}</span>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)' }}>/{plan.interval}</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted, #6B5D54)' }}>/{plan.interval}</span>
                 </div>
               </div>
               {plan.perks.length > 0 && (
@@ -166,7 +166,7 @@ export default function ClientMemberships() {
                   {plan.perks.map((perk, i) => (
                     <div key={i} style={s.perkItem}>
                       <span style={{ color: plan.color }}>✓</span>
-                      <span style={{ fontSize: 13, color: 'var(--text, #2D2A26)' }}>{perk}</span>
+                      <span style={{ fontSize: 13, color: 'var(--text, #241B17)' }}>{perk}</span>
                     </div>
                   ))}
                 </div>
@@ -216,21 +216,21 @@ export default function ClientMemberships() {
               <button key={member.id} onClick={() => setExpandedMember(expanded ? null : member.id)} style={s.memberCard}>
                 <div style={s.memberTop}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text, #2D2A26)' }}>{member.name}</div>
-                    <div style={{ fontSize: 12, color: plan?.color || 'var(--text-muted, #AAA5A0)', fontWeight: 600 }}>{plan?.name || 'Unknown plan'}</div>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text, #241B17)' }}>{member.name}</div>
+                    <div style={{ fontSize: 12, color: plan?.color || 'var(--text-muted, #6B5D54)', fontWeight: 600 }}>{plan?.name || 'Unknown plan'}</div>
                   </div>
                   <span style={{ padding: '3px 10px', borderRadius: 12, fontSize: 11, fontWeight: 600, background: sc.bg, color: sc.color }}>
                     {member.status}
                   </span>
                 </div>
                 {expanded && (
-                  <div style={{ marginTop: 10, borderTop: '1px solid var(--card-border, #F0ECE8)', paddingTop: 10, fontSize: 13 }}>
+                  <div style={{ marginTop: 10, borderTop: '1px solid var(--card-border, #E8DDD4)', paddingTop: 10, fontSize: 13 }}>
                     <div style={s.detailRow}><span style={s.detailLabel}>Started</span><span>{member.started}</span></div>
                     <div style={s.detailRow}><span style={s.detailLabel}>Next bill</span><span>{member.nextBill || 'Not set'}</span></div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                       {member.status === 'active' && <button onClick={e => { e.stopPropagation(); updateMemberStatus(member.id, 'paused'); }} style={s.smallBtn}>Pause</button>}
-                      {member.status === 'paused' && <button onClick={e => { e.stopPropagation(); updateMemberStatus(member.id, 'active'); }} style={{ ...s.smallBtn, color: 'var(--success, #5BA97B)' }}>Resume</button>}
-                      {member.status !== 'cancelled' && <button onClick={e => { e.stopPropagation(); updateMemberStatus(member.id, 'cancelled'); }} style={{ ...s.smallBtn, color: 'var(--danger, #D4605C)' }}>Cancel</button>}
+                      {member.status === 'paused' && <button onClick={e => { e.stopPropagation(); updateMemberStatus(member.id, 'active'); }} style={{ ...s.smallBtn, color: 'var(--success, #3F7D5C)' }}>Resume</button>}
+                      {member.status !== 'cancelled' && <button onClick={e => { e.stopPropagation(); updateMemberStatus(member.id, 'cancelled'); }} style={{ ...s.smallBtn, color: 'var(--danger, #9E2B32)' }}>Cancel</button>}
                     </div>
                   </div>
                 )}
@@ -257,27 +257,27 @@ export default function ClientMemberships() {
 const s = {
   page: { padding: '20px 16px 40px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
   header: { marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 700, margin: 0, color: 'var(--text, #2D2A26)' },
-  subtitle: { fontSize: 13, color: 'var(--text-muted, #AAA5A0)', margin: '4px 0 0' },
-  heroCard: { padding: 20, borderRadius: 16, background: 'linear-gradient(135deg, var(--accent, #C76B8A), var(--accent-hover, #B85D7B))', marginBottom: 16 },
-  tabRow: { display: 'flex', gap: 0, marginBottom: 16, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--card-border, #F0ECE8)' },
-  tab: { flex: 1, padding: '10px 0', border: 'none', background: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', color: 'var(--text-muted, #AAA5A0)', fontFamily: 'inherit' },
-  tabActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)' },
+  title: { fontSize: 22, fontWeight: 700, margin: 0, color: 'var(--text, #241B17)' },
+  subtitle: { fontSize: 13, color: 'var(--text-muted, #6B5D54)', margin: '4px 0 0' },
+  heroCard: { padding: 20, borderRadius: 16, background: 'linear-gradient(135deg, var(--accent, #92405e), var(--accent-hover, #782b49))', marginBottom: 16 },
+  tabRow: { display: 'flex', gap: 0, marginBottom: 16, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--card-border, #E8DDD4)' },
+  tab: { flex: 1, padding: '10px 0', border: 'none', background: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', color: 'var(--text-muted, #6B5D54)', fontFamily: 'inherit' },
+  tabActive: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)' },
   planList: { display: 'flex', flexDirection: 'column', gap: 12 },
-  planCard: { padding: 16, borderRadius: 14, background: 'var(--card-bg, #fff)', border: '1px solid var(--card-border, #F0ECE8)' },
+  planCard: { padding: 16, borderRadius: 14, background: 'var(--card-bg, #FFFCF9)', border: '1px solid var(--card-border, #E8DDD4)' },
   planHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   perkList: { display: 'flex', flexDirection: 'column', gap: 6 },
   perkItem: { display: 'flex', alignItems: 'center', gap: 8 },
-  addBtn: { padding: '14px', borderRadius: 10, border: '2px dashed var(--card-border, #F0ECE8)', background: 'none', fontSize: 14, fontWeight: 600, color: 'var(--accent, #C76B8A)', cursor: 'pointer', fontFamily: 'inherit' },
-  formCard: { padding: 16, borderRadius: 12, background: 'var(--card-bg, #fff)', border: '1px solid var(--card-border, #F0ECE8)' },
-  input: { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--card-border, #F0ECE8)', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box', background: 'var(--card-bg, #fff)', color: 'var(--text, #2D2A26)' },
-  primaryBtn: { padding: '10px 20px', borderRadius: 8, border: 'none', background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  ghostBtn: { padding: '10px 20px', borderRadius: 8, border: '1px solid var(--card-border, #F0ECE8)', background: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted, #AAA5A0)' },
+  addBtn: { padding: '14px', borderRadius: 10, border: '2px dashed var(--card-border, #E8DDD4)', background: 'none', fontSize: 14, fontWeight: 600, color: 'var(--accent, #92405e)', cursor: 'pointer', fontFamily: 'inherit' },
+  formCard: { padding: 16, borderRadius: 12, background: 'var(--card-bg, #FFFCF9)', border: '1px solid var(--card-border, #E8DDD4)' },
+  input: { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--card-border, #E8DDD4)', fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box', background: 'var(--card-bg, #FFFCF9)', color: 'var(--text, #241B17)' },
+  primaryBtn: { padding: '10px 20px', borderRadius: 8, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  ghostBtn: { padding: '10px 20px', borderRadius: 8, border: '1px solid var(--card-border, #E8DDD4)', background: 'none', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted, #6B5D54)' },
   memberList: { display: 'flex', flexDirection: 'column', gap: 10 },
-  memberCard: { padding: '14px 12px', borderRadius: 12, background: 'var(--card-bg, #fff)', border: '1px solid var(--card-border, #F0ECE8)', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' },
+  memberCard: { padding: '14px 12px', borderRadius: 12, background: 'var(--card-bg, #FFFCF9)', border: '1px solid var(--card-border, #E8DDD4)', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%' },
   memberTop: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  detailRow: { display: 'flex', justifyContent: 'space-between', padding: '4px 0', color: 'var(--text, #2D2A26)' },
-  detailLabel: { color: 'var(--text-muted, #AAA5A0)' },
-  smallBtn: { background: 'none', border: '1px solid var(--card-border, #F0ECE8)', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 500, cursor: 'pointer', color: 'var(--accent, #C76B8A)', fontFamily: 'inherit' },
+  detailRow: { display: 'flex', justifyContent: 'space-between', padding: '4px 0', color: 'var(--text, #241B17)' },
+  detailLabel: { color: 'var(--text-muted, #6B5D54)' },
+  smallBtn: { background: 'none', border: '1px solid var(--card-border, #E8DDD4)', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 500, cursor: 'pointer', color: 'var(--accent, #92405e)', fontFamily: 'inherit' },
   settingsList: { display: 'flex', flexDirection: 'column', gap: 10 },
 };

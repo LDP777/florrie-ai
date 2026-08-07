@@ -24,8 +24,8 @@ const AGENT_ROUTES = {
   campaigns: { label: 'Campaigns', icon: 'mail', color: '#B0628A' },
   money: { label: 'Money', icon: 'payments', color: '#5BA67F' },
   content: { label: 'Content', icon: 'photo_camera', color: '#C9A05A' },
-  settings: { label: 'Settings', icon: 'settings', color: '#8A8580' },
-  general: { label: 'Florrie', icon: null, color: 'var(--accent, #C76B8A)' }, // uses petal SVG
+  settings: { label: 'Settings', icon: 'settings', color: 'var(--text-muted)' },
+  general: { label: 'Florrie', icon: null, color: 'var(--accent, #92405e)' }, // uses petal SVG
 };
 function FloriePetal({ size = 28, spinning = false, white = false }) {
   const colour = white ? '#fff' : 'var(--accent-rose)';
@@ -80,7 +80,7 @@ function ProposalCard({ prop, onDone }) {
     // "Leave it" used to set this to 'done', so declining a send told her it
     // had happened. Two outcomes, two words.
     return (
-      <div style={{ marginTop: 8, padding: '10px 14px', borderRadius: 14, background: 'var(--tone-2, #f6e7dd)', fontSize: 13, fontWeight: 600, color: state === 'done' ? 'var(--accent, #92405e)' : 'var(--text-secondary, #867277)' }}>
+      <div style={{ marginTop: 8, padding: '10px 14px', borderRadius: 14, background: 'var(--tone-2, #f6e7dd)', fontSize: 13, fontWeight: 600, color: state === 'done' ? 'var(--accent, #92405e)' : 'var(--text-secondary, #574A42)' }}>
         {state === 'done' ? 'Done ✓' : 'Left it'}
       </div>
     );
@@ -88,7 +88,7 @@ function ProposalCard({ prop, onDone }) {
   return (
     <div style={{ marginTop: 8, padding: '12px 14px', borderRadius: 16, background: 'var(--tone-1, #fbf1ea)', border: '1.5px solid var(--accent, #92405e)' }}>
       <p style={{ margin: 0, fontSize: 11, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--accent, #92405e)' }}>Confirm to make it happen</p>
-      <p style={{ margin: '6px 0 10px', fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #3d3438)', lineHeight: 1.45 }}>{proposalSummary(prop.tool, prop.input)}</p>
+      <p style={{ margin: '6px 0 10px', fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)', lineHeight: 1.45 }}>{proposalSummary(prop.tool, prop.input)}</p>
       <div style={{ display: 'flex', gap: 8 }}>
         <button
           onClick={confirm}
@@ -100,7 +100,7 @@ function ProposalCard({ prop, onDone }) {
         {state === 'idle' && (
           <button
             onClick={() => setState('dismissed')}
-            style={{ minHeight: 42, padding: '0 16px', borderRadius: 12, border: 'none', background: 'var(--tone-2, #f6e7dd)', color: 'var(--text-secondary, #867277)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+            style={{ minHeight: 42, padding: '0 16px', borderRadius: 12, border: 'none', background: 'var(--tone-2, #f6e7dd)', color: 'var(--text-secondary, #574A42)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
           >
             Leave it
           </button>
@@ -145,12 +145,12 @@ function ConsultationCard({ consultation, count = 1, clientName }) {
       >
         <Icon name={iconName('clinical_notes')} size={18} inline style={{ color: 'var(--accent, #92405e)' }} />
         <span style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary, #3d3438)' }}>
+          <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary, #241B17)' }}>
             {/* Whose. Without it, two lookups in one breath leave her reading
                 somebody's allergies with no idea whose they are. */}
             {clientName ? `${clientName} · ` : ''}{consultation.form_name || 'Consultation form'}
           </span>
-          <span style={{ display: 'block', fontSize: 11.5, color: 'var(--text-secondary, #867277)' }}>
+          <span style={{ display: 'block', fontSize: 11.5, color: 'var(--text-secondary, #574A42)' }}>
             {when ? `Submitted ${when}` : 'Submitted'}
             {count > 1 ? ` · ${count} on file` : ''}
           </span>
@@ -162,7 +162,7 @@ function ConsultationCard({ consultation, count = 1, clientName }) {
             {flagged.length} worth knowing
           </span>
         )}
-        <Icon name={iconName(open ? 'expand_less' : 'expand_more')} size={20} inline style={{ color: 'var(--text-secondary, #867277)' }} />
+        <Icon name={iconName(open ? 'expand_less' : 'expand_more')} size={20} inline style={{ color: 'var(--text-secondary, #574A42)' }} />
       </button>
 
       {open && (
@@ -182,11 +182,11 @@ function ConsultationCard({ consultation, count = 1, clientName }) {
                 marginTop: 4,
               } : {}),
             }}>
-              <p style={{ margin: 0, fontSize: 11.5, fontWeight: 600, color: 'var(--text-secondary, #867277)', lineHeight: 1.4 }}>
+              <p style={{ margin: 0, fontSize: 11.5, fontWeight: 600, color: 'var(--text-secondary, #574A42)', lineHeight: 1.4 }}>
                 {pair.question}
               </p>
               <p style={{ margin: '2px 0 0', fontSize: 13, lineHeight: 1.45,
-                color: pair.answered ? 'var(--text-primary, #3d3438)' : 'var(--text-secondary, #867277)',
+                color: pair.answered ? 'var(--text-primary, #241B17)' : 'var(--text-secondary, #574A42)',
                 fontStyle: pair.answered ? 'normal' : 'italic',
                 fontWeight: pair.worth_knowing ? 700 : 400,
               }}>
@@ -212,8 +212,8 @@ function NeededList({ needed = [], label }) {
       <p style={{ margin: '0 0 6px', fontSize: 10.5, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--accent, #92405e)' }}>{label}</p>
       {needed.map(n => (
         <div key={n.client_id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '5px 0' }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #3d3438)' }}>{n.name}</span>
-          <span style={{ fontSize: 12, color: 'var(--text-secondary, #867277)', whiteSpace: 'nowrap' }}>{n.when}</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #241B17)' }}>{n.name}</span>
+          <span style={{ fontSize: 12, color: 'var(--text-secondary, #574A42)', whiteSpace: 'nowrap' }}>{n.when}</span>
         </div>
       ))}
     </div>
@@ -944,7 +944,7 @@ const styles = {
   header: { padding: '30px 16px 14px', flexShrink: 0 },
   headerTitleRow: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 },
   title: { fontSize: 27, fontWeight: 700, margin: 0, letterSpacing: '-0.01em', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
-  subtitle: { fontSize: 13.5, color: 'var(--text-secondary, #867277)', margin: 0, fontWeight: 500 },
+  subtitle: { fontSize: 13.5, color: 'var(--text-secondary, #574A42)', margin: 0, fontWeight: 500 },
   messagesContainer: {
     padding: '8px 16px 16px',
     display: 'flex', flexDirection: 'column', gap: 12,
@@ -997,7 +997,7 @@ const styles = {
   promptChip: {
     padding: '9px 14px', minHeight: 36, borderRadius: 999,
     border: 'none', background: 'var(--tone-2, #f6e7dd)',
-    color: 'var(--text-primary, #3d3438)', fontSize: 12.5, lineHeight: 1.3, fontWeight: 600,
+    color: 'var(--text-primary, #241B17)', fontSize: 12.5, lineHeight: 1.3, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
     WebkitTapHighlightColor: 'transparent',
   },
@@ -1011,7 +1011,7 @@ const styles = {
   },
   sendBtn: {
     width: 44, height: 44, borderRadius: 22, border: 'none',
-    background: 'var(--accent)', color: 'var(--bg-card, #fff)', fontSize: 18, fontWeight: 700,
+    background: 'var(--accent)', color: 'var(--bg-card, #FFFCF9)', fontSize: 18, fontWeight: 700,
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
     flexShrink: 0,
   },

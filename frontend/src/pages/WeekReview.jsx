@@ -129,9 +129,9 @@ const S = {
     fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
     fontSize: 26, fontWeight: 600, color: 'var(--text-primary, #241B17)', margin: '40px 0 4px',
   },
-  sub: { fontSize: 13.5, color: 'var(--text-secondary, #8B6F5E)', margin: '0 0 18px' },
+  sub: { fontSize: 13.5, color: 'var(--text-secondary, #574A42)', margin: '0 0 18px' },
   errorCard: {
-    background: 'var(--danger-bg, #FDF0EF)', color: 'var(--danger-text, #C62828)',
+    background: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger-text, #9E2B32)',
     borderRadius: 12, padding: 14, fontSize: 13.5,
   },
   card: {

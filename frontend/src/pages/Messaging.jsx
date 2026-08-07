@@ -108,7 +108,7 @@ function StatusDot({ on }) {
     <span
       aria-hidden
       style={{ ...styles.statusDot,
-        background: on ? 'var(--success, #16a34a)' : 'var(--border)',
+        background: on ? 'var(--success, #3F7D5C)' : 'var(--border)',
       }}
     />
   );
@@ -216,7 +216,7 @@ const styles = {
     fontFamily: 'inherit',
   },
   tabActive: {
-    background: 'var(--bg-card, #fff)',
+    background: 'var(--bg-card, #FFFCF9)',
     color: 'var(--text-primary)',
     boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
   },
@@ -236,14 +236,14 @@ const styles = {
     borderRadius: 14,
     padding: 16,
     border: '1px solid var(--border)',
-    background: 'var(--bg-card, #fff)',
+    background: 'var(--bg-card, #FFFCF9)',
   },
   waCard: {
-    background: 'linear-gradient(180deg, rgba(37, 211, 102, 0.06) 0%, var(--bg-card, #fff) 60%)',
+    background: 'linear-gradient(180deg, rgba(37, 211, 102, 0.06) 0%, var(--bg-card, #FFFCF9) 60%)',
     borderColor: 'rgba(37, 211, 102, 0.25)',
   },
   smsCard: {
-    background: 'linear-gradient(180deg, rgba(199, 107, 138, 0.05) 0%, var(--bg-card, #fff) 60%)',
+    background: 'linear-gradient(180deg, rgba(199, 107, 138, 0.05) 0%, var(--bg-card, #FFFCF9) 60%)',
     borderColor: 'rgba(199, 107, 138, 0.20)',
   },
   channelHead: {
@@ -284,7 +284,7 @@ const styles = {
     alignSelf: 'flex-start',
   },
   statusChipOn: {
-    color: 'var(--success, #166534)',
+    color: 'var(--success, #3F7D5C)',
     background: 'rgba(22, 101, 52, 0.10)',
   },
   statusChipOff: {
@@ -321,7 +321,7 @@ const styles = {
     padding: '11px 14px',
     borderRadius: 10,
     border: 'none',
-    background: 'var(--accent, #C76B8A)',
+    background: 'var(--accent, #92405e)',
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: 700,

@@ -307,7 +307,7 @@ const MC = {
   },
   subhead: {
     fontSize: 13,
-    color: '#867277',
+    color: 'var(--text-muted)',
     margin: '0 0 18px',
   },
   rows: {

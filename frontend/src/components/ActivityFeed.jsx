@@ -272,7 +272,7 @@ export default function ActivityFeed({ limit = 50 }) {
         : groups.earlier.length > 0 && (
             <button
               onClick={() => setShowEarlier(true)}
-              style={{ width: '100%', minHeight: 44, padding: '11px 0', marginTop: 4, background: 'none', border: 'none', borderTop: '1px solid var(--border-light, #F0E8EC)', color: 'var(--accent, #92405e)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+              style={{ width: '100%', minHeight: 44, padding: '11px 0', marginTop: 4, background: 'none', border: 'none', borderTop: '1px solid var(--border-light, #ede7e3)', color: 'var(--accent, #92405e)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
             >
               Show {groups.earlier.length} earlier
             </button>
@@ -363,7 +363,7 @@ const F = {
   groupLabel: {
     fontSize: 10,
     fontWeight: 700,
-    color: '#B5AFA8',
+    color: 'var(--text-muted)',
     textTransform: 'uppercase',
     letterSpacing: '0.08em',
     margin: '8px 4px 6px',
@@ -403,7 +403,7 @@ const F = {
     // without reading a word.
     color: 'var(--accent, #92405E)',
   },
-  receiptLine: { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 4px', fontSize: 14, color: 'var(--text-primary, #3D3438)' },
+  receiptLine: { display: 'flex', alignItems: 'center', gap: 10, padding: '9px 4px', fontSize: 14, color: 'var(--text-primary, #241B17)' },
   receiptText: { flex: 1, lineHeight: 1.4, fontWeight: 500 },
   summary: {
     fontSize: 13,
@@ -415,13 +415,13 @@ const F = {
   },
   time: {
     fontSize: 11,
-    color: '#9B8A8E',
+    color: 'var(--text-muted)',
     whiteSpace: 'nowrap',
     flexShrink: 0,
   },
   chev: {
     fontSize: 14,
-    color: '#C5B8B2',
+    color: 'var(--border)',
   },
   emptyState: {
     display: 'flex',
@@ -434,14 +434,14 @@ const F = {
   emptyIcon: { lineHeight: 1, color: 'var(--accent, #92405E)', opacity: .5 },
   emptyText: {
     fontSize: 13,
-    color: '#867277',
+    color: 'var(--text-muted)',
     lineHeight: 1.45,
     margin: 0,
     maxWidth: 280,
   },
   errorText: {
     fontSize: 13,
-    color: '#9B8A8E',
+    color: 'var(--text-muted)',
     margin: '6px 4px 10px',
   },
   skelLine: {

@@ -80,7 +80,7 @@ export default function Milestones() {
 
       {milestones?.length === 0 && !error && (
         <div style={S.emptyCard}>
-          <p style={{ margin: 0, fontSize: 14, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.5 }}>
+          <p style={{ margin: 0, fontSize: 14, color: 'var(--text-secondary, #574A42)', lineHeight: 1.5 }}>
             Nothing yet, and that is exactly right: milestones only count from the
             moment Florrie started watching. The first £1,000 week, the first fully
             booked day, client number 100. They land here, with a push, as they happen.
@@ -123,9 +123,9 @@ const S = {
     fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
     fontSize: 26, fontWeight: 600, color: 'var(--text-primary, #241B17)', margin: '40px 0 4px',
   },
-  sub: { fontSize: 13.5, color: 'var(--text-secondary, #8B6F5E)', margin: '0 0 18px' },
-  errorCard: { background: 'var(--danger-bg, #FDF0EF)', color: 'var(--danger-text, #C62828)', borderRadius: 12, padding: 14, fontSize: 13.5 },
-  emptyCard: { background: 'var(--tone-1, #FBF3EC)', borderRadius: 20, padding: 18 },
+  sub: { fontSize: 13.5, color: 'var(--text-secondary, #574A42)', margin: '0 0 18px' },
+  errorCard: { background: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger-text, #9E2B32)', borderRadius: 12, padding: 14, fontSize: 13.5 },
+  emptyCard: { background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: 18 },
   card: {
     background: 'linear-gradient(150deg, #9b4d6e 0%, #7c3350 55%, #5f2038 100%)',
     borderRadius: 24, padding: '18px 20px 14px', color: '#fff', marginBottom: 14,

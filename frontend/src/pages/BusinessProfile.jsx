@@ -20,9 +20,9 @@ import ErrorCard from '../components/ErrorCard.jsx';
 import { bookingUrl as publicBookingUrl } from '../lib/booking.js';
 
 const BRAND_COLOURS = [
-  'var(--accent, #C76B8A)', '#E8A0BF', '#C4A882', '#8B7355',
+  'var(--accent, #92405e)', '#E8A0BF', '#C4A882', '#8B7355',
   '#7B9E89', '#5B8F6F', '#6B8EC4', '#4A6FA5',
-  '#9B8EC4', '#7B68AE', 'var(--text-primary, #2D2A26)', '#5A5550',
+  '#9B8EC4', '#7B68AE', 'var(--text-primary, #241B17)', '#5A5550',
 ];
 
 const SOCIAL_PLATFORMS = [
@@ -142,7 +142,7 @@ export default function BusinessProfile() {
     }
   }
 
-  if (bLoading) return <p style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted, #AAA5A0)' }}>Loading...</p>;
+  if (bLoading) return <p style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted, #6B5D54)' }}>Loading...</p>;
 
   const tabs = [
     { key: 'info', label: 'Info' },
@@ -178,8 +178,8 @@ export default function BusinessProfile() {
             key={t.key}
             onClick={() => setTab(t.key)}
             style={{ ...s.tab,
-              color: tab === t.key ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #AAA5A0)',
-              borderBottom: tab === t.key ? '2px solid var(--accent, #C76B8A)' : '2px solid transparent',
+              color: tab === t.key ? 'var(--accent, #92405e)' : 'var(--text-muted, #6B5D54)',
+              borderBottom: tab === t.key ? '2px solid var(--accent, #92405e)' : '2px solid transparent',
               fontWeight: tab === t.key ? 600 : 400,
             }}
           >
@@ -218,7 +218,7 @@ export default function BusinessProfile() {
                   onClick={() => setBrandColor(c)}
                   style={{ ...s.colourDot,
                     background: c,
-                    border: brandColor === c ? '3px solid var(--text-primary, #2D2A26)' : '3px solid transparent',
+                    border: brandColor === c ? '3px solid var(--text-primary, #241B17)' : '3px solid transparent',
                     boxShadow: brandColor === c ? '0 0 0 2px #fff' : 'none',
                   }}
                   aria-label={c}
@@ -291,7 +291,7 @@ export default function BusinessProfile() {
               </div>
               <div style={s.previewContent}>
                 <span style={{ ...s.previewName, color: brandColor }}>{businessName}</span>
-                {emailSignOff && <span style={{ fontSize: 12, color: 'var(--text-muted, #AAA5A0)', fontStyle: 'italic' }}>{emailSignOff}</span>}
+                {emailSignOff && <span style={{ fontSize: 12, color: 'var(--text-muted, #6B5D54)', fontStyle: 'italic' }}>{emailSignOff}</span>}
                 <div style={{ ...s.previewButton, background: brandColor }}>Book Now</div>
               </div>
             </div>
@@ -403,12 +403,12 @@ const s = {
   title: {
     fontSize: 24,
     fontWeight: 700,
-    color: 'var(--text, #2D2A26)',
+    color: 'var(--text, #241B17)',
     margin: 0,
   },
   sub: {
     fontSize: 13,
-    color: 'var(--text-muted, #AAA5A0)',
+    color: 'var(--text-muted, #6B5D54)',
     margin: '4px 0 0',
   },
   heroCard: {
@@ -430,13 +430,13 @@ const s = {
   heroInitial: {
     fontSize: 24,
     fontWeight: 700,
-    color: 'var(--bg-card, #fff)',
+    color: 'var(--bg-card, #FFFCF9)',
   },
   heroName: {
     display: 'block',
     fontSize: 18,
     fontWeight: 700,
-    color: 'var(--bg-card, #fff)',
+    color: 'var(--bg-card, #FFFCF9)',
   },
   heroTagline: {
     display: 'block',
@@ -446,7 +446,7 @@ const s = {
   },
   tabBar: {
     display: 'flex',
-    borderBottom: '1px solid var(--border, #F0ECE8)',
+    borderBottom: '1px solid var(--border, #E8DDD4)',
     marginBottom: 16,
   },
   tab: {
@@ -465,35 +465,35 @@ const s = {
     gap: 12,
   },
   card: {
-    background: 'var(--card-bg, #fff)',
+    background: 'var(--card-bg, #FFFCF9)',
     borderRadius: 14,
     padding: 16,
-    border: '1px solid var(--border, #F0ECE8)',
+    border: '1px solid var(--border, #E8DDD4)',
   },
   cardLabel: {
     display: 'block',
     fontSize: 14,
     fontWeight: 600,
-    color: 'var(--text, #2D2A26)',
+    color: 'var(--text, #241B17)',
     marginBottom: 2,
   },
   cardDesc: {
     display: 'block',
     fontSize: 12,
-    color: 'var(--text-muted, #AAA5A0)',
+    color: 'var(--text-muted, #6B5D54)',
     marginBottom: 12,
   },
   fieldGroup: {
-    background: 'var(--card-bg, #fff)',
+    background: 'var(--card-bg, #FFFCF9)',
     borderRadius: 14,
     padding: '12px 16px',
-    border: '1px solid var(--border, #F0ECE8)',
+    border: '1px solid var(--border, #E8DDD4)',
   },
   fieldLabel: {
     display: 'block',
     fontSize: 12,
     fontWeight: 500,
-    color: 'var(--text-muted, #AAA5A0)',
+    color: 'var(--text-muted, #6B5D54)',
     marginBottom: 4,
   },
   fieldInput: {
@@ -504,7 +504,7 @@ const s = {
     fontFamily: 'inherit',
     outline: 'none',
     background: 'transparent',
-    color: 'var(--text, #2D2A26)',
+    color: 'var(--text, #241B17)',
     boxSizing: 'border-box',
   },
   readOnlyRow: {
@@ -516,14 +516,14 @@ const s = {
   readOnlyValue: {
     fontSize: 15,
     fontWeight: 500,
-    color: 'var(--text, #2D2A26)',
+    color: 'var(--text, #241B17)',
   },
   editLink: {
     alignSelf: 'flex-start',
     padding: 0,
     border: 'none',
     background: 'none',
-    color: 'var(--accent, #C76B8A)',
+    color: 'var(--accent, #92405e)',
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
@@ -549,7 +549,7 @@ const s = {
   },
   customLabel: {
     fontSize: 12,
-    color: 'var(--text-muted, #AAA5A0)',
+    color: 'var(--text-muted, #6B5D54)',
   },
   colourInput: {
     width: 30,
@@ -562,7 +562,7 @@ const s = {
   colourHex: {
     fontSize: 13,
     fontWeight: 500,
-    color: 'var(--text, #2D2A26)',
+    color: 'var(--text, #241B17)',
     fontFamily: 'monospace',
   },
   logoUpload: {
@@ -576,8 +576,8 @@ const s = {
     width: 72,
     height: 72,
     borderRadius: 14,
-    background: 'var(--bg, var(--bg, #FAF8F5))',
-    border: '2px dashed var(--border, #E8E4E0)',
+    background: 'var(--bg, var(--bg, #FBF6F1))',
+    border: '2px dashed var(--border, #E8DDD4)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -586,9 +586,9 @@ const s = {
   uploadBtn: {
     padding: '8px 20px',
     borderRadius: 10,
-    border: '1px solid var(--accent, #C76B8A)',
+    border: '1px solid var(--accent, #92405e)',
     background: 'transparent',
-    color: 'var(--accent, #C76B8A)',
+    color: 'var(--accent, #92405e)',
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
@@ -596,25 +596,25 @@ const s = {
   },
   uploadHint: {
     fontSize: 11,
-    color: 'var(--text-muted, #AAA5A0)',
+    color: 'var(--text-muted, #6B5D54)',
   },
   signOffInput: {
     width: '100%',
     marginTop: 10,
     padding: '11px 13px',
     borderRadius: 10,
-    border: '1.5px solid var(--border, #F0ECE8)',
+    border: '1.5px solid var(--border, #E8DDD4)',
     fontSize: 14,
     fontFamily: 'inherit',
     outline: 'none',
     boxSizing: 'border-box',
-    color: 'var(--text-primary, #2D2A26)',
-    background: 'var(--bg-input, #FAFAFA)',
+    color: 'var(--text-primary, #241B17)',
+    background: 'var(--bg-input, #F4EDE6)',
   },
   brandPreview: {
     borderRadius: 10,
     overflow: 'hidden',
-    border: '1px solid var(--border, #F0ECE8)',
+    border: '1px solid var(--border, #E8DDD4)',
     marginTop: 8,
   },
   previewBar: {
@@ -633,7 +633,7 @@ const s = {
   previewButton: {
     padding: '6px 14px',
     borderRadius: 8,
-    color: 'var(--bg-card, #fff)',
+    color: 'var(--bg-card, #FFFCF9)',
     fontSize: 12,
     fontWeight: 600,
   },
@@ -642,16 +642,16 @@ const s = {
     alignItems: 'center',
     gap: 12,
     padding: '12px 14px',
-    background: 'var(--card-bg, #fff)',
+    background: 'var(--card-bg, #FFFCF9)',
     borderRadius: 14,
-    border: '1px solid var(--border, #F0ECE8)',
+    border: '1px solid var(--border, #E8DDD4)',
   },
   socialIcon: { fontSize: 22 },
   socialLabel: {
     display: 'block',
     fontSize: 12,
     fontWeight: 500,
-    color: 'var(--text-muted, #AAA5A0)',
+    color: 'var(--text-muted, #6B5D54)',
   },
   socialInput: {
     width: '100%',
@@ -661,12 +661,12 @@ const s = {
     fontFamily: 'inherit',
     outline: 'none',
     background: 'transparent',
-    color: 'var(--text, #2D2A26)',
+    color: 'var(--text, #241B17)',
     boxSizing: 'border-box',
   },
   socialNote: {
     fontSize: 12,
-    color: 'var(--text-muted, #AAA5A0)',
+    color: 'var(--text-muted, #6B5D54)',
     textAlign: 'center',
     lineHeight: 1.5,
   },
@@ -676,21 +676,21 @@ const s = {
     gap: 8,
     marginTop: 8,
     padding: '10px 12px',
-    background: 'var(--bg, var(--bg, #FAF8F5))',
+    background: 'var(--bg, var(--bg, #FBF6F1))',
     borderRadius: 10,
   },
   urlText: {
     flex: 1,
     fontSize: 14,
     fontWeight: 500,
-    color: 'var(--accent, #C76B8A)',
+    color: 'var(--accent, #92405e)',
   },
   copyBtn: {
     padding: '6px 14px',
     borderRadius: 8,
-    border: '1px solid var(--accent, #C76B8A)',
+    border: '1px solid var(--accent, #92405e)',
     background: 'transparent',
-    color: 'var(--accent, #C76B8A)',
+    color: 'var(--accent, #92405e)',
     fontSize: 12,
     fontWeight: 600,
     cursor: 'pointer',
@@ -705,18 +705,18 @@ const s = {
   shareBtn: {
     padding: '10px 0',
     borderRadius: 10,
-    border: '1px solid var(--border, #E8E4E0)',
-    background: 'var(--bg, var(--bg, #FAF8F5))',
+    border: '1px solid var(--border, #E8DDD4)',
+    background: 'var(--bg, var(--bg, #FBF6F1))',
     fontSize: 13,
     fontWeight: 500,
     cursor: 'pointer',
     fontFamily: 'inherit',
-    color: 'var(--text, #2D2A26)',
+    color: 'var(--text, #241B17)',
   },
   bookingPreview: {
     borderRadius: 12,
     overflow: 'hidden',
-    border: '1px solid var(--border, #F0ECE8)',
+    border: '1px solid var(--border, #E8DDD4)',
     marginTop: 8,
   },
   bpHeader: {
@@ -727,7 +727,7 @@ const s = {
     display: 'block',
     fontSize: 16,
     fontWeight: 700,
-    color: 'var(--bg-card, #fff)',
+    color: 'var(--bg-card, #FFFCF9)',
   },
   bpTagline: {
     display: 'block',
@@ -737,29 +737,29 @@ const s = {
   },
   bpBody: {
     padding: 12,
-    background: 'var(--card-bg, #fff)',
+    background: 'var(--card-bg, #FFFCF9)',
   },
   bpService: {
     padding: '10px 0',
-    borderBottom: '1px solid var(--border, #F0ECE8)',
+    borderBottom: '1px solid var(--border, #E8DDD4)',
   },
   bpServiceName: {
     display: 'block',
     fontSize: 13,
     fontWeight: 600,
-    color: 'var(--text, #2D2A26)',
+    color: 'var(--text, #241B17)',
   },
   bpServiceMeta: {
     display: 'block',
     fontSize: 11,
-    color: 'var(--text-muted, #AAA5A0)',
+    color: 'var(--text-muted, #6B5D54)',
     marginTop: 2,
   },
   bpBookBtn: {
     marginTop: 12,
     padding: '10px 0',
     borderRadius: 10,
-    color: 'var(--bg-card, #fff)',
+    color: 'var(--bg-card, #FFFCF9)',
     fontSize: 13,
     fontWeight: 600,
     textAlign: 'center',
@@ -770,8 +770,8 @@ const s = {
     marginTop: 20,
     borderRadius: 12,
     border: 'none',
-    background: 'linear-gradient(135deg, var(--accent, #C76B8A), var(--accent-hover, #B85D7B))',
-    color: 'var(--bg-card, #fff)',
+    background: 'linear-gradient(135deg, var(--accent, #92405e), var(--accent-hover, #782b49))',
+    color: 'var(--bg-card, #FFFCF9)',
     fontSize: 15,
     fontWeight: 700,
     cursor: 'pointer',

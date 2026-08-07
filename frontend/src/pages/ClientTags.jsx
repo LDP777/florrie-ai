@@ -13,7 +13,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 
 const DEV_TAGS = [
-  { id: 't1', name: 'VIP', colour: 'var(--accent, #C76B8A)', icon: '⭐', auto: false, clients: ['Shauna', 'Daisy S', 'Holly B'] },
+  { id: 't1', name: 'VIP', colour: 'var(--accent, #92405e)', icon: '⭐', auto: false, clients: ['Shauna', 'Daisy S', 'Holly B'] },
   { id: 't2', name: 'Patch Test Due', colour: '#FF9800', icon: '⚠️', auto: true, rule: 'Last patch test > 6 months ago', clients: ['Amy R', 'Beth K'] },
   { id: 't3', name: 'Semi-Perm Client', colour: '#9C27B0', icon: '💎', auto: true, rule: 'Has booked any semi-permanent treatment', clients: ['Shauna', 'Daisy S', 'Holly B', 'Amy R', 'Beth K'] },
   { id: 't4', name: 'New Client', colour: '#4CAF50', icon: '🌱', auto: true, rule: 'First appointment within last 30 days', clients: ['Megan S'] },
@@ -38,7 +38,7 @@ export default function ClientTags() {
   const [createType, setCreateType] = useState('tag'); // tag | segment
   const [tags, setTags] = useState([]);
   const [segments, setSegments] = useState([]);
-  const [tagForm, setTagForm] = useState({ name: '', colour: 'var(--accent, #C76B8A)', icon: '🏷️' });
+  const [tagForm, setTagForm] = useState({ name: '', colour: 'var(--accent, #92405e)', icon: '🏷️' });
   const [segForm, setSegForm] = useState({ name: '', description: '', selectedTags: [], match: 'all' });
   const [saving, setSaving] = useState(false);
   const [editingTag, setEditingTag] = useState(null);
@@ -54,7 +54,7 @@ export default function ClientTags() {
         setTags(rows.map(t => ({
           id: t.id,
           name: t.name,
-          colour: t.colour || 'var(--accent, #C76B8A)',
+          colour: t.colour || 'var(--accent, #92405e)',
           icon: t.icon || '🏷️',
           auto: t.auto_rule ? true : false,
           rule: t.auto_rule || '',
@@ -209,7 +209,7 @@ export default function ClientTags() {
                       <span style={S.matchLabel}>{seg.match === 'all' ? 'All tags match' : 'Any tag matches'}</span>
                     </div>
                     <div style={S.actionRow}>
-                      <button style={{ ...S.actionBtn, background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)' }}>Send Campaign</button>
+                      <button style={{ ...S.actionBtn, background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)' }}>Send Campaign</button>
                       <button style={S.actionBtn} onClick={(e) => {
                         e.stopPropagation();
                         setEditingSegment(seg);
@@ -237,7 +237,7 @@ export default function ClientTags() {
           setShowCreate(false);
           setEditingTag(null);
           setEditingSegment(null);
-          setTagForm({ name: '', colour: 'var(--accent, #C76B8A)', icon: '🏷️' });
+          setTagForm({ name: '', colour: 'var(--accent, #92405e)', icon: '🏷️' });
           setSegForm({ name: '', description: '', selectedTags: [], match: 'all' });
           setError('');
         }}>
@@ -248,7 +248,7 @@ export default function ClientTags() {
                 setShowCreate(false);
                 setEditingTag(null);
                 setEditingSegment(null);
-                setTagForm({ name: '', colour: 'var(--accent, #C76B8A)', icon: '🏷️' });
+                setTagForm({ name: '', colour: 'var(--accent, #92405e)', icon: '🏷️' });
                 setSegForm({ name: '', description: '', selectedTags: [], match: 'all' });
                 setError('');
               }}>✕</button>
@@ -270,7 +270,7 @@ export default function ClientTags() {
 
                 <label style={S.label}>Colour</label>
                 <div style={S.colourRow}>
-                  {['var(--accent, #C76B8A)', '#FF9800', '#4CAF50', '#9C27B0', '#03A9F4', '#F44336', '#FFC107', '#9E9E9E'].map(c => (
+                  {['var(--accent, #92405e)', '#FF9800', '#4CAF50', '#9C27B0', '#03A9F4', '#F44336', '#FFC107', '#9E9E9E'].map(c => (
                     <div key={c} style={{ ...S.colourDot, background: c, border: tagForm.colour === c ? '3px solid var(--text-primary)' : '2px solid transparent', cursor: 'pointer' }} onClick={() => setTagForm(f => ({ ...f, colour: c }))} />
                   ))}
                 </div>
@@ -295,7 +295,7 @@ export default function ClientTags() {
                     <span key={t.id} onClick={() => setSegForm(f => ({
                       ...f,
                       selectedTags: f.selectedTags.includes(t.name) ? f.selectedTags.filter(x => x !== t.name) : [...f.selectedTags, t.name],
-                    }))} style={{ ...S.segTagChip, background: segForm.selectedTags.includes(t.name) ? t.colour : t.colour + '20', color: segForm.selectedTags.includes(t.name) ? 'var(--bg-card, #fff)' : t.colour, cursor: 'pointer' }}>
+                    }))} style={{ ...S.segTagChip, background: segForm.selectedTags.includes(t.name) ? t.colour : t.colour + '20', color: segForm.selectedTags.includes(t.name) ? 'var(--bg-card, #FFFCF9)' : t.colour, cursor: 'pointer' }}>
                       {t.icon} {t.name}
                     </span>
                   ))}
@@ -340,7 +340,7 @@ export default function ClientTags() {
                     setTags(prev => [...prev, { ...created, auto: false, rule: '', clients: [] }]);
                   }
 
-                  setTagForm({ name: '', colour: 'var(--accent, #C76B8A)', icon: '🏷️' });
+                  setTagForm({ name: '', colour: 'var(--accent, #92405e)', icon: '🏷️' });
                 } else {
                   if (!segForm.name.trim()) {
                     setError('Segment name is required');
@@ -385,7 +385,7 @@ export default function ClientTags() {
               {saving ? `${editingTag || editingSegment ? 'Saving' : 'Creating'}…` : `${editingTag || editingSegment ? 'Update' : 'Create'} ${createType === 'tag' ? 'Tag' : 'Segment'}`}
             </button>
 
-            {error && <div style={{ marginTop: 10, padding: 10, borderRadius: 8, background: '#F44336', color: 'var(--bg-card, #fff)', fontSize: 12, textAlign: 'center' }}>{error}</div>}
+            {error && <div style={{ marginTop: 10, padding: 10, borderRadius: 8, background: '#F44336', color: 'var(--bg-card, #FFFCF9)', fontSize: 12, textAlign: 'center' }}>{error}</div>}
           </div>
         </div>
       )}
@@ -395,62 +395,62 @@ export default function ClientTags() {
 
 const S = {
   page: { padding: '20px 16px 100px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 16px' },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #241B17)', margin: '0 0 16px' },
 
   overviewRow: { display: 'flex', gap: 8, marginBottom: 16 },
-  overviewCard: { flex: 1, background: 'var(--card, #fff)', borderRadius: 12, padding: '14px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
-  overviewNum: { fontSize: 22, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
-  overviewLabel: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)', fontWeight: 500 },
+  overviewCard: { flex: 1, background: 'var(--card, #FFFCF9)', borderRadius: 12, padding: '14px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
+  overviewNum: { fontSize: 22, fontWeight: 700, color: 'var(--accent, #92405e)' },
+  overviewLabel: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', fontWeight: 500 },
 
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
-  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #fff)', color: 'var(--text-muted, #AAA5A0)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)' },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--card, #FFFCF9)', color: 'var(--text-muted, #6B5D54)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)' },
 
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
-  card: { background: 'var(--card, #fff)', borderRadius: 14, padding: 14, cursor: 'pointer' },
+  card: { background: 'var(--card, #FFFCF9)', borderRadius: 14, padding: 14, cursor: 'pointer' },
   cardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   cardLeft: { display: 'flex', gap: 10, alignItems: 'center' },
   tagDot: { width: 36, height: 36, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 },
   segIcon: { fontSize: 20 },
   cardInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
-  cardName: { fontSize: 14, fontWeight: 600, color: 'var(--text, #2D2A26)' },
-  cardMeta: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },
+  cardName: { fontSize: 14, fontWeight: 600, color: 'var(--text, #241B17)' },
+  cardMeta: { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
   cardRight: { display: 'flex', alignItems: 'center', gap: 8 },
-  autoBadge: { padding: '3px 8px', borderRadius: 6, background: '#FFF8E1', color: 'var(--warning, #D4943A)', fontSize: 10, fontWeight: 600 },
-  chevron: { fontSize: 10, color: 'var(--text-muted, #B5AFA8)' },
+  autoBadge: { padding: '3px 8px', borderRadius: 6, background: '#FFF8E1', color: 'var(--warning, #8A6420)', fontSize: 10, fontWeight: 600 },
+  chevron: { fontSize: 10, color: 'var(--text-muted, #6B5D54)' },
 
-  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, #F0ECE8)' },
-  ruleBox: { background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', borderRadius: 8, padding: 10, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 4 },
-  ruleLabel: { fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #B5AFA8)', textTransform: 'uppercase' },
-  ruleValue: { fontSize: 13, color: 'var(--text, #2D2A26)', fontWeight: 500 },
+  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, #E8DDD4)' },
+  ruleBox: { background: 'var(--bg-hover, var(--bg-subtle, #ede7e3))', borderRadius: 8, padding: 10, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 4 },
+  ruleLabel: { fontSize: 10, fontWeight: 600, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase' },
+  ruleValue: { fontSize: 13, color: 'var(--text, #241B17)', fontWeight: 500 },
   clientChips: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
-  clientChip: { padding: '5px 12px', borderRadius: 20, background: 'var(--accent-light, #FFF0F3)', color: 'var(--accent, #C76B8A)', fontSize: 12, fontWeight: 500 },
-  clientChipSelect: { padding: '5px 12px', borderRadius: 20, background: 'var(--border, #F0ECE8)', color: 'var(--text-secondary, #8B6F5E)', fontSize: 12, fontWeight: 500, cursor: 'pointer' },
+  clientChip: { padding: '5px 12px', borderRadius: 20, background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)', fontSize: 12, fontWeight: 500 },
+  clientChipSelect: { padding: '5px 12px', borderRadius: 20, background: 'var(--border, #E8DDD4)', color: 'var(--text-secondary, #574A42)', fontSize: 12, fontWeight: 500, cursor: 'pointer' },
   actionRow: { display: 'flex', gap: 8, marginTop: 8 },
-  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, #F0ECE8)', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
+  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, #E8DDD4)', background: 'var(--card, #FFFCF9)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #241B17)' },
 
-  segDesc: { fontSize: 13, color: 'var(--text-secondary, #8B6F5E)', margin: '0 0 10px', lineHeight: 1.4 },
+  segDesc: { fontSize: 13, color: 'var(--text-secondary, #574A42)', margin: '0 0 10px', lineHeight: 1.4 },
   segTags: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10, alignItems: 'center' },
   segTagChip: { padding: '4px 10px', borderRadius: 8, fontSize: 12, fontWeight: 600 },
-  matchLabel: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)', fontStyle: 'italic' },
+  matchLabel: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', fontStyle: 'italic' },
 
-  fab: { position: 'fixed', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)', left: 20, width: 52, height: 52, borderRadius: 26, background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 26, border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(199,107,138,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit', zIndex: 50 },
+  fab: { position: 'fixed', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)', left: 20, width: 52, height: 52, borderRadius: 26, background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 26, border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(199,107,138,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit', zIndex: 50 },
 
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
-  modal: { background: 'var(--bg-card, #fff)', borderRadius: '18px 18px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', overflow: 'auto', padding: '20px 16px 32px' },
+  modal: { background: 'var(--bg-card, #FFFCF9)', borderRadius: '18px 18px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', overflow: 'auto', padding: '20px 16px 32px' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },
-  closeBtn: { background: 'none', border: 'none', fontSize: 18, color: 'var(--text-muted, #B5AFA8)', cursor: 'pointer' },
+  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text, #241B17)', margin: 0 },
+  closeBtn: { background: 'none', border: 'none', fontSize: 18, color: 'var(--text-muted, #6B5D54)', cursor: 'pointer' },
 
   typeToggle: { display: 'flex', gap: 8, marginBottom: 14 },
-  typeBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid var(--border, #F0ECE8)', background: 'var(--card, #fff)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted, #B5AFA8)' },
-  typeBtnActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', border: '1px solid var(--accent, #C76B8A)' },
+  typeBtn: { flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid var(--border, #E8DDD4)', background: 'var(--card, #FFFCF9)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-muted, #6B5D54)' },
+  typeBtnActive: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', border: '1px solid var(--accent, #92405e)' },
 
   formBody: { display: 'flex', flexDirection: 'column', gap: 10 },
-  label: { fontSize: 12, fontWeight: 600, color: 'var(--text-muted, #B5AFA8)', marginTop: 4 },
-  input: { padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #F0ECE8)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #2D2A26)', background: 'var(--card, #fff)' },
+  label: { fontSize: 12, fontWeight: 600, color: 'var(--text-muted, #6B5D54)', marginTop: 4 },
+  input: { padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, #241B17)', background: 'var(--card, #FFFCF9)' },
   colourRow: { display: 'flex', gap: 10 },
   colourDot: { width: 28, height: 28, borderRadius: 14, cursor: 'pointer', border: '2px solid transparent' },
 
-  saveBtn: { marginTop: 16, width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  saveBtn: { marginTop: 16, width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 };

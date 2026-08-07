@@ -644,7 +644,7 @@ export default function ContentAutopilot() {
       />
       {/* Plan my week — the lead action (Levi, 9 Jul: planner-first) */}
       {!composing && (
-        <div style={{ background: 'var(--tone-1, #FBF3EC)', borderRadius: 20, padding: '18px 18px 16px',
+        <div style={{ background: 'var(--tone-1, #fbf1ea)', borderRadius: 20, padding: '18px 18px 16px',
           marginBottom: 14,
         }}>
           <h2 style={{ fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
@@ -652,7 +652,7 @@ export default function ContentAutopilot() {
           }}>
             Plan my week
           </h2>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary, #8B6F5E)', margin: '0 0 12px', lineHeight: 1.45 }}>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary, #574A42)', margin: '0 0 12px', lineHeight: 1.45 }}>
             One tap and Florrie drafts a week of posts in your voice, from your real work,
             reviews and openings. Nothing goes out until you say so.
           </p>
@@ -667,7 +667,7 @@ export default function ContentAutopilot() {
             {planning ? 'Drafting your week...' : 'Draft my week'}
           </button>
           {planNote && (
-            <p style={{ fontSize: 12.5, color: 'var(--text-secondary, #8B6F5E)', margin: '10px 0 0' }}>{planNote}</p>
+            <p style={{ fontSize: 12.5, color: 'var(--text-secondary, #574A42)', margin: '10px 0 0' }}>{planNote}</p>
           )}
           {planBlocked && (
             <button
@@ -685,7 +685,7 @@ export default function ContentAutopilot() {
         <div style={{ marginBottom: 18 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--accent, #92405E)' }}>Your grid preview</span>
-            <span style={{ fontSize: 12, color: 'var(--text-secondary, #8B6F5E)' }}>{scheduled.length} scheduled · {drafts.length} drafts</span>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary, #574A42)' }}>{scheduled.length} scheduled · {drafts.length} drafts</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, borderRadius: 14, overflow: 'hidden' }}>
             {[...scheduled, ...drafts, ...posted].slice(0, 12).map(post => {
@@ -700,13 +700,13 @@ export default function ContentAutopilot() {
                 >
                   {post.image_url
                     ? <img src={post.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                    : <span style={{ display: 'flex', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', fontSize: 10.5, lineHeight: 1.35, color: 'var(--text-secondary, #8B6F5E)', padding: 7, textAlign: 'center', overflow: 'hidden', fontFamily: 'inherit' }}>{(post.caption || 'Untitled').slice(0, 52)}</span>}
+                    : <span style={{ display: 'flex', width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', fontSize: 10.5, lineHeight: 1.35, color: 'var(--text-secondary, #574A42)', padding: 7, textAlign: 'center', overflow: 'hidden', fontFamily: 'inherit' }}>{(post.caption || 'Untitled').slice(0, 52)}</span>}
                   {badge && <span style={{ position: 'absolute', left: 5, bottom: 5, fontSize: 9, fontWeight: 700, color: '#fff', background: 'rgba(146,64,94,0.92)', padding: '1px 6px', borderRadius: 999, letterSpacing: '0.02em' }}>{badge}</span>}
                 </button>
               );
             })}
           </div>
-          <p style={{ fontSize: 11.5, color: 'var(--text-secondary, #8B6F5E)', margin: '8px 0 0' }}>How your feed will look. Tap a tile to edit or reschedule.</p>
+          <p style={{ fontSize: 11.5, color: 'var(--text-secondary, #574A42)', margin: '8px 0 0' }}>How your feed will look. Tap a tile to edit or reschedule.</p>
         </div>
       )}
 
@@ -715,8 +715,8 @@ export default function ContentAutopilot() {
         <button
           onClick={() => setSelectedStreamId(null)}
           style={{ ...styles.streamPill,
-            background: selectedStreamId === null ? 'var(--accent, #C76B8A)' : 'var(--bg-subtle, #F5F2EF)',
-            color: selectedStreamId === null ? 'white' : 'var(--text-secondary, #7A756F)',
+            background: selectedStreamId === null ? 'var(--accent, #92405e)' : 'var(--bg-subtle, #ede7e3)',
+            color: selectedStreamId === null ? 'white' : 'var(--text-secondary, #574A42)',
           }}
         >
           All
@@ -726,8 +726,8 @@ export default function ContentAutopilot() {
             key={s.id}
             onClick={() => setSelectedStreamId(s.id)}
             style={{ ...styles.streamPill,
-              background: selectedStreamId === s.id ? 'var(--accent, #C76B8A)' : 'var(--bg-subtle, #F5F2EF)',
-              color: selectedStreamId === s.id ? 'white' : 'var(--text-secondary, #7A756F)',
+              background: selectedStreamId === s.id ? 'var(--accent, #92405e)' : 'var(--bg-subtle, #ede7e3)',
+              color: selectedStreamId === s.id ? 'white' : 'var(--text-secondary, #574A42)',
             }}
           >
             {s.name} {s.monthly_target ? `●${s.monthly_target}/mo` : ''}
@@ -737,8 +737,8 @@ export default function ContentAutopilot() {
           onClick={() => setShowStreamForm(!showStreamForm)}
           style={{ ...styles.streamPill,
             background: 'transparent',
-            color: 'var(--accent, #C76B8A)',
-            border: '1px solid var(--accent, #C76B8A)',
+            color: 'var(--accent, #92405e)',
+            border: '1px solid var(--accent, #92405e)',
           }}
         >
           + Add stream
@@ -789,7 +789,7 @@ export default function ContentAutopilot() {
         <div style={styles.progressSection}>
           <div style={styles.progressLabel}>
             <span style={{ fontWeight: 600 }}>{streams.find(s => s.id === selectedStreamId)?.name}</span>
-            <span style={{ color: 'var(--text-muted, #7a7470)', fontSize: 12 }}>
+            <span style={{ color: 'var(--text-muted, #6B5D54)', fontSize: 12 }}>
               {streamProgress.posted_this_month} / {streamProgress.monthly_target} posts · {streamProgress.remaining} remaining
             </span>
           </div>
@@ -797,7 +797,7 @@ export default function ContentAutopilot() {
             <div
               style={{ ...styles.progressFill,
                 width: `${Math.min(100, (streamProgress.posted_this_month / streamProgress.monthly_target) * 100)}%`,
-                background: streamProgress.remaining < 3 ? '#DC2626' : streamProgress.remaining <= 3 ? '#F59E0B' : 'var(--accent, #C76B8A)',
+                background: streamProgress.remaining < 3 ? '#DC2626' : streamProgress.remaining <= 3 ? '#F59E0B' : 'var(--accent, #92405e)',
               }}
             />
           </div>
@@ -809,7 +809,7 @@ export default function ContentAutopilot() {
           <span style={{ fontSize: 16 }}>📅</span>
           <div style={{ flex: 1 }}>
             <span style={{ fontSize: 13, fontWeight: 600 }}>A slot opened up</span>
-            <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-secondary, #7A756F)' }}>
+            <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-secondary, #574A42)' }}>
               {new Date(cancelledPrompt.starts_at).toLocaleDateString('en-GB', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })} was cancelled
             </p>
           </div>
@@ -826,7 +826,7 @@ export default function ContentAutopilot() {
             onClick={() => { setTab(t); setComposing(false); }}
             style={{ ...styles.tab,
               background: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--accent, #92405E)' : 'transparent',
-              color: (tab === t || (tab === 'compose' && t === 'drafts')) ? '#fff' : 'var(--text-secondary, #8B6F5E)',
+              color: (tab === t || (tab === 'compose' && t === 'drafts')) ? '#fff' : 'var(--text-secondary, #574A42)',
             }}
           >
             {t === 'ideas' ? 'Ideas' : t === 'drafts' ? `Drafts${drafts.length ? ` (${drafts.length})` : ''}` : t === 'posted' ? 'Posted' : t === 'calendar' ? 'Calendar' : 'Gallery'}
@@ -840,14 +840,14 @@ export default function ContentAutopilot() {
           {(loadingSuggestions || suggestions.length > 0) && (
             <div style={styles.aiSuggestionsSection}>
               <div style={styles.aiSuggestionsHeader}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent, #C76B8A)' }}>✨ From your recent clients</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent, #92405e)' }}>✨ From your recent clients</span>
                 <button onClick={loadSuggestions} style={styles.refreshBtn} disabled={loadingSuggestions}>
                   {loadingSuggestions ? '...' : '↻'}
                 </button>
               </div>
               {loadingSuggestions ? (
                 <div style={styles.aiLoadingCard}>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted, #7a7470)' }}>Florrie is writing ideas from your recent appointments...</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted, #6B5D54)' }}>Florrie is writing ideas from your recent appointments...</span>
                 </div>
               ) : suggestions.map(s => (
                 <div key={s.id} style={styles.aiSuggestionCard} onClick={() => startCompose(s.treatment_type?.includes('avail') ? 'last_minute_availability' : 'before_after', s.caption)}>
@@ -884,12 +884,12 @@ export default function ContentAutopilot() {
                 {beautician?.logo_url ? <img src={beautician.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (beautician?.first_name?.[0] || beautician?.business_name?.[0] || 'F').toUpperCase()}
               </div>
               <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary, #241B17)' }}>{beautician?.booking_slug || beautician?.business_name || 'your_salon'}</span>
-              <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-secondary, #8B6F5E)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>live preview</span>
+              <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-secondary, #574A42)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>live preview</span>
             </div>
             <div style={{ ...(composeImagePreview ? { aspectRatio: composeMediaKind === 'story' ? '9 / 16' : '1', maxHeight: composeMediaKind === 'story' ? 380 : 460 } : { height: 190 }), background: composeImagePreview ? '#efe7df' : 'rgba(146,64,94,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {composeImagePreview
                 ? <img src={composeImagePreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                : <span style={{ fontSize: 12, color: 'var(--text-secondary, #8B6F5E)' }}>Add a photo to see it here</span>}
+                : <span style={{ fontSize: 12, color: 'var(--text-secondary, #574A42)' }}>Add a photo to see it here</span>}
             </div>
             <div style={{ padding: '8px 12px 12px' }}>
               <div style={{ display: 'flex', gap: 14, color: 'var(--text-primary, #241B17)', marginBottom: 6 }}>
@@ -899,7 +899,7 @@ export default function ContentAutopilot() {
               </div>
               <div style={{ fontSize: 12.5, color: 'var(--text-primary, #241B17)', lineHeight: 1.45 }}>
                 <span style={{ fontWeight: 600 }}>{beautician?.booking_slug || 'your_salon'}</span>{' '}
-                <span style={{ color: composeCaption ? 'inherit' : 'var(--text-muted, #B5AFA8)' }}>{composeCaption || 'Your caption will appear here as you write.'}</span>
+                <span style={{ color: composeCaption ? 'inherit' : 'var(--text-muted, #6B5D54)' }}>{composeCaption || 'Your caption will appear here as you write.'}</span>
                 {composeHashtags && <span style={{ color: '#3d6ea3' }}> {composeHashtags}</span>}
               </div>
             </div>
@@ -910,8 +910,8 @@ export default function ContentAutopilot() {
                 key={type}
                 onClick={() => setComposeType(type)}
                 style={{ ...styles.composeTypeBtn,
-                  background: composeType === type ? '#FBF0F3' : 'var(--bg-subtle, var(--bg-subtle, #F5F2EF))',
-                  color: composeType === type ? 'var(--accent, #C76B8A)' : '#6b6560',
+                  background: composeType === type ? '#FBF0F3' : 'var(--bg-subtle, var(--bg-subtle, #ede7e3))',
+                  color: composeType === type ? 'var(--accent, #92405e)' : '#6b6560',
                   fontWeight: composeType === type ? 600 : 400,
                 }}
               >
@@ -923,7 +923,7 @@ export default function ContentAutopilot() {
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '11px 14px', marginBottom: 10, borderRadius: 12, border: `1.5px dashed ${composeImagePreview ? 'var(--accent, #92405E)' : 'var(--border-light, #EDE9E4)'}`, background: composeImagePreview ? 'rgba(146,64,94,0.05)' : 'transparent', color: composeImagePreview ? 'var(--accent, #92405E)' : 'var(--text-secondary, #8B6F5E)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '11px 14px', marginBottom: 10, borderRadius: 12, border: `1.5px dashed ${composeImagePreview ? 'var(--accent, #92405E)' : 'var(--border-light, #ede7e3)'}`, background: composeImagePreview ? 'rgba(146,64,94,0.05)' : 'transparent', color: composeImagePreview ? 'var(--accent, #92405E)' : 'var(--text-secondary, #574A42)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
           >
             <Icon name={iconName(composeImagePreview ? 'check_circle' : 'add_a_photo')} size={19} inline />
             {composeImagePreview ? 'Photo added, tap to change' : 'Add a photo'}
@@ -943,9 +943,9 @@ export default function ContentAutopilot() {
                 type="button"
                 onClick={() => setComposeMediaKind(k)}
                 style={{ padding: '7px 14px', borderRadius: 10, fontSize: 12.5, fontWeight: 700,
-                  border: `1.5px solid ${composeMediaKind === k ? 'var(--accent, #92405E)' : 'var(--border-light, #EDE9E4)'}`,
+                  border: `1.5px solid ${composeMediaKind === k ? 'var(--accent, #92405E)' : 'var(--border-light, #ede7e3)'}`,
                   background: composeMediaKind === k ? 'rgba(146,64,94,0.07)' : 'transparent',
-                  color: composeMediaKind === k ? 'var(--accent, #92405E)' : 'var(--text-secondary, #8B6F5E)',
+                  color: composeMediaKind === k ? 'var(--accent, #92405E)' : 'var(--text-secondary, #574A42)',
                   cursor: 'pointer', fontFamily: 'inherit',
                 }}
               >
@@ -975,7 +975,7 @@ export default function ContentAutopilot() {
               style={{ ...styles.shuffleBtn,
                 flex: 2,
                 background: 'linear-gradient(135deg, #FBF0F3, #F3EEFF)',
-                color: 'var(--accent, #C76B8A)',
+                color: 'var(--accent, #92405e)',
                 fontWeight: 600,
                 opacity: generatingAI ? 0.7 : 1,
               }}
@@ -1011,8 +1011,8 @@ export default function ContentAutopilot() {
       {tab === 'drafts' && !composing && (
         <div style={styles.postList}>
           {scheduled.length > 0 && (
-            <div style={{ background: 'var(--tone-2, #F7EDE4)', borderRadius: 16, padding: '12px 14px', marginBottom: 4 }}>
-              <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text-secondary, #8B6F5E)', margin: '0 0 8px', textTransform: 'uppercase' }}>
+            <div style={{ background: 'var(--tone-2, #f6e7dd)', borderRadius: 16, padding: '12px 14px', marginBottom: 4 }}>
+              <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', color: 'var(--text-secondary, #574A42)', margin: '0 0 8px', textTransform: 'uppercase' }}>
                 Scheduled, posting themselves
               </p>
               {scheduled.map(sp => (
@@ -1026,7 +1026,7 @@ export default function ContentAutopilot() {
                   {!sp.image_url && <span style={{ fontSize: 10.5, color: '#B45309', whiteSpace: 'nowrap' }}>needs photo</span>}
                   <button
                     onClick={() => handleUnschedule(sp.id)}
-                    style={{ background: 'none', border: 'none', color: 'var(--text-muted, #B5AFA8)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: '2px 4px' }}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6B5D54)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', padding: '2px 4px' }}
                   >
                     Undo
                   </button>
@@ -1037,7 +1037,7 @@ export default function ContentAutopilot() {
           {drafts.length > 1 && deckIndex === null && (
             <button
               onClick={() => setDeckIndex(0)}
-              style={{ padding: '11px 0', borderRadius: 12, border: '1.5px solid var(--accent, #C76B8A)', background: 'transparent', color: 'var(--accent, #C76B8A)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+              style={{ padding: '11px 0', borderRadius: 12, border: '1.5px solid var(--accent, #92405e)', background: 'transparent', color: 'var(--accent, #92405e)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
             >
               Review one by one ({drafts.length})
             </button>
@@ -1051,13 +1051,13 @@ export default function ContentAutopilot() {
           )}
           {deckIndex !== null && drafts.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 2px 0' }}>
-              <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary, #8B6F5E)' }}>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-secondary, #574A42)' }}>
                 {Math.min(deckIndex + 1, drafts.length)} of {drafts.length}
               </span>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={() => setDeckIndex(i => Math.max(0, i - 1))} disabled={deckIndex === 0} style={{ background: 'none', border: 'none', color: deckIndex === 0 ? 'var(--text-muted, #B5AFA8)' : 'var(--accent, #C76B8A)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>‹ Back</button>
-                <button onClick={() => setDeckIndex(i => (i + 1 < drafts.length ? i + 1 : i))} disabled={deckIndex + 1 >= drafts.length} style={{ background: 'none', border: 'none', color: deckIndex + 1 >= drafts.length ? 'var(--text-muted, #B5AFA8)' : 'var(--accent, #C76B8A)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Skip ›</button>
-                <button onClick={() => setDeckIndex(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted, #B5AFA8)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>List</button>
+                <button onClick={() => setDeckIndex(i => Math.max(0, i - 1))} disabled={deckIndex === 0} style={{ background: 'none', border: 'none', color: deckIndex === 0 ? 'var(--text-muted, #6B5D54)' : 'var(--accent, #92405e)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>‹ Back</button>
+                <button onClick={() => setDeckIndex(i => (i + 1 < drafts.length ? i + 1 : i))} disabled={deckIndex + 1 >= drafts.length} style={{ background: 'none', border: 'none', color: deckIndex + 1 >= drafts.length ? 'var(--text-muted, #6B5D54)' : 'var(--accent, #92405e)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Skip ›</button>
+                <button onClick={() => setDeckIndex(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted, #6B5D54)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>List</button>
               </div>
             </div>
           )}
@@ -1067,15 +1067,15 @@ export default function ContentAutopilot() {
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                 <div style={{ ...styles.typeBadge,
                   background: post.post_type === 'last_minute_availability' ? '#FEF3C7' : '#FBF0F3',
-                  color: post.post_type === 'last_minute_availability' ? '#B45309' : 'var(--accent, #C76B8A)'
+                  color: post.post_type === 'last_minute_availability' ? '#B45309' : 'var(--accent, #92405e)'
                 }}>
                   {POST_TYPE_LABELS[post.post_type] || 'Post'}
                 </div>
                 {post.scheduled_for && (
                   <button
                     onClick={() => handleApproveSchedule(post)}
-                    style={{ padding: '4px 12px', borderRadius: 10, border: '1px solid var(--accent, #C76B8A)',
-                      background: 'transparent', color: 'var(--accent, #C76B8A)',
+                    style={{ padding: '4px 12px', borderRadius: 10, border: '1px solid var(--accent, #92405e)',
+                      background: 'transparent', color: 'var(--accent, #92405e)',
                       fontSize: 11.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
                     }}
                   >
@@ -1193,7 +1193,7 @@ export default function ContentAutopilot() {
             </span>
             <button onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1))} style={styles.calendarNav}>→</button>
           </div>
-          <div style={{ display: 'flex', gap: 14, justifyContent: 'center', margin: '2px 0 10px', fontSize: 11, color: 'var(--text-secondary, #8B6F5E)' }}>
+          <div style={{ display: 'flex', gap: 14, justifyContent: 'center', margin: '2px 0 10px', fontSize: 11, color: 'var(--text-secondary, #574A42)' }}>
             <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 4, background: '#D1D5DB', marginRight: 4 }} />draft</span>
             <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 4, background: '#60A5FA', marginRight: 4 }} />scheduled</span>
             <span><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 4, background: '#34D399', marginRight: 4 }} />posted</span>
@@ -1210,7 +1210,7 @@ export default function ContentAutopilot() {
                   key={idx}
                   onClick={() => isCurrentMonth && startCompose('before_after', '')}
                   style={{ ...styles.calendarCell,
-                    background: isCurrentMonth ? 'var(--bg-card, #FFFFFF)' : 'var(--bg-subtle, #F5F2EF)',
+                    background: isCurrentMonth ? 'var(--bg-card, #FFFCF9)' : 'var(--bg-subtle, #ede7e3)',
                     opacity: isCurrentMonth ? 1 : 0.5,
                     cursor: isCurrentMonth ? 'pointer' : 'default',
                   }}
@@ -1393,7 +1393,7 @@ const styles = {
     padding: '0 16px var(--scroll-pad-bottom)',
     maxWidth: 480,
     margin: '0 auto',
-    color: 'var(--text-primary, #2D2A26)'
+    color: 'var(--text-primary, #241B17)'
   },
   header: {
     display: 'flex',
@@ -1403,14 +1403,14 @@ const styles = {
     paddingBottom: 8
   },
   title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
-  subtitle: { fontSize: 13, color: 'var(--accent, #C76B8A)', margin: 0, fontWeight: 500 },
+  subtitle: { fontSize: 13, color: 'var(--accent, #92405e)', margin: 0, fontWeight: 500 },
   uploadBtn: {
     minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     padding: '10px 18px',
     borderRadius: 10,
     border: 'none',
-    background: 'var(--accent, #C76B8A)',
-    color: 'var(--bg-card, #fff)',
+    background: 'var(--accent, #92405e)',
+    color: 'var(--bg-card, #FFFCF9)',
     fontSize: 14,
     fontWeight: 600,
     cursor: 'pointer',
@@ -1419,7 +1419,7 @@ const styles = {
   tabs: {
     display: 'flex',
     gap: 4,
-    background: 'var(--bg-card, #fff)',
+    background: 'var(--bg-card, #FFFCF9)',
     border: '1px solid rgba(146,64,94,0.12)',
     borderRadius: 999,
     padding: 3,
@@ -1441,12 +1441,12 @@ const styles = {
     WebkitTapHighlightColor: 'transparent',
   },
   // Ideas
-  ideaIntro: { fontSize: 13, color: 'var(--text-secondary, #7A756F)', marginBottom: 16, lineHeight: 1.5 },
+  ideaIntro: { fontSize: 13, color: 'var(--text-secondary, #574A42)', marginBottom: 16, lineHeight: 1.5 },
   ideaGroup: { marginBottom: 16 },
   ideaGroupHeader: { marginBottom: 6 },
-  ideaGroupLabel: { fontSize: 11, fontWeight: 600, color: 'var(--accent, #C76B8A)', textTransform: 'uppercase', letterSpacing: '0.04em' },
+  ideaGroupLabel: { fontSize: 11, fontWeight: 600, color: 'var(--accent, #92405e)', textTransform: 'uppercase', letterSpacing: '0.04em' },
   ideaCard: {
-    background: 'var(--bg-card, #FFFFFF)',
+    background: 'var(--bg-card, #FFFCF9)',
     borderRadius: 12,
     padding: 16,
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
@@ -1454,8 +1454,8 @@ const styles = {
     transition: 'transform 0.1s',
     position: 'relative',
   },
-  ideaCaption: { fontSize: 14, lineHeight: 1.6, margin: '0 0 8px', color: 'var(--text-primary, #2D2A26)' },
-  ideaTap: { fontSize: 11, color: 'var(--accent, #C76B8A)', fontWeight: 600 },
+  ideaCaption: { fontSize: 14, lineHeight: 1.6, margin: '0 0 8px', color: 'var(--text-primary, #241B17)' },
+  ideaTap: { fontSize: 11, color: 'var(--accent, #92405e)', fontWeight: 600 },
   // Compose
   composeArea: { display: 'flex', flexDirection: 'column', gap: 12 },
   composeTypeRow: { display: 'flex', flexWrap: 'wrap', gap: 6 },
@@ -1470,7 +1470,7 @@ const styles = {
   },
   photoArea: {
     borderRadius: 12,
-    border: '1.5px dashed var(--border, var(--border, #EDE9E4))',
+    border: '1.5px dashed var(--border, var(--border, #E8DDD4))',
     overflow: 'hidden',
     cursor: 'pointer',
     minHeight: 120,
@@ -1484,7 +1484,7 @@ const styles = {
     width: '100%',
     padding: '14px',
     borderRadius: 12,
-    border: '1.5px solid var(--border, var(--border, #EDE9E4))',
+    border: '1.5px solid var(--border, var(--border, #E8DDD4))',
     fontSize: 14,
     fontFamily: 'inherit',
     resize: 'vertical',
@@ -1497,9 +1497,9 @@ const styles = {
     alignSelf: 'flex-start',
     padding: '6px 14px',
     borderRadius: 8,
-    border: '1.5px solid var(--border, var(--border, #EDE9E4))',
+    border: '1.5px solid var(--border, var(--border, #E8DDD4))',
     background: 'transparent',
-    color: 'var(--text-secondary, #7A756F)',
+    color: 'var(--text-secondary, #574A42)',
     fontSize: 12,
     fontWeight: 500,
     cursor: 'pointer',
@@ -1509,7 +1509,7 @@ const styles = {
     width: '100%',
     padding: '10px 14px',
     borderRadius: 10,
-    border: '1.5px solid var(--border, var(--border, #EDE9E4))',
+    border: '1.5px solid var(--border, var(--border, #E8DDD4))',
     fontSize: 13,
     fontFamily: 'inherit',
     outline: 'none',
@@ -1522,8 +1522,8 @@ const styles = {
     padding: '14px 0',
     borderRadius: 12,
     border: 'none',
-    background: 'var(--accent, #C76B8A)',
-    color: 'var(--bg-card, #fff)',
+    background: 'var(--accent, #92405e)',
+    color: 'var(--bg-card, #FFFCF9)',
     fontSize: 15,
     fontWeight: 600,
     cursor: 'pointer',
@@ -1533,8 +1533,8 @@ const styles = {
     padding: '14px 20px',
     borderRadius: 12,
     border: 'none',
-    background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))',
-    color: 'var(--text-secondary, #7A756F)',
+    background: 'var(--bg-hover, var(--bg-subtle, #ede7e3))',
+    color: 'var(--text-secondary, #574A42)',
     fontSize: 15,
     cursor: 'pointer',
     fontFamily: 'inherit',
@@ -1542,7 +1542,7 @@ const styles = {
   // Posts
   postList: { display: 'flex', flexDirection: 'column', gap: 14 },
   postCard: {
-    background: 'var(--tone-1, #FBF3EC)',
+    background: 'var(--tone-1, #fbf1ea)',
     borderRadius: 20,
     padding: 16,
   },
@@ -1565,8 +1565,8 @@ const styles = {
     padding: '10px 0',
     borderRadius: 10,
     border: 'none',
-    background: 'var(--accent, #C76B8A)',
-    color: 'var(--bg-card, #fff)',
+    background: 'var(--accent, #92405e)',
+    color: 'var(--bg-card, #FFFCF9)',
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
@@ -1576,8 +1576,8 @@ const styles = {
     padding: '10px 16px',
     borderRadius: 10,
     border: 'none',
-    background: 'var(--accent-light, #FFF0F3)',
-    color: 'var(--accent, #C76B8A)',
+    background: 'var(--accent-light, #F6E7EC)',
+    color: 'var(--accent, #92405e)',
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',
@@ -1587,8 +1587,8 @@ const styles = {
     padding: '10px 14px',
     borderRadius: 10,
     border: 'none',
-    background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))',
-    color: 'var(--text-muted, #7a7470)',
+    background: 'var(--bg-hover, var(--bg-subtle, #ede7e3))',
+    color: 'var(--text-muted, #6B5D54)',
     fontSize: 13,
     cursor: 'pointer',
     fontFamily: 'inherit'
@@ -1598,7 +1598,7 @@ const styles = {
     width: '100%',
     padding: '12px 14px',
     borderRadius: 10,
-    border: '1.5px solid var(--accent, #C76B8A)',
+    border: '1.5px solid var(--accent, #92405e)',
     fontSize: 14,
     fontFamily: 'inherit',
     resize: 'vertical',
@@ -1609,64 +1609,64 @@ const styles = {
   editActions: { display: 'flex', gap: 8, marginTop: 8 },
   saveEditBtn: {
     padding: '8px 16px', borderRadius: 8, border: 'none',
-    background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 13, fontWeight: 600,
+    background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit'
   },
   cancelEditBtn: {
     padding: '8px 16px', borderRadius: 8, border: 'none',
-    background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', color: 'var(--text-secondary, #7A756F)', fontSize: 13,
+    background: 'var(--bg-hover, var(--bg-subtle, #ede7e3))', color: 'var(--text-secondary, #574A42)', fontSize: 13,
     cursor: 'pointer', fontFamily: 'inherit'
   },
   statsRow: {
     display: 'flex',
     gap: 16,
     padding: '10px 0',
-    borderTop: '1px solid var(--bg-hover, var(--bg-subtle, #F5F2EF))',
+    borderTop: '1px solid var(--bg-hover, var(--bg-subtle, #ede7e3))',
     marginTop: 8
   },
   stat: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
-  statNum: { fontSize: 16, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
-  statLabel: { fontSize: 10, color: 'var(--text-muted, #7a7470)', textTransform: 'uppercase', letterSpacing: '0.04em' },
-  postedDate: { fontSize: 11, color: 'var(--text-muted, #7a7470)' },
+  statNum: { fontSize: 16, fontWeight: 700, color: 'var(--accent, #92405e)' },
+  statLabel: { fontSize: 10, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', letterSpacing: '0.04em' },
+  postedDate: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
   emptyState: { textAlign: 'center', padding: '40px 20px' },
   emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 6px' },
-  emptyDesc: { fontSize: 13, color: 'var(--text-muted, #7a7470)', margin: 0, lineHeight: 1.5 },
+  emptyDesc: { fontSize: 13, color: 'var(--text-muted, #6B5D54)', margin: 0, lineHeight: 1.5 },
   // Gallery
   galleryHeaderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
   galleryAddBtn: {
     minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     padding: '8px 14px', borderRadius: 8, border: 'none',
-    background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', fontSize: 12, fontWeight: 600,
+    background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 12, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
   },
   galleryAddCard: {
-    background: 'var(--bg-card, #FFFFFF)', borderRadius: 14, padding: 16,
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 16,
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 8,
     display: 'flex', flexDirection: 'column', gap: 10,
   },
   galleryPhotoPair: { display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'center' },
   galleryPhotoSlot: {
     flex: 1, maxWidth: 160, aspectRatio: '1', borderRadius: 12,
-    border: '1.5px dashed var(--border, var(--border, #EDE9E4))', overflow: 'hidden', cursor: 'pointer',
+    border: '1.5px dashed var(--border, var(--border, #E8DDD4))', overflow: 'hidden', cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
   galleryPlaceholder: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 },
-  galleryPlaceholderText: { fontSize: 11, color: 'var(--text-muted, #7a7470)' },
+  galleryPlaceholderText: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
   galleryThumb: { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
-  galleryArrow: { fontSize: 18, color: 'var(--text-muted, #7a7470)', flexShrink: 0 },
+  galleryArrow: { fontSize: 18, color: 'var(--text-muted, #6B5D54)', flexShrink: 0 },
   gallerySelect: {
     width: '100%', padding: '10px 12px', borderRadius: 10,
-    border: '1.5px solid var(--border, var(--border, #EDE9E4))', fontSize: 13, fontFamily: 'inherit',
-    outline: 'none', boxSizing: 'border-box', color: 'var(--text-primary, #2D2A26)', background: 'var(--bg-card, #FFFFFF)',
+    border: '1.5px solid var(--border, var(--border, #E8DDD4))', fontSize: 13, fontFamily: 'inherit',
+    outline: 'none', boxSizing: 'border-box', color: 'var(--text-primary, #241B17)', background: 'var(--bg-card, #FFFCF9)',
   },
   galleryNotesInput: {
     width: '100%', padding: '10px 12px', borderRadius: 10,
-    border: '1.5px solid var(--border, var(--border, #EDE9E4))', fontSize: 13, fontFamily: 'inherit',
+    border: '1.5px solid var(--border, var(--border, #E8DDD4))', fontSize: 13, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box',
   },
   galleryFormActions: { display: 'flex', gap: 8 },
   galleryCard: {
-    background: 'var(--bg-card, #FFFFFF)', borderRadius: 14, overflow: 'hidden',
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, overflow: 'hidden',
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: 4,
   },
   galleryPhotoPairView: { display: 'flex', gap: 2 },
@@ -1675,17 +1675,17 @@ const styles = {
   galleryLabel: {
     position: 'absolute', bottom: 6, left: 6,
     padding: '2px 8px', borderRadius: 4,
-    background: 'rgba(0,0,0,0.5)', color: 'var(--bg-card, #fff)',
+    background: 'rgba(0,0,0,0.5)', color: 'var(--bg-card, #FFFCF9)',
     fontSize: 10, fontWeight: 600,
   },
   galleryCardFooter: { padding: '10px 14px' },
-  galleryTreatmentName: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
-  galleryCaption: { display: 'block', fontSize: 12, color: 'var(--text-secondary, #7A756F)', marginTop: 2 },
-  galleryDate: { display: 'block', fontSize: 10, color: 'var(--text-muted, #7a7470)', marginTop: 4 },
+  galleryTreatmentName: { display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
+  galleryCaption: { display: 'block', fontSize: 12, color: 'var(--text-secondary, #574A42)', marginTop: 2 },
+  galleryDate: { display: 'block', fontSize: 10, color: 'var(--text-muted, #6B5D54)', marginTop: 4 },
   // AI suggestions
   aiSuggestionsSection: { marginBottom: 4 },
   aiSuggestionsHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  refreshBtn: { minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border, #EDE9E4)', background: 'transparent', cursor: 'pointer', fontSize: 14, color: 'var(--text-muted, #7a7470)', fontFamily: 'inherit' },
+  refreshBtn: { minWidth: 44, minHeight: 44, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border, #E8DDD4)', background: 'transparent', cursor: 'pointer', fontSize: 14, color: 'var(--text-muted, #6B5D54)', fontFamily: 'inherit' },
   aiLoadingCard: { padding: 14, borderRadius: 12, background: 'linear-gradient(135deg, #FBF0F3, #F3EEFF)', textAlign: 'center' },
   aiSuggestionCard: {
     background: 'linear-gradient(135deg, #FBF0F3, #F3EEFF)',
@@ -1695,8 +1695,8 @@ const styles = {
     cursor: 'pointer',
     border: '1px solid rgba(199,107,138,0.15)',
   },
-  aiSuggestionTreatment: { display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--accent, #C76B8A)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 },
-  aiSuggestionCaption: { margin: '0 0 6px', fontSize: 13, lineHeight: 1.55, color: 'var(--text-primary, #2D2A26)' },
+  aiSuggestionTreatment: { display: 'block', fontSize: 10, fontWeight: 700, color: 'var(--accent, #92405e)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 4 },
+  aiSuggestionCaption: { margin: '0 0 6px', fontSize: 13, lineHeight: 1.55, color: 'var(--text-primary, #241B17)' },
   // Streams
   streamSelector: { display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 12, marginBottom: 8, scrollBehavior: 'smooth' },
   streamPill: {
@@ -1712,7 +1712,7 @@ const styles = {
     flexShrink: 0,
   },
   streamFormCard: {
-    background: 'var(--bg-card, #FFFFFF)',
+    background: 'var(--bg-card, #FFFCF9)',
     borderRadius: 14,
     padding: 14,
     marginBottom: 12,
@@ -1725,7 +1725,7 @@ const styles = {
     width: '100%',
     padding: '10px 12px',
     borderRadius: 10,
-    border: '1.5px solid var(--border, #EDE9E4)',
+    border: '1.5px solid var(--border, #E8DDD4)',
     fontSize: 13,
     fontFamily: 'inherit',
     outline: 'none',
@@ -1743,7 +1743,7 @@ const styles = {
   },
   progressBar: {
     height: 8,
-    background: 'var(--bg-subtle, #F5F2EF)',
+    background: 'var(--bg-subtle, #ede7e3)',
     borderRadius: 4,
     overflow: 'hidden',
   },
@@ -1792,7 +1792,7 @@ const styles = {
     fontSize: 16,
     cursor: 'pointer',
     fontFamily: 'inherit',
-    color: 'var(--text-secondary, #7A756F)',
+    color: 'var(--text-secondary, #574A42)',
   },
   calendarGrid: {
     display: 'grid',
@@ -1804,7 +1804,7 @@ const styles = {
     textAlign: 'center',
     fontSize: 11,
     fontWeight: 600,
-    color: 'var(--text-muted, #7a7470)',
+    color: 'var(--text-muted, #6B5D54)',
     padding: '6px 0',
     textTransform: 'uppercase',
     letterSpacing: '0.04em',
@@ -1813,7 +1813,7 @@ const styles = {
     minHeight: 80,
     padding: 6,
     borderRadius: 8,
-    border: '1px solid var(--border, #EDE9E4)',
+    border: '1px solid var(--border, #E8DDD4)',
     position: 'relative',
     cursor: 'pointer',
     transition: 'background 0.1s',
@@ -1821,7 +1821,7 @@ const styles = {
   calendarCellDate: {
     fontSize: 12,
     fontWeight: 600,
-    color: 'var(--text-secondary, #7A756F)',
+    color: 'var(--text-secondary, #574A42)',
     marginBottom: 4,
   },
   calendarChips: {
@@ -1837,7 +1837,7 @@ const styles = {
   },
   calendarMore: {
     fontSize: 9,
-    color: 'var(--text-muted, #7a7470)',
+    color: 'var(--text-muted, #6B5D54)',
     marginLeft: 2,
   },
 };

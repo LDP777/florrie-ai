@@ -543,7 +543,7 @@ export default function Clients() {
               <button
                 onClick={undoLastImport}
                 disabled={undoing}
-                style={{ ...styles.bannerLinkBtn, color: 'var(--danger, #D4605C)' }}
+                style={{ ...styles.bannerLinkBtn, color: 'var(--danger, #9E2B32)' }}
               >
                 {undoing ? 'Undoing...' : 'Undo this import'}
               </button>
@@ -1047,12 +1047,12 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
           </button>
         </div>
         {blocked && (
-          <div style={{ background: 'var(--danger-bg, #FDECEC)', border: '1px solid var(--danger)', borderRadius: 10, padding: '9px 12px', margin: '0 0 12px', fontSize: 13, color: 'var(--danger)', fontWeight: 600, textAlign: 'center' }}>
+          <div style={{ background: 'var(--danger-bg, #F7E4E4)', border: '1px solid var(--danger)', borderRadius: 10, padding: '9px 12px', margin: '0 0 12px', fontSize: 13, color: 'var(--danger)', fontWeight: 600, textAlign: 'center' }}>
             Blocked — this client can't book online.
           </div>
         )}
         {archived && (
-          <div style={{ background: 'var(--bg-subtle, #F5F1EC)', border: '1px solid var(--border, #E5E0DA)', borderRadius: 10, padding: '9px 12px', margin: '0 0 12px', fontSize: 13, color: 'var(--text-secondary, #6B6560)', fontWeight: 600, textAlign: 'center' }}>
+          <div style={{ background: 'var(--bg-subtle, #ede7e3)', border: '1px solid var(--border, #E8DDD4)', borderRadius: 10, padding: '9px 12px', margin: '0 0 12px', fontSize: 13, color: 'var(--text-secondary, #574A42)', fontWeight: 600, textAlign: 'center' }}>
             Archived. Hidden from your client list; they come back automatically if they book or message again.
           </div>
         )}
@@ -1220,7 +1220,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
               <button
                 onClick={toggleArchive}
                 disabled={archiving}
-                style={{ background: 'none', border: 'none', color: 'var(--text-secondary, #6B6560)', fontSize: 13, fontWeight: 600, cursor: archiving ? 'wait' : 'pointer', fontFamily: 'inherit', padding: '6px 10px', minHeight: 44 }}
+                style={{ background: 'none', border: 'none', color: 'var(--text-secondary, #574A42)', fontSize: 13, fontWeight: 600, cursor: archiving ? 'wait' : 'pointer', fontFamily: 'inherit', padding: '6px 10px', minHeight: 44 }}
               >
                 {archiving ? '…' : archived ? 'Unarchive this client' : 'Archive this client'}
               </button>
@@ -1627,7 +1627,7 @@ const styles = {
     fontStyle: 'italic',
     margin: 0,
     fontFamily: "'Playfair Display', Georgia, serif",
-    color: 'var(--text-primary, #1d1b19)',
+    color: 'var(--text-primary, #241B17)',
     lineHeight: 1.2,
   },
   headerActions: { display: 'flex', gap: 8, alignItems: 'center' },
@@ -1639,9 +1639,9 @@ const styles = {
     fontSize: 12, color: 'var(--text-muted)', marginBottom: 10,
   },
   countTotal: { fontWeight: 600, color: 'var(--text-secondary)' },
-  countActive: { color: 'var(--success, #5BA97B)', fontWeight: 600 },
-  countCooling: { color: 'var(--warning, #D4943A)', fontWeight: 600 },
-  countDormant: { color: 'var(--danger, #D4605C)', fontWeight: 600 },
+  countActive: { color: 'var(--success, #3F7D5C)', fontWeight: 600 },
+  countCooling: { color: 'var(--warning, #8A6420)', fontWeight: 600 },
+  countDormant: { color: 'var(--danger, #9E2B32)', fontWeight: 600 },
   countSep: { color: 'var(--text-muted)' },
 
   // Filter chips + sort
@@ -1825,7 +1825,7 @@ const styles = {
   consultAnswer: { fontSize: 13, fontWeight: 500, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
   consultSignature: {
     marginTop: 6, maxWidth: '100%', height: 'auto', borderRadius: 8,
-    border: '1px solid var(--border, #E5E0DA)', background: '#fff',
+    border: '1px solid var(--border, #E8DDD4)', background: '#fff',
   },
   consultLinkBtn: {
     alignSelf: 'flex-start', minHeight: 44, padding: '0 2px', background: 'none', border: 'none',
@@ -1866,7 +1866,7 @@ const styles = {
 
   // Just-imported banner
   justImportedBanner: {
-    background: 'var(--accent-light, #FFF0F3)',
+    background: 'var(--accent-light, #F6E7EC)',
     borderRadius: 12,
     padding: '12px 14px',
     marginBottom: 12,
@@ -1877,11 +1877,11 @@ const styles = {
   justImportedTitle: {
     fontSize: 14,
     fontWeight: 700,
-    color: 'var(--accent, #C76B8A)',
+    color: 'var(--accent, #92405e)',
   },
   justImportedSub: {
     fontSize: 12,
-    color: 'var(--text-secondary, #8B6F5E)',
+    color: 'var(--text-secondary, #574A42)',
     lineHeight: 1.4,
   },
   justImportedActions: {
@@ -1893,7 +1893,7 @@ const styles = {
     background: 'none',
     border: 'none',
     padding: 0,
-    color: 'var(--accent, #C76B8A)',
+    color: 'var(--accent, #92405e)',
     fontSize: 12,
     fontWeight: 600,
     cursor: 'pointer',
@@ -1909,8 +1909,8 @@ const styles = {
     fontWeight: 700,
     textTransform: 'uppercase',
     letterSpacing: '0.04em',
-    background: 'var(--accent-light, #FFF0F3)',
-    color: 'var(--accent, #C76B8A)',
+    background: 'var(--accent-light, #F6E7EC)',
+    color: 'var(--accent, #92405e)',
     verticalAlign: 'middle',
   },
   tagChipRow: {
@@ -1937,20 +1937,20 @@ const styles = {
   },
   threadLoading: {
     fontSize: 12,
-    color: 'var(--text-muted, #B5AFA8)',
+    color: 'var(--text-muted, #6B5D54)',
     textAlign: 'center',
     padding: '14px 0',
   },
   threadError: {
     fontSize: 12,
-    color: 'var(--danger, #c0464e)',
+    color: 'var(--danger, #9E2B32)',
     textAlign: 'center',
     padding: '14px 0',
   },
   bubbleStack: {
     display: 'flex',
     flexDirection: 'column',
-    background: 'var(--bg, #fef8f4)',
+    background: 'var(--bg, #FBF6F1)',
     border: '1px solid rgba(146,64,94,0.08)',
     borderRadius: 14,
     padding: '12px 10px',
@@ -1998,7 +1998,7 @@ const styles = {
   },
   composerSend: {
     padding: '8px 14px',
-    background: 'var(--accent, #C76B8A)',
+    background: 'var(--accent, #92405e)',
     color: '#fff',
     border: 'none',
     borderRadius: 10,
@@ -2021,7 +2021,7 @@ const styles = {
   },
   archivedLink: {
     display: 'block', width: '100%', textAlign: 'center', background: 'none',
-    border: 'none', color: 'var(--text-muted, #A8A29B)', fontSize: 13,
+    border: 'none', color: 'var(--text-muted, #6B5D54)', fontSize: 13,
     fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     padding: '14px 0', marginTop: 8, minHeight: 44, textDecoration: 'underline',
     textUnderlineOffset: 3,
@@ -2029,37 +2029,37 @@ const styles = {
   archivedHeader: {
     display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 12,
   },
-  archivedHeaderTitle: { fontSize: 14, fontWeight: 700, color: 'var(--text-primary, #2D2A26)' },
-  archivedHeaderSub: { fontSize: 12.5, color: 'var(--text-muted, #A8A29B)', lineHeight: 1.5 },
+  archivedHeaderTitle: { fontSize: 14, fontWeight: 700, color: 'var(--text-primary, #241B17)' },
+  archivedHeaderSub: { fontSize: 12.5, color: 'var(--text-muted, #6B5D54)', lineHeight: 1.5 },
   reviewCard: {
     display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
-    background: 'var(--accent-light, #F7EDF1)', border: '1px solid var(--accent, #92405e)',
+    background: 'var(--accent-light, #F6E7EC)', border: '1px solid var(--accent, #92405e)',
     borderRadius: 12, padding: '12px 14px', marginBottom: 14,
   },
-  reviewCardTitle: { fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', marginBottom: 2 },
-  reviewCardSub: { fontSize: 12.5, color: 'var(--text-secondary, #6B6560)', lineHeight: 1.5 },
+  reviewCardTitle: { fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary, #241B17)', marginBottom: 2 },
+  reviewCardSub: { fontSize: 12.5, color: 'var(--text-secondary, #574A42)', lineHeight: 1.5 },
   reviewBtn: {
     background: 'var(--accent, #92405e)', color: '#fff', border: 'none',
     borderRadius: 10, padding: '0 18px', minHeight: 44, fontSize: 13,
     fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
   },
   reviewGhostBtn: {
-    background: 'none', border: 'none', color: 'var(--text-muted, #A8A29B)',
+    background: 'none', border: 'none', color: 'var(--text-muted, #6B5D54)',
     fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     padding: '0 6px', minHeight: 44,
   },
   archiveAllBtn: {
     display: 'block', width: '100%', minHeight: 44, margin: '12px 0',
-    background: 'var(--bg-card, #fff)', border: '1.5px solid var(--accent, #92405e)',
+    background: 'var(--bg-card, #FFFCF9)', border: '1.5px solid var(--accent, #92405e)',
     color: 'var(--accent, #92405e)', borderRadius: 10, fontSize: 13,
     fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
   },
   reviewRow: {
     display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0',
-    borderBottom: '1px solid var(--border, #EFEBE6)',
+    borderBottom: '1px solid var(--border, #E8DDD4)',
   },
-  reviewRowName: { fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
-  reviewRowMeta: { fontSize: 12, color: 'var(--text-muted, #A8A29B)', marginTop: 1 },
+  reviewRowName: { fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
+  reviewRowMeta: { fontSize: 12, color: 'var(--text-muted, #6B5D54)', marginTop: 1 },
   reviewRowBtn: {
     background: 'none', border: '1.5px solid var(--accent, #92405e)',
     color: 'var(--accent, #92405e)', borderRadius: 10, padding: '0 14px',
@@ -2071,7 +2071,7 @@ const styles = {
     bottom: 80,
     left: '50%',
     transform: 'translateX(-50%)',
-    background: 'var(--text-primary, #2D2A26)',
+    background: 'var(--text-primary, #241B17)',
     color: '#fff',
     padding: '10px 16px',
     borderRadius: 10,

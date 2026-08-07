@@ -250,8 +250,8 @@ export default function More() {
         <div style={{ marginBottom: 8 }}>
           {filtered.length === 0 ? (
             <div style={S.emptySearch}>
-              <Icon name={iconName('search_off')} size={36} inline style={{ color: '#d8c1c6', display: 'block', marginBottom: 8 }} />
-              <p style={{ margin: 0, color: '#867277', fontSize: 14 }}>No results for "{search}"</p>
+              <Icon name={iconName('search_off')} size={36} inline style={{ color: 'var(--border)', display: 'block', marginBottom: 8 }} />
+              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 14 }}>No results for "{search}"</p>
             </div>
           ) : (
             filtered.map(cat => (
@@ -339,7 +339,7 @@ function ItemCard({ item, locked, isActive, onNav }) {
 const S = {
   page: {
     minHeight: '100vh',
-    background: 'var(--bg, #fef8f4)',
+    background: 'var(--bg, #FBF6F1)',
     fontFamily: "'Plus Jakarta Sans', sans-serif",
     padding: '16px 16px var(--scroll-pad-bottom)',
     maxWidth: 480,
@@ -351,7 +351,7 @@ const S = {
     fontWeight: 600,
     fontFamily: "'Playfair Display', Georgia, serif",
     fontStyle: 'italic',
-    color: 'var(--text-primary, #2b1d22)',
+    color: 'var(--text-primary, #241B17)',
     margin: '12px 0 16px',
     letterSpacing: '-0.01em',
   },
@@ -359,7 +359,7 @@ const S = {
   searchWrap: { position: 'relative', marginBottom: 20 },
   searchIcon: {
     position: 'absolute', left: 14, top: '50%',
-    transform: 'translateY(-50%)', color: '#B5AFA8', pointerEvents: 'none',
+    transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none',
   },
   searchInput: {
     width: '100%',
@@ -369,7 +369,7 @@ const S = {
     background: 'var(--tone-2, #f6e7dd)',
     fontSize: 14,
     fontFamily: 'inherit',
-    color: 'var(--text-primary, #1d1b19)',
+    color: 'var(--text-primary, #241B17)',
     outline: 'none',
     boxSizing: 'border-box',
   },
@@ -377,12 +377,12 @@ const S = {
     position: 'absolute', right: 10, top: '50%',
     transform: 'translateY(-50%)',
     background: '#f3ede9', border: 'none', borderRadius: 8,
-    width: 22, height: 22, color: '#867277', cursor: 'pointer',
+    width: 22, height: 22, color: 'var(--text-muted)', cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
 
   sectionLabel: {
-    fontSize: 10, fontWeight: 700, color: '#B5AFA8',
+    fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
     textTransform: 'uppercase', letterSpacing: '0.08em',
     marginBottom: 8,
   },
@@ -398,7 +398,7 @@ const S = {
     flexShrink: 0, whiteSpace: 'nowrap',
     WebkitTapHighlightColor: 'transparent',
   },
-  recentLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #534247)' },
+  recentLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #574A42)' },
 
   emptySearch: {
     display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -419,7 +419,7 @@ const S = {
     WebkitTapHighlightColor: 'transparent',
   },
   catLabel: {
-    fontSize: 14, fontWeight: 700, color: 'var(--text-primary, #1d1b19)',
+    fontSize: 14, fontWeight: 700, color: 'var(--text-primary, #241B17)',
   },
   expandedBody: {
     padding: '2px 12px 14px',
@@ -438,7 +438,7 @@ const S = {
     minHeight: 44,
     borderRadius: 14,
     border: 'none',
-    background: 'var(--bg, #fef8f4)',
+    background: 'var(--bg, #FBF6F1)',
     cursor: 'pointer',
     fontFamily: 'inherit',
     textAlign: 'left',
@@ -446,14 +446,14 @@ const S = {
     WebkitTapHighlightColor: 'transparent',
   },
   itemActive: {
-    background: 'var(--accent-wash, #fbe9f0)',
+    background: 'var(--accent-wash, #FBF2F5)',
     boxShadow: 'inset 0 0 0 1.5px var(--accent, #92405e)',
   },
   itemLabel: {
-    fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary, #1d1b19)', lineHeight: 1.3, marginBottom: 2,
+    fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary, #241B17)', lineHeight: 1.3, marginBottom: 2,
   },
   itemDesc: {
-    fontSize: 11, color: 'var(--text-muted, #9B8A8E)', lineHeight: 1.35, fontWeight: 400,
+    fontSize: 11, color: 'var(--text-muted, #6B5D54)', lineHeight: 1.35, fontWeight: 400,
   },
   lockBadge: {
     fontSize: 9, fontWeight: 700,

@@ -917,7 +917,7 @@ export default function BookingPage() {
     return (
       <div style={styles.page}>
         <div style={styles.card}>
-          <p style={{ textAlign: 'center', color: '#8A8580', padding: 40 }}>{error}</p>
+          <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>{error}</p>
         </div>
       </div>
     );
@@ -1564,8 +1564,8 @@ export default function BookingPage() {
                 {memberInfo && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6,
                     padding: '6px 10px', borderRadius: 8, background: 'var(--gold-bg, #FFF8E1)',
-                    border: '1px solid var(--gold, #C9A96E)', fontSize: 12, fontWeight: 500,
-                    color: 'var(--gold, #C9A96E)',
+                    border: '1px solid var(--gold, #8A6420)', fontSize: 12, fontWeight: 500,
+                    color: 'var(--gold, #8A6420)',
                   }}>
                     ★ Member, {memberInfo.plan_name}
                   </div>
@@ -1664,25 +1664,25 @@ export default function BookingPage() {
                     // Marked, not shouted at: a thin rule down the side of the
                     // question rather than a red box round the whole thing.
                     ...(isMissing ? {
-                      borderLeft: '3px solid var(--danger, #DC2626)',
+                      borderLeft: '3px solid var(--danger, #9E2B32)',
                       paddingLeft: 10,
                       marginLeft: -13,
                     } : {}),
                   }}
                 >
                   {q.section && (qi === 0 || consultationQuestions[qi - 1].section !== q.section) && (
-                    <div style={{ fontSize: 14, fontWeight: 700, color: brand, margin: '18px 0 10px', paddingBottom: 6, borderBottom: '1px solid var(--border-light, #eee)' }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: brand, margin: '18px 0 10px', paddingBottom: 6, borderBottom: '1px solid var(--border-light, #ede7e3)' }}>
                       {q.section}
                     </div>
                   )}
                   <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#444', marginBottom: 4 }}>
                     {q.label}
                     {q.type !== 'text_block' && q.required !== false && (
-                      <span style={{ color: 'var(--danger, #DC2626)' }}> *</span>
+                      <span style={{ color: 'var(--danger, #9E2B32)' }}> *</span>
                     )}
                   </label>
                   {isMissing && (
-                    <p style={{ margin: '0 0 6px', fontSize: 12, fontWeight: 600, color: 'var(--danger, #DC2626)' }}>
+                    <p style={{ margin: '0 0 6px', fontSize: 12, fontWeight: 600, color: 'var(--danger, #9E2B32)' }}>
                       {q.type === 'signature' ? 'Please sign to confirm' : 'Please answer this one'}
                     </p>
                   )}
@@ -1763,7 +1763,7 @@ export default function BookingPage() {
                   {q.type === 'signature' && (
                     <div>
                       {[...new Set(consultationForms.map(cf => cf.consent_text).filter(Boolean))].map((txt, ci) => (
-                        <p key={`consent-${ci}`} style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5, padding: '10px 12px', background: 'var(--bg-subtle, #FDFCFB)', borderRadius: 8, border: '1px solid var(--border-light)' }}>{txt}</p>
+                        <p key={`consent-${ci}`} style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5, padding: '10px 12px', background: 'var(--bg-subtle, #ede7e3)', borderRadius: 8, border: '1px solid var(--border-light)' }}>{txt}</p>
                       ))}
                       <input
                         type="text"
@@ -1790,10 +1790,10 @@ export default function BookingPage() {
               })}
             </div>
             {!consultationQuestions.some(q => q.type === 'signature') && [...new Set(consultationForms.map(cf => cf.consent_text).filter(Boolean))].map((txt, ci) => (
-              <p key={`consent-fb-${ci}`} style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5, padding: '10px 12px', background: 'var(--bg-subtle, #FDFCFB)', borderRadius: 8, border: '1px solid var(--border-light)' }}>{txt}</p>
+              <p key={`consent-fb-${ci}`} style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.5, padding: '10px 12px', background: 'var(--bg-subtle, #ede7e3)', borderRadius: 8, border: '1px solid var(--border-light)' }}>{txt}</p>
             ))}
             {showConsultationErrors && missingConsultation.length > 0 && (
-              <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: 'var(--danger, #DC2626)', lineHeight: 1.5 }}>
+              <p style={{ margin: '0 0 10px', fontSize: 13, fontWeight: 600, color: 'var(--danger, #9E2B32)', lineHeight: 1.5 }}>
                 {missingConsultation.length === 1
                   ? 'One question still needs an answer.'
                   : `${missingConsultation.length} questions still need an answer.`}
@@ -1831,7 +1831,7 @@ export default function BookingPage() {
             {recognisedClient?.found && (recognisedClient.outstandingBalanceCents || 0) > 0 && (
               <div style={{ padding: '12px 14px', borderRadius: 10, marginBottom: 14,
                 background: `${brand}10`, border: `1px solid ${brand}30`,
-                fontSize: 13, color: 'var(--text-primary, #1a0a0f)', lineHeight: 1.55,
+                fontSize: 13, color: 'var(--text-primary, #241B17)', lineHeight: 1.55,
               }}>
                 Looks like there is an outstanding balance of £{(recognisedClient.outstandingBalanceCents / 100).toFixed(2)} from a previous visit. This will need settling at your appointment.
               </div>
@@ -1900,10 +1900,10 @@ export default function BookingPage() {
               )}
               {discountCents > 0 && (
                 <div style={styles.summaryRow}>
-                  <span style={{ ...styles.summaryLabel, color: 'var(--success, #38A169)' }}>
+                  <span style={{ ...styles.summaryLabel, color: 'var(--success, #3F7D5C)' }}>
                     Discount ({appliedDiscount.code})
                   </span>
-                  <span style={{ ...styles.summaryValue, color: 'var(--success, #38A169)' }}>
+                  <span style={{ ...styles.summaryValue, color: 'var(--success, #3F7D5C)' }}>
                     −£{(discountCents / 100).toFixed(2)}
                   </span>
                 </div>
@@ -1959,7 +1959,7 @@ export default function BookingPage() {
               if (available.length <= 1) return null;
               return (
                 <div style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #1a0a0f)', marginBottom: 8 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #241B17)', marginBottom: 8 }}>
                     How would you like to pay?
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -1980,7 +1980,7 @@ export default function BookingPage() {
                     ))}
                   </div>
                   {(paymentMethod === 'cash' || paymentMethod === 'bank_transfer') && (
-                    <p style={{ fontSize: 12, color: 'var(--text-muted, #999)', margin: '8px 0 0' }}>
+                    <p style={{ fontSize: 12, color: 'var(--text-muted, #6B5D54)', margin: '8px 0 0' }}>
                       {paymentMethod === 'bank_transfer'
                         ? `A card deposit of £${(depositCents / 100).toFixed(2)} secures your booking now. You'll transfer the rest to your beautician's bank details, sent after booking.`
                         : `A card deposit of £${(depositCents / 100).toFixed(2)} secures your booking now. You'll pay the rest in cash at your appointment.`}
@@ -1993,8 +1993,8 @@ export default function BookingPage() {
             {memberInfo && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12,
                 padding: '8px 12px', borderRadius: 8, background: 'var(--gold-bg, #FFF8E1)',
-                border: '1px solid var(--gold, #C9A96E)', fontSize: 13, fontWeight: 500,
-                color: 'var(--gold, #C9A96E)',
+                border: '1px solid var(--gold, #8A6420)', fontSize: 13, fontWeight: 500,
+                color: 'var(--gold, #8A6420)',
               }}>
                 ★ {memberInfo.plan_name} member, any benefits will be applied by your beautician
               </div>
@@ -2010,27 +2010,27 @@ export default function BookingPage() {
                       onClick={() => setSelectedPackage(isSelected ? null : pkg)}
                       style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                         width: '100%', padding: '12px 14px', borderRadius: 10, marginBottom: 6,
-                        border: `1.5px solid ${isSelected ? 'var(--success, #38A169)' : 'var(--border, #E8E4DF)'}`,
-                        background: isSelected ? 'var(--success-bg, #F0FFF4)' : 'var(--bg-card)',
+                        border: `1.5px solid ${isSelected ? 'var(--success, #3F7D5C)' : 'var(--border, #E8DDD4)'}`,
+                        background: isSelected ? 'var(--success-bg, #E9F0EB)' : 'var(--bg-card)',
                         cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
                       }}
                     >
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <span style={{ fontSize: 14, fontWeight: 600, color: isSelected ? 'var(--success, #38A169)' : 'var(--text-primary)' }}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: isSelected ? 'var(--success, #3F7D5C)' : 'var(--text-primary)' }}>
                           {isSelected ? '✓ ' : ''}{pkg.package_name}
                         </span>
                         <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                           {pkg.sessions_remaining} of {pkg.sessions_total} sessions remaining
                         </span>
                       </div>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--success, #38A169)' }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--success, #3F7D5C)' }}>
                         Use session
                       </span>
                     </button>
                   );
                 })}
                 {selectedPackage && (
-                  <p style={{ fontSize: 12, color: 'var(--success, #38A169)', marginTop: 4 }}>
+                  <p style={{ fontSize: 12, color: 'var(--success, #3F7D5C)', marginTop: 4 }}>
                     No payment needed, using a session from your {selectedPackage.package_name} package
                   </p>
                 )}
@@ -2040,10 +2040,10 @@ export default function BookingPage() {
             {!selectedPackage && <div style={{ marginBottom: 16 }}>
               {appliedDiscount ? (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '10px 14px', borderRadius: 8, background: 'var(--success-bg, #F0FFF4)',
-                  border: '1px solid var(--success, #38A169)', fontSize: 13,
+                  padding: '10px 14px', borderRadius: 8, background: 'var(--success-bg, #E9F0EB)',
+                  border: '1px solid var(--success, #3F7D5C)', fontSize: 13,
                 }}>
-                  <span style={{ color: 'var(--success, #38A169)', fontWeight: 600 }}>
+                  <span style={{ color: 'var(--success, #3F7D5C)', fontWeight: 600 }}>
                     ✓ {appliedDiscount.code}, saving £{(discountCents / 100).toFixed(2)}
                   </span>
                   <button onClick={removeDiscount} style={{ background: 'none', border: 'none', fontSize: 16, color: 'var(--text-muted)',
@@ -2069,7 +2069,7 @@ export default function BookingPage() {
                         onChange={e => { setDiscountInput(e.target.value); setDiscountError(null); }}
                         onKeyDown={e => e.key === 'Enter' && validateDiscountCode()}
                         style={{ ...styles.input, flex: 1, padding: '10px 12px', fontSize: 14,
-                          borderColor: discountError ? 'var(--danger, #DC2626)' : 'var(--border, #E8E4DF)',
+                          borderColor: discountError ? 'var(--danger, #9E2B32)' : 'var(--border, #E8DDD4)',
                         }}
                       />
                       <button
@@ -2084,7 +2084,7 @@ export default function BookingPage() {
                     </div>
                   )}
                   {discountError && (
-                    <p style={{ fontSize: 12, color: 'var(--danger, #DC2626)', marginTop: 4 }}>{discountError}</p>
+                    <p style={{ fontSize: 12, color: 'var(--danger, #9E2B32)', marginTop: 4 }}>{discountError}</p>
                   )}
                 </>
               )}
@@ -2096,7 +2096,7 @@ export default function BookingPage() {
             </div>
             {/* Photo consent */}
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 20,
-              padding: '12px 14px', borderRadius: 10, background: 'var(--bg-subtle, #FDFCFB)',
+              padding: '12px 14px', borderRadius: 10, background: 'var(--bg-subtle, #ede7e3)',
               border: '1px solid var(--border-light)', cursor: 'pointer', fontSize: 13,
               color: 'var(--text-secondary)', lineHeight: 1.5,
             }}>
@@ -2111,7 +2111,7 @@ export default function BookingPage() {
               </span>
             </label>
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 20,
-              padding: '12px 14px', borderRadius: 10, background: 'var(--bg-subtle, #FDFCFB)',
+              padding: '12px 14px', borderRadius: 10, background: 'var(--bg-subtle, #ede7e3)',
               border: '1px solid var(--border-light)', cursor: 'pointer', fontSize: 13,
               color: 'var(--text-secondary)', lineHeight: 1.5,
             }}>
@@ -2139,7 +2139,7 @@ export default function BookingPage() {
               return (
                 <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55,
                   margin: '0 0 16px', padding: '10px 14px', borderRadius: 10,
-                  background: 'var(--bg-subtle, #FDFCFB)', border: '1px solid var(--border-light)',
+                  background: 'var(--bg-subtle, #ede7e3)', border: '1px solid var(--border-light)',
                 }}>
                   Cancellation policy: free to cancel or move your appointment up to {notice} hours before.
                   {lateP > 0
@@ -2153,7 +2153,7 @@ export default function BookingPage() {
             {beautician?.booking_policy?.cancellation_message && (
               <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55, fontStyle: 'italic', whiteSpace: 'pre-line',
                 margin: '0 0 16px', padding: '10px 14px', borderRadius: 10,
-                background: 'var(--bg-subtle, #FDFCFB)', border: '1px solid var(--border-light)',
+                background: 'var(--bg-subtle, #ede7e3)', border: '1px solid var(--border-light)',
               }}>
                 {beautician.booking_policy.cancellation_message}
               </p>
@@ -2401,10 +2401,10 @@ const styles = {
   form: { display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 },
   input: {
     padding: '14px 16px', borderRadius: 10, border: '1.5px solid var(--border)',
-    fontSize: 15, fontFamily: 'inherit', outline: 'none', color: 'var(--text-primary)', background: 'var(--bg-subtle, #FDFCFB)'
+    fontSize: 15, fontFamily: 'inherit', outline: 'none', color: 'var(--text-primary)', background: 'var(--bg-subtle, #ede7e3)'
   },
   summaryCard: {
-    background: 'var(--bg-subtle, #FDFCFB)', borderRadius: 12, padding: '4px 18px',
+    background: 'var(--bg-subtle, #ede7e3)', borderRadius: 12, padding: '4px 18px',
     marginBottom: 16, border: '1px solid var(--border)'
   },
   summaryRow: {

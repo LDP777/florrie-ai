@@ -24,9 +24,9 @@ const CATEGORIES = [
 ];
 
 const STATUS_CFG = {
-  ok: { label: 'In Stock', bg: 'var(--success-bg, #E8F5E9)', color: 'var(--success, #5BA97B)' },
-  low: { label: 'Low Stock', bg: 'var(--warning-bg, #FFF5E6)', color: 'var(--warning, #FF9800)' },
-  out: { label: 'Out of Stock', bg: 'var(--danger-bg, #FDF0EF)', color: 'var(--danger, #F44336)' },
+  ok: { label: 'In Stock', bg: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #3F7D5C)' },
+  low: { label: 'Low Stock', bg: 'var(--warning-bg, #F7EEDD)', color: 'var(--warning, #8A6420)' },
+  out: { label: 'Out of Stock', bg: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger, #9E2B32)' },
 };
 
 export default function ProductInventory() {
@@ -174,7 +174,7 @@ export default function ProductInventory() {
               <label style={S.fLabel}>Category</label>
               <div style={S.catGrid}>
                 {CATEGORIES.filter(c => c.key !== 'all').map(c => (
-                  <button key={c.key} style={{ ...S.catBtn, ...(newProduct.category === c.key ? { background: 'var(--accent, #C76B8A)', color: '#fff' } : {}) }} onClick={() => setNewProduct(p => ({ ...p, category: c.key }))}>{c.label}</button>
+                  <button key={c.key} style={{ ...S.catBtn, ...(newProduct.category === c.key ? { background: 'var(--accent, #92405e)', color: '#fff' } : {}) }} onClick={() => setNewProduct(p => ({ ...p, category: c.key }))}>{c.label}</button>
                 ))}
               </div>
               <label style={S.fLabel}>Current Quantity</label>
@@ -222,12 +222,12 @@ export default function ProductInventory() {
           <span style={S.summaryNum}>{products.length}</span>
           <span style={S.summaryLabel}>Products</span>
         </div>
-        <div style={{ ...S.summaryCard, ...(lowCount > 0 ? { border: '1px solid var(--warning, #FF9800)' } : {}) }}>
-          <span style={{ ...S.summaryNum, color: 'var(--warning, #FF9800)' }}>{lowCount}</span>
+        <div style={{ ...S.summaryCard, ...(lowCount > 0 ? { border: '1px solid var(--warning, #8A6420)' } : {}) }}>
+          <span style={{ ...S.summaryNum, color: 'var(--warning, #8A6420)' }}>{lowCount}</span>
           <span style={S.summaryLabel}>Low Stock</span>
         </div>
-        <div style={{ ...S.summaryCard, ...(outCount > 0 ? { border: '1px solid var(--danger, #F44336)' } : {}) }}>
-          <span style={{ ...S.summaryNum, color: 'var(--danger, #F44336)' }}>{outCount}</span>
+        <div style={{ ...S.summaryCard, ...(outCount > 0 ? { border: '1px solid var(--danger, #9E2B32)' } : {}) }}>
+          <span style={{ ...S.summaryNum, color: 'var(--danger, #9E2B32)' }}>{outCount}</span>
           <span style={S.summaryLabel}>Out</span>
         </div>
         <div style={S.summaryCard}>
@@ -241,8 +241,8 @@ export default function ProductInventory() {
         <div style={S.alertCard}>
           <span style={S.alertIcon}>⚠️</span>
           <div style={S.alertText}>
-            {outCount > 0 && <span style={{ color: 'var(--danger, #F44336)', fontWeight: 600, fontSize: 13 }}>{outCount} product{outCount !== 1 ? 's' : ''} out of stock. </span>}
-            {lowCount > 0 && <span style={{ color: 'var(--warning, #FF9800)', fontWeight: 600, fontSize: 13 }}>{lowCount} running low.</span>}
+            {outCount > 0 && <span style={{ color: 'var(--danger, #9E2B32)', fontWeight: 600, fontSize: 13 }}>{outCount} product{outCount !== 1 ? 's' : ''} out of stock. </span>}
+            {lowCount > 0 && <span style={{ color: 'var(--warning, #8A6420)', fontWeight: 600, fontSize: 13 }}>{lowCount} running low.</span>}
           </div>
         </div>
       )}
@@ -314,13 +314,13 @@ export default function ProductInventory() {
                     {prod.retailPrice && (
                       <div style={S.detailItem}>
                         <span style={S.detailLabel}>Retail Price</span>
-                        <span style={{ ...S.detailValue, color: 'var(--accent, #C76B8A)' }}>{fmt(prod.retailPrice)}</span>
+                        <span style={{ ...S.detailValue, color: 'var(--accent, #92405e)' }}>{fmt(prod.retailPrice)}</span>
                       </div>
                     )}
                     {prod.retailPrice && (
                       <div style={S.detailItem}>
                         <span style={S.detailLabel}>Margin</span>
-                        <span style={{ ...S.detailValue, color: 'var(--success, #5BA97B)' }}>{Math.round(((prod.retailPrice - prod.costPer) / prod.retailPrice) * 100)}%</span>
+                        <span style={{ ...S.detailValue, color: 'var(--success, #3F7D5C)' }}>{Math.round(((prod.retailPrice - prod.costPer) / prod.retailPrice) * 100)}%</span>
                       </div>
                     )}
                   </div>
@@ -333,7 +333,7 @@ export default function ProductInventory() {
                   </div>
 
                   <div style={S.actionRow}>
-                    <button style={{ ...S.actionBtn, background: 'var(--accent, #C76B8A)', color: '#fff' }} onClick={(e) => { e.stopPropagation(); handleRestock(prod); }}>Restock</button>
+                    <button style={{ ...S.actionBtn, background: 'var(--accent, #92405e)', color: '#fff' }} onClick={(e) => { e.stopPropagation(); handleRestock(prod); }}>Restock</button>
                     <button style={S.actionBtn} onClick={(e) => { e.stopPropagation(); handleAdjustQty(prod); }}>Adjust Qty</button>
                     <button style={S.actionBtn} onClick={(e) => { e.stopPropagation(); openEdit(prod); }}>Edit</button>
                   </div>
@@ -361,7 +361,7 @@ export default function ProductInventory() {
               <label style={S.fLabel}>Category</label>
               <div style={S.catGrid}>
                 {CATEGORIES.filter(c => c.key !== 'all').map(c => (
-                  <button key={c.key} style={{ ...S.catBtn, ...(newProduct.category === c.key ? { background: 'var(--accent, #C76B8A)', color: '#fff' } : {}) }} onClick={() => setNewProduct(p => ({ ...p, category: c.key }))}>{c.label}</button>
+                  <button key={c.key} style={{ ...S.catBtn, ...(newProduct.category === c.key ? { background: 'var(--accent, #92405e)', color: '#fff' } : {}) }} onClick={() => setNewProduct(p => ({ ...p, category: c.key }))}>{c.label}</button>
                 ))}
               </div>
               <label style={S.fLabel}>Current Quantity</label>
@@ -394,49 +394,49 @@ function formatDate(d) {
 
 const S = {
   page: { padding: '20px 16px 100px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, var(--text-primary, #2D2A26))', margin: '0 0 16px' },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text, var(--text-primary, #241B17))', margin: '0 0 16px' },
   summaryRow: { display: 'flex', gap: 6, marginBottom: 12 },
-  summaryCard: { flex: 1, background: 'var(--card, #fff)', borderRadius: 12, padding: '12px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
-  summaryNum: { fontSize: 18, fontWeight: 700, color: 'var(--accent, #C76B8A)' },
-  summaryLabel: { fontSize: 10, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontWeight: 500 },
-  alertCard: { background: 'var(--warning-bg, #FFF5E6)', borderRadius: 12, padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12 },
+  summaryCard: { flex: 1, background: 'var(--card, #FFFCF9)', borderRadius: 12, padding: '12px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
+  summaryNum: { fontSize: 18, fontWeight: 700, color: 'var(--accent, #92405e)' },
+  summaryLabel: { fontSize: 10, color: 'var(--text-muted, var(--text-muted, #6B5D54))', fontWeight: 500 },
+  alertCard: { background: 'var(--warning-bg, #F7EEDD)', borderRadius: 12, padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12 },
   alertIcon: { fontSize: 18 },
   alertText: { flex: 1 },
   filterRow: { display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 10, paddingBottom: 4 },
-  filterChip: { padding: '7px 14px', borderRadius: 20, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 600, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
-  filterChipActive: { background: 'var(--accent, #C76B8A)', color: '#fff', border: '1px solid var(--accent, #C76B8A)' },
+  filterChip: { padding: '7px 14px', borderRadius: 20, border: '1px solid var(--border, var(--border, #E8DDD4))', background: 'var(--card, #FFFCF9)', fontSize: 12, fontWeight: 600, color: 'var(--text-muted, var(--text-muted, #6B5D54))', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  filterChipActive: { background: 'var(--accent, #92405e)', color: '#fff', border: '1px solid var(--accent, #92405e)' },
   sortRow: { display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 },
-  sortLabel: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontWeight: 600 },
-  sortBtn: { padding: '5px 12px', borderRadius: 8, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--card, #fff)', fontSize: 11, fontWeight: 600, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', cursor: 'pointer', fontFamily: 'inherit' },
-  sortBtnActive: { background: 'var(--accent-light, #F0E6ED)', color: 'var(--accent, #C76B8A)', border: '1px solid var(--accent, #C76B8A)20' },
+  sortLabel: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #6B5D54))', fontWeight: 600 },
+  sortBtn: { padding: '5px 12px', borderRadius: 8, border: '1px solid var(--border, var(--border, #E8DDD4))', background: 'var(--card, #FFFCF9)', fontSize: 11, fontWeight: 600, color: 'var(--text-muted, var(--text-muted, #6B5D54))', cursor: 'pointer', fontFamily: 'inherit' },
+  sortBtnActive: { background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)', border: '1px solid var(--accent, #92405e)20' },
   list: { display: 'flex', flexDirection: 'column', gap: 8 },
-  card: { background: 'var(--card, #fff)', borderRadius: 14, padding: 14, cursor: 'pointer' },
+  card: { background: 'var(--card, #FFFCF9)', borderRadius: 14, padding: 14, cursor: 'pointer' },
   cardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
   cardLeft: { display: 'flex', gap: 10, alignItems: 'center', flex: 1, minWidth: 0 },
   cardInfo: { display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 },
-  cardName: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  cardMeta: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #B5AFA8))' },
+  cardName: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #241B17))', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  cardMeta: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #6B5D54))' },
   statusBadge: { padding: '3px 10px', borderRadius: 8, fontSize: 10, fontWeight: 600, flexShrink: 0 },
-  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, var(--border, #EDE9E4))' },
+  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, var(--border, #E8DDD4))' },
   detailGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 10 },
   detailItem: { display: 'flex', flexDirection: 'column', gap: 2 },
-  detailLabel: { fontSize: 11, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', fontWeight: 600 },
-  detailValue: { fontSize: 13, fontWeight: 600, color: 'var(--text, var(--text-primary, #2D2A26))' },
+  detailLabel: { fontSize: 11, color: 'var(--text-muted, var(--text-muted, #6B5D54))', fontWeight: 600 },
+  detailValue: { fontSize: 13, fontWeight: 600, color: 'var(--text, var(--text-primary, #241B17))' },
   stockBar: { marginBottom: 10 },
-  stockTrack: { height: 6, borderRadius: 3, background: 'var(--border, var(--border, #EDE9E4))', overflow: 'hidden' },
+  stockTrack: { height: 6, borderRadius: 3, background: 'var(--border, var(--border, #E8DDD4))', overflow: 'hidden' },
   stockFill: { height: '100%', borderRadius: 3, transition: 'width .3s' },
   actionRow: { display: 'flex', gap: 8 },
-  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
-  fab: { position: 'fixed', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)', left: 20, width: 52, height: 52, borderRadius: 26, background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 26, border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(199,107,138,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit', zIndex: 50 },
+  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, var(--border, #E8DDD4))', background: 'var(--card, #FFFCF9)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #241B17)' },
+  fab: { position: 'fixed', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)', left: 20, width: 52, height: 52, borderRadius: 26, background: 'var(--accent, #92405e)', color: '#fff', fontSize: 26, border: 'none', cursor: 'pointer', boxShadow: '0 4px 12px rgba(199,107,138,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit', zIndex: 50 },
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
-  modal: { background: 'var(--bg, var(--bg, #FAF8F5))', borderRadius: '18px 18px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', overflow: 'auto', padding: '20px 16px 32px' },
+  modal: { background: 'var(--bg, var(--bg, #FBF6F1))', borderRadius: '18px 18px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', overflow: 'auto', padding: '20px 16px 32px' },
   modalHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text, var(--text-primary, #2D2A26))', margin: 0 },
-  closeBtn: { background: 'none', border: 'none', fontSize: 18, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', cursor: 'pointer' },
+  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text, var(--text-primary, #241B17))', margin: 0 },
+  closeBtn: { background: 'none', border: 'none', fontSize: 18, color: 'var(--text-muted, var(--text-muted, #6B5D54))', cursor: 'pointer' },
   formBody: { display: 'flex', flexDirection: 'column', gap: 10 },
-  fLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', marginTop: 4 },
-  input: { padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, #EDE9E4))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, var(--text-primary, #2D2A26))', background: 'var(--card, #fff)' },
+  fLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-muted, var(--text-muted, #6B5D54))', marginTop: 4 },
+  input: { padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, var(--border, #E8DDD4))', fontSize: 14, fontFamily: 'inherit', color: 'var(--text, var(--text-primary, #241B17))', background: 'var(--card, #FFFCF9)' },
   catGrid: { display: 'flex', flexWrap: 'wrap', gap: 6 },
-  catBtn: { padding: '7px 14px', borderRadius: 8, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--card, #fff)', fontSize: 12, fontWeight: 600, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', cursor: 'pointer', fontFamily: 'inherit' },
-  saveBtn: { marginTop: 16, width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  catBtn: { padding: '7px 14px', borderRadius: 8, border: '1px solid var(--border, var(--border, #E8DDD4))', background: 'var(--card, #FFFCF9)', fontSize: 12, fontWeight: 600, color: 'var(--text-muted, var(--text-muted, #6B5D54))', cursor: 'pointer', fontFamily: 'inherit' },
+  saveBtn: { marginTop: 16, width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #92405e)', color: '#fff', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
 };

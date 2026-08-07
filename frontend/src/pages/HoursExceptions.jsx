@@ -27,7 +27,7 @@ const QUICK_REASONS = [
 ];
 
 const TYPE_CFG = {
-  closed:   { label: 'Day off',        color: '#E57373', bg: 'var(--danger-bg, #FEF2F2)', dot: '#E57373' },
+  closed:   { label: 'Day off',        color: '#E57373', bg: 'var(--danger-bg, #F7E4E4)', dot: '#E57373' },
   amended:  { label: 'Changed hours',  color: '#F59E0B', bg: '#FFF8E1', dot: '#F59E0B' },
   extended: { label: 'Extra hours',    color: '#5BA97B', bg: '#E8F5E9', dot: '#5BA97B' },
 };
@@ -300,7 +300,7 @@ export default function HoursExceptions() {
         <span style={S.rangeModeLabel}>Holiday / multi-day block</span>
         <button
           onClick={() => { setRangeMode(p => !p); setSelectedDate(null); setRangeStart(null); setRangeEnd(null); }}
-          style={{ ...S.rangeToggle, background: rangeMode ? 'var(--accent, #C76B8A)' : 'var(--border-light, #EDE9E4)' }}
+          style={{ ...S.rangeToggle, background: rangeMode ? 'var(--accent, #92405e)' : 'var(--border-light, #ede7e3)' }}
         >
           <div style={{ ...S.rangeToggleDot, transform: rangeMode ? 'translateX(18px)' : 'translateX(2px)' }} />
         </button>
@@ -336,14 +336,14 @@ export default function HoursExceptions() {
               const dayNum   = parseInt(dateStr.slice(8), 10);
 
               let bg = 'transparent';
-              let textColor = isPast ? '#C8C3BE' : 'var(--text-primary, #2D2A26)';
+              let textColor = isPast ? '#C8C3BE' : 'var(--text-primary, #241B17)';
               let border = 'none';
               let dotColor = null;
 
               if (exc) dotColor = TYPE_CFG[exc.type]?.dot || '#E57373';
               if (inRange) bg = '#FBE8EF';
-              if (isSel)   { bg = 'var(--accent, #C76B8A)'; textColor = '#fff'; }
-              if (isToday && !isSel) { border = '2px solid var(--accent, #C76B8A)'; }
+              if (isSel)   { bg = 'var(--accent, #92405e)'; textColor = '#fff'; }
+              if (isToday && !isSel) { border = '2px solid var(--accent, #92405e)'; }
 
               return (
                 <button
@@ -398,9 +398,9 @@ export default function HoursExceptions() {
                 key={k}
                 onClick={() => setBlockType(k)}
                 style={{ ...S.typeBtn,
-                  background: blockType === k ? v.bg : 'var(--bg-card, #fff)',
-                  borderColor: blockType === k ? v.color : 'var(--border-light, #EDE9E4)',
-                  color: blockType === k ? v.color : '#8A8580',
+                  background: blockType === k ? v.bg : 'var(--bg-card, #FFFCF9)',
+                  borderColor: blockType === k ? v.color : 'var(--border-light, #ede7e3)',
+                  color: blockType === k ? v.color : 'var(--text-muted)',
                 }}
               >
                 {v.label}
@@ -455,7 +455,7 @@ export default function HoursExceptions() {
             </div>
             <button
               onClick={() => setNotifyClients(p => !p)}
-              style={{ ...S.toggle, background: notifyClients ? 'var(--accent, #C76B8A)' : 'var(--border-light, #EDE9E4)' }}
+              style={{ ...S.toggle, background: notifyClients ? 'var(--accent, #92405e)' : 'var(--border-light, #ede7e3)' }}
             >
               <div style={{ ...S.toggleDot, transform: notifyClients ? 'translateX(18px)' : 'translateX(2px)' }} />
             </button>
@@ -471,10 +471,10 @@ export default function HoursExceptions() {
       {/* ── Upcoming exceptions ── */}
       <h3 style={S.sectionTitle}>Coming up ({upcoming.length})</h3>
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted, #B5AFA8)', fontSize: 13 }}>Loading…</div>
+        <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted, #6B5D54)', fontSize: 13 }}>Loading…</div>
       ) : upcoming.length === 0 ? (
         <div style={S.emptyCard}>
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted, #B5AFA8)' }}>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted, #6B5D54)' }}>
             No upcoming blocks - your regular hours are live.
           </p>
         </div>
@@ -511,7 +511,7 @@ export default function HoursExceptions() {
       {/* ── Past (collapsed) ── */}
       {past.length > 0 && (
         <>
-          <h3 style={{ ...S.sectionTitle, color: 'var(--text-muted, #B5AFA8)', marginTop: 24 }}>Past ({past.length})</h3>
+          <h3 style={{ ...S.sectionTitle, color: 'var(--text-muted, #6B5D54)', marginTop: 24 }}>Past ({past.length})</h3>
           <div style={S.excList}>
             {past.slice(0, 4).map(exc => (
               <div key={exc.id} style={{ ...S.excCard, opacity: 0.5 }}>
@@ -534,12 +534,12 @@ export default function HoursExceptions() {
 const S = {
   page: {
     minHeight: '100vh',
-    background: 'var(--bg, #FAF8F5)',
+    background: 'var(--bg, #FBF6F1)',
     fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
     padding: '0 16px var(--scroll-pad-bottom)',
     maxWidth: 480,
     margin: '0 auto',
-    color: 'var(--text-primary, #2D2A26)',
+    color: 'var(--text-primary, #241B17)',
   },
 
   header: {
@@ -550,11 +550,11 @@ const S = {
     alignItems: 'flex-start',
   },
   title:    { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
-  subtitle: { fontSize: 13, color: 'var(--accent, #C76B8A)', margin: 0, fontWeight: 500 },
+  subtitle: { fontSize: 13, color: 'var(--accent, #92405e)', margin: 0, fontWeight: 500 },
 
   upcomingBubble: {
     display: 'flex', flexDirection: 'column', alignItems: 'center',
-    background: 'var(--accent, #C76B8A)', borderRadius: 12,
+    background: 'var(--accent, #92405e)', borderRadius: 12,
     padding: '6px 12px', minWidth: 48,
   },
   upcomingNum: { fontSize: 18, fontWeight: 700, color: '#fff', lineHeight: 1 },
@@ -562,7 +562,7 @@ const S = {
 
   // Next-off hero card
   nextCard: {
-    background: 'linear-gradient(135deg, var(--accent, #C76B8A) 0%, #E8A0B5 100%)',
+    background: 'linear-gradient(135deg, var(--accent, #92405e) 0%, #E8A0B5 100%)',
     borderRadius: 16, padding: '14px 16px', marginBottom: 14, color: '#fff',
   },
   nextTag:  { display: 'block', fontSize: 10, opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 },
@@ -580,26 +580,26 @@ const S = {
     background: '#F5F2EF', color: '#5A5550', fontSize: 20, cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
-  monthRange: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
+  monthRange: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
 
   // Range mode
   rangeModeRow: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    background: 'var(--bg-card, #fff)', borderRadius: 12, padding: '10px 14px',
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: '10px 14px',
     marginBottom: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
   },
-  rangeModeLabel: { fontSize: 13, fontWeight: 500, color: 'var(--text-primary, #2D2A26)' },
+  rangeModeLabel: { fontSize: 13, fontWeight: 500, color: 'var(--text-primary, #241B17)' },
   rangeToggle: {
     width: 44, height: 26, borderRadius: 13, border: 'none',
     cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0,
   },
   rangeToggleDot: {
-    width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #fff)',
+    width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #FFFCF9)',
     position: 'absolute', top: 2, transition: 'transform 0.2s',
     boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
   },
   rangeHint: {
-    fontSize: 13, color: 'var(--accent, #C76B8A)', fontWeight: 500,
+    fontSize: 13, color: 'var(--accent, #92405e)', fontWeight: 500,
     padding: '6px 12px', background: '#FBF0F3', borderRadius: 8,
     marginBottom: 10, textAlign: 'center',
   },
@@ -617,7 +617,7 @@ const S = {
   },
   dayHeaderCell: {
     textAlign: 'center', fontSize: 10, fontWeight: 600,
-    color: 'var(--text-muted, #B5AFA8)', textTransform: 'uppercase', letterSpacing: '0.04em',
+    color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', letterSpacing: '0.04em',
   },
   calGrid: {
     display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2,
@@ -640,11 +640,11 @@ const S = {
   },
   legendItem: { display: 'flex', alignItems: 'center', gap: 5 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendLabel: { fontSize: 11, color: '#8A8580' },
+  legendLabel: { fontSize: 11, color: 'var(--text-muted)' },
 
   // Quick-block panel
   quickPanel: {
-    background: 'var(--bg-card, #fff)',
+    background: 'var(--bg-card, #FFFCF9)',
     borderRadius: 16, padding: 16,
     boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
     marginBottom: 20, border: '1.5px solid #F0ECE8',
@@ -653,10 +653,10 @@ const S = {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     marginBottom: 12,
   },
-  quickPanelDate: { fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #2D2A26)' },
+  quickPanelDate: { fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #241B17)' },
   closeBtn: {
     width: 28, height: 28, borderRadius: 14, border: 'none',
-    background: '#F5F2EF', color: '#8A8580', fontSize: 12,
+    background: '#F5F2EF', color: 'var(--text-muted)', fontSize: 12,
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
 
@@ -675,70 +675,70 @@ const S = {
   },
 
   timeRow: { display: 'flex', gap: 10, marginBottom: 12 },
-  timeLabel: { display: 'block', fontSize: 11, color: 'var(--text-muted, #B5AFA8)', marginBottom: 4 },
+  timeLabel: { display: 'block', fontSize: 11, color: 'var(--text-muted, #6B5D54)', marginBottom: 4 },
   timeInput: {
     width: '100%', padding: '9px 10px', borderRadius: 8,
-    border: '1.5px solid var(--border-light, #EDE9E4)', fontSize: 14, fontFamily: 'inherit',
+    border: '1.5px solid var(--border-light, #ede7e3)', fontSize: 14, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box',
   },
 
   noteInput: {
     width: '100%', padding: '10px 12px', borderRadius: 8,
-    border: '1.5px solid var(--border-light, #EDE9E4)', fontSize: 13, fontFamily: 'inherit',
+    border: '1.5px solid var(--border-light, #ede7e3)', fontSize: 13, fontFamily: 'inherit',
     outline: 'none', boxSizing: 'border-box', marginBottom: 12,
-    color: 'var(--text-primary, #2D2A26)',
+    color: 'var(--text-primary, #241B17)',
   },
 
   notifyRow: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     padding: '8px 0', marginBottom: 12,
   },
-  notifyLabel: { display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-primary, #2D2A26)' },
-  notifyHint:  { display: 'block', fontSize: 11, color: 'var(--text-muted, #B5AFA8)', marginTop: 2 },
+  notifyLabel: { display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-primary, #241B17)' },
+  notifyHint:  { display: 'block', fontSize: 11, color: 'var(--text-muted, #6B5D54)', marginTop: 2 },
   toggle: {
     width: 44, height: 26, borderRadius: 13, border: 'none',
     cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0,
   },
   toggleDot: {
-    width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #fff)',
+    width: 22, height: 22, borderRadius: 11, background: 'var(--bg-card, #FFFCF9)',
     position: 'absolute', top: 2, transition: 'transform 0.2s',
     boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
   },
 
   saveBtn: {
     width: '100%', padding: '13px 0', borderRadius: 12, border: 'none',
-    background: 'var(--accent, #C76B8A)', color: '#fff', fontSize: 14, fontWeight: 700,
+    background: 'var(--accent, #92405e)', color: '#fff', fontSize: 14, fontWeight: 700,
     cursor: 'pointer', fontFamily: 'inherit', letterSpacing: '0.01em',
   },
 
   // Exceptions list
   sectionTitle: {
     fontSize: 14, fontWeight: 600, margin: '20px 0 10px',
-    color: 'var(--text-primary, #2D2A26)',
+    color: 'var(--text-primary, #241B17)',
   },
   excList: { display: 'flex', flexDirection: 'column', gap: 8 },
   excCard: {
     display: 'flex', alignItems: 'center', gap: 12,
-    background: 'var(--bg-card, #fff)', borderRadius: 12, padding: '12px 12px',
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: '12px 12px',
     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
   },
   excDotLarge: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
   excTopRow:   { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
-  excDate:     { fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
+  excDate:     { fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
   excBadge:    { padding: '2px 7px', borderRadius: 5, fontSize: 10, fontWeight: 600, flexShrink: 0 },
-  excTimes:    { display: 'block', fontSize: 11, color: '#8A8580', marginBottom: 2 },
+  excTimes:    { display: 'block', fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 },
   excMeta:     { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
-  excAway:     { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
-  excNote:     { fontSize: 12, color: '#8A8580' },
-  notifyTag:   { display: 'block', fontSize: 10, color: 'var(--success, #5BA97B)', marginTop: 3 },
+  excAway:     { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
+  excNote:     { fontSize: 12, color: 'var(--text-muted)' },
+  notifyTag:   { display: 'block', fontSize: 10, color: 'var(--success, #3F7D5C)', marginTop: 3 },
   deleteBtn: {
     width: 26, height: 26, borderRadius: 13, border: 'none',
-    background: 'var(--danger-bg, #FEF2F2)', color: '#E57373', fontSize: 12, flexShrink: 0,
+    background: 'var(--danger-bg, #F7E4E4)', color: '#E57373', fontSize: 12, flexShrink: 0,
     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
 
   emptyCard: {
-    background: 'var(--bg-card, #fff)', borderRadius: 12, padding: '20px 16px',
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: '20px 16px',
     textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
   },
 };

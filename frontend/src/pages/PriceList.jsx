@@ -264,7 +264,7 @@ export default function PriceList() {
               <h3 style={S.sectionTitle}>Options</h3>
               <div style={S.optionRow} onClick={() => setShowNotes(!showNotes)}>
                 <span style={S.optionLabel}>Show treatment descriptions</span>
-                <div style={{ ...S.toggle, background: showNotes ? 'var(--accent, #C76B8A)' : 'var(--border, #D0CBC5)' }}>
+                <div style={{ ...S.toggle, background: showNotes ? 'var(--accent, #92405e)' : 'var(--border, #E8DDD4)' }}>
                   <div style={{ ...S.toggleDot, transform: showNotes ? 'translateX(18px)' : 'translateX(2px)' }} />
                 </div>
               </div>
@@ -286,7 +286,7 @@ export default function PriceList() {
                   >
                     <span style={S.treatmentToggleName}>{item.name}</span>
                     <div style={S.treatmentToggleRight}>
-                      <span style={{ ...S.treatmentTogglePrice, color: 'var(--accent, #C76B8A)' }}>{fmt(item.price_cents)}</span>
+                      <span style={{ ...S.treatmentTogglePrice, color: 'var(--accent, #92405e)' }}>{fmt(item.price_cents)}</span>
                       <span style={{ fontSize: 14 }}>{isHidden ? '👁️‍🗨️' : '✓'}</span>
                     </div>
                   </button>
@@ -353,31 +353,31 @@ const S = {
     padding: '20px 16px 100px',
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)",
     maxWidth: 480, margin: '0 auto',
-    color: 'var(--text-primary, #2D2A26)',
+    color: 'var(--text-primary, #241B17)',
   },
   title: {
     fontSize: 22, fontWeight: 700,
-    color: 'var(--text-primary, #2D2A26)',
+    color: 'var(--text-primary, #241B17)',
     margin: '0 0 16px',
     fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
   },
 
   // Empty state
   emptyWrap: { textAlign: 'center', padding: '48px 20px' },
-  emptyText: { fontSize: 14, color: 'var(--text-muted, #AAA5A0)', lineHeight: 1.5, maxWidth: 280, margin: '12px auto 0' },
+  emptyText: { fontSize: 14, color: 'var(--text-muted, #6B5D54)', lineHeight: 1.5, maxWidth: 280, margin: '12px auto 0' },
 
   // Tabs
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
   tab: {
     flex: 1, padding: '10px 0', border: 'none', borderRadius: 10,
-    background: 'var(--bg-card, #fff)', color: 'var(--text-muted, #AAA5A0)',
+    background: 'var(--bg-card, #FFFCF9)', color: 'var(--text-muted, #6B5D54)',
     fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     boxShadow: 'var(--shadow-xs)',
   },
-  tabActive: { background: 'var(--accent, #C76B8A)', color: '#fff' },
+  tabActive: { background: 'var(--accent, #92405e)', color: '#fff' },
 
   // Preview
-  previewCard: { borderRadius: 16, padding: 20, marginBottom: 16, border: '1px solid var(--border, #EDE9E4)' },
+  previewCard: { borderRadius: 16, padding: 20, marginBottom: 16, border: '1px solid var(--border, #E8DDD4)' },
   previewHeader: { textAlign: 'center', marginBottom: 20 },
   previewBrand: {
     fontSize: 24, fontWeight: 700, margin: '0 0 4px',
@@ -386,7 +386,7 @@ const S = {
   previewSub: { fontSize: 13, margin: 0 },
   catFilterRow: { display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 16, paddingBottom: 4 },
   catChip: {
-    padding: '5px 12px', borderRadius: 20, border: '1px solid var(--border, #EDE9E4)',
+    padding: '5px 12px', borderRadius: 20, border: '1px solid var(--border, #E8DDD4)',
     background: 'transparent', fontSize: 11, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
   },
@@ -400,14 +400,14 @@ const S = {
   priceRight: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, flexShrink: 0 },
   priceAmount: { fontSize: 16, fontWeight: 700 },
   priceDuration: { fontSize: 11 },
-  previewFooter: { paddingTop: 16, borderTop: '1px solid var(--border, #EDE9E4)', textAlign: 'center' },
+  previewFooter: { paddingTop: 16, borderTop: '1px solid var(--border, #E8DDD4)', textAlign: 'center' },
   footerText: { fontSize: 11, margin: '0 0 8px', lineHeight: 1.3 },
   footerBrand: { fontSize: 11, fontWeight: 600, margin: 0 },
 
   // Customise
   section: { marginBottom: 16 },
   sectionTitle: {
-    fontSize: 14, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: '0 0 12px',
+    fontSize: 14, fontWeight: 700, color: 'var(--text-primary, #241B17)', margin: '0 0 12px',
     fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
   },
   themeRow: { display: 'flex', gap: 8, marginBottom: 20 },
@@ -417,67 +417,67 @@ const S = {
   },
   optionRow: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    background: 'var(--bg-card, #fff)', borderRadius: 12, padding: '12px 14px',
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: '12px 14px',
     marginBottom: 16, cursor: 'pointer',
-    border: '1px solid var(--border, #EDE9E4)',
+    border: '1px solid var(--border, #E8DDD4)',
   },
-  optionLabel: { fontSize: 14, fontWeight: 500, color: 'var(--text-primary, #2D2A26)' },
+  optionLabel: { fontSize: 14, fontWeight: 500, color: 'var(--text-primary, #241B17)' },
   toggle: { width: 42, height: 24, borderRadius: 12, position: 'relative', transition: 'background .2s' },
   toggleDot: {
     width: 20, height: 20, borderRadius: 10, background: '#fff',
     position: 'absolute', top: 2, transition: 'transform .2s',
     boxShadow: '0 1px 3px rgba(0,0,0,.2)',
   },
-  hint: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)', margin: '0 0 8px' },
+  hint: { fontSize: 12, color: 'var(--text-muted, #6B5D54)', margin: '0 0 8px' },
   treatmentToggle: {
     display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-    background: 'var(--bg-card, #fff)', borderRadius: 10, padding: '10px 12px',
-    marginBottom: 4, cursor: 'pointer', border: '1px solid var(--border, #EDE9E4)',
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 10, padding: '10px 12px',
+    marginBottom: 4, cursor: 'pointer', border: '1px solid var(--border, #E8DDD4)',
     width: '100%', fontFamily: 'inherit', textAlign: 'left',
     transition: 'opacity 0.15s',
     WebkitTapHighlightColor: 'transparent',
   },
-  treatmentToggleName: { fontSize: 13, color: 'var(--text-primary, #2D2A26)' },
+  treatmentToggleName: { fontSize: 13, color: 'var(--text-primary, #241B17)' },
   treatmentToggleRight: { display: 'flex', alignItems: 'center', gap: 8 },
   treatmentTogglePrice: { fontSize: 13, fontWeight: 600 },
 
   // Share
   shareCard: {
     display: 'flex', gap: 12, alignItems: 'center',
-    background: 'var(--bg-card, #fff)', borderRadius: 12, padding: '12px 14px',
-    marginBottom: 8, border: '1px solid var(--border, #EDE9E4)',
+    background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: '12px 14px',
+    marginBottom: 8, border: '1px solid var(--border, #E8DDD4)',
   },
   shareIcon: { fontSize: 22 },
   shareInfo: { flex: 1, display: 'flex', flexDirection: 'column', gap: 2 },
-  shareLabel: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
-  shareLink: { fontSize: 12, color: 'var(--accent, #C76B8A)', fontWeight: 500 },
-  shareSub: { fontSize: 12, color: 'var(--text-muted, #AAA5A0)' },
+  shareLabel: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
+  shareLink: { fontSize: 12, color: 'var(--accent, #92405e)', fontWeight: 500 },
+  shareSub: { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
   copyBtn: {
     padding: '8px 16px', borderRadius: 8, border: 'none',
-    background: 'var(--accent, #C76B8A)', color: '#fff',
+    background: 'var(--accent, #92405e)', color: '#fff',
     fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     minWidth: 64, transition: 'opacity 0.15s',
   },
 
   tipCard: {
-    background: 'var(--bg-subtle, #F9F7F4)', borderRadius: 12, padding: 14,
+    background: 'var(--bg-subtle, #ede7e3)', borderRadius: 12, padding: 14,
     display: 'flex', gap: 10, alignItems: 'flex-start', marginTop: 12,
-    border: '1px solid var(--border, #EDE9E4)',
+    border: '1px solid var(--border, #E8DDD4)',
   },
   tipIcon: { fontSize: 16, flexShrink: 0 },
-  tipText: { fontSize: 12, color: 'var(--text-secondary, #8B6F5E)', lineHeight: 1.4, margin: 0 },
+  tipText: { fontSize: 12, color: 'var(--text-secondary, #574A42)', lineHeight: 1.4, margin: 0 },
 
   // Toast
   toast: {
     position: 'fixed', bottom: 90, left: '50%', transform: 'translateX(-50%)',
     display: 'flex', alignItems: 'center', gap: 8,
-    background: 'var(--text-primary, #2D2A26)', color: '#fff',
+    background: 'var(--text-primary, #241B17)', color: '#fff',
     padding: '10px 20px', borderRadius: 12,
     boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
     zIndex: 9999, fontSize: 13, fontWeight: 500,
     animation: 'slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
   },
-  toastIcon: { fontSize: 14, color: 'var(--success, #4CAF50)' },
+  toastIcon: { fontSize: 14, color: 'var(--success, #3F7D5C)' },
   toastText: { whiteSpace: 'nowrap' },
 };

@@ -16,7 +16,7 @@ const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 
 const TYPE_CONFIG = {
   // Not the client's doing, so it does not wear the client's badge.
-  unpaid: { label: 'Deposit unpaid', icon: '\u{1F4B3}', bg: 'var(--bg-hover, #F5F2EF)', color: 'var(--text-secondary, #7A756F)' },
+  unpaid: { label: 'Deposit unpaid', icon: '\u{1F4B3}', bg: 'var(--bg-hover, #f3ede9)', color: 'var(--text-secondary, #574A42)' },
   'no-show': { label: 'No Show', bg: '#FFEBEE', color: '#F44336', icon: '✗' },
   'late-cancel': { label: 'Late Cancel', bg: '#FFF5E6', color: '#B8860B', icon: '⏰' },
   'cancelled': { label: 'Cancelled', bg: '#F0ECE8', color: '#8B6F5E', icon: '↩' },
@@ -138,7 +138,7 @@ export default function CancellationLog() {
     <div style={S.page}>
       <h1 style={S.title}>Cancellation Log</h1>
       {error && <div style={{ ...S.errorBanner, marginBottom: 16 }}>{error}</div>}
-      {loading && <p style={{ textAlign: 'center', color: 'var(--text-muted, #AAA5A0)' }}>Loading cancellations...</p>}
+      {loading && <p style={{ textAlign: 'center', color: 'var(--text-muted, #6B5D54)' }}>Loading cancellations...</p>}
 
       {/* Period filter */}
       <div style={S.periodRow}>
@@ -151,16 +151,16 @@ export default function CancellationLog() {
 
       {/* Stats */}
       <div style={S.statsGrid}>
-        <div style={{ ...S.statCard, borderLeft: '3px solid var(--danger, #F44336)' }}>
-          <span style={{ ...S.statValue, color: 'var(--danger, #F44336)' }}>{fmt(totalLost)}</span>
+        <div style={{ ...S.statCard, borderLeft: '3px solid var(--danger, #9E2B32)' }}>
+          <span style={{ ...S.statValue, color: 'var(--danger, #9E2B32)' }}>{fmt(totalLost)}</span>
           <span style={S.statLabel}>Revenue Lost</span>
         </div>
-        <div style={{ ...S.statCard, borderLeft: '3px solid var(--warning, #B8860B)' }}>
-          <span style={{ ...S.statValue, color: 'var(--warning, #B8860B)' }}>{noShows + lateCancels}</span>
+        <div style={{ ...S.statCard, borderLeft: '3px solid var(--warning, #8A6420)' }}>
+          <span style={{ ...S.statValue, color: 'var(--warning, #8A6420)' }}>{noShows + lateCancels}</span>
           <span style={S.statLabel}>No-shows + Late</span>
         </div>
-        <div style={{ ...S.statCard, borderLeft: '3px solid var(--success, #6B8F7B)' }}>
-          <span style={{ ...S.statValue, color: 'var(--success, #6B8F7B)' }}>{rebookRate}%</span>
+        <div style={{ ...S.statCard, borderLeft: '3px solid var(--success, #3F7D5C)' }}>
+          <span style={{ ...S.statValue, color: 'var(--success, #3F7D5C)' }}>{rebookRate}%</span>
           <span style={S.statLabel}>Rebooked</span>
         </div>
       </div>
@@ -275,19 +275,19 @@ export default function CancellationLog() {
             <div style={S.impactGrid}>
               <div style={S.impactItem}>
                 <span style={S.impactLabel}>Lost to no-shows</span>
-                <span style={{ ...S.impactValue, color: 'var(--danger, #F44336)' }}>{fmt(filtered.filter(c => c.type === 'no-show').reduce((s, c) => s + c.revenue_lost, 0))}</span>
+                <span style={{ ...S.impactValue, color: 'var(--danger, #9E2B32)' }}>{fmt(filtered.filter(c => c.type === 'no-show').reduce((s, c) => s + c.revenue_lost, 0))}</span>
               </div>
               <div style={S.impactItem}>
                 <span style={S.impactLabel}>Lost to late cancels</span>
-                <span style={{ ...S.impactValue, color: 'var(--warning, #B8860B)' }}>{fmt(filtered.filter(c => c.type === 'late-cancel').reduce((s, c) => s + c.revenue_lost, 0))}</span>
+                <span style={{ ...S.impactValue, color: 'var(--warning, #8A6420)' }}>{fmt(filtered.filter(c => c.type === 'late-cancel').reduce((s, c) => s + c.revenue_lost, 0))}</span>
               </div>
               <div style={S.impactItem}>
                 <span style={S.impactLabel}>Recovered via deposits</span>
-                <span style={{ ...S.impactValue, color: 'var(--success, #6B8F7B)' }}>{fmt(filtered.reduce((s, c) => s + c.deposit, 0))}</span>
+                <span style={{ ...S.impactValue, color: 'var(--success, #3F7D5C)' }}>{fmt(filtered.reduce((s, c) => s + c.deposit, 0))}</span>
               </div>
               <div style={S.impactItem}>
                 <span style={S.impactLabel}>Saved via rebooks</span>
-                <span style={{ ...S.impactValue, color: 'var(--success, #6B8F7B)' }}>{fmt(filtered.filter(c => c.rebooked).reduce((s, c) => s + c.revenue_lost, 0))}</span>
+                <span style={{ ...S.impactValue, color: 'var(--success, #3F7D5C)' }}>{fmt(filtered.filter(c => c.rebooked).reduce((s, c) => s + c.revenue_lost, 0))}</span>
               </div>
             </div>
           </div>
@@ -355,58 +355,58 @@ function computeNotice(cancelledAt, startsAt) {
 
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: '0 0 12px' },
-  errorBanner: { background: 'var(--danger-bg, #FDF0EF)', color: 'var(--danger, #D4605C)', padding: '10px 12px', borderRadius: 8, fontSize: 13 },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #241B17)', margin: '0 0 12px' },
+  errorBanner: { background: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger, #9E2B32)', padding: '10px 12px', borderRadius: 8, fontSize: 13 },
   periodRow: { display: 'flex', gap: 8, marginBottom: 16 },
-  periodChip: { padding: '6px 14px', borderRadius: 16, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--bg-card, #FFFFFF)', color: 'var(--text-secondary, #7A756F)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
-  periodActive: { background: 'var(--text-primary, #2D2A26)', color: 'var(--bg-card, #fff)', border: '1px solid var(--text-primary, #2D2A26)' },
+  periodChip: { padding: '6px 14px', borderRadius: 16, border: '1px solid var(--border, var(--border, #E8DDD4))', background: 'var(--bg-card, #FFFCF9)', color: 'var(--text-secondary, #574A42)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
+  periodActive: { background: 'var(--text-primary, #241B17)', color: 'var(--bg-card, #FFFCF9)', border: '1px solid var(--text-primary, #241B17)' },
   statsGrid: { display: 'flex', gap: 8, marginBottom: 16 },
-  statCard: { flex: 1, background: 'var(--bg-card, #FFFFFF)', borderRadius: 12, padding: '12px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
+  statCard: { flex: 1, background: 'var(--bg-card, #FFFCF9)', borderRadius: 12, padding: '12px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   statValue: { fontSize: 17, fontWeight: 700 },
-  statLabel: { fontSize: 10, color: 'var(--text-muted, #B5AFA8)' },
+  statLabel: { fontSize: 10, color: 'var(--text-muted, #6B5D54)' },
   tabs: { display: 'flex', gap: 8, marginBottom: 12 },
-  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--bg-card, #FFFFFF)', color: 'var(--text-muted, #B5AFA8)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)' },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--bg-card, #FFFCF9)', color: 'var(--text-muted, #6B5D54)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)' },
   filterRow: { display: 'flex', gap: 6, marginBottom: 12, overflowX: 'auto' },
-  filterChip: { padding: '6px 12px', borderRadius: 16, border: '1px solid var(--border, var(--border, #EDE9E4))', background: 'var(--bg-card, #FFFFFF)', color: 'var(--text-secondary, #7A756F)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
-  filterActive: { background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', border: '1px solid var(--accent, #C76B8A)' },
+  filterChip: { padding: '6px 12px', borderRadius: 16, border: '1px solid var(--border, var(--border, #E8DDD4))', background: 'var(--bg-card, #FFFCF9)', color: 'var(--text-secondary, #574A42)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  filterActive: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', border: '1px solid var(--accent, #92405e)' },
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
-  empty: { textAlign: 'center', color: 'var(--text-muted, #B5AFA8)', fontSize: 14, padding: 32 },
-  logCard: { background: 'var(--bg-card, #FFFFFF)', borderRadius: 14, padding: 14 },
+  empty: { textAlign: 'center', color: 'var(--text-muted, #6B5D54)', fontSize: 14, padding: 32 },
+  logCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 14 },
   logHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
   logLeft: { display: 'flex', gap: 10, alignItems: 'center' },
-  avatar: { width: 32, height: 32, borderRadius: 16, background: 'var(--accent-light, #F0E6ED)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: 'var(--accent, #C76B8A)', flexShrink: 0 },
+  avatar: { width: 32, height: 32, borderRadius: 16, background: 'var(--accent-light, #F6E7EC)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: 'var(--accent, #92405e)', flexShrink: 0 },
   logInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
-  logClient: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
-  logTreatment: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },
+  logClient: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
+  logTreatment: { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
   logRight: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 },
   typeBadge: { padding: '3px 8px', borderRadius: 8, fontSize: 11, fontWeight: 600 },
-  logDate: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
+  logDate: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
   logMeta: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 },
-  reasonTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--bg-hover, var(--bg-subtle, #F5F2EF))', color: 'var(--text-secondary, #7A756F)', fontSize: 11, fontStyle: 'italic' },
-  lostTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--danger-bg, #FDF0EF)', color: 'var(--danger, #D4605C)', fontSize: 11, fontWeight: 600 },
-  depositTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--success-bg, #EDF7F0)', color: 'var(--success, #5BA97B)', fontSize: 11, fontWeight: 500 },
-  noticeTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--border, var(--border, #EDE9E4))', color: 'var(--text-secondary, #7A756F)', fontSize: 11 },
-  rebookedTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--success-bg, #EDF7F0)', color: 'var(--success, #5BA97B)', fontSize: 11, fontWeight: 600 },
-  rebookBtn: { padding: '3px 10px', borderRadius: 6, background: 'var(--accent, #C76B8A)', color: 'var(--bg-card, #fff)', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  reasonTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--bg-hover, var(--bg-subtle, #ede7e3))', color: 'var(--text-secondary, #574A42)', fontSize: 11, fontStyle: 'italic' },
+  lostTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger, #9E2B32)', fontSize: 11, fontWeight: 600 },
+  depositTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #3F7D5C)', fontSize: 11, fontWeight: 500 },
+  noticeTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--border, var(--border, #E8DDD4))', color: 'var(--text-secondary, #574A42)', fontSize: 11 },
+  rebookedTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #3F7D5C)', fontSize: 11, fontWeight: 600 },
+  rebookBtn: { padding: '3px 10px', borderRadius: 6, background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   insightsContainer: { display: 'flex', flexDirection: 'column', gap: 12 },
-  card: { background: 'var(--bg-card, #FFFFFF)', borderRadius: 14, padding: 16 },
-  cardTitle: { fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: '0 0 12px' },
-  offenderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border, var(--border, #EDE9E4))' },
+  card: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 16 },
+  cardTitle: { fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #241B17)', margin: '0 0 12px' },
+  offenderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border, var(--border, #E8DDD4))' },
   offenderLeft: { display: 'flex', gap: 10, alignItems: 'center' },
-  offenderName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)', display: 'block' },
-  offenderDetail: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
+  offenderName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)', display: 'block' },
+  offenderDetail: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
   offenderBadge: { padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600 },
   dayRow: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 },
-  dayLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #7A756F)', width: 32 },
-  dayBarBg: { flex: 1, height: 8, borderRadius: 4, background: 'var(--border, var(--border, #EDE9E4))' },
-  dayBarFill: { height: 8, borderRadius: 4, background: 'var(--accent, #C76B8A)' },
-  dayCount: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)', width: 20, textAlign: 'right' },
+  dayLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #574A42)', width: 32 },
+  dayBarBg: { flex: 1, height: 8, borderRadius: 4, background: 'var(--border, var(--border, #E8DDD4))' },
+  dayBarFill: { height: 8, borderRadius: 4, background: 'var(--accent, #92405e)' },
+  dayCount: { fontSize: 12, color: 'var(--text-muted, #6B5D54)', width: 20, textAlign: 'right' },
   impactGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 },
   impactItem: { display: 'flex', flexDirection: 'column', gap: 2 },
-  impactLabel: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
+  impactLabel: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
   impactValue: { fontSize: 16, fontWeight: 700 },
-  tipCard: { background: 'var(--gold-light, #FDF8EE)', borderRadius: 12, padding: 14 },
-  tipTitle: { fontSize: 13, fontWeight: 600, color: 'var(--gold-text, #8A7245)' },
-  tipText: { fontSize: 12, color: 'var(--text-secondary, #7A756F)', lineHeight: 1.4, margin: '6px 0 0' },
+  tipCard: { background: 'var(--gold-light, #ffdea4)', borderRadius: 12, padding: 14 },
+  tipTitle: { fontSize: 13, fontWeight: 600, color: 'var(--gold-text, #795f2b)' },
+  tipText: { fontSize: 12, color: 'var(--text-secondary, #574A42)', lineHeight: 1.4, margin: '6px 0 0' },
 };

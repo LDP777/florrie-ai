@@ -60,8 +60,8 @@ function groupOf(status) {
 }
 
 function chipStyle(group) {
-  if (group === 'live') return { background: 'var(--success-bg, #EDF7F0)', color: 'var(--success, #2E7D6B)' };
-  if (group === 'attention') return { background: 'var(--danger-bg, #ffdad6)', color: 'var(--danger, #8A2A1C)' };
+  if (group === 'live') return { background: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #3F7D5C)' };
+  if (group === 'attention') return { background: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger, #9E2B32)' };
   return { background: '#FFF8E1', color: '#7B5E00' };
 }
 
@@ -468,7 +468,7 @@ const styles = {
   crumb: { marginBottom: 4 },
   crumbLink: {
     fontSize: 12,
-    color: 'var(--text-muted, #8A7A72)',
+    color: 'var(--text-muted, #6B5D54)',
     textDecoration: 'none',
     fontWeight: 500,
   },
@@ -481,7 +481,7 @@ const styles = {
   subtitle: {
     fontSize: 13.5,
     lineHeight: 1.55,
-    color: 'var(--text-secondary, #4D423D)',
+    color: 'var(--text-secondary, #574A42)',
     margin: '6px 0 0',
     maxWidth: 440,
   },
@@ -502,7 +502,7 @@ const styles = {
   // Starter pack
   packCard: {
     background: 'var(--accent-light, #F6E7EC)',
-    border: '1px solid var(--border, #ECD5DD)',
+    border: '1px solid var(--border, #E8DDD4)',
     borderRadius: 18,
     padding: '18px 18px 16px',
     marginBottom: 22,
@@ -524,13 +524,13 @@ const styles = {
   packDesc: {
     fontSize: 13.5,
     lineHeight: 1.6,
-    color: 'var(--text-secondary, #4D423D)',
+    color: 'var(--text-secondary, #574A42)',
     margin: '0 0 14px',
   },
   packPreviews: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 },
   packMore: {
     fontSize: 12,
-    color: 'var(--text-muted, #8A7A72)',
+    color: 'var(--text-muted, #6B5D54)',
     paddingLeft: 4,
   },
   packBtn: {
@@ -546,7 +546,7 @@ const styles = {
     fontFamily: 'inherit',
   },
   packResults: {
-    background: 'var(--bg-card, #fff)',
+    background: 'var(--bg-card, #FFFCF9)',
     borderRadius: 12,
     padding: '6px 12px',
   },
@@ -560,7 +560,7 @@ const styles = {
   },
   packNote: {
     fontSize: 12,
-    color: 'var(--text-muted, #8A7A72)',
+    color: 'var(--text-muted, #6B5D54)',
     padding: '8px 0 6px',
     borderTop: '1px solid var(--border-light, #ede7e3)',
   },
@@ -579,12 +579,12 @@ const styles = {
     fontWeight: 700,
     margin: 0,
   },
-  sectionHint: { fontSize: 12, color: 'var(--text-muted, #8A7A72)' },
+  sectionHint: { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
 
   // Cards
   card: {
-    background: 'var(--bg-card, #fff)',
+    background: 'var(--bg-card, #FFFCF9)',
     borderRadius: 16,
     border: '1px solid var(--border-light, #ede7e3)',
     padding: 14,
@@ -597,7 +597,7 @@ const styles = {
     marginBottom: 10,
   },
   cardName: { fontSize: 15.5, fontWeight: 700 },
-  cardBlurb: { fontSize: 12.5, color: 'var(--text-muted, #8A7A72)', marginTop: 2 },
+  cardBlurb: { fontSize: 12.5, color: 'var(--text-muted, #6B5D54)', marginTop: 2 },
   statusChip: {
     fontSize: 11,
     fontWeight: 700,
@@ -638,7 +638,7 @@ const styles = {
     borderRadius: 8,
     border: '1px solid var(--border-light, #ede7e3)',
     background: 'transparent',
-    color: 'var(--text-muted, #8A7A72)',
+    color: 'var(--text-muted, #6B5D54)',
     fontSize: 12,
     fontWeight: 600,
     cursor: 'pointer',
@@ -646,7 +646,7 @@ const styles = {
   },
 
   errorBanner: {
-    background: 'var(--danger-bg, #ffdad6)',
+    background: 'var(--danger-bg, #F7E4E4)',
     border: '1px solid #F5C6C0',
     borderRadius: 12,
     padding: 14,
@@ -654,7 +654,7 @@ const styles = {
     marginBottom: 12,
   },
   errorBox: {
-    background: 'var(--danger-bg, #ffdad6)',
+    background: 'var(--danger-bg, #F7E4E4)',
     border: '1px solid #F5C6C0',
     borderRadius: 10,
     padding: 10,
@@ -663,8 +663,8 @@ const styles = {
     marginBottom: 10,
   },
   emptyState: {
-    background: 'var(--bg-card, #fff)',
-    border: '1px dashed var(--border, #ECD5DD)',
+    background: 'var(--bg-card, #FFFCF9)',
+    border: '1px dashed var(--border, #E8DDD4)',
     borderRadius: 16,
     padding: 28,
     textAlign: 'center',
@@ -673,7 +673,7 @@ const styles = {
   emptyTitle: { fontSize: 16, fontWeight: 700, marginBottom: 6 },
   emptyDesc: {
     fontSize: 13,
-    color: 'var(--text-secondary, #4D423D)',
+    color: 'var(--text-secondary, #574A42)',
     lineHeight: 1.55,
     maxWidth: 380,
     margin: '0 auto',
@@ -690,7 +690,7 @@ const styles = {
     zIndex: 1000,
   },
   modal: {
-    background: 'var(--bg-card, #fff)',
+    background: 'var(--bg-card, #FFFCF9)',
     borderRadius: '20px 20px 0 0',
     width: '100%',
     maxWidth: 560,
@@ -716,33 +716,33 @@ const styles = {
     background: 'none',
     fontSize: 28,
     lineHeight: 1,
-    color: 'var(--text-muted, #8A7A72)',
+    color: 'var(--text-muted, #6B5D54)',
     cursor: 'pointer',
     padding: 4,
   },
   modalBody: { padding: 20, display: 'flex', flexDirection: 'column', gap: 14 },
   modalFooter: { display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 },
   fieldGroup: { display: 'flex', flexDirection: 'column', gap: 6 },
-  label: { fontSize: 12, fontWeight: 700, color: 'var(--text-secondary, #4D423D)' },
+  label: { fontSize: 12, fontWeight: 700, color: 'var(--text-secondary, #574A42)' },
   input: {
     width: '100%',
     padding: '11px 12px',
     borderRadius: 10,
-    border: '1.5px solid var(--border, #ECD5DD)',
+    border: '1.5px solid var(--border, #E8DDD4)',
     fontSize: 14,
     fontFamily: 'inherit',
     color: 'var(--text-primary, #241B17)',
-    background: 'var(--bg-input, #f8f2ef)',
+    background: 'var(--bg-input, #F4EDE6)',
     outline: 'none',
     boxSizing: 'border-box',
   },
-  helper: { fontSize: 11.5, color: 'var(--text-muted, #8A7A72)', lineHeight: 1.5 },
+  helper: { fontSize: 11.5, color: 'var(--text-muted, #6B5D54)', lineHeight: 1.5 },
   cancelBtn: {
     padding: '10px 16px',
     borderRadius: 10,
-    border: '1px solid var(--border, #ECD5DD)',
+    border: '1px solid var(--border, #E8DDD4)',
     background: 'var(--bg, #FBF6F1)',
-    color: 'var(--text-secondary, #4D423D)',
+    color: 'var(--text-secondary, #574A42)',
     fontSize: 13,
     fontWeight: 600,
     cursor: 'pointer',

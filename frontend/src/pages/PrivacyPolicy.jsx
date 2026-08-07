@@ -193,12 +193,12 @@ const s = {
   h1: {
     fontSize: 28,
     fontWeight: 700,
-    color: 'var(--text, #2D2A26)',
+    color: 'var(--text, #241B17)',
     margin: '0 0 8px',
   },
   meta: {
     fontSize: 13,
-    color: 'var(--text-muted, #B5AFA8)',
+    color: 'var(--text-muted, #6B5D54)',
     margin: '0 0 32px',
     fontStyle: 'italic',
   },
@@ -208,22 +208,22 @@ const s = {
   h2: {
     fontSize: 18,
     fontWeight: 600,
-    color: 'var(--text, #2D2A26)',
+    color: 'var(--text, #241B17)',
     margin: '0 0 12px',
   },
   p: {
     fontSize: 15,
-    color: 'var(--text-secondary, #7A756F)',
+    color: 'var(--text-secondary, #574A42)',
     margin: '0 0 12px',
   },
   list: {
     fontSize: 15,
-    color: 'var(--text-secondary, #7A756F)',
+    color: 'var(--text-secondary, #574A42)',
     margin: '12px 0 16px',
     paddingLeft: 24,
   },
   link: {
-    color: 'var(--accent, #C76B8A)',
+    color: 'var(--accent, #92405e)',
     textDecoration: 'none',
     fontWeight: 500,
   },

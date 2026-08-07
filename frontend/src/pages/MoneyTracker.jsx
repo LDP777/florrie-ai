@@ -1249,7 +1249,7 @@ export default function MoneyTracker() {
                       style={{ ...S.formInput, flex: 1 }}
                       autoFocus
                     />
-                    <button onClick={handleLogTip} style={{ ...S.btnPrimary, flex: 'none', padding: '11px 20px', background: 'var(--success, #5ba97b)' }}>
+                    <button onClick={handleLogTip} style={{ ...S.btnPrimary, flex: 'none', padding: '11px 20px', background: 'var(--success, #3F7D5C)' }}>
                       Save
                     </button>
                     <button onClick={() => { setShowLogTip(false); setTipAmount(''); }} style={{ ...S.btnGhost, flex: 'none' }}>
@@ -1509,8 +1509,8 @@ export default function MoneyTracker() {
               {newExpense.ocr_confidence > 0 && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6,
                   padding: '8px 12px', marginBottom: 12, borderRadius: 8,
-                  background: newExpense.ocr_confidence >= 0.8 ? 'var(--success-bg, #E8F5E9)' : 'var(--gold-light, #FDF8EE)',
-                  fontSize: 12, color: newExpense.ocr_confidence >= 0.8 ? 'var(--success, #5BA97B)' : 'var(--gold-text, #8A7245)',
+                  background: newExpense.ocr_confidence >= 0.8 ? 'var(--success-bg, #E9F0EB)' : 'var(--gold-light, #ffdea4)',
+                  fontSize: 12, color: newExpense.ocr_confidence >= 0.8 ? 'var(--success, #3F7D5C)' : 'var(--gold-text, #795f2b)',
                 }}>
                   <Icon name={newExpense.ocr_confidence >= 0.8 ? 'check' : 'alert-triangle'} size={14} />
                   <span>
@@ -2057,8 +2057,8 @@ export default function MoneyTracker() {
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t.period.start} to {t.period.end}</span>
 
                   {/* Year progress bar */}
-                  <div style={{ marginTop: 10, background: 'var(--border, #EDE9E4)', borderRadius: 4, height: 6, overflow: 'hidden' }}>
-                    <div style={{ width: `${Math.round(t.yearProgress * 100)}%`, height: '100%', background: 'var(--accent, #C76B8A)', borderRadius: 4, transition: 'width 0.3s ease' }} />
+                  <div style={{ marginTop: 10, background: 'var(--border, #E8DDD4)', borderRadius: 4, height: 6, overflow: 'hidden' }}>
+                    <div style={{ width: `${Math.round(t.yearProgress * 100)}%`, height: '100%', background: 'var(--accent, #92405e)', borderRadius: 4, transition: 'width 0.3s ease' }} />
                   </div>
                   <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>{Math.round(t.yearProgress * 100)}% through tax year</span>
                 </div>
@@ -2164,7 +2164,7 @@ export default function MoneyTracker() {
                       <h4 style={{ ...S.breakdownTitle, margin: 0 }}>VAT Threshold</h4>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Not registered</span>
                     </div>
-                    <div style={{ background: 'var(--border, #EDE9E4)', borderRadius: 4, height: 8, overflow: 'hidden', marginBottom: 6 }}>
+                    <div style={{ background: 'var(--border, #E8DDD4)', borderRadius: 4, height: 8, overflow: 'hidden', marginBottom: 6 }}>
                       <div style={{ width: `${t.vat.vatPct}%`, height: '100%', borderRadius: 4, transition: 'width 0.4s ease',
                         background: t.vat.vatPct >= 90 ? '#ef4444' : t.vat.vatPct >= 75 ? '#f59e0b' : '#22c55e',
                       }} />
@@ -2302,7 +2302,7 @@ export default function MoneyTracker() {
         >
           <div
             onClick={e => e.stopPropagation()}
-            style={{ width: '100%', maxWidth: 480, background: 'var(--bg-card, #fff)',
+            style={{ width: '100%', maxWidth: 480, background: 'var(--bg-card, #FFFCF9)',
               borderRadius: '18px 18px 0 0',
               padding: '20px 20px calc(28px + env(safe-area-inset-bottom, 8px))',
             }}
@@ -2320,7 +2320,7 @@ export default function MoneyTracker() {
                 onClick={handleDeleteExpense}
                 disabled={deleting}
                 style={{ flex: 1, padding: '13px 0', borderRadius: 12, border: 'none',
-                  background: 'var(--danger, #BA1A1A)', color: '#fff',
+                  background: 'var(--danger, #9E2B32)', color: '#fff',
                   fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
                   opacity: deleting ? 0.6 : 1,
                 }}
@@ -2330,7 +2330,7 @@ export default function MoneyTracker() {
               <button
                 onClick={() => setConfirmDeleteExp(null)}
                 style={{ flex: 1, padding: '13px 0', borderRadius: 12,
-                  border: '1.5px solid var(--border, #EDE9E4)', background: 'var(--bg-card, #fff)',
+                  border: '1.5px solid var(--border, #E8DDD4)', background: 'var(--bg-card, #FFFCF9)',
                   color: 'var(--text-primary)', fontSize: 14, fontWeight: 600,
                   cursor: 'pointer', fontFamily: 'inherit',
                 }}
@@ -2355,7 +2355,7 @@ export default function MoneyTracker() {
         >
           <div
             onClick={e => e.stopPropagation()}
-            style={{ width: '100%', maxWidth: 480, background: 'var(--bg-card, #fff)',
+            style={{ width: '100%', maxWidth: 480, background: 'var(--bg-card, #FFFCF9)',
               borderRadius: '18px 18px 0 0',
               padding: '20px 20px calc(28px + env(safe-area-inset-bottom, 8px))',
             }}
@@ -2371,7 +2371,7 @@ export default function MoneyTracker() {
               <button
                 onClick={handleDeleteRecurring}
                 style={{ flex: 1, padding: '13px 0', borderRadius: 12, border: 'none',
-                  background: 'var(--danger, #BA1A1A)', color: '#fff',
+                  background: 'var(--danger, #9E2B32)', color: '#fff',
                   fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
                   minHeight: 44,
                 }}
@@ -2381,7 +2381,7 @@ export default function MoneyTracker() {
               <button
                 onClick={() => setConfirmDeleteRule(null)}
                 style={{ flex: 1, padding: '13px 0', borderRadius: 12,
-                  border: '1.5px solid var(--border, #EDE9E4)', background: 'var(--bg-card, #fff)',
+                  border: '1.5px solid var(--border, #E8DDD4)', background: 'var(--bg-card, #FFFCF9)',
                   color: 'var(--text-primary)', fontSize: 14, fontWeight: 600,
                   cursor: 'pointer', fontFamily: 'inherit', minHeight: 44,
                 }}
@@ -2628,7 +2628,7 @@ const S = {
 
   noticeBar: {
     display: 'flex', alignItems: 'center', gap: 8,
-    background: 'var(--warning-bg, #FDF4E3)', color: 'var(--text-primary)',
+    background: 'var(--warning-bg, #F7EEDD)', color: 'var(--text-primary)',
     borderRadius: 12, padding: '10px 12px', marginBottom: 12,
     fontSize: 12.5, lineHeight: 1.45,
   },

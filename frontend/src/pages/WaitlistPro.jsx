@@ -27,7 +27,7 @@ const STATUS_CONFIG = {
   notified: { label: 'Notified', bg: '#E3F2FD', color: '#2196F3' },
   offered: { label: 'Slot offered', bg: '#E8F5E9', color: '#4CAF50' },
   booked: { label: 'Booked', bg: '#E8F5E9', color: '#4CAF50' },
-  expired: { label: 'Expired', bg: '#F0ECE8', color: 'var(--text-muted, #AAA5A0)' },
+  expired: { label: 'Expired', bg: '#F0ECE8', color: 'var(--text-muted, #6B5D54)' },
 };
 const ACTIVE_STATUSES = ['waiting', 'active', 'notified', 'offered'];
 const DAYS = [
@@ -327,7 +327,7 @@ export default function WaitlistPro() {
                       <button style={S.actionBtn} disabled={isBusy} onClick={e => { e.stopPropagation(); handleNotify(w.id); }}>
                         {isBusy ? '...' : 'Notify'}
                       </button>
-                      <button style={{ ...S.actionBtn, background: 'var(--accent, #92405e)', color: 'var(--bg-card, #fff)' }} disabled={isBusy} onClick={e => { e.stopPropagation(); handleOfferSlot(w.id); }}>
+                      <button style={{ ...S.actionBtn, background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)' }} disabled={isBusy} onClick={e => { e.stopPropagation(); handleOfferSlot(w.id); }}>
                         Offer slot
                       </button>
                       <button style={S.actionBtn} disabled={isBusy} onClick={e => { e.stopPropagation(); handleRemove(w.id); }}>
@@ -392,7 +392,7 @@ export default function WaitlistPro() {
             <div style={S.fieldLabel}>Priority</div>
             <div style={S.chipRow}>
               {Object.entries(PRIORITY_CONFIG).map(([key, cfg]) => (
-                <button key={key} onClick={() => setAddForm(f => ({ ...f, priority: key }))} style={{ ...S.chip, ...(addForm.priority === key ? { background: cfg.color, color: 'var(--bg-card, #fff)', border: `1px solid ${cfg.color}` } : {}) }}>
+                <button key={key} onClick={() => setAddForm(f => ({ ...f, priority: key }))} style={{ ...S.chip, ...(addForm.priority === key ? { background: cfg.color, color: 'var(--bg-card, #FFFCF9)', border: `1px solid ${cfg.color}` } : {}) }}>
                   {cfg.label}
                 </button>
               ))}
@@ -428,7 +428,7 @@ export default function WaitlistPro() {
             <div style={S.fieldLabel}>Notes</div>
             <textarea style={S.textarea} rows={2} placeholder="Any notes..." value={addForm.notes} onChange={e => setAddForm(f => ({ ...f, notes: e.target.value }))} />
 
-            {error && <div style={{ color: 'var(--danger, #D44)', fontSize: 13, marginBottom: 8 }}>{error}</div>}
+            {error && <div style={{ color: 'var(--danger, #9E2B32)', fontSize: 13, marginBottom: 8 }}>{error}</div>}
             <button style={{ ...S.saveBtn, opacity: saving ? 0.6 : 1 }} onClick={handleAddToWaitlist} disabled={saving}>
               {saving ? 'Adding...' : 'Add to waitlist'}
             </button>
@@ -454,53 +454,53 @@ function formatDateTime(iso) {
 const S = {
   page: { padding: '20px 16px 32px', fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)", maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: 0, fontFamily: "var(--font-heading, 'Playfair Display', serif)" },
-  addBtn: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #fff)', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #241B17)', margin: 0, fontFamily: "var(--font-heading, 'Playfair Display', serif)" },
+  addBtn: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   statsRow: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 },
-  statCard: { background: 'var(--card, #fff)', borderRadius: 12, padding: '10px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
+  statCard: { background: 'var(--card, #FFFCF9)', borderRadius: 12, padding: '10px 6px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
   statValue: { fontSize: 18, fontWeight: 700 },
-  statLabel: { fontSize: 10, color: 'var(--text-muted, #B5AFA8)' },
+  statLabel: { fontSize: 10, color: 'var(--text-muted, #6B5D54)' },
   tabs: { display: 'flex', gap: 8, marginBottom: 16 },
-  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--bg-card, #FFFFFF)', color: 'var(--text-muted, #B5AFA8)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
-  tabActive: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #fff)' },
+  tab: { flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, background: 'var(--bg-card, #FFFCF9)', color: 'var(--text-muted, #6B5D54)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
+  tabActive: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)' },
   list: { display: 'flex', flexDirection: 'column', gap: 10 },
-  wlCard: { background: 'var(--bg-card, #FFFFFF)', borderRadius: 14, padding: 14, cursor: 'pointer', borderLeft: '3px solid var(--border, #EDE9E4)' },
+  wlCard: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 14, padding: 14, cursor: 'pointer', borderLeft: '3px solid var(--border, #E8DDD4)' },
   wlHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
   wlLeft: { display: 'flex', gap: 10, alignItems: 'center' },
   avatar: { width: 36, height: 36, borderRadius: 18, background: '#F0E6ED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600, color: 'var(--accent, #92405e)', flexShrink: 0 },
   wlInfo: { display: 'flex', flexDirection: 'column', gap: 2 },
   wlNameRow: { display: 'flex', alignItems: 'center', gap: 6 },
-  wlClient: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
+  wlClient: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
   priBadge: { display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 8px', borderRadius: 6, fontSize: 10, fontWeight: 600 },
   priIcon: { fontSize: 12 },
-  wlTreatment: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)' },
+  wlTreatment: { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
   wlRight: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 },
   statusBadge: { padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600 },
-  wlDays: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)' },
-  offerBanner: { margin: '10px 0 0', padding: '8px 12px', borderRadius: 8, background: 'var(--success-bg, #EDF7F0)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  offerText: { fontSize: 12, fontWeight: 600, color: 'var(--success, #5BA97B)' },
-  offerExpiry: { fontSize: 11, color: 'var(--success, #5BA97B)' },
-  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, #EDE9E4)' },
+  wlDays: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
+  offerBanner: { margin: '10px 0 0', padding: '8px 12px', borderRadius: 8, background: 'var(--success-bg, #E9F0EB)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+  offerText: { fontSize: 12, fontWeight: 600, color: 'var(--success, #3F7D5C)' },
+  offerExpiry: { fontSize: 11, color: 'var(--success, #3F7D5C)' },
+  expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, #E8DDD4)' },
   detailGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 10 },
   detailItem: { display: 'flex', flexDirection: 'column', gap: 2 },
-  detailLabel: { fontSize: 11, color: 'var(--text-muted, #B5AFA8)', fontWeight: 600 },
-  detailValue: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #2D2A26)' },
+  detailLabel: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', fontWeight: 600 },
+  detailValue: { fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
   dayTags: { display: 'flex', gap: 4, flexWrap: 'wrap' },
-  dayTag: { padding: '2px 6px', borderRadius: 4, background: 'var(--border, #EDE9E4)', color: 'var(--text-secondary, #7A756F)', fontSize: 11 },
-  wlNotes: { fontSize: 12, color: 'var(--text-secondary, #7A756F)', fontStyle: 'italic', margin: '8px 0' },
+  dayTag: { padding: '2px 6px', borderRadius: 4, background: 'var(--border, #E8DDD4)', color: 'var(--text-secondary, #574A42)', fontSize: 11 },
+  wlNotes: { fontSize: 12, color: 'var(--text-secondary, #574A42)', fontStyle: 'italic', margin: '8px 0' },
   actionRow: { display: 'flex', gap: 8, marginTop: 8 },
-  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, #EDE9E4)', background: 'var(--bg-card, #FFFFFF)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)' },
-  fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #7A756F)', marginBottom: 6, marginTop: 12 },
-  hint: { fontSize: 12, color: 'var(--text-muted, #B5AFA8)', margin: '6px 0 0' },
+  actionBtn: { flex: 1, padding: '9px 0', borderRadius: 8, border: '1px solid var(--border, #E8DDD4)', background: 'var(--bg-card, #FFFCF9)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-primary, #241B17)' },
+  fieldLabel: { fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #574A42)', marginBottom: 6, marginTop: 12 },
+  hint: { fontSize: 12, color: 'var(--text-muted, #6B5D54)', margin: '6px 0 0' },
   chipRow: { display: 'flex', gap: 8, flexWrap: 'wrap' },
-  chip: { padding: '8px 14px', borderRadius: 10, border: '1px solid var(--border, #EDE9E4)', background: 'var(--bg-card, #FFFFFF)', color: 'var(--text-secondary, #7A756F)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
-  chipActive: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #fff)', border: '1px solid var(--accent, #92405e)' },
+  chip: { padding: '8px 14px', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', background: 'var(--bg-card, #FFFCF9)', color: 'var(--text-secondary, #574A42)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' },
+  chipActive: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', border: '1px solid var(--accent, #92405e)' },
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 960, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
-  modal: { background: 'var(--bg-card, #FFFFFF)', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
-  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: '0 0 16px', fontFamily: "var(--font-heading, 'Playfair Display', serif)" },
-  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #EDE9E4)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', background: 'var(--bg-card, #FFFFFF)', outline: 'none', boxSizing: 'border-box' },
-  textarea: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #EDE9E4)', fontSize: 13, fontFamily: 'inherit', color: 'var(--text-primary, #2D2A26)', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
-  dayChip: { width: 40, height: 36, borderRadius: 8, border: '1px solid var(--border, #EDE9E4)', background: 'var(--bg-card, #FFFFFF)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-secondary, #7A756F)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  dayChipActive: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #fff)', border: '1px solid var(--accent, #92405e)' },
-  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--bg-card, #fff)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
+  modal: { background: 'var(--bg-card, #FFFCF9)', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
+  modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary, #241B17)', margin: '0 0 16px', fontFamily: "var(--font-heading, 'Playfair Display', serif)" },
+  select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #241B17)', background: 'var(--bg-card, #FFFCF9)', outline: 'none', boxSizing: 'border-box' },
+  textarea: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border, #E8DDD4)', fontSize: 13, fontFamily: 'inherit', color: 'var(--text-primary, #241B17)', outline: 'none', resize: 'vertical', boxSizing: 'border-box' },
+  dayChip: { width: 40, height: 36, borderRadius: 8, border: '1px solid var(--border, #E8DDD4)', background: 'var(--bg-card, #FFFCF9)', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-secondary, #574A42)', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  dayChipActive: { background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', border: '1px solid var(--accent, #92405e)' },
+  saveBtn: { width: '100%', padding: '14px 0', borderRadius: 12, border: 'none', background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', marginTop: 20 },
 };
