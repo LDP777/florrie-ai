@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
 import { deDash } from '../lib/text.js';
-import Icon from './ui/Icon';
+import Icon, { iconName } from './ui/Icon';
 
 /**
  * ActivityFeed , Day 1 of the 2026-05-28 refactor.
@@ -304,8 +304,7 @@ function ActivityRow({ row, now, navigate }) {
       <button
         onClick={onClick}
         disabled={!clickable}
-        style={{
-          ...F.row,
+        style={{ ...F.row,
           cursor: clickable ? 'pointer' : 'default',
           opacity: clickable ? 1 : 0.95,
         }}
@@ -314,9 +313,7 @@ function ActivityRow({ row, now, navigate }) {
         <span style={F.summary}>{deDash(row.summary)}</span>
         <span style={F.time}>{relativeTime(row.created_at, now)}</span>
         {clickable && (
-          <span className="material-symbols-outlined" style={F.chev} aria-hidden>
-            chevron_right
-          </span>
+          <Icon name={iconName('chevron_right')} inline style={F.chev} />
         )}
       </button>
     </li>
@@ -350,7 +347,7 @@ const F = {
     fontSize: 14,
     fontWeight: 700,
     color: '#92405e',
-    fontFamily: "'Noto Serif', Georgia, serif",
+    fontFamily: "'Playfair Display', Georgia, serif",
     fontStyle: 'italic',
   },
   count: {

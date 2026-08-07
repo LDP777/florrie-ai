@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
+import Icon, { iconName } from '../components/ui/Icon';
 
 /**
  * ValueBreakdown , the "how did Florrie make me that money" screen.
@@ -78,7 +79,7 @@ export default function ValueBreakdown() {
     <div style={S.page}>
       <header style={S.header}>
         <button onClick={() => navigate(-1)} aria-label="Back" style={S.back}>
-          <span className="material-symbols-outlined" style={{ fontSize: 22 }}>arrow_back</span>
+          <Icon name={iconName('arrow_back')} size={22} inline />
         </button>
         <h1 style={S.title}>How Florrie helped</h1>
       </header>
@@ -176,13 +177,13 @@ const S = {
     width: 40, height: 40, borderRadius: 12, border: 'none', background: 'var(--tone-1, #fbf1ea)',
     color: 'var(--text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
-  title: { fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "var(--font-display, 'Fraunces', 'Playfair Display', Georgia, serif)" },
+  title: { fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)" },
   muted: { color: 'var(--text-muted)', fontSize: 14, padding: '18px 2px', lineHeight: 1.55 },
   body: { display: 'flex', flexDirection: 'column', gap: 16 },
 
   heroCard: { background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, padding: '20px 18px', textAlign: 'center' },
   heroEyebrow: { fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 },
-  heroAmount: { fontSize: 44, fontWeight: 700, color: 'var(--accent, #92405e)', fontFamily: "var(--font-display, 'Fraunces', Georgia, serif)", lineHeight: 1 },
+  heroAmount: { fontSize: 44, fontWeight: 700, color: 'var(--accent, #92405e)', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)", lineHeight: 1 },
   heroSub: { fontSize: 13.5, color: 'var(--text-secondary)', marginTop: 8 },
 
   partsRow: { display: 'flex', gap: 10, flexWrap: 'wrap' },

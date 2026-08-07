@@ -30,7 +30,7 @@ const S = {
   text: {
     fontSize: 12,
     color: 'var(--text-muted, #B5AFA8)',
-    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
     letterSpacing: '0.04em',
   },
 };

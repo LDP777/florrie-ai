@@ -205,8 +205,7 @@ export default function Aftercare() {
                     <button
                       key={icon}
                       onClick={() => setNewCard(p => ({ ...p, icon }))}
-                      style={{
-                        ...styles.iconBtn,
+                      style={{ ...styles.iconBtn,
                         background: newCard.icon === icon ? 'var(--accent-light, #FBF0F3)' : 'var(--bg-card, #fff)',
                         borderColor: newCard.icon === icon ? 'var(--accent, #C76B8A)' : 'var(--border-light, #F0ECE8)',
                       }}
@@ -327,8 +326,7 @@ export default function Aftercare() {
                         {card.instructions.length} steps · Sends {card.send_after_hours}h after
                       </span>
                     </div>
-                    <div style={{
-                      ...styles.autoSendBadge,
+                    <div style={{ ...styles.autoSendBadge,
                       background: card.auto_send ? 'var(--success-bg, #E8F5E9)' : 'var(--bg-hover, #F5F2EF)',
                       color: card.auto_send ? '#388E3C' : '#AAA5A0',
                     }}>
@@ -437,7 +435,7 @@ export default function Aftercare() {
 const styles = {
   page: {
     minHeight: '100vh', background: 'var(--bg, #FAF8F5)',
-    fontFamily: '"DM Sans", -apple-system, sans-serif',
+    fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
     padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text, #2D2A26)',
   },
   header: { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 52px)', paddingBottom: 8 },

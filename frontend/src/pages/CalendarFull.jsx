@@ -5,6 +5,7 @@ import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import { treatmentColor, tint } from '../lib/treatmentColors.js';
 import { localDateStr, todayLocal, parseDateOnly } from '../lib/dates.js';
+import Icon, { iconName } from '../components/ui/Icon';
 
 /**
  * CalendarFull , a dedicated full-width calendar page (/calendar/full).
@@ -190,17 +191,17 @@ export default function CalendarFull() {
       <header style={S.header} className="cf-noprint">
         <div style={S.headerLeft}>
           <button onClick={() => navigate('/calendar')} title="Back" aria-label="Back" style={S.iconBtn}>
-            <span className="material-symbols-outlined" style={{ fontSize: 20 }}>arrow_back</span>
+            <Icon name={iconName('arrow_back')} size={20} inline />
           </button>
           <h1 style={S.title}>Calendar</h1>
         </div>
         <div style={S.headerActions}>
           <button onClick={() => setSyncOpen(true)} style={S.ghostBtn}>
-            <span className="material-symbols-outlined" style={{ fontSize: 17 }}>sync</span>
+            <Icon name={iconName('sync')} size={17} inline />
             <span style={S.btnLabel}>Sync to my calendar</span>
           </button>
           <button onClick={handlePrint} style={S.ghostBtn}>
-            <span className="material-symbols-outlined" style={{ fontSize: 17 }}>print</span>
+            <Icon name={iconName('print')} size={17} inline />
             <span style={S.btnLabel}>Print or save PDF</span>
           </button>
         </div>
@@ -293,8 +294,7 @@ function WeekGrid({ days, apptsOn, blocksOn = () => [], onPickDay, onOpenAppt = 
                     <div
                       key={b.id}
                       title={isClosed ? 'Closed all day' : `Blocked ${String(b.start_time).slice(0, 5)} to ${String(b.end_time).slice(0, 5)}`}
-                      style={{
-                        position: 'absolute', left: 1, right: 1, top: Math.max(0, top), height,
+                      style={{ position: 'absolute', left: 1, right: 1, top: Math.max(0, top), height,
                         background: 'repeating-linear-gradient(45deg, rgba(146,64,94,0.08) 0px, rgba(146,64,94,0.08) 5px, rgba(146,64,94,0.02) 5px, rgba(146,64,94,0.02) 10px)',
                         borderLeft: '3px solid rgba(146,64,94,0.45)',
                         borderRadius: 4, zIndex: 1, pointerEvents: 'none',
@@ -318,8 +318,7 @@ function WeekGrid({ days, apptsOn, blocksOn = () => [], onPickDay, onOpenAppt = 
                       type="button"
                       onClick={() => onOpenAppt(a)}
                       title={`${wallTime(a.starts_at)} ${name} , ${treat} , open the day`}
-                      style={{
-                        ...S.event,
+                      style={{ ...S.event,
                         top, height,
                         left: `calc(${col * widthPct}% + 2px)`,
                         width: `calc(${widthPct}% - 4px)`,
@@ -370,8 +369,7 @@ function MonthGrid({ anchor, apptsOn, blocksOn = () => [], onPickDay }) {
             <button
               key={ds}
               onClick={() => onPickDay(d)}
-              style={{
-                ...S.monthCell,
+              style={{ ...S.monthCell,
                 opacity: inMonth ? 1 : 0.4,
                 ...(isToday ? S.monthCellToday : {}),
                 ...(isClosedDay ? { background: 'repeating-linear-gradient(45deg, rgba(146,64,94,0.07) 0px, rgba(146,64,94,0.07) 5px, transparent 5px, transparent 10px)' } : {}),

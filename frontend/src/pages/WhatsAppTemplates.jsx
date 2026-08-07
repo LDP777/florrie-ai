@@ -165,8 +165,7 @@ function StarterPackCard({ pack, businessName, onSubmitted }) {
           {results.map((r) => (
             <div key={r.name} style={styles.packResultRow}>
               <span>{r.label}</span>
-              <span style={{
-                ...styles.statusChip,
+              <span style={{ ...styles.statusChip,
                 ...(r.action === 'failed' ? chipStyle('attention')
                   : r.action === 'created' ? chipStyle('review') : chipStyle('live')),
               }}>
@@ -477,7 +476,7 @@ const styles = {
     fontSize: 26,
     fontWeight: 600,
     margin: 0,
-    fontFamily: 'var(--font-display, "Fraunces", Georgia, serif)',
+    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
   },
   subtitle: {
     fontSize: 13.5,
@@ -520,7 +519,7 @@ const styles = {
     fontSize: 19,
     fontWeight: 600,
     margin: '0 0 6px',
-    fontFamily: 'var(--font-display, "Fraunces", Georgia, serif)',
+    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
   },
   packDesc: {
     fontSize: 13.5,
@@ -710,7 +709,7 @@ const styles = {
     fontSize: 18,
     fontWeight: 600,
     margin: 0,
-    fontFamily: 'var(--font-display, "Fraunces", Georgia, serif)',
+    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
   },
   modalClose: {
     border: 'none',

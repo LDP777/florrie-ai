@@ -11,6 +11,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCoach } from '../contexts/CoachContext.jsx';
+import Icon, { iconName } from './ui/Icon';
 
 const URGENCY_COLOURS = {
   opportunity: { bg: 'linear-gradient(135deg, #7B6BA8 0%, #9B8BC8 100%)', accent: '#C9A96E', pill: '#F5F0FF', pillText: '#7B6BA8', label: 'OPPORTUNITY' },
@@ -75,8 +76,7 @@ export default function CoachNudge() {
 
   return (
     <div
-      style={{
-        position: 'fixed',
+      style={{ position: 'fixed',
         bottom: 80, // above bottom nav
         left: '50%',
         transform: `translateX(-50%) translateY(${visible ? '0' : '120px'})`,
@@ -87,7 +87,7 @@ export default function CoachNudge() {
         borderRadius: 20,
         overflow: 'hidden',
         boxShadow: '0 12px 40px rgba(0,0,0,0.18)',
-        fontFamily: '"DM Sans", -apple-system, sans-serif',
+        fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
       }}
     >
       {/* Main card */}
@@ -96,20 +96,18 @@ export default function CoachNudge() {
         {/* Coloured header strip */}
         <div style={{ background: colours.bg, padding: '14px 16px 12px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
           {/* Icon circle */}
-          <div style={{
-            width: 38, height: 38, borderRadius: 19,
+          <div style={{ width: 38, height: 38, borderRadius: 19,
             background: 'rgba(255,255,255,0.22)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,
           }}>
-            <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#fff' }}>{matIcon}</span>
+            <Icon name={iconName(matIcon)} size={20} inline style={{ color: '#fff' }} />
           </div>
 
           {/* Text */}
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-              <span style={{
-                fontSize: 9, fontWeight: 700, letterSpacing: '0.1em',
+              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em',
                 color: 'rgba(255,255,255,0.85)', textTransform: 'uppercase',
               }}>
                 BIZ COACH · {colours.label}
@@ -123,21 +121,19 @@ export default function CoachNudge() {
           {/* Dismiss */}
           <button
             onClick={dismiss}
-            style={{
-              background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 12,
+            style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 12,
               width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer', flexShrink: 0, padding: 0,
             }}
             aria-label="Dismiss"
           >
-            <span className="material-symbols-outlined" style={{ fontSize: 15, color: '#fff' }}>close</span>
+            <Icon name={iconName('close')} size={15} inline style={{ color: '#fff' }} />
           </button>
         </div>
 
         {/* Body + CTA */}
         <div style={{ padding: '12px 16px 14px', background: '#fff' }}>
-          <p style={{
-            fontSize: 13, color: '#4A4540', lineHeight: 1.5,
+          <p style={{ fontSize: 13, color: '#4A4540', lineHeight: 1.5,
             margin: '0 0 12px', fontWeight: 400,
           }}>
             {nudge.body}
@@ -145,8 +141,7 @@ export default function CoachNudge() {
           {nudge.cta_label && nudge.cta_path && (
             <button
               onClick={handleCta}
-              style={{
-                width: '100%', padding: '10px 16px', borderRadius: 10, border: 'none',
+              style={{ width: '100%', padding: '10px 16px', borderRadius: 10, border: 'none',
                 background: colours.bg, color: '#fff',
                 fontSize: 13, fontWeight: 600, cursor: 'pointer',
                 fontFamily: 'inherit', letterSpacing: '0.01em',
@@ -159,8 +154,7 @@ export default function CoachNudge() {
 
         {/* Progress bar */}
         <div style={{ height: 3, background: '#F0ECE8' }}>
-          <div style={{
-            height: '100%', background: colours.bg,
+          <div style={{ height: '100%', background: colours.bg,
             width: `${progress}%`, transition: 'width 0.1s linear',
           }} />
         </div>

@@ -166,7 +166,7 @@ export default function UpdatePassword({ supabase }) {
 const styles = {
   page: {
     minHeight: '100vh', background: 'var(--bg)',
-    fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)",
     padding: '0 24px', maxWidth: 400, margin: '0 auto',
     display: 'flex', flexDirection: 'column', justifyContent: 'center',
     animation: 'fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)',

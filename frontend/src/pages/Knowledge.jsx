@@ -15,6 +15,7 @@ import { useBeautician, supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
+import Icon, { iconName } from '../components/ui/Icon';
 
 const CATEGORIES = [
   { key: 'aftercare', label: 'Aftercare', matIcon: 'self_care' },
@@ -34,13 +35,6 @@ const STARTERS = [
   { category: 'prep',      title: 'Patch test explainer', hint: 'Why it matters and when to come in' },
 ];
 
-function MIcon({ name, size = 20, color, style }) {
-  return (
-    <span className="material-symbols-outlined" style={{ fontSize: size, color, ...style }}>
-      {name}
-    </span>
-  );
-}
 
 export default function Knowledge() {
   const { beautician, loading: bLoading } = useBeautician();
@@ -165,7 +159,7 @@ export default function Knowledge() {
 
       {needsMigration && (
         <div style={S.quietNote}>
-          <MIcon name="hourglass_empty" size={18} color="#92405e" />
+          <Icon name={iconName('hourglass_empty')} size={18} inline color="#92405e" />
           <span>Not switched on yet for your account. It will appear here as soon as it is.</span>
         </div>
       )}
@@ -174,7 +168,7 @@ export default function Knowledge() {
 
       {!needsMigration && editingId === null && (
         <button style={S.addButton} onClick={() => openAdd()}>
-          <MIcon name="add" size={20} color="#fff" />
+          <Icon name={iconName('add')} size={20} inline color="#fff" />
           <span>Add a note</span>
         </button>
       )}
@@ -184,7 +178,7 @@ export default function Knowledge() {
           <div style={S.formTitleRow}>
             <span style={S.formHeading}>{editingId === 'new' ? 'New note' : 'Edit note'}</span>
             <button style={S.iconButton} onClick={closeForm} aria-label="Close">
-              <MIcon name="close" size={18} color="#867277" />
+              <Icon name={iconName('close')} size={18} inline color="#867277" />
             </button>
           </div>
 
@@ -227,7 +221,7 @@ export default function Knowledge() {
 
       {!needsMigration && entries.length === 0 && editingId === null && (
         <div style={S.emptyCard}>
-          <MIcon name="menu_book" size={36} color="#d8c1c6" style={{ display: 'block', margin: '0 auto 10px' }} />
+          <Icon name={iconName('menu_book')} size={36} inline color="#d8c1c6" style={{ display: 'block', margin: '0 auto 10px' }} />
           <p style={S.emptyText}>
             Nothing saved yet. Start with the three questions clients ask most:
           </p>
@@ -238,7 +232,7 @@ export default function Knowledge() {
                   <div style={S.starterTitle}>{st.title}</div>
                   <div style={S.starterHint}>{st.hint}</div>
                 </div>
-                <MIcon name="add_circle" size={20} color="#92405e" />
+                <Icon name={iconName('add_circle')} size={20} inline color="#92405e" />
               </button>
             ))}
           </div>
@@ -248,7 +242,7 @@ export default function Knowledge() {
       {grouped.map(cat => (
         <div key={cat.key} style={{ marginBottom: 18 }}>
           <div style={S.sectionLabel}>
-            <MIcon name={cat.matIcon} size={16} color="rgba(146,64,94,0.65)" />
+            <Icon name={iconName(cat.matIcon)} size={16} inline color="rgba(146,64,94,0.65)" />
             <span>{cat.label}</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -258,7 +252,7 @@ export default function Knowledge() {
                   <span style={S.entryTitle}>{entry.title}</span>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <button style={S.iconButton} onClick={() => openEdit(entry)} aria-label={`Edit ${entry.title}`}>
-                      <MIcon name="edit" size={18} color="#92405e" />
+                      <Icon name={iconName('edit')} size={18} inline color="#92405e" />
                     </button>
                     <button
                       style={{ ...S.iconButton, opacity: deletingId === entry.id ? 0.4 : 1 }}
@@ -266,7 +260,7 @@ export default function Knowledge() {
                       onClick={() => handleDelete(entry.id)}
                       aria-label={`Remove ${entry.title}`}
                     >
-                      <MIcon name="delete" size={18} color="#867277" />
+                      <Icon name={iconName('delete')} size={18} inline color="#867277" />
                     </button>
                   </div>
                 </div>
@@ -285,7 +279,7 @@ const S = {
   page: {
     minHeight: '100vh',
     background: 'var(--bg, #fef8f4)',
-    fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
     padding: '16px 16px var(--scroll-pad-bottom)',
     maxWidth: 480,
     margin: '0 auto',

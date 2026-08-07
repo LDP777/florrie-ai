@@ -340,8 +340,7 @@ export default function Settings({ onLogout }) {
       <button
         type="button"
         onClick={() => navigate('/setup')}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%',
           background: 'rgba(146,64,94,0.06)',
           border: '1px solid rgba(146,64,94,0.12)',
           borderRadius: 12, padding: '11px 14px', marginBottom: 14, minHeight: 44, boxSizing: 'border-box',
@@ -368,8 +367,7 @@ export default function Settings({ onLogout }) {
           <button
             key={s.key}
             onClick={() => setSection(s.key)}
-            style={{
-              ...styles.sectionTab,
+            style={{ ...styles.sectionTab,
               background: section === s.key ? 'var(--accent)' : 'var(--border-light)',
               color: section === s.key ? 'var(--bg-card)' : 'var(--text-secondary)'
             }}
@@ -437,8 +435,7 @@ export default function Settings({ onLogout }) {
                   <button
                     key={opt.key}
                     onClick={() => saveProfile({ business_type: opt.key })}
-                    style={{
-                      padding: '6px 12px', borderRadius: 8, border: 'none',
+                    style={{ padding: '6px 12px', borderRadius: 8, border: 'none',
                       fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                       background: active ? 'var(--accent)' : 'var(--border-light)',
                       color: active ? 'var(--bg-card)' : 'var(--text-secondary)',
@@ -603,8 +600,7 @@ export default function Settings({ onLogout }) {
                     <button
                       key={opt.days}
                       onClick={() => savePolicy({ max_advance_days: opt.days })}
-                      style={{
-                        flex: 1, padding: '9px 4px', borderRadius: 10, fontSize: 12.5, fontWeight: 600,
+                      style={{ flex: 1, padding: '9px 4px', borderRadius: 10, fontSize: 12.5, fontWeight: 600,
                         cursor: 'pointer', fontFamily: 'inherit',
                         border: active ? '1.5px solid var(--accent)' : '1.5px solid var(--border)',
                         background: active ? 'var(--accent)' : 'var(--bg-card)',
@@ -783,7 +779,7 @@ export default function Settings({ onLogout }) {
             {(minHours > 0 || cancelHours > 0) && (
               <div style={{ ...styles.card, background: 'var(--accent-light)', border: '1.5px solid rgba(199, 107, 138, 0.2)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--accent)', fontVariationSettings: "'FILL' 1, 'wght' 300" }}>policy</span>
+                  <Icon name={iconName('policy')} size={18} inline style={{ color: 'var(--accent)', }} />
                   <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Your booking policy (as clients see it)</span>
                 </div>
                 <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.55, margin: 0 }}>
@@ -827,8 +823,7 @@ export default function Settings({ onLogout }) {
           <div style={styles.card}>
             <div style={styles.cardTitle}>Stripe Connect</div>
             <div style={styles.connectionStatus}>
-              <div style={{
-                ...styles.statusDot,
+              <div style={{ ...styles.statusDot,
                 background: beautician.stripe_onboarding_complete ? 'var(--success)' : 'var(--warning)',
               }} />
               <span style={styles.connectionLabel}>
@@ -847,8 +842,7 @@ export default function Settings({ onLogout }) {
               <button
                 onClick={handleConnectStripe}
                 disabled={connectingStripe}
-                style={{
-                  ...styles.connectBtn,
+                style={{ ...styles.connectBtn,
                   opacity: connectingStripe ? 0.6 : 1,
                   cursor: connectingStripe ? 'not-allowed' : 'pointer',
                 }}
@@ -891,8 +885,7 @@ export default function Settings({ onLogout }) {
                       const updated = isEnabled ? methods.filter(m => m !== method.key) : [...methods, method.key];
                       saveProfile({ payment_settings: { ...paySettings, accepted_methods: updated } });
                     }}
-                    style={{
-                      ...styles.toggle,
+                    style={{ ...styles.toggle,
                       background: isEnabled && canToggle ? 'var(--accent-rose)' : '#E0DBD5',
                       opacity: canToggle ? 1 : 0.5,
                       cursor: canToggle ? 'pointer' : 'not-allowed',
@@ -963,8 +956,7 @@ export default function Settings({ onLogout }) {
                 href="https://dashboard.stripe.com/express/login"
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{
-                  display: 'inline-block', padding: '8px 16px', borderRadius: 8,
+                style={{ display: 'inline-block', padding: '8px 16px', borderRadius: 8,
                   background: 'var(--bg-secondary, #f5f2ef)', border: '1px solid var(--border)',
                   fontSize: 13, fontWeight: 500, color: 'var(--text-primary)',
                   textDecoration: 'none',
@@ -998,8 +990,7 @@ export default function Settings({ onLogout }) {
               <Icon name="calendar" size={21} style={{ color: 'var(--accent)' }} />
               <div style={{ flex: 1 }}>
                 <span style={styles.calProviderLabel}>Google Calendar</span>
-                <span style={{
-                  ...styles.calProviderStatus,
+                <span style={{ ...styles.calProviderStatus,
                   color: beautician.google_calendar_connected ? 'var(--success)' : 'var(--text-muted)',
                 }}>
                   {beautician.google_calendar_connected ? '● Connected' : 'Not connected'}
@@ -1077,8 +1068,7 @@ export default function Settings({ onLogout }) {
                 <button
                   key={opt.label}
                   onClick={() => saveProfile({ calendar_settings: { ...calSettings, buffer_minutes: opt.mins } })}
-                  style={{
-                    ...styles.bufferChip,
+                  style={{ ...styles.bufferChip,
                     background: (calSettings.buffer_minutes ?? 10) === opt.mins ? 'var(--accent-rose)' : '#F5F2EF',
                     color: (calSettings.buffer_minutes ?? 10) === opt.mins ? '#fff' : '#8A8580',
                   }}
@@ -1186,15 +1176,13 @@ export default function Settings({ onLogout }) {
                   const np = { ...(beautician.notification_prefs || {}), quiet_hours: { ...qh, enabled: qh.enabled !== true } };
                   saveProfile({ notification_prefs: np });
                 }}
-                style={{
-                  width: 48, height: 28, borderRadius: 14, border: 'none', cursor: 'pointer',
+                style={{ width: 48, height: 28, borderRadius: 14, border: 'none', cursor: 'pointer',
                   background: beautician.notification_prefs?.quiet_hours?.enabled === true ? 'var(--accent-rose, #C76B8A)' : '#E5E0DB',
                   position: 'relative', transition: 'background 0.15s ease',
                 }}
                 aria-label="Toggle quiet hours"
               >
-                <span style={{
-                  position: 'absolute', top: 3,
+                <span style={{ position: 'absolute', top: 3,
                   left: beautician.notification_prefs?.quiet_hours?.enabled === true ? 23 : 3,
                   width: 22, height: 22, borderRadius: 11, background: '#fff',
                   boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.15s ease',
@@ -1312,8 +1300,7 @@ export default function Settings({ onLogout }) {
                       const rp = { ...(beautician.client_reminder_prefs || {}), channel: ch };
                       saveProfile({ client_reminder_prefs: rp });
                     }}
-                    style={{
-                      ...styles.channelChip,
+                    style={{ ...styles.channelChip,
                       background: (beautician.client_reminder_prefs?.channel || 'whatsapp') === ch ? 'var(--accent-rose)' : '#F5F2EF',
                       color: (beautician.client_reminder_prefs?.channel || 'whatsapp') === ch ? '#fff' : '#8A8580'
                     }}
@@ -1336,8 +1323,7 @@ export default function Settings({ onLogout }) {
                 <span style={styles.msgChannelIcon} aria-hidden><Icon name="message" size={18} /></span>
                 <div>
                   <div style={styles.msgChannelName}>WhatsApp Business</div>
-                  <div style={{
-                    ...styles.msgChannelStatus,
+                  <div style={{ ...styles.msgChannelStatus,
                     color: beautician.whatsapp_connected ? 'var(--success, #16a34a)' : 'var(--text-muted)',
                   }}>
                     {beautician.whatsapp_connected
@@ -1349,8 +1335,7 @@ export default function Settings({ onLogout }) {
               <button
                 type="button"
                 onClick={() => navigate('/whatsapp')}
-                style={{
-                  ...styles.msgChannelBtn,
+                style={{ ...styles.msgChannelBtn,
                   background: beautician.whatsapp_connected ? 'var(--bg-hover)' : 'var(--accent)',
                   color: beautician.whatsapp_connected ? 'var(--text-secondary)' : 'var(--bg-card)',
                   border: beautician.whatsapp_connected ? '1.5px solid var(--border)' : 'none',
@@ -1366,8 +1351,7 @@ export default function Settings({ onLogout }) {
                 <span style={styles.msgChannelIcon} aria-hidden>📱</span>
                 <div>
                   <div style={styles.msgChannelName}>SMS</div>
-                  <div style={{
-                    ...styles.msgChannelStatus,
+                  <div style={{ ...styles.msgChannelStatus,
                     color: beautician.sms_enabled ? 'var(--success, #16a34a)' : 'var(--text-muted)',
                   }}>
                     {beautician.sms_enabled
@@ -1379,8 +1363,7 @@ export default function Settings({ onLogout }) {
               <button
                 type="button"
                 onClick={() => navigate('/sms')}
-                style={{
-                  ...styles.msgChannelBtn,
+                style={{ ...styles.msgChannelBtn,
                   background: beautician.sms_enabled ? 'var(--bg-hover)' : 'var(--accent)',
                   color: beautician.sms_enabled ? 'var(--text-secondary)' : 'var(--bg-card)',
                   border: beautician.sms_enabled ? '1.5px solid var(--border)' : 'none',
@@ -1441,7 +1424,7 @@ export default function Settings({ onLogout }) {
             return (
               <div style={styles.card}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--accent)', fontVariationSettings: "'FILL' 1, 'wght' 300" }}>smart_toy</span>
+                  <Icon name={iconName('smart_toy')} size={18} inline style={{ color: 'var(--accent)', }} />
                   <h3 style={{ ...styles.cardTitle, margin: 0 }}>Florrie's autopilot</h3>
                 </div>
                 <p style={styles.cardDesc}>
@@ -1480,8 +1463,7 @@ export default function Settings({ onLogout }) {
                             <button
                               key={opt.value}
                               onClick={() => setMode(item.key, opt.value)}
-                              style={{
-                                padding: '4px 9px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600,
+                              style={{ padding: '4px 9px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600,
                                 cursor: 'pointer', fontFamily: 'inherit',
                                 background: current === opt.value ? opt.color : 'var(--border-light)',
                                 color: current === opt.value ? '#fff' : 'var(--text-muted)',
@@ -1519,8 +1501,7 @@ export default function Settings({ onLogout }) {
                         setPendingAutonomy(next);
                         saveProfile({ autonomy: next }).finally(() => setPendingAutonomy(null));
                       }}
-                      style={{
-                        width: '100%', padding: '10px 12px', borderRadius: 8,
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: 8,
                         border: '1.5px solid var(--border)', background: 'var(--bg-card)',
                         color: 'var(--text-primary)', fontSize: 13, fontWeight: 600,
                         fontFamily: 'inherit', cursor: 'pointer',
@@ -1550,8 +1531,7 @@ export default function Settings({ onLogout }) {
                         setPendingAutonomy(next);
                         saveProfile({ autonomy: next }).finally(() => setPendingAutonomy(null));
                       }}
-                      style={{
-                        flexShrink: 0, padding: '5px 12px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600,
+                      style={{ flexShrink: 0, padding: '5px 12px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600,
                         cursor: 'pointer', fontFamily: 'inherit',
                         background: auto.promos_in_offers ? 'var(--success)' : 'var(--border-light)',
                         color: auto.promos_in_offers ? '#fff' : 'var(--text-muted)',
@@ -1566,7 +1546,7 @@ export default function Settings({ onLogout }) {
                   onClick={() => navigate('/outbox')}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 14, background: 'none', border: 'none', padding: 0, fontSize: 13, fontWeight: 600, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'inherit' }}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>outbox</span>
+                  <Icon name={iconName('outbox')} size={16} inline />
                   Review messages waiting to send
                 </button>
               </div>
@@ -1585,8 +1565,7 @@ export default function Settings({ onLogout }) {
               <span style={{ fontSize: 22 }}>📸</span>
               <div style={{ flex: 1 }}>
                 <span style={styles.calProviderLabel}>Instagram</span>
-                <span style={{
-                  ...styles.calProviderStatus,
+                <span style={{ ...styles.calProviderStatus,
                   color: !beautician.instagram_page_id ? 'var(--text-muted)'
                     : igNeedsReconnect ? 'var(--danger)'
                     : igTokenValid ? 'var(--success)'
@@ -1624,8 +1603,7 @@ export default function Settings({ onLogout }) {
                 flow as first-time connect, so nothing new to learn. The 21 June
                 date is Ellie's actual outage start (pilot-specific copy). */}
             {igNeedsReconnect && (
-              <div style={{
-                marginTop: 12,
+              <div style={{ marginTop: 12,
                 padding: '12px 14px',
                 borderRadius: 12,
                 background: 'var(--danger-bg, #FDECEC)',
@@ -1639,8 +1617,7 @@ export default function Settings({ onLogout }) {
                 <button
                   onClick={handleConnectInstagram}
                   disabled={igConnecting}
-                  style={{
-                    ...styles.connectBtn,
+                  style={{ ...styles.connectBtn,
                     width: '100%',
                     minHeight: 44, // the button that matters most gets a full thumb target
                     background: 'var(--danger)',
@@ -1665,8 +1642,7 @@ export default function Settings({ onLogout }) {
                 she comes back to. It exists because a screen that still says
                 "Reconnect" after she has just reconnected reads as a failure. */}
             {igAwaitingReturn && (
-              <div style={{
-                marginTop: 12, padding: '12px 14px', borderRadius: 12,
+              <div style={{ marginTop: 12, padding: '12px 14px', borderRadius: 12,
                 background: 'var(--tone-1, #FBF6F1)', border: '1px solid var(--border)',
               }}>
                 <p style={{ fontSize: 13, fontWeight: 700, margin: '0 0 4px' }}>
@@ -1743,8 +1719,7 @@ export default function Settings({ onLogout }) {
                   <button
                     key={opt.key}
                     onClick={() => saveProfile({ autonomy: { ...(beautician.autonomy || {}), proactive: opt.key } })}
-                    style={{
-                      textAlign: 'left', padding: '12px 14px', borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit',
+                    style={{ textAlign: 'left', padding: '12px 14px', borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit',
                       border: active ? '1.5px solid var(--accent)' : '1.5px solid var(--border)',
                       background: active ? 'rgba(146,64,94,0.06)' : 'var(--bg-card)',
                     }}
@@ -1779,8 +1754,7 @@ export default function Settings({ onLogout }) {
                   <button
                     key={level}
                     onClick={() => saveProfile({ tone_model: { ...tone, emoji_usage: level } })}
-                    style={{
-                      ...styles.chip,
+                    style={{ ...styles.chip,
                       background: (tone.emoji_usage || 'moderate') === level ? 'var(--accent)' : 'var(--bg-hover)',
                       color: (tone.emoji_usage || 'moderate') === level ? '#fff' : 'var(--text-secondary)',
                     }}
@@ -1797,8 +1771,7 @@ export default function Settings({ onLogout }) {
                   <button
                     key={level}
                     onClick={() => saveProfile({ tone_model: { ...tone, formality: level } })}
-                    style={{
-                      ...styles.chip,
+                    style={{ ...styles.chip,
                       background: (tone.formality || 'friendly') === level ? 'var(--accent)' : 'var(--bg-hover)',
                       color: (tone.formality || 'friendly') === level ? '#fff' : 'var(--text-secondary)',
                     }}
@@ -1844,8 +1817,7 @@ export default function Settings({ onLogout }) {
                   <button
                     key={opt.key}
                     onClick={() => saveProfile({ instagram_dm_mode: opt.key })}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px',
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px',
                       borderRadius: 10, border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border-light)'}`,
                       background: active ? 'var(--accent-light)' : 'var(--bg-hover, var(--bg))',
                       cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', width: '100%',
@@ -1857,7 +1829,7 @@ export default function Settings({ onLogout }) {
                       <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{opt.desc}</span>
                     </div>
                     {active && (
-                      <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--accent)', fontVariationSettings: "'FILL' 1, 'wght' 300", flexShrink: 0 }}>check_circle</span>
+                      <Icon name={iconName('check_circle')} size={18} inline style={{ color: 'var(--accent)', flexShrink: 0 }} />
                     )}
                   </button>
                 );
@@ -1883,8 +1855,7 @@ export default function Settings({ onLogout }) {
                     onChange={e => saveProfile({ instagram_redirect_message: e.target.value })}
                     placeholder={defaultMsg}
                     rows={3}
-                    style={{
-                      width: '100%', marginTop: 6, padding: '10px 12px', borderRadius: 8,
+                    style={{ width: '100%', marginTop: 6, padding: '10px 12px', borderRadius: 8,
                       border: '1.5px solid var(--border)', background: 'var(--bg)', color: 'var(--text-primary)',
                       fontSize: 13, fontFamily: 'inherit', resize: 'none', outline: 'none', boxSizing: 'border-box',
                       lineHeight: 1.5,
@@ -2081,8 +2052,7 @@ function NotificationToggle({ label, desc, prefs, onChange }) {
         <button
           onClick={() => toggle('email')}
           title={local.email ? 'Email on' : 'Email off'}
-          style={{
-            ...styles.notifChip,
+          style={{ ...styles.notifChip,
             background: local.email ? 'var(--success-bg)' : 'var(--border-light)',
             color: local.email ? 'var(--success)' : 'var(--text-muted)'
           }}
@@ -2092,8 +2062,7 @@ function NotificationToggle({ label, desc, prefs, onChange }) {
         <button
           onClick={() => toggle('push')}
           title={local.push ? 'Push on' : 'Push off'}
-          style={{
-            ...styles.notifChip,
+          style={{ ...styles.notifChip,
             background: local.push ? 'var(--success-bg)' : 'var(--border-light)',
             color: local.push ? 'var(--success)' : 'var(--text-muted)'
           }}
@@ -2129,7 +2098,7 @@ function ClientReminderRow({ label, enabled, onChange }) {
 }
 
 import { bookingUrl as publicBookingUrl } from '../lib/booking.js';
-import Icon from '../components/ui/Icon';
+import Icon, { iconName } from '../components/ui/Icon';
 
 function BookingLinkCard({ slug }) {
   const [copied, setCopied] = useState(false);
@@ -2190,11 +2159,11 @@ function BookingLinkCard({ slug }) {
 }
 
 const styles = {
-  page: { minHeight: '100vh', background: 'var(--bg)', fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)", padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)' },
+  page: { minHeight: '100vh', background: 'var(--bg)', fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)", padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, paddingTop: 'calc(env(safe-area-inset-top, 0px) + 52px)', paddingBottom: 12 },
   title: { fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)", letterSpacing: '-0.02em' },
   savedBadge: { padding: '4px 10px', borderRadius: 6, background: 'var(--success-bg)', color: 'var(--success)', fontSize: 12, fontWeight: 600 },
-  loadingText: { textAlign: 'center', color: 'var(--text-muted)', padding: 60, fontSize: 14, fontFamily: "var(--font-body, 'DM Sans', sans-serif)" },
+  loadingText: { textAlign: 'center', color: 'var(--text-muted)', padding: 60, fontSize: 14, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" },
   sectionNav: { display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none', paddingBottom: 2 },
   sectionTab: { padding: '8px 12px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0 },
   card: { background: 'var(--bg-card)', borderRadius: 14, padding: 16, marginBottom: 12, boxShadow: 'var(--shadow-sm)' },
@@ -2376,8 +2345,7 @@ function SubscriptionManager({ beautician }) {
       <button
         onClick={handleManageSubscription}
         disabled={loading}
-        style={{
-          ...styles.connectBtn,
+        style={{ ...styles.connectBtn,
           opacity: loading ? 0.6 : 1,
           cursor: loading ? 'not-allowed' : 'pointer',
         }}

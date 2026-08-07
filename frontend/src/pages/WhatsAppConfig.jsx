@@ -308,8 +308,7 @@ function DiagnosticError({ error, errBody, onRetry, onReset, phone }) {
   const showResetCta = code !== 'cooldown_active' && code !== 'rate_limit' && code !== 'invalid_format' && code !== 'missing_business_name' && code !== 'waba_capacity';
 
   return (
-    <div style={{
-      background: t.bg,
+    <div style={{ background: t.bg,
       border: `1px solid ${t.border}`,
       borderRadius: 14,
       padding: 14,
@@ -331,8 +330,7 @@ function DiagnosticError({ error, errBody, onRetry, onReset, phone }) {
           )}
 
           {autoRetryScheduled && (
-            <div style={{
-              fontSize: 12,
+            <div style={{ fontSize: 12,
               fontWeight: 600,
               color: t.text,
               marginTop: 8,
@@ -346,8 +344,7 @@ function DiagnosticError({ error, errBody, onRetry, onReset, phone }) {
           )}
 
           {retryAfter && secondsLeft !== null && !autoRetryScheduled && (
-            <div style={{
-              fontSize: 12,
+            <div style={{ fontSize: 12,
               fontWeight: 600,
               color: t.text,
               marginTop: 8,
@@ -367,8 +364,7 @@ function DiagnosticError({ error, errBody, onRetry, onReset, phone }) {
           <button
             type="button"
             onClick={onRetry}
-            style={{
-              padding: '7px 12px',
+            style={{ padding: '7px 12px',
               borderRadius: 8,
               border: `1px solid ${t.border}`,
               background: '#fff',
@@ -391,8 +387,7 @@ function DiagnosticError({ error, errBody, onRetry, onReset, phone }) {
           <button
             type="button"
             onClick={() => setShowDetails(v => !v)}
-            style={{
-              padding: '7px 12px',
+            style={{ padding: '7px 12px',
               borderRadius: 8,
               border: `1px solid ${t.border}`,
               background: 'transparent',
@@ -409,8 +404,7 @@ function DiagnosticError({ error, errBody, onRetry, onReset, phone }) {
       </div>
 
       {showDetails && hasTechDetails && (
-        <div style={{
-          marginTop: 10,
+        <div style={{ marginTop: 10,
           padding: 10,
           background: 'rgba(255,255,255,0.7)',
           borderRadius: 8,
@@ -736,8 +730,7 @@ function ConnectFlow({ onConnected, onPending, onReset }) {
           )}
 
           {checkResult && !error && (
-            <div style={{
-              ...styles.checkResult,
+            <div style={{ ...styles.checkResult,
               background: checkResult.ready ? '#E8F5E9' : '#FFF8E1',
               borderColor: checkResult.ready ? '#C8E6C9' : '#FFE082',
               color: checkResult.ready ? '#2E7D32' : '#7B5E00',
@@ -1019,8 +1012,7 @@ function SendMessagePanel() {
 
         <button
           type="submit"
-          style={{
-            ...styles.connectBtn,
+          style={{ ...styles.connectBtn,
             background: 'var(--accent, #C76B8A)',
             opacity: sending ? 0.7 : 1,
           }}
@@ -1150,8 +1142,7 @@ export default function WhatsAppConfig() {
     <div style={styles.page}>
       <div style={styles.header}>
         <h1 style={styles.title}>WhatsApp Business</h1>
-        <div style={{
-          ...styles.statusBadge,
+        <div style={{ ...styles.statusBadge,
           background: connected
             ? 'var(--success-bg, #EDF7F0)'
             : pendingActivation ? '#EDF3FA' : '#FFF3E0',
@@ -1165,8 +1156,7 @@ export default function WhatsAppConfig() {
 
       {/* Retry exhausted, shown when retry worker has given up after max attempts */}
       {!connected && !pendingActivation && status?.retry_exhausted && (
-        <div style={{
-          background: '#FDECEA',
+        <div style={{ background: '#FDECEA',
           border: '1px solid #F5C6C0',
           borderRadius: 14,
           padding: 14,
@@ -1195,8 +1185,7 @@ export default function WhatsAppConfig() {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <a
                 href="mailto:hello@florrie.ai?subject=WhatsApp%20connection%20help"
-                style={{
-                  padding: '7px 12px',
+                style={{ padding: '7px 12px',
                   borderRadius: 8,
                   border: '1px solid #8A2A1C',
                   background: '#8A2A1C',
@@ -1211,8 +1200,7 @@ export default function WhatsAppConfig() {
               </a>
               <button
                 onClick={handleReset}
-                style={{
-                  padding: '7px 12px',
+                style={{ padding: '7px 12px',
                   borderRadius: 8,
                   border: '1px solid #F5C6C0',
                   background: '#fff',
@@ -1412,7 +1400,7 @@ export default function WhatsAppConfig() {
 }
 
 const styles = {
-  page: { padding: '16px 16px 24px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
+  page: { padding: '16px 16px 24px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },
   statusBadge: { padding: '4px 10px', borderRadius: 10, fontSize: 12, fontWeight: 600 },

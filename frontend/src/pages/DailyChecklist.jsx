@@ -19,16 +19,8 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { todayLocal } from '../lib/dates.js';
+import Icon, { iconName } from '../components/ui/Icon';
 const todayStr = () => todayLocal();
-function MIcon({ name, fill, size, style }) {
-  return (
-    <span className="material-symbols-outlined" style={{
-      fontSize: size || 24,
-      fontVariationSettings: fill ? "'FILL' 1, 'wght' 300" : undefined,
-      ...style,
-    }}>{name}</span>
-  );
-}
 /* ─── Factory default templates ─── */
 const FACTORY_OPENING = [
   { label: 'Sanitise all stations & tools', icon: 'sanitizer' },
@@ -483,13 +475,12 @@ export default function DailyChecklist() {
         <h1 style={S.pageTitle}>Daily Checklist</h1>
         <button
           onClick={() => { setEditing(e => !e); setShowAdd(false); }}
-          style={{
-            ...S.editToggle,
+          style={{ ...S.editToggle,
             background: editing ? 'var(--accent, #92405e)' : 'rgba(146, 64, 94, 0.08)',
             color: editing ? '#fff' : 'var(--accent, #92405e)',
           }}
         >
-          <MIcon name={editing ? 'check' : 'edit'} size={16} style={{ color: editing ? '#fff' : 'var(--accent, #92405e)' }} />
+          <Icon name={iconName(editing ? 'check' : 'edit')} size={16} inline style={{ color: editing ? '#fff' : 'var(--accent, #92405e)' }} />
           {editing ? 'Done' : 'Edit'}
         </button>
       </div>
@@ -499,7 +490,7 @@ export default function DailyChecklist() {
       {/* ─── Template toast ─── */}
       {templateToast && (
         <div style={S.toast}>
-          <MIcon name="check_circle" fill size={16} style={{ color: 'var(--success, #5ba97b)' }} />
+          <Icon name={iconName('check_circle')} size={16} filled inline style={{ color: 'var(--success, #5ba97b)' }} />
           {templateToast}
         </div>
       )}
@@ -509,7 +500,7 @@ export default function DailyChecklist() {
           <div style={S.overviewDecor} />
           <div style={{ position: 'relative', zIndex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <MIcon name="today" fill size={16} style={{ color: 'rgba(255,255,255,0.8)' }} />
+              <Icon name={iconName('today')} size={16} filled inline style={{ color: 'rgba(255,255,255,0.8)' }} />
               <span style={S.overviewLabel}>Today's Overview</span>
             </div>
             <div style={{ display: 'flex', gap: 24, alignItems: 'baseline' }}>
@@ -531,14 +522,14 @@ export default function DailyChecklist() {
             )}
           </div>
           <div style={S.overviewIcon}>
-            <MIcon name="checklist" size={64} style={{ opacity: 0.15, color: '#fff' }} />
+            <Icon name={iconName('checklist')} size={64} inline style={{ opacity: 0.15, color: '#fff' }} />
           </div>
         </section>
       )}
       {/* ─── Edit mode banner ─── */}
       {editing && (
         <section style={S.editBanner}>
-          <MIcon name="edit_note" size={20} style={{ color: 'var(--accent, #92405e)' }} />
+          <Icon name={iconName('edit_note')} size={20} inline style={{ color: 'var(--accent, #92405e)' }} />
           <div style={{ flex: 1 }}>
             <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #1d1b19)', margin: 0 }}>Editing Mode</p>
             <p style={{ fontSize: 11, color: 'var(--text-muted, #867277)', margin: '2px 0 0' }}>
@@ -551,7 +542,7 @@ export default function DailyChecklist() {
       {!editing && (
         <section style={S.streakRow}>
           <div style={S.streakCard}>
-            <MIcon name="local_fire_department" fill size={22} style={{ color: streakDays > 0 ? '#E8753A' : 'var(--text-muted, #867277)' }} />
+            <Icon name={iconName('local_fire_department')} size={22} filled inline style={{ color: streakDays > 0 ? '#E8753A' : 'var(--text-muted, #867277)' }} />
             <div>
               <span style={S.streakNum}>{streakDays}</span>
               <span style={S.streakLabel}> day streak</span>
@@ -559,24 +550,20 @@ export default function DailyChecklist() {
             {bestStreak > 0 && <span style={S.streakBest}>Best: {bestStreak}</span>}
           </div>
           <div style={S.statusPills}>
-            <div style={{
-              ...S.statusPill,
+            <div style={{ ...S.statusPill,
               background: allOpeningDone ? 'rgba(91,169,123,0.12)' : 'rgba(254,219,155,0.4)',
               borderColor: allOpeningDone ? 'rgba(91,169,123,0.15)' : 'rgba(116,90,39,0.1)',
             }}>
-              <MIcon name={allOpeningDone ? 'check_circle' : 'schedule'} fill size={14}
-                style={{ color: allOpeningDone ? 'var(--success, #5ba97b)' : '#745a27' }} />
+              <Icon name={iconName(allOpeningDone ? 'check_circle' : 'schedule')} size={14} filled inline style={{ color: allOpeningDone ? 'var(--success, #5ba97b)' : '#745a27' }} />
               <span style={{ fontSize: 11, fontWeight: 600, color: allOpeningDone ? 'var(--success, #5ba97b)' : '#745a27' }}>
                 Open
               </span>
             </div>
-            <div style={{
-              ...S.statusPill,
+            <div style={{ ...S.statusPill,
               background: allClosingDone ? 'rgba(91,169,123,0.12)' : 'rgba(146,64,94,0.06)',
               borderColor: allClosingDone ? 'rgba(91,169,123,0.15)' : 'rgba(146,64,94,0.08)',
             }}>
-              <MIcon name={allClosingDone ? 'check_circle' : 'radio_button_unchecked'} fill={allClosingDone} size={14}
-                style={{ color: allClosingDone ? 'var(--success, #5ba97b)' : 'var(--text-muted, #867277)' }} />
+              <Icon name={iconName(allClosingDone ? 'check_circle' : 'radio_button_unchecked')} size={14} filled={allClosingDone} inline style={{ color: allClosingDone ? 'var(--success, #5ba97b)' : 'var(--text-muted, #867277)' }} />
               <span style={{ fontSize: 11, fontWeight: 600, color: allClosingDone ? 'var(--success, #5ba97b)' : 'var(--text-muted, #867277)' }}>
                 Close
               </span>
@@ -596,11 +583,9 @@ export default function DailyChecklist() {
             onClick={() => { setTab(t.key); setShowAdd(false); }}
             style={{ ...S.tab, ...(tab === t.key ? S.tabActive : {}) }}
           >
-            <MIcon name={t.icon} fill={tab === t.key} size={16}
-              style={{ color: tab === t.key ? '#fff' : 'var(--text-muted, #867277)' }} />
+            <Icon name={iconName(t.icon)} size={16} filled={tab === t.key} inline style={{ color: tab === t.key ? '#fff' : 'var(--text-muted, #867277)' }} />
             {t.label}
-            {editing && <span style={{
-              fontSize: 9, fontWeight: 700, marginLeft: 2,
+            {editing && <span style={{ fontSize: 9, fontWeight: 700, marginLeft: 2,
               background: 'rgba(255,255,255,0.25)', borderRadius: 4,
               padding: '1px 4px', color: tab === t.key ? '#fff' : 'var(--text-muted, #867277)',
             }}>{checklists[t.key]?.length || 0}</span>}
@@ -611,8 +596,7 @@ export default function DailyChecklist() {
       {!editing && (
         <div style={S.progressSection}>
           <div style={S.progressTrack}>
-            <div style={{
-              ...S.progressFill,
+            <div style={{ ...S.progressFill,
               width: `${progress}%`,
               background: progress === 100
                 ? 'linear-gradient(90deg, #5ba97b 0%, #78c99b 100%)'
@@ -633,8 +617,7 @@ export default function DailyChecklist() {
         {currentList.map((item, index) => (
           <div
             key={item.id}
-            style={{
-              ...S.checkItem,
+            style={{ ...S.checkItem,
               opacity: !editing && item.done ? 0.55 : 1,
               paddingRight: editing ? 8 : 14,
             }}
@@ -645,7 +628,7 @@ export default function DailyChecklist() {
                 onClick={() => toggleItem(tab, item.id)}
                 style={{ ...S.checkbox, ...(item.done ? S.checkboxDone : {}), cursor: 'pointer' }}
               >
-                {item.done && <MIcon name="check" size={15} style={{ color: '#fff' }} />}
+                {item.done && <Icon name={iconName('check')} size={15} inline style={{ color: '#fff' }} />}
               </div>
             )}
             {/* ── Edit mode: reorder arrows ── */}
@@ -656,14 +639,14 @@ export default function DailyChecklist() {
                   disabled={index === 0}
                   style={{ ...S.arrowBtn, opacity: index === 0 ? 0.25 : 1 }}
                 >
-                  <MIcon name="keyboard_arrow_up" size={18} />
+                  <Icon name={iconName('keyboard_arrow_up')} size={18} inline />
                 </button>
                 <button
                   onClick={() => handleMove(tab, index, 1)}
                   disabled={index === currentList.length - 1}
                   style={{ ...S.arrowBtn, opacity: index === currentList.length - 1 ? 0.25 : 1 }}
                 >
-                  <MIcon name="keyboard_arrow_down" size={18} />
+                  <Icon name={iconName('keyboard_arrow_down')} size={18} inline />
                 </button>
               </div>
             )}
@@ -671,8 +654,7 @@ export default function DailyChecklist() {
               style={{ flex: 1, minWidth: 0, cursor: editing ? 'default' : 'pointer' }}
               onClick={() => !editing && toggleItem(tab, item.id)}
             >
-              <span style={{
-                ...S.checkLabel,
+              <span style={{ ...S.checkLabel,
                 textDecoration: !editing && item.done ? 'line-through' : 'none',
               }}>
                 {item.label}
@@ -683,8 +665,7 @@ export default function DailyChecklist() {
             </div>
             {/* ── Normal mode: icon ── */}
             {!editing && (
-              <MIcon name={iconForItem(item)} size={18}
-                style={{ color: item.done ? 'var(--text-muted, #867277)' : 'rgba(146,64,94,0.35)' }} />
+              <Icon name={iconName(iconForItem(item))} size={18} inline style={{ color: item.done ? 'var(--text-muted, #867277)' : 'rgba(146,64,94,0.35)' }} />
             )}
             {/* ── Edit mode: delete button ── */}
             {editing && (
@@ -692,7 +673,7 @@ export default function DailyChecklist() {
                 onClick={(e) => { e.stopPropagation(); handleDeleteItem(tab, item.id); }}
                 style={S.deleteBtn}
               >
-                <MIcon name="close" size={16} style={{ color: 'var(--danger, #ba1a1a)' }} />
+                <Icon name={iconName('close')} size={16} inline style={{ color: 'var(--danger, #ba1a1a)' }} />
               </button>
             )}
           </div>
@@ -701,7 +682,7 @@ export default function DailyChecklist() {
       {/* ─── All done celebration (normal mode) ─── */}
       {!editing && progress === 100 && totalCount > 0 && (
         <section style={S.celebrationCard}>
-          <MIcon name="celebration" fill size={24} style={{ color: 'var(--success, #5ba97b)' }} />
+          <Icon name={iconName('celebration')} size={24} filled inline style={{ color: 'var(--success, #5ba97b)' }} />
           <span style={S.celebrationText}>
             {tab === 'opening' ? 'Ready for the day!' : tab === 'closing' ? 'All wrapped up - see you tomorrow!' : 'All tasks done!'}
           </span>
@@ -710,7 +691,7 @@ export default function DailyChecklist() {
       {/* ─── Add Item (available on ALL tabs now) ─── */}
       {!showAdd && (
         <button style={S.addBtn} onClick={() => setShowAdd(true)}>
-          <MIcon name="add" size={16} style={{ color: 'var(--accent, #92405e)' }} />
+          <Icon name={iconName('add')} size={16} inline style={{ color: 'var(--accent, #92405e)' }} />
           Add {tab === 'opening' ? 'Opening' : tab === 'closing' ? 'Closing' : ''} Item
         </button>
       )}
@@ -735,7 +716,7 @@ export default function DailyChecklist() {
             )}
             <button onClick={handleAddItem} style={S.saveBtn}>Add</button>
             <button onClick={() => { setShowAdd(false); setNewLabel(''); }} style={S.cancelBtn}>
-              <MIcon name="close" size={16} />
+              <Icon name={iconName('close')} size={16} inline />
             </button>
           </div>
         </section>
@@ -752,11 +733,11 @@ export default function DailyChecklist() {
               disabled={templateSaving}
               style={{ ...S.saveBtn, flex: 1, opacity: templateSaving ? 0.6 : 1 }}
             >
-              <MIcon name="bookmark" size={15} style={{ color: '#fff', marginRight: 4 }} />
+              <Icon name={iconName('bookmark')} size={15} inline style={{ color: '#fff', marginRight: 4 }} />
               {templateSaving ? 'Saving...' : 'Save as My Default'}
             </button>
             <button onClick={handleResetToFactory} style={{ ...S.cancelBtn, flex: 'none', padding: '10px 14px' }}>
-              <MIcon name="restart_alt" size={15} style={{ color: 'var(--text-secondary, #534247)', marginRight: 4 }} />
+              <Icon name={iconName('restart_alt')} size={15} inline style={{ color: 'var(--text-secondary, #534247)', marginRight: 4 }} />
               Reset
             </button>
           </div>
@@ -767,7 +748,7 @@ export default function DailyChecklist() {
         <section style={S.insightsCard}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
             <div style={S.insightsIconWrap}>
-              <MIcon name="lightbulb" size={20} style={{ color: '#fff' }} />
+              <Icon name={iconName('lightbulb')} size={20} inline style={{ color: '#fff' }} />
             </div>
             <div>
               <h4 style={S.insightsTitle}>Daily Insight</h4>

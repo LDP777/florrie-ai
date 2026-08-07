@@ -334,8 +334,7 @@ function FieldCard({ field, index, isEditing, onEdit, onUpdate, onRemove, onMove
   const typeInfo = FIELD_TYPES.find(ft => ft.value === field.type);
 
   return (
-    <div style={{
-      ...styles.fieldCard,
+    <div style={{ ...styles.fieldCard,
       ...(isEditing ? styles.fieldCardEditing : {}),
     }}>
       {/* Preview / collapsed */}

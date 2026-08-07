@@ -11,6 +11,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBeautician, fetchRows } from '../lib/supabase.js';
+import Icon, { iconName } from '../components/ui/Icon';
 
 // Guardian avatar (inline, no external deps)
 function GuardianAvatar({ size = 52 }) {
@@ -32,13 +33,6 @@ function GuardianAvatar({ size = 52 }) {
   );
 }
 
-function MIcon({ name, size = 20, color, style: s }) {
-  return (
-    <span className="material-symbols-outlined" style={{ fontSize: size, color, ...s }}>
-      {name}
-    </span>
-  );
-}
 
 export default function Compliance() {
   const navigate = useNavigate();
@@ -105,7 +99,7 @@ export default function Compliance() {
 
       {/* What this covers */}
       <div style={S.explainerCard}>
-        <MIcon name="info" size={16} color="#C9A96E" />
+        <Icon name={iconName('info')} size={16} inline color="#C9A96E" />
         <p style={S.explainerText}>
           Required for <strong>all beauty professionals</strong> - whether you do brows, lashes, nails, waxing, facials or anything else. UK law requires patch tests 48h before chemical treatments. Consultation forms protect you legally for every client.
         </p>
@@ -115,13 +109,13 @@ export default function Compliance() {
       <button style={S.pillarCard} onClick={() => navigate('/patch-tests')}>
         <div style={S.pillarHeader}>
           <div style={{ ...S.pillarIcon, background: 'var(--success-bg, #EDF7F0)' }}>
-            <MIcon name="vaccines" size={22} color="#5BA97B" />
+            <Icon name={iconName('vaccines')} size={22} inline color="#5BA97B" />
           </div>
           <div style={S.pillarInfo}>
             <div style={S.pillarTitle}>Patch Tests</div>
             <div style={S.pillarDesc}>48h allergy checks before chemical treatments</div>
           </div>
-          <MIcon name="chevron_right" size={20} color="#C5B8B2" />
+          <Icon name={iconName('chevron_right')} size={20} inline color="#C5B8B2" />
         </div>
 
         {fetching ? (
@@ -151,7 +145,7 @@ export default function Compliance() {
 
         {patchStats?.pending > 0 && (
           <div style={S.alertBanner}>
-            <MIcon name="warning" size={14} color="#E85D75" />
+            <Icon name={iconName('warning')} size={14} inline color="#E85D75" />
             <span style={S.alertText}>{patchStats.pending} client{patchStats.pending > 1 ? 's' : ''} need a patch test before their next appointment</span>
           </div>
         )}
@@ -161,13 +155,13 @@ export default function Compliance() {
       <button style={S.pillarCard} onClick={() => navigate('/consultation-forms')}>
         <div style={S.pillarHeader}>
           <div style={{ ...S.pillarIcon, background: '#F3F0FA' }}>
-            <MIcon name="assignment" size={22} color="#7B6BA8" />
+            <Icon name={iconName('assignment')} size={22} inline color="#7B6BA8" />
           </div>
           <div style={S.pillarInfo}>
             <div style={S.pillarTitle}>Consultation Forms</div>
             <div style={S.pillarDesc}>Informed consent for every treatment type</div>
           </div>
-          <MIcon name="chevron_right" size={20} color="#C5B8B2" />
+          <Icon name={iconName('chevron_right')} size={20} inline color="#C5B8B2" />
         </div>
 
         {fetching ? (
@@ -186,7 +180,7 @@ export default function Compliance() {
 
       {/* Quick-build tip */}
       <div style={S.tipCard}>
-        <MIcon name="lightbulb" size={16} color="#C9A96E" />
+        <Icon name={iconName('lightbulb')} size={16} inline color="#C9A96E" />
         <p style={S.tipText}>
           <strong>Tip:</strong> Build a consultation form for each treatment category - one for chemical treatments, one for facials, one for nails. Clients complete it once and it's saved to their profile.
         </p>
@@ -199,7 +193,7 @@ const S = {
   page: {
     padding: '16px 16px var(--scroll-pad-bottom)',
     maxWidth: 480, margin: '0 auto',
-    fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
     color: 'var(--text-primary, #1d1b19)',
     minHeight: '100vh',
     background: 'var(--bg, #fef8f4)',
@@ -216,7 +210,7 @@ const S = {
   heroText: { flex: 1 },
   heroTitle: {
     fontSize: 22, fontWeight: 700, margin: '0 0 4px',
-    fontFamily: "'Noto Serif', Georgia, serif", fontStyle: 'italic',
+    fontFamily: "'Playfair Display', Georgia, serif", fontStyle: 'italic',
     color: 'var(--text-primary, #1d1b19)',
   },
   heroSub: { fontSize: 13, color: 'var(--text-muted, #867277)', margin: 0, lineHeight: 1.5 },

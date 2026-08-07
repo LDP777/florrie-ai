@@ -27,6 +27,7 @@ import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import { bloom } from '../lib/bloom.js';
+import Icon, { iconName } from '../components/ui/Icon';
 
 const TYPE_LABELS = {
   rebook_nudge: 'Rebook nudge',
@@ -579,7 +580,7 @@ function Section({ icon, title, hint, children }) {
   return (
     <div style={s.section}>
       <div style={s.sectionHead}>
-        <span className="material-symbols-outlined" style={s.sectionIcon}>{icon}</span>
+        <Icon name={iconName(icon)} inline style={s.sectionIcon} />
         <div style={{ minWidth: 0 }}>
           <div style={s.sectionTitle}>{title}</div>
           <div style={s.sectionHint}>{hint}</div>
@@ -630,7 +631,7 @@ function ReviewCard({ item, onApprove, onSkip, onSave, skipLabel }) {
           <span style={s.typeLabel}>{item.typeLabel}</span>
         </div>
         <span style={s.channelChip}>
-          <span className="material-symbols-outlined" style={s.channelChipIcon}>{ch.icon}</span>
+          <Icon name={iconName(ch.icon)} inline style={s.channelChipIcon} />
           {ch.label}
         </span>
       </div>
@@ -681,7 +682,7 @@ function LoadingState() {
 function ErrorState({ message, onRetry }) {
   return (
     <div style={s.centerState}>
-      <span className="material-symbols-outlined" style={s.stateIcon}>cloud_off</span>
+      <Icon name={iconName('cloud_off')} inline style={s.stateIcon} />
       <p style={s.stateTitle}>{message}</p>
       <p style={s.stateSub}>Give it another go.</p>
       <button onClick={onRetry} style={s.retryBtn}>Try again</button>
@@ -692,7 +693,7 @@ function ErrorState({ message, onRetry }) {
 function EmptyState() {
   return (
     <div style={s.centerState}>
-      <span className="material-symbols-outlined" style={s.stateIcon}>mark_email_read</span>
+      <Icon name={iconName('mark_email_read')} inline style={s.stateIcon} />
       <p style={s.stateTitle}>All clear.</p>
       <p style={s.stateSub}>
         Anything Florrie wants to send a client you know will wait here for your OK first.
@@ -788,7 +789,7 @@ const s = {
     fontSize: 16,
     fontWeight: 700,
     flexShrink: 0,
-    fontFamily: "'Noto Serif', Georgia, serif",
+    fontFamily: "'Playfair Display', Georgia, serif",
   },
   cardTopText: { display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0, flex: 1 },
   nameRow: { display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 },

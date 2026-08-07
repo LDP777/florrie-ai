@@ -263,7 +263,7 @@ export default function Pricing() {
 }
 
 const S = {
-  page: { padding: '20px 16px 100px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
+  page: { padding: '20px 16px 100px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: '0 0 4px' },
   subtitle: { fontSize: 13, color: 'var(--text-muted, #B5AFA8)', margin: '0 0 20px' },
 
@@ -371,7 +371,7 @@ const S = {
   // iOS-only placeholder styles (App Store Guideline 3.1.3(b) compliant)
   iosWrap: {
     padding: '60px 20px',
-    fontFamily: '"DM Sans", -apple-system, sans-serif',
+    fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
     maxWidth: 480,
     margin: '0 auto',
     minHeight: '60vh',

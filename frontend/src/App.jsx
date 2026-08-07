@@ -13,7 +13,7 @@ import { isVoiceEnabled } from './lib/voicePref.js';
 import { CoachProvider } from './contexts/CoachContext.jsx';
 import { isIOSNative } from './lib/platform.js';
 import { hapticTap } from './lib/native.js';
-import Icon from './components/ui/Icon';
+import Icon, { iconName } from './components/ui/Icon';
 
 // Lazy-loaded pages (code splitting , each becomes its own chunk)
 const CalendarView = lazy(() => import('./pages/CalendarView.jsx'));
@@ -106,8 +106,7 @@ const UpdatePassword = lazy(() => import('./pages/UpdatePassword.jsx'));
 
 function PageLoader() {
   return (
-    <div style={{
-      display: 'flex',
+    <div style={{ display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
@@ -115,18 +114,16 @@ function PageLoader() {
       gap: 12,
       animation: 'fadeIn 0.3s ease'
     }}>
-      <div style={{
-        width: 32,
+      <div style={{ width: 32,
         height: 32,
         border: '2.5px solid var(--border, #EDE9E4)',
         borderTopColor: 'var(--accent, #C76B8A)',
         borderRadius: '50%',
         animation: 'spin 0.8s linear infinite',
       }} />
-      <span style={{
-        fontSize: 12,
+      <span style={{ fontSize: 12,
         color: 'var(--text-muted, #B5AFA8)',
-        fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+        fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
         letterSpacing: '0.04em',
       }}>Loading...</span>
     </div>
@@ -353,8 +350,8 @@ export default function App() {
     return (
       <div style={styles.loadingScreen}>
         <img src="/florrie-petal.svg" alt="" style={{ width: 48, height: 48, animation: 'spin 2.5s ease-in-out infinite' }} />
-        <span style={styles.loadingLogo}>florrie<span style={{ color: 'var(--gold, #C9A96E)', fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>.ai</span></span>
-        <span style={{ fontSize: 11, color: 'var(--text-muted, #B5AFA8)', fontFamily: "'DM Sans', sans-serif", letterSpacing: '0.08em', textTransform: 'uppercase' }}>your AI team</span>
+        <span style={styles.loadingLogo}>florrie<span style={{ color: 'var(--gold, #C9A96E)', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 500 }}>.ai</span></span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted, #B5AFA8)', fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '0.08em', textTransform: 'uppercase' }}>your AI team</span>
       </div>
     );
   }
@@ -457,8 +454,7 @@ export default function App() {
             Inbox thread, so reserving its lane there left a band of dead cream
             under the composer. */}
         <div
-          style={{
-            ...styles.pageContainer,
+          style={{ ...styles.pageContainer,
             paddingBottom: (location.pathname === '/inbox' && /[?&]client=/.test(location.search || ''))
               ? 'var(--shell-bottom-nav)'
               : 'var(--shell-bottom)',
@@ -716,14 +712,14 @@ function NavTab({ tab, onNav }) {
   return (
     <button onClick={onNav} style={styles.navItem} aria-label={tab.label} aria-current={tab.active ? 'page' : undefined}>
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span className="material-symbols-outlined" style={{
-          fontSize: 24, color,
-          fontVariationSettings: tab.active ? "'FILL' 1, 'wght' 300" : "'FILL' 0, 'wght' 300",
-          transition: 'color 0.15s ease',
-        }}>{tab.icon}</span>
+        <Icon
+          name={iconName(tab.icon)}
+          size={24}
+          filled={tab.active}
+          style={{ color, transition: 'color 0.15s ease' }}
+        />
         {showBadge && (
-          <span style={{
-            position: 'absolute', top: -4, right: -6,
+          <span style={{ position: 'absolute', top: -4, right: -6,
             minWidth: 16, height: 16, borderRadius: 8,
             background: '#E85D75', color: '#fff',
             fontSize: 9, fontWeight: 700, lineHeight: '16px',
@@ -735,8 +731,7 @@ function NavTab({ tab, onNav }) {
           </span>
         )}
       </div>
-      <span style={{
-        fontSize: 10, lineHeight: 1, letterSpacing: '0.01em',
+      <span style={{ fontSize: 10, lineHeight: 1, letterSpacing: '0.01em',
         fontWeight: tab.active ? 600 : 500,
         color,
       }}>
@@ -792,8 +787,7 @@ function FloatingBack({ current }) {
         else navigate('/');
       }}
       aria-label="Back"
-      style={{
-        position: 'fixed',
+      style={{ position: 'fixed',
         top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
         left: 14,
         display: 'flex',
@@ -816,7 +810,7 @@ function FloatingBack({ current }) {
         transition: 'width 0.18s ease, padding 0.18s ease, background 0.18s ease, box-shadow 0.18s ease',
       }}
     >
-      <span className="material-symbols-outlined" style={{ fontSize: 20, color: '#92405e' }}>arrow_back_ios_new</span>
+      <Icon name={iconName('arrow_back_ios_new')} size={20} inline style={{ color: '#92405e' }} />
       {!compact && <span style={{ fontSize: 12, fontWeight: 600, color: '#92405e', letterSpacing: '0.01em' }}>Back</span>}
     </button>
   );
@@ -837,8 +831,7 @@ function FloatingMore({ current }) {
     <button
       onClick={() => navigate('/more')}
       aria-label="More features"
-      style={{
-        position: 'fixed',
+      style={{ position: 'fixed',
         top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
         right: 14,
         display: 'flex',
@@ -861,7 +854,7 @@ function FloatingMore({ current }) {
         transition: 'width 0.18s ease, padding 0.18s ease, background 0.18s ease, box-shadow 0.18s ease',
       }}
     >
-      <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#92405e' }}>apps</span>
+      <Icon name={iconName('apps')} size={18} inline style={{ color: '#92405e' }} />
       {!compact && <span style={{ fontSize: 12, fontWeight: 600, color: '#92405e', letterSpacing: '0.01em' }}>More</span>}
     </button>
   );

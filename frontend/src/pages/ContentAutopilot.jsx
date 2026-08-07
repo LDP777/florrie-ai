@@ -19,6 +19,7 @@ import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import Icon, { iconName } from '../components/ui/Icon';
 /**
  * Content Autopilot, Ellie's #1 pain point.
  *
@@ -643,12 +644,10 @@ export default function ContentAutopilot() {
       />
       {/* Plan my week — the lead action (Levi, 9 Jul: planner-first) */}
       {!composing && (
-        <div style={{
-          background: 'var(--tone-1, #FBF3EC)', borderRadius: 20, padding: '18px 18px 16px',
+        <div style={{ background: 'var(--tone-1, #FBF3EC)', borderRadius: 20, padding: '18px 18px 16px',
           marginBottom: 14,
         }}>
-          <h2 style={{
-            fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
+          <h2 style={{ fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
             fontSize: 20, fontWeight: 600, color: 'var(--text-primary, #241B17)', margin: '0 0 4px',
           }}>
             Plan my week
@@ -660,8 +659,7 @@ export default function ContentAutopilot() {
           <button
             onClick={handlePlanWeek}
             disabled={planning}
-            style={{
-              padding: '12px 22px', borderRadius: 12, border: 'none',
+            style={{ padding: '12px 22px', borderRadius: 12, border: 'none',
               background: 'var(--accent, #92405E)', color: '#fff', fontSize: 14, fontWeight: 700,
               cursor: 'pointer', fontFamily: 'inherit', opacity: planning ? 0.6 : 1,
             }}
@@ -716,8 +714,7 @@ export default function ContentAutopilot() {
       <div style={styles.streamSelector}>
         <button
           onClick={() => setSelectedStreamId(null)}
-          style={{
-            ...styles.streamPill,
+          style={{ ...styles.streamPill,
             background: selectedStreamId === null ? 'var(--accent, #C76B8A)' : 'var(--bg-subtle, #F5F2EF)',
             color: selectedStreamId === null ? 'white' : 'var(--text-secondary, #7A756F)',
           }}
@@ -728,8 +725,7 @@ export default function ContentAutopilot() {
           <button
             key={s.id}
             onClick={() => setSelectedStreamId(s.id)}
-            style={{
-              ...styles.streamPill,
+            style={{ ...styles.streamPill,
               background: selectedStreamId === s.id ? 'var(--accent, #C76B8A)' : 'var(--bg-subtle, #F5F2EF)',
               color: selectedStreamId === s.id ? 'white' : 'var(--text-secondary, #7A756F)',
             }}
@@ -739,8 +735,7 @@ export default function ContentAutopilot() {
         ))}
         <button
           onClick={() => setShowStreamForm(!showStreamForm)}
-          style={{
-            ...styles.streamPill,
+          style={{ ...styles.streamPill,
             background: 'transparent',
             color: 'var(--accent, #C76B8A)',
             border: '1px solid var(--accent, #C76B8A)',
@@ -800,8 +795,7 @@ export default function ContentAutopilot() {
           </div>
           <div style={styles.progressBar}>
             <div
-              style={{
-                ...styles.progressFill,
+              style={{ ...styles.progressFill,
                 width: `${Math.min(100, (streamProgress.posted_this_month / streamProgress.monthly_target) * 100)}%`,
                 background: streamProgress.remaining < 3 ? '#DC2626' : streamProgress.remaining <= 3 ? '#F59E0B' : 'var(--accent, #C76B8A)',
               }}
@@ -830,8 +824,7 @@ export default function ContentAutopilot() {
           <button
             key={t}
             onClick={() => { setTab(t); setComposing(false); }}
-            style={{
-              ...styles.tab,
+            style={{ ...styles.tab,
               background: (tab === t || (tab === 'compose' && t === 'drafts')) ? 'var(--accent, #92405E)' : 'transparent',
               color: (tab === t || (tab === 'compose' && t === 'drafts')) ? '#fff' : 'var(--text-secondary, #8B6F5E)',
             }}
@@ -900,9 +893,9 @@ export default function ContentAutopilot() {
             </div>
             <div style={{ padding: '8px 12px 12px' }}>
               <div style={{ display: 'flex', gap: 14, color: 'var(--text-primary, #241B17)', marginBottom: 6 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 21 }}>favorite</span>
-                <span className="material-symbols-outlined" style={{ fontSize: 21 }}>mode_comment</span>
-                <span className="material-symbols-outlined" style={{ fontSize: 21 }}>send</span>
+                <Icon name={iconName('favorite')} size={21} inline />
+                <Icon name={iconName('mode_comment')} size={21} inline />
+                <Icon name={iconName('send')} size={21} inline />
               </div>
               <div style={{ fontSize: 12.5, color: 'var(--text-primary, #241B17)', lineHeight: 1.45 }}>
                 <span style={{ fontWeight: 600 }}>{beautician?.booking_slug || 'your_salon'}</span>{' '}
@@ -916,8 +909,7 @@ export default function ContentAutopilot() {
               <button
                 key={type}
                 onClick={() => setComposeType(type)}
-                style={{
-                  ...styles.composeTypeBtn,
+                style={{ ...styles.composeTypeBtn,
                   background: composeType === type ? '#FBF0F3' : 'var(--bg-subtle, var(--bg-subtle, #F5F2EF))',
                   color: composeType === type ? 'var(--accent, #C76B8A)' : '#6b6560',
                   fontWeight: composeType === type ? 600 : 400,
@@ -933,7 +925,7 @@ export default function ContentAutopilot() {
             onClick={() => fileRef.current?.click()}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', padding: '11px 14px', marginBottom: 10, borderRadius: 12, border: `1.5px dashed ${composeImagePreview ? 'var(--accent, #92405E)' : 'var(--border-light, #EDE9E4)'}`, background: composeImagePreview ? 'rgba(146,64,94,0.05)' : 'transparent', color: composeImagePreview ? 'var(--accent, #92405E)' : 'var(--text-secondary, #8B6F5E)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: 19 }}>{composeImagePreview ? 'check_circle' : 'add_a_photo'}</span>
+            <Icon name={iconName(composeImagePreview ? 'check_circle' : 'add_a_photo')} size={19} inline />
             {composeImagePreview ? 'Photo added, tap to change' : 'Add a photo'}
           </button>
           <input
@@ -950,8 +942,7 @@ export default function ContentAutopilot() {
                 key={k}
                 type="button"
                 onClick={() => setComposeMediaKind(k)}
-                style={{
-                  padding: '7px 14px', borderRadius: 10, fontSize: 12.5, fontWeight: 700,
+                style={{ padding: '7px 14px', borderRadius: 10, fontSize: 12.5, fontWeight: 700,
                   border: `1.5px solid ${composeMediaKind === k ? 'var(--accent, #92405E)' : 'var(--border-light, #EDE9E4)'}`,
                   background: composeMediaKind === k ? 'rgba(146,64,94,0.07)' : 'transparent',
                   color: composeMediaKind === k ? 'var(--accent, #92405E)' : 'var(--text-secondary, #8B6F5E)',
@@ -981,8 +972,7 @@ export default function ContentAutopilot() {
             <button
               onClick={handleAIWrite}
               disabled={generatingAI}
-              style={{
-                ...styles.shuffleBtn,
+              style={{ ...styles.shuffleBtn,
                 flex: 2,
                 background: 'linear-gradient(135deg, #FBF0F3, #F3EEFF)',
                 color: 'var(--accent, #C76B8A)',
@@ -1005,8 +995,7 @@ export default function ContentAutopilot() {
             <button
               onClick={handleSaveDraft}
               disabled={!composeCaption.trim() || saving}
-              style={{
-                ...styles.primaryBtn,
+              style={{ ...styles.primaryBtn,
                 opacity: !composeCaption.trim() ? 0.5 : 1,
               }}
             >
@@ -1076,8 +1065,7 @@ export default function ContentAutopilot() {
             <div key={post.id} style={styles.postCard}>
               {/* Type badge */}
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                <div style={{
-                  ...styles.typeBadge,
+                <div style={{ ...styles.typeBadge,
                   background: post.post_type === 'last_minute_availability' ? '#FEF3C7' : '#FBF0F3',
                   color: post.post_type === 'last_minute_availability' ? '#B45309' : 'var(--accent, #C76B8A)'
                 }}>
@@ -1086,8 +1074,7 @@ export default function ContentAutopilot() {
                 {post.scheduled_for && (
                   <button
                     onClick={() => handleApproveSchedule(post)}
-                    style={{
-                      padding: '4px 12px', borderRadius: 10, border: '1px solid var(--accent, #C76B8A)',
+                    style={{ padding: '4px 12px', borderRadius: 10, border: '1px solid var(--accent, #C76B8A)',
                       background: 'transparent', color: 'var(--accent, #C76B8A)',
                       fontSize: 11.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
                     }}
@@ -1222,8 +1209,7 @@ export default function ContentAutopilot() {
                 <div
                   key={idx}
                   onClick={() => isCurrentMonth && startCompose('before_after', '')}
-                  style={{
-                    ...styles.calendarCell,
+                  style={{ ...styles.calendarCell,
                     background: isCurrentMonth ? 'var(--bg-card, #FFFFFF)' : 'var(--bg-subtle, #F5F2EF)',
                     opacity: isCurrentMonth ? 1 : 0.5,
                     cursor: isCurrentMonth ? 'pointer' : 'default',
@@ -1236,8 +1222,7 @@ export default function ContentAutopilot() {
                         <div
                           key={post.id}
                           onClick={(e) => { e.stopPropagation(); setEditingId(post.id); setEditCaption(post.caption); }}
-                          style={{
-                            ...styles.calendarChip,
+                          style={{ ...styles.calendarChip,
                             background: getChipColor(post.status),
                             opacity: post.stream_id === selectedStreamId || selectedStreamId === null ? 1 : 0.5,
                           }}
@@ -1310,8 +1295,7 @@ export default function ContentAutopilot() {
                 <button
                   onClick={handleSaveGalleryItem}
                   disabled={!galleryBefore || !galleryAfter || savingGallery}
-                  style={{
-                    ...styles.primaryBtn,
+                  style={{ ...styles.primaryBtn,
                     opacity: (!galleryBefore || !galleryAfter) ? 0.5 : 1,
                   }}
                 >
@@ -1405,7 +1389,7 @@ const styles = {
   page: {
     minHeight: '100vh',
     background: 'transparent',
-    fontFamily: "var(--font-body, 'Plus Jakarta Sans', 'DM Sans', sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
     padding: '0 16px var(--scroll-pad-bottom)',
     maxWidth: 480,
     margin: '0 auto',

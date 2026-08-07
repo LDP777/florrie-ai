@@ -8,6 +8,7 @@ import EmptyState from '../components/EmptyState.jsx';
 import { TREATMENT_PALETTE, treatmentColor } from '../lib/treatmentColors.js';
 import ErrorCard from '../components/ErrorCard.jsx';
 import { API_BASE } from '../lib/config.js';
+import Icon, { iconName } from '../components/ui/Icon';
 
 /**
  * Treatments - manage treatment menu.
@@ -310,8 +311,7 @@ export default function Treatments() {
               <button
                 type="button"
                 onClick={() => setForm(p => ({ ...p, color: null }))}
-                style={{
-                  ...styles.autoSwatch,
+                style={{ ...styles.autoSwatch,
                   borderColor: !form.color ? 'var(--accent)' : 'var(--border)',
                   color: !form.color ? 'var(--accent)' : 'var(--text-muted)',
                 }}
@@ -324,8 +324,7 @@ export default function Treatments() {
                   type="button"
                   onClick={() => setForm(p => ({ ...p, color: c }))}
                   aria-label={`Use colour ${c}`}
-                  style={{
-                    ...styles.swatch,
+                  style={{ ...styles.swatch,
                     background: c,
                     outline: form.color === c ? '2px solid var(--accent)' : '2px solid transparent',
                     outlineOffset: 2,
@@ -353,8 +352,7 @@ export default function Treatments() {
               <button
                 type="button"
                 onClick={() => setForm(p => ({ ...p, requires_consultation: !p.requires_consultation }))}
-                style={{
-                  ...styles.toggleBtn,
+                style={{ ...styles.toggleBtn,
                   background: form.requires_consultation ? 'var(--accent)' : 'var(--border)',
                   color: form.requires_consultation ? '#fff' : 'var(--text-secondary, #888)'
                 }}
@@ -380,7 +378,7 @@ export default function Treatments() {
               )}
               {form.requires_consultation && (
                 <div style={{ marginTop: 8, padding: '8px 10px', background: 'var(--accent-wash, #fdeef3)', borderRadius: 8, display: 'flex', gap: 6, alignItems: 'flex-start' }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--accent)', flexShrink: 0 }}>verified</span>
+                  <Icon name={iconName('verified')} size={16} inline style={{ color: 'var(--accent)', flexShrink: 0 }} />
                   <span style={{ fontSize: 12, color: 'var(--text, #1d1b19)', lineHeight: 1.45 }}>
                     New clients booking this online get {(() => { const n = forms.find(f => f.id === form.consultation_form_id)?.name; return n ? `the "${n}" form` : 'your questions'; })()} to complete first. Returning clients are not asked again.
                   </span>
@@ -392,7 +390,7 @@ export default function Treatments() {
                   onClick={openPreview}
                   style={styles.previewBtn}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>visibility</span>
+                  <Icon name={iconName('visibility')} size={16} inline />
                   Preview as a new client
                 </button>
               )}
@@ -402,8 +400,7 @@ export default function Treatments() {
               <button
                 type="button"
                 onClick={() => setForm(p => ({ ...p, requires_patch_test: !p.requires_patch_test }))}
-                style={{
-                  ...styles.toggleBtn,
+                style={{ ...styles.toggleBtn,
                   background: form.requires_patch_test ? 'var(--accent)' : 'var(--border)',
                   color: form.requires_patch_test ? '#fff' : 'var(--text-secondary, #888)'
                 }}
@@ -443,8 +440,7 @@ export default function Treatments() {
               <button
                 type="button"
                 onClick={() => setForm(p => ({ ...p, booking_enabled: !p.booking_enabled }))}
-                style={{
-                  ...styles.toggleBtn,
+                style={{ ...styles.toggleBtn,
                   background: form.booking_enabled !== false ? 'var(--accent)' : 'var(--border)',
                   color: form.booking_enabled !== false ? '#fff' : 'var(--text-secondary, #888)'
                 }}
@@ -566,7 +562,7 @@ export default function Treatments() {
                 </p>
               </div>
               <button type="button" onClick={() => setPreviewOpen(false)} aria-label="Close" style={styles.previewClose}>
-                <span className="material-symbols-outlined">close</span>
+                <Icon name={iconName('close')} inline />
               </button>
             </div>
 
@@ -672,7 +668,7 @@ export default function Treatments() {
 const styles = {
   page: {
     minHeight: '100vh', background: 'var(--bg)',
-    fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)",
     padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)',
     animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
   },

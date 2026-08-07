@@ -41,9 +41,9 @@ export const type = {
     lineHeight: 1.25,
     color: 'var(--text-primary)',
   },
-  // Stitch: Noto Serif for section headlines
+  // Section headlines use the app display face
   headline: {
-    fontFamily: "var(--font-headline, 'Noto Serif', Georgia, serif)",
+    fontFamily: "var(--font-headline, 'Playfair Display', Georgia, serif)",
     fontSize: 24,
     fontWeight: 400,
     fontStyle: 'italic',
@@ -89,7 +89,7 @@ export const type = {
     color: 'var(--text-muted)',
   },
   mono: {
-    fontFamily: "var(--font-mono, 'DM Mono', monospace)",
+    fontFamily: "var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace)",
     fontSize: 13,
     fontWeight: 400,
   },

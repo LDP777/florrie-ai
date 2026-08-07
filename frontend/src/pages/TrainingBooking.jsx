@@ -309,8 +309,7 @@ export default function TrainingBooking() {
             <button
               type="submit"
               disabled={submitting || !form.name || !form.email}
-              style={{
-                ...styles.submitBtn,
+              style={{ ...styles.submitBtn,
                 background: brandColor,
                 opacity: submitting || !form.name || !form.email ? 0.5 : 1,
               }}
@@ -347,7 +346,7 @@ const styles = {
   page: {
     minHeight: '100vh',
     background: '#fef8f4',
-    fontFamily: '"DM Sans", -apple-system, sans-serif',
+    fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
     padding: '20px 16px 40px',
     maxWidth: 480,
     margin: '0 auto',

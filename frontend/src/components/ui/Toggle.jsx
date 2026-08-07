@@ -56,8 +56,7 @@ const Toggle = ({ checked = false, onChange, label, disabled = false }) => {
         disabled={disabled}
         role="switch"
         aria-checked={checked}
-        style={{
-          position: 'absolute',
+        style={{ position: 'absolute',
           opacity: 0,
           width: 0,
           height: 0,
@@ -71,8 +70,7 @@ const Toggle = ({ checked = false, onChange, label, disabled = false }) => {
 
       {label && (
         <span
-          style={{
-            fontSize: 14,
+          style={{ fontSize: 14,
             fontWeight: 500,
             color: 'var(--text-primary)',
             userSelect: 'none',

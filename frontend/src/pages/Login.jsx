@@ -413,7 +413,7 @@ const styles = {
   page: {
     minHeight: '100vh',
     background: 'var(--bg)',
-    fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)",
     padding: '0 24px',
     maxWidth: 400,
     margin: '0 auto',

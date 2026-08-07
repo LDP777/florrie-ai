@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
+import Icon, { iconName } from '../components/ui/Icon';
 
 /**
  * ClientManagePage - public client self-service portal.
@@ -314,8 +315,7 @@ export default function ClientManagePage() {
               if (!showSlotPicker) loadPatchTestSlots();
               document.getElementById('patch-test-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }}
-            style={{
-              width: '100%', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
+            style={{ width: '100%', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
               display: 'flex', gap: 12, alignItems: 'flex-start',
               padding: '14px 16px', borderRadius: 14, marginBottom: 16,
               background: brandLight, border: `1.5px solid ${brand}`,
@@ -337,8 +337,7 @@ export default function ClientManagePage() {
 
         {/* Cancellation result banner */}
         {cancelResult && (
-          <div style={{
-            padding: '12px 16px', borderRadius: 12, marginBottom: 16,
+          <div style={{ padding: '12px 16px', borderRadius: 12, marginBottom: 16,
             background: cancelResult.isLateCancel ? 'var(--warning-bg)' : 'var(--success-bg)',
             border: `1px solid ${cancelResult.isLateCancel ? '#F59E0B' : '#86EFAC'}`,
             fontSize: 14, color: cancelResult.isLateCancel ? 'var(--warning-text)' : 'var(--success-text)',
@@ -349,8 +348,7 @@ export default function ClientManagePage() {
 
         {/* Reschedule result banner */}
         {rescheduleResult && (
-          <div style={{
-            padding: '12px 16px', borderRadius: 12, marginBottom: 16,
+          <div style={{ padding: '12px 16px', borderRadius: 12, marginBottom: 16,
             background: rescheduleResult.isLateReschedule ? 'var(--warning-bg)' : 'var(--success-bg)',
             border: `1px solid ${rescheduleResult.isLateReschedule ? '#F59E0B' : '#86EFAC'}`,
             fontSize: 14, color: rescheduleResult.isLateReschedule ? 'var(--warning-text)' : 'var(--success-text)',
@@ -362,8 +360,7 @@ export default function ClientManagePage() {
 
         {/* Pending payment banner */}
         {appointment.status === 'pending' && !appointment.depositPaid && (
-          <div style={{
-            padding: '12px 16px', borderRadius: 12, marginBottom: 4,
+          <div style={{ padding: '12px 16px', borderRadius: 12, marginBottom: 4,
             background: 'var(--warning-bg)', border: '1px solid #F59E0B',
             fontSize: 13, color: 'var(--warning-text)',
           }}>
@@ -445,8 +442,7 @@ export default function ClientManagePage() {
                       key={t.id}
                       onClick={() => changeTreatment(t.id)}
                       disabled={treatmentSaving}
-                      style={{
-                        width: '100%', textAlign: 'left', marginBottom: 6, padding: '10px 12px',
+                      style={{ width: '100%', textAlign: 'left', marginBottom: 6, padding: '10px 12px',
                         borderRadius: 10, border: '1px solid #E8E4DF', background: 'var(--bg-card)',
                         cursor: treatmentSaving ? 'wait' : 'pointer', fontFamily: 'inherit',
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
@@ -610,8 +606,7 @@ export default function ClientManagePage() {
             <p style={S.sectionLabel}>Patch tests</p>
 
             {patchTestBooked && (
-              <div style={{
-                background: brandLight, border: `1.5px solid ${brand}`, borderRadius: 12,
+              <div style={{ background: brandLight, border: `1.5px solid ${brand}`, borderRadius: 12,
                 padding: '12px 14px', marginBottom: 12,
               }}>
                 <p style={{ margin: '0 0 2px', fontSize: 14, fontWeight: 700, color: brand }}>
@@ -740,8 +735,7 @@ export default function ClientManagePage() {
               // Display past/confirmed patch tests
               return (
                 <div key={pt.id} style={S.patchTestRow}>
-                  <div style={{
-                    width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
                     background: pt.status === 'passed' ? '#5BA67F' : pt.status === 'failed' ? 'var(--danger)' : 'var(--warning)',
                   }} />
                   <div style={{ flex: 1 }}>
@@ -769,7 +763,7 @@ export default function ClientManagePage() {
             <p style={S.sectionLabel}>Consultation forms</p>
             {pendingForms.map(form => (
               <div key={form.id} style={S.formRow}>
-                <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#7B6BA8' }}>assignment</span>
+                <Icon name={iconName('assignment')} size={18} inline style={{ color: '#7B6BA8' }} />
                 <div style={{ flex: 1 }}>
                   <p style={S.formName}>{form.consultation_forms?.name || 'Consultation form'}</p>
                   <p style={S.formMeta}>Please complete this before your appointment</p>
@@ -822,8 +816,7 @@ export default function ClientManagePage() {
                             key={slot}
                             onClick={() => handleReschedule(slot)}
                             disabled={rescheduling}
-                            style={{
-                              padding: '12px 14px', borderRadius: 10, border: '1.5px solid #E8E4DF',
+                            style={{ padding: '12px 14px', borderRadius: 10, border: '1.5px solid #E8E4DF',
                               background: 'var(--bg-card)', fontSize: 13, fontWeight: 600, color: '#2D1B1B',
                               cursor: rescheduling ? 'not-allowed' : 'pointer', opacity: rescheduling ? 0.5 : 1,
                               textAlign: 'left', fontFamily: 'inherit', transition: 'all 0.2s',
@@ -954,7 +947,7 @@ function slotLabel(iso) {
 function MetaRow({ icon, label, value }) {
   return (
     <div style={S.metaRow}>
-      <span className="material-symbols-outlined" style={{ fontSize: 16, color: 'var(--text-muted)' }}>{icon}</span>
+      <Icon name={iconName(icon)} size={16} inline style={{ color: 'var(--text-muted)' }} />
       <span style={S.metaLabel}>{label}</span>
       <span style={S.metaValue}>{value}</span>
     </div>
@@ -1050,8 +1043,7 @@ function PatchTestPicker({ slots, duration, onPick, confirming, error, onBack, b
               type="button"
               disabled={!has}
               onClick={() => { setSelectedDay(key); setSelectedTime(null); }}
-              style={{
-                aspectRatio: '1', borderRadius: 10, fontFamily: 'inherit', fontSize: 13,
+              style={{ aspectRatio: '1', borderRadius: 10, fontFamily: 'inherit', fontSize: 13,
                 border: sel ? `1.5px solid ${brand}` : '1.5px solid transparent',
                 background: sel ? brand : has ? brandLight : 'transparent',
                 color: sel ? '#fff' : has ? '#2D1B1B' : '#D8D2CC',
@@ -1080,8 +1072,7 @@ function PatchTestPicker({ slots, duration, onPick, confirming, error, onBack, b
                   type="button"
                   disabled={confirming}
                   onClick={() => setSelectedTime(t)}
-                  style={{
-                    padding: '11px 6px', borderRadius: 10,
+                  style={{ padding: '11px 6px', borderRadius: 10,
                     border: on ? `1.5px solid ${brand}` : '1.5px solid #E8E4DF',
                     background: on ? brand : 'var(--bg-card)',
                     color: on ? '#fff' : '#2D1B1B',
@@ -1105,8 +1096,7 @@ function PatchTestPicker({ slots, duration, onPick, confirming, error, onBack, b
 
       {selectedTime ? (
         <>
-          <div style={{
-            background: brandLight, borderRadius: 10, padding: '10px 12px', marginBottom: 10,
+          <div style={{ background: brandLight, borderRadius: 10, padding: '10px 12px', marginBottom: 10,
             fontSize: 13, color: '#2D1B1B', fontWeight: 600, textAlign: 'center',
           }}>
             {longDay(selectedTime.slice(0, 10))} at {selectedTime.slice(11, 16)}
@@ -1115,8 +1105,7 @@ function PatchTestPicker({ slots, duration, onPick, confirming, error, onBack, b
             type="button"
             disabled={confirming}
             onClick={() => onPick(selectedTime)}
-            style={{
-              width: '100%', padding: '14px', borderRadius: 12, border: 'none',
+            style={{ width: '100%', padding: '14px', borderRadius: 12, border: 'none',
               background: brand, color: '#fff', fontSize: 15, fontWeight: 700,
               fontFamily: 'inherit', cursor: confirming ? 'wait' : 'pointer',
               opacity: confirming ? 0.75 : 1, marginBottom: 8,
@@ -1140,7 +1129,7 @@ const S = {
   page: {
     minHeight: '100vh',
     background: 'var(--bg)',
-    fontFamily: "'DM Sans', system-ui, sans-serif",
+    fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
     display: 'flex',
     flexDirection: 'column',
   },

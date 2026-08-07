@@ -5,7 +5,7 @@ import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import { bloom } from '../lib/bloom.js';
-import Icon from '../components/ui/Icon';
+import Icon, { iconName } from '../components/ui/Icon';
 
 /**
  * Inbox , one calm thread per client.
@@ -142,8 +142,7 @@ function ChannelMark({ channel, size = 22 }) {
     <span
       aria-label={c.label}
       title={c.label}
-      style={{
-        width: size,
+      style={{ width: size,
         height: size,
         borderRadius: Math.round(size * 0.34),
         background: c.fill,
@@ -154,13 +153,7 @@ function ChannelMark({ channel, size = 22 }) {
         boxShadow: '0 1px 1.5px rgba(146,64,94,0.14)',
       }}
     >
-      <span
-        className="material-symbols-outlined"
-        aria-hidden
-        style={{ fontSize: Math.round(size * 0.62), color: '#fff', lineHeight: 1, fontVariationSettings: "'FILL' 1" }}
-      >
-        {c.icon}
-      </span>
+      <Icon name={iconName(c.icon)} inline style={{ fontSize: Math.round(size * 0.62), color: '#fff', lineHeight: 1, }} />
     </span>
   );
 }
@@ -633,7 +626,7 @@ function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, o
           onClick={() => onSpace('clients')}
           style={{ ...S.spaceTab, ...(inClients ? S.spaceTabActive : {}) }}
         >
-          <span className="material-symbols-outlined" style={S.spaceTabIcon} aria-hidden>group</span>
+          <Icon name={iconName('group')} inline style={S.spaceTabIcon} />
           Clients
           {spaceCounts?.clients > 0 && (
             <span style={{ ...S.spaceTabCount, ...(inClients ? S.spaceTabCountActive : {}) }}>
@@ -648,7 +641,7 @@ function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, o
           onClick={() => onSpace('instagram')}
           style={{ ...S.spaceTab, ...(!inClients ? S.spaceTabActive : {}) }}
         >
-          <span className="material-symbols-outlined" style={S.spaceTabIcon} aria-hidden>photo_camera</span>
+          <Icon name={iconName('photo_camera')} inline style={S.spaceTabIcon} />
           Instagram
           {spaceCounts?.instagram > 0 && (
             <span style={{ ...S.spaceTabCount, ...(!inClients ? S.spaceTabCountActive : {}) }}>
@@ -659,7 +652,7 @@ function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, o
       </div>
 
       <div style={S.searchWrap}>
-        <span className="material-symbols-outlined" style={S.searchIcon} aria-hidden>search</span>
+        <Icon name={iconName('search')} inline style={S.searchIcon} />
         <input
           type="search"
           value={search}
@@ -716,9 +709,7 @@ function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, o
               >
                 <span style={S.sectionTitle}>{sec.header}</span>
                 <span style={S.sectionCount}>{sec.items.length}</span>
-                <span className="material-symbols-outlined" style={S.sectionChevron} aria-hidden>
-                  {isCollapsed(sec) ? 'expand_more' : 'expand_less'}
-                </span>
+                <Icon name={iconName(isCollapsed(sec) ? 'expand_more' : 'expand_less')} inline style={S.sectionChevron} />
                 {isCollapsed(sec) && sec.quietNote && (
                   <span style={S.sectionQuietNote}>{sec.quietNote}</span>
                 )}
@@ -787,9 +778,7 @@ function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, o
               >
                 <span style={S.sectionTitle}>Everything else</span>
                 <span style={S.sectionCount}>{igRest.length}</span>
-                <span className="material-symbols-outlined" style={S.sectionChevron} aria-hidden>
-                  {igRestExpanded ? 'expand_less' : 'expand_more'}
-                </span>
+                <Icon name={iconName(igRestExpanded ? 'expand_less' : 'expand_more')} inline style={S.sectionChevron} />
                 {!igRestExpanded && (
                   <span style={S.sectionQuietNote}>compliments, story replies, sign-offs</span>
                 )}
@@ -802,7 +791,7 @@ function ThreadList({ sections, visibleCount, error, search, onSearch, onOpen, o
                     disabled={clearingSocial}
                     style={{ ...S.clearAllBtn, opacity: clearingSocial ? 0.6 : 1 }}
                   >
-                    <span className="material-symbols-outlined" style={{ fontSize: 17 }} aria-hidden>done_all</span>
+                    <Icon name={iconName('done_all')} size={17} inline />
                     {clearingSocial ? 'Clearing\u2026' : `Clear all (${igOutstanding})`}
                   </button>
                   <span style={S.clearAllHint}>Marks them handled. Leads stay.</span>
@@ -879,15 +868,13 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, quiet = fa
         type="button"
         className={active ? 'inbox-row inbox-row-active' : 'inbox-row'}
         onClick={() => onOpen(thread.client_id)}
-        style={{
-          ...S.row,
+        style={{ ...S.row,
           ...((automated || muted) && !owed ? S.rowMuted : {}),
           background: active ? 'var(--accent-wash, #fbe9f0)' : 'transparent',
         }}
       >
         <span style={S.avatarWrap}>
-          <span style={{
-            ...S.avatar,
+          <span style={{ ...S.avatar,
             ...((automated || muted) && !owed ? S.avatarMuted : {}),
             boxShadow: `0 0 0 2px ${channelOf(thread.last_channel).tint}${(automated || muted) && !owed ? '55' : '99'}`,
           }} aria-hidden>
@@ -902,8 +889,7 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, quiet = fa
         <span style={S.rowBody}>
           <span style={S.rowTop}>
             <span style={S.rowNameWrap}>
-              <span style={{
-                ...S.rowName,
+              <span style={{ ...S.rowName,
                 ...((automated || muted) && !owed ? S.rowNameMuted : {}),
                 fontWeight: owed || loud ? 700 : (automated || muted) ? 500 : 600,
               }}>{name}</span>
@@ -917,8 +903,7 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, quiet = fa
           </span>
 
           <span style={S.rowBottom}>
-            <span style={{
-              ...S.rowPreview,
+            <span style={{ ...S.rowPreview,
               ...((automated || muted) && !owed ? S.rowPreviewMuted : {}),
               color: loud ? 'var(--text-primary, #1d1b19)' : 'var(--text-muted, #9B8A8E)',
               fontWeight: loud ? 600 : 400,
@@ -958,7 +943,7 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, quiet = fa
         onClick={(e) => { e.stopPropagation(); setMenuOpen(o => !o); }}
         style={S.rowMenuBtn}
       >
-        <span className="material-symbols-outlined" style={{ fontSize: 18 }}>more_vert</span>
+        <Icon name={iconName('more_vert')} size={18} inline />
       </button>
 
       {menuOpen && (
@@ -969,7 +954,7 @@ function ThreadRow({ thread, active, onOpen, onDelete, muted = false, quiet = fa
             onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onDelete && onDelete(thread.client_id); }}
             style={S.rowMenuItem}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: 17 }}>delete</span>
+            <Icon name={iconName('delete')} size={17} inline />
             Delete conversation
           </button>
         </div>
@@ -999,7 +984,7 @@ function ThreadSkeleton() {
 function EmptyInbox() {
   return (
     <div style={S.empty}>
-      <span className="material-symbols-outlined" style={S.emptyIcon}>forum</span>
+      <Icon name={iconName('forum')} inline style={S.emptyIcon} />
       <p style={S.emptyText}>Once a client messages you, they'll appear here.</p>
       <Link to="/whatsapp" style={S.emptyCta}>Send a template</Link>
       <p style={S.emptyHint}>A friendly hello is all it takes to get the conversation started.</p>
@@ -1010,7 +995,7 @@ function EmptyInbox() {
 function CaughtUp({ onShowAll }) {
   return (
     <div style={S.empty}>
-      <span className="material-symbols-outlined" style={S.emptyIcon}>task_alt</span>
+      <Icon name={iconName('task_alt')} inline style={S.emptyIcon} />
       <p style={S.emptyText}>You're all caught up. Nothing is waiting on a reply.</p>
       <button type="button" onClick={onShowAll} style={S.caughtUpBtn}>See all conversations</button>
     </div>
@@ -1029,7 +1014,7 @@ function SegmentEmpty({ segment, onShowAll }) {
   const copy = SEGMENT_EMPTY[segment] || { icon: 'forum', text: 'Nothing in this lane.' };
   return (
     <div style={S.empty}>
-      <span className="material-symbols-outlined" style={S.emptyIcon}>{copy.icon}</span>
+      <Icon name={iconName(copy.icon)} inline style={S.emptyIcon} />
       <p style={S.emptyText}>{copy.text}</p>
       <button type="button" onClick={onShowAll} style={S.caughtUpBtn}>See all conversations</button>
     </div>
@@ -1039,7 +1024,7 @@ function SegmentEmpty({ segment, onShowAll }) {
 function InstagramEmpty() {
   return (
     <div style={S.empty}>
-      <span className="material-symbols-outlined" style={S.emptyIcon}>photo_camera</span>
+      <Icon name={iconName('photo_camera')} inline style={S.emptyIcon} />
       <p style={S.emptyText}>
         No Instagram enquiries from new people. When a stranger DMs you, Florrie sorts the real leads to the top here.
       </p>
@@ -1050,7 +1035,7 @@ function InstagramEmpty() {
 function NoMatches({ onClear }) {
   return (
     <div style={S.empty}>
-      <span className="material-symbols-outlined" style={S.emptyIcon}>search_off</span>
+      <Icon name={iconName('search_off')} inline style={S.emptyIcon} />
       <p style={S.emptyText}>Nobody by that name or handle. Try a shorter search.</p>
       <button type="button" onClick={onClear} style={S.caughtUpBtn}>Clear search</button>
     </div>
@@ -1060,19 +1045,12 @@ function NoMatches({ onClear }) {
 function EmptyConvoPlaceholder() {
   return (
     <div style={S.placeholder}>
-      <span
-        className="material-symbols-outlined"
-        style={{
-          fontSize: 30, color: 'var(--accent, #92405e)', marginBottom: 12,
+      <Icon name={iconName('forum')} size={30} inline style={{ color: 'var(--accent, #92405e)', marginBottom: 12,
           width: 68, height: 68, borderRadius: 34,
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
           background: 'linear-gradient(135deg, #ffe7ee 0%, #fdeef3 100%)',
-          boxShadow: 'inset 0 0 0 1px rgba(146,64,94,0.08)',
-        }}
-      >
-        forum
-      </span>
-      <div style={{ fontSize: 16, color: 'var(--text-secondary, #867277)', fontFamily: "'Noto Serif', Georgia, serif", fontStyle: 'italic' }}>
+          boxShadow: 'inset 0 0 0 1px rgba(146,64,94,0.08)' }} />
+      <div style={{ fontSize: 16, color: 'var(--text-secondary, #867277)', fontFamily: "'Playfair Display', Georgia, serif", fontStyle: 'italic' }}>
         Pick a conversation
       </div>
     </div>
@@ -1314,16 +1292,13 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
                   role="tab"
                   aria-selected={on}
                   onClick={() => setChannel(c)}
-                  style={{
-                    ...S.channelPill,
+                  style={{ ...S.channelPill,
                     background: on ? 'var(--accent, #92405e)' : 'var(--bg-card, #fff)',
                     color: on ? '#fff' : 'var(--accent, #92405e)',
                     borderColor: on ? 'var(--accent, #92405e)' : 'var(--border-light, #f0d2dd)',
                   }}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: 15, color: on ? '#fff' : meta.tint }} aria-hidden>
-                    {meta.icon}
-                  </span>
+                  <Icon name={iconName(meta.icon)} size={15} inline style={{ color: on ? '#fff' : meta.tint }} />
                   {meta.label}
                 </button>
               );
@@ -1366,7 +1341,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
               aria-label="Send"
             >
               {sending ? '…' : (
-                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>arrow_upward</span>
+                <Icon name={iconName('arrow_upward')} size={18} inline />
               )}
             </button>
           </div>
@@ -1412,8 +1387,7 @@ function ClientControls({ clientId, initialAutonomy = null }) {
             role="tab"
             aria-selected={seg.on}
             onClick={seg.set}
-            style={{
-              ...S.driverSeg,
+            style={{ ...S.driverSeg,
               background: seg.on ? 'var(--accent, #92405e)' : 'transparent',
               color: seg.on ? '#fff' : 'var(--text-secondary, #867277)',
             }}
@@ -1434,8 +1408,7 @@ function ClientControls({ clientId, initialAutonomy = null }) {
                 key={o.key}
                 type="button"
                 onClick={() => save(on ? null : o.key)}
-                style={{
-                  ...S.finePill,
+                style={{ ...S.finePill,
                   background: on ? 'var(--tone-2, #f6e7dd)' : 'transparent',
                   color: on ? 'var(--accent, #92405e)' : 'var(--text-muted, #9B8A8E)',
                   fontWeight: on ? 700 : 500,
@@ -1488,11 +1461,10 @@ function ConvoHeader({ onBack, embedded, clientName, navigate, clientId, channel
       <div style={S.convoTopRow}>
         {!embedded && (
           <button onClick={onBack} style={S.backBtn} aria-label="Back to inbox">
-            <span className="material-symbols-outlined" style={{ fontSize: 22 }}>chevron_left</span>
+            <Icon name={iconName('chevron_left')} size={22} inline />
           </button>
         )}
-        <span style={{
-          ...S.convoAvatar,
+        <span style={{ ...S.convoAvatar,
           boxShadow: channel ? `0 0 0 2px ${channelOf(channel).tint}99` : 'inset 0 0 0 1px rgba(146,64,94,0.05)',
         }}>{initialOf(clientName)}</span>
         <div style={S.convoNameCol}>
@@ -1517,7 +1489,7 @@ function ConvoHeader({ onBack, embedded, clientName, navigate, clientId, channel
             onClick={() => navigate('/calendar/week', { state: { bookClient: { id: clientId, name: clientName } } })}
             style={S.bookChip}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: 15 }} aria-hidden>event</span>
+            <Icon name={iconName('event')} size={15} inline />
             Book her in
           </button>
         </div>
@@ -1645,8 +1617,7 @@ function Bubble({ msg, threadChannel, onRetry }) {
     <div style={{ ...S.bubbleRow, justifyContent: out ? 'flex-end' : 'flex-start' }}>
       <div style={{ ...S.bubbleStack, alignItems: out ? 'flex-end' : 'flex-start' }}>
         <div
-          style={{
-            ...S.bubble,
+          style={{ ...S.bubble,
             background: bubbleBg,
             color: bubbleFg,
             borderColor: failed ? 'rgba(190,60,50,0.35)' : out && !florrieSent ? 'var(--accent, #92405e)' : 'rgba(146,64,94,0.16)',
@@ -1680,7 +1651,7 @@ const S = {
   page: {
     minHeight: '100vh',
     background: 'var(--bg, #fef8f4)',
-    fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
     padding: '0 0 24px',
     maxWidth: 480,
     margin: '0 auto',
@@ -1689,7 +1660,7 @@ const S = {
   pageWide: {
     minHeight: '100vh',
     background: 'var(--bg, #fef8f4)',
-    fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
     display: 'grid',
     gridTemplateColumns: 'minmax(320px, 392px) 1fr',
     gap: 16,
@@ -1932,7 +1903,7 @@ const S = {
     width: 44, height: 44, borderRadius: 22,
     background: 'linear-gradient(135deg, #ffe0e7 0%, #ffbecd 100%)',
     color: '#92405e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 16.5, fontWeight: 700, fontFamily: "'Noto Serif', Georgia, serif",
+    fontSize: 16.5, fontWeight: 700, fontFamily: "'Playfair Display', Georgia, serif",
     boxShadow: 'inset 0 0 0 1px rgba(146,64,94,0.05)',
   },
   avatarMuted: {
@@ -2018,7 +1989,7 @@ const S = {
 
   convoFull: {
     height: 'var(--shell-viewport-nav)', overflow: 'hidden', background: 'var(--bg, #FBF6F1)',
-    fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
     display: 'flex', flexDirection: 'column', color: 'var(--text-primary, #1d1b19)',
   },
   convoEmbedded: { flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 },

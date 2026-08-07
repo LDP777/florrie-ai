@@ -34,25 +34,21 @@ export default function StatusPage({ kind = 'card_saved' }) {
   }[kind] || {};
 
   return (
-    <div style={{
-      minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: '#fef8f4', padding: 24, boxSizing: 'border-box',
       fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
     }}>
-      <div style={{
-        maxWidth: 380, width: '100%', textAlign: 'center', background: '#fff',
+      <div style={{ maxWidth: 380, width: '100%', textAlign: 'center', background: '#fff',
         border: '1px solid #EFE7DA', borderRadius: 18, padding: '32px 26px',
         boxShadow: '0 12px 40px rgba(146,64,94,0.07)',
       }}>
-        <div style={{
-          width: 52, height: 52, borderRadius: '50%', margin: '0 auto 16px',
+        <div style={{ width: 52, height: 52, borderRadius: '50%', margin: '0 auto 16px',
           background: `${COPY.tone}1A`, color: COPY.tone,
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24,
         }}>
           {COPY.icon}
         </div>
-        <h1 style={{
-          fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22,
+        <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22,
           color: '#2D1B1B', margin: '0 0 10px', fontWeight: 600,
         }}>
           {COPY.title}

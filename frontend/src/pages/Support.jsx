@@ -54,8 +54,7 @@ export default function Support() {
             {faqs.map(faq => (
               <div
                 key={faq.id}
-                style={{
-                  ...s.faqItem,
+                style={{ ...s.faqItem,
                   borderBottom: '1px solid var(--border, #EDE9E4)',
                 }}
               >
@@ -64,8 +63,7 @@ export default function Support() {
                   style={s.faqButton}
                 >
                   <span style={s.faqQ}>{faq.q}</span>
-                  <span style={{
-                    ...s.faqToggle,
+                  <span style={{ ...s.faqToggle,
                     transform: expandedFaq === faq.id ? 'rotate(180deg)' : 'rotate(0deg)',
                   }}>▼</span>
                 </button>
@@ -100,7 +98,7 @@ const s = {
     padding: '20px 16px 40px',
     maxWidth: 720,
     margin: '0 auto',
-    fontFamily: '"DM Sans", -apple-system, sans-serif',
+    fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
   },
   article: {
     lineHeight: 1.6,

@@ -111,8 +111,7 @@ export default function APISettings() {
             return (
               <div key={i} style={{ ...ds.card, marginBottom: 8, padding: 12 }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
-                  <span style={{
-                    ...ds.badge, background: mc.bg, color: mc.color,
+                  <span style={{ ...ds.badge, background: mc.bg, color: mc.color,
                     fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, minWidth: 44, textAlign: 'center',
                   }}>{ep.method}</span>
                   <span style={{ ...type.mono, fontSize: 12, color: 'var(--text-primary)', wordBreak: 'break-all' }}>{ep.path}</span>
@@ -156,8 +155,7 @@ export default function APISettings() {
                   </button>
                 )}
               </div>
-              <div style={{
-                background: 'var(--bg-subtle)', borderRadius: 8, padding: '8px 12px', marginBottom: 6,
+              <div style={{ background: 'var(--bg-subtle)', borderRadius: 8, padding: '8px 12px', marginBottom: 6,
                 fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)',
                 wordBreak: 'break-all',
               }}>
@@ -173,8 +171,7 @@ export default function APISettings() {
             <div style={{ ...type.bodySmall, fontSize: 13, lineHeight: 1.6 }}>
               The florrie.ai API uses Supabase JWT tokens for authentication. When you sign in, your session token is stored locally and passed as a Bearer token on every authenticated API request.
             </div>
-            <div style={{
-              background: 'var(--bg-subtle)', borderRadius: 8, padding: '10px 12px', marginTop: 10,
+            <div style={{ background: 'var(--bg-subtle)', borderRadius: 8, padding: '10px 12px', marginTop: 10,
               fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.8,
             }}>
               Authorization: Bearer {'<your-supabase-jwt>'}

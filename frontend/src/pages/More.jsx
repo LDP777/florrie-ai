@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useBeautician } from '../lib/supabase.js';
 import { hasFeature, getRequiredPlan } from '../lib/subscription.js';
 import { isIOSNative } from '../lib/platform.js';
+import Icon, { iconName } from '../components/ui/Icon';
 
 /**
  * More , the back-of-house catalogue of every secondary page.
@@ -160,16 +161,6 @@ function recordVisit(path, label, matIcon) {
   } catch {}
 }
 
-function MIcon({ name, size = 24, color, style }) {
-  return (
-    <span
-      className="material-symbols-outlined"
-      style={{ fontSize: size, color, ...style }}
-    >
-      {name}
-    </span>
-  );
-}
 
 export default function More() {
   const [search, setSearch] = useState('');
@@ -222,7 +213,7 @@ export default function More() {
       <h1 style={S.heading}>More</h1>
 
       <div style={S.searchWrap}>
-        <MIcon name="search" size={18} style={S.searchIcon} />
+        <Icon name={iconName('search')} size={18} inline style={S.searchIcon} />
         <input
           type="text"
           placeholder="Search features…"
@@ -232,7 +223,7 @@ export default function More() {
         />
         {search && (
           <button onClick={() => setSearch('')} style={S.searchClear}>
-            <MIcon name="close" size={14} />
+            <Icon name={iconName('close')} size={14} inline />
           </button>
         )}
       </div>
@@ -247,7 +238,7 @@ export default function More() {
                 onClick={() => handleNav(r.path, r.label, r.matIcon)}
                 style={S.recentChip}
               >
-                <MIcon name={r.matIcon || 'star'} size={14} color="#92405e" />
+                <Icon name={iconName(r.matIcon || 'star')} size={14} inline color="#92405e" />
                 <span style={S.recentLabel}>{r.label}</span>
               </button>
             ))}
@@ -259,7 +250,7 @@ export default function More() {
         <div style={{ marginBottom: 8 }}>
           {filtered.length === 0 ? (
             <div style={S.emptySearch}>
-              <MIcon name="search_off" size={36} style={{ color: '#d8c1c6', display: 'block', marginBottom: 8 }} />
+              <Icon name={iconName('search_off')} size={36} inline style={{ color: '#d8c1c6', display: 'block', marginBottom: 8 }} />
               <p style={{ margin: 0, color: '#867277', fontSize: 14 }}>No results for "{search}"</p>
             </div>
           ) : (
@@ -292,14 +283,10 @@ export default function More() {
               <div key={cat.id} style={S.catCard}>
                 <button onClick={() => toggleCat(cat.id)} style={S.catHeader}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <MIcon name={cat.matIcon} size={20} color="rgba(146,64,94,0.65)" />
+                    <Icon name={iconName(cat.matIcon)} size={20} inline color="rgba(146,64,94,0.65)" />
                     <span style={S.catLabel}>{cat.label}</span>
                   </div>
-                  <MIcon
-                    name={isExpanded ? 'expand_less' : 'expand_more'}
-                    size={20}
-                    color="#B5AFA8"
-                  />
+                  <Icon name={iconName(isExpanded ? 'expand_less' : 'expand_more')} size={20} inline color="#B5AFA8" />
                 </button>
 
                 {isExpanded && (
@@ -330,14 +317,13 @@ function ItemCard({ item, locked, isActive, onNav }) {
   return (
     <button
       onClick={onNav}
-      style={{
-        ...S.item,
+      style={{ ...S.item,
         ...(isActive ? S.itemActive : {}),
         ...(locked ? { opacity: 0.55 } : {}),
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', marginBottom: 10 }}>
-        <MIcon name={item.matIcon} size={22} color={'#92405e'} style={{ opacity: isActive ? 1 : 0.75 }} />
+        <Icon name={iconName(item.matIcon)} size={22} inline color={'#92405e'} style={{ opacity: isActive ? 1 : 0.75 }} />
         {locked && (
           <span style={S.lockBadge}>
             {(getRequiredPlan(item.gate) || 'PRO').toUpperCase()}
@@ -354,7 +340,7 @@ const S = {
   page: {
     minHeight: '100vh',
     background: 'var(--bg, #fef8f4)',
-    fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
     padding: '16px 16px var(--scroll-pad-bottom)',
     maxWidth: 480,
     margin: '0 auto',

@@ -242,8 +242,7 @@ export default function Campaigns() {
           <button
             key={t.key}
             onClick={() => { setTab(t.key); setCreating(false); }}
-            style={{
-              ...styles.tab,
+            style={{ ...styles.tab,
               borderBottomColor: tab === t.key || (tab === 'create' && t.key === 'active') ? 'var(--accent, #C76B8A)' : 'transparent',
               color: tab === t.key || (tab === 'create' && t.key === 'active') ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #AAA5A0)',
             }}
@@ -313,8 +312,7 @@ export default function Campaigns() {
 
           {/* Actions */}
           <div style={styles.createActions}>
-            <button onClick={handleSave} disabled={!form.message.trim() || saving} style={{
-              ...styles.primaryBtn,
+            <button onClick={handleSave} disabled={!form.message.trim() || saving} style={{ ...styles.primaryBtn,
               opacity: !form.message.trim() ? 0.5 : 1,
             }}>
               {saving ? 'Saving...' : 'Save as Draft'}
@@ -577,7 +575,7 @@ function PerfStat({ label, value, color }) {
 }
 
 const styles = {
-  page: { minHeight: '100vh', background: 'var(--bg, #FAF8F5)', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text, #2D2A26)' },
+  page: { minHeight: '100vh', background: 'var(--bg, #FAF8F5)', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text, #2D2A26)' },
   header: { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 52px)', paddingBottom: 8 },
   title: { fontSize: 22, fontWeight: 700, margin: '0 0 2px' },
   subtitle: { fontSize: 13, color: 'var(--accent, #C76B8A)', margin: 0, fontWeight: 500 },

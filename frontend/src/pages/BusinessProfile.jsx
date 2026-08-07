@@ -177,8 +177,7 @@ export default function BusinessProfile() {
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            style={{
-              ...s.tab,
+            style={{ ...s.tab,
               color: tab === t.key ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #AAA5A0)',
               borderBottom: tab === t.key ? '2px solid var(--accent, #C76B8A)' : '2px solid transparent',
               fontWeight: tab === t.key ? 600 : 400,
@@ -217,8 +216,7 @@ export default function BusinessProfile() {
                 <button
                   key={c}
                   onClick={() => setBrandColor(c)}
-                  style={{
-                    ...s.colourDot,
+                  style={{ ...s.colourDot,
                     background: c,
                     border: brandColor === c ? '3px solid var(--text-primary, #2D2A26)' : '3px solid transparent',
                     boxShadow: brandColor === c ? '0 0 0 2px #fff' : 'none',
@@ -399,7 +397,7 @@ const s = {
     padding: '16px 16px 32px',
     maxWidth: 480,
     margin: '0 auto',
-    fontFamily: '"DM Sans", -apple-system, sans-serif',
+    fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
   },
   header: { marginBottom: 16 },
   title: {

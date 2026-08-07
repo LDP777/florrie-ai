@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { API_BASE } from '../lib/config.js';
-import Icon from './ui/Icon';
+import Icon, { iconName } from './ui/Icon';
 
 /**
  * MorningCatchup, Day 4 of the 2026-05-28 refactor.
@@ -136,7 +136,7 @@ function Row({ icon, label, line, onClick }) {
         <div style={MC.rowLine}>{line}</div>
       </div>
       {clickable && (
-        <span className="material-symbols-outlined" style={MC.rowChevron} aria-hidden>chevron_right</span>
+        <Icon name={iconName('chevron_right')} inline style={MC.rowChevron} />
       )}
     </div>
   );
@@ -286,7 +286,7 @@ const MC = {
     maxWidth: 480,
     margin: '0 auto',
     boxShadow: '0 -10px 40px rgba(146,64,94,0.18)',
-    fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
     animation: 'mcSlideUp 0.28s ease-out',
   },
   handle: {
@@ -297,7 +297,7 @@ const MC = {
     margin: '0 auto 14px',
   },
   heading: {
-    fontFamily: "'Noto Serif', Georgia, serif",
+    fontFamily: "'Playfair Display', Georgia, serif",
     fontStyle: 'italic',
     fontSize: 22,
     fontWeight: 700,

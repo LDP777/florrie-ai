@@ -138,8 +138,7 @@ export default function Team() {
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{
-                  ...styles.statusDot,
+                <span style={{ ...styles.statusDot,
                   background: member.is_active ? 'var(--success, #5BA97B)' : '#E0DBD5'
                 }} />
                 <span style={styles.chevron}>›</span>
@@ -208,8 +207,7 @@ export default function Team() {
                   <button
                     key={r.key}
                     onClick={() => setForm({ ...form, role: r.key })}
-                    style={{
-                      ...styles.roleCard,
+                    style={{ ...styles.roleCard,
                       borderColor: form.role === r.key ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, #EDE9E4))',
                       background: form.role === r.key ? 'var(--accent-light, #FFF0F3)' : 'var(--bg-card, #fff)'
                     }}
@@ -230,8 +228,7 @@ export default function Team() {
             <button
               onClick={handleAdd}
               disabled={!form.first_name.trim()}
-              style={{
-                ...styles.saveBtn,
+              style={{ ...styles.saveBtn,
                 opacity: form.first_name.trim() ? 1 : 0.5
               }}
             >
@@ -275,8 +272,7 @@ export default function Team() {
 
             <div style={styles.detailSection}>
               <span style={styles.detailLabel}>Status</span>
-              <span style={{
-                ...styles.detailValue,
+              <span style={{ ...styles.detailValue,
                 color: selectedMember.is_active ? 'var(--success, #5BA97B)' : '#E57373'
               }}>
                 {selectedMember.is_active ? 'Active' : 'Inactive'}
@@ -319,8 +315,7 @@ export default function Team() {
             <div style={styles.detailActions}>
               <button
                 onClick={() => handleToggleActive(selectedMember)}
-                style={{
-                  ...styles.actionBtn,
+                style={{ ...styles.actionBtn,
                   background: selectedMember.is_active ? '#FFF3E0' : 'var(--success-bg, #E8F5E9)',
                   color: selectedMember.is_active ? '#F57C00' : 'var(--success, #5BA97B)',
                   borderColor: selectedMember.is_active ? '#FFCC80' : '#A5D6A7'
@@ -344,8 +339,7 @@ export default function Team() {
 
 function PermBadge({ label, on }) {
   return (
-    <span style={{
-      ...styles.permBadge,
+    <span style={{ ...styles.permBadge,
       background: on ? 'var(--success-bg, #E8F5E9)' : 'var(--bg-hover, #F5F2EF)',
       color: on ? 'var(--success, #5BA97B)' : 'var(--text-muted, #B5AFA8)'
     }}>
@@ -364,7 +358,7 @@ function SkeletonCard() {
 }
 
 const styles = {
-  page: { minHeight: '100vh', background: 'var(--bg, #FAF8F5)', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)' },
+  page: { minHeight: '100vh', background: 'var(--bg, #FAF8F5)', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: 'calc(env(safe-area-inset-top, 0px) + 52px)', paddingBottom: 12 },
   title: { fontSize: 22, fontWeight: 700, margin: 0 },
   subtitle: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #B5AFA8))', margin: '4px 0 0' },

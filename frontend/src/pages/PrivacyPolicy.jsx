@@ -185,7 +185,7 @@ const s = {
     padding: '20px 16px 40px',
     maxWidth: 720,
     margin: '0 auto',
-    fontFamily: '"DM Sans", -apple-system, sans-serif',
+    fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
   },
   article: {
     lineHeight: 1.6,

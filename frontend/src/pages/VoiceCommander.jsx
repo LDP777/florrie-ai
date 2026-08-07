@@ -5,6 +5,7 @@ import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import { deDash } from '../lib/text.js';
 import { bloom } from '../lib/bloom.js';
+import Icon, { iconName } from '../components/ui/Icon';
 /**
  * Voice Commander - Talk to florrie.ai.
  *
@@ -34,8 +35,7 @@ function FloriePetal({ size = 28, spinning = false, white = false }) {
       viewBox="0 0 100 100"
       width={size}
       height={size}
-      style={{
-        display: 'block',
+      style={{ display: 'block',
         flexShrink: 0,
         animation: spinning ? 'petalSpin 4s linear infinite' : 'none',
       }}
@@ -139,12 +139,11 @@ function ConsultationCard({ consultation, count = 1, clientName }) {
     <div style={{ marginTop: 8, borderRadius: 16, background: 'var(--tone-1, #fbf1ea)', border: '1px solid var(--tone-2, #f6e7dd)', overflow: 'hidden' }}>
       <button
         onClick={() => setOpen(o => !o)}
-        style={{
-          width: '100%', minHeight: 44, padding: '10px 14px', border: 'none', background: 'transparent',
+        style={{ width: '100%', minHeight: 44, padding: '10px 14px', border: 'none', background: 'transparent',
           display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
         }}
       >
-        <span className="material-symbols-outlined" style={{ fontSize: 18, color: 'var(--accent, #92405e)' }}>clinical_notes</span>
+        <Icon name={iconName('clinical_notes')} size={18} inline style={{ color: 'var(--accent, #92405e)' }} />
         <span style={{ flex: 1, minWidth: 0 }}>
           <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary, #3d3438)' }}>
             {/* Whose. Without it, two lookups in one breath leave her reading
@@ -157,16 +156,13 @@ function ConsultationCard({ consultation, count = 1, clientName }) {
           </span>
         </span>
         {flagged.length > 0 && (
-          <span style={{
-            padding: '2px 8px', borderRadius: 999, background: 'var(--accent, #92405e)', color: '#fff',
+          <span style={{ padding: '2px 8px', borderRadius: 999, background: 'var(--accent, #92405e)', color: '#fff',
             fontSize: 10.5, fontWeight: 800, letterSpacing: '0.03em', whiteSpace: 'nowrap',
           }}>
             {flagged.length} worth knowing
           </span>
         )}
-        <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--text-secondary, #867277)' }}>
-          {open ? 'expand_less' : 'expand_more'}
-        </span>
+        <Icon name={iconName(open ? 'expand_less' : 'expand_more')} size={20} inline style={{ color: 'var(--text-secondary, #867277)' }} />
       </button>
 
       {open && (
@@ -177,8 +173,7 @@ function ConsultationCard({ consultation, count = 1, clientName }) {
               worded two different ways, three lines apart. pair.worth_knowing
               carries the emphasis instead. */}
           {(consultation.pairs || []).map(pair => (
-            <div key={pair.field_id} style={{
-              padding: pair.worth_knowing ? '7px 10px' : '7px 0',
+            <div key={pair.field_id} style={{ padding: pair.worth_knowing ? '7px 10px' : '7px 0',
               borderTop: '1px solid var(--tone-2, #f6e7dd)',
               ...(pair.worth_knowing ? {
                 background: 'var(--tone-2, #f6e7dd)',
@@ -190,8 +185,7 @@ function ConsultationCard({ consultation, count = 1, clientName }) {
               <p style={{ margin: 0, fontSize: 11.5, fontWeight: 600, color: 'var(--text-secondary, #867277)', lineHeight: 1.4 }}>
                 {pair.question}
               </p>
-              <p style={{
-                margin: '2px 0 0', fontSize: 13, lineHeight: 1.45,
+              <p style={{ margin: '2px 0 0', fontSize: 13, lineHeight: 1.45,
                 color: pair.answered ? 'var(--text-primary, #3d3438)' : 'var(--text-secondary, #867277)',
                 fontStyle: pair.answered ? 'normal' : 'italic',
                 fontWeight: pair.worth_knowing ? 700 : 400,
@@ -784,31 +778,27 @@ export default function VoiceCommander() {
         {messages.map(msg => (
           <div
             key={msg.id}
-            style={{
-              ...styles.msgRow,
+            style={{ ...styles.msgRow,
               justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
             }}
           >
             {msg.role === 'assistant' && (
-              <div style={{
-                ...styles.agentAvatar,
+              <div style={{ ...styles.agentAvatar,
                 background: msg.agent === 'general' || !AGENT_ROUTES[msg.agent]?.icon
                   ? 'var(--accent-light)'
                   : AGENT_ROUTES[msg.agent].color + '18',
               }}>
                 {msg.agent === 'general' || !AGENT_ROUTES[msg.agent]?.icon
                   ? <FloriePetal size={17} />
-                  : <span className="material-symbols-outlined" style={{ fontSize: 16, color: AGENT_ROUTES[msg.agent].color, fontVariationSettings: "'FILL' 0, 'wght' 400" }}>{AGENT_ROUTES[msg.agent].icon}</span>
+                  : <Icon name={iconName(AGENT_ROUTES[msg.agent].icon)} size={16} inline style={{ color: AGENT_ROUTES[msg.agent].color, }} />
                 }
               </div>
             )}
-            <div style={{
-              ...styles.bubble,
+            <div style={{ ...styles.bubble,
               ...(msg.role === 'user' ? styles.userBubble : styles.aiBubble),
             }}>
               {msg.role === 'assistant' && msg.agent !== 'general' && (
-                <span style={{
-                  ...styles.agentTag,
+                <span style={{ ...styles.agentTag,
                   color: AGENT_ROUTES[msg.agent]?.color,
                   background: AGENT_ROUTES[msg.agent]?.color + '15',
                 }}>
@@ -818,7 +808,7 @@ export default function VoiceCommander() {
               <p style={styles.msgText}>{msg.text}</p>
               {msg.isVoice && msg.role === 'user' && (
                 <span style={styles.voiceBadge}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 11 }}>mic</span> Voice
+                  <Icon name={iconName('mic')} size={11} inline /> Voice
                 </span>
               )}
               {msg.multiStep && msg.role === 'assistant' && (
@@ -930,9 +920,7 @@ export default function VoiceCommander() {
               {isProcessing ? 'Thinking…' : 'Hold the petal below to talk to me'}
             </span>
             {!isProcessing && (
-              <span className="material-symbols-outlined" style={styles.holdHintChevron}>
-                keyboard_arrow_down
-              </span>
+              <Icon name={iconName('keyboard_arrow_down')} inline style={styles.holdHintChevron} />
             )}
           </div>
         )}
@@ -949,7 +937,7 @@ export default function VoiceCommander() {
 const styles = {
   page: {
     display: 'flex', flexDirection: 'column',
-    background: 'var(--bg)', fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)",
+    background: 'var(--bg)', fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)",
     maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)',
     animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
   },
@@ -1038,7 +1026,6 @@ const styles = {
   },
   holdHintChevron: {
     fontSize: 20, color: 'var(--accent)', opacity: 0.6,
-    fontVariationSettings: "'FILL' 0, 'wght' 400",
   },
   // Petal button
   petalWrap: {

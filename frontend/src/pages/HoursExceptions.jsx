@@ -350,8 +350,7 @@ export default function HoursExceptions() {
                   key={dateStr}
                   onClick={() => handleDayTap(dateStr)}
                   disabled={isPast}
-                  style={{
-                    ...S.dayCell,
+                  style={{ ...S.dayCell,
                     background: bg,
                     color: textColor,
                     border,
@@ -398,8 +397,7 @@ export default function HoursExceptions() {
               <button
                 key={k}
                 onClick={() => setBlockType(k)}
-                style={{
-                  ...S.typeBtn,
+                style={{ ...S.typeBtn,
                   background: blockType === k ? v.bg : 'var(--bg-card, #fff)',
                   borderColor: blockType === k ? v.color : 'var(--border-light, #EDE9E4)',
                   color: blockType === k ? v.color : '#8A8580',
@@ -416,8 +414,7 @@ export default function HoursExceptions() {
               <button
                 key={r.value}
                 onClick={() => setBlockReason(r.value)}
-                style={{
-                  ...S.reasonChip,
+                style={{ ...S.reasonChip,
                   background: blockReason === r.value ? '#2D2A26' : '#F5F2EF',
                   color: blockReason === r.value ? '#fff' : '#5A5550',
                 }}
@@ -538,7 +535,7 @@ const S = {
   page: {
     minHeight: '100vh',
     background: 'var(--bg, #FAF8F5)',
-    fontFamily: '"DM Sans", -apple-system, sans-serif',
+    fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
     padding: '0 16px var(--scroll-pad-bottom)',
     maxWidth: 480,
     margin: '0 auto',

@@ -235,8 +235,7 @@ export default function Loyalty() {
             aria-checked={isActive}
             onClick={toggleActive}
             disabled={saving}
-            style={{
-              ...styles.toggle,
+            style={{ ...styles.toggle,
               background: isActive ? 'var(--accent, #92405e)' : 'var(--border, #ECD5DD)',
               opacity: saving ? 0.6 : 1,
             }}
@@ -338,8 +337,7 @@ export default function Loyalty() {
             key={t.key}
             type="button"
             onClick={() => setTab(t.key)}
-            style={{
-              ...styles.tab,
+            style={{ ...styles.tab,
               borderBottomColor: tab === t.key ? 'var(--accent, #92405e)' : 'transparent',
               color: tab === t.key ? 'var(--accent, #92405e)' : 'var(--text-muted, #8A7A72)',
             }}
@@ -376,8 +374,7 @@ export default function Loyalty() {
                       <span style={styles.memberName}>{m.name}</span>
                       <div style={styles.progressTrack}>
                         <div
-                          style={{
-                            ...styles.progressFill,
+                          style={{ ...styles.progressFill,
                             width: `${progress}%`,
                             background: reached ? 'var(--success, #2E7D6B)' : 'var(--accent, #92405e)',
                           }}
@@ -447,7 +444,7 @@ const styles = {
     fontSize: 26,
     fontWeight: 600,
     margin: 0,
-    fontFamily: 'var(--font-display, "Fraunces", Georgia, serif)',
+    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
   },
   subtitle: {
     fontSize: 13.5,
@@ -675,7 +672,7 @@ const styles = {
     fontSize: 19,
     fontWeight: 700,
     color: 'var(--accent, #92405e)',
-    fontFamily: 'var(--font-display, "Fraunces", Georgia, serif)',
+    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
   },
   memberPointsLabel: {
     display: 'block',

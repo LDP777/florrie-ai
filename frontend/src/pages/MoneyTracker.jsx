@@ -11,7 +11,7 @@ import PageHeader from '../components/ui/PageHeader.jsx';
 import { hapticTap, hapticSuccess } from '../lib/native.js';
 import { useCountUp } from '../lib/useCountUp.js';
 import { todayLocal, localDateStr } from '../lib/dates.js';
-import Icon from '../components/ui/Icon';
+import Icon, { iconName } from '../components/ui/Icon';
 import Money from '../components/ui/Money';
 
 /**
@@ -176,15 +176,6 @@ async function apiFetch(path, options = {}) {
   return body;
 }
 
-function MIcon({ name, fill, size, style }) {
-  return (
-    <span className="material-symbols-outlined" style={{
-      fontSize: size || 24,
-      fontVariationSettings: fill ? "'FILL' 1, 'wght' 300" : undefined,
-      ...style,
-    }}>{name}</span>
-  );
-}
 
 export default function MoneyTracker() {
   const navigate = useNavigate();
@@ -1037,8 +1028,7 @@ export default function MoneyTracker() {
       <PageHeader title="Money & Revenue" />
 
       {/* Today's takings, always visible at the top of the page */}
-      <div style={{
-        background: 'var(--gradient-hero)',
+      <div style={{ background: 'var(--gradient-hero)',
         borderRadius: 18, padding: '16px 18px', color: '#fff',
         boxShadow: '0 6px 20px rgba(146,64,94,0.22)', marginBottom: 14,
         display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12,
@@ -1080,8 +1070,7 @@ export default function MoneyTracker() {
             </div>
             <div style={S.ytdStat}>
               <span style={S.ytdLabel}>Profit</span>
-              <span style={{
-                ...S.ytdValue,
+              <span style={{ ...S.ytdValue,
                 color: ytd.current.profit_cents >= 0 ? 'var(--success)' : 'var(--danger)',
               }}>{fmtNeat(ytd.current.profit_cents)}</span>
             </div>
@@ -1104,8 +1093,7 @@ export default function MoneyTracker() {
           <button
             key={t}
             onClick={() => setTab(t)}
-            style={{
-              ...S.tab,
+            style={{ ...S.tab,
               ...(tab === t ? S.tabActive : {}),
             }}
           >
@@ -1118,7 +1106,7 @@ export default function MoneyTracker() {
         <div style={S.noticeBar} role="status">
           <span style={{ flex: 1 }}>{notice}</span>
           <button onClick={() => setNotice(null)} aria-label="Dismiss" style={S.noticeClose}>
-            <MIcon name="close" size={16} />
+            <Icon name={iconName('close')} size={16} inline />
           </button>
         </div>
       )}
@@ -1156,8 +1144,7 @@ export default function MoneyTracker() {
                   <button
                     key={p}
                     onClick={() => setPeriod(p)}
-                    style={{
-                      ...S.periodBtn,
+                    style={{ ...S.periodBtn,
                       ...(period === p ? S.periodBtnActive : {}),
                     }}
                   >
@@ -1171,15 +1158,14 @@ export default function MoneyTracker() {
                 <div style={S.heroDecor} />
                 <div style={{ position: 'relative', zIndex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                    <MIcon name="payments" fill size={16} style={{ color: 'rgba(255,255,255,0.8)' }} />
+                    <Icon name={iconName('payments')} size={16} filled inline style={{ color: 'rgba(255,255,255,0.8)' }} />
                     <span style={S.heroLabel}>
                       {period === 'today' ? 'Revenue Today' : period === 'month' ? 'Revenue This Month' : 'Revenue This Week'}
                     </span>
                   </div>
                   <h2 style={S.heroValue}>{fmt(periodStats?.income || 0)}</h2>
                   {changePct != null && (
-                    <span style={{
-                      ...S.changeBadge,
+                    <span style={{ ...S.changeBadge,
                       background: changePct >= 0 ? 'rgba(91,169,123,0.2)' : 'rgba(186,26,26,0.2)',
                       color: changePct >= 0 ? '#8EE0AE' : '#F08080',
                     }}>
@@ -1188,7 +1174,7 @@ export default function MoneyTracker() {
                   )}
                 </div>
                 <div style={S.heroIcon}>
-                  <MIcon name="trending_up" size={64} style={{ opacity: 0.15, color: '#fff' }} />
+                  <Icon name={iconName('trending_up')} size={64} inline style={{ opacity: 0.15, color: '#fff' }} />
                 </div>
               </section>
 
@@ -1202,8 +1188,7 @@ export default function MoneyTracker() {
                     const h = Math.max(4, (d.total / maxDayRevenue) * 72);
                     return (
                       <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                        <div style={{
-                          width: '100%',
+                        <div style={{ width: '100%',
                           height: h,
                           borderRadius: 6,
                           background: isToday
@@ -1211,8 +1196,7 @@ export default function MoneyTracker() {
                             : 'rgba(146, 64, 94, 0.15)',
                           transition: 'height 0.3s ease',
                         }} />
-                        <span style={{
-                          fontSize: 9,
+                        <span style={{ fontSize: 9,
                           fontWeight: isToday ? 700 : 500,
                           color: isToday ? 'var(--accent)' : 'var(--text-muted)',
                           textTransform: 'uppercase',
@@ -1226,7 +1210,7 @@ export default function MoneyTracker() {
               {/* ─── Breakdown Bento ─── */}
               <section style={S.bentoGrid}>
                 <div style={{ ...S.bentoCard, background: 'rgba(255, 217, 226, 0.3)' }}>
-                  <MIcon name="content_cut" size={20} style={{ color: 'var(--accent)' }} />
+                  <Icon name={iconName('content_cut')} size={20} inline style={{ color: 'var(--accent)' }} />
                   <span style={S.bentoLabel}>Treatments</span>
                   <span style={{ ...S.bentoValue, color: 'var(--accent)' }}>{fmtShort(breakdown.treatments)}</span>
                 </div>
@@ -1234,7 +1218,7 @@ export default function MoneyTracker() {
                   onClick={() => setShowLogSale(s => !s)}
                   style={{ ...S.bentoCard, background: 'rgba(254, 219, 155, 0.3)', cursor: 'pointer' }}
                 >
-                  <MIcon name="shopping_bag" size={20} style={{ color: 'var(--gold)' }} />
+                  <Icon name={iconName('shopping_bag')} size={20} inline style={{ color: 'var(--gold)' }} />
                   <span style={S.bentoLabel}>Products</span>
                   <span style={{ ...S.bentoValue, color: 'var(--gold)' }}>{fmtShort(breakdown.products)}</span>
                   <span style={{ fontSize: 9, color: 'var(--gold)', opacity: 0.6, marginTop: -2 }}>+ log sale</span>
@@ -1243,7 +1227,7 @@ export default function MoneyTracker() {
                   onClick={() => setShowLogTip(s => !s)}
                   style={{ ...S.bentoCard, background: 'rgba(91, 169, 123, 0.1)', cursor: 'pointer' }}
                 >
-                  <MIcon name="volunteer_activism" size={20} style={{ color: 'var(--success)' }} />
+                  <Icon name={iconName('volunteer_activism')} size={20} inline style={{ color: 'var(--success)' }} />
                   <span style={S.bentoLabel}>Tips</span>
                   <span style={{ ...S.bentoValue, color: 'var(--success)' }}>{fmtShort(breakdown.tips)}</span>
                   <span style={{ fontSize: 9, color: 'var(--success)', opacity: 0.6, marginTop: -2 }}>+ log tip</span>
@@ -1254,7 +1238,7 @@ export default function MoneyTracker() {
               {showLogTip && (
                 <section style={S.quickLogCard}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                    <MIcon name="volunteer_activism" size={18} style={{ color: 'var(--success)' }} />
+                    <Icon name={iconName('volunteer_activism')} size={18} inline style={{ color: 'var(--success)' }} />
                     <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Log a Tip</span>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -1269,7 +1253,7 @@ export default function MoneyTracker() {
                       Save
                     </button>
                     <button onClick={() => { setShowLogTip(false); setTipAmount(''); }} style={{ ...S.btnGhost, flex: 'none' }}>
-                      <MIcon name="close" size={16} />
+                      <Icon name={iconName('close')} size={16} inline />
                     </button>
                   </div>
                 </section>
@@ -1279,7 +1263,7 @@ export default function MoneyTracker() {
               {showLogSale && (
                 <section style={S.quickLogCard}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                    <MIcon name="shopping_bag" size={18} style={{ color: 'var(--gold)' }} />
+                    <Icon name={iconName('shopping_bag')} size={18} inline style={{ color: 'var(--gold)' }} />
                     <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Log a Product Sale</span>
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
@@ -1302,7 +1286,7 @@ export default function MoneyTracker() {
                       Save
                     </button>
                     <button onClick={() => { setShowLogSale(false); setSaleAmount(''); setSaleDesc(''); }} style={{ ...S.btnGhost, flex: 'none' }}>
-                      <MIcon name="close" size={16} />
+                      <Icon name={iconName('close')} size={16} inline />
                     </button>
                   </div>
                 </section>
@@ -1321,8 +1305,7 @@ export default function MoneyTracker() {
                 </div>
                 <div style={{ width: 1, height: 28, background: 'rgba(146, 64, 94, 0.1)' }} />
                 <div style={S.qStat}>
-                  <span style={{
-                    ...S.qStatValue,
+                  <span style={{ ...S.qStatValue,
                     color: (periodStats?.profit ?? 0) >= 0 ? 'var(--success)' : 'var(--danger)',
                   }}>{fmt(periodStats?.profit || 0)}</span>
                   <span style={S.qStatLabel}>Profit</span>
@@ -1350,8 +1333,7 @@ export default function MoneyTracker() {
                       const apptDate = tx.appointments?.starts_at?.slice(0, 10);
                       return (
                         <div key={tx.id} style={S.txRow}>
-                          <div style={{
-                            ...S.txAvatar,
+                          <div style={{ ...S.txAvatar,
                             ...(tx.type === 'tip' ? { background: 'linear-gradient(135deg, #d4f5e0 0%, #a3e4b8 100%)' } :
                                 tx.type === 'product_sale' ? { background: 'linear-gradient(135deg, #fedb9b 0%, #f5c563 100%)' } : {}),
                           }}>{initial}</div>
@@ -1378,8 +1360,7 @@ export default function MoneyTracker() {
                               ) : time}
                             </p>
                           </div>
-                          <span style={{
-                            fontSize: 14, fontWeight: 700,
+                          <span style={{ fontSize: 14, fontWeight: 700,
                             color: isIncome ? 'var(--success)' : 'var(--danger)',
                           }}>
                             {isIncome ? '+' : '-'}{fmt(tx.amount_cents)}
@@ -1415,11 +1396,11 @@ export default function MoneyTracker() {
         <div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
             <button onClick={() => setShowAddExpense(!showAddExpense)} style={S.btnPrimary}>
-              <MIcon name="add" size={16} style={{ color: '#fff', marginRight: 4 }} />
+              <Icon name={iconName('add')} size={16} inline style={{ color: '#fff', marginRight: 4 }} />
               Add Expense
             </button>
             <label style={{ ...S.btnSecondary, opacity: scanning ? 0.6 : 1, pointerEvents: scanning ? 'none' : 'auto' }}>
-              <MIcon name="photo_camera" size={16} style={{ marginRight: 4 }} />
+              <Icon name={iconName('photo_camera')} size={16} inline style={{ marginRight: 4 }} />
               {scanning ? 'Reading receipt...' : 'Scan Receipt'}
               <input type="file" accept="image/*" capture="environment" onChange={handleReceiptScan} style={{ display: 'none' }} disabled={scanning} />
             </label>
@@ -1465,8 +1446,7 @@ export default function MoneyTracker() {
                       key={c.value}
                       type="button"
                       onClick={() => setNewExpense(p => ({ ...p, category: c.value }))}
-                      style={{
-                        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
                         padding: '8px 10px', borderRadius: 10, minWidth: 56,
                         border: newExpense.category === c.value ? '1.5px solid var(--accent)' : '1.5px solid var(--border-light)',
                         background: newExpense.category === c.value ? 'var(--accent-bg)' : 'var(--bg-card)',
@@ -1496,8 +1476,7 @@ export default function MoneyTracker() {
                   {receiptPreview ? (
                     <div style={{ position: 'relative', display: 'inline-block' }}>
                       <img src={receiptPreview} alt="Receipt" style={{ width: 64, height: 64, borderRadius: 10, objectFit: 'cover', border: '1.5px solid var(--border-light)' }} />
-                      <button onClick={() => setReceiptPreview(null)} style={{
-                        position: 'absolute', top: -6, right: -6,
+                      <button onClick={() => setReceiptPreview(null)} style={{ position: 'absolute', top: -6, right: -6,
                         width: 20, height: 20, borderRadius: 10, border: 'none',
                         background: 'var(--danger)', color: '#fff', fontSize: 12,
                         cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1507,13 +1486,12 @@ export default function MoneyTracker() {
                     <button
                       type="button"
                       onClick={() => receiptInputRef.current?.click()}
-                      style={{
-                        padding: '10px 16px', borderRadius: 10, border: '1.5px dashed var(--border)',
+                      style={{ padding: '10px 16px', borderRadius: 10, border: '1.5px dashed var(--border)',
                         background: 'var(--bg-card)', color: 'var(--text-muted)', fontSize: 13,
                         cursor: 'pointer', fontFamily: 'inherit',
                       }}
                     >
-                      <MIcon name="photo_camera" size={14} style={{ marginRight: 4 }} /> Add photo
+                      <Icon name={iconName('photo_camera')} size={14} inline style={{ marginRight: 4 }} /> Add photo
                     </button>
                   )}
                   <input
@@ -1529,8 +1507,7 @@ export default function MoneyTracker() {
               </div>
 
               {newExpense.ocr_confidence > 0 && (
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6,
                   padding: '8px 12px', marginBottom: 12, borderRadius: 8,
                   background: newExpense.ocr_confidence >= 0.8 ? 'var(--success-bg, #E8F5E9)' : 'var(--gold-light, #FDF8EE)',
                   fontSize: 12, color: newExpense.ocr_confidence >= 0.8 ? 'var(--success, #5BA97B)' : 'var(--gold-text, #8A7245)',
@@ -1543,8 +1520,7 @@ export default function MoneyTracker() {
                 </div>
               )}
 
-              <label style={{
-                display: 'flex', alignItems: 'center', fontSize: 13,
+              <label style={{ display: 'flex', alignItems: 'center', fontSize: 13,
                 color: 'var(--text-secondary)', marginBottom: 14, cursor: 'pointer',
                 minHeight: 44,
               }}>
@@ -1577,8 +1553,7 @@ export default function MoneyTracker() {
                             key={value}
                             type="button"
                             onClick={() => setRepeatFrequency(value)}
-                            style={{
-                              ...S.chip,
+                            style={{ ...S.chip,
                               ...(repeatFrequency === value ? S.chipActive : {}),
                             }}
                           >
@@ -1611,7 +1586,7 @@ export default function MoneyTracker() {
                   onClick={() => openRecurringEditor(null)}
                   style={S.addRuleBtn}
                 >
-                  <MIcon name="add" size={16} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                  <Icon name={iconName('add')} size={16} inline style={{ marginRight: 4, verticalAlign: 'middle' }} />
                   Add
                 </button>
               </div>
@@ -1654,8 +1629,7 @@ export default function MoneyTracker() {
                           key={c.value}
                           type="button"
                           onClick={() => setRecurringForm(f => ({ ...f, category: c.value }))}
-                          style={{
-                            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+                          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
                             padding: '8px 10px', borderRadius: 10, minWidth: 56, minHeight: 44,
                             border: recurringForm.category === c.value ? '1.5px solid var(--accent)' : '1.5px solid var(--border-light)',
                             background: recurringForm.category === c.value ? 'var(--accent-bg)' : 'var(--bg-card)',
@@ -1677,8 +1651,7 @@ export default function MoneyTracker() {
                           key={value}
                           type="button"
                           onClick={() => setRecurringForm(f => ({ ...f, frequency: value }))}
-                          style={{
-                            ...S.chip,
+                          style={{ ...S.chip,
                             ...(recurringForm.frequency === value ? S.chipActive : {}),
                           }}
                         >
@@ -1785,21 +1758,21 @@ export default function MoneyTracker() {
                           aria-label={rule.active ? 'Pause this cost' : 'Start this cost again'}
                           style={S.iconBtn}
                         >
-                          <MIcon name={rule.active ? 'pause' : 'play_arrow'} size={20} style={{ color: 'var(--accent)' }} />
+                          <Icon name={iconName(rule.active ? 'pause' : 'play_arrow')} size={20} inline style={{ color: 'var(--accent)' }} />
                         </button>
                         <button
                           onClick={() => openRecurringEditor(rule)}
                           aria-label="Edit this cost"
                           style={S.iconBtn}
                         >
-                          <MIcon name="edit" size={18} style={{ color: 'var(--text-muted)' }} />
+                          <Icon name={iconName('edit')} size={18} inline style={{ color: 'var(--text-muted)' }} />
                         </button>
                         <button
                           onClick={() => setConfirmDeleteRule(rule)}
                           aria-label="Remove this cost"
                           style={S.iconBtn}
                         >
-                          <MIcon name="delete" size={18} style={{ color: 'var(--text-muted)' }} />
+                          <Icon name={iconName('delete')} size={18} inline style={{ color: 'var(--text-muted)' }} />
                         </button>
                       </div>
                     </div>
@@ -1889,8 +1862,7 @@ export default function MoneyTracker() {
                 key={value}
                 onClick={() => { setLedgerType(value); setLedgerPage(1); }}
                 disabled={Boolean(ledgerCategory) && value === 'income'}
-                style={{
-                  ...S.periodBtn,
+                style={{ ...S.periodBtn,
                   ...(ledgerType === value ? S.periodBtnActive : {}),
                   minHeight: 44,
                   opacity: ledgerCategory && value === 'income' ? 0.4 : 1,
@@ -1911,8 +1883,7 @@ export default function MoneyTracker() {
           {ledger?.summary && (
             <section style={S.ledgerTotalCard}>
               <span style={S.ledgerTotalLabel}>Running total</span>
-              <span style={{
-                ...S.ledgerTotalValue,
+              <span style={{ ...S.ledgerTotalValue,
                 color: ledger.summary.running_total_cents >= 0 ? 'var(--success)' : 'var(--danger)',
               }}>{fmtNeat(ledger.summary.running_total_cents)}</span>
               <span style={S.ledgerTotalSub}>
@@ -1952,8 +1923,7 @@ export default function MoneyTracker() {
                         : (INCOME_LABELS[key] || key)}
                       <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{` · ${bucket.count}`}</span>
                     </span>
-                    <span style={{
-                      fontSize: 13, fontWeight: 600,
+                    <span style={{ fontSize: 13, fontWeight: 600,
                       color: bucket.kind === 'expense' ? 'var(--danger)' : 'var(--success)',
                     }}>
                       {bucket.kind === 'expense' ? '-' : '+'}{fmtNeat(bucket.total_cents)}
@@ -1973,8 +1943,7 @@ export default function MoneyTracker() {
                 : (row.description || INCOME_LABELS[row.category] || 'Payment');
               return (
                 <div key={`${row.kind}-${row.id}`} style={S.txRow}>
-                  <div style={{
-                    ...S.catBubble,
+                  <div style={{ ...S.catBubble,
                     background: isExpense ? meta.color : 'rgba(91, 169, 123, 0.15)',
                   }}>
                     <span><Icon name={isExpense ? meta.icon : 'pound'} size={16} /></span>
@@ -1994,8 +1963,7 @@ export default function MoneyTracker() {
                       pence={row.amount_cents}
                       signed
                       size={15}
-                      style={{
-                        display: 'block',
+                      style={{ display: 'block',
                         color: row.amount_cents < 0 ? 'var(--danger)' : 'var(--success)',
                       }}
                     />
@@ -2031,7 +1999,7 @@ export default function MoneyTracker() {
           )}
 
           <button onClick={handleExportLedgerCSV} style={S.exportBtn}>
-            <MIcon name="download" size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+            <Icon name={iconName('download')} size={16} inline style={{ marginRight: 6, verticalAlign: 'middle' }} />
             Export {ledgerYear && ledgerYear !== 'all' ? ledgerYear : 'this year'} as CSV
           </button>
         </div>
@@ -2051,8 +2019,7 @@ export default function MoneyTracker() {
             const typeLabel = { payment: 'Payment', deposit: 'Deposit', no_show_fee: 'No-show fee', tip: 'Tip', product_sale: 'Product sale' }[tx.type] || tx.type;
             return (
               <div key={tx.id} style={S.txRow}>
-                <div style={{
-                  ...S.txAvatar,
+                <div style={{ ...S.txAvatar,
                   ...(tx.type === 'tip' ? { background: 'linear-gradient(135deg, #d4f5e0 0%, #a3e4b8 100%)' } :
                       tx.type === 'product_sale' ? { background: 'linear-gradient(135deg, #fedb9b 0%, #f5c563 100%)' } : {}),
                 }}>{initial}</div>
@@ -2084,7 +2051,7 @@ export default function MoneyTracker() {
                 {/* Header */}
                 <div style={{ marginBottom: 20 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                    <MIcon name="receipt_long" size={18} style={{ color: 'var(--accent)' }} />
+                    <Icon name={iconName('receipt_long')} size={18} inline style={{ color: 'var(--accent)' }} />
                     <h3 style={S.sectionHeading}>Tax Year {t.taxYear}</h3>
                   </div>
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t.period.start} to {t.period.end}</span>
@@ -2198,8 +2165,7 @@ export default function MoneyTracker() {
                       <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Not registered</span>
                     </div>
                     <div style={{ background: 'var(--border, #EDE9E4)', borderRadius: 4, height: 8, overflow: 'hidden', marginBottom: 6 }}>
-                      <div style={{
-                        width: `${t.vat.vatPct}%`, height: '100%', borderRadius: 4, transition: 'width 0.4s ease',
+                      <div style={{ width: `${t.vat.vatPct}%`, height: '100%', borderRadius: 4, transition: 'width 0.4s ease',
                         background: t.vat.vatPct >= 90 ? '#ef4444' : t.vat.vatPct >= 75 ? '#f59e0b' : '#22c55e',
                       }} />
                     </div>
@@ -2298,19 +2264,17 @@ export default function MoneyTracker() {
                     a.download = '';
                     a.click();
                   }}
-                  style={{
-                    width: '100%', padding: '14px 0', borderRadius: 12,
+                  style={{ width: '100%', padding: '14px 0', borderRadius: 12,
                     border: 'none', background: 'var(--accent)', color: '#fff',
                     fontSize: 14, fontWeight: 600, cursor: 'pointer',
                     fontFamily: 'inherit', marginBottom: 12,
                   }}
                 >
-                  <MIcon name="download" size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} />
+                  <Icon name={iconName('download')} size={16} inline style={{ marginRight: 6, verticalAlign: 'middle' }} />
                   Export for Accountant
                 </button>
 
-                <p style={{
-                  fontSize: 12, color: 'var(--text-muted)', textAlign: 'center',
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center',
                   padding: '16px 20px', lineHeight: 1.5, fontStyle: 'italic',
                 }}>
                   Estimate only. Consult an accountant for your specific situation.
@@ -2330,8 +2294,7 @@ export default function MoneyTracker() {
       {confirmDeleteExp && createPortal(
         <div
           onClick={() => setConfirmDeleteExp(null)}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 2000,
+          style={{ position: 'fixed', inset: 0, zIndex: 2000,
             background: 'rgba(29,27,25,0.45)',
             display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
             userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
@@ -2339,8 +2302,7 @@ export default function MoneyTracker() {
         >
           <div
             onClick={e => e.stopPropagation()}
-            style={{
-              width: '100%', maxWidth: 480, background: 'var(--bg-card, #fff)',
+            style={{ width: '100%', maxWidth: 480, background: 'var(--bg-card, #fff)',
               borderRadius: '18px 18px 0 0',
               padding: '20px 20px calc(28px + env(safe-area-inset-bottom, 8px))',
             }}
@@ -2357,8 +2319,7 @@ export default function MoneyTracker() {
               <button
                 onClick={handleDeleteExpense}
                 disabled={deleting}
-                style={{
-                  flex: 1, padding: '13px 0', borderRadius: 12, border: 'none',
+                style={{ flex: 1, padding: '13px 0', borderRadius: 12, border: 'none',
                   background: 'var(--danger, #BA1A1A)', color: '#fff',
                   fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
                   opacity: deleting ? 0.6 : 1,
@@ -2368,8 +2329,7 @@ export default function MoneyTracker() {
               </button>
               <button
                 onClick={() => setConfirmDeleteExp(null)}
-                style={{
-                  flex: 1, padding: '13px 0', borderRadius: 12,
+                style={{ flex: 1, padding: '13px 0', borderRadius: 12,
                   border: '1.5px solid var(--border, #EDE9E4)', background: 'var(--bg-card, #fff)',
                   color: 'var(--text-primary)', fontSize: 14, fontWeight: 600,
                   cursor: 'pointer', fontFamily: 'inherit',
@@ -2388,16 +2348,14 @@ export default function MoneyTracker() {
       {confirmDeleteRule && createPortal(
         <div
           onClick={() => setConfirmDeleteRule(null)}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 2000,
+          style={{ position: 'fixed', inset: 0, zIndex: 2000,
             background: 'rgba(29,27,25,0.45)',
             display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
           }}
         >
           <div
             onClick={e => e.stopPropagation()}
-            style={{
-              width: '100%', maxWidth: 480, background: 'var(--bg-card, #fff)',
+            style={{ width: '100%', maxWidth: 480, background: 'var(--bg-card, #fff)',
               borderRadius: '18px 18px 0 0',
               padding: '20px 20px calc(28px + env(safe-area-inset-bottom, 8px))',
             }}
@@ -2412,8 +2370,7 @@ export default function MoneyTracker() {
             <div style={{ display: 'flex', gap: 10 }}>
               <button
                 onClick={handleDeleteRecurring}
-                style={{
-                  flex: 1, padding: '13px 0', borderRadius: 12, border: 'none',
+                style={{ flex: 1, padding: '13px 0', borderRadius: 12, border: 'none',
                   background: 'var(--danger, #BA1A1A)', color: '#fff',
                   fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
                   minHeight: 44,
@@ -2423,8 +2380,7 @@ export default function MoneyTracker() {
               </button>
               <button
                 onClick={() => setConfirmDeleteRule(null)}
-                style={{
-                  flex: 1, padding: '13px 0', borderRadius: 12,
+                style={{ flex: 1, padding: '13px 0', borderRadius: 12,
                   border: '1.5px solid var(--border, #EDE9E4)', background: 'var(--bg-card, #fff)',
                   color: 'var(--text-primary)', fontSize: 14, fontWeight: 600,
                   cursor: 'pointer', fontFamily: 'inherit', minHeight: 44,

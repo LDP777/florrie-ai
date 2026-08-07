@@ -21,7 +21,7 @@ const Button = ({
 }) => {
   // Base styles
   const base = {
-    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
     border: 'none',
     cursor: disabled ? 'not-allowed' : 'pointer',
     transition: '0.2s cubic-bezier(0.16, 1, 0.3, 1)',

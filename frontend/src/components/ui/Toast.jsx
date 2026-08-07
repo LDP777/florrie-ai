@@ -90,7 +90,7 @@ const Toast = ({ id, message, variant = 'info', duration = 3000, onDismiss }) =>
     boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
     fontSize: 14,
     fontWeight: 500,
-    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
     animation: isExiting
       ? 'slideOut 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards'
       : 'slideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards',

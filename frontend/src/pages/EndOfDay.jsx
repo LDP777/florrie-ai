@@ -249,8 +249,7 @@ export default function EndOfDay() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                style={{
-                  ...styles.tab,
+                style={{ ...styles.tab,
                   ...(activeTab === tab.id ? styles.tabActive : {})
                 }}
               >{tab.label}</button>
@@ -355,8 +354,7 @@ export default function EndOfDay() {
                   </div>
                 </div>
                 {cashDiff !== null && (
-                  <div style={{
-                    ...styles.diffBadge,
+                  <div style={{ ...styles.diffBadge,
                     background: parseFloat(cashDiff) === 0 ? 'var(--success-bg, #E8F5E9)' : 'var(--warning-bg, #FFF3E0)',
                     color: parseFloat(cashDiff) === 0 ? '#2E7D32' : '#E65100',
                   }}>
@@ -380,8 +378,7 @@ export default function EndOfDay() {
               {cashCounted && (
                 <button
                   onClick={() => setIsReconciled(true)}
-                  style={{
-                    ...styles.reconBtn,
+                  style={{ ...styles.reconBtn,
                     background: isReconciled ? 'var(--success, #2E7D32)' : 'var(--accent, #C76B8A)'
                   }}
                 >
@@ -436,7 +433,7 @@ export default function EndOfDay() {
 }
 
 const styles = {
-  page: { padding: '16px 16px 24px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
+  page: { padding: '16px 16px 24px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: 0 },
   dateChip: { fontSize: 12, color: 'var(--text-secondary, #6B6560)', background: 'var(--bg-hover, #F0ECE8)', padding: '4px 10px', borderRadius: 12 },

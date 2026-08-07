@@ -294,8 +294,7 @@ export default function Analytics() {
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            style={{
-              ...styles.tabBtn,
+            style={{ ...styles.tabBtn,
               background: tab === t.key ? 'var(--accent, #C76B8A)' : 'var(--bg-subtle, #F5F2EF)',
               color: tab === t.key ? '#fff' : 'var(--text-secondary, #8A8580)',
             }}
@@ -312,8 +311,7 @@ export default function Analytics() {
             <button
               key={p.key}
               onClick={() => setPeriod(p.key)}
-              style={{
-                ...styles.periodTab,
+              style={{ ...styles.periodTab,
                 background: period === p.key ? 'var(--text-secondary, #6B6560)' : 'transparent',
                 color: period === p.key ? '#fff' : 'var(--text-muted, #AAA5A0)',
                 border: period === p.key ? 'none' : '1.5px solid var(--border, #E8E4E0)',
@@ -431,8 +429,7 @@ export default function Analytics() {
                 <button
                   key={s.key}
                   onClick={() => setSortBy(s.key)}
-                  style={{
-                    ...styles.filterChip,
+                  style={{ ...styles.filterChip,
                     background: sortBy === s.key ? 'var(--accent, #C76B8A)' : 'var(--bg-subtle, #F5F2EF)',
                     color: sortBy === s.key ? '#fff' : 'var(--text-secondary, #6B6560)',
                   }}
@@ -449,8 +446,7 @@ export default function Analytics() {
                   <button
                     key={cat}
                     onClick={() => setCatFilter(cat)}
-                    style={{
-                      ...styles.filterChip,
+                    style={{ ...styles.filterChip,
                       background: catFilter === cat ? 'var(--text-secondary, #6B6560)' : 'transparent',
                       color: catFilter === cat ? '#fff' : 'var(--text-muted, #AAA5A0)',
                       border: catFilter === cat ? 'none' : '1.5px solid var(--border, #E8E4E0)',
@@ -669,7 +665,7 @@ function getInsights(stats) {
 
 // Styles
 const styles = {
-  page: { minHeight: '100vh', background: 'var(--bg, #FAF8F5)', fontFamily: '"DM Sans", -apple-system, sans-serif', padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)' },
+  page: { minHeight: '100vh', background: 'var(--bg, #FAF8F5)', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)' },
   header: { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 52px)', paddingBottom: 8 },
   title: { fontSize: 22, fontWeight: 700, margin: 0, fontFamily: "'Playfair Display', Georgia, serif", letterSpacing: '-0.02em' },
 

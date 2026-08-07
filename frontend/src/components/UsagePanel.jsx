@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE } from '../lib/config.js';
+import Icon, { iconName } from './ui/Icon';
 
 /**
  * UsagePanel, Day 5 of the 2026-05-28 refactor sprint.
@@ -76,7 +77,7 @@ export default function UsagePanel() {
       style={S.row}
       aria-label={`${safeUsed} of ${limit} messages used this month`}
     >
-      <span className="material-symbols-outlined" style={S.icon}>auto_awesome_motion</span>
+      <Icon name={iconName('auto_awesome_motion')} inline style={S.icon} />
       <span style={S.label}>
         <strong style={S.count}>{safeUsed}</strong>
         <span style={S.muted}> of {limit} messages this month{igFree > 0 ? ` · ${igFree} Instagram, free` : ''}</span>
@@ -105,7 +106,7 @@ const S = {
     padding: '10px 14px',
     margin: '8px 0 6px',
     cursor: 'pointer',
-    fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
     textAlign: 'left',
     WebkitTapHighlightColor: 'transparent',
   },

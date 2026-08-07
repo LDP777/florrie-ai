@@ -462,8 +462,7 @@ export default function Onboarding({ onComplete }) {
           <button
             onClick={saveBusinessInfo}
             disabled={!firstName.trim() || saving}
-            style={{
-              ...styles.primaryBtn,
+            style={{ ...styles.primaryBtn,
               opacity: !firstName.trim() ? 0.5 : 1
             }}
           >
@@ -549,8 +548,7 @@ export default function Onboarding({ onComplete }) {
           <button
             onClick={saveTreatments}
             disabled={!treatments.some(t => t.name.trim()) || saving}
-            style={{
-              ...styles.primaryBtn,
+            style={{ ...styles.primaryBtn,
               opacity: !treatments.some(t => t.name.trim()) ? 0.5 : 1,
               marginTop: 8
             }}
@@ -582,8 +580,7 @@ export default function Onboarding({ onComplete }) {
                   checked={hours[day].enabled}
                   onChange={() => toggleDay(day)}
                 />
-                <span style={{
-                  ...styles.dayName,
+                <span style={{ ...styles.dayName,
                   color: hours[day].enabled ? 'var(--text-primary)' : 'var(--text-muted)'
                 }}>
                   {DAYS[idx]}
@@ -645,8 +642,7 @@ export default function Onboarding({ onComplete }) {
           <button
             onClick={saveSlug}
             disabled={!slug.trim() || saving}
-            style={{
-              ...styles.primaryBtn,
+            style={{ ...styles.primaryBtn,
               opacity: !slug.trim() ? 0.5 : 1
             }}
           >
@@ -778,8 +774,7 @@ export default function Onboarding({ onComplete }) {
           <p style={styles.trialNote}>
             Add your card to start your 14-day trial. You won't be charged today, and you can cancel any time before day 14.
           </p>
-          <div style={{
-            ...styles.planCard,
+          <div style={{ ...styles.planCard,
             border: '1.5px solid var(--accent, #C76B8A)',
             boxShadow: '0 2px 12px rgba(199, 107, 138, 0.12)',
           }}>
@@ -909,8 +904,7 @@ export default function Onboarding({ onComplete }) {
                       type="button"
                       onClick={sendSMSTest}
                       disabled={smsTesting || !smsTestPhone.trim()}
-                      style={{
-                        ...styles.smsTestBtn,
+                      style={{ ...styles.smsTestBtn,
                         opacity: (smsTesting || !smsTestPhone.trim()) ? 0.5 : 1,
                       }}
                     >
@@ -929,8 +923,7 @@ export default function Onboarding({ onComplete }) {
                     type="button"
                     onClick={useSMSOnly}
                     disabled={smsSaving}
-                    style={{
-                      ...styles.smsForkSaveBtn,
+                    style={{ ...styles.smsForkSaveBtn,
                       opacity: smsSaving ? 0.6 : 1,
                     }}
                   >
@@ -1004,14 +997,14 @@ const styles = {
   page: {
     minHeight: '100vh',
     background: 'var(--bg)',
-    fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)",
     padding: '0 20px 60px',
     maxWidth: 480,
     margin: '0 auto',
     color: 'var(--text-primary)',
     animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
   },
-  loadingText: { textAlign: 'center', color: 'var(--text-muted)', padding: 60, fontSize: 14, fontFamily: "var(--font-body, 'DM Sans', sans-serif)" },
+  loadingText: { textAlign: 'center', color: 'var(--text-muted)', padding: 60, fontSize: 14, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" },
   progressBar: {
     height: 4,
     background: 'var(--border)',

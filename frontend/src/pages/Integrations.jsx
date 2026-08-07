@@ -249,8 +249,7 @@ export default function Integrations() {
       <button
         type="button"
         onClick={() => navigate('/messaging')}
-        style={{
-          display: 'flex',
+        style={{ display: 'flex',
           alignItems: 'center',
           gap: 12,
           width: '100%',
@@ -289,8 +288,7 @@ export default function Integrations() {
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
           {connectedItems.map(i => (
-            <div key={i.id} style={{
-              width: 36, height: 36, borderRadius: 10,
+            <div key={i.id} style={{ width: 36, height: 36, borderRadius: 10,
               background: 'rgba(255,255,255,0.2)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
             }} title={i.name}>{i.icon}</div>
@@ -306,8 +304,7 @@ export default function Integrations() {
       {/* Category filter */}
       <div style={{ display: 'flex', gap: 6, overflowX: 'auto', marginBottom: 16, paddingBottom: 4 }}>
         {categories.map(c => (
-          <button key={c} onClick={() => setFilter(c)} style={{
-            ...ds.btnGhost, fontSize: 11, padding: '6px 12px', whiteSpace: 'nowrap',
+          <button key={c} onClick={() => setFilter(c)} style={{ ...ds.btnGhost, fontSize: 11, padding: '6px 12px', whiteSpace: 'nowrap',
             background: filter === c ? 'var(--accent)' : 'var(--bg-subtle)',
             color: filter === c ? 'var(--bg-card, #fff)' : 'var(--text-secondary)',
           }}>{c}</button>
@@ -326,8 +323,7 @@ export default function Integrations() {
               onClick={() => setExpanded(expanded === i ? null : i)}
             >
               <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                <div style={{
-                  width: 44, height: 44, borderRadius: 12,
+                <div style={{ width: 44, height: 44, borderRadius: 12,
                   background: integ.status === 'connected' ? 'var(--success-bg)' : 'var(--bg-subtle)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0,
                 }}>{integ.icon}</div>

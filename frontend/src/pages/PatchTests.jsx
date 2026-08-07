@@ -340,8 +340,7 @@ export default function PatchTests() {
                 <button
                   key={r.value}
                   onClick={() => setForm(p => ({ ...p, result: r.value }))}
-                  style={{
-                    ...styles.resultBtn,
+                  style={{ ...styles.resultBtn,
                     background: form.result === r.value ? (r.value === 'pass' ? 'var(--success-bg)' : r.value === 'fail' ? 'var(--danger-bg)' : 'var(--warning-bg)') : 'var(--bg-card)',
                     borderColor: form.result === r.value ? (r.value === 'pass' ? 'var(--success)' : r.value === 'fail' ? 'var(--danger)' : 'var(--warning)') : 'var(--border)',
                   }}
@@ -376,8 +375,7 @@ export default function PatchTests() {
           <button
             key={t}
             onClick={() => setTab(t)}
-            style={{
-              ...styles.tab,
+            style={{ ...styles.tab,
               borderBottomColor: tab === t ? 'var(--accent)' : 'transparent',
               color: tab === t ? 'var(--accent)' : 'var(--text-muted)',
             }}
@@ -649,7 +647,7 @@ export default function PatchTests() {
 const styles = {
   page: {
     minHeight: '100vh', background: 'var(--bg)',
-    fontFamily: '"DM Sans", -apple-system, sans-serif',
+    fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
     padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)',
   },
   header: { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 52px)', paddingBottom: 8 },

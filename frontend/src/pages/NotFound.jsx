@@ -4,8 +4,7 @@ export default function NotFound() {
   const navigate = useNavigate();
 
   return (
-    <div style={{
-      minHeight: '100vh',
+    <div style={{ minHeight: '100vh',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -14,8 +13,7 @@ export default function NotFound() {
       padding: '2rem',
     }}>
       <div style={{ textAlign: 'center', maxWidth: 400 }}>
-        <div style={{
-          fontFamily: 'var(--font-display, Georgia)',
+        <div style={{ fontFamily: 'var(--font-display, Georgia)',
           fontSize: '4rem',
           color: 'var(--accent, #C76B8A)',
           fontWeight: 600,
@@ -24,16 +22,14 @@ export default function NotFound() {
         }}>
           404
         </div>
-        <h2 style={{
-          fontFamily: 'var(--font-display, Georgia)',
+        <h2 style={{ fontFamily: 'var(--font-display, Georgia)',
           fontSize: '1.4rem',
           color: 'var(--text-primary, #2D2A26)',
           marginBottom: 8,
         }}>
           Page not found
         </h2>
-        <p style={{
-          color: 'var(--text-secondary, #7A756F)',
+        <p style={{ color: 'var(--text-secondary, #7A756F)',
           marginBottom: 24,
           lineHeight: 1.5,
         }}>
@@ -41,8 +37,7 @@ export default function NotFound() {
         </p>
         <button
           onClick={() => navigate('/')}
-          style={{
-            background: 'var(--accent, #C76B8A)',
+          style={{ background: 'var(--accent, #C76B8A)',
             color: '#fff',
             border: 'none',
             padding: '10px 28px',

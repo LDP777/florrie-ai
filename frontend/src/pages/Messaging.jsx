@@ -94,8 +94,7 @@ function TabButton({ active, onClick, children }) {
     <button
       type="button"
       onClick={onClick}
-      style={{
-        ...styles.tab,
+      style={{ ...styles.tab,
         ...(active ? styles.tabActive : {}),
       }}
     >
@@ -108,8 +107,7 @@ function StatusDot({ on }) {
   return (
     <span
       aria-hidden
-      style={{
-        ...styles.statusDot,
+      style={{ ...styles.statusDot,
         background: on ? 'var(--success, #16a34a)' : 'var(--border)',
       }}
     />
@@ -127,8 +125,7 @@ function Overview({ waConnected, smsOn, beautician, onPickWA, onPickSMS }) {
             <div style={styles.channelTitle}>WhatsApp</div>
             <div style={styles.channelSub}>Recommended. Clients already use it.</div>
           </div>
-          <span style={{
-            ...styles.statusChip,
+          <span style={{ ...styles.statusChip,
             ...(waConnected ? styles.statusChipOn : styles.statusChipOff),
           }}>
             {waConnected ? 'Connected' : 'Off'}
@@ -161,8 +158,7 @@ function Overview({ waConnected, smsOn, beautician, onPickWA, onPickSMS }) {
             <div style={styles.channelTitle}>SMS</div>
             <div style={styles.channelSub}>Works with any mobile. Two-way from our UK number.</div>
           </div>
-          <span style={{
-            ...styles.statusChip,
+          <span style={{ ...styles.statusChip,
             ...(smsOn ? styles.statusChipOn : styles.statusChipOff),
           }}>
             {smsOn ? 'On' : 'Off'}

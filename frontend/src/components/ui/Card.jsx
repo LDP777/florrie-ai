@@ -57,8 +57,7 @@ const Card = ({
     <div style={cardStyle}>
       {header && (
         <div
-          style={{
-            display: 'flex',
+          style={{ display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             marginBottom: 12,
@@ -68,8 +67,7 @@ const Card = ({
           }}
         >
           <h3
-            style={{
-              margin: 0,
+            style={{ margin: 0,
               fontSize: 16,
               fontWeight: 600,
               color:

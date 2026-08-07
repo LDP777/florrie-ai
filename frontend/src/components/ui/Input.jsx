@@ -34,7 +34,7 @@ const Input = ({
         ? '1.5px solid var(--accent)'
         : '1.5px solid var(--border)',
     fontSize: 14,
-    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
     outline: 'none',
     boxSizing: 'border-box',
     background: 'var(--bg-input)',
@@ -50,7 +50,7 @@ const Input = ({
     ...baseInputStyle,
     minHeight: 100,
     resize: 'vertical',
-    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
   };
 
   const inputStyle = isTextarea ? textareaStyle : baseInputStyle;
@@ -59,8 +59,7 @@ const Input = ({
     <div style={{ width: '100%' }}>
       {label && (
         <label
-          style={{
-            fontSize: 12,
+          style={{ fontSize: 12,
             fontWeight: 600,
             color: error ? 'var(--danger)' : 'var(--text-secondary)',
             display: 'block',
@@ -99,8 +98,7 @@ const Input = ({
 
       {error && (
         <p
-          style={{
-            fontSize: 12,
+          style={{ fontSize: 12,
             color: 'var(--danger)',
             margin: '6px 0 0 0',
             fontWeight: 500,
@@ -112,8 +110,7 @@ const Input = ({
 
       {helperText && !error && (
         <p
-          style={{
-            fontSize: 12,
+          style={{ fontSize: 12,
             color: 'var(--text-muted)',
             margin: '6px 0 0 0',
           }}

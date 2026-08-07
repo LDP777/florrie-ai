@@ -251,8 +251,7 @@ export default function PriceList() {
               <h3 style={S.sectionTitle}>Theme</h3>
               <div style={S.themeRow}>
                 {THEMES.map(t => (
-                  <button key={t.key} onClick={() => setTheme(t.key)} style={{
-                    ...S.themeBtn,
+                  <button key={t.key} onClick={() => setTheme(t.key)} style={{ ...S.themeBtn,
                     background: t.bg,
                     border: theme === t.key ? `2px solid ${t.accent}` : `2px solid ${t.border}`,
                   }}>
@@ -280,8 +279,7 @@ export default function PriceList() {
                   <button
                     key={item.id}
                     onClick={() => toggleHidden(item.id)}
-                    style={{
-                      ...S.treatmentToggle,
+                    style={{ ...S.treatmentToggle,
                       opacity: isHidden ? 0.4 : 1,
                       textDecoration: isHidden ? 'line-through' : 'none',
                     }}
@@ -353,7 +351,7 @@ export default function PriceList() {
 const S = {
   page: {
     padding: '20px 16px 100px',
-    fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)",
     maxWidth: 480, margin: '0 auto',
     color: 'var(--text-primary, #2D2A26)',
   },
@@ -478,7 +476,7 @@ const S = {
     boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
     zIndex: 9999, fontSize: 13, fontWeight: 500,
     animation: 'slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
-    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
   },
   toastIcon: { fontSize: 14, color: 'var(--success, #4CAF50)' },
   toastText: { whiteSpace: 'nowrap' },

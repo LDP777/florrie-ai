@@ -26,7 +26,7 @@ const S = {
   text: {
     fontSize: 13,
     color: 'var(--danger, #D44)',
-    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
     fontWeight: 500,
     lineHeight: 1.4,
     flex: 1,

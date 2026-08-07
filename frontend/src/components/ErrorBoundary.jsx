@@ -18,8 +18,7 @@ export default class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{
-          minHeight: '100vh',
+        <div style={{ minHeight: '100vh',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -27,8 +26,7 @@ export default class ErrorBoundary extends Component {
           background: 'var(--bg)',
           padding: '2rem',
         }}>
-          <div style={{
-            textAlign: 'center',
+          <div style={{ textAlign: 'center',
             maxWidth: 420,
           }}>
             <div style={{ fontSize: 48, marginBottom: 16 }}>
@@ -38,16 +36,14 @@ export default class ErrorBoundary extends Component {
                 <line x1="12" y1="16" x2="12.01" y2="16"/>
               </svg>
             </div>
-            <h2 style={{
-              fontFamily: 'var(--font-display, Georgia)',
+            <h2 style={{ fontFamily: 'var(--font-display, Georgia)',
               fontSize: '1.5rem',
               color: 'var(--text-primary, #2D2A26)',
               marginBottom: 8,
             }}>
               Something went wrong
             </h2>
-            <p style={{
-              color: 'var(--text-secondary, #7A756F)',
+            <p style={{ color: 'var(--text-secondary, #7A756F)',
               marginBottom: 24,
               lineHeight: 1.5,
             }}>
@@ -55,8 +51,7 @@ export default class ErrorBoundary extends Component {
             </p>
             <button
               onClick={() => window.location.reload()}
-              style={{
-                background: 'var(--accent, #C76B8A)',
+              style={{ background: 'var(--accent, #C76B8A)',
                 color: '#fff',
                 border: 'none',
                 padding: '10px 28px',

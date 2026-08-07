@@ -184,8 +184,7 @@ export default function ConsultationFormPublic() {
           <div
             key={field.id}
             id={`field-${field.id}`}
-            style={{
-              ...styles.fieldCard,
+            style={{ ...styles.fieldCard,
               ...(validationErrors.includes(field.id) ? styles.fieldCardError : {}),
             }}
           >
@@ -211,8 +210,7 @@ export default function ConsultationFormPublic() {
             {field.type === 'yes_no' && (
               <div style={styles.radioGroup}>
                 {['Yes', 'No'].map(opt => (
-                  <label key={opt} style={{
-                    ...styles.radioOption,
+                  <label key={opt} style={{ ...styles.radioOption,
                     ...(answers[field.id] === opt ? { ...styles.radioOptionSelected, borderColor: brandColor } : {}),
                   }}>
                     <input
@@ -245,8 +243,7 @@ export default function ConsultationFormPublic() {
             {field.type === 'single_select' && (
               <div style={styles.optionsList}>
                 {(field.options || []).map(opt => (
-                  <label key={opt} style={{
-                    ...styles.radioOption,
+                  <label key={opt} style={{ ...styles.radioOption,
                     ...(answers[field.id] === opt ? { ...styles.radioOptionSelected, borderColor: brandColor } : {}),
                   }}>
                     <input
@@ -266,8 +263,7 @@ export default function ConsultationFormPublic() {
             {field.type === 'multi_select' && (
               <div style={styles.optionsList}>
                 {(field.options || []).map(opt => (
-                  <label key={opt} style={{
-                    ...styles.checkOption,
+                  <label key={opt} style={{ ...styles.checkOption,
                     ...((answers[field.id] || []).includes(opt) ? { ...styles.checkOptionSelected, borderColor: brandColor } : {}),
                   }}>
                     <input

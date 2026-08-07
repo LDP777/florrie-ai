@@ -7,6 +7,7 @@ import logger from '../lib/logger.js';
 import { hapticTap, hapticSuccess } from '../lib/native.js';
 import { treatmentColor, tint } from '../lib/treatmentColors.js';
 import { parseDateOnly } from '../lib/dates.js';
+import Icon, { iconName } from '../components/ui/Icon';
 
 // 15-minute duration steps for the appointment-length picker (15 min to 8 h).
 const DURATION_STEPS = Array.from({ length: 32 }, (_, i) => (i + 1) * 15);
@@ -858,8 +859,7 @@ export default function CalendarView({ initialView } = {}) {
                 onClick={() => { setCurrentDate(day); setView('day'); }}
                 aria-current={selected ? 'date' : undefined}
                 aria-label={`${dayLabel}, ${countLabel}`}
-                style={{
-                  ...styles.weeklyStripDay,
+                style={{ ...styles.weeklyStripDay,
                   // Filled maroon chip follows the SELECTED day. Today, when it
                   // is not the selected one, only tints its text: a second
                   // strong marker would make her hunt for which one she is on.
@@ -906,14 +906,14 @@ export default function CalendarView({ initialView } = {}) {
           aria-label="Open full calendar"
           style={{ height: 36, width: 36, borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #fff)', color: COLORS.stone400, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: 18, fontVariationSettings: "'FILL' 0, 'wght' 300" }}>open_in_full</span>
+          <Icon name={iconName('open_in_full')} size={18} inline style={{ }} />
         </button>
         <button
           onClick={() => setShowBlockModal(true)}
           title="Block time"
           style={{ height: 36, padding: '0 12px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #fff)', color: COLORS.stone400, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit' }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: 15, fontVariationSettings: "'FILL' 0, 'wght' 300" }}>event_busy</span>
+          <Icon name={iconName('event_busy')} size={15} inline style={{ }} />
           Block
         </button>
         {view === 'day' && (
@@ -923,7 +923,7 @@ export default function CalendarView({ initialView } = {}) {
             title="Mark all done"
             style={{ height: 36, padding: '0 12px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #fff)', color: '#5BA67F', cursor: markingAllDone ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', opacity: markingAllDone ? 0.6 : 1 }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: 15, fontVariationSettings: "'FILL' 0, 'wght' 300" }}>done_all</span>
+            <Icon name={iconName('done_all')} size={15} inline style={{ }} />
             {markingAllDone ? '…' : 'All done'}
           </button>
         )}
@@ -1033,8 +1033,7 @@ export default function CalendarView({ initialView } = {}) {
                   onPointerMove={onCardDragMove}
                   onPointerUp={onCardDragEnd}
                   onPointerCancel={onCardDragCancel}
-                  style={{
-                    ...styles.appointmentCard,
+                  style={{ ...styles.appointmentCard,
                     top: lifted ? dragMove.top : top,
                     height,
                     left: `calc(${(col / cols) * 100}% + 4px)`,
@@ -1117,8 +1116,7 @@ export default function CalendarView({ initialView } = {}) {
                 return (
                   <div
                     key={block.id}
-                    style={{
-                      position: 'absolute', left: 0, right: 0,
+                    style={{ position: 'absolute', left: 0, right: 0,
                       top: Math.max(0, top),
                       height: Math.max(height, 36),
                       background: 'repeating-linear-gradient(45deg, rgba(146,64,94,0.07) 0px, rgba(146,64,94,0.07) 5px, rgba(146,64,94,0.02) 5px, rgba(146,64,94,0.02) 10px)',
@@ -1130,8 +1128,7 @@ export default function CalendarView({ initialView } = {}) {
                   >
                     <button
                       onClick={() => setSelectedBlock(block)}
-                      style={{
-                        pointerEvents: 'auto',
+                      style={{ pointerEvents: 'auto',
                         position: 'absolute', top: 4, left: 8,
                         background: 'rgba(255,255,255,0.9)',
                         border: 'none', borderRadius: 6,
@@ -1183,8 +1180,7 @@ export default function CalendarView({ initialView } = {}) {
               return slots.map(slot => (
                 <div
                   key={slot.id}
-                  style={{
-                    ...styles.openSlotCard,
+                  style={{ ...styles.openSlotCard,
                     top: slot.top,
                     height: slot.height,
                   }}
@@ -1329,7 +1325,7 @@ export default function CalendarView({ initialView } = {}) {
           title="New appointment"
           style={styles.addFab}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: 26 }}>add</span>
+          <Icon name={iconName('add')} size={26} inline />
         </button>
       )}
       {/* Floating Insights Pill (day view only) */}
@@ -2388,8 +2384,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                       {consultation.response.pairs.map(pair => (
                         <div key={pair.field_id} style={{ padding: '7px 0', borderBottom: `1px solid ${COLORS.outlineVariant}44` }}>
                           <div style={{ fontSize: 11, color: COLORS.stone400, lineHeight: 1.4 }}>{pair.question}</div>
-                          <div style={{
-                            fontSize: 13,
+                          <div style={{ fontSize: 13,
                             fontWeight: 500,
                             lineHeight: 1.45,
                             whiteSpace: 'pre-wrap',
@@ -2457,7 +2452,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0 0', marginTop: 3, borderTop: `1px solid ${COLORS.outlineVariant}66`, fontSize: 14 }}>
                   <span style={{ fontWeight: 700, color: owed > 0 ? COLORS.primary : '#2E7D32', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                    {owed <= 0 && <span className="material-symbols-outlined" style={{ fontSize: 16 }} aria-hidden>check_circle</span>}
+                    {owed <= 0 && <Icon name={iconName('check_circle')} size={16} inline />}
                     {owed > 0 ? 'To collect' : paidInFull ? 'Paid in full' : 'Nothing to collect'}
                   </span>
                   {owed > 0 && <span style={{ fontWeight: 700, color: COLORS.primary, fontVariantNumeric: 'tabular-nums' }}>£{(owed / 100).toFixed(2)}</span>}
@@ -2524,7 +2519,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                   marking them a no-show (traffic, swapped to Friday, etc.). */}
               <button onClick={openTimeEdit} disabled={saving}
                 style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--bg-input, #FAFAFA)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                <span className="material-symbols-outlined" style={{ fontSize: 16 }}>event_repeat</span>
+                <Icon name={iconName('event_repeat')} size={16} inline />
                 Reschedule
               </button>
               {/* Card fallback: only shows when there's an unpaid balance (price
@@ -2538,7 +2533,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
                 && (((appointment.price_cents || 0) - (appointment.deposit_paid ? (appointment.deposit_cents || 0) : 0)) >= 30) && (
                 <button onClick={() => { hapticTap(); handleChargeBalance(); }} disabled={chargingBalance}
                   style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--bg-input, #FAFAFA)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>credit_card</span>
+                  <Icon name={iconName('credit_card')} size={16} inline />
                   {chargingBalance ? 'Charging...' : `Charge £${(((appointment.price_cents || 0) - (appointment.deposit_paid ? (appointment.deposit_cents || 0) : 0)) / 100).toFixed(2)} balance to card`}
                 </button>
               )}
@@ -2547,7 +2542,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               {cardInfo?.hasCard && !chargeOpen && (
                 <button onClick={() => { hapticTap(); setChargeOpen(true); }}
                   style={{ ...styles.completeBtn, marginTop: 0, background: 'var(--bg-input, #FAFAFA)', color: COLORS.primary, border: `1.5px solid ${COLORS.outlineVariant}`, fontSize: 13, padding: '10px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                  <span className="material-symbols-outlined" style={{ fontSize: 16 }}>payments</span>
+                  <Icon name={iconName('payments')} size={16} inline />
                   Charge their card{cardInfo.last4 ? ` \u00b7\u00b7\u00b7\u00b7 ${cardInfo.last4}` : ''}
                 </button>
               )}
@@ -2627,7 +2622,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
           <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${COLORS.outlineVariant}33` }}>
             <button onClick={() => { hapticTap(); handleDeleteAppointment(); }} disabled={deleting}
               style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: '1px solid #FECACA', background: '#FEF2F2', color: '#B91C1C', fontSize: 13, fontWeight: 600, cursor: deleting ? 'not-allowed' : 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: deleting ? 0.6 : 1 }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 16 }}>delete</span>
+              <Icon name={iconName('delete')} size={16} inline />
               {deleting ? 'Deleting…' : 'Delete appointment'}
             </button>
           </div>
@@ -2670,8 +2665,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               {needsPatchTest ? 'Patch test + booking link' : 'Booking link for the client'}
             </div>
             {needsPatchTest && (
-              <div style={{
-                display: 'flex', gap: 8, alignItems: 'flex-start',
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start',
                 background: '#FDF3E7', border: '1px solid #E9D3B4', borderRadius: 10,
                 padding: '9px 11px', marginBottom: 9,
               }}>
@@ -2834,7 +2828,7 @@ function getWeekStart(d) { const s = new Date(d); const day = s.getDay(); s.setD
 function getWeekEnd(d) { const e = getWeekStart(d); e.setDate(e.getDate() + 6); return e; }
 function getNowPosition() { const now = new Date(); return ((now.getHours() * 60 + now.getMinutes() - START_HOUR * 60) / 60) * HOUR_HEIGHT; }
 const styles = {
-  page: { minHeight: '100vh', background: 'var(--bg)', fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)", padding: '0 16px 120px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)', animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' },
+  page: { minHeight: '100vh', background: 'var(--bg)', fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)", padding: '0 16px 120px', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary)', animation: 'fadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)' },
   header: { paddingTop: 8 },
   headerTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
   headerCenter: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 },
@@ -3002,7 +2996,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
     });
   }
   const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' };
-  const sheet = { background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif', maxHeight: '90vh', overflowY: 'auto' };
+  const sheet = { background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxHeight: '90vh', overflowY: 'auto' };
   return createPortal(
     <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={sheet}>
@@ -3071,8 +3065,7 @@ function BlockTimeModal({ defaultDate, onSave, onClose, saving }) {
             <button
               key={r.key}
               onClick={() => setReason(r.key)}
-              style={{
-                padding: '7px 12px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+              style={{ padding: '7px 12px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                 background: reason === r.key ? COLORS.primary : `${COLORS.outlineVariant}33`,
                 color: reason === r.key ? '#fff' : COLORS.onSurface,
               }}
@@ -3109,7 +3102,7 @@ function BlockDetailSheet({ block, onDelete, onClose }) {
     ? 'All day'
     : `${block.start_time || block.custom_start || '?'} → ${block.end_time || block.custom_end || '?'}`;
   const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' };
-  const sheet = { background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif' };
+  const sheet = { background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif" };
   return createPortal(
     <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={sheet}>
@@ -3315,7 +3308,7 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
   // under the keyboard; the footer never moves, so the Add button is always one
   // tap away without hunting, and it clears the iOS home indicator via the
   // safe-area inset.
-  const sheet = { background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif', maxHeight: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' };
+  const sheet = { background: 'var(--bg-card)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, margin: '0 auto', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxHeight: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' };
   const sheetBody = { padding: '20px 20px 16px', overflowY: 'auto', WebkitOverflowScrolling: 'touch', flex: '1 1 auto', minHeight: 0 };
   const sheetFooter = { flexShrink: 0, padding: '12px 20px calc(14px + env(safe-area-inset-bottom))', borderTop: `1px solid ${COLORS.outlineVariant}55`, background: 'var(--bg-card)', boxShadow: '0 -4px 16px rgba(0,0,0,0.06)' };
   const labelStyle = { fontSize: 12, fontWeight: 600, color: COLORS.stone400, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' };
@@ -3345,8 +3338,7 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
                 <button
                   key={opt.key}
                   onClick={() => { setClientMode(opt.key); setError(null); }}
-                  style={{
-                    padding: '7px 12px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                  style={{ padding: '7px 12px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
                     background: clientMode === opt.key ? COLORS.primary : `${COLORS.outlineVariant}33`,
                     color: clientMode === opt.key ? '#fff' : COLORS.onSurface,
                   }}
@@ -3415,8 +3407,7 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
                 key={t.id}
                 type="button"
                 onClick={() => toggleTreatment(t.id)}
-                style={{
-                  padding: '8px 12px', borderRadius: 999, fontSize: 13, fontWeight: 600,
+                style={{ padding: '8px 12px', borderRadius: 999, fontSize: 13, fontWeight: 600,
                   cursor: 'pointer', fontFamily: 'inherit',
                   border: `1.5px solid ${on ? COLORS.primary : COLORS.outlineVariant}`,
                   background: on ? COLORS.primary : 'var(--bg-card, #fff)',
@@ -3501,7 +3492,7 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
         <div style={sheetFooter}>
           {clash && (
             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 12px', borderRadius: 10, background: 'var(--warning-bg)', border: '1px solid #FED7AA', margin: '0 0 10px' }}>
-              <span className="material-symbols-outlined" style={{ fontSize: 18, color: '#C2410C', flexShrink: 0 }}>warning</span>
+              <Icon name={iconName('warning')} size={18} inline style={{ color: '#C2410C', flexShrink: 0 }} />
               <span style={{ fontSize: 12.5, color: 'var(--warning-text)', lineHeight: 1.45 }}>
                 This overlaps {clash.clients?.first_name || 'another booking'} at {formatWallTime(clash.starts_at)}
                 {clash.treatments?.name ? ` (${clash.treatments.name})` : ''}. You can still add it if you mean to double-book.

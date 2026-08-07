@@ -313,8 +313,7 @@ export default function ClientImport() {
               <button
                 key={p.id}
                 onClick={() => pickPlatform(p.id)}
-                style={{
-                  ...styles.platformCard,
+                style={{ ...styles.platformCard,
                   borderColor: selectedPlatform === p.id ? 'var(--accent, #C76B8A)' : 'var(--border, #EDE9E4)',
                 }}
               >
@@ -998,7 +997,7 @@ const styles = {
   page: {
     minHeight: '100vh',
     background: 'var(--bg, #FAF8F5)',
-    fontFamily: '"DM Sans", -apple-system, sans-serif',
+    fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
     padding: '0 16px var(--scroll-pad-bottom)',
     maxWidth: 480,
     margin: '0 auto',

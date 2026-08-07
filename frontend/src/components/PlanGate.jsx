@@ -15,6 +15,7 @@ import { useBeautician } from '../lib/supabase.js';
 import { hasFeature, getRequiredPlan, PLAN, TEAM_ADDON, getPlanName } from '../lib/subscription.js';
 import { ds, type } from '../lib/designSystem.js';
 import { isIOSNative } from '../lib/platform.js';
+import Icon, { iconName } from './ui/Icon';
 
 export default function PlanGate({ feature, children }) {
   const { beautician } = useBeautician();
@@ -64,7 +65,7 @@ export default function PlanGate({ feature, children }) {
       <div style={styles.container}>
         <div style={styles.card}>
           <div style={styles.iconWrap}>
-            <span className="material-symbols-outlined" style={styles.icon}>lock</span>
+            <Icon name={iconName('lock')} inline style={styles.icon} />
           </div>
 
           <h2 style={styles.title}>{featureName}</h2>
@@ -87,7 +88,7 @@ export default function PlanGate({ feature, children }) {
     <div style={styles.container}>
       <div style={styles.card}>
         <div style={styles.iconWrap}>
-          <span className="material-symbols-outlined" style={styles.icon}>lock</span>
+          <Icon name={iconName('lock')} inline style={styles.icon} />
         </div>
 
         <h2 style={styles.title}>{featureName}</h2>
@@ -98,7 +99,7 @@ export default function PlanGate({ feature, children }) {
         <div style={styles.featureList}>
           {(isTeamFeature ? TEAM_ADDON.extras : PLAN.features).map((f, i) => (
             <div key={i} style={styles.featureItem}>
-              <span className="material-symbols-outlined" style={styles.checkIcon}>check_circle</span>
+              <Icon name={iconName('check_circle')} inline style={styles.checkIcon} />
               <span>{f}</span>
             </div>
           ))}
@@ -153,7 +154,6 @@ const styles = {
   icon: {
     fontSize: 28,
     color: 'var(--accent, #92405e)',
-    fontVariationSettings: "'FILL' 0, 'wght' 300",
   },
   title: {
     fontSize: 22,
@@ -167,7 +167,7 @@ const styles = {
     color: 'var(--text-secondary, #6b5a5f)',
     lineHeight: 1.5,
     margin: '0 0 24px',
-    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
   },
   featureList: {
     display: 'flex',
@@ -182,12 +182,11 @@ const styles = {
     gap: 10,
     fontSize: 13,
     color: 'var(--text-secondary, #6b5a5f)',
-    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
   },
   checkIcon: {
     fontSize: 18,
     color: 'var(--success, #4caf50)',
-    fontVariationSettings: "'FILL' 1, 'wght' 300",
   },
   upgradeBtn: {
     width: '100%',
@@ -199,7 +198,7 @@ const styles = {
     fontSize: 15,
     fontWeight: 600,
     cursor: 'pointer',
-    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
     letterSpacing: '0.01em',
     marginBottom: 12,
   },
@@ -212,6 +211,6 @@ const styles = {
     borderRadius: 12,
     fontSize: 14,
     cursor: 'pointer',
-    fontFamily: "var(--font-body, 'DM Sans', sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
   },
 };

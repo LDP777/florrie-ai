@@ -175,8 +175,7 @@ export default function GiftVouchers() {
           <button
             key={t}
             onClick={() => setTab(t)}
-            style={{
-              ...styles.tab,
+            style={{ ...styles.tab,
               borderBottomColor: tab === t ? 'var(--accent, #C76B8A)' : 'transparent',
               color: tab === t ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #AAA5A0)',
             }}
@@ -215,8 +214,7 @@ export default function GiftVouchers() {
             <div style={styles.typeRow}>
               <button
                 onClick={() => setForm(p => ({ ...p, type: 'amount' }))}
-                style={{
-                  ...styles.typeBtn,
+                style={{ ...styles.typeBtn,
                   background: form.type === 'amount' ? 'var(--accent-light, #FFF0F3)' : 'var(--bg-card, #FFFFFF)',
                   borderColor: form.type === 'amount' ? 'var(--accent, #C76B8A)' : 'var(--border, #EDE9E4)',
                 }}
@@ -226,8 +224,7 @@ export default function GiftVouchers() {
               </button>
               <button
                 onClick={() => setForm(p => ({ ...p, type: 'treatment' }))}
-                style={{
-                  ...styles.typeBtn,
+                style={{ ...styles.typeBtn,
                   background: form.type === 'treatment' ? 'var(--accent-light, #FFF0F3)' : 'var(--bg-card, #FFFFFF)',
                   borderColor: form.type === 'treatment' ? 'var(--accent, #C76B8A)' : 'var(--border, #EDE9E4)',
                 }}
@@ -246,8 +243,7 @@ export default function GiftVouchers() {
                   <button
                     key={amt}
                     onClick={() => setForm(p => ({ ...p, amount_cents: amt }))}
-                    style={{
-                      ...styles.amountChip,
+                    style={{ ...styles.amountChip,
                       background: form.amount_cents === amt ? 'var(--accent, #C76B8A)' : 'var(--bg-card, #FFFFFF)',
                       color: form.amount_cents === amt ? '#fff' : 'var(--text-primary, #2D2A26)',
                       borderColor: form.amount_cents === amt ? 'var(--accent, #C76B8A)' : 'var(--border, #EDE9E4)',
@@ -325,8 +321,7 @@ export default function GiftVouchers() {
                 <button
                   key={m}
                   onClick={() => setForm(p => ({ ...p, expires_months: m }))}
-                  style={{
-                    ...styles.expiryChip,
+                  style={{ ...styles.expiryChip,
                     background: form.expires_months === m ? 'var(--accent, #C76B8A)' : 'var(--bg-card, #FFFFFF)',
                     color: form.expires_months === m ? '#fff' : 'var(--text-secondary, #7A756F)',
                     borderColor: form.expires_months === m ? 'var(--accent, #C76B8A)' : 'var(--border, #EDE9E4)',
@@ -447,8 +442,7 @@ function VoucherCard({ voucher, onRedeem }) {
             For {voucher.recipient_name} · from {voucher.buyer_name}
           </span>
         </div>
-        <div style={{
-          ...styles.statusBadge,
+        <div style={{ ...styles.statusBadge,
           background: isActive ? 'var(--success-bg, #EDF7F0)' : 'var(--bg-hover, #F5F2EF)',
           color: isActive ? 'var(--success, #5BA97B)' : 'var(--text-muted, #B5AFA8)',
         }}>
@@ -482,7 +476,7 @@ function VoucherCard({ voucher, onRedeem }) {
 const styles = {
   page: {
     minHeight: '100vh', background: 'var(--bg, #FAF8F5)',
-    fontFamily: '"DM Sans", -apple-system, sans-serif',
+    fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
     padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)',
   },
   header: { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 52px)', paddingBottom: 8 },

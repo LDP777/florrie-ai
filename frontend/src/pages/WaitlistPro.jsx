@@ -14,6 +14,7 @@ import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorCard from '../components/ErrorCard.jsx';
+import Icon, { iconName } from '../components/ui/Icon';
 
 const PRIORITY_CONFIG = {
   vip: { label: 'VIP', bg: '#F0E6ED', color: 'var(--accent, #92405e)', icon: 'star' },
@@ -273,7 +274,7 @@ export default function WaitlistPro() {
                       <div style={S.wlNameRow}>
                         <span style={S.wlClient}>{name}</span>
                         <span style={{ ...S.priBadge, background: pri.bg, color: pri.color }}>
-                          <span className="material-symbols-outlined" style={S.priIcon}>{pri.icon}</span>
+                          <Icon name={iconName(pri.icon)} inline style={S.priIcon} />
                           {pri.label}
                         </span>
                       </div>

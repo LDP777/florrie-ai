@@ -89,8 +89,7 @@ export default function SMSUsageWidget() {
     <div style={styles.widget}>
       <div style={styles.header}>
         <h3 style={styles.title}>SMS this month</h3>
-        <span style={{
-          ...styles.badge,
+        <span style={{ ...styles.badge,
           color: usage.isSurplus ? 'var(--danger)' : 'var(--accent)',
           background: usage.isSurplus ? 'var(--danger-light, #fee2e2)' : 'var(--accent-light)',
         }}>
@@ -101,8 +100,7 @@ export default function SMSUsageWidget() {
       <div style={styles.progressContainer}>
         <div style={styles.progressBg}>
           <div
-            style={{
-              ...styles.progressFill,
+            style={{ ...styles.progressFill,
               width: `${usage.percentUsed}%`,
               backgroundColor: usage.isSurplus ? 'var(--danger)' : 'var(--accent)',
             }}

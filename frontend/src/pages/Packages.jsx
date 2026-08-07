@@ -349,8 +349,7 @@ export default function Courses() {
           <button
             key={t}
             onClick={() => setTab(t)}
-            style={{
-              ...s.tab,
+            style={{ ...s.tab,
               color: tab === t ? 'var(--accent, #92405e)' : 'var(--text-muted, #B5AFA8)',
               borderBottom: tab === t ? '2px solid var(--accent, #92405e)' : '2px solid transparent',
               fontWeight: tab === t ? 600 : 400,
@@ -420,8 +419,7 @@ export default function Courses() {
               <div style={s.spotsRow}>
                 <div style={s.spotsBar}>
                   <div
-                    style={{
-                      ...s.spotsBarFill,
+                    style={{ ...s.spotsBarFill,
                       width: `${Math.min(100, ((course.enrolled || 0) / (course.max_students || 1)) * 100)}%`,
                       background: isFull(course) ? 'var(--warning, #E8A838)' : 'var(--accent, #92405e)',
                     }}
@@ -474,8 +472,7 @@ export default function Courses() {
                         <div style={s.enrollName}>{e.name || 'Unknown'}</div>
                         <div style={s.enrollContact}>{e.email || e.phone || ''}</div>
                       </div>
-                      <span style={{
-                        ...s.enrollStatus,
+                      <span style={{ ...s.enrollStatus,
                         background: e.payment_status === 'paid' ? 'var(--success-bg, #E8F5E9)' : e.payment_status === 'deposit_paid' ? 'var(--warning-bg, #FFF8E1)' : 'var(--bg, #FAF8F5)',
                         color: e.payment_status === 'paid' ? 'var(--success, #5BA97B)' : e.payment_status === 'deposit_paid' ? '#E8A838' : 'var(--text-muted, #B5AFA8)',
                       }}>
@@ -512,8 +509,7 @@ export default function Courses() {
                     <div style={s.enrollContact}>{e.email || e.phone || ''}</div>
                     {course && <div style={s.enrollCourse}>{course.name}</div>}
                   </div>
-                  <span style={{
-                    ...s.enrollStatus,
+                  <span style={{ ...s.enrollStatus,
                     background: e.payment_status === 'paid' ? 'var(--success-bg, #E8F5E9)' : e.payment_status === 'deposit_paid' ? 'var(--warning-bg, #FFF8E1)' : 'var(--bg, #FAF8F5)',
                     color: e.payment_status === 'paid' ? 'var(--success, #5BA97B)' : e.payment_status === 'deposit_paid' ? '#E8A838' : 'var(--text-muted, #B5AFA8)',
                   }}>
@@ -537,7 +533,7 @@ export default function Courses() {
 }
 
 const s = {
-  page:         { padding: '16px 16px 40px', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif' },
+  page:         { padding: '16px 16px 40px', maxWidth: 480, margin: '0 auto', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif" },
   header:       { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   title:        { fontSize: 24, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: 0 },
   sub:          { fontSize: 13, color: 'var(--text-muted, #B5AFA8)', margin: '4px 0 0' },

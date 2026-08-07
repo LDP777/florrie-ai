@@ -108,6 +108,25 @@ const PATHS = {
   'arrow-down': 'M12 4.4v15.2M5.8 13.4L12 19.6l6.2-6.2',
   'arrow-up-right': 'M6.6 17.4L17.4 6.6M8.2 6.6h9.2v9.2',
   'arrow-down-left': 'M17.4 6.6L6.6 17.4M15.8 17.4H6.6V8.2',
+
+  // Added for the Material Symbols retirement: shapes that set had and this
+  // one did not. Several are salon vocabulary (spray bottle, syringe) that no
+  // general-purpose icon set carries.
+  circle: 'M12 21a9 9 0 100-18 9 9 0 000 18z',
+  flame: 'M12 21c3.4 0 6.2-2.6 6.2-5.9 0-4.3-4.3-6.2-4.3-9.4 0-1-.3-1.9-.9-2.7-2 1.5-3.2 3.5-3.2 5.6 0 1.3.5 2.2.5 3 0 1-.8 1.8-1.7 1.8-1 0-1.8-.9-1.8-2.3v-.5C5.6 11.9 5.8 13 5.8 15.1 5.8 18.4 8.6 21 12 21z',
+  'shopping-bag': 'M5.4 8.2h13.2l-1 11a1.8 1.8 0 01-1.8 1.6H8.2a1.8 1.8 0 01-1.8-1.6zM8.8 11V6.9a3.2 3.2 0 016.4 0V11',
+  syringe: 'M14.6 3.4l6 6M18.4 5.6l-2.2 2.2M9.4 8.6l6 6M8.2 9.8l-4 4v5.4h5.4l4-4M5.6 14.6l1.6 1.6M8.2 12l1.6 1.6',
+  spray: 'M9 8.4h5.2a1.8 1.8 0 011.8 1.8v8.4a1.8 1.8 0 01-1.8 1.8H9a1.8 1.8 0 01-1.8-1.8v-8.4A1.8 1.8 0 019 8.4zM9.6 8.4V5.2h4M14.2 3.6h2.4M18 5.4h.01M18 8.4h.01M20.4 6.9h.01',
+  broom: 'M13.4 3.6l4.4 4.4M15.6 5.8l-8.2 8.2 3.6 3.6 8.2-8.2M7.4 14l-4 6.4 6.4-4M9.6 16.2l2-2',
+  thermometer: 'M12.6 4.8a2.2 2.2 0 014.4 0v8.1a4 4 0 11-4.4 0zM8.6 7.6H4.4M8.6 12H5.8M8.6 16.4H4.4',
+  box: 'M3.6 8.2l8.4-4.6 8.4 4.6v7.6L12 20.4l-8.4-4.6zM3.6 8.2L12 12.8l8.4-4.6M12 12.8v7.6',
+  receipt: 'M5.6 3.6h12.8v16.8l-2.6-1.6-2.6 1.6-2.6-1.6-2.4 1.6-2.6-1.6zM9 8h6M9 12h6',
+  book: 'M4.2 5.4a1.8 1.8 0 011.8-1.8H11v15.6H6a1.8 1.8 0 00-1.8 1.8zM19.8 5.4a1.8 1.8 0 00-1.8-1.8H13v15.6h5a1.8 1.8 0 011.8 1.8z',
+  badge: 'M12 14.4a5.4 5.4 0 100-10.8 5.4 5.4 0 000 10.8zM8.4 13.4L7 21l5-2.6L17 21l-1.4-7.6',
+  'plus-circle': 'M12 21a9 9 0 100-18 9 9 0 000 18zM12 8.2v7.6M8.2 12h7.6',
+  'search-off': 'M18.2 18.2a7 7 0 00-9.4-10.2M6.6 6.6a7 7 0 009.4 10.2M20.4 20.4l-4.4-4.4M3.6 3.6l16.8 16.8',
+  bookmark: 'M6.2 4.8A1.4 1.4 0 017.6 3.4h8.8a1.4 1.4 0 011.4 1.4v15.4L12 16.8l-5.8 3.4z',
+  hand: 'M8.4 11V5.6a1.6 1.6 0 013.2 0v4.6M11.6 10.2V4.4a1.6 1.6 0 113.2 0v5.8M14.8 10.6V6.8a1.6 1.6 0 113.2 0v7.4a6.4 6.4 0 01-6.4 6.4h-.8a5.6 5.6 0 01-4.4-2.2l-2.8-3.7a1.6 1.6 0 012.4-2.1l2 2',
 };
 
 // Small filled marks. Stroke rendering makes a status dot look hollow, so these
@@ -116,17 +135,40 @@ const FILLED = {
   dot: 'M12 17.2a5.2 5.2 0 100-10.4 5.2 5.2 0 000 10.4z',
 };
 
-export default function Icon({ name, size = 18, strokeWidth = 1.6, style, className, title }) {
+export default function Icon({
+  name,
+  size,
+  strokeWidth = 1.6,
+  color,
+  filled = false,
+  inline = false,
+  style,
+  className,
+  title,
+}) {
   const d = PATHS[name];
   const f = FILLED[name];
   if (!d && !f) return null;
 
+  // Material glyphs were text, so a lot of call sites express their size as
+  // `fontSize` inside a shared style object. Honour that when no explicit size
+  // is given, so those sites keep the size they were designed at.
+  const px = size ?? (typeof style?.fontSize === 'number' ? style.fontSize : 18);
+
   const common = {
-    width: size,
-    height: size,
+    width: px,
+    height: px,
     viewBox: '0 0 24 24',
     className,
-    style: { flex: '0 0 auto', display: 'block', ...style },
+    style: {
+      flex: '0 0 auto',
+      // Material glyphs were text, so they sat on the baseline beside a label.
+      // `inline` keeps that behaviour for the call sites that relied on it.
+      display: inline ? 'inline-block' : 'block',
+      verticalAlign: inline ? 'middle' : undefined,
+      color,
+      ...style,
+    },
     role: title ? 'img' : undefined,
     'aria-label': title || undefined,
     'aria-hidden': title ? undefined : true,
@@ -144,69 +186,69 @@ export default function Icon({ name, size = 18, strokeWidth = 1.6, style, classN
       strokeLinecap="round"
       strokeLinejoin="round"
     >
+      {/* `filled` is the active state the Material FILL axis used to carry (the
+          bottom nav, the checklist tabs). A wash inside the same outline reads
+          as filled at 20px without needing a second path for every glyph. */}
+      {filled && <path d={d} fill="currentColor" fillOpacity={0.2} stroke="none" />}
       <path d={d} />
     </svg>
   );
 }
 
 /**
- * Legacy emoji bridge.
+ * Material Symbols bridge.
  *
- * Some icon values arrive from the server ("Florrie thinks" cards) or from rows
- * stored before the icon set existed, so they are still emoji. This maps the
- * ones actually in use onto icon names and falls back to the brand bloom, which
- * means no call site has to care which era its data came from.
+ * The app carried a second icon system: Google's Material Symbols Outlined, a
+ * variable font loaded with display=block (so it blocked icon paint) and used
+ * at ~150 sites. Retiring it means those names live on in data - nav tables,
+ * checklist templates, category maps, and a user's localStorage recents. This
+ * maps them, so those structures keep working untouched.
  */
-const FROM_EMOJI = {
-  '\u{1F4C5}': 'calendar', '\u{1F5D3}\u{FE0F}': 'calendar', '\u{1F5D3}': 'calendar',
-  '\u{1F4AC}': 'message', '\u{1F4E8}': 'send', '\u{1F4E3}': 'send', '\u{1F4E7}': 'mail',
-  '\u{2709}\u{FE0F}': 'mail', '\u{2709}': 'mail', '\u{1F48C}': 'mail', '\u{1F4F1}': 'phone',
-  '\u{1F4DE}': 'phone', '\u{1F4EC}': 'inbox', '\u{1F4ED}': 'inbox',
-  '\u{26A0}\u{FE0F}': 'alert-triangle', '\u{26A0}': 'alert-triangle', '\u{1F6A8}': 'alert-triangle',
-  '\u{1F915}': 'alert-triangle', '\u{1F912}': 'alert-triangle', '\u{1FA7A}': 'alert-triangle',
-  '\u{2705}': 'check-circle', '\u{2611}\u{FE0F}': 'check-circle', '\u{2713}': 'check', '\u{2714}': 'check',
-  '\u{274C}': 'x', '\u{2715}': 'x', '\u{2717}': 'x', '\u{1F6AB}': 'x',
-  '\u{1F504}': 'refresh', '\u{21BB}': 'refresh',
-  '\u{2728}': 'sparkles', '\u{26A1}': 'sparkles', '\u{1F4A1}': 'info', '\u{2139}\u{FE0F}': 'info',
-  '\u{2753}': 'info', '\u{1F916}': 'sparkles', '\u{1F48E}': 'sparkles', '\u{1F485}': 'sparkles',
-  '\u{1F484}': 'sparkles', '\u{1F9F9}': 'sparkles',
-  '\u{1F39F}\u{FE0F}': 'tag', '\u{1F3F7}\u{FE0F}': 'tag', '\u{1F3AB}': 'tag', '\u{1F6CD}': 'tag',
-  '\u{1F495}': 'heart', '\u{2665}': 'heart', '\u{1F49C}': 'heart', '\u{1F44B}': 'heart', '\u{1F48B}': 'heart',
-  '\u{270D}\u{FE0F}': 'edit', '\u{1F4DD}': 'edit', '\u{270F}\u{FE0F}': 'edit', '\u{270E}': 'edit',
-  '\u{1F58A}\u{FE0F}': 'edit', '\u{1F9FE}': 'file', '\u{1F4C4}': 'file', '\u{1F4DA}': 'file',
-  '\u{1F4D2}': 'file', '\u{1F4D6}': 'file', '\u{1F4DC}': 'file', '\u{1F393}': 'file', '\u{1F5D2}\u{FE0F}': 'file',
-  '\u{2B50}': 'star', '\u{2605}': 'star', '\u{2606}': 'star', '\u{1F3C6}': 'star', '\u{1F3C5}': 'star',
-  '\u{1F31F}': 'star',
-  '\u{1F4B7}': 'pound', '\u{1F4B5}': 'pound', '\u{1FA99}': 'pound', '\u{1F4B0}': 'wallet',
-  '\u{1F3E6}': 'wallet', '\u{1F4B3}': 'card',
-  '\u{1F399}\u{FE0F}': 'mic', '\u{1F464}': 'user', '\u{1F465}': 'users', '\u{1F91D}': 'users',
-  '\u{1F9D6}': 'users', '\u{1F440}': 'eye', '\u{1F441}\u{FE0F}': 'eye',
-  '\u{1F319}': 'moon', '\u{1F4A4}': 'moon', '\u{2600}\u{FE0F}': 'sun', '\u{1F3D6}\u{FE0F}': 'sun',
-  '\u{23F1}\u{FE0F}': 'clock', '\u{23F3}': 'clock', '\u{23F0}': 'clock', '\u{1F550}': 'clock', '\u{23F1}': 'clock',
-  '\u{1F381}': 'gift', '\u{1F389}': 'gift', '\u{1F382}': 'gift', '\u{1F384}': 'gift',
-  '\u{1F337}': 'flower', '\u{1F338}': 'flower', '\u{1F486}': 'flower', '\u{1F9F4}': 'flower',
-  '\u{1F331}': 'flower', '\u{1F36F}': 'flower',
-  '\u{1F4CA}': 'chart', '\u{1F4C8}': 'trending-up', '\u{1F525}': 'trending-up', '\u{1F4C9}': 'trending-down',
-  '\u{1F4F8}': 'camera', '\u{1F4F7}': 'camera', '\u{1F3A8}': 'palette', '\u{1F58C}\u{FE0F}': 'palette',
-  '\u{1F517}': 'link', '\u{1F310}': 'link', '\u{1F4BB}': 'link', '\u{1F50C}': 'link', '\u{1FA9D}': 'link',
-  '\u{1F4CB}': 'list', '\u{1F4E5}': 'download', '\u{1F4E4}': 'share', '\u{1F4E6}': 'folder',
-  '\u{1F4CD}': 'map-pin', '\u{1F4CC}': 'map-pin', '\u{1F3E0}': 'map-pin', '\u{1F3E2}': 'map-pin', '\u{1F697}': 'map-pin',
-  '\u{1F527}': 'sliders', '\u{1F6E0}\u{FE0F}': 'sliders', '\u{1F9F0}': 'sliders',
-  '\u{1F6E1}\u{FE0F}': 'shield', '\u{1FA79}': 'shield', '\u{1F512}': 'lock', '\u{1F510}': 'lock',
-  '\u{1F514}': 'bell', '\u{1F515}': 'bell', '\u{1F50D}': 'search', '\u{2699}\u{FE0F}': 'settings',
-  '\u{1F5D1}\u{FE0F}': 'trash', '\u{25B6}\u{FE0F}': 'play', '\u{270B}': 'pause', '\u{21A9}': 'undo',
-  '\u{1F37D}\u{FE0F}': 'coffee', '\u{1F37D}': 'coffee', '\u{2615}': 'coffee',
-  '\u{2691}': 'flag', '\u{1F3AF}': 'target', '\u{1FAAE}': 'scissors', '\u{1F487}': 'scissors',
-  '\u{1F7E2}': 'dot', '\u{1F534}': 'dot', '\u{25CF}': 'dot',
+const FROM_MATERIAL = {
+  close: 'x', add: 'plus', check: 'check', check_circle: 'check-circle', task_alt: 'check-circle',
+  radio_button_unchecked: 'circle', edit: 'edit', edit_note: 'edit', delete: 'trash',
+  download: 'download', upload: 'upload', search: 'search', search_off: 'search-off',
+  chevron_right: 'chevron-right', chevron_left: 'chevron-left', expand_less: 'chevron-up',
+  expand_more: 'chevron-down', keyboard_arrow_up: 'chevron-up', keyboard_arrow_down: 'chevron-down',
+  keyboard_arrow_right: 'chevron-right', keyboard_arrow_left: 'chevron-left',
+  arrow_back: 'arrow-left', arrow_back_ios_new: 'chevron-left', arrow_forward: 'arrow-right',
+  open_in_browser: 'arrow-up-right', open_in_new: 'arrow-up-right',
+  star: 'star', reviews: 'star', workspace_premium: 'badge', military_tech: 'badge',
+  info: 'info', help: 'info', lightbulb: 'info', warning: 'alert-triangle', error: 'alert-triangle',
+  pause: 'pause', play_arrow: 'play', restart_alt: 'refresh', replay: 'refresh', autorenew: 'refresh',
+  sync: 'refresh', schedule: 'clock', hourglass_empty: 'clock', history: 'clock', timer: 'clock',
+  today: 'calendar', calendar_today: 'calendar', calendar_month: 'calendar', event_note: 'calendar',
+  event_available: 'check-circle', event_busy: 'calendar', calendar_view_week: 'grid',
+  trending_up: 'trending-up', trending_down: 'trending-down', analytics: 'chart', bar_chart: 'chart',
+  content_cut: 'scissors', photo_camera: 'camera', image: 'image', print: 'file',
+  checklist: 'list', format_list_bulleted: 'list', notes: 'file', description: 'file',
+  assignment: 'file', receipt_long: 'receipt', menu_book: 'book', school: 'book', gavel: 'book',
+  payments: 'pound', savings: 'wallet', account_balance_wallet: 'wallet', money_off: 'trending-down',
+  card_membership: 'card', card_giftcard: 'gift', local_offer: 'tag', loyalty: 'tag',
+  shopping_bag: 'shopping-bag', inventory: 'box', inventory_2: 'box',
+  people: 'users', group: 'users', groups: 'users', person: 'user', person_add: 'user',
+  forum: 'message', chat: 'message', sms: 'message', mail: 'mail', outbox: 'send', campaign: 'send',
+  notifications: 'bell', notifications_off: 'bell', settings: 'settings', tune: 'sliders',
+  smartphone: 'phone', call: 'phone', lock: 'lock', verified_user: 'shield', verified: 'check-circle',
+  visibility: 'eye', visibility_off: 'eye', flag: 'flag', bookmark: 'bookmark',
+  spa: 'flower', self_care: 'flower', auto_fix_high: 'sparkles', auto_awesome: 'sparkles',
+  auto_awesome_motion: 'sparkles', bolt: 'sparkle', celebration: 'sparkles',
+  local_fire_department: 'flame', wb_sunny: 'sun', nightlight: 'moon', beach_access: 'sun',
+  volunteer_activism: 'heart', waving_hand: 'hand', favorite: 'heart',
+  vaccines: 'syringe', sanitizer: 'spray', cleaning_services: 'broom', dry_cleaning: 'broom',
+  device_thermostat: 'thermometer', add_circle: 'plus-circle', apps: 'grid', mic: 'mic',
+  location_city: 'map-pin', place: 'map-pin', link: 'link', folder: 'folder',
 };
 
 /**
- * Resolve a stored value to an icon name. Accepts an icon name, a legacy emoji,
- * or nothing, and always returns something renderable.
+ * Resolve a stored value to an icon name. Accepts an icon name, a Material
+ * Symbols name, a legacy emoji, or nothing, and always returns something
+ * renderable.
  */
 export function iconName(value, fallback = 'flower') {
   if (!value) return fallback;
   if (PATHS[value] || FILLED[value]) return value;
+  if (FROM_MATERIAL[value]) return FROM_MATERIAL[value];
   return FROM_EMOJI[value] || FROM_EMOJI[value.replace('\uFE0F', '')] || fallback;
 }
 

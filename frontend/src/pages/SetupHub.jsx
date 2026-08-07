@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageLoader from '../components/PageLoader.jsx';
+import Icon, { iconName } from '../components/ui/Icon';
 
 /**
  * SetupHub (/setup)
@@ -190,7 +191,7 @@ function ItemRow({ item, onNav }) {
           </span>
         )}
       </span>
-      <span className="material-symbols-outlined" style={S.chevron}>chevron_right</span>
+      <Icon name={iconName('chevron_right')} inline style={S.chevron} />
     </button>
   );
 }
@@ -309,7 +310,7 @@ const S = {
     fontSize: 26,
     fontWeight: 600,
     margin: 0,
-    fontFamily: 'var(--font-display, "Fraunces", Georgia, serif)',
+    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
   },
   subtitle: {
     fontSize: 13.5,
@@ -361,7 +362,7 @@ const S = {
     fontWeight: 600,
     margin: '0 0 4px',
     padding: '0 8px',
-    fontFamily: 'var(--font-display, "Fraunces", Georgia, serif)',
+    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
   },
   itemList: { display: 'flex', flexDirection: 'column' },
 

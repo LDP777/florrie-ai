@@ -48,8 +48,7 @@ const Skeleton = ({
       {Array.from({ length: count }).map((_, i) => (
         <div
           key={i}
-          style={{
-            ...skeletonStyle,
+          style={{ ...skeletonStyle,
             marginBottom: i === count - 1 ? 0 : 8,
           }}
         />

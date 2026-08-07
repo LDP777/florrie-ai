@@ -619,8 +619,7 @@ export default function Clients() {
               <button
                 key={f.id}
                 onClick={() => setFilter(f.id)}
-                style={{
-                  ...styles.chip,
+                style={{ ...styles.chip,
                   background: active ? 'var(--accent)' : 'var(--bg-card)',
                   color: active ? '#fff' : 'var(--text-secondary)',
                   borderColor: active ? 'var(--accent)' : 'var(--border)',
@@ -646,8 +645,7 @@ export default function Clients() {
                 <button
                   key={s.id}
                   onClick={() => { setSort(s.id); setSortOpen(false); }}
-                  style={{
-                    ...styles.sortItem,
+                  style={{ ...styles.sortItem,
                     background: sort === s.id ? 'var(--accent-light)' : 'transparent',
                     color: sort === s.id ? 'var(--accent)' : 'var(--text-primary)',
                   }}
@@ -723,8 +721,7 @@ export default function Clients() {
               <button
                 key={c.id}
                 onClick={() => selectMode ? toggleSelect(c.id) : loadClientDetail(c.id)}
-                style={{
-                  ...styles.clientCard,
+                style={{ ...styles.clientCard,
                   borderLeftColor: (selected === c.id || isChecked) ? 'var(--accent)' : 'transparent',
                   background: isChecked ? 'var(--accent-light)' : 'var(--bg-card)',
                 }}
@@ -748,8 +745,7 @@ export default function Clients() {
                       {tagMap[c.id].slice(0, 2).map(tag => (
                         <span
                           key={tag.id}
-                          style={{
-                            ...styles.tagChip,
+                          style={{ ...styles.tagChip,
                             background: hexWithAlpha(tag.color || '#C76B8A', 0.16),
                             color: tag.color || 'var(--accent)',
                             borderColor: hexWithAlpha(tag.color || '#C76B8A', 0.32),
@@ -1006,8 +1002,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
           </div>
           <h2 style={styles.detailName}>{client?.first_name} {client?.last_name || ''}</h2>
           <div style={styles.detailBadges}>
-            <span style={{
-              ...styles.healthBadge,
+            <span style={{ ...styles.healthBadge,
               background: healthColor === '#4CAF50' ? 'var(--success-bg)'
                 : healthColor === '#F5A623' ? 'var(--warning-bg)'
                 : healthColor === '#E57373' ? 'var(--danger-bg)'
@@ -1068,8 +1063,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
             <button
               key={t}
               onClick={() => setDetailTab(t)}
-              style={{
-                ...styles.detailTabBtn,
+              style={{ ...styles.detailTabBtn,
                 borderBottomColor: detailTab === t ? 'var(--accent)' : 'transparent',
                 color: detailTab === t ? 'var(--accent)' : 'var(--text-muted)',
               }}
@@ -1140,8 +1134,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
                           <span style={styles.paymentTreatment}>{pa.treatment}</span>
                           <span style={styles.paymentDate}>{dateLabel}</span>
                         </div>
-                        <span style={{
-                          ...styles.paymentStatus,
+                        <span style={{ ...styles.paymentStatus,
                           color: pa.paid_in_full || pa.deposit_paid ? 'var(--accent)' : 'var(--text-muted)',
                         }}>
                           {line}
@@ -1253,8 +1246,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
                 {appointments.slice(0, 15).map((appt, i) => (
                   <div key={appt.id} style={styles.timelineItem}>
                     <div style={styles.timelineDot}>
-                      <div style={{
-                        ...styles.dot,
+                      <div style={{ ...styles.dot,
                         background: appt.status === 'completed' ? 'var(--success)'
                           : appt.status === 'no_show' ? 'var(--danger)'
                           : 'var(--warning)',
@@ -1266,8 +1258,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
                       <span style={styles.historyDate}>
                         {new Date(appt.starts_at).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
                       </span>
-                      <span style={{
-                        ...styles.historyStatusBadge,
+                      <span style={{ ...styles.historyStatusBadge,
                         background: appt.status === 'completed' ? 'var(--success-bg)'
                           : appt.status === 'no_show' ? 'var(--danger-bg)'
                           : 'var(--warning-bg)',
@@ -1357,8 +1348,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
                           key={ch}
                           type="button"
                           onClick={() => setReplyChannel(ch)}
-                          style={{
-                            ...styles.channelChip,
+                          style={{ ...styles.channelChip,
                             background: active ? 'var(--accent)' : 'transparent',
                             color: active ? '#fff' : 'var(--text-muted)',
                             borderColor: active ? 'var(--accent)' : 'var(--border)',
@@ -1383,8 +1373,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
                       type="button"
                       disabled={!replyText.trim() || sending}
                       onClick={sendReply}
-                      style={{
-                        ...styles.composerSend,
+                      style={{ ...styles.composerSend,
                         opacity: !replyText.trim() || sending ? 0.5 : 1,
                       }}
                     >
@@ -1545,8 +1534,7 @@ function ConsultationSection({ clientId, data }) {
           {r.pairs.map(pair => (
             <div key={pair.field_id} style={styles.consultPair}>
               <span style={styles.consultQuestion}>{pair.question}</span>
-              <span style={{
-                ...styles.consultAnswer,
+              <span style={{ ...styles.consultAnswer,
                 color: pair.answered ? 'var(--text-primary)' : 'var(--text-muted)',
                 fontStyle: pair.answered ? 'normal' : 'italic',
               }}>
@@ -1593,8 +1581,7 @@ function ClientBubble({ msg }) {
   const time = msg.created_at ? new Date(msg.created_at).toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit' }) : '';
   return (
     <div style={{ display: 'flex', justifyContent: out ? 'flex-end' : 'flex-start', marginBottom: 6 }}>
-      <div style={{
-        maxWidth: '78%',
+      <div style={{ maxWidth: '78%',
         padding: '8px 12px',
         borderRadius: 14,
         background: out ? 'var(--accent)' : 'var(--bg-card)',
@@ -1607,8 +1594,7 @@ function ClientBubble({ msg }) {
         wordBreak: 'break-word',
       }}>
         <div>{body}</div>
-        <div style={{
-          marginTop: 4,
+        <div style={{ marginTop: 4,
           fontSize: 10,
           opacity: 0.78,
           display: 'flex',
@@ -1627,7 +1613,7 @@ const styles = {
   page: {
     minHeight: '100vh',
     background: 'var(--bg)',
-    fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)",
     padding: '0 16px var(--scroll-pad-bottom)',
     maxWidth: 480,
     margin: '0 auto',
@@ -1640,7 +1626,7 @@ const styles = {
     fontWeight: 700,
     fontStyle: 'italic',
     margin: 0,
-    fontFamily: "'Noto Serif', Georgia, serif",
+    fontFamily: "'Playfair Display', Georgia, serif",
     color: 'var(--text-primary, #1d1b19)',
     lineHeight: 1.2,
   },
@@ -1768,7 +1754,7 @@ const styles = {
   msgDir: { fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap', marginTop: 2 },
   msgText: { fontSize: 12, color: 'var(--text-secondary)', flex: 1, lineHeight: 1.4 },
   msgTime: { fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' },
-  loadingText: { textAlign: 'center', color: 'var(--text-muted)', padding: 40, fontSize: 14, fontFamily: "var(--font-body, 'DM Sans', sans-serif)" },
+  loadingText: { textAlign: 'center', color: 'var(--text-muted)', padding: 40, fontSize: 14, fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)" },
   emptyState: { textAlign: 'center', padding: '40px 20px' },
   emptyTitle: { fontSize: 16, fontWeight: 600, margin: '0 0 6px' },
   emptyDesc: { fontSize: 13, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 },

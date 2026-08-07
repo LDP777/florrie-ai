@@ -354,7 +354,7 @@ function computeNotice(cancelledAt, startsAt) {
 }
 
 const S = {
-  page: { padding: '20px 16px 32px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
+  page: { padding: '20px 16px 32px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: '0 0 12px' },
   errorBanner: { background: 'var(--danger-bg, #FDF0EF)', color: 'var(--danger, #D4605C)', padding: '10px 12px', borderRadius: 8, fontSize: 13 },
   periodRow: { display: 'flex', gap: 8, marginBottom: 16 },

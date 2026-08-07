@@ -156,8 +156,7 @@ export default function MessageTemplates() {
               <button
                 key={c.key}
                 onClick={() => setNewCategory(c.key)}
-                style={{
-                  ...s.catChip,
+                style={{ ...s.catChip,
                   background: newCategory === c.key ? c.color + '18' : 'transparent',
                   border: newCategory === c.key ? `1px solid ${c.color}` : '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
                   color: newCategory === c.key ? c.color : 'var(--text, var(--text-primary, #2D2A26))',
@@ -193,8 +192,7 @@ export default function MessageTemplates() {
               <button
                 key={t.key}
                 onClick={() => setNewTrigger(t.key)}
-                style={{
-                  ...s.triggerChip,
+                style={{ ...s.triggerChip,
                   background: newTrigger === t.key ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
                   color: newTrigger === t.key ? 'var(--bg-card, #fff)' : 'var(--text, var(--text-primary, #2D2A26))',
                   border: newTrigger === t.key ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, var(--border, var(--border, var(--border, #EDE9E4))))',
@@ -310,7 +308,7 @@ export default function MessageTemplates() {
 }
 
 const s = {
-  page: { padding: '16px 16px 32px', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif' },
+  page: { padding: '16px 16px 32px', maxWidth: 480, margin: '0 auto', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif" },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   title: { fontSize: 24, fontWeight: 700, color: 'var(--text, var(--text-primary, #2D2A26))', margin: 0 },
   sub: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, var(--text-muted, #B5AFA8)))', margin: '4px 0 0' },

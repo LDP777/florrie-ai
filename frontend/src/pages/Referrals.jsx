@@ -229,8 +229,7 @@ export default function Referrals() {
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            style={{
-              ...s.tab,
+            style={{ ...s.tab,
               color: tab === t.key ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #B5AFA8)',
               borderBottom: tab === t.key ? '2px solid var(--accent, #C76B8A)' : '2px solid transparent',
               fontWeight: tab === t.key ? 600 : 400,
@@ -267,8 +266,7 @@ export default function Referrals() {
           )}
           {leaderboard.map((l, i) => (
             <div key={l.name} style={s.leaderRow}>
-              <span style={{
-                ...s.rank,
+              <span style={{ ...s.rank,
                 color: i === 0 ? '#F5A623' : i === 1 ? '#9E9E9E' : i === 2 ? '#C4A882' : 'var(--text-muted, #B5AFA8)',
               }}>#{i + 1}</span>
               <div style={s.leaderAvatar}>{l.name[0]}</div>
@@ -277,8 +275,7 @@ export default function Referrals() {
                 <span style={s.leaderMeta}>{l.referrals} shared · {l.converted} converted</span>
               </div>
               <div style={s.leaderBar}>
-                <div style={{
-                  ...s.leaderFill,
+                <div style={{ ...s.leaderFill,
                   width: `${(l.converted / (leaderboard[0]?.converted || 1)) * 100}%`,
                 }} />
               </div>
@@ -339,8 +336,7 @@ export default function Referrals() {
                 <button
                   key={t.key}
                   onClick={() => setRewardType(t.key)}
-                  style={{
-                    ...s.chip,
+                  style={{ ...s.chip,
                     background: rewardType === t.key ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
                     color: rewardType === t.key ? '#fff' : 'var(--text, #2D2A26)',
                     border: rewardType === t.key ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, #EDE9E4)',
@@ -359,8 +355,7 @@ export default function Referrals() {
                 <button
                   key={v}
                   onClick={() => setReferrerReward(v)}
-                  style={{
-                    ...s.chip,
+                  style={{ ...s.chip,
                     background: referrerReward === v ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
                     color: referrerReward === v ? '#fff' : 'var(--text, #2D2A26)',
                     border: referrerReward === v ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, #EDE9E4)',
@@ -382,7 +377,7 @@ export default function Referrals() {
 }
 
 const s = {
-  page: { padding: '16px 16px 32px', maxWidth: 480, margin: '0 auto', fontFamily: '"DM Sans", -apple-system, sans-serif' },
+  page: { padding: '16px 16px 32px', maxWidth: 480, margin: '0 auto', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif" },
   header: { marginBottom: 16 },
   title: { fontSize: 24, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },
   sub: { fontSize: 13, color: 'var(--text-muted, #B5AFA8)', margin: '4px 0 0' },

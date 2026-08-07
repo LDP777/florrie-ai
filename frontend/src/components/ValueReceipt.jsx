@@ -119,7 +119,7 @@ const S = {
   headline: {
     fontSize: 17,
     fontWeight: 600,
-    fontFamily: 'var(--font-display, "Fraunces", Georgia, serif)',
+    fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
     marginBottom: 8,
   },
   amount: { color: 'var(--accent, #92405e)', fontWeight: 700 },

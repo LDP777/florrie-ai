@@ -182,8 +182,7 @@ export default function AutomationRules() {
               <button
                 key={t.id}
                 onClick={() => setNewRule({ ...newRule, trigger: t.id })}
-                style={{
-                  ...styles.chip,
+                style={{ ...styles.chip,
                   ...(newRule.trigger === t.id ? styles.chipSelected : {})
                 }}
               >
@@ -198,8 +197,7 @@ export default function AutomationRules() {
               <button
                 key={mins}
                 onClick={() => setNewRule({ ...newRule, delay: mins })}
-                style={{
-                  ...styles.delayChip,
+                style={{ ...styles.delayChip,
                   ...(newRule.delay === mins ? styles.chipSelected : {})
                 }}
               >
@@ -219,8 +217,7 @@ export default function AutomationRules() {
                     : [...newRule.actions, a.id];
                   setNewRule({ ...newRule, actions });
                 }}
-                style={{
-                  ...styles.chip,
+                style={{ ...styles.chip,
                   ...(newRule.actions.includes(a.id) ? styles.chipSelected : {})
                 }}
               >
@@ -262,8 +259,7 @@ export default function AutomationRules() {
                 setCreating(false);
               } catch (e) { logger.error('Save rule failed:', e); }
             }}
-            style={{
-              ...styles.saveRuleBtn,
+            style={{ ...styles.saveRuleBtn,
               opacity: newRule.name && newRule.trigger && newRule.actions.length ? 1 : 0.5
             }}
           >
@@ -277,8 +273,7 @@ export default function AutomationRules() {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            style={{
-              ...styles.tab,
+            style={{ ...styles.tab,
               ...(activeTab === tab.id ? styles.tabActive : {})
             }}
           >{tab.label}</button>
@@ -310,13 +305,11 @@ export default function AutomationRules() {
                 </div>
                 <button
                   onClick={e => { e.stopPropagation(); toggleRule(rule.id); }}
-                  style={{
-                    ...styles.toggle,
+                  style={{ ...styles.toggle,
                     background: rule.enabled ? 'var(--accent, #C76B8A)' : 'var(--border, var(--border, var(--border, #EDE9E4)))'
                   }}
                 >
-                  <div style={{
-                    ...styles.toggleDot,
+                  <div style={{ ...styles.toggleDot,
                     transform: rule.enabled ? 'translateX(18px)' : 'translateX(0)'
                   }} />
                 </button>
@@ -369,7 +362,7 @@ export default function AutomationRules() {
   );
 }
 const styles = {
-  page: { padding: '16px 16px 24px', fontFamily: '"DM Sans", -apple-system, sans-serif', maxWidth: 480, margin: '0 auto' },
+  page: { padding: '16px 16px 24px', fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif", maxWidth: 480, margin: '0 auto' },
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary, #2D2A26)', margin: 0 },
   subtitle: { fontSize: 13, color: 'var(--text-muted, var(--text-muted, #7a7470))', marginTop: 2 },

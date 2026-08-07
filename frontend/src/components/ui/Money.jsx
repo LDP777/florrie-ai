@@ -50,8 +50,7 @@ export default function Money({
   return (
     <Tag
       className={className}
-      style={{
-        fontFamily: "'Playfair Display', Georgia, serif",
+      style={{ fontFamily: "'Playfair Display', Georgia, serif",
         fontWeight: weight,
         fontSize: size,
         // Digits keep a fixed advance width, so a ticking figure does not shuffle

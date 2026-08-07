@@ -107,7 +107,7 @@ export default function CheckoutModal({ plan, interval, authToken, onClose, onSu
               colorDanger: '#ba1a1a',
               colorSuccess: '#5BA97B',
               colorWarning: '#D4943A',
-              fontFamily: '"DM Sans", "Plus Jakarta Sans", system-ui, sans-serif',
+              fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
               fontSizeBase: '14px',
               fontWeightNormal: '500',
               fontWeightMedium: '600',

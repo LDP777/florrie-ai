@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
+import Icon, { iconName } from './ui/Icon';
 
 /**
  * SetupNudge
@@ -75,7 +76,7 @@ export default function SetupNudge() {
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') navigate('/setup'); }}
       aria-label={`Setup: ${counts.done} of ${counts.total} done. Finish setting up.`}
     >
-      <span className="material-symbols-outlined" style={S.icon}>checklist</span>
+      <Icon name={iconName('checklist')} inline style={S.icon} />
       <span style={S.text}>
         Setup: {counts.done} of {counts.total} done
         <span style={S.cta}> · Finish setting up ›</span>

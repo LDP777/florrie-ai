@@ -4,6 +4,7 @@ import { useBeautician, fetchRows, updateRow, supabase } from '../lib/supabase.j
 import { API_BASE } from '../lib/config.js';
 import PageLoader from '../components/PageLoader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
+import Icon, { iconName } from '../components/ui/Icon';
 
 /**
  * Notifications Centre - Real-time feed of everything happening.
@@ -166,7 +167,7 @@ export default function Notifications() {
           aria-label={`${approvals.count} messages waiting for your OK`}
         >
           <div style={styles.approvalIcon}>
-            <span className="material-symbols-outlined" style={{ fontSize: 20, color: 'var(--accent, #C76B8A)' }}>how_to_reg</span>
+            <Icon name={iconName('how_to_reg')} size={20} inline style={{ color: 'var(--accent, #C76B8A)' }} />
           </div>
           <div style={styles.approvalBody}>
             <span style={styles.approvalTitle}>
@@ -178,7 +179,7 @@ export default function Notifications() {
               </span>
             )}
           </div>
-          <span className="material-symbols-outlined" style={styles.approvalChev}>chevron_right</span>
+          <Icon name={iconName('chevron_right')} inline style={styles.approvalChev} />
         </button>
       )}
 
@@ -186,8 +187,7 @@ export default function Notifications() {
       <div style={styles.filterRow}>
         <button
           onClick={() => setFilter('all')}
-          style={{
-            ...styles.filterChip,
+          style={{ ...styles.filterChip,
             background: filter === 'all' ? 'var(--text-primary, #2D2A26)' : 'var(--bg-card, #fff)',
             color: filter === 'all' ? 'var(--bg-card, #fff)' : '#5A5550',
           }}
@@ -198,8 +198,7 @@ export default function Notifications() {
           <button
             key={key}
             onClick={() => setFilter(key)}
-            style={{
-              ...styles.filterChip,
+            style={{ ...styles.filterChip,
               background: filter === key ? cat.color : 'var(--bg-card, #fff)',
               color: filter === key ? cat.textColor : '#5A5550',
               borderColor: filter === key ? cat.textColor : 'var(--border, var(--border, var(--border, #EDE9E4)))',
@@ -225,8 +224,7 @@ export default function Notifications() {
                 return (
                   <div
                     key={n.id}
-                    style={{
-                      ...styles.notifCard,
+                    style={{ ...styles.notifCard,
                       background: n.read ? 'var(--bg-card, #fff)' : '#FFFBF9',
                       borderLeft: n.read ? '3px solid transparent' : `3px solid ${cat.textColor}`,
                     }}
@@ -237,8 +235,7 @@ export default function Notifications() {
                     </div>
                     <div style={styles.notifBody}>
                       <div style={styles.notifHeaderRow}>
-                        <span style={{
-                          ...styles.notifTitle,
+                        <span style={{ ...styles.notifTitle,
                           fontWeight: n.read ? 500 : 700,
                         }}>
                           {n.title}
@@ -262,7 +259,7 @@ export default function Notifications() {
 const styles = {
   page: {
     minHeight: '100vh', background: 'var(--bg, var(--bg, #FAF8F5))',
-    fontFamily: '"DM Sans", -apple-system, sans-serif',
+    fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
     padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)',
   },
   header: {

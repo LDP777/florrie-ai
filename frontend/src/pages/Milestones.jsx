@@ -117,7 +117,7 @@ export default function Milestones() {
 const S = {
   page: {
     padding: '20px 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto',
-    fontFamily: "var(--font-body, 'Plus Jakarta Sans', 'DM Sans', sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
   },
   title: {
     fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",

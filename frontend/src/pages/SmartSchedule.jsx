@@ -500,8 +500,7 @@ export default function SmartSchedule() {
           <button
             key={t}
             onClick={() => setTab(t)}
-            style={{
-              ...styles.tab,
+            style={{ ...styles.tab,
               borderBottomColor: tab === t ? 'var(--accent, #C76B8A)' : 'transparent',
               color: tab === t ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #7a7470)',
             }}
@@ -804,7 +803,7 @@ export default function SmartSchedule() {
 const styles = {
   page: {
     minHeight: '100vh', background: 'var(--bg, var(--bg, #FAF8F5))',
-    fontFamily: '"DM Sans", -apple-system, sans-serif',
+    fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
     padding: '0 16px var(--scroll-pad-bottom)', maxWidth: 480, margin: '0 auto', color: 'var(--text-primary, #2D2A26)',
   },
   header: { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 52px)', paddingBottom: 8 },

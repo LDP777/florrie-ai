@@ -10,7 +10,7 @@ import UsagePanel from '../components/UsagePanel.jsx';
 import ValueReceipt from '../components/ValueReceipt.jsx';
 import SetupNudge from '../components/SetupNudge.jsx';
 import { milestoneBloom } from '../lib/bloom.js';
-import Icon from '../components/ui/Icon';
+import Icon, { iconName } from '../components/ui/Icon';
 
 const CalendarView = lazy(() => import('./CalendarView.jsx'));
 const SmartSchedule = lazy(() => import('./SmartSchedule.jsx'));
@@ -261,7 +261,7 @@ function ApprovalCard({ onNav }) {
   return (
     <div style={AC.card}>
       <div style={AC.iconWrap}>
-        <span className="material-symbols-outlined" style={AC.icon}>auto_awesome</span>
+        <Icon name={iconName('auto_awesome')} inline style={AC.icon} />
       </div>
       <div style={AC.body}>
         <span style={AC.title}>
@@ -278,7 +278,7 @@ function ApprovalCard({ onNav }) {
       {approvals > 0 && (
         <button onClick={() => onNav('/outbox')} style={AC.cta} aria-label={`Review ${approvals} waiting for your OK`}>
           Review
-          <span className="material-symbols-outlined" style={AC.ctaChev}>chevron_right</span>
+          <Icon name={iconName('chevron_right')} inline style={AC.ctaChev} />
         </button>
       )}
     </div>
@@ -288,8 +288,7 @@ function ApprovalCard({ onNav }) {
 function SubPaneLoader() {
   return (
     <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
-      <div style={{
-        width: 28, height: 28,
+      <div style={{ width: 28, height: 28,
         border: '2.5px solid #EDE9E4',
         borderTopColor: '#C76B8A',
         borderRadius: '50%',
@@ -460,11 +459,11 @@ function TodaySummary({ beautician, onNav }) {
 
       {data.needsPrice > 0 && (
         <button onClick={() => onNav('/calendar')} style={TS.priceFlag} aria-label={`${data.needsPrice} bookings need a price`}>
-          <span className="material-symbols-outlined" style={TS.priceFlagIcon}>sell</span>
+          <Icon name={iconName('sell')} inline style={TS.priceFlagIcon} />
           <span style={TS.priceFlagText}>
             {data.needsPrice} booking{data.needsPrice === 1 ? '' : 's'} {data.needsPrice === 1 ? 'has' : 'have'} no price. Your potential is higher than it looks.
           </span>
-          <span className="material-symbols-outlined" style={TS.priceFlagChev}>chevron_right</span>
+          <Icon name={iconName('chevron_right')} inline style={TS.priceFlagChev} />
         </button>
       )}
 
@@ -473,13 +472,13 @@ function TodaySummary({ beautician, onNav }) {
         style={TS.msgRow}
         aria-label={`${data.messagesWaiting} messages waiting`}
       >
-        <span className="material-symbols-outlined" style={TS.msgIcon}>forum</span>
+        <Icon name={iconName('forum')} inline style={TS.msgIcon} />
         <span style={TS.msgText}>
           {data.messagesWaiting > 0
             ? `${data.messagesWaiting} message${data.messagesWaiting === 1 ? '' : 's'} waiting`
             : 'Inbox is clear'}
         </span>
-        <span className="material-symbols-outlined" style={TS.msgChev}>chevron_right</span>
+        <Icon name={iconName('chevron_right')} inline style={TS.msgChev} />
       </button>
 
       <WhatsAppPill connected={connected} pending={pending} onNav={onNav} />
@@ -491,8 +490,7 @@ function Stat({ label, value, sub, sub2, wide }) {
   return (
     <div style={{ ...TS.stat, ...(wide ? { flex: 2, minWidth: 0 } : {}) }}>
       <span style={TS.statLabel}>{label}</span>
-      <span style={{
-        ...TS.statValue,
+      <span style={{ ...TS.statValue,
         ...(wide ? { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } : {}),
       }}>
         {value}
@@ -518,7 +516,7 @@ function WhatsAppPill({ connected, pending, onNav }) {
     >
       <span style={{ ...TS.waDot, background: dotColour, opacity: dotOpacity }} />
       <span style={TS.waText}>{label}</span>
-      <span className="material-symbols-outlined" style={TS.waChev}>chevron_right</span>
+      <Icon name={iconName('chevron_right')} inline style={TS.waChev} />
     </button>
   );
 }
@@ -554,7 +552,7 @@ const S = {
   page: {
     minHeight: '100vh',
     background: '#fef8f4',
-    fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
     padding: '16px 16px var(--scroll-pad-bottom)',
     maxWidth: 480,
     margin: '0 auto',

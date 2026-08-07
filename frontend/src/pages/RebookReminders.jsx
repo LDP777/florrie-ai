@@ -215,8 +215,7 @@ export default function RebookReminders() {
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            style={{
-              ...s.tab,
+            style={{ ...s.tab,
               color: tab === t.key ? 'var(--accent, #C76B8A)' : 'var(--text-muted, #7a7470)',
               borderBottom: tab === t.key ? '2px solid var(--accent)' : '2px solid transparent',
               fontWeight: tab === t.key ? 600 : 400,
@@ -239,8 +238,7 @@ export default function RebookReminders() {
                 <button
                   key={t.id}
                   onClick={() => setSelectedTemplate(t.id)}
-                  style={{
-                    ...s.templateChip,
+                  style={{ ...s.templateChip,
                     background: selectedTemplate === t.id ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
                     color: selectedTemplate === t.id ? 'var(--bg-card, #fff)' : 'var(--text, #2D2A26)',
                     border: selectedTemplate === t.id ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, #E8E4E0)',
@@ -264,8 +262,7 @@ export default function RebookReminders() {
                 <button
                   key={ch.key}
                   onClick={() => setSendChannel(ch.key)}
-                  style={{
-                    ...s.templateChip,
+                  style={{ ...s.templateChip,
                     background: sendChannel === ch.key ? 'var(--accent, #C76B8A)' : 'var(--card-bg, #fff)',
                     color: sendChannel === ch.key ? 'var(--bg-card, #fff)' : 'var(--text, #2D2A26)',
                     border: sendChannel === ch.key ? '1px solid var(--accent, #C76B8A)' : '1px solid var(--border, #E8E4E0)',
@@ -300,8 +297,7 @@ export default function RebookReminders() {
                         </div>
                       </div>
                       <div style={s.clientRight}>
-                        <span style={{
-                          ...s.urgencyBadge,
+                        <span style={{ ...s.urgencyBadge,
                           background: urgencyColor(daysOverdue) + '18',
                           color: urgencyColor(daysOverdue),
                         }}>
@@ -364,7 +360,7 @@ const s = {
     padding: '16px 16px 32px',
     maxWidth: 480,
     margin: '0 auto',
-    fontFamily: '"DM Sans", -apple-system, sans-serif',
+    fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif",
   },
   header: { marginBottom: 16 },
   title: { fontSize: 24, fontWeight: 700, color: 'var(--text, #2D2A26)', margin: 0 },

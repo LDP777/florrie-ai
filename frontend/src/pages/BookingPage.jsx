@@ -1060,8 +1060,7 @@ export default function BookingPage() {
             <div style={{ marginTop: 20 }}>
               <a
                 href={success.manageUrl}
-                style={{
-                  display: 'block', width: '100%', boxSizing: 'border-box',
+                style={{ display: 'block', width: '100%', boxSizing: 'border-box',
                   padding: '13px 0', borderRadius: 12, textAlign: 'center',
                   background: brandLight, color: brand,
                   fontWeight: 600, fontSize: 15, textDecoration: 'none',
@@ -1097,13 +1096,11 @@ export default function BookingPage() {
       <div style={styles.progressContainer}>
         {STEPS.map((label, i) => (
           <div key={label} style={styles.progressStep}>
-            <div style={{
-              ...styles.progressDot,
+            <div style={{ ...styles.progressDot,
               background: i <= step ? brand : 'var(--border-light)',
               transform: i === step ? 'scale(1.2)' : 'scale(1)'
             }} />
-            <span style={{
-              ...styles.progressLabel,
+            <span style={{ ...styles.progressLabel,
               color: i <= step ? brand : 'var(--text-muted)',
               fontWeight: i === step ? 600 : 400
             }}>{label}</span>
@@ -1203,8 +1200,7 @@ export default function BookingPage() {
                       });
                       setFieldErrors({});
                     }}
-                    style={{
-                      ...styles.treatmentCard,
+                    style={{ ...styles.treatmentCard,
                       borderColor: isSelected ? brand : '#E8E4DF',
                       background: isSelected ? brandLight : 'var(--bg-card)'
                     }}
@@ -1221,8 +1217,7 @@ export default function BookingPage() {
                               e.stopPropagation();
                               setDescOpenId(prev => (prev === t.id ? null : t.id));
                             }}
-                            style={{
-                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                               width: 20, height: 20, marginLeft: 6, borderRadius: 10, verticalAlign: 'middle',
                               border: `1.2px solid ${descOpenId === t.id ? brand : '#CFC8C1'}`,
                               color: descOpenId === t.id ? brand : 'var(--text-muted)',
@@ -1271,8 +1266,7 @@ export default function BookingPage() {
                       <button
                         key={ao.id}
                         onClick={() => toggleAddOn(ao)}
-                        style={{
-                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                           padding: '12px 14px', borderRadius: 10,
                           border: `1.5px solid ${isSelected ? brand : '#E8E4DF'}`,
                           background: isSelected ? brandLight : 'var(--bg-card)',
@@ -1315,8 +1309,7 @@ export default function BookingPage() {
                     return (
                       <div
                         key={product.id}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 12,
+                        style={{ display: 'flex', alignItems: 'center', gap: 12,
                           padding: '12px 14px', borderRadius: 10,
                           border: `1.5px solid ${qty > 0 ? brand : '#E8E4DF'}`,
                           background: qty > 0 ? brandLight : 'var(--bg-card)',
@@ -1344,8 +1337,7 @@ export default function BookingPage() {
                           {qty > 0 && (
                             <button
                               onClick={() => updateCart(product.id, -1)}
-                              style={{
-                                width: 28, height: 28, borderRadius: '50%', border: `1px solid ${brand}`,
+                              style={{ width: 28, height: 28, borderRadius: '50%', border: `1px solid ${brand}`,
                                 background: 'var(--bg-card)', color: brand, fontSize: 16, fontWeight: 700,
                                 cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 fontFamily: 'inherit', padding: 0,
@@ -1357,8 +1349,7 @@ export default function BookingPage() {
                           )}
                           <button
                             onClick={() => updateCart(product.id, 1)}
-                            style={{
-                              width: 28, height: 28, borderRadius: '50%', border: 'none',
+                            style={{ width: 28, height: 28, borderRadius: '50%', border: 'none',
                               background: qty > 0 ? brand : '#E8E4DF', color: qty > 0 ? '#fff' : 'var(--text-secondary)',
                               fontSize: 16, fontWeight: 700, cursor: 'pointer',
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1452,8 +1443,7 @@ export default function BookingPage() {
                       disabled={!tappable}
                       onClick={() => { if (tappable) { setSelectedDate(iso); setFieldErrors({}); } }}
                       title={status === 'closed' ? 'Closed' : status === 'full' ? 'Fully booked' : status === 'unknown' ? 'Could not load this month' : undefined}
-                      style={{
-                        ...styles.calCell,
+                      style={{ ...styles.calCell,
                         background: bg,
                         color,
                         border,
@@ -1463,8 +1453,7 @@ export default function BookingPage() {
                     >
                       <span style={{ lineHeight: 1 }}>{d.getDate()}</span>
                       {/* "has space" dot */}
-                      <span style={{
-                        ...styles.calDot,
+                      <span style={{ ...styles.calDot,
                         background: status === 'open' && !isSelected ? brand : 'transparent',
                       }} />
                     </button>
@@ -1523,8 +1512,7 @@ export default function BookingPage() {
                     <button
                       key={s.starts_at}
                       onClick={() => { setSelectedSlot(s); setFieldErrors({}); setStep(2); }}
-                      style={{
-                        ...styles.slotChip,
+                      style={{ ...styles.slotChip,
                         borderColor: selectedSlot?.starts_at === s.starts_at ? brand : '#E8E4DF',
                         background: selectedSlot?.starts_at === s.starts_at ? brand : 'var(--bg-card)',
                         color: selectedSlot?.starts_at === s.starts_at ? '#fff' : 'var(--text-primary)'
@@ -1558,8 +1546,7 @@ export default function BookingPage() {
                   type="text" placeholder="Your name *"
                   value={clientDetails.name}
                   onChange={e => setClientDetails({ ...clientDetails, name: e.target.value })}
-                  style={{
-                    ...styles.input,
+                  style={{ ...styles.input,
                     borderColor: fieldErrors.name ? 'var(--danger)' : '#E8E4DF'
                   }} required
                 />
@@ -1575,8 +1562,7 @@ export default function BookingPage() {
                 />
                 {fieldErrors.phone && <span style={styles.fieldErrorText}>{fieldErrors.phone}</span>}
                 {memberInfo && (
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: 6, marginTop: 6,
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6,
                     padding: '6px 10px', borderRadius: 8, background: 'var(--gold-bg, #FFF8E1)',
                     border: '1px solid var(--gold, #C9A96E)', fontSize: 12, fontWeight: 500,
                     color: 'var(--gold, #C9A96E)',
@@ -1584,8 +1570,7 @@ export default function BookingPage() {
                     ★ Member, {memberInfo.plan_name}
                   </div>
                 )}
-                <p style={{
-                  fontSize: 11, color: '#9C9690', marginTop: 6, marginBottom: 0, lineHeight: 1.4,
+                <p style={{ fontSize: 11, color: '#9C9690', marginTop: 6, marginBottom: 0, lineHeight: 1.4,
                 }}>
                   By providing your phone number, you agree to receive SMS booking confirmations and reminders from your beautician. Reply <strong>STOP</strong> to opt out at any time. Standard message and data rates may apply. See our <a href="/privacy" style={{ color: '#9C9690', textDecoration: 'underline' }}>Privacy Policy</a>.
                 </p>
@@ -1596,8 +1581,7 @@ export default function BookingPage() {
                   value={clientDetails.email}
                   onChange={e => { setClientDetails({ ...clientDetails, email: e.target.value }); setRecognisedClient(null); }}
                   onBlur={lookupClient}
-                  style={{
-                    ...styles.input,
+                  style={{ ...styles.input,
                     borderColor: fieldErrors.email ? 'var(--danger)' : '#E8E4DF'
                   }}
                 />
@@ -1606,8 +1590,7 @@ export default function BookingPage() {
                   <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Checking…</p>
                 )}
                 {recognisedClient?.found && (
-                  <div style={{
-                    marginTop: 8, padding: '10px 12px', borderRadius: 10,
+                  <div style={{ marginTop: 8, padding: '10px 12px', borderRadius: 10,
                     background: `${brand}10`, border: `1px solid ${brand}30`,
                     fontSize: 13,
                   }}>
@@ -1648,8 +1631,7 @@ export default function BookingPage() {
                   }
                 }}
                 disabled={!clientDetails.name || !clientDetails.phone}
-                style={{
-                  ...styles.primaryBtn,
+                style={{ ...styles.primaryBtn,
                   background: (!clientDetails.name || !clientDetails.phone) ? '#ccc' : brand,
                   cursor: (!clientDetails.name || !clientDetails.phone) ? 'not-allowed' : 'pointer'
                 }}
@@ -1678,8 +1660,7 @@ export default function BookingPage() {
                 <div
                   key={q.key}
                   id={`consultation-q-${q.key}`}
-                  style={{
-                    marginBottom: 14,
+                  style={{ marginBottom: 14,
                     // Marked, not shouted at: a thin rule down the side of the
                     // question rather than a red box round the whole thing.
                     ...(isMissing ? {
@@ -1710,8 +1691,7 @@ export default function BookingPage() {
                     <div style={{ display: 'flex', gap: 8 }}>
                       {['Yes', 'No'].map(opt => (
                         <button key={opt} onClick={() => setConsultationAnswers(p => ({ ...p, [q.key]: opt }))}
-                          style={{
-                            flex: 1, padding: '10px 0', borderRadius: 8, border: 'none', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+                          style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: 'none', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
                             background: consultationAnswers[q.key] === opt ? brand : '#F0ECE8',
                             color: consultationAnswers[q.key] === opt ? '#fff' : 'var(--text-secondary)'
                           }}>
@@ -1725,8 +1705,7 @@ export default function BookingPage() {
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                       {q.options.map(opt => (
                         <button key={opt} onClick={() => setConsultationAnswers(p => ({ ...p, [q.key]: opt }))}
-                          style={{
-                            padding: '8px 14px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 500,
+                          style={{ padding: '8px 14px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 500,
                             cursor: 'pointer', fontFamily: 'inherit',
                             background: consultationAnswers[q.key] === opt ? brand : '#F0ECE8',
                             color: consultationAnswers[q.key] === opt ? '#fff' : 'var(--text-secondary)'
@@ -1748,8 +1727,7 @@ export default function BookingPage() {
                               return { ...p, [q.key]: selected ? current.filter(v => v !== opt) : [...current, opt] };
                             });
                           }}
-                            style={{
-                              padding: '8px 14px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 500,
+                            style={{ padding: '8px 14px', borderRadius: 8, border: 'none', fontSize: 13, fontWeight: 500,
                               cursor: 'pointer', fontFamily: 'inherit',
                               background: selected ? brand : '#F0ECE8',
                               color: selected ? '#fff' : 'var(--text-secondary)'
@@ -1851,8 +1829,7 @@ export default function BookingPage() {
                 A warm notice only, never a wall: the backend fails open (zero)
                 on any error and booking always goes ahead. */}
             {recognisedClient?.found && (recognisedClient.outstandingBalanceCents || 0) > 0 && (
-              <div style={{
-                padding: '12px 14px', borderRadius: 10, marginBottom: 14,
+              <div style={{ padding: '12px 14px', borderRadius: 10, marginBottom: 14,
                 background: `${brand}10`, border: `1px solid ${brand}30`,
                 fontSize: 13, color: 'var(--text-primary, #1a0a0f)', lineHeight: 1.55,
               }}>
@@ -1947,8 +1924,7 @@ export default function BookingPage() {
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
                       onClick={() => setPaymentType('deposit')}
-                      style={{
-                        flex: 1, padding: '10px 0', borderRadius: 8, fontSize: 13, fontWeight: 500,
+                      style={{ flex: 1, padding: '10px 0', borderRadius: 8, fontSize: 13, fontWeight: 500,
                         cursor: 'pointer', fontFamily: 'inherit', border: 'none',
                         background: paymentType === 'deposit' ? brand : '#F0ECE8',
                         color: paymentType === 'deposit' ? '#fff' : 'var(--text-secondary)',
@@ -1958,8 +1934,7 @@ export default function BookingPage() {
                     </button>
                     <button
                       onClick={() => setPaymentType('full')}
-                      style={{
-                        flex: 1, padding: '10px 0', borderRadius: 8, fontSize: 13, fontWeight: 500,
+                      style={{ flex: 1, padding: '10px 0', borderRadius: 8, fontSize: 13, fontWeight: 500,
                         cursor: 'pointer', fontFamily: 'inherit', border: 'none',
                         background: paymentType === 'full' ? brand : '#F0ECE8',
                         color: paymentType === 'full' ? '#fff' : 'var(--text-secondary)',
@@ -1992,8 +1967,7 @@ export default function BookingPage() {
                       <button
                         key={m.key}
                         onClick={() => setPaymentMethod(m.key)}
-                        style={{
-                          flex: 1, minWidth: 100, padding: '10px 12px', borderRadius: 8,
+                        style={{ flex: 1, minWidth: 100, padding: '10px 12px', borderRadius: 8,
                           fontSize: 13, fontWeight: 500, cursor: 'pointer',
                           fontFamily: 'inherit', border: 'none',
                           background: paymentMethod === m.key ? brand : '#F0ECE8',
@@ -2017,8 +1991,7 @@ export default function BookingPage() {
             })()}
             {/* Membership badge */}
             {memberInfo && (
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12,
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12,
                 padding: '8px 12px', borderRadius: 8, background: 'var(--gold-bg, #FFF8E1)',
                 border: '1px solid var(--gold, #C9A96E)', fontSize: 13, fontWeight: 500,
                 color: 'var(--gold, #C9A96E)',
@@ -2035,8 +2008,7 @@ export default function BookingPage() {
                     <button
                       key={pkg.client_package_id}
                       onClick={() => setSelectedPackage(isSelected ? null : pkg)}
-                      style={{
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                         width: '100%', padding: '12px 14px', borderRadius: 10, marginBottom: 6,
                         border: `1.5px solid ${isSelected ? 'var(--success, #38A169)' : 'var(--border, #E8E4DF)'}`,
                         background: isSelected ? 'var(--success-bg, #F0FFF4)' : 'var(--bg-card)',
@@ -2067,16 +2039,14 @@ export default function BookingPage() {
             {/* Discount code section (hidden when using a package session) */}
             {!selectedPackage && <div style={{ marginBottom: 16 }}>
               {appliedDiscount ? (
-                <div style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   padding: '10px 14px', borderRadius: 8, background: 'var(--success-bg, #F0FFF4)',
                   border: '1px solid var(--success, #38A169)', fontSize: 13,
                 }}>
                   <span style={{ color: 'var(--success, #38A169)', fontWeight: 600 }}>
                     ✓ {appliedDiscount.code}, saving £{(discountCents / 100).toFixed(2)}
                   </span>
-                  <button onClick={removeDiscount} style={{
-                    background: 'none', border: 'none', fontSize: 16, color: 'var(--text-muted)',
+                  <button onClick={removeDiscount} style={{ background: 'none', border: 'none', fontSize: 16, color: 'var(--text-muted)',
                     cursor: 'pointer', padding: '0 4px', fontFamily: 'inherit',
                   }}>×</button>
                 </div>
@@ -2084,8 +2054,7 @@ export default function BookingPage() {
                 <>
                   <button
                     onClick={() => setDiscountOpen(!discountOpen)}
-                    style={{
-                      background: 'none', border: 'none', fontSize: 13, color: brand,
+                    style={{ background: 'none', border: 'none', fontSize: 13, color: brand,
                       cursor: 'pointer', padding: 0, fontFamily: 'inherit', fontWeight: 500,
                     }}
                   >
@@ -2099,16 +2068,14 @@ export default function BookingPage() {
                         value={discountInput}
                         onChange={e => { setDiscountInput(e.target.value); setDiscountError(null); }}
                         onKeyDown={e => e.key === 'Enter' && validateDiscountCode()}
-                        style={{
-                          ...styles.input, flex: 1, padding: '10px 12px', fontSize: 14,
+                        style={{ ...styles.input, flex: 1, padding: '10px 12px', fontSize: 14,
                           borderColor: discountError ? 'var(--danger, #DC2626)' : 'var(--border, #E8E4DF)',
                         }}
                       />
                       <button
                         onClick={validateDiscountCode}
                         disabled={discountLoading || !discountInput.trim()}
-                        style={{
-                          ...styles.primaryBtn, background: brand, padding: '10px 16px',
+                        style={{ ...styles.primaryBtn, background: brand, padding: '10px 16px',
                           fontSize: 13, opacity: discountLoading || !discountInput.trim() ? 0.6 : 1,
                         }}
                       >
@@ -2128,8 +2095,7 @@ export default function BookingPage() {
               {clientDetails.email && <p>{clientDetails.email}</p>}
             </div>
             {/* Photo consent */}
-            <label style={{
-              display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 20,
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 20,
               padding: '12px 14px', borderRadius: 10, background: 'var(--bg-subtle, #FDFCFB)',
               border: '1px solid var(--border-light)', cursor: 'pointer', fontSize: 13,
               color: 'var(--text-secondary)', lineHeight: 1.5,
@@ -2144,8 +2110,7 @@ export default function BookingPage() {
                 I'm happy for before & after photos to be taken and used on social media (optional)
               </span>
             </label>
-            <label style={{
-              display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 20,
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 20,
               padding: '12px 14px', borderRadius: 10, background: 'var(--bg-subtle, #FDFCFB)',
               border: '1px solid var(--border-light)', cursor: 'pointer', fontSize: 13,
               color: 'var(--text-secondary)', lineHeight: 1.5,
@@ -2172,8 +2137,7 @@ export default function BookingPage() {
               const noShowP = Math.min(Number(bp.no_show_charge_percent) || 0, 100);
               if (lateP <= 0 && noShowP <= 0) return null;
               return (
-                <p style={{
-                  fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55,
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55,
                   margin: '0 0 16px', padding: '10px 14px', borderRadius: 10,
                   background: 'var(--bg-subtle, #FDFCFB)', border: '1px solid var(--border-light)',
                 }}>
@@ -2187,8 +2151,7 @@ export default function BookingPage() {
               );
             })()}
             {beautician?.booking_policy?.cancellation_message && (
-              <p style={{
-                fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55, fontStyle: 'italic', whiteSpace: 'pre-line',
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.55, fontStyle: 'italic', whiteSpace: 'pre-line',
                 margin: '0 0 16px', padding: '10px 14px', borderRadius: 10,
                 background: 'var(--bg-subtle, #FDFCFB)', border: '1px solid var(--border-light)',
               }}>
@@ -2201,8 +2164,7 @@ export default function BookingPage() {
               <button
                 onClick={handleBook}
                 disabled={submitting}
-                style={{
-                  ...styles.primaryBtn,
+                style={{ ...styles.primaryBtn,
                   background: submitting ? '#ccc' : brand,
                   minWidth: 160
                 }}
@@ -2332,7 +2294,7 @@ const styles = {
   page: {
     minHeight: '100vh',
     background: 'var(--bg)',
-    fontFamily: "var(--font-body, 'DM Sans', -apple-system, sans-serif)",
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)",
     padding: '0 16px 40px',
     maxWidth: 480,
     margin: '0 auto',

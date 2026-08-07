@@ -180,8 +180,7 @@ export default function SMSConfig() {
           <div>
             <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>SMS GATEWAY</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-              <div style={{
-                width: 10, height: 10, borderRadius: 5,
+              <div style={{ width: 10, height: 10, borderRadius: 5,
                 background: birdConfigured ? '#4ADE80' : '#F87171',
               }} />
               <span style={{ fontSize: 16, fontWeight: 600 }}>
@@ -255,8 +254,7 @@ export default function SMSConfig() {
               },
             ].map(s => (
               <div key={s.step} style={{ display: 'flex', gap: 12, marginBottom: 14, alignItems: 'flex-start' }}>
-                <div style={{
-                  width: 24, height: 24, borderRadius: 12, background: 'var(--accent)',
+                <div style={{ width: 24, height: 24, borderRadius: 12, background: 'var(--accent)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0,
                 }}>{s.step}</div>
@@ -282,13 +280,11 @@ export default function SMSConfig() {
                     <div style={type.heading}>{t.name}</div>
                     <div style={{ ...type.bodySmall, fontSize: 11 }}>Trigger: {t.trigger}</div>
                   </div>
-                  <div style={{
-                    ...ds.badge,
+                  <div style={{ ...ds.badge,
                     ...(isEnabled ? ds.badgeSuccess : { background: 'var(--bg-subtle)', color: 'var(--text-muted)' }),
                   }}>{isEnabled ? 'Active' : 'Off'}</div>
                 </div>
-                <div style={{
-                  background: 'var(--bg-subtle)', borderRadius: 12, padding: 12,
+                <div style={{ background: 'var(--bg-subtle)', borderRadius: 12, padding: 12,
                   borderLeft: '3px solid var(--accent)',
                 }}>
                   <div style={{ ...type.mono, fontSize: 12, lineHeight: 1.5, color: 'var(--text-secondary)' }}>
@@ -319,8 +315,7 @@ export default function SMSConfig() {
                 <div style={{ ...type.body, fontSize: 13, fontWeight: 600 }}>Enable SMS as primary channel</div>
                 <div style={{ ...type.bodySmall, fontSize: 11 }}>When off, SMS is only used as WhatsApp fallback</div>
               </div>
-              <button onClick={() => setSmsEnabled(v => !v)} style={{
-                ...ds.toggle,
+              <button onClick={() => setSmsEnabled(v => !v)} style={{ ...ds.toggle,
                 background: smsEnabled ? 'var(--accent)' : 'var(--border)',
               }}>
                 <div style={{ ...ds.toggleDot, transform: smsEnabled ? 'translateX(20px)' : 'translateX(0)' }} />
@@ -346,8 +341,7 @@ export default function SMSConfig() {
                       setOriginatorInput(raw.replace(/[^a-zA-Z0-9 ]/g, '').substring(0, 11));
                     }
                   }}
-                  style={{
-                    flex: 1, padding: '8px 12px', borderRadius: 8,
+                  style={{ flex: 1, padding: '8px 12px', borderRadius: 8,
                     border: '1px solid var(--border)', background: 'var(--bg-card)',
                     color: 'var(--text-primary)', fontSize: 14,
                   }}
@@ -367,8 +361,7 @@ export default function SMSConfig() {
               {saving ? 'Saving…' : 'Save Settings'}
             </button>
             {saveMsg && (
-              <div style={{
-                marginTop: 10, fontSize: 13,
+              <div style={{ marginTop: 10, fontSize: 13,
                 color: saveMsg.startsWith('Error') ? 'var(--danger)' : 'var(--success)',
               }}>{saveMsg}</div>
             )}
@@ -386,8 +379,7 @@ export default function SMSConfig() {
                   value={testPhone}
                   onChange={e => setTestPhone(e.target.value)}
                   placeholder="+447700900000"
-                  style={{
-                    flex: 1, padding: '8px 12px', borderRadius: 8,
+                  style={{ flex: 1, padding: '8px 12px', borderRadius: 8,
                     border: '1px solid var(--border)', background: 'var(--bg-card)',
                     color: 'var(--text-primary)', fontSize: 14,
                   }}
@@ -401,8 +393,7 @@ export default function SMSConfig() {
                 </button>
               </div>
               {testMsg && (
-                <div style={{
-                  marginTop: 10, fontSize: 13,
+                <div style={{ marginTop: 10, fontSize: 13,
                   color: testMsg.startsWith('✓') ? 'var(--success)' : 'var(--danger)',
                 }}>{testMsg}</div>
               )}

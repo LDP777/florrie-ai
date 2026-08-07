@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
 import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
+import Icon, { iconName } from './ui/Icon';
 
 /**
  * FloatingMic, Day 5 of the 2026-05-28 refactor sprint.
@@ -546,8 +547,7 @@ export default function FloatingMic() {
         onPointerLeave={cancelPress}
         onPointerCancel={cancelPress}
         disabled={processing}
-        style={{
-          ...S.mic,
+        style={{ ...S.mic,
           background: recording
             ? 'linear-gradient(135deg, #D4605C 0%, #b04540 100%)'
             : processing
@@ -559,19 +559,9 @@ export default function FloatingMic() {
         }}
       >
         {recording && <span aria-hidden style={S.ripple} />}
-        <span
-          className="material-symbols-outlined"
-          aria-hidden
-          style={{
-            fontSize: 26,
-            color: '#fff',
-            fontVariationSettings: "'FILL' 1, 'wght' 400",
+        <Icon name={iconName(processing ? 'hourglass_empty' : 'mic')} size={26} inline style={{ color: '#fff',
             position: 'relative',
-            zIndex: 1,
-          }}
-        >
-          {processing ? 'hourglass_empty' : 'mic'}
-        </span>
+            zIndex: 1 }} />
       </button>
     </>
   );
@@ -627,7 +617,7 @@ const S = {
     padding: '10px 14px',
     borderRadius: 14,
     boxShadow: '0 4px 14px rgba(146,64,94,0.18)',
-    fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
     fontStyle: 'italic',
     fontSize: 13,
     color: '#534247',
@@ -646,7 +636,7 @@ const S = {
     borderRadius: 16,
     boxShadow: '0 8px 28px rgba(146,64,94,0.22)',
     border: '1px solid rgba(146,64,94,0.1)',
-    fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
     zIndex: 845,
     maxWidth: 460,
     margin: '0 auto',
@@ -702,7 +692,7 @@ const S = {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
-    fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
     fontSize: 12,
     color: '#9a3a36',
     zIndex: 845,

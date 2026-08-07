@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import Icon, { iconName } from './ui/Icon';
 
 /**
  * PageScaffold , the single layout primitive every screen should use.
@@ -34,7 +35,7 @@ export default function PageScaffold({ title, onBack, actions, children }) {
         <div style={S.headerRow}>
           {onBack !== null && (
             <button onClick={back} aria-label="Back" style={S.backBtn}>
-              <span className="material-symbols-outlined" style={{ fontSize: 22 }}>arrow_back_ios_new</span>
+              <Icon name={iconName('arrow_back_ios_new')} size={22} inline />
             </button>
           )}
           {title && <h1 style={S.title}>{title}</h1>}
@@ -65,7 +66,7 @@ const S = {
   },
   title: {
     flex: 1, minWidth: 0, margin: 0,
-    fontFamily: "'Playfair Display', 'Noto Serif', Georgia, serif",
+    fontFamily: "'Playfair Display', 'Playfair Display', Georgia, serif",
     fontSize: 26, fontWeight: 600, color: '#1d1b19',
     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
   },
