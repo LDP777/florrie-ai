@@ -453,7 +453,18 @@ export default function App() {
           </div>
         )}
         <InstallPrompt />
-        <div style={styles.pageContainer} id="app-scroll">
+        {/* Reserve what actually floats here. FloatingMic hides itself on the
+            Inbox thread, so reserving its lane there left a band of dead cream
+            under the composer. */}
+        <div
+          style={{
+            ...styles.pageContainer,
+            paddingBottom: (location.pathname === '/inbox' && /[?&]client=/.test(location.search || ''))
+              ? 'var(--shell-bottom-nav)'
+              : 'var(--shell-bottom)',
+          }}
+          id="app-scroll"
+        >
           <Suspense fallback={<PageLoader />}>
             <Routes>
             <Route path="/" element={<Hub />} />
@@ -893,11 +904,11 @@ const styles = {
     WebkitOverflowScrolling: 'touch',
     // The shell owns the notch: with ios contentInset 'never', pages start
     // at y=0 and custom headers (Hub greeting) sat under the front camera.
-    paddingTop: 'env(safe-area-inset-top, 0px)',
+    paddingTop: 'var(--shell-top)',
     // The shell also owns bottom clearance, for every page, in one place.
     // 80px cleared the nav but not the mic, which floats to safe+130 (and its
     // satellites to safe+194 when open), so the last row of a page sat under it.
-    paddingBottom: 'calc(env(safe-area-inset-bottom, 8px) + 146px)',
+    paddingBottom: 'var(--shell-bottom)',
   },
 
   // Bottom nav , Stitch glass morphism

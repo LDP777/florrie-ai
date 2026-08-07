@@ -93,6 +93,18 @@ body {
   --z-sticky-cta:20; --z-header:30; --z-bottom-nav:40; --z-scrim:50; --z-sheet:60; --z-toast:70;
   --nav-height:70px; --header-height:52px; --fab-lane:130px;
   --safe-top:env(safe-area-inset-top,0px); --safe-bottom:env(safe-area-inset-bottom,0px);
+  /* What the app shell reserves, named once. A full-height child (the Inbox
+     thread) must size to --shell-viewport, NOT 100dvh: it lives inside the
+     padded scroll container, so 100dvh overflows by exactly these insets and
+     pushes its own header up under the status bar. */
+  --shell-top:env(safe-area-inset-top,0px);
+  --shell-bottom:calc(env(safe-area-inset-bottom,8px) + 146px);
+  --shell-viewport:calc(100dvh - var(--shell-top) - var(--shell-bottom));
+  /* The mic hides itself on some routes (the Inbox thread, where you are typing).
+     There the shell only has to clear the nav, so the composer sits just above it
+     instead of 68px of cream. */
+  --shell-bottom-nav:calc(env(safe-area-inset-bottom,8px) + 92px);
+  --shell-viewport-nav:calc(100dvh - var(--shell-top) - var(--shell-bottom-nav));
   /* The app shell (#app-scroll) now reserves the whole floating stack for every
      page, so a page adds nothing of its own. Pages that still set this stay
      correct instead of double-padding to ~150px of dead space. */

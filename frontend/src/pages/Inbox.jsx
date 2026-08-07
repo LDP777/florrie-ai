@@ -5,6 +5,7 @@ import { API_BASE } from '../lib/config.js';
 import logger from '../lib/logger.js';
 import PageHeader from '../components/ui/PageHeader.jsx';
 import { bloom } from '../lib/bloom.js';
+import Icon from '../components/ui/Icon';
 
 /**
  * Inbox , one calm thread per client.
@@ -1281,7 +1282,7 @@ function Conversation({ clientId, onBack, onSent, embedded = false }) {
         {renderItems.map(m => {
           if (m.dateDivider) return <DateDivider key={m.id} iso={m.iso} />;
           if (m.divider) return <HandledDivider key={m.id} count={m.count} />;
-          return <Bubble key={m.id} msg={m} onRetry={handleSend} />;
+          return <Bubble key={m.id} msg={m} threadChannel={channel} onRetry={handleSend} />;
         })}
         {drafts.map(d => (
           <DraftBubble key={d.id} draft={d} onDone={removeDraft} onSent={() => { removeDraft(d.id); load(); onSent?.(); }} />
@@ -1621,7 +1622,7 @@ function DateDivider({ iso }) {
   return <div style={S.dateDivider}><span style={S.dateChip}>{label}</span></div>;
 }
 
-function Bubble({ msg, onRetry }) {
+function Bubble({ msg, threadChannel, onRetry }) {
   const out = msg.direction === 'outbound';
   const type = msg.message_type;
   const failed = msg.status === 'failed';
@@ -1629,14 +1630,14 @@ function Bubble({ msg, onRetry }) {
   // Colour + a small mark carry who-said-what: client left (peach), Ellie right
   // (maroon), Florrie right (quiet tonal). No loud per-bubble stamp any more.
   const florrieSent = out && (type === 'auto_reply' || type === 'proactive' || msg.ai_generated);
-  const bubbleBg = failed ? '#fdeceb' : !out ? '#fff4ee' : florrieSent ? 'var(--tone-2, #f6e7dd)' : 'var(--accent, #92405e)';
+  const bubbleBg = failed ? '#fdeceb' : !out ? 'var(--bg-card, #FFFCF9)' : florrieSent ? 'var(--tone-2, #f6e7dd)' : 'var(--accent, #92405e)';
   const bubbleFg = failed ? '#9a2a22' : out && !florrieSent ? '#fff' : 'var(--text-primary, #1d1b19)';
   const metaFg = failed ? '#c0665e' : out && !florrieSent ? 'rgba(255,255,255,0.78)' : '#9B8A8E';
 
   const mediaStub = !msg.body && !msg.image_url
-    ? (msg.media_type === 'audio' ? '\u{1F3A4} Voice note'
-      : msg.media_type === 'video' ? '\u{1F39E}️ Video'
-      : msg.media_type ? '\u{1F4CE} Attachment'
+    ? (msg.media_type === 'audio' ? 'Voice note'
+      : msg.media_type === 'video' ? 'Video'
+      : msg.media_type ? 'Attachment'
       : 'No text')
     : null;
 
@@ -1648,7 +1649,7 @@ function Bubble({ msg, onRetry }) {
             ...S.bubble,
             background: bubbleBg,
             color: bubbleFg,
-            borderColor: failed ? 'rgba(190,60,50,0.35)' : out && !florrieSent ? 'var(--accent, #92405e)' : 'rgba(146,64,94,0.10)',
+            borderColor: failed ? 'rgba(190,60,50,0.35)' : out && !florrieSent ? 'var(--accent, #92405e)' : 'rgba(146,64,94,0.16)',
             borderBottomLeftRadius: out ? 18 : 5,
             borderBottomRightRadius: out ? 5 : 18,
           }}
@@ -1659,15 +1660,15 @@ function Bubble({ msg, onRetry }) {
           {msg.body && <div style={S.bubbleText}>{msg.body}</div>}
           {mediaStub && <div style={{ ...S.bubbleText, fontStyle: 'italic', opacity: 0.7 }}>{mediaStub}</div>}
           <div style={{ ...S.bubbleMeta, color: metaFg }}>
-            {florrieSent && !failed && <span aria-hidden>{'\u{1F337}'}</span>}
-            <ChannelMark channel={msg.channel} size={13} />
+            {florrieSent && !failed && <Icon name="flower" size={12} />}
+            {msg.channel && msg.channel !== threadChannel && <ChannelMark channel={msg.channel} size={13} />}
             <span>{formatBubbleTime(msg.created_at)}</span>
             {msg.status === 'sending' && <span>{'·'} sending</span>}
           </div>
         </div>
         {failed && (
           <button type="button" onClick={() => onRetry?.(msg.body)} style={S.failedNote}>
-            {'⚠'} Not delivered {'·'} Retry
+            <Icon name="alert-triangle" size={13} /> Not delivered {'·'} Retry
           </button>
         )}
       </div>
@@ -2016,7 +2017,7 @@ const S = {
   placeholder: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24 },
 
   convoFull: {
-    height: '100dvh', overflow: 'hidden', background: 'var(--bg, #fef8f4)',
+    height: 'var(--shell-viewport-nav)', overflow: 'hidden', background: 'var(--bg, #FBF6F1)',
     fontFamily: "'Plus Jakarta Sans', 'DM Sans', sans-serif",
     display: 'flex', flexDirection: 'column', color: 'var(--text-primary, #1d1b19)',
   },
@@ -2034,9 +2035,9 @@ const S = {
   },
   convoAvatar: {
     width: 36, height: 36, borderRadius: 18,
-    background: 'linear-gradient(135deg, #ffd9e2 0%, #ffb8c8 100%)', color: '#92405e',
+    background: 'var(--accent-light, #F6E7EC)', color: 'var(--accent, #92405e)',
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 14, fontWeight: 700, fontFamily: "'Noto Serif', Georgia, serif",
+    fontSize: 15, fontWeight: 600, fontFamily: "'Playfair Display', Georgia, serif",
   },
   convoNameWrap: { display: 'flex', flexDirection: 'column', gap: 1, flex: 1, minWidth: 0 },
   convoNameRow: { display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 },
@@ -2087,9 +2088,9 @@ const S = {
   },
 
   composerBar: {
-    // In-flow at the column's bottom (the column is height-contained), with
-    // clearance for the floating bottom nav so nothing hides behind it.
-    padding: '8px 12px calc(env(safe-area-inset-bottom, 0px) + 92px)', background: 'var(--tone-1, #fbf1ea)',
+    // In-flow at the column's bottom. The shell already reserves the floating
+    // nav and mic, so adding clearance here stacked ~240px of dead space.
+    padding: '10px 12px 12px', background: 'var(--tone-1, #fbf1ea)',
     borderTop: '1px solid rgba(146,64,94,0.08)',
     display: 'flex', flexDirection: 'column', gap: 8,
   },
@@ -2101,7 +2102,7 @@ const S = {
   },
   suggestionRow: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 },
   suggestionChip: {
-    background: 'var(--accent-wash, #fdeef3)', border: '1px solid rgba(146,64,94,0.16)', color: 'var(--accent, #92405e)',
+    background: 'var(--surface-container-low, #F4EDE6)', border: '1px solid rgba(146,64,94,0.14)', color: 'var(--accent, #92405e)',
     borderRadius: 999, padding: '13px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
     lineHeight: 1.2, maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
     transition: 'background 0.15s ease',
