@@ -22,7 +22,9 @@
     "check:tap:browser": "node scripts/check-tap-targets.mjs",
     "check:icon-usage": "node scripts/check-icon-usage.mjs",
     "check:chrome": "node scripts/check-chrome.mjs",
-    "check:render": "node scripts/check-render.mjs"
+    "check:render": "node scripts/check-render.mjs",
+    "check:safe-area": "node scripts/check-safe-area.mjs",
+    "check:overflow": "node scripts/check-overflow.mjs"
   },
   "dependencies": {
     "@capacitor-community/apple-sign-in": "^6.0.0",
