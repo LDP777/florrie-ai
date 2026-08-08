@@ -5,6 +5,7 @@ import PhoneField from '../components/PhoneField.jsx';
 import { API_BASE } from '../lib/config.js';
 import Icon, { iconName } from '../components/ui/Icon';
 import Money from '../components/ui/Money';
+import { readableOn, onBrand } from '../lib/brand-colour.js';
 // Cloudflare Turnstile (bot protection). Renders ONLY when VITE_TURNSTILE_SITE_KEY
 // is set, so environments without keys behave exactly as before.
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
@@ -901,6 +902,14 @@ export default function BookingPage() {
     return Object.keys(errors).length === 0;
   }
   const brand = beautician?.brand_color || '#C76B8A';
+  // The brand colour as a FILL is whatever the salon picked. As TEXT it has to
+  // be readable, and #C76B8A — the default, and Ellindigo's — measures 3.32:1
+  // on cream, which is under AA on the page her clients pay through. brandInk
+  // is the same hue a shade deeper, only as deep as it needs to be; a salon
+  // whose colour already passes gets theirs back untouched.
+  const brandInk = readableOn(brand, '#FBF6F1', 4.5);
+  // And what to write ON the brand: ink for a pale pink, cream for a maroon.
+  const onBrandColour = onBrand(brand);
   const brandLight = brand + '18';
   const brandMedium = brand + '40';
   const bizName = beautician?.business_name || beautician?.first_name || 'Book';
@@ -1078,7 +1087,7 @@ export default function BookingPage() {
         </div>
         <div style={styles.footer}>
           <span style={styles.footerText}>Powered by </span>
-          <span style={{ ...styles.footerBrand, color: brand }}>florrie.ai</span>
+          <span style={{ ...styles.footerBrand, color: brandInk }}>florrie.ai</span>
         </div>
       </div>
     );
@@ -1091,7 +1100,7 @@ export default function BookingPage() {
           ? <img src={logoUrl} alt={bizName} style={styles.brandLogo} />
           : <div style={{ ...styles.brandMonogram, background: brand }}>{monogram}</div>}
         <h1 style={styles.businessName}>{bizName}</h1>
-        <p style={styles.subtitle}>{headerTagline}</p>
+        <p style={{ ...styles.subtitle, color: onBrandColour, opacity: 0.85 }}>{headerTagline}</p>
       </div>
       {/* Progress */}
       <div style={styles.progressContainer}>
@@ -1102,7 +1111,7 @@ export default function BookingPage() {
               transform: i === step ? 'scale(1.2)' : 'scale(1)'
             }} />
             <span style={{ ...styles.progressLabel,
-              color: i <= step ? brand : 'var(--text-muted)',
+              color: i <= step ? brandInk : 'var(--text-muted)',
               fontWeight: i === step ? 600 : 400
             }}>{label}</span>
           </div>
@@ -2186,7 +2195,7 @@ export default function BookingPage() {
       <SalonInfo beautician={beautician} reviewsData={reviewsData} brand={brand} />
       <div style={styles.footer}>
         <span style={styles.footerText}>Powered by </span>
-        <span style={{ ...styles.footerBrand, color: brand }}>florrie.ai</span>
+        <span style={{ ...styles.footerBrand, color: brandInk }}>florrie.ai</span>
       </div>
     </div>
   );

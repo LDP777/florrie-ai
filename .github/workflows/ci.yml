@@ -108,3 +108,14 @@ jobs:
       # NEITHER chunk, and the only symptom would have been an empty dashboard
       # noticed weeks later.
       - run: npm run check:deferred --workspace frontend
+
+      # check:live is the one that matters most, and it exists because all the
+      # others were blind. They render through react-dom/server, which runs one
+      # pass and never runs an effect, so every data-driven screen was graded in
+      # its LOADING state. They were green on all 79 pages while the booking
+      # page — the surface Ellie'"'"'s clients pay through — had three text nodes
+      # under AA, because none of them exist until a fetch resolves.
+      #
+      # This mounts the real build in a browser with fixtures answering fetch,
+      # so the DOM it grades is the DOM she looks at.
+      - run: npm run check:live --workspace frontend
