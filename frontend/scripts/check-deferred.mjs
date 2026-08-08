@@ -28,17 +28,32 @@ if (!existsSync(join(DIST, 'index.html'))) {
   process.exit(1);
 }
 
-// A build without keys legitimately ships neither chunk, so there would be
-// nothing to assert. Skip loudly rather than passing on a technicality.
+// Whether a chunk is EXPECTED to load has nothing to do with whether its file
+// exists. vite.config declares posthog and sentry in manualChunks, so both
+// chunks are emitted on every build regardless of configuration — but the code
+// only imports them when a key or DSN is present. Keying the precondition off
+// the filename made this fail in CI, where the build runs without a PostHog
+// key: the chunk was there, nothing imported it, and the check called that a
+// scheduling bug. It was correct behaviour.
+//
+// So the precondition is the KEY, read out of the built bundle.
 const { readdirSync } = await import('node:fs');
 const assets = readdirSync(join(DIST, 'assets'));
+// Only the APP chunk. Vite inlines import.meta.env values there, and scanning
+// the vendor chunks instead matches the Sentry SDK's own references to
+// sentry.io — which reported a DSN as configured on a build that had none.
+const bundleJs = assets.filter(f => /^index-.*\.js$/.test(f))
+  .map(f => readFileSync(join(DIST, 'assets', f), 'utf8')).join('\n');
+
 const expect = [
-  { name: 'posthog', re: /posthog.*\.js$/ },
-  { name: 'sentry', re: /sentry.*\.js$/ },
-].filter(e => assets.some(f => e.re.test(f)));
+  { name: 'posthog', re: /posthog.*\.js$/, configured: /["']phc_[A-Za-z0-9_-]+["']/.test(bundleJs) },
+  { name: 'sentry', re: /sentry.*\.js$/, configured: /https:\/\/[a-z0-9]+@[a-z0-9.]*sentry\.io/.test(bundleJs) },
+].filter(e => assets.some(f => e.re.test(f)) && e.configured);
 
 if (!expect.length) {
-  console.log('… deferred: neither chunk is in this build (no keys set), nothing to prove');
+  console.log('… deferred: this build has no PostHog key and no Sentry DSN, so neither');
+  console.log('  chunk is meant to load. Nothing to prove — set VITE_POSTHOG_KEY and');
+  console.log('  VITE_SENTRY_DSN to exercise the deferral properly.');
   process.exit(0);
 }
 
