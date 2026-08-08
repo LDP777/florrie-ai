@@ -65,3 +65,24 @@ jobs:
       - run: npx playwright install --with-deps chromium
         working-directory: frontend
       - run: npm run check:drag --workspace frontend
+
+      # The rest of the browser checks ride along free — chromium is already
+      # installed by the step above, so these cost seconds, not minutes.
+      #
+      # check:tap:browser proves the 44px expansion actually reaches the finger.
+      # A class name in the markup proves nothing: the expansion can be clipped
+      # by an ancestor's overflow, sit off-centre, or steal the neighbouring
+      # control's taps, and in all three cases the diff looks correct and the
+      # app is worse. Two of those three were real, and were caught here.
+      - run: npm run check:tap:browser --workspace frontend
+
+      # check:safe-area renders every page with a 15 Pro's insets and asks what
+      # lands under the notch or in the home-indicator swipe zone. It does NOT
+      # prove env(safe-area-inset-*) resolves in WKWebView — headless chromium
+      # reports 0 for those — so a pass is the arithmetic, not the plumbing.
+      - run: npm run check:safe-area --workspace frontend
+
+      # check:overflow finds text the phone cannot show: boxes past 390px, and
+      # text clipped by its own container with no ellipsis. "So much text is
+      # hidden now" was a real report from a real user.
+      - run: npm run check:overflow --workspace frontend
