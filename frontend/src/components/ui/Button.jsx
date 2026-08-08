@@ -1,180 +1,86 @@
 /**
- * Button Component
+ * Button — the one button.
  *
- * Variants: primary, secondary, ghost, danger
- * Sizes: sm, md, lg
- * States: default, hover, active, disabled, loading
+ * There were 847 hand-styled <button>s across 91 files and exactly one import
+ * of this component. That ratio is the entire drift story: rolling your own was
+ * always less effort than importing. This rewrite exists to invert that.
+ *
+ * What the old version got wrong, all of it found by inventorying the real
+ * call sites rather than by taste:
+ *
+ *  - `&:hover`, `&:active` and `&:focus` were keys in an inline style object.
+ *    React drops them. Every interaction state on the app's shared button has
+ *    been dead since it was written. They are CSS classes now, in index.css.
+ *  - `minHeight: 44` was unconditional, but 69 chips and 58 icon buttons in the
+ *    app run at 11-13px with 4-8px padding. Codemodding those onto it would
+ *    have visibly inflated every filter row. There is now an `xs` size, and the
+ *    tap floor is met with an invisible ::after rather than by growing the
+ *    control.
+ *  - No `type`, so any button inside a <form> defaulted to submit. Defaults to
+ *    "button" now; pass type="submit" deliberately.
+ *  - No `as`/`href`, so links that look like buttons had to be hand-styled.
+ *
+ * Variants map to the clusters that actually exist in the codebase:
+ *   primary 242 · secondary 225 · tonal 116 · quiet 86 · chip 69 · danger 33
+ *
+ *   <Button onClick={save}>Save</Button>
+ *   <Button variant="secondary" size="sm">Edit</Button>
+ *   <Button variant="chip" size="xs" aria-pressed={active}>Needs you</Button>
+ *   <Button variant="quiet" icon size="icon" aria-label="Close"><Icon name="x" /></Button>
+ *   <Button as="a" href={url}>Open</Button>
  */
 
-import React from 'react';
+const cx = (...parts) => parts.filter(Boolean).join(' ');
 
-const Button = ({
+export default function Button({
   variant = 'primary',
   size = 'md',
+  icon = false,
+  pill = false,
+  fullWidth = false,
   loading = false,
   disabled = false,
-  onClick,
-  children,
+  as: Tag = 'button',
+  className,
   style,
-  fullWidth = false,
+  children,
   ...props
-}) => {
-  // Base styles
-  const base = {
-    fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
-    border: 'none',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    transition: '0.2s cubic-bezier(0.16, 1, 0.3, 1)',
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 44,
-    gap: 8,
-    position: 'relative',
-    opacity: disabled ? 0.6 : 1,
-    width: fullWidth ? '100%' : 'auto',
-    ...(disabled && { pointerEvents: 'none' }),
-  };
-
-  // Size variants
-  const sizes = {
-    sm: {
-      padding: '8px 12px',
-      fontSize: 13,
-      fontWeight: 500,
-      borderRadius: 10,
-    },
-    md: {
-      padding: '11px 16px',
-      fontSize: 14,
-      fontWeight: 600,
-      borderRadius: 12,
-    },
-    lg: {
-      padding: '14px 20px',
-      fontSize: 15,
-      fontWeight: 600,
-      borderRadius: 14,
-    },
-  };
-
-  // Variant styles
-  const variants = {
-    primary: {
-      background: 'var(--accent)',
-      color: '#fff',
-      boxShadow: '0 2px 8px rgba(199, 107, 138, 0.25)',
-      '&:hover': {
-        background: 'var(--accent-hover)',
-        boxShadow: '0 4px 12px rgba(199, 107, 138, 0.35)',
-      },
-      '&:active': {
-        background: 'var(--accent-hover)',
-        transform: 'scale(0.98)',
-      },
-      '&:focus': {
-        outline: 'none',
-        boxShadow: '0 0 0 3px rgba(199, 107, 138, 0.15)',
-      },
-    },
-    secondary: {
-      background: 'var(--bg-card)',
-      color: 'var(--text-primary)',
-      border: '1.5px solid var(--border)',
-      '&:hover': {
-        background: 'var(--bg-hover)',
-        borderColor: 'var(--accent)',
-      },
-      '&:active': {
-        transform: 'scale(0.98)',
-      },
-      '&:focus': {
-        outline: 'none',
-        boxShadow: '0 0 0 3px rgba(199, 107, 138, 0.15)',
-      },
-    },
-    ghost: {
-      background: 'transparent',
-      color: 'var(--text-secondary)',
-      '&:hover': {
-        background: 'var(--bg-hover)',
-        color: 'var(--text-primary)',
-      },
-      '&:active': {
-        transform: 'scale(0.98)',
-      },
-      '&:focus': {
-        outline: 'none',
-        boxShadow: '0 0 0 3px rgba(199, 107, 138, 0.15)',
-      },
-    },
-    danger: {
-      background: 'var(--danger)',
-      color: '#fff',
-      boxShadow: '0 2px 8px rgba(212, 96, 92, 0.25)',
-      '&:hover': {
-        boxShadow: '0 4px 12px rgba(212, 96, 92, 0.35)',
-        filter: 'brightness(1.1)',
-      },
-      '&:active': {
-        transform: 'scale(0.98)',
-      },
-      '&:focus': {
-        outline: 'none',
-        boxShadow: '0 0 0 3px rgba(212, 96, 92, 0.15)',
-      },
-    },
-  };
-
-  const buttonStyle = {
-    ...base,
-    ...sizes[size],
-    ...variants[variant],
-    ...style,
-  };
-
-  const handleClick = (e) => {
-    if (!disabled && !loading && onClick) {
-      onClick(e);
-    }
-  };
-
+}) {
+  const isButton = Tag === 'button';
   return (
-    <button
-      style={buttonStyle}
-      onClick={handleClick}
-      disabled={disabled || loading}
+    <Tag
+      className={cx(
+        'fl-btn',
+        `fl-btn--${variant}`,
+        icon ? 'fl-btn--icon' : `fl-btn--${size}`,
+        pill && 'fl-btn--pill',
+        fullWidth && 'fl-btn--full',
+        className,
+      )}
+      // Without this, a button inside a form submits it. That is a real bug
+      // waiting in every one of the app's forms, not a style preference.
+      {...(isButton ? { type: props.type || 'button' } : {})}
+      {...(isButton ? { disabled: disabled || loading } : { 'aria-disabled': disabled || undefined })}
+      style={style}
       {...props}
     >
-      {loading && <Spinner size={size === 'lg' ? 18 : 14} />}
+      {loading && <Spinner />}
       {children}
-    </button>
+    </Tag>
   );
-};
+}
 
-/**
- * Simple CSS spinner for loading state
- */
-const Spinner = ({ size = 14 }) => {
-  const spinnerStyle = {
-    width: size,
-    height: size,
-    border: `2px solid currentColor`,
-    borderRightColor: 'transparent',
-    borderRadius: '50%',
-    animation: 'spin 0.6s linear infinite',
-  };
-
+function Spinner() {
   return (
-    <>
-      <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
-      <div style={spinnerStyle} />
-    </>
+    <span
+      aria-hidden
+      style={{
+        width: 14, height: 14, flexShrink: 0,
+        border: '2px solid currentColor',
+        borderRightColor: 'transparent',
+        borderRadius: '50%',
+        animation: 'spin 0.6s linear infinite',
+      }}
+    />
   );
-};
-
-export default Button;
+}

@@ -10,6 +10,7 @@ import ErrorCard from '../components/ErrorCard.jsx';
 import { API_BASE } from '../lib/config.js';
 import Icon, { iconName } from '../components/ui/Icon';
 import DragList, { DragHandle } from '../components/ui/DragList.jsx';
+import Button from '../components/ui/Button.jsx';
 
 /**
  * Treatments - manage treatment menu.
@@ -273,8 +274,8 @@ export default function Treatments() {
       </div>
       {!handleProps && (
         <div style={styles.treatmentActions}>
-          <button onClick={() => startEdit(t)} style={styles.editBtn}>Edit</button>
-          <button onClick={() => handleToggleActive(t.id, true)} style={styles.deactivateBtn}>Hide</button>
+          <Button variant="secondary" size="xs" onClick={() => startEdit(t)}>Edit</Button>
+          <Button variant="quiet" size="xs" onClick={() => handleToggleActive(t.id, true)}>Hide</Button>
         </div>
       )}
     </div>
@@ -288,15 +289,22 @@ export default function Treatments() {
         title="Treatments"
         action={(
           <>
-          <button
+          <Button
+            variant={reordering ? 'primary' : 'secondary'}
+            size="sm"
+            pill
             onClick={() => { setReordering(r => !r); setShowAdd(false); setEditing(null); }}
-            style={reordering ? styles.reorderBtnOn : styles.reorderBtn}
+            style={{ marginRight: 8 }}
           >
             {reordering ? 'Done' : 'Reorder'}
-          </button>
-          <button onClick={() => { setShowAdd(!showAdd); setEditing(null); setForm(blank); setReordering(false); }} style={styles.addBtn}>
+          </Button>
+          <Button
+            size="sm"
+            pill
+            onClick={() => { setShowAdd(!showAdd); setEditing(null); setForm(blank); setReordering(false); }}
+          >
             + Add
-          </button>
+          </Button>
           </>
         )}
       />

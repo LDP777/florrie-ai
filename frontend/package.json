@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run check:icons && vite build",
+    "build": "npm run check:icons && npm run check:primitives && vite build",
     "preview": "vite preview",
     "test:e2e": "playwright test",
     "test:e2e:booking": "playwright test --project=booking",
@@ -16,7 +16,8 @@
     "cap:android": "npx cap open android",
     "native:build": "vite build && npx cap sync",
     "check:icons": "node scripts/check-icons.mjs",
-    "check:drag": "node scripts/check-drag.mjs"
+    "check:drag": "node scripts/check-drag.mjs",
+    "check:primitives": "node scripts/check-primitives.mjs"
   },
   "dependencies": {
     "@capacitor-community/apple-sign-in": "^6.0.0",

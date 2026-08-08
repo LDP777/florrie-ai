@@ -88,6 +88,99 @@ body {
   border-radius: 8px;
 }
 
+/* ===== Primitives =====================================================
+   The app has 847 hand-styled <button>s in 91 files and one <Button>. That is
+   the whole drift story: styling from scratch was always easier than importing.
+   These classes exist so it is not.
+
+   Written as real CSS, because the old Button put `&:hover` keys inside an
+   inline style object where React silently drops them — so every hover, active
+   and focus style in the app's one shared button has been inert since it was
+   written. A class can do what an inline style cannot.
+   ==================================================================== */
+
+.fl-btn {
+  font-family: var(--font-body);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out),
+              color var(--dur-fast) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out);
+}
+.fl-btn:active:not(:disabled) { transform: scale(.975); }
+.fl-btn:disabled { opacity: .45; cursor: not-allowed; }
+.fl-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(146, 64, 94, .28);
+}
+
+/* Sizes. `xs` exists because 69 chips and 58 icon buttons in the app run at
+   font-size 11-13 with 4-8px padding, and forcing them to a 44px box would
+   visibly inflate every filter row in the product. Tap area is restored with a
+   transparent ::after rather than by growing the visible control. */
+.fl-btn--xs { min-height: 32px; padding: 0 10px; font-size: 12px; font-weight: 600; border-radius: 999px; }
+.fl-btn--sm { min-height: 38px; padding: 0 14px; font-size: 13px; font-weight: 600; border-radius: var(--radius-sm); }
+.fl-btn--md { min-height: 44px; padding: 0 16px; font-size: 14px; font-weight: 600; border-radius: var(--radius-md); }
+.fl-btn--lg { min-height: 52px; padding: 0 20px; font-size: 15px; font-weight: 600; border-radius: var(--radius-md); }
+
+/* Anything under the 44px floor gets an invisible, centred hit area, so a small
+   chip stays small and is still comfortably tappable. */
+.fl-btn--xs, .fl-btn--sm, .fl-btn--icon { position: relative; }
+.fl-btn--xs::after, .fl-btn--sm::after, .fl-btn--icon::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  top: 50%;
+  height: 44px;
+  transform: translateY(-50%);
+  min-width: 44px;
+}
+
+.fl-btn--icon { padding: 0; width: 40px; min-height: 40px; border-radius: var(--radius-sm); }
+.fl-btn--full { width: 100%; }
+.fl-btn--pill { border-radius: 999px; }
+
+/* Variants. Maroon is the only interactive colour, so everything below is
+   maroon, a maroon tint, or a semantic. */
+.fl-btn--primary { background: var(--accent); color: #fff; }
+.fl-btn--primary:hover:not(:disabled) { background: var(--accent-hover); }
+
+.fl-btn--secondary { background: var(--bg-card); color: var(--accent); border-color: var(--border); }
+.fl-btn--secondary:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-wash); }
+
+.fl-btn--tonal { background: var(--accent-light); color: var(--accent); }
+.fl-btn--tonal:hover:not(:disabled) { background: var(--accent-wash); }
+
+.fl-btn--quiet { background: transparent; color: var(--accent); }
+.fl-btn--quiet:hover:not(:disabled) { background: var(--accent-wash); }
+
+.fl-btn--danger { background: var(--danger); color: #fff; }
+.fl-btn--danger:hover:not(:disabled) { filter: brightness(1.08); }
+
+.fl-btn--chip { background: var(--surface-container-low); color: var(--text-secondary); border-color: transparent; }
+.fl-btn--chip:hover:not(:disabled) { background: var(--surface-container); }
+.fl-btn--chip[aria-pressed="true"], .fl-btn--chip.is-on { background: var(--accent); color: #fff; }
+
+/* Surfaces. 2,079 objects in the app act as a card. */
+.fl-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--elev-1);
+}
+.fl-card--flat { box-shadow: none; }
+.fl-card--sunken { background: var(--surface-container-low); border-color: transparent; box-shadow: none; }
+.fl-card--raised { box-shadow: var(--elev-2); }
+.fl-card--accent { background: var(--accent-wash); border-color: rgba(146, 64, 94, .16); }
+.fl-card--inverse { background: var(--surface-inverse); color: var(--text-on-inverse); border-color: transparent; }
+
 /* ===== Florrie design tokens (UX blueprint 2026-06-30) ===== */
 :root {
   --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px;
@@ -117,5 +210,10 @@ body {
      page, so a page adds nothing of its own. Pages that still set this stay
      correct instead of double-padding to ~150px of dead space. */
   --scroll-pad-bottom:0px;
+  /* A strong "selected" surface. 13 sites paint raw ink as a background for an
+     active filter chip; it is a deliberate treatment, it just had no name and
+     no dark-mode value. Not maroon, because maroon means "you can touch this"
+     and a selected chip would then look like a primary button. */
+  --surface-inverse:#241B17; --text-on-inverse:#FBF6F1;
   --dur-fast:140ms; --dur-base:220ms; --dur-slow:320ms; --ease-out:cubic-bezier(.22,1,.36,1);
 }
