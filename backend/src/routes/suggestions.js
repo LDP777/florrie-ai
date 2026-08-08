@@ -5,7 +5,7 @@ import logger from '../lib/logger.js';
 import { nextBankHoliday, postcodeToDivision } from '../lib/bank-holidays.js';
 import { getFutureBookedClientIds } from '../lib/future-bookings.js';
 import { guardedSend } from '../lib/outbound-guard.js';
-import { sendSMS, sendOnPreferredChannel } from '../services/notifications.js';
+import { sendSMS, sendOnPreferredChannel, notifyBookingConfirmed } from '../services/notifications.js';
 import { getGapFillSuggestions, gapFillDiagnostic } from '../services/gap-fill-engine.js';
 import { quietWeekStatus } from '../services/florrie-heartbeat.js';
 
@@ -212,6 +212,15 @@ router.post('/book', requireAuth, async (req, res) => {
     .update({ status: 'approved', reviewed_at: new Date().toISOString() })
     .eq('id', id)
     .eq('beautician_id', beauticianId);
+
+  // Approving a Florrie-thinks card puts a real booking in the diary. Until
+  // now it told the client nothing — so the one place in the app where the
+  // machine books somebody in was also the quietest. Fire-and-forget here,
+  // deliberately: the card's job is to disappear the instant she taps it, and
+  // this suggestion always concerns a future slot with a known client.
+  notifyBookingConfirmed(appointment.id).catch((err) =>
+    logger.warn({ err, appointmentId: appointment.id }, 'Florrie-thinks booking confirmation failed')
+  );
 
   return res.status(201).json({ ok: true, appointment_id: appointment.id });
 });

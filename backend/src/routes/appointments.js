@@ -267,7 +267,29 @@ router.post('/', requireAuth, async (req, res) => {
     }
     return res.status(500).json({ error: 'Something went wrong' });
   }
-  res.status(201).json({ appointment });
+
+  // This route creates a real, confirmed booking and told the client nothing.
+  // It is the plain sibling of /manual, which at least has a toggle; here
+  // there was no send at all and no way to ask for one.
+  //
+  // Default ON, unconditionally, and that is safe here in a way it is not on
+  // /manual: line 179 above already refuses a past start, so every booking
+  // that reaches this point is in the future and is one somebody is expecting
+  // to hear about. The backfill case cannot occur on this route.
+  const wantsConfirmation = typeof req.body?.send_confirmation === 'boolean'
+    ? req.body.send_confirmation
+    : true;
+  let confirmation = { requested: wantsConfirmation, sent: false, reason: 'not_requested' };
+  if (wantsConfirmation) {
+    try {
+      const result = await notifyBookingConfirmed(appointment.id);
+      confirmation = { requested: true, sent: !!result?.sent, channels: result?.channels || [], reason: result?.reason || null };
+    } catch (err) {
+      logger.warn({ err, appointmentId: appointment.id }, 'Appointment confirmation failed');
+      confirmation = { requested: true, sent: false, reason: 'delivery_failed' };
+    }
+  }
+  res.status(201).json({ appointment, confirmation });
 });
 
 /**
@@ -423,14 +445,31 @@ router.post('/manual', requireAuth, validate(manualAppointmentSchema), async (re
     return res.status(500).json({ error: 'Something went wrong' });
   }
 
-  // Fire-and-forget: confirmation only when explicitly asked for
+  // Awaited, not fire-and-forget, and the outcome goes back in the response.
+  //
+  // Levi asked to check that a client he books in himself actually gets the
+  // confirmation. Three things were in the way. The toggle defaulted off on
+  // every open. This call was fire-and-forget with a logger.warn, so a failure
+  // reached a log nobody reads. And notifyBookingConfirmed stamped
+  // confirmation_sent_at even when the client had neither a phone nor an email
+  // and nothing had gone anywhere — so the appointment then displayed a
+  // confirmation timestamp for a message that never existed.
+  //
+  // A second or so on the save is a fair price for the sheet being able to say
+  // "confirmation sent" or "no phone or email on file — nothing sent", which
+  // is the only version of this she can act on.
+  let confirmation = { requested: !!send_confirmation, sent: false, reason: 'not_requested' };
   if (send_confirmation) {
-    notifyBookingConfirmed(appointment.id).catch((err) =>
-      logger.warn({ err, appointmentId: appointment.id }, 'Manual appointment confirmation failed')
-    );
+    try {
+      const result = await notifyBookingConfirmed(appointment.id);
+      confirmation = { requested: true, sent: !!result?.sent, channels: result?.channels || [], reason: result?.reason || null };
+    } catch (err) {
+      logger.warn({ err, appointmentId: appointment.id }, 'Manual appointment confirmation failed');
+      confirmation = { requested: true, sent: false, reason: 'delivery_failed' };
+    }
   }
 
-  res.status(201).json({ appointment });
+  res.status(201).json({ appointment, confirmation });
 });
 
 /**

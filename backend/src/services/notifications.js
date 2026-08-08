@@ -975,22 +975,39 @@ function emailTemplate({ bizName, brandColor, tagline, content, logoUrl, signOff
 /**
  * Send a booking confirmation to the client.
  * Email sends by default unless explicitly disabled.
+ *
+ * Returns { sent, channels, reason } rather than undefined, because the
+ * caller has no other way to find out. This used to stamp
+ * `confirmation_sent_at` unconditionally at the end — including on a client
+ * with no phone and no email, where every delivery branch below is skipped
+ * and nothing whatsoever goes out. The appointment detail then showed a
+ * confirmation timestamp as dispute evidence for a message that was never
+ * sent. A record of a thing that did not happen is worse than no record.
+ *
+ * reason, when nothing went: no_appointment | paused | no_contact_details |
+ * all_channels_disabled.
  */
 export async function notifyBookingConfirmed(appointmentId) {
+  const channels = [];
   const { data: appt } = await supabase
     .from('appointments')
     .select('*, clients(first_name, phone, email), treatments(name, duration_minutes), beauticians(business_name, first_name, client_reminder_prefs, brand_color, booking_slug, tagline, logo_url)')
     .eq('id', appointmentId)
     .single();
 
-  if (!appt) return;
+  if (!appt) return { sent: false, channels, reason: 'no_appointment' };
 
   const client = appt.clients;
   const treatment = appt.treatments;
   const biz = appt.beauticians;
   const prefs = biz?.client_reminder_prefs || {};
   // Master pause — when on, nothing automated goes out on the beautician's behalf.
-  if (prefs.paused) return;
+  if (prefs.paused) return { sent: false, channels, reason: 'paused' };
+  // Nothing to send TO. Checked here rather than left to be discovered by
+  // every branch below silently declining, because "she has no phone number
+  // for this client" is much the most likely reason a manually-added booking
+  // produces no confirmation, and it is worth being able to say so.
+  if (!client?.phone && !client?.email) return { sent: false, channels, reason: 'no_contact_details' };
   const bizName = biz?.business_name || biz?.first_name;
   // timeZone UTC throughout: starts_at stores salon wall time in the UTC slot,
   // so local conversion told clients 11:30 for a 10:30 booking in BST.
@@ -1058,12 +1075,13 @@ export async function notifyBookingConfirmed(appointmentId) {
     const channel = prefs.channel || 'whatsapp';
     if (channel === 'whatsapp' && client.phone) {
       const waResult = await sendWhatsApp({ to: client.phone, templateName: 'booking_confirmation_v2', templateParams: [client.first_name, shortDate, timeStr], beauticianId: appt.beautician_id });
+      if (waResult) channels.push('whatsapp');
       // Fall through to SMS if WhatsApp not available
       if (!waResult && client.phone && BIRD_API_KEY) {
-        await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'booking_confirmation' });
+        if (await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'booking_confirmation' })) channels.push('sms');
       }
     } else if ((channel === 'sms' || !biz?.whatsapp_phone_id) && client.phone) {
-      await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'booking_confirmation' });
+      if (await sendSMS({ to: client.phone, body: textMsg, beauticianId: appt.beautician_id, messageType: 'booking_confirmation' })) channels.push('sms');
     }
   }
 
@@ -1123,11 +1141,15 @@ export async function notifyBookingConfirmed(appointmentId) {
       text: textMsg,
       html,
     });
+    channels.push('email');
     logOutboundToThread({ beauticianId: appt.beautician_id, clientId: appt.client_id, channel: 'email', body: textMsg });
   }
 
-  // Stamp when the confirmation went out, so the appointment detail can show
-  // it as dispute evidence. Best-effort.
+  // Only stamp it if something actually left. The timestamp is shown on the
+  // appointment as dispute evidence — "we confirmed this with you at 14:02" —
+  // so stamping it after every branch declined turns the record into a lie.
+  if (!channels.length) return { sent: false, channels, reason: 'all_channels_disabled' };
+
   try {
     await supabase
       .from('appointments')
@@ -1136,6 +1158,7 @@ export async function notifyBookingConfirmed(appointmentId) {
   } catch (err) {
     logger.warn({ err, appointmentId }, 'Could not stamp confirmation_sent_at');
   }
+  return { sent: true, channels };
 }
 
 /**

@@ -8,6 +8,7 @@ import { hapticTap, hapticSuccess } from '../lib/native.js';
 import { treatmentColor, tint } from '../lib/treatmentColors.js';
 import { parseDateOnly } from '../lib/dates.js';
 import Icon, { iconName } from '../components/ui/Icon';
+import Button from '../components/ui/Button';
 import Money from '../components/ui/Money';
 
 // 15-minute duration steps for the appointment-length picker (15 min to 8 h).
@@ -408,6 +409,14 @@ export default function CalendarView({ initialView } = {}) {
   // via location.state with the client pre-picked and the sheet open.
   const bookClient = location.state?.bookClient || null;
   const [showNewAppt, setShowNewAppt] = useState(!!bookClient);
+  // Said after the sheet closes, because the booking DID save — this is about
+  // the confirmation that did not go, which she would otherwise never learn.
+  const [saveNotice, setSaveNotice] = useState(null);
+  useEffect(() => {
+    if (!saveNotice) return;
+    const t = setTimeout(() => setSaveNotice(null), 7000);
+    return () => clearTimeout(t);
+  }, [saveNotice]);
   // Day grid scroll container + once-per-day auto-scroll tracking
   const gridScrollRef = useRef(null);
   // --- Drag-to-move (day view) ---------------------------------------------
@@ -1371,13 +1380,51 @@ export default function CalendarView({ initialView } = {}) {
         </div>
       )}
       {/* New appointment modal (plus button) */}
+      {saveNotice && (
+        <div
+          role="status"
+          style={{
+            position: 'fixed', left: 16, right: 16,
+            bottom: 'calc(env(safe-area-inset-bottom, 8px) + 96px)',
+            zIndex: 60, display: 'flex', gap: 10, alignItems: 'flex-start',
+            background: 'var(--warning-bg, #F7EEDD)', color: 'var(--warning-text, #79581C)',
+            borderRadius: 16, padding: '12px 14px', fontSize: 13, lineHeight: 1.45,
+            boxShadow: '0 8px 24px rgba(36,27,23,0.14)',
+          }}
+        >
+          <Icon name={iconName('warning')} size={18} inline style={{ flexShrink: 0, marginTop: 1 }} />
+          <span style={{ flex: 1, minWidth: 0 }}>{saveNotice}</span>
+          <Button variant="quiet" icon size="icon" aria-label="Dismiss"
+            onClick={() => setSaveNotice(null)}
+            style={{ color: 'inherit', flexShrink: 0, width: 28, height: 28 }}>
+            <Icon name={iconName('close')} size={16} inline />
+          </Button>
+        </div>
+      )}
       {showNewAppt && (
         <NewAppointmentModal
           defaultDate={formatDate(currentDate)}
           existingAppointments={appointments}
           initialClient={bookClient}
           onClose={() => setShowNewAppt(false)}
-          onSaved={() => { setShowNewAppt(false); loadAppointments(); }}
+          onSaved={(confirmation) => {
+            setShowNewAppt(false);
+            loadAppointments();
+            // Only when it was asked for and did not go. Announcing every
+            // success would be noise; announcing a silent failure is the
+            // whole point — she has no other way to find out.
+            if (confirmation?.requested && !confirmation.sent) {
+              setSaveNotice(
+                confirmation.reason === 'no_contact_details'
+                  ? 'Booked in. No phone or email on file for them, so no confirmation was sent.'
+                  : confirmation.reason === 'paused'
+                    ? 'Booked in. Your messages are paused, so no confirmation was sent.'
+                    : confirmation.reason === 'all_channels_disabled'
+                      ? 'Booked in. Confirmations are switched off in your settings, so nothing was sent.'
+                      : 'Booked in, but the confirmation did not send. Worth messaging them yourself.'
+              );
+            }
+          }}
         />
       )}
       {/* Block Time modal */}
@@ -3160,6 +3207,22 @@ function BlockDetailSheet({ block, onDelete, onClose }) {
 // pick a treatment (price autofills but stays editable), and any time to the
 // minute via a native time input. "Send confirmation message" defaults
 // OFF so bookings mirrored from an old system never double-message clients.
+/**
+ * Is this date + time already gone?
+ *
+ * Compared as salon wall time, the same convention starts_at uses everywhere
+ * in this app — the date and time are exactly what she typed into the two
+ * inputs, so building a local Date from them and comparing to now is right,
+ * and converting anything to UTC here would be the bug.
+ */
+function isPastSlot(date, time) {
+  if (!date) return false;
+  const [h, m] = String(time || '00:00').split(':').map(Number);
+  const [y, mo, d] = String(date).split('-').map(Number);
+  if (!y || !mo || !d) return false;
+  return new Date(y, mo - 1, d, h || 0, m || 0).getTime() < Date.now();
+}
+
 function NewAppointmentModal({ defaultDate, existingAppointments = [], initialClient = null, onClose, onSaved }) {
   const [treatments, setTreatments] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]); // one or more treatments
@@ -3167,7 +3230,25 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
   const [duration, setDuration] = useState(60);
   const [date, setDate] = useState(defaultDate);
   const [time, setTime] = useState('10:00');
-  const [sendConfirmation, setSendConfirmation] = useState(false);
+  // ON for a booking in the future, OFF for one in the past.
+  //
+  // It used to be a flat `false` on every open, and the helper text explains
+  // why you would leave it off — "when copying over bookings from your old
+  // system" — so a default-off switch reads as the sensible normal state
+  // rather than as "this client will hear nothing from you". It was right for
+  // the migration week and wrong for every booking since.
+  //
+  // A past-dated manual add IS, by definition, the mirrored-from-elsewhere
+  // case the default was protecting; a future one is a real booking somebody
+  // is expecting to hear about. So derive it, and stop deriving the moment she
+  // touches the switch — silently flipping a control she has already set is
+  // its own kind of dishonesty.
+  const [sendConfirmation, setSendConfirmation] = useState(() => !isPastSlot(defaultDate, '10:00'));
+  const confirmationTouched = useRef(false);
+  useEffect(() => {
+    if (confirmationTouched.current) return;
+    setSendConfirmation(!isPastSlot(date, time));
+  }, [date, time]);
   // Client picking: search an existing client, or quick-create a new one
   const [clientMode, setClientMode] = useState('search'); // search | new
   const [query, setQuery] = useState('');
@@ -3180,6 +3261,10 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
   });
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
+  // Warn BEFORE she saves, not after. The quick-create form takes a name and
+  // an optional phone and no email at all, so a client added in a hurry has
+  // nothing to be messaged on — and the toggle being on said otherwise.
+  const noContactDetails = !selectedClient && !newPhone.trim();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   // Keep the bottom sheet above the on-screen keyboard (and its accessory bar)
@@ -3278,7 +3363,9 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
       const res = await authedFetch('/api/appointments/manual', { method: 'POST', body: JSON.stringify(payload) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not save the appointment');
-      onSaved();
+      // The booking saved either way; the confirmation is the part that can
+      // quietly not happen, so it is the part that gets said out loud.
+      onSaved(data.confirmation);
     } catch (err) {
       logger.error('Manual appointment save error:', err);
       setError(err.message || 'Could not save the appointment');
@@ -3472,11 +3559,11 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
             />
           </div>
         </div>
-        {/* Send confirmation toggle, OFF by default */}
+        {/* On for a future booking, off for one being copied in from the past. */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
           <span style={{ fontSize: 14, fontWeight: 500, color: COLORS.onSurface }}>Send confirmation message</span>
           <button className="fl-tap"
-            onClick={() => setSendConfirmation(v => !v)}
+            onClick={() => { confirmationTouched.current = true; setSendConfirmation(v => !v); }}
             aria-pressed={sendConfirmation}
             style={{ width: 44, height: 24, borderRadius: 10, border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', padding: 0, background: sendConfirmation ? COLORS.primary : COLORS.outlineVariant }}
           >
@@ -3484,7 +3571,11 @@ function NewAppointmentModal({ defaultDate, existingAppointments = [], initialCl
           </button>
         </div>
         <p style={{ fontSize: 11, color: COLORS.stone400, margin: '0 0 4px' }}>
-          Leave off when copying over bookings from your old system, so clients don't get a duplicate message.
+          {sendConfirmation
+            ? (noContactDetails
+              ? "You have no phone number for this client, so there's nothing to send to. Add one above and they'll get a confirmation."
+              : "They'll get a message confirming the day and time.")
+            : 'Off, so nothing is sent — right when you\'re copying a booking over from somewhere else.'}
         </p>
         </div>{/* end scrollable body */}
         {/* Sticky footer: the clash note, any error, and the always-visible
