@@ -131,17 +131,60 @@ body {
 .fl-btn--lg { min-height: 52px; padding: 0 20px; font-size: 15px; font-weight: 600; border-radius: var(--radius-md); }
 
 /* Anything under the 44px floor gets an invisible, centred hit area, so a small
-   chip stays small and is still comfortably tappable. */
-.fl-btn--xs, .fl-btn--sm, .fl-btn--icon { position: relative; }
-.fl-btn--xs::after, .fl-btn--sm::after, .fl-btn--icon::after {
+   chip stays small and is still comfortably tappable.
+ *
+ * Centred on both axes. `left:0; right:0; min-width:44px` reads as centred and
+ * is not: on a control narrower than 44px the box grows to the right only, so
+ * the hit area sits off to one side of the thing you can see. That was the old
+ * rule, and it was wrong on every icon button in the app.
+ *
+ * The overhang deliberately sits at the element's own paint level, NOT behind
+ * it. `z-index: -1` looks like the careful choice — it would stop a chip's
+ * invisible margin from covering its neighbour — and it does not work: a
+ * negative-z pseudo drops below every in-flow ancestor box, so the page
+ * background wins the hit test and the expansion reaches nothing at all.
+ *
+ * DEFAULT IS VERTICAL ONLY, and that is the important line in this file.
+ * Expanding both axes by default is the obvious thing to write and it is
+ * actively harmful: the overhang is (44 - size) / 2 per side, so three 32px
+ * toolbar buttons 4px apart overlap their neighbours' *visible faces* by 2px
+ * each. I wrote "it can only ever reach into the gap" in this comment and
+ * scripts/check-tap-targets.mjs disproved it on the next run.
+ *
+ * There is no CSS that conjures space a row does not have. If a row of controls
+ * has a 36px pitch, 44px targets do not fit, full stop — the fix there is to
+ * widen the controls or the row, which is a design change and belongs in the
+ * screen, not in a utility class. So the utility does the axis that is almost
+ * always free (vertical, in a horizontal row) and stays out of the one that is
+ * not.
+ */
+.fl-btn--xs, .fl-btn--sm, .fl-btn--icon, .fl-tap, .fl-tap--box { position: relative; }
+.fl-btn--xs::after, .fl-btn--sm::after, .fl-btn--icon::after,
+.fl-tap::after, .fl-tap--box::after {
   content: '';
   position: absolute;
-  left: 0; right: 0;
   top: 50%;
-  height: 44px;
-  transform: translateY(-50%);
-  min-width: 44px;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  min-height: 44px;
+  transform: translate(-50%, -50%);
 }
+
+/* Both axes. Only for a control with clear space around it — a lone icon button
+   in a header, a close button in a sheet corner. Never inside a row of siblings;
+   see above for why. */
+.fl-tap--box::after { min-width: 44px; }
+
+/* Horizontal only, for a tight vertical list where rows are already touching. */
+.fl-tap--h::after { min-height: 0; min-width: 44px; }
+
+/* `fl-tap` is the 44px floor for the elements that are not <Button> yet: 147 of
+   them across 22 screens, between 14px and 43px tall — day cells, chips, the
+   little x on a filter, the segmented controls.
+ *
+ * It needs an ancestor without `overflow: hidden`, or the overhang is clipped
+ * and this silently does nothing. The check script asserts that too. */
 
 .fl-btn--icon { padding: 0; width: 40px; min-height: 40px; border-radius: var(--radius-sm); }
 .fl-btn--full { width: 100%; }

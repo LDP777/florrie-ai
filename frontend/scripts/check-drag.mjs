@@ -18,7 +18,7 @@
  *   node scripts/check-drag.mjs
  */
 import { build } from 'esbuild';
-import { chromium } from '@playwright/test';
+import { launch } from './lib/browser.mjs';
 import http from 'node:http';
 
 const FIXTURE = new URL('./fixtures/drag-list.fixture.jsx', import.meta.url).pathname;
@@ -42,7 +42,7 @@ const server = http.createServer((req, res) => {
 await new Promise(r => server.listen(0, r));
 const port = server.address().port;
 
-const browser = await chromium.launch({
+const browser = await launch({
   executablePath: process.env.PLAYWRIGHT_CHROMIUM || undefined,
 });
 const page = await browser.newPage({ viewport: { width: 390, height: 700 }, hasTouch: true, isMobile: true });
