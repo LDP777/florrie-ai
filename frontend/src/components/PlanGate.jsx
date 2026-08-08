@@ -186,7 +186,7 @@ const styles = {
   },
   checkIcon: {
     fontSize: 18,
-    color: 'var(--success, #3F7D5C)',
+    color: 'var(--success, #386F52)',
   },
   upgradeBtn: {
     width: '100%',

@@ -85,7 +85,7 @@ export default function Reviews() {
           <span style={styles.heroRating}>{avgRating}</span>
           <div style={styles.heroStars}>
             {[1, 2, 3, 4, 5].map(i => (
-              <span key={i} style={{ fontSize: 16, color: i <= Math.round(parseFloat(avgRating)) ? 'var(--warning, #8A6420)' : 'var(--text-muted, #6B5D54)' }}><Icon name="star" size={15} /></span>
+              <span key={i} style={{ fontSize: 16, color: i <= Math.round(parseFloat(avgRating)) ? 'var(--warning, #79581C)' : 'var(--text-muted, #6B5D54)' }}><Icon name="star" size={15} /></span>
             ))}
           </div>
           <span style={styles.heroCount}>{reviews.length} review{reviews.length !== 1 ? 's' : ''}</span>
@@ -106,7 +106,7 @@ export default function Reviews() {
               <div key={star} style={styles.ratingBar}>
                 <span style={styles.ratingBarLabel}>{star}★</span>
                 <div style={styles.ratingBarTrack}>
-                  <div style={{ ...styles.ratingBarFill, width: `${pct}%`, background: star <= 2 ? 'var(--danger, #9E2B32)' : star === 3 ? 'var(--warning, #8A6420)' : 'var(--success, #3F7D5C)' }} />
+                  <div style={{ ...styles.ratingBarFill, width: `${pct}%`, background: star <= 2 ? 'var(--danger, #9E2B32)' : star === 3 ? 'var(--warning, #79581C)' : 'var(--success, #386F52)' }} />
                 </div>
                 <span style={styles.ratingBarPct}>{pct}%</span>
               </div>
@@ -163,7 +163,7 @@ export default function Reviews() {
                   </div>
                   <div style={styles.reviewStars}>
                     {[1, 2, 3, 4, 5].map(i => (
-                      <span key={i} style={{ fontSize: 13, color: i <= review.rating ? 'var(--warning, #8A6420)' : 'var(--text-muted, #6B5D54)' }}><Icon name="star" size={15} /></span>
+                      <span key={i} style={{ fontSize: 13, color: i <= review.rating ? 'var(--warning, #79581C)' : 'var(--text-muted, #6B5D54)' }}><Icon name="star" size={15} /></span>
                     ))}
                   </div>
                 </div>
@@ -308,7 +308,7 @@ const styles = {
   ratingBar: { display: 'flex', alignItems: 'center', gap: 6 },
   ratingBarLabel: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', width: 22, textAlign: 'right' },
   ratingBarTrack: { flex: 1, height: 6, borderRadius: 6, background: 'var(--bg-hover, #f3ede9)', overflow: 'hidden' },
-  ratingBarFill: { height: '100%', borderRadius: 6, background: 'var(--success, #3F7D5C)', transition: 'width 0.3s ease' },
+  ratingBarFill: { height: '100%', borderRadius: 6, background: 'var(--success, #386F52)', transition: 'width 0.3s ease' },
   ratingBarPct: { fontSize: 10, color: 'var(--text-muted, #6B5D54)', width: 28, textAlign: 'right' },
 
   // Tabs

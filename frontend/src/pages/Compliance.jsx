@@ -123,7 +123,7 @@ export default function Compliance() {
         ) : (
           <div style={S.statsRow}>
             <div style={S.statItem}>
-              <span style={{ ...S.statNum, color: patchStats?.pending > 0 ? '#E85D75' : 'var(--success, #3F7D5C)' }}>
+              <span style={{ ...S.statNum, color: patchStats?.pending > 0 ? '#E85D75' : 'var(--success, #386F52)' }}>
                 {patchStats?.pending ?? '-'}
               </span>
               <span style={S.statLabel}>Pending</span>
@@ -135,7 +135,7 @@ export default function Compliance() {
             </div>
             <div style={S.statDivider} />
             <div style={S.statItem}>
-              <span style={{ ...S.statNum, color: patchStats?.expired > 0 ? '#F59E0B' : 'var(--success, #3F7D5C)' }}>
+              <span style={{ ...S.statNum, color: patchStats?.expired > 0 ? '#F59E0B' : 'var(--success, #386F52)' }}>
                 {patchStats?.expired ?? '-'}
               </span>
               <span style={S.statLabel}>Expired</span>

@@ -177,7 +177,7 @@ const styles = {
     margin: '0 0 4px', letterSpacing: '-0.03em',
     fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)",
   },
-  goldBar: { width: 40, height: 2, background: 'var(--gold, #8A6420)', margin: '12px auto 0', borderRadius: 6 },
+  goldBar: { width: 40, height: 2, background: 'var(--gold, #79581C)', margin: '12px auto 0', borderRadius: 6 },
   form: {
     background: 'var(--bg-card)', borderRadius: 22, padding: 24,
     boxShadow: 'var(--shadow-lg)',

@@ -19,15 +19,15 @@ import Money from '../components/ui/Money';
 
 const PRIORITY_CONFIG = {
   vip: { label: 'VIP', bg: '#F0E6ED', color: 'var(--accent, #92405e)', icon: 'star' },
-  regular: { label: 'Regular', bg: '#F0ECE8', color: '#8B6F5E', icon: 'person' },
-  flexible: { label: 'Flexible', bg: '#E8F5E9', color: 'var(--success, #3F7D5C)', icon: 'autorenew' },
+  regular: { label: 'Regular', bg: '#F0ECE8', color: '#735C4E', icon: 'person' },
+  flexible: { label: 'Flexible', bg: '#E8F5E9', color: 'var(--success, #386F52)', icon: 'autorenew' },
 };
 const STATUS_CONFIG = {
-  waiting: { label: 'Waiting', bg: '#FFF5E6', color: 'var(--gold, #8A6420)' },
-  active: { label: 'Waiting', bg: '#FFF5E6', color: 'var(--gold, #8A6420)' },
+  waiting: { label: 'Waiting', bg: '#FFF5E6', color: 'var(--gold, #79581C)' },
+  active: { label: 'Waiting', bg: '#FFF5E6', color: 'var(--gold, #79581C)' },
   notified: { label: 'Notified', bg: '#E3F2FD', color: 'var(--info, #2E6DA4)' },
-  offered: { label: 'Slot offered', bg: '#E8F5E9', color: '#4CAF50' },
-  booked: { label: 'Booked', bg: '#E8F5E9', color: '#4CAF50' },
+  offered: { label: 'Slot offered', bg: '#E8F5E9', color: '#306F33' },
+  booked: { label: 'Booked', bg: '#E8F5E9', color: '#306F33' },
   expired: { label: 'Expired', bg: '#F0ECE8', color: 'var(--text-muted, #6B5D54)' },
 };
 const ACTIVE_STATUSES = ['waiting', 'active', 'notified', 'offered'];
@@ -227,9 +227,9 @@ export default function WaitlistPro() {
       <div style={S.statsRow}>
         {[
           { label: 'Active', value: stats.active, colour: 'var(--accent, #92405e)' },
-          { label: 'VIP', value: stats.vip, colour: 'var(--gold, #8A6420)' },   // #B8860B was 3.18:1
-          { label: 'Deposits', value: `£${(stats.deposits / 100).toFixed(0)}`, colour: 'var(--success, #3F7D5C)' },   // #6B8F7B was 3.52:1
-          { label: 'Avg wait', value: `${stats.avgWait}d`, colour: '#8B6F5E' },
+          { label: 'VIP', value: stats.vip, colour: 'var(--gold, #79581C)' },   // #B8860B was 3.18:1
+          { label: 'Deposits', value: `£${(stats.deposits / 100).toFixed(0)}`, colour: 'var(--success, #386F52)' },   // #6B8F7B was 3.52:1
+          { label: 'Avg wait', value: `${stats.avgWait}d`, colour: '#735C4E' },
         ].map(s => (
           <div key={s.label} style={S.statCard}>
             <span style={{ ...S.statValue, color: s.colour }}>{s.value}</span>
@@ -319,7 +319,7 @@ export default function WaitlistPro() {
                       {w.deposit_held && (
                         <div style={S.detailItem}>
                           <span style={S.detailLabel}>Deposit</span>
-                          <span style={{ ...S.detailValue, color: 'var(--success, #3F7D5C)' }}><Money pence={(w.deposit_amount_cents || 0)} round /> held</span>
+                          <span style={{ ...S.detailValue, color: 'var(--success, #386F52)' }}><Money pence={(w.deposit_amount_cents || 0)} round /> held</span>
                         </div>
                       )}
                     </div>
@@ -479,8 +479,8 @@ const S = {
   statusBadge: { padding: '3px 10px', borderRadius: 10, fontSize: 11, fontWeight: 600 },
   wlDays: { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
   offerBanner: { margin: '10px 0 0', padding: '8px 12px', borderRadius: 10, background: 'var(--success-bg, #E9F0EB)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  offerText: { fontSize: 12, fontWeight: 600, color: 'var(--success, #3F7D5C)' },
-  offerExpiry: { fontSize: 11, color: 'var(--success, #3F7D5C)' },
+  offerText: { fontSize: 12, fontWeight: 600, color: 'var(--success, #386F52)' },
+  offerExpiry: { fontSize: 11, color: 'var(--success, #386F52)' },
   expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, #E8DDD4)' },
   detailGrid: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 10 },
   detailItem: { display: 'flex', flexDirection: 'column', gap: 2 },

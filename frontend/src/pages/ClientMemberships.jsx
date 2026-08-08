@@ -6,8 +6,8 @@ import ErrorCard from '../components/ErrorCard.jsx';
 import Icon from '../components/ui/Icon';
 
 const STATUS_COLORS = {
-  active: { bg: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #3F7D5C)' },
-  paused: { bg: 'var(--warning-bg, #F7EEDD)', color: 'var(--warning-text, #8A6420)' },
+  active: { bg: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #386F52)' },
+  paused: { bg: 'var(--warning-bg, #F7EEDD)', color: 'var(--warning-text, #79581C)' },
   cancelled: { bg: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger, #9E2B32)' },
   expired: { bg: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger, #9E2B32)' },
 };
@@ -230,7 +230,7 @@ export default function ClientMemberships() {
                     <div style={s.detailRow}><span style={s.detailLabel}>Next bill</span><span>{member.nextBill || 'Not set'}</span></div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
                       {member.status === 'active' && <button onClick={e => { e.stopPropagation(); updateMemberStatus(member.id, 'paused'); }} style={s.smallBtn}>Pause</button>}
-                      {member.status === 'paused' && <button onClick={e => { e.stopPropagation(); updateMemberStatus(member.id, 'active'); }} style={{ ...s.smallBtn, color: 'var(--success, #3F7D5C)' }}>Resume</button>}
+                      {member.status === 'paused' && <button onClick={e => { e.stopPropagation(); updateMemberStatus(member.id, 'active'); }} style={{ ...s.smallBtn, color: 'var(--success, #386F52)' }}>Resume</button>}
                       {member.status !== 'cancelled' && <button onClick={e => { e.stopPropagation(); updateMemberStatus(member.id, 'cancelled'); }} style={{ ...s.smallBtn, color: 'var(--danger, #9E2B32)' }}>Cancel</button>}
                     </div>
                   </div>

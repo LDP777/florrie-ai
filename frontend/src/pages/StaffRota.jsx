@@ -36,7 +36,7 @@ export default function StaffRota() {
   // team_members rows store first_name/last_name/working_hours; this page
   // renders name/hours/colour. Normalise so real rows display correctly
   // instead of showing blank names and "Off" for every day.
-  const PALETTE = ['#C76B8A', '#6B8F7B', '#8B6F5E', '#7B85C7', '#C7A86B'];
+  const PALETTE = ['#C76B8A', '#6B8F7B', '#735C4E', '#7B85C7', '#C7A86B'];
   function normaliseStaff(rows) {
     return (rows || []).map((r, i) => ({
       ...r,
@@ -226,11 +226,11 @@ export default function StaffRota() {
           <span style={S.statLabel}>Team</span>
         </div>
         <div style={S.statCard}>
-          <span style={{ ...S.statValue, color: 'var(--success, #3F7D5C)' }}>{totalWeekHours.toFixed(0)}h</span>
+          <span style={{ ...S.statValue, color: 'var(--success, #386F52)' }}>{totalWeekHours.toFixed(0)}h</span>
           <span style={S.statLabel}>Weekly Hours</span>
         </div>
         <div style={S.statCard}>
-          <span style={{ ...S.statValue, color: '#8B6F5E' }}>{exceptions.length}</span>
+          <span style={{ ...S.statValue, color: '#735C4E' }}>{exceptions.length}</span>
           <span style={S.statLabel}>Exceptions</span>
         </div>
       </div>

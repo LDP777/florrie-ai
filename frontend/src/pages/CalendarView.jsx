@@ -922,7 +922,7 @@ export default function CalendarView({ initialView } = {}) {
             onClick={handleMarkAllDone}
             disabled={markingAllDone}
             title="Mark all done"
-            style={{ height: 36, padding: '0 12px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #FFFCF9)', color: 'var(--success, #3F7D5C)', cursor: markingAllDone ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', opacity: markingAllDone ? 0.6 : 1 }}
+            style={{ height: 36, padding: '0 12px', borderRadius: 10, border: `1px solid ${COLORS.outlineVariant}`, background: 'var(--card-bg, #FFFCF9)', color: 'var(--success, #386F52)', cursor: markingAllDone ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, flexShrink: 0, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', opacity: markingAllDone ? 0.6 : 1 }}
           >
             <Icon name={iconName('done_all')} size={15} inline style={{ }} />
             {markingAllDone ? '…' : 'All done'}
@@ -2483,12 +2483,12 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary, #574A42)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Notes</span>
               {notes !== (appointment.beautician_notes || '') && (
                 <button className="fl-tap" onClick={handleSaveNote}
-                  style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: noteSaved ? 'var(--success-bg, #E9F0EB)' : 'var(--accent)', color: noteSaved ? 'var(--success, #3F7D5C)' : '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'all 0.15s' }}>
+                  style={{ fontSize: 11, padding: '3px 10px', borderRadius: 6, border: 'none', background: noteSaved ? 'var(--success-bg, #E9F0EB)' : 'var(--accent)', color: noteSaved ? 'var(--success, #386F52)' : '#fff', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, transition: 'all 0.15s' }}>
                   {noteSaved ? 'Saved' : 'Save'}
                 </button>
               )}
               {noteSaved && notes === (appointment.beautician_notes || '') && (
-                <span style={{ fontSize: 11, color: 'var(--success, #3F7D5C)', fontWeight: 600 }}><Icon name="check" size={14} inline /> Saved</span>
+                <span style={{ fontSize: 11, color: 'var(--success, #386F52)', fontWeight: 600 }}><Icon name="check" size={14} inline /> Saved</span>
               )}
             </div>
             <textarea
@@ -2725,7 +2725,7 @@ function AppointmentDetail({ appointment, beautician, onClose, onUpdate, onRefre
               and charges the policy fee, so the Money tab updates. */}
           {isCompleted && (
             <div style={{ marginTop: 12, padding: 10, borderRadius: 10, background: 'var(--success-bg, #E9F0EB)', textAlign: 'center' }}>
-              <span style={{ fontSize: 13, color: 'var(--success-text, #3F7D5C)', fontWeight: 600 }}>
+              <span style={{ fontSize: 13, color: 'var(--success-text, #386F52)', fontWeight: 600 }}>
                 {appointment.payment_method ? 'Completed' : 'Done (assumed)'}
               </span>
               <button className="fl-tap" onClick={() => { hapticTap(); handleMarkNoShow(); }} disabled={saving}

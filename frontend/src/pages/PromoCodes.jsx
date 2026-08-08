@@ -12,7 +12,7 @@ import Icon from '../components/ui/Icon';
 const fmt = (cents) => `£${(Math.abs(cents) / 100).toFixed(2)}`;
 
 const STATUS_CONFIG = {
-  active: { label: 'Active', bg: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #3F7D5C)' },
+  active: { label: 'Active', bg: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #386F52)' },
   expired: { label: 'Expired', bg: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger, #9E2B32)' },
   paused: { label: 'Paused', bg: 'var(--gold-light, #ffdea4)', color: 'var(--gold-text, #795f2b)' },
 };

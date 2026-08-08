@@ -357,7 +357,7 @@ export default function EndOfDay() {
                 {cashDiff !== null && (
                   <div style={{ ...styles.diffBadge,
                     background: parseFloat(cashDiff) === 0 ? 'var(--success-bg, #E9F0EB)' : 'var(--warning-bg, #F7EEDD)',
-                    color: parseFloat(cashDiff) === 0 ? '#2E7D32' : '#E65100',
+                    color: parseFloat(cashDiff) === 0 ? '#2E7D32' : '#B33F00',
                   }}>
                     {parseFloat(cashDiff) === 0
                       ? '\u2705 Exact match'
@@ -380,7 +380,7 @@ export default function EndOfDay() {
                 <button
                   onClick={() => setIsReconciled(true)}
                   style={{ ...styles.reconBtn,
-                    background: isReconciled ? 'var(--success, #3F7D5C)' : 'var(--accent, #92405e)'
+                    background: isReconciled ? 'var(--success, #386F52)' : 'var(--accent, #92405e)'
                   }}
                 >
                   {isReconciled ? '\u2713 Reconciled' : 'Mark as Reconciled'}
@@ -468,7 +468,7 @@ const styles = {
 
   timelineRow: { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: '1px solid #F0ECE8' },
   timelineTime: { fontSize: 13, fontWeight: 600, color: 'var(--text-muted, #6B5D54)', width: 42, flexShrink: 0 },
-  timelineDot: (status) => ({ width: 8, height: 8, borderRadius: 6, flexShrink: 0, background: status === 'completed' ? 'var(--success, #3F7D5C)' : (status === 'no-show' || status === 'no_show') ? 'var(--danger, #9E2B32)' : status === 'cancelled' ? 'var(--warning, #8A6420)' : status === 'confirmed' ? 'var(--success, #3F7D5C)' : 'var(--text-muted, #6B5D54)' }),
+  timelineDot: (status) => ({ width: 8, height: 8, borderRadius: 6, flexShrink: 0, background: status === 'completed' ? 'var(--success, #386F52)' : (status === 'no-show' || status === 'no_show') ? 'var(--danger, #9E2B32)' : status === 'cancelled' ? 'var(--warning, #79581C)' : status === 'confirmed' ? 'var(--success, #386F52)' : 'var(--text-muted, #6B5D54)' }),
   timelineClient: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
   timelineTreatment: { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
   timelineAmount: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)' },

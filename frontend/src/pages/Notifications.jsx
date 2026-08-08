@@ -25,7 +25,7 @@ const CATEGORIES = {
   booking: { label: 'Bookings', icon: 'calendar', color: '#E3F2FD', textColor: '#1565C0' },
   payment: { label: 'Payments', icon: 'pound', color: 'var(--success-bg, #E9F0EB)', textColor: '#2E7D32' },
   ai: { label: 'florrie.ai', icon: 'sparkles', color: 'var(--accent-light, #F6E7EC)', textColor: 'var(--accent, #92405e)' },
-  client: { label: 'Clients', icon: 'user', color: '#FFF3E0', textColor: '#E65100' },
+  client: { label: 'Clients', icon: 'user', color: '#FFF3E0', textColor: '#B33F00' },
   system: { label: 'System', icon: 'settings', color: 'var(--bg-hover, var(--bg-subtle, #ede7e3))', textColor: '#5A5550' },
 };
 

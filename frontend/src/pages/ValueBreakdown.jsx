@@ -184,7 +184,14 @@ const S = {
 
   heroCard: { background: 'var(--tone-1, #fbf1ea)', borderRadius: 22, padding: '20px 18px', textAlign: 'center' },
   heroEyebrow: { fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 },
-  heroAmount: { fontSize: 44, fontWeight: 700, color: 'var(--accent, #92405e)', fontFamily: "var(--font-display, 'Playfair Display', Georgia, serif)", lineHeight: 1 },
+  // Money goes in the numeral face, at every size. Playfair's figures are
+  // old-style — the 0 and the 4 drop below the baseline — which is handsome in
+  // a heading and wrong in a total. The page title above keeps Playfair.
+  heroAmount: {
+    fontSize: 44, fontWeight: 700, color: 'var(--accent, #92405e)', lineHeight: 1,
+    fontFamily: "var(--font-body, 'Plus Jakarta Sans', -apple-system, sans-serif)",
+    fontVariantNumeric: 'tabular-nums',
+  },
   heroSub: { fontSize: 13.5, color: 'var(--text-secondary)', marginTop: 8 },
 
   partsRow: { display: 'flex', gap: 10, flexWrap: 'wrap' },

@@ -384,7 +384,7 @@ const S = {
     width: 20,
     height: 20,
     borderRadius: '50%',
-    background: 'var(--success, #3F7D5C)',
+    background: 'var(--success, #386F52)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',

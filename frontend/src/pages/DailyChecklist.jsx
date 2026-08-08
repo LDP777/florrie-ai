@@ -491,7 +491,7 @@ export default function DailyChecklist() {
       {/* ─── Template toast ─── */}
       {templateToast && (
         <div style={S.toast}>
-          <Icon name={iconName('check_circle')} size={16} filled inline style={{ color: 'var(--success, #3F7D5C)' }} />
+          <Icon name={iconName('check_circle')} size={16} filled inline style={{ color: 'var(--success, #386F52)' }} />
           {templateToast}
         </div>
       )}
@@ -555,8 +555,8 @@ export default function DailyChecklist() {
               background: allOpeningDone ? 'rgba(91,169,123,0.12)' : 'rgba(254,219,155,0.4)',
               borderColor: allOpeningDone ? 'rgba(91,169,123,0.15)' : 'rgba(116,90,39,0.1)',
             }}>
-              <Icon name={iconName(allOpeningDone ? 'check_circle' : 'schedule')} size={14} filled inline style={{ color: allOpeningDone ? 'var(--success, #3F7D5C)' : '#745a27' }} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: allOpeningDone ? 'var(--success, #3F7D5C)' : '#745a27' }}>
+              <Icon name={iconName(allOpeningDone ? 'check_circle' : 'schedule')} size={14} filled inline style={{ color: allOpeningDone ? 'var(--success, #386F52)' : '#745a27' }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: allOpeningDone ? 'var(--success, #386F52)' : '#745a27' }}>
                 Open
               </span>
             </div>
@@ -564,8 +564,8 @@ export default function DailyChecklist() {
               background: allClosingDone ? 'rgba(91,169,123,0.12)' : 'rgba(146,64,94,0.06)',
               borderColor: allClosingDone ? 'rgba(91,169,123,0.15)' : 'rgba(146,64,94,0.08)',
             }}>
-              <Icon name={iconName(allClosingDone ? 'check_circle' : 'radio_button_unchecked')} size={14} filled={allClosingDone} inline style={{ color: allClosingDone ? 'var(--success, #3F7D5C)' : 'var(--text-muted, #6B5D54)' }} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: allClosingDone ? 'var(--success, #3F7D5C)' : 'var(--text-muted, #6B5D54)' }}>
+              <Icon name={iconName(allClosingDone ? 'check_circle' : 'radio_button_unchecked')} size={14} filled={allClosingDone} inline style={{ color: allClosingDone ? 'var(--success, #386F52)' : 'var(--text-muted, #6B5D54)' }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: allClosingDone ? 'var(--success, #386F52)' : 'var(--text-muted, #6B5D54)' }}>
                 Close
               </span>
             </div>
@@ -683,7 +683,7 @@ export default function DailyChecklist() {
       {/* ─── All done celebration (normal mode) ─── */}
       {!editing && progress === 100 && totalCount > 0 && (
         <section style={S.celebrationCard}>
-          <Icon name={iconName('celebration')} size={24} filled inline style={{ color: 'var(--success, #3F7D5C)' }} />
+          <Icon name={iconName('celebration')} size={24} filled inline style={{ color: 'var(--success, #386F52)' }} />
           <span style={S.celebrationText}>
             {tab === 'opening' ? 'Ready for the day!' : tab === 'closing' ? 'All wrapped up - see you tomorrow!' : 'All tasks done!'}
           </span>
@@ -785,7 +785,7 @@ export default function DailyChecklist() {
                     <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)', margin: 0 }}>{apt.client_name}</p>
                     <p style={{ fontSize: 11, color: 'var(--text-muted, #6B5D54)', margin: 0 }}>{apt.treatment_name}</p>
                   </div>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--gold, #8A6420)' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--gold, #79581C)' }}>
                     <Money pence={apt.price_cents} round />
                   </span>
                 </div>
@@ -958,7 +958,7 @@ const S = {
     display: 'flex', gap: 12, alignItems: 'center',
     marginBottom: 16,
   },
-  celebrationText: { fontSize: 14, fontWeight: 600, color: 'var(--success, #3F7D5C)' },
+  celebrationText: { fontSize: 14, fontWeight: 600, color: 'var(--success, #386F52)' },
   // Add item
   addBtn: {
     width: '100%', padding: '12px 0', borderRadius: 16,
@@ -1008,13 +1008,19 @@ const S = {
   },
   insightsIconWrap: {
     width: 36, height: 36, borderRadius: '50%',
-    background: 'var(--gold, #8A6420)',
+    background: 'var(--gold, #79581C)',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     flexShrink: 0,
   },
-  insightsTitle: { fontSize: 13, fontWeight: 700, color: '#795f2b', margin: '0 0 4px' },
+  // The insight sits on rgba(254,219,155,.35) over cream, which flattens to
+  // #fcedd3. The body used to be the title's gold at 0.8 alpha, and alpha on
+  // text is where readability quietly goes: 0.8 of #795f2b over that ground is
+  // #937b4d, which measures 3.49:1 — under AA, at 12px, in italic.
+  // Solid colours, and the hierarchy comes from the title being DARKER rather
+  // than the body being faded. 7.2:1 and 5.2:1.
+  insightsTitle: { fontSize: 13, fontWeight: 700, color: '#5F4B1F', margin: '0 0 4px' },
   insightsText: {
-    fontSize: 12, color: 'rgba(121, 95, 43, 0.8)',
+    fontSize: 12, color: '#795F2B',
     lineHeight: 1.5, fontStyle: 'italic', margin: 0,
   },
   // Section headers

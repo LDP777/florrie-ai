@@ -95,7 +95,7 @@ export default function StaffPerformance() {
       <div style={s.summaryGrid}>
         <StatCard label="Team Revenue" value={DASH} sub={period} color="var(--accent, #92405e)" />
         <StatCard label="Bookings" value={DASH} sub="completed" />
-        <StatCard label="Avg Rating" value={DASH} color="var(--warning, #8A6420)" />
+        <StatCard label="Avg Rating" value={DASH} color="var(--warning, #79581C)" />
         <StatCard label="Utilisation" value={DASH} sub="avg across team" />
       </div>
       <p style={s.kpiNote}>Per-member performance metrics are not tracked yet.</p>
@@ -148,11 +148,11 @@ export default function StaffPerformance() {
           <div style={s.summaryGrid}>
             <StatCard label="Revenue" value={DASH} color="var(--accent, #92405e)" />
             <StatCard label="Bookings" value={DASH} />
-            <StatCard label="Rating" value={DASH} color="var(--warning, #8A6420)" />
+            <StatCard label="Rating" value={DASH} color="var(--warning, #79581C)" />
             <StatCard label="Utilisation" value={DASH} />
           </div>
           <div style={s.summaryGrid}>
-            <StatCard label="Client Retention" value={DASH} color="var(--success, #3F7D5C)" />
+            <StatCard label="Client Retention" value={DASH} color="var(--success, #386F52)" />
             <StatCard label="Rebook Rate" value={DASH} />
             <StatCard label="Active Clients" value={DASH} />
             <StatCard label="No-shows" value={DASH} />

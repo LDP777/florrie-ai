@@ -25,8 +25,8 @@ const CATEGORIES = [
 ];
 
 const STATUS_CFG = {
-  ok: { label: 'In Stock', bg: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #3F7D5C)' },
-  low: { label: 'Low Stock', bg: 'var(--warning-bg, #F7EEDD)', color: 'var(--warning, #8A6420)' },
+  ok: { label: 'In Stock', bg: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #386F52)' },
+  low: { label: 'Low Stock', bg: 'var(--warning-bg, #F7EEDD)', color: 'var(--warning, #79581C)' },
   out: { label: 'Out of Stock', bg: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger, #9E2B32)' },
 };
 
@@ -223,8 +223,8 @@ export default function ProductInventory() {
           <span style={S.summaryNum}>{products.length}</span>
           <span style={S.summaryLabel}>Products</span>
         </div>
-        <div style={{ ...S.summaryCard, ...(lowCount > 0 ? { border: '1px solid var(--warning, #8A6420)' } : {}) }}>
-          <span style={{ ...S.summaryNum, color: 'var(--warning, #8A6420)' }}>{lowCount}</span>
+        <div style={{ ...S.summaryCard, ...(lowCount > 0 ? { border: '1px solid var(--warning, #79581C)' } : {}) }}>
+          <span style={{ ...S.summaryNum, color: 'var(--warning, #79581C)' }}>{lowCount}</span>
           <span style={S.summaryLabel}>Low Stock</span>
         </div>
         <div style={{ ...S.summaryCard, ...(outCount > 0 ? { border: '1px solid var(--danger, #9E2B32)' } : {}) }}>
@@ -243,7 +243,7 @@ export default function ProductInventory() {
           <span style={S.alertIcon}><Icon name="alert-triangle" size={15} /></span>
           <div style={S.alertText}>
             {outCount > 0 && <span style={{ color: 'var(--danger, #9E2B32)', fontWeight: 600, fontSize: 13 }}>{outCount} product{outCount !== 1 ? 's' : ''} out of stock. </span>}
-            {lowCount > 0 && <span style={{ color: 'var(--warning, #8A6420)', fontWeight: 600, fontSize: 13 }}>{lowCount} running low.</span>}
+            {lowCount > 0 && <span style={{ color: 'var(--warning, #79581C)', fontWeight: 600, fontSize: 13 }}>{lowCount} running low.</span>}
           </div>
         </div>
       )}
@@ -321,7 +321,7 @@ export default function ProductInventory() {
                     {prod.retailPrice && (
                       <div style={S.detailItem}>
                         <span style={S.detailLabel}>Margin</span>
-                        <span style={{ ...S.detailValue, color: 'var(--success, #3F7D5C)' }}>{Math.round(((prod.retailPrice - prod.costPer) / prod.retailPrice) * 100)}%</span>
+                        <span style={{ ...S.detailValue, color: 'var(--success, #386F52)' }}>{Math.round(((prod.retailPrice - prod.costPer) / prod.retailPrice) * 100)}%</span>
                       </div>
                     )}
                   </div>

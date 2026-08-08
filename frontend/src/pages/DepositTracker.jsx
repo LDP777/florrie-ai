@@ -24,9 +24,9 @@ import Icon, { iconName } from '../components/ui/Icon';
 const fmt = (cents) => `£${(Math.abs(cents) / 100).toFixed(2)}`;
 
 const STATUS_CONFIG = {
-  held: { label: 'Held', bg: '#FFF5E6', color: 'var(--gold, #8A6420)', icon: '⏳' },
+  held: { label: 'Held', bg: '#FFF5E6', color: 'var(--gold, #79581C)', icon: '⏳' },
   awaiting: { label: 'Awaiting payment', bg: '#FDF8EE', color: '#8A7245', icon: '·' },
-  applied: { label: 'Applied', bg: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #3F7D5C)', icon: 'check' },
+  applied: { label: 'Applied', bg: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #386F52)', icon: 'check' },
   refunded: { label: 'Refunded', bg: '#E3F2FD', color: 'var(--info, #2E6DA4)', icon: '↩' },
   forfeited: { label: 'Kept (policy)', bg: 'var(--danger-bg, #F7E4E4)', color: '#F44336', icon: 'x' },
   lapsed: { label: 'Lapsed', bg: 'var(--bg-subtle, #ede7e3)', color: 'var(--text-muted, #6B5D54)', icon: '—' },
@@ -119,7 +119,7 @@ export default function DepositTracker() {
         </div>
         <div style={S.summaryBreakdown}>
           {[
-            { label: 'Applied', value: totalApplied, colour: 'var(--success, #3F7D5C)' },
+            { label: 'Applied', value: totalApplied, colour: 'var(--success, #386F52)' },
             // #2196F3 measured 3.06:1 on the card; #F44336 is the same Material palette.
             { label: 'Refunded', value: totalRefunded, colour: 'var(--info, #2E6DA4)' },
             { label: 'Kept', value: totalForfeited, colour: 'var(--danger, #9E2B32)' },

@@ -26,16 +26,16 @@ const TYPE_CONFIG = {
   reactivation: { label: 'Comeback', icon: 'mail', color: 'var(--accent, #92405e)', desc: 'Win back clients who haven\'t visited in a while' },
   rescue: { label: 'Rescue', icon: 'alert-triangle', color: 'var(--danger, #9E2B32)', desc: 'Save a cancellation with a quick rebook offer' },
   weather: { label: 'Weather', icon: 'cloud-rain', color: 'var(--info, #4A6C82)', desc: 'Bad weather = pamper day. Triggered by forecast' },
-  bank_holiday: { label: 'Bank Holiday', icon: 'sparkles', color: 'var(--warning, #8A6420)', desc: 'Promo blast before long weekends' },
-  event: { label: 'Seasonal', icon: 'gift', color: 'var(--success, #3F7D5C)', desc: 'Christmas, Valentine\'s, Mother\'s Day specials' },
+  bank_holiday: { label: 'Bank Holiday', icon: 'sparkles', color: 'var(--warning, #79581C)', desc: 'Promo blast before long weekends' },
+  event: { label: 'Seasonal', icon: 'gift', color: 'var(--success, #386F52)', desc: 'Christmas, Valentine\'s, Mother\'s Day specials' },
   custom: { label: 'Custom', icon: 'edit', color: 'var(--text-secondary, #574A42)', desc: 'Write your own campaign from scratch' },
 };
 
 const STATUS_LABELS = {
-  draft: { label: 'Draft', color: 'var(--warning, #8A6420)', bg: 'var(--warning-bg, #F7EEDD)' },
+  draft: { label: 'Draft', color: 'var(--warning, #79581C)', bg: 'var(--warning-bg, #F7EEDD)' },
   approved: { label: 'Ready', color: 'var(--info, #4A6C82)', bg: 'var(--info-bg, #EAF0F4)' },
   sending: { label: 'Sending', color: 'var(--accent, #92405e)', bg: 'var(--accent-light, #F6E7EC)' },
-  sent: { label: 'Sent', color: 'var(--success, #3F7D5C)', bg: 'var(--success-bg, #E9F0EB)' },
+  sent: { label: 'Sent', color: 'var(--success, #386F52)', bg: 'var(--success-bg, #E9F0EB)' },
   cancelled: { label: 'Cancelled', color: 'var(--text-muted, #6B5D54)', bg: 'var(--bg-subtle, #ede7e3)' },
 };
 
@@ -423,7 +423,7 @@ export default function Campaigns() {
                 <PerfStat label="Delivered" value={detail.delivered_count || 0} />
                 <PerfStat label="Opened" value={detail.opened_count || 0} />
                 <PerfStat label="Replied" value={detail.responded_count || 0} />
-                <PerfStat label="Booked" value={detail.booked_count || 0} color="#4CAF50" />
+                <PerfStat label="Booked" value={detail.booked_count || 0} color="#306F33" />
               </div>
             )}
 
@@ -530,7 +530,7 @@ function CampaignCard({ campaign, sending, onApprove, onSend, onCancel, onView }
           <span style={styles.miniStat}>{<Icon name="inbox" inline />} {campaign.delivered_count || 0}</span>
           <span style={styles.miniStat}>{<Icon name="eye" inline />} {campaign.opened_count || 0}</span>
           <span style={styles.miniStat}>{<Icon name="message" inline />} {campaign.responded_count || 0}</span>
-          <span style={{ ...styles.miniStat, color: '#4CAF50', fontWeight: 600 }}>{<Icon name="calendar" inline />} {campaign.booked_count || 0}</span>
+          <span style={{ ...styles.miniStat, color: '#306F33', fontWeight: 600 }}>{<Icon name="calendar" inline />} {campaign.booked_count || 0}</span>
         </div>
       )}
 

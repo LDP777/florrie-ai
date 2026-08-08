@@ -304,7 +304,7 @@ const S = {
   flagClient: { fontSize: 14, fontWeight: 600, color: 'var(--text, var(--text-primary, #241B17))', flex: 1 },
   flagCount: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #6B5D54))' },
   flagTags: { display: 'flex', flexWrap: 'wrap', gap: 6 },
-  flagTag: { padding: '4px 10px', borderRadius: 10, background: '#FFF5E6', color: 'var(--gold, #8A6420)', fontSize: 11, fontWeight: 500 },
+  flagTag: { padding: '4px 10px', borderRadius: 10, background: '#FFF5E6', color: 'var(--gold, #79581C)', fontSize: 11, fontWeight: 500 },
 
   avatar: { width: 32, height: 32, borderRadius: 16, background: '#F0E6ED', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, color: 'var(--accent, #92405e)', flexShrink: 0 },
 
@@ -332,7 +332,7 @@ const S = {
   sectionLabel: { fontSize: 11, fontWeight: 700, color: 'var(--text-muted, var(--text-muted, #6B5D54))', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 },
   chipRow: { display: 'flex', flexWrap: 'wrap', gap: 6 },
   productChip: { padding: '4px 10px', borderRadius: 10, background: 'var(--border, var(--border, var(--border, #E8DDD4)))', color: 'var(--text-secondary, #574A42)', fontSize: 12 },
-  flagChip: { padding: '4px 10px', borderRadius: 10, background: '#FFF5E6', color: 'var(--gold, #8A6420)', fontSize: 12 },
+  flagChip: { padding: '4px 10px', borderRadius: 10, background: '#FFF5E6', color: 'var(--gold, #79581C)', fontSize: 12 },
   metaRow: { display: 'flex', gap: 16, marginBottom: 12 },
   metaItem: { fontSize: 13, color: 'var(--accent, #92405e)' },
   actionRow: { display: 'flex', gap: 8 },

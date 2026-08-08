@@ -476,7 +476,7 @@ function SequencesPanel({ beautician }) {
       {/* Stats strip */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         {[
-          { label: 'Active',     value: sequences.filter(s => s.active).length, color: 'var(--success, #3F7D5C)' },
+          { label: 'Active',     value: sequences.filter(s => s.active).length, color: 'var(--success, #386F52)' },
           { label: 'Msgs sent',  value: totalSent,    color: 'var(--accent-rose, #C76B8A)' },
           { label: 'Reply rate', value: `${replyRate}%`, color: '#7B6BA8' },
         ].map(s => (
@@ -642,7 +642,7 @@ function ActivityPanel({ beautician }) {
     <div>
       {actions.map(a => (
         <div key={a.id} style={styles.logRow}>
-          <div style={{ ...styles.logDot, background: 'var(--success, #3F7D5C)' }} />
+          <div style={{ ...styles.logDot, background: 'var(--success, #386F52)' }} />
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary, #241B17)' }}>{a.summary}</div>
             {a.digital_employee && <div style={{ fontSize: 12, color: 'var(--text-muted, #6B5D54)' }}>{a.digital_employee.replace(/_/g, ' ')}</div>}

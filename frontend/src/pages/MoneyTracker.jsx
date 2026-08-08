@@ -1262,7 +1262,7 @@ export default function MoneyTracker() {
                       style={{ ...S.formInput, flex: 1 }}
                       autoFocus
                     />
-                    <button className="fl-tap" onClick={handleLogTip} style={{ ...S.btnPrimary, flex: 'none', padding: '11px 20px', background: 'var(--success, #3F7D5C)' }}>
+                    <button className="fl-tap" onClick={handleLogTip} style={{ ...S.btnPrimary, flex: 'none', padding: '11px 20px', background: 'var(--success, #386F52)' }}>
                       Save
                     </button>
                     <button onClick={() => { setShowLogTip(false); setTipAmount(''); }} style={{ ...S.btnGhost, flex: 'none' }}>
@@ -1523,7 +1523,7 @@ export default function MoneyTracker() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6,
                   padding: '8px 12px', marginBottom: 12, borderRadius: 10,
                   background: newExpense.ocr_confidence >= 0.8 ? 'var(--success-bg, #E9F0EB)' : 'var(--gold-light, #ffdea4)',
-                  fontSize: 12, color: newExpense.ocr_confidence >= 0.8 ? 'var(--success, #3F7D5C)' : 'var(--gold-text, #795f2b)',
+                  fontSize: 12, color: newExpense.ocr_confidence >= 0.8 ? 'var(--success, #386F52)' : 'var(--gold-text, #795f2b)',
                 }}>
                   <Icon name={newExpense.ocr_confidence >= 0.8 ? 'check' : 'alert-triangle'} size={14} />
                   <span>

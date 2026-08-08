@@ -50,8 +50,8 @@ const DEV_EVENTS = {
 const TYPE_CONFIG = {
   appointment: { icon: 'calendar', colour: 'var(--accent, #92405e)', bg: 'var(--accent-light, #F6E7EC)' },
   note: { icon: 'edit', colour: 'var(--text-secondary, #574A42)', bg: 'var(--border, #E8DDD4)' },
-  feedback: { icon: 'star', colour: 'var(--gold, #8A6420)', bg: 'var(--gold-light, #ffdea4)' },
-  payment: { icon: 'wallet', colour: 'var(--success, #3F7D5C)', bg: 'var(--success-bg, #E9F0EB)' },
+  feedback: { icon: 'star', colour: 'var(--gold, #79581C)', bg: 'var(--gold-light, #ffdea4)' },
+  payment: { icon: 'wallet', colour: 'var(--success, #386F52)', bg: 'var(--success-bg, #E9F0EB)' },
   message: { icon: '💬', colour: '#2196F3', bg: '#E3F2FD' },
   consent: { icon: 'list', colour: '#7B6B8F', bg: '#F0E6F4' },
   referral: { icon: 'users', colour: '#5E8B8B', bg: '#E0F2F1' },
@@ -280,7 +280,7 @@ export default function ClientTimeline() {
                           <p style={S.eventDetail}>{evt.detail}</p>
                         )}
                         {evt.status && (
-                          <span style={{ ...S.eventStatus, background: evt.status === 'completed' ? 'var(--success-bg, #E9F0EB)' : 'var(--gold-light, #ffdea4)', color: evt.status === 'completed' ? 'var(--success, #3F7D5C)' : 'var(--gold, #8A6420)' }}>
+                          <span style={{ ...S.eventStatus, background: evt.status === 'completed' ? 'var(--success-bg, #E9F0EB)' : 'var(--gold-light, #ffdea4)', color: evt.status === 'completed' ? 'var(--success, #386F52)' : 'var(--gold, #79581C)' }}>
                             {evt.status}
                           </span>
                         )}

@@ -994,7 +994,7 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
     : daysSinceVisit < 30 ? 'Active'
     : daysSinceVisit < 60 ? 'Cooling'
     : 'Dormant';
-  const healthColor = healthLabel === 'Active' ? '#4CAF50'
+  const healthColor = healthLabel === 'Active' ? '#306F33'
     : healthLabel === 'Cooling' ? '#F5A623'
     : healthLabel === 'Dormant' ? '#E57373'
     : '#4A90D9';
@@ -1012,11 +1012,11 @@ function ClientDetailPanel({ detail, onClose, onNavigate, onChanged }) {
           <h2 style={styles.detailName}>{client?.first_name} {client?.last_name || ''}</h2>
           <div style={styles.detailBadges}>
             <span style={{ ...styles.healthBadge,
-              background: healthColor === '#4CAF50' ? 'var(--success-bg)'
+              background: healthColor === '#306F33' ? 'var(--success-bg)'
                 : healthColor === '#F5A623' ? 'var(--warning-bg)'
                 : healthColor === '#E57373' ? 'var(--danger-bg)'
                 : 'var(--accent-light)',
-              color: healthColor === '#4CAF50' ? 'var(--success)'
+              color: healthColor === '#306F33' ? 'var(--success)'
                 : healthColor === '#F5A623' ? 'var(--warning)'
                 : healthColor === '#E57373' ? 'var(--danger)'
                 : 'var(--accent)',
@@ -1641,8 +1641,8 @@ const styles = {
     fontSize: 12, color: 'var(--text-muted)', marginBottom: 10,
   },
   countTotal: { fontWeight: 600, color: 'var(--text-secondary)' },
-  countActive: { color: 'var(--success, #3F7D5C)', fontWeight: 600 },
-  countCooling: { color: 'var(--warning, #8A6420)', fontWeight: 600 },
+  countActive: { color: 'var(--success, #386F52)', fontWeight: 600 },
+  countCooling: { color: 'var(--warning, #79581C)', fontWeight: 600 },
   countDormant: { color: 'var(--danger, #9E2B32)', fontWeight: 600 },
   countSep: { color: 'var(--text-muted)' },
 

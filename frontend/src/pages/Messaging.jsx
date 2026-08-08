@@ -109,7 +109,7 @@ function StatusDot({ on }) {
     <span
       aria-hidden
       style={{ ...styles.statusDot,
-        background: on ? 'var(--success, #3F7D5C)' : 'var(--border)',
+        background: on ? 'var(--success, #386F52)' : 'var(--border)',
       }}
     />
   );
@@ -285,7 +285,7 @@ const styles = {
     alignSelf: 'flex-start',
   },
   statusChipOn: {
-    color: 'var(--success, #3F7D5C)',
+    color: 'var(--success, #386F52)',
     background: 'rgba(22, 101, 52, 0.10)',
   },
   statusChipOff: {

@@ -314,7 +314,7 @@ const s = {
   header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   title: { fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', margin: 0 },
   subtitle: { fontSize: 13, color: 'var(--text-muted)', marginTop: 2 },
-  savedBanner: { background: 'var(--success, #3F7D5C)', color: '#fff', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 600, marginBottom: 12, textAlign: 'center' },
+  savedBanner: { background: 'var(--success, #386F52)', color: '#fff', borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 600, marginBottom: 12, textAlign: 'center' },
 
   linkCard: { background: 'linear-gradient(135deg, #C76B8A 0%, #A85575 100%)', borderRadius: 16, padding: 16, marginBottom: 16, color: '#fff' },
   linkLabel: { fontSize: 11, opacity: 0.8, marginBottom: 6 },

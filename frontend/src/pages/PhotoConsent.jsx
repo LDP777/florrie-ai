@@ -22,8 +22,8 @@ const SCOPE_OPTIONS = [
 ];
 
 const STATUS_CONFIG = {
-  granted: { label: 'Granted', bg: '#E8F5E9', color: '#4CAF50' },
-  pending: { label: 'Pending', bg: '#FFF5E6', color: 'var(--gold, #8A6420)' },
+  granted: { label: 'Granted', bg: '#E8F5E9', color: '#306F33' },
+  pending: { label: 'Pending', bg: '#FFF5E6', color: 'var(--gold, #79581C)' },
   declined: { label: 'Declined', bg: '#FFEBEE', color: '#F44336' },
   expired: { label: 'Expired', bg: '#F0ECE8', color: 'var(--text-muted, #6B5D54)' },
 };
@@ -254,10 +254,13 @@ export default function PhotoConsent() {
       {/* Stats */}
       <div style={S.statsRow}>
         {[
-          { label: 'Granted', value: stats.granted, colour: '#4CAF50' },
-          { label: 'Pending', value: stats.pending, colour: '#B8860B' },
+          // The semantic tokens, not four hand-picked hexes. #B8860B measured
+          // 3.18:1 on the card and #F44336 3.60:1 — both unreadable, and both
+          // invisible to review because they read as "obviously green/amber/red".
+          { label: 'Granted', value: stats.granted, colour: 'var(--success, #386F52)' },
+          { label: 'Pending', value: stats.pending, colour: 'var(--warning, #79581C)' },
           { label: 'Expired', value: stats.expired, colour: 'var(--text-muted, #6B5D54)' },
-          { label: 'Declined', value: stats.declined, colour: '#F44336' },
+          { label: 'Declined', value: stats.declined, colour: 'var(--danger, #9E2B32)' },
         ].map(s => (
           <div key={s.label} style={S.statCard}>
             <span style={{ ...S.statValue, color: s.colour }}>{s.value}</span>
@@ -453,7 +456,7 @@ const S = {
   scopeTag: { padding: '3px 8px', borderRadius: 6, background: '#F0E6ED', color: 'var(--accent, #92405e)', fontSize: 11 },
 
   expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid #F0ECE8' },
-  consentNotes: { fontSize: 13, color: '#8B6F5E', lineHeight: 1.4, margin: '0 0 10px', fontStyle: 'italic' },
+  consentNotes: { fontSize: 13, color: '#735C4E', lineHeight: 1.4, margin: '0 0 10px', fontStyle: 'italic' },
   detailRow: { display: 'flex', justifyContent: 'space-between', padding: '6px 0' },
   detailLabel: { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
   detailValue: { fontSize: 12, fontWeight: 600, color: 'var(--text, #241B17)' },
@@ -462,13 +465,13 @@ const S = {
 
   gdprCard: { background: '#F9F7F4', borderRadius: 10, padding: 14, marginTop: 4 },
   gdprTitle: { fontSize: 13, fontWeight: 600, color: 'var(--text, #241B17)' },
-  gdprText: { fontSize: 12, color: '#8B6F5E', lineHeight: 1.4, margin: '6px 0 0' },
+  gdprText: { fontSize: 12, color: '#735C4E', lineHeight: 1.4, margin: '6px 0 0' },
 
   // Modal
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 960, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },
   modal: { background: 'var(--bg-card, #FFFCF9)', borderRadius: '16px 16px 0 0', padding: '20px 20px 32px', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 20px)', width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto' },
   modalTitle: { fontSize: 18, fontWeight: 700, color: 'var(--text-primary, #241B17)', margin: '0 0 16px' },
-  fieldLabel: { fontSize: 12, fontWeight: 600, color: '#8B6F5E', marginBottom: 6, marginTop: 12 },
+  fieldLabel: { fontSize: 12, fontWeight: 600, color: '#735C4E', marginBottom: 6, marginTop: 12 },
   select: { width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid #F0ECE8', fontSize: 14, fontFamily: 'inherit', color: 'var(--text-primary, #241B17)', background: 'var(--bg-card, #FFFCF9)', outline: 'none', boxSizing: 'border-box' },
   scopeOption: { display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', cursor: 'pointer' },
   checkbox: { width: 22, height: 22, borderRadius: 6, border: '2px solid', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },

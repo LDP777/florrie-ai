@@ -266,7 +266,7 @@ export default function Treatments() {
           </span>
         )}
         {t.requires_patch_test && (
-          <span style={{ ...styles.consultBadge, background: 'rgba(201,169,110,0.12)', color: 'var(--gold, #8A6420)' }}>
+          <span style={{ ...styles.consultBadge, background: 'rgba(201,169,110,0.12)', color: 'var(--gold, #79581C)' }}>
             <Icon name="syringe" size={12} /> Patch test required
           </span>
         )}

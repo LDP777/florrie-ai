@@ -32,6 +32,8 @@
     "check:deferred": "node scripts/check-deferred.mjs",
     "check:dedupe": "node scripts/check-dedupe.mjs",
     "check:brand": "node scripts/check-brand-colour.mjs",
+    "check:tokens": "node scripts/check-tokens.mjs",
+    "check:swatches": "node scripts/check-swatches.mjs",
     "check:live": "node scripts/check-live.mjs"
   },
   "dependencies": {

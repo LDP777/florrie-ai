@@ -172,7 +172,7 @@ export default function Aftercare() {
         <div>
           {/* Auto-send status bar */}
           <div style={styles.statusBar}>
-            <div style={{ ...styles.statusDot, background: settings.auto_send_enabled ? 'var(--success, #3F7D5C)' : 'var(--text-muted, #6B5D54)' }} />
+            <div style={{ ...styles.statusDot, background: settings.auto_send_enabled ? 'var(--success, #386F52)' : 'var(--text-muted, #6B5D54)' }} />
             <span style={styles.statusText}>
               Auto-send {settings.auto_send_enabled ? 'on' : 'off'} - via {settings.channel}
             </span>

@@ -50,7 +50,7 @@ function dueDate(client) {
 }
 
 function urgencyColor(days) {
-  if (days < 0) return '#4CAF50'; // not yet due
+  if (days < 0) return '#306F33'; // not yet due
   if (days < 7) return '#F5A623';
   if (days < 21) return '#E57373';
   return '#C62828';
@@ -196,7 +196,7 @@ export default function RebookReminders() {
 
       {/* Summary stats */}
       <div style={s.statsRow}>
-        <div style={{ ...s.statCard, borderLeft: '3px solid var(--warning, #8A6420)' }}>
+        <div style={{ ...s.statCard, borderLeft: '3px solid var(--warning, #79581C)' }}>
           <span style={s.statValue}>{due.length}</span>
           <span style={s.statLabel}>Due soon</span>
         </div>
@@ -438,7 +438,7 @@ const s = {
     fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
   },
   sentBadge: {
-    fontSize: 13, fontWeight: 600, color: 'var(--success, #3F7D5C)',
+    fontSize: 13, fontWeight: 600, color: 'var(--success, #386F52)',
     display: 'flex', alignItems: 'center', gap: 4,
   },
   bulkBtn: {

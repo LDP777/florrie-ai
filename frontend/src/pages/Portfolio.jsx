@@ -137,7 +137,7 @@ export default function Portfolio() {
         {[
           { label: 'Photos', value: stats.total, colour: 'var(--accent, #92405e)' },
           { label: 'Before/After', value: stats.pairs, colour: 'var(--text-secondary, #574A42)' },
-          { label: 'Treatments', value: stats.treatments, colour: 'var(--success, #3F7D5C)' },
+          { label: 'Treatments', value: stats.treatments, colour: 'var(--success, #386F52)' },
         ].map(s => (
           <div key={s.label} style={S.statCard}>
             <span style={{ ...S.statValue, color: s.colour }}>{s.value}</span>

@@ -24,7 +24,7 @@ import Money from '../components/ui/Money';
  */
 
 const FILLABILITY = {
-  high: { label: 'Easy fill', color: '#4CAF50', bg: '#E8F5E9' },
+  high: { label: 'Easy fill', color: '#306F33', bg: '#E8F5E9' },
   medium: { label: 'Possible', color: '#FF9800', bg: '#FFF3E0' },
   low: { label: 'Tough', color: '#E57373', bg: '#FEF2F2' },
 };
@@ -525,7 +525,7 @@ export default function SmartSchedule() {
                 // Plain English: say what actually fits in the gap, from her
                 // real treatment durations, not a vague Easy/Possible/Tough.
                 const fit = gap.fitTotal > 0 && gap.fitCount === gap.fitTotal
-                  ? { label: 'Any treatment fits', color: '#4CAF50', bg: '#E8F5E9' }
+                  ? { label: 'Any treatment fits', color: '#306F33', bg: '#E8F5E9' }
                   : gap.fitCount > 0
                   ? { label: `${gap.fitCount} treatment${gap.fitCount === 1 ? '' : 's'} fit${gap.fitCount === 1 ? 's' : ''}`, color: '#FF9800', bg: '#FFF3E0' }
                   : { label: 'Too short to book', color: 'var(--text-muted, #6B5D54)', bg: 'var(--bg-subtle, #ede7e3)' };
@@ -688,13 +688,13 @@ export default function SmartSchedule() {
               <div key={`dr-${i}`} style={styles.suggFullCard}>
                 <div style={styles.suggestionTop}>
                   <div style={{ ...styles.suggAvatar, background: '#FFF3E0' }}>
-                    <span style={{ color: '#E65100' }}>{s.client.first_name[0]}</span>
+                    <span style={{ color: '#B33F00' }}>{s.client.first_name[0]}</span>
                   </div>
                   <div style={styles.suggInfo}>
                     <span style={styles.suggName}>{s.client.first_name} {s.client.last_name}</span>
                     <span style={styles.suggDetail}>{s.treatment.name}</span>
                   </div>
-                  <span style={{ ...styles.overdueBadge, background: '#FFF3E0', color: '#E65100' }}>{s.last_visit_days}d ago</span>
+                  <span style={{ ...styles.overdueBadge, background: '#FFF3E0', color: '#B33F00' }}>{s.last_visit_days}d ago</span>
                 </div>
                 <p style={styles.suggReasonText}>{s.reason}</p>
                 <button
@@ -764,7 +764,7 @@ export default function SmartSchedule() {
               <div key={day.name} style={styles.dayRow}>
                 <span style={styles.dayName}>{day.name}</span>
                 <div style={styles.dayBar}>
-                  <div style={{ ...styles.dayBarFill, width: `${day.pct}%`, background: day.pct > 85 ? '#4CAF50' : day.pct > 60 ? '#FF9800' : '#E57373' }} />
+                  <div style={{ ...styles.dayBarFill, width: `${day.pct}%`, background: day.pct > 85 ? '#306F33' : day.pct > 60 ? '#FF9800' : '#E57373' }} />
                 </div>
                 <span style={styles.dayPct}>{day.pct}%</span>
               </div>
@@ -886,7 +886,7 @@ const styles = {
   },
   sentBadge: {
     display: 'block', textAlign: 'center', padding: '8px 0',
-    fontSize: 12, fontWeight: 600, color: '#4CAF50',
+    fontSize: 12, fontWeight: 600, color: '#306F33',
   },
 
   // Fill fallback (gap with nobody due) + Fill Ideas empty states

@@ -706,7 +706,7 @@ export default function Settings({ onLogout }) {
                     </span>
                   </div>
                   {noShowPercent > 0 && !(beautician.payment_settings?.require_deposit || beautician.payment_settings?.deposit_required) && (
-                    <p style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--warning-text, #8A6420)', background: 'var(--warning-bg, #F7EEDD)', border: '1px solid #F0D9A8', borderRadius: 10, padding: '8px 10px', margin: '10px 0 0' }}>
+                    <p style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--warning-text, #79581C)', background: 'var(--warning-bg, #F7EEDD)', border: '1px solid #F0D9A8', borderRadius: 10, padding: '8px 10px', margin: '10px 0 0' }}>
                       Heads up: you can only charge a card you actually hold. Cards are saved when
                       deposits are on (Settings &gt; Payments). With deposits off, a no-show fee has
                       nothing to charge against.
@@ -1321,7 +1321,7 @@ export default function Settings({ onLogout }) {
                 <div>
                   <div style={styles.msgChannelName}>WhatsApp Business</div>
                   <div style={{ ...styles.msgChannelStatus,
-                    color: beautician.whatsapp_connected ? 'var(--success, #3F7D5C)' : 'var(--text-muted)',
+                    color: beautician.whatsapp_connected ? 'var(--success, #386F52)' : 'var(--text-muted)',
                   }}>
                     {beautician.whatsapp_connected
                       ? `● Connected${beautician.whatsapp_phone ? ` · ${beautician.whatsapp_phone}` : ''}`
@@ -1349,7 +1349,7 @@ export default function Settings({ onLogout }) {
                 <div>
                   <div style={styles.msgChannelName}>SMS</div>
                   <div style={{ ...styles.msgChannelStatus,
-                    color: beautician.sms_enabled ? 'var(--success, #3F7D5C)' : 'var(--text-muted)',
+                    color: beautician.sms_enabled ? 'var(--success, #386F52)' : 'var(--text-muted)',
                   }}>
                     {beautician.sms_enabled
                       ? `● On${beautician.sms_originator ? ` · sending from ${beautician.sms_originator}` : ''}`
@@ -1664,10 +1664,10 @@ export default function Settings({ onLogout }) {
               <p style={{ fontSize: 12, color: 'var(--danger, #9E2B32)', marginTop: 8, marginBottom: 0 }}>Connection failed, try again or contact support</p>
             )}
             {igBanner === 'no_page' && (
-              <p style={{ fontSize: 12, color: 'var(--warning, #8A6420)', marginTop: 8, marginBottom: 0 }}>No Facebook Page found. You need a Facebook Page with an Instagram Business account connected.</p>
+              <p style={{ fontSize: 12, color: 'var(--warning, #79581C)', marginTop: 8, marginBottom: 0 }}>No Facebook Page found. You need a Facebook Page with an Instagram Business account connected.</p>
             )}
             {igBanner === 'no_ig_account' && (
-              <p style={{ fontSize: 12, color: 'var(--warning, #8A6420)', marginTop: 8, marginBottom: 0 }}>Instagram Business account not found. Make sure your Instagram account is set to Business and linked to your Facebook Page.</p>
+              <p style={{ fontSize: 12, color: 'var(--warning, #79581C)', marginTop: 8, marginBottom: 0 }}>Instagram Business account not found. Make sure your Instagram account is set to Business and linked to your Facebook Page.</p>
             )}
           </div>
 
@@ -1861,7 +1861,7 @@ export default function Settings({ onLogout }) {
                   />
                   <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>
                     Leave blank to use the default. Sent once per client, then not again for 7 days.
-                    {!waLink && <span style={{ color: 'var(--warning, #8A6420)', fontWeight: 500 }}> · Add your phone number in Profile to auto-include your WhatsApp link.</span>}
+                    {!waLink && <span style={{ color: 'var(--warning, #79581C)', fontWeight: 500 }}> · Add your phone number in Profile to auto-include your WhatsApp link.</span>}
                   </p>
                   {/* Preview */}
                   <div style={{ marginTop: 12, background: 'var(--border-light)', borderRadius: 10, padding: '10px 12px' }}>
@@ -2022,7 +2022,7 @@ function FieldEditor({ label, value, onSave, placeholder }) {
         <input type="text" value={draft} onChange={e => setDraft(e.target.value)} onBlur={handleSave} onKeyDown={e => e.key === 'Enter' && handleSave()} placeholder={placeholder} style={styles.fieldInput} autoFocus />
       ) : (
         <button onClick={() => { setDraft(value); setEditing(true); }} style={styles.fieldValue}>
-          {value || <span style={{ color: '#D5D0CB' }}>{placeholder || 'Tap to set'}</span>}
+          {value || <span style={{ color: '#756A5F' }}>{placeholder || 'Tap to set'}</span>}
         </button>
       )}
     </div>

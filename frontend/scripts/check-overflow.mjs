@@ -95,6 +95,25 @@ for (const name of names) {
   await page.goto(`http://127.0.0.1:${port}/${encodeURIComponent(name)}`, { waitUntil: 'networkidle' });
   const bad = await page.evaluate((W) => {
     const out = [];
+    // Kept in step with scripts/check-live.mjs, which carries the reasoning.
+    const clips = (s) => /hidden|clip|auto|scroll/.test(s.overflowX);
+    const isContainingBlock = (s) =>
+      s.position !== 'static' || s.transform !== 'none' || s.filter !== 'none' ||
+      s.perspective !== 'none' || /paint|layout|strict|content/.test(s.contain || '');
+    const visibleRight = (el, r) => {
+      let right = r.right;
+      const pos = getComputedStyle(el).position;
+      if (pos === 'fixed') return right;
+      let escaping = pos === 'absolute';
+      for (let n = el.parentElement; n && n !== document.documentElement; n = n.parentElement) {
+        const s = getComputedStyle(n);
+        if (escaping) { if (isContainingBlock(s)) escaping = false; else continue; }
+        if (clips(s)) right = Math.min(right, n.getBoundingClientRect().right);
+        if (s.position === 'fixed') break;
+        if (s.position === 'absolute') escaping = true;
+      }
+      return right;
+    };
     const label = el => {
       const t = (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 46);
       return `${el.tagName.toLowerCase()}${el.className && typeof el.className === 'string' ? '.' + el.className.split(' ')[0] : ''}${t ? ` "${t}"` : ''}`;
@@ -103,12 +122,17 @@ for (const name of names) {
       const r = el.getBoundingClientRect();
       if (r.width === 0 || r.height === 0) continue;
 
-      // 1. sticks out past the right edge of the phone
-      if (r.right > W + 1) {
-        // A deliberately scrollable strip is fine — that is a tab rail.
-        const s = getComputedStyle(el.parentElement || el);
-        const scrollable = /auto|scroll/.test(s.overflowX);
-        if (!scrollable) out.push({ kind: 'past the right edge', by: Math.round(r.right - W), what: label(el) });
+      // 1. sticks out past the right edge of the phone — as PAINTED.
+      //
+      //    Looking only at the immediate parent, and only for `auto|scroll`,
+      //    reported three things that are not wrong: Hub's decorative 128px
+      //    blur circle at `right: -64px` inside an `overflow: hidden` card
+      //    (120px of "overflow" that is clipped and invisible), and two icons
+      //    in the /notifications tab rail, whose scroll container is the rail
+      //    and whose PARENT is the button. This check exits 0, so those three
+      //    sat in the output teaching everyone to skim past it.
+      if (r.right > W + 1 && visibleRight(el, r) > W + 1) {
+        out.push({ kind: 'past the right edge', by: Math.round(visibleRight(el, r) - W), what: label(el) });
       }
 
       // 2. its own text is wider than it is, with nothing to reveal it

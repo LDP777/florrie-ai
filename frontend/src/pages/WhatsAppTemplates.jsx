@@ -60,7 +60,7 @@ function groupOf(status) {
 }
 
 function chipStyle(group) {
-  if (group === 'live') return { background: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #3F7D5C)' };
+  if (group === 'live') return { background: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #386F52)' };
   if (group === 'attention') return { background: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger, #9E2B32)' };
   return { background: '#FFF8E1', color: '#7B5E00' };
 }

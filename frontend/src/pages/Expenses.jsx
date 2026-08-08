@@ -18,13 +18,13 @@ import Icon from '../components/ui/Icon';
 const CATEGORIES = [
   { value: 'products', label: 'Products', icon: 'flower', color: 'var(--accent, #92405e)' },
   { value: 'rent', label: 'Rent', icon: 'map-pin', color: 'var(--text-secondary, #574A42)' },
-  { value: 'training', label: 'Training', icon: 'file', color: 'var(--success, #3F7D5C)' },
-  { value: 'travel', label: 'Travel', icon: 'map-pin', color: 'var(--gold, #8A6420)' },
+  { value: 'training', label: 'Training', icon: 'file', color: 'var(--success, #386F52)' },
+  { value: 'travel', label: 'Travel', icon: 'map-pin', color: 'var(--gold, #79581C)' },
   { value: 'equipment', label: 'Equipment', icon: 'sliders', color: 'var(--info, #4A6C82)' },
   { value: 'insurance', label: 'Insurance', icon: 'shield', color: 'var(--info, #4A6C82)' },
   { value: 'marketing', label: 'Marketing', icon: 'send', color: 'var(--accent-dark, #782b49)' },
   { value: 'software', label: 'Software', icon: 'link', color: 'var(--info, #4A6C82)' },
-  { value: 'utilities', label: 'Utilities', icon: 'sparkles', color: 'var(--warning, #8A6420)' },
+  { value: 'utilities', label: 'Utilities', icon: 'sparkles', color: 'var(--warning, #79581C)' },
   { value: 'other', label: 'Other', icon: 'map-pin', color: 'var(--text-muted, #6B5D54)' },
 ];
 
@@ -211,7 +211,7 @@ export default function Expenses() {
           <span style={S.summaryLabel}>Recurring</span>
         </div>
         <div style={S.summaryCard}>
-          <span style={{ ...S.summaryValue, color: 'var(--success, #3F7D5C)' }}>{fmt(deductibleTotal)}</span>
+          <span style={{ ...S.summaryValue, color: 'var(--success, #386F52)' }}>{fmt(deductibleTotal)}</span>
           <span style={S.summaryLabel}>Deductible</span>
         </div>
       </div>
@@ -301,7 +301,7 @@ export default function Expenses() {
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                   <span style={S.expenseAmount}>{fmt(e.amount_cents)}</span>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="fl-tap" onClick={() => handleEditExpense(e)} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--success, #3F7D5C)', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Edit</button>
+                    <button className="fl-tap" onClick={() => handleEditExpense(e)} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--success, #386F52)', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Edit</button>
                     <button className="fl-tap" onClick={() => handleDeleteExpense(e.id)} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--text-muted, var(--text-muted, #6B5D54))', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>Delete</button>
                   </div>
                 </div>
@@ -322,7 +322,7 @@ export default function Expenses() {
                 <div key={b.category} style={S.budgetCard}>
                   <div style={S.budgetHeader}>
                     <span style={S.budgetCat}><Icon name={meta.icon} size={15} />{meta.label}</span>
-                    <span style={{ ...S.budgetPct, color: overBudget ? 'var(--accent, #92405e)' : 'var(--success, #3F7D5C)' }}>{b.pct}%</span>
+                    <span style={{ ...S.budgetPct, color: overBudget ? 'var(--accent, #92405e)' : 'var(--success, #386F52)' }}>{b.pct}%</span>
                   </div>
                   <div style={S.budgetBarBg}>
                     <div style={{ ...S.budgetBarFill, width: `${b.pct}%`, background: overBudget ? 'var(--accent, #92405e)' : meta.color }} />
@@ -512,7 +512,7 @@ const S = {
   expenseTags: { display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' },
   tagDate: { fontSize: 10, color: 'var(--text-secondary, #574A42)', padding: '2px 6px', borderRadius: 6, background: 'var(--border, var(--border, #E8DDD4))' },
   tagRecurring: { fontSize: 10, color: '#7B6B8F', padding: '2px 6px', borderRadius: 6, background: '#F0E6F4' },
-  tagTax: { fontSize: 10, color: 'var(--success, #3F7D5C)', padding: '2px 6px', borderRadius: 6, background: 'var(--success-bg, #E9F0EB)' },
+  tagTax: { fontSize: 10, color: 'var(--success, #386F52)', padding: '2px 6px', borderRadius: 6, background: 'var(--success-bg, #E9F0EB)' },
   expenseAmount: { fontSize: 15, fontWeight: 700, color: 'var(--accent, #92405e)', whiteSpace: 'nowrap' },
 
   // Budgets

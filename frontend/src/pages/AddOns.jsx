@@ -18,7 +18,7 @@ const fmt = (cents) => `£${(cents / 100).toFixed(2)}`;
 const CATEGORIES = [
   { value: 'treatment', label: 'Treatment', colour: 'var(--accent, #92405e)' },
   { value: 'waxing', label: 'Waxing', colour: 'var(--text-secondary, #574A42)' },
-  { value: 'retail', label: 'Retail Product', colour: 'var(--success, #3F7D5C)' },
+  { value: 'retail', label: 'Retail Product', colour: 'var(--success, #386F52)' },
 ];
 
 const EMPTY_FORM = { name: '', price: '', duration: '', category: 'treatment', suggestWith: [], autoSuggest: true };
@@ -163,7 +163,7 @@ export default function AddOns() {
         {[
           { label: 'Total', value: addons.length, colour: 'var(--text-secondary, #574A42)' },
           { label: 'Active', value: active.length, colour: 'var(--accent, #92405e)' },
-          { label: 'Categories', value: [...new Set(addons.map(a => a.category))].length, colour: 'var(--success, #3F7D5C)' },
+          { label: 'Categories', value: [...new Set(addons.map(a => a.category))].length, colour: 'var(--success, #386F52)' },
         ].map(s => (
           <div key={s.label} style={S.statCard}>
             <span style={{ ...S.statValue, color: s.colour }}>{s.value}</span>
@@ -360,7 +360,7 @@ const S = {
   addonMeta: { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
   addonRight: { display: 'flex', alignItems: 'center', gap: 8 },
   addonPrice: { fontSize: 15, fontWeight: 700, color: 'var(--accent, #92405e)' },
-  autoTag: { padding: '2px 6px', borderRadius: 6, background: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #3F7D5C)', fontSize: 10, fontWeight: 600 },
+  autoTag: { padding: '2px 6px', borderRadius: 6, background: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #386F52)', fontSize: 10, fontWeight: 600 },
 
   expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, #E8DDD4)' },
   sectionLabel: { fontSize: 11, fontWeight: 700, color: 'var(--text-muted, #6B5D54)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 6 },

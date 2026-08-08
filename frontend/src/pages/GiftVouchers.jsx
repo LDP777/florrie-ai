@@ -444,7 +444,7 @@ function VoucherCard({ voucher, onRedeem }) {
         </div>
         <div style={{ ...styles.statusBadge,
           background: isActive ? 'var(--success-bg, #E9F0EB)' : 'var(--bg-hover, #f3ede9)',
-          color: isActive ? 'var(--success, #3F7D5C)' : 'var(--text-muted, #6B5D54)',
+          color: isActive ? 'var(--success, #386F52)' : 'var(--text-muted, #6B5D54)',
         }}>
           {isActive ? 'Active' : voucher.status === 'redeemed' ? 'Used' : 'Expired'}
         </div>
@@ -633,7 +633,7 @@ const styles = {
   redeemFoundDetail: { fontSize: 12, color: 'var(--text-secondary, #574A42)', margin: '2px 0' },
   redeemConfirmBtn: {
     width: '100%', padding: '10px 0', borderRadius: 10, border: 'none',
-    background: 'var(--success, #3F7D5C)', color: '#fff', fontSize: 13, fontWeight: 600,
+    background: 'var(--success, #386F52)', color: '#fff', fontSize: 13, fontWeight: 600,
     cursor: 'pointer', fontFamily: 'inherit', marginTop: 10,
   },
   cancelBtn: {

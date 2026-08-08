@@ -95,6 +95,22 @@ jobs:
       # Run `npm run check:contrast:dark` to see the debt.
       - run: npm run check:contrast --workspace frontend
 
+      # check:tokens grades the palette itself, before anything is painted with
+      # it. Nine of the fourteen contrast failures on the second live sweep were
+      # one token: --success on --success-bg at 4.22:1, used in forty-two files.
+      # A browser sweep can only judge a pairing it happens to find rendered;
+      # this judges it where it is declared, so an unreadable token is caught on
+      # the commit that writes it rather than on whichever route ships it first.
+      - run: npm run check:tokens --workspace frontend
+
+      # check:swatches does the same for colour pairs written inline — a badge
+      # that declares its own background and its own text colour in one object.
+      # A RATCHET, not a gate: 71 pairs predate it (white on the brand pink is
+      # on most primary buttons), recorded in swatches-baseline.json. New ones
+      # fail; the list may only shrink. Gating on all 71 would have meant a red
+      # build until someone found a free day, which means the check gets deleted.
+      - run: npm run check:swatches --workspace frontend
+
       # check:numerals asks the browser what face each figure is PAINTED in.
       # Levi has reported the same thing twice from two screens, most recently
       # a "£345" that sat inside a Playfair headline with a colour and a

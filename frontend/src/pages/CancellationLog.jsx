@@ -18,8 +18,8 @@ const TYPE_CONFIG = {
   // Not the client's doing, so it does not wear the client's badge.
   unpaid: { label: 'Deposit unpaid', icon: '\u{1F4B3}', bg: 'var(--bg-hover, #f3ede9)', color: 'var(--text-secondary, #574A42)' },
   'no-show': { label: 'No Show', bg: '#FFEBEE', color: '#F44336', icon: 'x' },
-  'late-cancel': { label: 'Late Cancel', bg: '#FFF5E6', color: 'var(--gold, #8A6420)', icon: '⏰' },
-  'cancelled': { label: 'Cancelled', bg: '#F0ECE8', color: '#8B6F5E', icon: '↩' },
+  'late-cancel': { label: 'Late Cancel', bg: '#FFF5E6', color: 'var(--gold, #79581C)', icon: '⏰' },
+  'cancelled': { label: 'Cancelled', bg: '#F0ECE8', color: '#735C4E', icon: '↩' },
 };
 
 export default function CancellationLog() {
@@ -155,12 +155,12 @@ export default function CancellationLog() {
           <span style={{ ...S.statValue, color: 'var(--danger, #9E2B32)' }}>{fmt(totalLost)}</span>
           <span style={S.statLabel}>Revenue Lost</span>
         </div>
-        <div style={{ ...S.statCard, borderLeft: '3px solid var(--warning, #8A6420)' }}>
-          <span style={{ ...S.statValue, color: 'var(--warning, #8A6420)' }}>{noShows + lateCancels}</span>
+        <div style={{ ...S.statCard, borderLeft: '3px solid var(--warning, #79581C)' }}>
+          <span style={{ ...S.statValue, color: 'var(--warning, #79581C)' }}>{noShows + lateCancels}</span>
           <span style={S.statLabel}>No-shows + Late</span>
         </div>
-        <div style={{ ...S.statCard, borderLeft: '3px solid var(--success, #3F7D5C)' }}>
-          <span style={{ ...S.statValue, color: 'var(--success, #3F7D5C)' }}>{rebookRate}%</span>
+        <div style={{ ...S.statCard, borderLeft: '3px solid var(--success, #386F52)' }}>
+          <span style={{ ...S.statValue, color: 'var(--success, #386F52)' }}>{rebookRate}%</span>
           <span style={S.statLabel}>Rebooked</span>
         </div>
       </div>
@@ -279,15 +279,15 @@ export default function CancellationLog() {
               </div>
               <div style={S.impactItem}>
                 <span style={S.impactLabel}>Lost to late cancels</span>
-                <span style={{ ...S.impactValue, color: 'var(--warning, #8A6420)' }}>{fmt(filtered.filter(c => c.type === 'late-cancel').reduce((s, c) => s + c.revenue_lost, 0))}</span>
+                <span style={{ ...S.impactValue, color: 'var(--warning, #79581C)' }}>{fmt(filtered.filter(c => c.type === 'late-cancel').reduce((s, c) => s + c.revenue_lost, 0))}</span>
               </div>
               <div style={S.impactItem}>
                 <span style={S.impactLabel}>Recovered via deposits</span>
-                <span style={{ ...S.impactValue, color: 'var(--success, #3F7D5C)' }}>{fmt(filtered.reduce((s, c) => s + c.deposit, 0))}</span>
+                <span style={{ ...S.impactValue, color: 'var(--success, #386F52)' }}>{fmt(filtered.reduce((s, c) => s + c.deposit, 0))}</span>
               </div>
               <div style={S.impactItem}>
                 <span style={S.impactLabel}>Saved via rebooks</span>
-                <span style={{ ...S.impactValue, color: 'var(--success, #3F7D5C)' }}>{fmt(filtered.filter(c => c.rebooked).reduce((s, c) => s + c.revenue_lost, 0))}</span>
+                <span style={{ ...S.impactValue, color: 'var(--success, #386F52)' }}>{fmt(filtered.filter(c => c.rebooked).reduce((s, c) => s + c.revenue_lost, 0))}</span>
               </div>
             </div>
           </div>
@@ -385,9 +385,9 @@ const S = {
   logMeta: { display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 },
   reasonTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--bg-hover, var(--bg-subtle, #ede7e3))', color: 'var(--text-secondary, #574A42)', fontSize: 11, fontStyle: 'italic' },
   lostTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--danger-bg, #F7E4E4)', color: 'var(--danger, #9E2B32)', fontSize: 11, fontWeight: 600 },
-  depositTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #3F7D5C)', fontSize: 11, fontWeight: 500 },
+  depositTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #386F52)', fontSize: 11, fontWeight: 500 },
   noticeTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--border, var(--border, #E8DDD4))', color: 'var(--text-secondary, #574A42)', fontSize: 11 },
-  rebookedTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #3F7D5C)', fontSize: 11, fontWeight: 600 },
+  rebookedTag: { padding: '3px 8px', borderRadius: 6, background: 'var(--success-bg, #E9F0EB)', color: 'var(--success, #386F52)', fontSize: 11, fontWeight: 600 },
   rebookBtn: { padding: '3px 10px', borderRadius: 6, background: 'var(--accent, #92405e)', color: 'var(--bg-card, #FFFCF9)', border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' },
   insightsContainer: { display: 'flex', flexDirection: 'column', gap: 12 },
   card: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16 },

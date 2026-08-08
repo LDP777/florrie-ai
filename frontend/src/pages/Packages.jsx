@@ -422,11 +422,11 @@ export default function Courses() {
                   <div
                     style={{ ...s.spotsBarFill,
                       width: `${Math.min(100, ((course.enrolled || 0) / (course.max_students || 1)) * 100)}%`,
-                      background: isFull(course) ? 'var(--warning, #8A6420)' : 'var(--accent, #92405e)',
+                      background: isFull(course) ? 'var(--warning, #79581C)' : 'var(--accent, #92405e)',
                     }}
                   />
                 </div>
-                <span style={{ ...s.spotsLabel, color: isFull(course) ? 'var(--warning, #8A6420)' : 'var(--text-muted, #6B5D54)' }}>
+                <span style={{ ...s.spotsLabel, color: isFull(course) ? 'var(--warning, #79581C)' : 'var(--text-muted, #6B5D54)' }}>
                   {isFull(course) ? 'Full' : `${spotsLeft(course)} spot${spotsLeft(course) !== 1 ? 's' : ''} left`}
                   {' '}({course.enrolled || 0}/{course.max_students})
                 </span>
@@ -441,7 +441,7 @@ export default function Courses() {
                 </div>
                 <button
                   onClick={() => copyLink(course)}
-                  style={{ ...s.copyBtn, background: copiedId === course.id ? 'var(--success, #3F7D5C)' : 'var(--accent, #92405e)' }}
+                  style={{ ...s.copyBtn, background: copiedId === course.id ? 'var(--success, #386F52)' : 'var(--accent, #92405e)' }}
                 >
                   {copiedId === course.id ? 'Copied' : 'Copy link'}
                 </button>
@@ -475,7 +475,7 @@ export default function Courses() {
                       </div>
                       <span style={{ ...s.enrollStatus,
                         background: e.payment_status === 'paid' ? 'var(--success-bg, #E9F0EB)' : e.payment_status === 'deposit_paid' ? 'var(--warning-bg, #F7EEDD)' : 'var(--bg, #FBF6F1)',
-                        color: e.payment_status === 'paid' ? 'var(--success, #3F7D5C)' : e.payment_status === 'deposit_paid' ? '#E8A838' : 'var(--text-muted, #6B5D54)',
+                        color: e.payment_status === 'paid' ? 'var(--success, #386F52)' : e.payment_status === 'deposit_paid' ? '#E8A838' : 'var(--text-muted, #6B5D54)',
                       }}>
                         {e.payment_status === 'paid' ? 'Paid in full' : e.payment_status === 'deposit_paid' ? 'Deposit paid' : 'Unpaid'}
                       </span>
@@ -512,7 +512,7 @@ export default function Courses() {
                   </div>
                   <span style={{ ...s.enrollStatus,
                     background: e.payment_status === 'paid' ? 'var(--success-bg, #E9F0EB)' : e.payment_status === 'deposit_paid' ? 'var(--warning-bg, #F7EEDD)' : 'var(--bg, #FBF6F1)',
-                    color: e.payment_status === 'paid' ? 'var(--success, #3F7D5C)' : e.payment_status === 'deposit_paid' ? '#E8A838' : 'var(--text-muted, #6B5D54)',
+                    color: e.payment_status === 'paid' ? 'var(--success, #386F52)' : e.payment_status === 'deposit_paid' ? '#E8A838' : 'var(--text-muted, #6B5D54)',
                   }}>
                     {e.payment_status === 'paid' ? 'Paid in full' : e.payment_status === 'deposit_paid' ? 'Deposit paid' : 'Unpaid'}
                   </span>

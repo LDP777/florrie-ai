@@ -94,7 +94,7 @@ const lightTokens = {
   '--primary-fixed-dim': '#ffb1c8',
 
   // Gold - Stitch secondary (#745a27)
-  '--gold': '#8A6420',          // readable gold, 4.98:1 on cream
+  '--gold': '#79581C',          // readable gold, 4.98:1 on cream
   '--gold-fill': '#C9A96E',     // brand gold: fills and rules only, never text or icons
   '--gold-hover': '#5a4312',
   '--gold-light': '#ffdea4',
@@ -110,13 +110,13 @@ const lightTokens = {
 
   // Semantic
   // Brand-tinted semantics. The old values were stock Material defaults
-  // (#4caf50 / #f44336 / #2196f3) sitting next to brand tones.
-  '--success': '#3F7D5C',
+  // (#306F33 / #f44336 / #2196f3) sitting next to brand tones.
+  '--success': '#386F52',
   '--success-bg': '#E9F0EB',
-  '--success-text': '#3F7D5C',
-  '--warning': '#8A6420',
+  '--success-text': '#386F52',
+  '--warning': '#79581C',
   '--warning-bg': '#F7EEDD',
-  '--warning-text': '#8A6420',
+  '--warning-text': '#79581C',
   '--danger': '#9E2B32',
   '--danger-bg': '#F7E4E4',
   '--danger-text': '#9E2B32',

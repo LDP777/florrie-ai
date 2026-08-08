@@ -376,7 +376,7 @@ export default function Loyalty() {
                         <div
                           style={{ ...styles.progressFill,
                             width: `${progress}%`,
-                            background: reached ? 'var(--success, #3F7D5C)' : 'var(--accent, #92405e)',
+                            background: reached ? 'var(--success, #386F52)' : 'var(--accent, #92405e)',
                           }}
                         />
                       </div>
@@ -701,9 +701,9 @@ const styles = {
     width: '100%',
     padding: '10px 14px',
     borderRadius: 10,
-    border: '1.5px solid var(--success, #3F7D5C)',
+    border: '1.5px solid var(--success, #386F52)',
     background: 'var(--success-bg, #E9F0EB)',
-    color: 'var(--success, #3F7D5C)',
+    color: 'var(--success, #386F52)',
     fontSize: 13,
     fontWeight: 700,
     cursor: 'pointer',

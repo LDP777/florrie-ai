@@ -62,7 +62,7 @@ function UsageBar({ usage }) {
         </div>
       )}
       {!isOver && isNearLimit && (
-        <div style={{ fontSize: 11, color: '#E65100', marginTop: 4 }}>
+        <div style={{ fontSize: 11, color: '#B33F00', marginTop: 4 }}>
           Getting close, {free_limit - total_sent} left this month
         </div>
       )}
@@ -954,7 +954,7 @@ function SendMessagePanel() {
               maxLength={TEXT_MAX}
               disabled={sending}
             />
-            <div style={{ fontSize: 11, color: charsLeft < 20 ? '#E65100' : 'var(--text-muted, #6B5D54)', textAlign: 'right', marginTop: -8, marginBottom: 10 }}>
+            <div style={{ fontSize: 11, color: charsLeft < 20 ? '#B33F00' : 'var(--text-muted, #6B5D54)', textAlign: 'right', marginTop: -8, marginBottom: 10 }}>
               {charsLeft} characters left
             </div>
           </>
@@ -1146,8 +1146,8 @@ export default function WhatsAppConfig() {
             ? 'var(--success-bg, #E9F0EB)'
             : pendingActivation ? '#EDF3FA' : '#FFF3E0',
           color: connected
-            ? 'var(--success, #3F7D5C)'
-            : pendingActivation ? '#2E4A6B' : '#E65100',
+            ? 'var(--success, #386F52)'
+            : pendingActivation ? '#2E4A6B' : '#B33F00',
         }}>
           {connected ? 'Connected' : pendingActivation ? '⏳ Activating' : 'Not connected'}
         </div>

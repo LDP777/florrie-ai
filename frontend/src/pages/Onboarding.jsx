@@ -795,7 +795,7 @@ export default function Onboarding({ onComplete }) {
             <ul style={styles.planFeatures}>
               {PLAN.features.map((f, i) => (
                 <li key={i} style={styles.planFeature}>
-                  <span style={{ color: 'var(--success, #3F7D5C)' }}><Icon name="check" size={15} /></span> {f}
+                  <span style={{ color: 'var(--success, #386F52)' }}><Icon name="check" size={15} /></span> {f}
                 </li>
               ))}
             </ul>
@@ -977,8 +977,8 @@ export default function Onboarding({ onComplete }) {
             </div>
             {pushGranted ? (
               <div style={styles.pushGrantedRow}>
-                <span style={{ color: 'var(--success, #3F7D5C)', fontSize: 16 }}><Icon name="check" size={15} /></span>
-                <span style={{ fontSize: 13, color: 'var(--success, #3F7D5C)', fontWeight: 600 }}>Notifications on</span>
+                <span style={{ color: 'var(--success, #386F52)', fontSize: 16 }}><Icon name="check" size={15} /></span>
+                <span style={{ fontSize: 13, color: 'var(--success, #386F52)', fontWeight: 600 }}>Notifications on</span>
               </div>
             ) : (
               <Button
@@ -1332,7 +1332,7 @@ const styles = {
   channelCheck: {
     fontSize: 16,
     lineHeight: 1,
-    color: 'var(--success, #3F7D5C)',
+    color: 'var(--success, #386F52)',
     flexShrink: 0,
     marginTop: 2,
     fontWeight: 700,
@@ -1355,7 +1355,7 @@ const styles = {
   channelBadgeOn: {
     fontSize: 10,
     fontWeight: 700,
-    color: 'var(--success, #3F7D5C)',
+    color: 'var(--success, #386F52)',
     background: 'rgba(91, 169, 123, 0.12)',
     padding: '3px 8px',
     borderRadius: 6,

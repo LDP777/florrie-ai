@@ -17,7 +17,7 @@ const DEV_TAGS = [
   { id: 't1', name: 'VIP', colour: 'var(--accent, #92405e)', icon: 'star', auto: false, clients: ['Shauna', 'Daisy S', 'Holly B'] },
   { id: 't2', name: 'Patch Test Due', colour: '#FF9800', icon: 'alert-triangle', auto: true, rule: 'Last patch test > 6 months ago', clients: ['Amy R', 'Beth K'] },
   { id: 't3', name: 'Semi-Perm Client', colour: '#9C27B0', icon: 'sparkles', auto: true, rule: 'Has booked any semi-permanent treatment', clients: ['Shauna', 'Daisy S', 'Holly B', 'Amy R', 'Beth K'] },
-  { id: 't4', name: 'New Client', colour: '#4CAF50', icon: 'flower', auto: true, rule: 'First appointment within last 30 days', clients: ['Megan S'] },
+  { id: 't4', name: 'New Client', colour: '#306F33', icon: 'flower', auto: true, rule: 'First appointment within last 30 days', clients: ['Megan S'] },
   { id: 't5', name: 'Dormant', colour: '#9E9E9E', icon: 'moon', auto: true, rule: 'No visit in 60+ days', clients: ['Natalie W', 'Lucy P'] },
   { id: 't6', name: 'Always Late', colour: '#F44336', icon: 'clock', auto: false, clients: ['Jasmin'] },
   { id: 't7', name: 'Loyalty Gold', colour: '#FFC107', icon: 'badge', auto: true, rule: '10+ appointments completed', clients: ['Shauna'] },
@@ -271,7 +271,7 @@ export default function ClientTags() {
 
                 <label style={S.label}>Colour</label>
                 <div style={S.colourRow}>
-                  {['var(--accent, #92405e)', '#FF9800', '#4CAF50', '#9C27B0', '#03A9F4', '#F44336', '#FFC107', '#9E9E9E'].map(c => (
+                  {['var(--accent, #92405e)', '#FF9800', '#306F33', '#9C27B0', '#03A9F4', '#F44336', '#FFC107', '#9E9E9E'].map(c => (
                     <div key={c} style={{ ...S.colourDot, background: c, border: tagForm.colour === c ? '3px solid var(--text-primary)' : '2px solid transparent', cursor: 'pointer' }} onClick={() => setTagForm(f => ({ ...f, colour: c }))} />
                   ))}
                 </div>
@@ -415,7 +415,7 @@ const S = {
   cardName: { fontSize: 14, fontWeight: 600, color: 'var(--text, #241B17)' },
   cardMeta: { fontSize: 12, color: 'var(--text-muted, #6B5D54)' },
   cardRight: { display: 'flex', alignItems: 'center', gap: 8 },
-  autoBadge: { padding: '3px 8px', borderRadius: 6, background: '#FFF8E1', color: 'var(--warning, #8A6420)', fontSize: 10, fontWeight: 600 },
+  autoBadge: { padding: '3px 8px', borderRadius: 6, background: '#FFF8E1', color: 'var(--warning, #79581C)', fontSize: 10, fontWeight: 600 },
   chevron: { fontSize: 10, color: 'var(--text-muted, #6B5D54)' },
 
   expandedSection: { marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border, #E8DDD4)' },

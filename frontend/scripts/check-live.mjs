@@ -52,6 +52,21 @@ if (!ROUTES.length) ROUTES.push(
   '/hours', '/policies', '/business', '/integrations', '/inventory',
   '/patch-tests', '/compliance', '/portfolio', '/knowledge', '/import',
   '/rebook', '/waitlist', '/team', '/notes', '/cancellations',
+  // The other half of the app. App.jsx declares 103 routes; the list above
+  // reached 50 of them, and "a screen nobody has looked at closely" describes
+  // these far better than it describes /money. Everything static and
+  // signed-in goes in — the ones left out are parameterised on a token
+  // (/form/:token, /book/:slug/manage/:token), the wizards (/setup,
+  // /onboarding) and the sign-in pair, which are checked by the guards above
+  // rather than by the assertions.
+  '/hub', '/today', '/value', '/approval-queue', '/digest', '/week-review',
+  '/settings', '/api-settings', '/pricing', '/reports', '/templates',
+  '/sequences', '/consultation-forms', '/photo-consent', '/client-timeline',
+  '/smart-schedule', '/waitlist-pro', '/rota', '/addons', '/tags',
+  '/treatment-stats', '/staff-performance', '/vouchers', '/voice',
+  '/whatsapp', '/whatsapp/templates', '/sms', '/portal', '/locations',
+  '/calendar/full', '/support', '/data-deletion',
+  '/book/ellindigo/confirmed',
 );
 
 const MIME = { '.js':'text/javascript', '.css':'text/css', '.html':'text/html', '.svg':'image/svg+xml',
@@ -83,6 +98,61 @@ const bundleUrl = (() => {
 })();
 await ctx.addInitScript(sessionSeedSource(bundleUrl));
 const page = await ctx.newPage();
+
+/**
+ * How far right an element is actually PAINTED, as a source string so the
+ * self-test at the bottom exercises the same code the sweep runs.
+ *
+ * An ancestor with overflow-x of hidden, clip, auto or scroll clips its
+ * descendants at its own padding edge. `hidden` matters as much as `scroll`
+ * here — arguably more, since a decorative blur circle hung off the corner of
+ * a card is always inside `overflow: hidden` and always overhangs its box.
+ *
+ * Positioning complicates it, so it is handled rather than ignored:
+ *   - a `fixed` element is laid out against the viewport and is not clipped
+ *     by scrolling ancestors at all
+ *   - an `absolute` element is clipped only from its containing block upward.
+ *     A static ancestor in between does not clip it — which is exactly why
+ *     `right: -64px` inside a plain div DOES overhang the screen and inside a
+ *     `position: relative` card does not.
+ */
+const EDGE_SRC = `(() => {
+  const clips = (s) => /hidden|clip|auto|scroll/.test(s.overflowX);
+  const isContainingBlock = (s) =>
+    s.position !== 'static' || s.transform !== 'none' || s.filter !== 'none' ||
+    s.perspective !== 'none' || /paint|layout|strict|content/.test(s.contain || '');
+
+  const visibleRight = (el, r) => {
+    let right = (r || el.getBoundingClientRect()).right;
+    const pos = getComputedStyle(el).position;
+    if (pos === 'fixed') return right;
+    let escaping = pos === 'absolute';
+    for (let n = el.parentElement; n && n !== document.documentElement; n = n.parentElement) {
+      const s = getComputedStyle(n);
+      if (escaping) {
+        // Not yet at the containing block: this ancestor cannot clip it.
+        if (isContainingBlock(s)) escaping = false; else continue;
+      }
+      if (clips(s)) right = Math.min(right, n.getBoundingClientRect().right);
+      if (s.position === 'fixed') break;
+      if (s.position === 'absolute') escaping = true;
+    }
+    return right;
+  };
+
+  /** Enough of a path to find the thing in the source without a bisect. */
+  const pathOf = (el) => {
+    const bits = [];
+    for (let n = el; n && n.id !== 'root' && bits.length < 4; n = n.parentElement) {
+      const cls = typeof n.className === 'string' && n.className.trim()
+        ? '.' + n.className.trim().split(/\\s+/).slice(0, 2).join('.') : '';
+      bits.unshift(n.tagName.toLowerCase() + cls);
+    }
+    return bits.join(' > ');
+  };
+
+  return { visibleRight, pathOf };
+})()`;
 
 // The detector, as a source string, so the self-test at the bottom runs the
 // SAME code against a synthetic page rather than a re-implementation of it.
@@ -121,7 +191,7 @@ const SELF_TEST_SRC = `() => {
 }`;
 
 // Routes that are SUPPOSED to render without a session.
-const PUBLIC = new Set(['/terms', '/privacy', '/login']);
+const PUBLIC = new Set(['/terms', '/privacy', '/login', '/support', '/data-deletion']);
 for (const r of ROUTES) if (r.startsWith('/book/')) PUBLIC.add(r);
 
 const findings = [];
@@ -151,7 +221,8 @@ for (const route of ROUTES) {
     process.exit(1);
   }
 
-  const bad = await page.evaluate(() => {
+  const bad = await page.evaluate((edgeSrc) => {
+    const EDGE = new Function('return ' + edgeSrc)();
     const out = [];
     const push = (kind, detail) => out.push({ kind, ...detail });
 
@@ -179,6 +250,8 @@ for (const route of ROUTES) {
       return { r:255, g:255, b:255, a:1 };
     };
 
+    const { visibleRight, pathOf } = EDGE;
+
     const seen = new Set();
     const leaves = [];
     for (const el of document.querySelectorAll('#root *')) {
@@ -188,13 +261,30 @@ for (const route of ROUTES) {
       if (r.width === 0 || r.height === 0) continue;
       if (s.visibility === 'hidden' || s.opacity === '0') continue;
 
-      // 1. anything wider than the phone
-      if (r.right > 391) {
-        const ps = getComputedStyle(el.parentElement || el);
-        if (!/auto|scroll/.test(ps.overflowX)) {
-          const k = 'w' + el.tagName + own.slice(0, 20);
-          if (!seen.has(k)) { seen.add(k); push('past the right edge', { by: Math.round(r.right - 390), text: own.slice(0, 40) || el.tagName.toLowerCase() }); }
-        }
+      // 1. anything wider than the phone — as PAINTED, not as laid out.
+      //
+      //     This used to look at the immediate parent only, and only for
+      //     `auto|scroll`. Both halves were wrong, and both produced findings
+      //     that cost an hour to chase and turned out to be nothing:
+      //
+      //       /checklist — a decorative 128px blur circle at `right: -64px`
+      //       inside a `position: relative; overflow: hidden` card. Its box
+      //       reaches x=430; not one pixel of it is painted past x=366,
+      //       because `hidden` clips just as hard as `scroll` does. The old
+      //       test only skipped `auto|scroll`, so it reported 40px of overflow
+      //       on something the eye cannot see.
+      //
+      //       /notifications — the horizontal tab strip. The scroll container
+      //       is the strip; the immediate parent of the icon is the BUTTON,
+      //       which is `overflow: visible` like every button. Looking one
+      //       level up finds nothing and reports the fourth tab as broken
+      //       layout when it is a strip you swipe.
+      //
+      //     So: walk up, and clip the rect against every ancestor that clips.
+      //     What is left is what Ellie can actually see off the edge.
+      if (r.right > 391 && visibleRight(el, r) > 391) {
+        const k = 'w' + el.tagName + own.slice(0, 20);
+        if (!seen.has(k)) { seen.add(k); push('past the right edge', { by: Math.round(visibleRight(el, r) - 390), text: own.slice(0, 40) || el.tagName.toLowerCase(), where: pathOf(el) }); }
       }
 
       if (!own) continue;
@@ -311,7 +401,7 @@ for (const route of ROUTES) {
     }
 
     return out.slice(0, 10);
-  });
+  }, EDGE_SRC);
 
   for (const b of bad) findings.push({ route, ...b });
 }
@@ -343,6 +433,44 @@ await page.setContent(`<div id=root>
 </div>`);
 const selfTest = await page.evaluate(`(${SELF_TEST_SRC})()`);
 
+// ---------------------------------------------------------------------------
+// Prove the right-edge rule still fires.
+//
+// It was just made MORE permissive — it now forgives anything a clipping
+// ancestor swallows — and that is the direction in which a check quietly stops
+// working. Four cases, in one 390px-wide page:
+//   over    a plain overhang with nothing to clip it            MUST fire
+//   clipped the /checklist blur circle: absolute, right:-64px,
+//           inside position:relative + overflow:hidden          must NOT fire
+//   strip   the /notifications tab strip: an icon two levels
+//           inside a horizontal scroller                        must NOT fire
+//   escaped absolute right:-64px inside a STATIC overflow:hidden
+//           div — the ancestor is not its containing block, so
+//           it really does hang off the screen                  MUST fire
+await page.setContent(`<style>body{margin:0}</style>
+<div id=root style="width:390px;overflow:visible">
+  <div style="width:390px;position:relative;overflow:hidden;height:40px">
+    <div data-case="clipped" style="position:absolute;top:0;right:0;width:128px;height:40px;margin-right:-64px"></div>
+  </div>
+  <div style="width:358px;overflow-x:auto;display:flex;white-space:nowrap">
+    <button style="flex:0 0 auto;width:200px"><i data-case="strip" style="display:inline-block;width:18px;height:18px"></i></button>
+    <button style="flex:0 0 auto;width:200px"><i data-case="strip2" style="display:inline-block;width:18px;height:18px"></i></button>
+  </div>
+  <div style="width:390px"><div data-case="over" style="width:440px;height:10px"></div></div>
+  <div style="width:390px;overflow:hidden;height:40px">
+    <div data-case="escaped" style="position:absolute;top:200px;right:0;width:128px;height:20px;margin-right:-64px"></div>
+  </div>
+</div>`);
+const edgeTest = await page.evaluate((edgeSrc) => {
+  const { visibleRight } = new Function('return ' + edgeSrc)();
+  const out = {};
+  for (const el of document.querySelectorAll('[data-case]')) {
+    const r = el.getBoundingClientRect();
+    out[el.dataset.case] = { box: Math.round(r.right), painted: Math.round(visibleRight(el, r)) };
+  }
+  return out;
+}, EDGE_SRC);
+
 await browser.close();
 server.close();
 
@@ -360,6 +488,24 @@ if (selfTest.falsePositive) {
   process.exit(1);
 }
 
+for (const [name, want] of [['over', 'over'], ['escaped', 'over'], ['clipped', 'in'], ['strip', 'in'], ['strip2', 'in']]) {
+  const got = edgeTest[name];
+  if (!got) { console.error(`✗ live: the right-edge self-test lost its "${name}" case.\n`); process.exit(1); }
+  const fires = got.painted > 391;
+  if (want === 'over' && !fires) {
+    console.error(`✗ live: the right-edge rule did not fire on "${name}" — box reaches ${got.box}px,\n` +
+      `  and it decided only ${got.painted}px of that is painted. Nothing clips it. If it\n` +
+      `  forgives this it forgives everything, and every green run above means nothing.\n`);
+    process.exit(1);
+  }
+  if (want === 'in' && fires) {
+    console.error(`✗ live: the right-edge rule fired on "${name}", which is clipped by an\n` +
+      `  ancestor and not visible past ${got.painted}px. That is the false positive this\n` +
+      `  rule was rewritten to stop reporting.\n`);
+    process.exit(1);
+  }
+}
+
 if (findings.length) {
   const byRoute = {};
   for (const f of findings) (byRoute[f.route] ||= []).push(f);
@@ -371,6 +517,9 @@ if (findings.length) {
         : f.family ? f.family
         : f.by !== undefined ? `by ${f.by}px` : '';
       console.error(`    ${f.kind}${extra ? ` — ${extra}` : ''}  "${f.text}"`);
+      // "past the right edge — by 40px  div" is not a bug report, it is a
+      // riddle. Two of these cost an hour each to trace back to an element.
+      if (f.where) console.error(`      ${f.where}`);
     }
   }
   console.error('');

@@ -350,7 +350,7 @@ export default function App() {
     return (
       <div style={styles.loadingScreen}>
         <img src="/florrie-petal.svg" alt="" style={{ width: 48, height: 48, animation: 'spin 2.5s ease-in-out infinite' }} />
-        <span style={styles.loadingLogo}>florrie<span style={{ color: 'var(--gold, #8A6420)', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 500 }}>.ai</span></span>
+        <span style={styles.loadingLogo}>florrie<span style={{ color: 'var(--gold, #79581C)', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 500 }}>.ai</span></span>
         <span style={{ fontSize: 11, color: 'var(--text-muted, #6B5D54)', fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '0.08em', textTransform: 'uppercase' }}>your AI team</span>
       </div>
     );
@@ -446,7 +446,7 @@ export default function App() {
       <CoachProvider>
       <div style={styles.appShell} className="app-shell">
         {showTrialWarning && !isIOSNative() && (
-          <div style={{ background: 'var(--gold, #8A6420)', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 13, fontWeight: 500 }}>
+          <div style={{ background: 'var(--gold, #79581C)', color: '#fff', textAlign: 'center', padding: '8px 16px', fontSize: 13, fontWeight: 500 }}>
             {<Icon name="clock" inline />} Your free trial ends in {daysLeft} day{daysLeft === 1 ? '' : 's'}.{' '}
             {/* Points at the real checkout, not a mailto. A beautician who
                 wants to keep Florrie should be able to pay in two taps. */}

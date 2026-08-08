@@ -140,7 +140,7 @@ export default function Team() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ ...styles.statusDot,
-                  background: member.is_active ? 'var(--success, #3F7D5C)' : '#E0DBD5'
+                  background: member.is_active ? 'var(--success, #386F52)' : '#E0DBD5'
                 }} />
                 <span style={styles.chevron}>›</span>
               </div>
@@ -274,7 +274,7 @@ export default function Team() {
             <div style={styles.detailSection}>
               <span style={styles.detailLabel}>Status</span>
               <span style={{ ...styles.detailValue,
-                color: selectedMember.is_active ? 'var(--success, #3F7D5C)' : '#E57373'
+                color: selectedMember.is_active ? 'var(--success, #386F52)' : '#E57373'
               }}>
                 {selectedMember.is_active ? 'Active' : 'Inactive'}
               </span>
@@ -289,10 +289,10 @@ export default function Team() {
                     const h = selectedMember.working_hours[dk];
                     return (
                       <div key={dk} style={styles.hourRow}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: h ? 'var(--text-primary, #241B17)' : '#D5D0CB', width: 32 }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: h ? 'var(--text-primary, #241B17)' : '#756A5F', width: 32 }}>
                           {DAYS[i]}
                         </span>
-                        <span style={{ fontSize: 12, color: h ? '#8A8580' : '#D5D0CB' }}>
+                        <span style={{ fontSize: 12, color: h ? '#8A8580' : '#756A5F' }}>
                           {h ? `${h.start} – ${h.end}` : 'Off'}
                         </span>
                       </div>
@@ -318,7 +318,7 @@ export default function Team() {
                 onClick={() => handleToggleActive(selectedMember)}
                 style={{ ...styles.actionBtn,
                   background: selectedMember.is_active ? '#FFF3E0' : 'var(--success-bg, #E9F0EB)',
-                  color: selectedMember.is_active ? '#F57C00' : 'var(--success, #3F7D5C)',
+                  color: selectedMember.is_active ? '#F57C00' : 'var(--success, #386F52)',
                   borderColor: selectedMember.is_active ? '#FFCC80' : '#A5D6A7'
                 }}
               >
@@ -342,7 +342,7 @@ function PermBadge({ label, on }) {
   return (
     <span style={{ ...styles.permBadge,
       background: on ? 'var(--success-bg, #E9F0EB)' : 'var(--bg-hover, #f3ede9)',
-      color: on ? 'var(--success, #3F7D5C)' : 'var(--text-muted, #6B5D54)'
+      color: on ? 'var(--success, #386F52)' : 'var(--text-muted, #6B5D54)'
     }}>
       {on ? '✓' : '✕'} {label}
     </span>
@@ -386,7 +386,7 @@ const styles = {
   memberName: { fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #241B17)' },
   memberRole: { fontSize: 12, color: 'var(--text-muted, var(--text-muted, #6B5D54))' },
   statusDot: { width: 8, height: 8, borderRadius: 6 },
-  chevron: { fontSize: 18, color: '#D5D0CB', fontWeight: 300 },
+  chevron: { fontSize: 18, color: '#756A5F', fontWeight: 300 },
 
   // Modal
   overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 960, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' },

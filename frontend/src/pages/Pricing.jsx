@@ -303,7 +303,7 @@ const S = {
     boxShadow: 'var(--elev-1)',
   },
   saveBadge: {
-    background: 'var(--success, #3F7D5C)', color: '#fff',
+    background: 'var(--success, #386F52)', color: '#fff',
     fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 6,
   },
 
@@ -323,7 +323,7 @@ const S = {
 
   featureList: { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16, marginTop: 14 },
   feature: { display: 'flex', alignItems: 'center', gap: 8 },
-  featureCheck: { color: 'var(--success, #3F7D5C)', fontSize: 13, fontWeight: 700, flexShrink: 0 },
+  featureCheck: { color: 'var(--success, #386F52)', fontSize: 13, fontWeight: 700, flexShrink: 0 },
   featureText: { fontSize: 13, color: 'var(--text-secondary, #574A42)' },
 
   currentLabel: {

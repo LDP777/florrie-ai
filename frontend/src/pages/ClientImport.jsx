@@ -1034,10 +1034,10 @@ const styles = {
   warnBlock: {
     padding: '10px 14px', borderRadius: 10,
     background: 'var(--warning-bg, #F7EEDD)',
-    border: '1px solid var(--warning, #8A6420)',
+    border: '1px solid var(--warning, #79581C)',
     display: 'flex', flexDirection: 'column', gap: 6,
   },
-  warnLine: { fontSize: 12, color: 'var(--warning-text, #8A6420)', lineHeight: 1.5 },
+  warnLine: { fontSize: 12, color: 'var(--warning-text, #79581C)', lineHeight: 1.5 },
 
   // Platform picker
   platformGrid: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 },
@@ -1082,7 +1082,7 @@ const styles = {
   detectedBadge: {
     padding: '8px 14px', borderRadius: 10,
     background: 'var(--success-bg, #E9F0EB)',
-    color: 'var(--success, #3F7D5C)', fontSize: 13, fontWeight: 500,
+    color: 'var(--success, #386F52)', fontSize: 13, fontWeight: 500,
   },
   summaryGrid: { display: 'flex', gap: 8 },
   summaryCard: {
@@ -1171,7 +1171,7 @@ const styles = {
   doneStat: { display: 'flex', flexDirection: 'column', alignItems: 'center' },
   doneNum: { fontSize: 28, fontWeight: 700, color: 'var(--accent, #92405e)' },
   doneLabel: { fontSize: 11, color: 'var(--text-muted, #6B5D54)', fontWeight: 500 },
-  doneWarn: { fontSize: 12, color: 'var(--warning, #8A6420)', margin: '0 0 12px' },
+  doneWarn: { fontSize: 12, color: 'var(--warning, #79581C)', margin: '0 0 12px' },
   doneDesc: { fontSize: 13, color: 'var(--text-secondary, #574A42)', margin: '0 0 20px', lineHeight: 1.5 },
   doneActions: { display: 'flex', flexDirection: 'column', gap: 8 },
 

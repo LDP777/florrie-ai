@@ -730,7 +730,7 @@ const S = {
   excMeta:     { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' },
   excAway:     { fontSize: 11, color: 'var(--text-muted, #6B5D54)' },
   excNote:     { fontSize: 12, color: 'var(--text-muted)' },
-  notifyTag:   { display: 'block', fontSize: 10, color: 'var(--success, #3F7D5C)', marginTop: 3 },
+  notifyTag:   { display: 'block', fontSize: 10, color: 'var(--success, #386F52)', marginTop: 3 },
   deleteBtn: {
     width: 26, height: 26, borderRadius: 16, border: 'none',
     background: 'var(--danger-bg, #F7E4E4)', color: '#E57373', fontSize: 12, flexShrink: 0,

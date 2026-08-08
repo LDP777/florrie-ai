@@ -35,7 +35,7 @@ const SORT_OPTIONS = [
 ];
 
 const TREND_ICONS = { up: '📈', down: '📉', stable: '➡️' };
-const TREND_COLORS = { up: 'var(--success, #3F7D5C)', down: 'var(--danger, #9E2B32)', stable: 'var(--text-muted, #6B5D54)' };
+const TREND_COLORS = { up: 'var(--success, #386F52)', down: 'var(--danger, #9E2B32)', stable: 'var(--text-muted, #6B5D54)' };
 
 export default function Analytics() {
   const { beautician } = useBeautician();
@@ -356,12 +356,12 @@ export default function Analytics() {
             </div>
 
             <div style={styles.statsGrid}>
-              <StatCard label="No-show rate" value={`${stats.noShowRate}%`} sub={`${stats.noShowCount} no-shows`} color={stats.noShowRate > 10 ? 'var(--danger, #9E2B32)' : 'var(--success, #3F7D5C)'} />
+              <StatCard label="No-show rate" value={`${stats.noShowRate}%`} sub={`${stats.noShowCount} no-shows`} color={stats.noShowRate > 10 ? 'var(--danger, #9E2B32)' : 'var(--success, #386F52)'} />
               <StatCard label="New clients" value={stats.newClients} sub={`of ${stats.totalClients} total`} color="var(--accent, #92405e)" />
               {stats.utilizationRate === null ? (
                 <StatCard label="Utilisation" value="-" sub="set your hours to see this" color="var(--text-secondary, #574A42)" />
               ) : (
-                <StatCard label="Utilisation" value={`${stats.utilizationRate}%`} sub="of available hours" color={stats.utilizationRate > 70 ? 'var(--success, #3F7D5C)' : 'var(--warning, #8A6420)'} />
+                <StatCard label="Utilisation" value={`${stats.utilizationRate}%`} sub="of available hours" color={stats.utilizationRate > 70 ? 'var(--success, #386F52)' : 'var(--warning, #79581C)'} />
               )}
               <StatCard label="Expenses" value={`£${(stats.totalExpenses / 100).toFixed(0)}`} sub="total spend" color="var(--text-secondary, #574A42)" />
             </div>
@@ -695,7 +695,7 @@ const styles = {
   insightCard: { display: 'flex', alignItems: 'center', gap: 12, padding: 14, borderRadius: 10, background: 'var(--warning-bg, #F7EEDD)', marginBottom: 12 },
   insightIcon: { fontSize: 24, flexShrink: 0 },
   insightContent: { display: 'flex', flexDirection: 'column', gap: 2 },
-  insightTitle: { fontSize: 12, fontWeight: 600, color: 'var(--warning, #8A6420)' },
+  insightTitle: { fontSize: 12, fontWeight: 600, color: 'var(--warning, #79581C)' },
   insightText: { fontSize: 13, color: 'var(--text-secondary, #574A42)' },
 
   card: { background: 'var(--bg-card, #FFFCF9)', borderRadius: 16, padding: 16, marginBottom: 12, boxShadow: 'var(--elev-1)' },

@@ -478,6 +478,6 @@ const S = {
     animation: 'slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
     fontFamily: "var(--font-body, 'Plus Jakarta Sans', sans-serif)",
   },
-  toastIcon: { fontSize: 14, color: 'var(--success, #3F7D5C)' },
+  toastIcon: { fontSize: 14, color: 'var(--success, #386F52)' },
   toastText: { whiteSpace: 'nowrap' },
 };

@@ -1574,8 +1574,8 @@ export default function BookingPage() {
                 {memberInfo && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6,
                     padding: '6px 10px', borderRadius: 10, background: 'var(--gold-bg, #FFF8E1)',
-                    border: '1px solid var(--gold, #8A6420)', fontSize: 12, fontWeight: 500,
-                    color: 'var(--gold, #8A6420)',
+                    border: '1px solid var(--gold, #79581C)', fontSize: 12, fontWeight: 500,
+                    color: 'var(--gold, #79581C)',
                   }}><Icon name="star" size={14} inline /> Member, {memberInfo.plan_name}
                   </div>
                 )}
@@ -1907,10 +1907,10 @@ export default function BookingPage() {
               )}
               {discountCents > 0 && (
                 <div style={styles.summaryRow}>
-                  <span style={{ ...styles.summaryLabel, color: 'var(--success, #3F7D5C)' }}>
+                  <span style={{ ...styles.summaryLabel, color: 'var(--success, #386F52)' }}>
                     Discount ({appliedDiscount.code})
                   </span>
-                  <span style={{ ...styles.summaryValue, color: 'var(--success, #3F7D5C)' }}>
+                  <span style={{ ...styles.summaryValue, color: 'var(--success, #386F52)' }}>
                     −<Money pence={discountCents} />
                   </span>
                 </div>
@@ -2000,8 +2000,8 @@ export default function BookingPage() {
             {memberInfo && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12,
                 padding: '8px 12px', borderRadius: 10, background: 'var(--gold-bg, #FFF8E1)',
-                border: '1px solid var(--gold, #8A6420)', fontSize: 13, fontWeight: 500,
-                color: 'var(--gold, #8A6420)',
+                border: '1px solid var(--gold, #79581C)', fontSize: 13, fontWeight: 500,
+                color: 'var(--gold, #79581C)',
               }}>
                 ★ {memberInfo.plan_name} member, any benefits will be applied by your beautician
               </div>
@@ -2017,27 +2017,27 @@ export default function BookingPage() {
                       onClick={() => setSelectedPackage(isSelected ? null : pkg)}
                       style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                         width: '100%', padding: '12px 14px', borderRadius: 10, marginBottom: 6,
-                        border: `1.5px solid ${isSelected ? 'var(--success, #3F7D5C)' : 'var(--border, #E8DDD4)'}`,
+                        border: `1.5px solid ${isSelected ? 'var(--success, #386F52)' : 'var(--border, #E8DDD4)'}`,
                         background: isSelected ? 'var(--success-bg, #E9F0EB)' : 'var(--bg-card)',
                         cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
                       }}
                     >
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <span style={{ fontSize: 14, fontWeight: 600, color: isSelected ? 'var(--success, #3F7D5C)' : 'var(--text-primary)' }}>
+                        <span style={{ fontSize: 14, fontWeight: 600, color: isSelected ? 'var(--success, #386F52)' : 'var(--text-primary)' }}>
                           {isSelected ? '✓ ' : ''}{pkg.package_name}
                         </span>
                         <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                           {pkg.sessions_remaining} of {pkg.sessions_total} sessions remaining
                         </span>
                       </div>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--success, #3F7D5C)' }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--success, #386F52)' }}>
                         Use session
                       </span>
                     </button>
                   );
                 })}
                 {selectedPackage && (
-                  <p style={{ fontSize: 12, color: 'var(--success, #3F7D5C)', marginTop: 4 }}>
+                  <p style={{ fontSize: 12, color: 'var(--success, #386F52)', marginTop: 4 }}>
                     No payment needed, using a session from your {selectedPackage.package_name} package
                   </p>
                 )}
@@ -2048,9 +2048,9 @@ export default function BookingPage() {
               {appliedDiscount ? (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   padding: '10px 14px', borderRadius: 10, background: 'var(--success-bg, #E9F0EB)',
-                  border: '1px solid var(--success, #3F7D5C)', fontSize: 13,
+                  border: '1px solid var(--success, #386F52)', fontSize: 13,
                 }}>
-                  <span style={{ color: 'var(--success, #3F7D5C)', fontWeight: 600 }}>
+                  <span style={{ color: 'var(--success, #386F52)', fontWeight: 600 }}>
                     ✓ {appliedDiscount.code}, saving <Money pence={discountCents} />
                   </span>
                   <button className="fl-tap" onClick={removeDiscount} style={{ background: 'none', border: 'none', fontSize: 16, color: 'var(--text-muted)',
